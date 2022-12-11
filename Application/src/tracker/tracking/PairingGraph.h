@@ -185,6 +185,9 @@ namespace Match {
         size_t degree(fish_index_t) const;
         
         bool empty() const; // no elements in the graph
+        std::string toStr() const;
+        static std::string class_name() { return "PairedProbabilities"; }
+        
     private:
         blob_index_t add(col_t::value_type);
     };

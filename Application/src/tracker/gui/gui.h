@@ -58,6 +58,15 @@ public:
     static GUI* instance();
     static Vec2 pad_image(cv::Mat& padded, Size2 output_size);
     static std::vector<gui::Drawable*>& static_pointers();
+    
+    struct StartupSettings {
+        Frame_t frame;
+        std::optional<std::vector<Idx_t>> focus_group;
+    };
+    static StartupSettings& gui_frame_on_startup() {
+        static StartupSettings frame;
+        return frame;
+    }
 
 private:
     //! Saved reference to the average image.

@@ -29,6 +29,17 @@ PairedProbabilities::col_t::value_type PairedProbabilities::col(blob_index_t cdx
     return _cols[(index_t)cdx];
 }
 
+std::string PairedProbabilities::toStr() const {
+    std::stringstream ss;
+    for(auto &row : _rows) {
+        ss << row->identity().name() << ":\n";
+        for(auto idx : edges_for_row(index(row))) {
+            ss << "\t" << (col(idx.cdx) ? (*col(idx.cdx))->name() : "null") << ":" << idx.p << "\n";
+        }
+    }
+    return ss.str();
+}
+
 size_t PairedProbabilities::degree(fish_index_t rdx) const {
     assert((Match::index_t)rdx < _degree.size());
     return _degree[(index_t)rdx];

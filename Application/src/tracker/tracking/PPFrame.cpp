@@ -177,10 +177,6 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
         for(auto i = start; i < start + N; ++i, ++it) {
             auto fish = *it;
             
-            Vec2 last_pos(-1,-1);
-            Frame_t last_frame;
-            long_t last_L = -1;
-
             // IndividualCache is in the same position as the indexes here
             auto &cache = cache_map[fish->identity().ID()];
             cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
@@ -193,6 +189,10 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
             // does the current individual have the frame previous to the current frame?
             //! try to find a frame thats close in time AND space to the current position
             size_t counter = 0;
+            Vec2 last_pos(-1,-1);
+            Frame_t last_frame = cache.previous_frame;
+            long_t last_L = -1;
+            
             auto sit = fish->iterator_for(cache.previous_frame);
             if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame))
             {

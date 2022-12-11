@@ -92,9 +92,8 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
     
     output = pixel::threshold_blob(*_cache, _blob, _diff_px, threshold);
     
-    for(auto &blob: output) {
+    for(auto &blob: output)
         blob->add_offset(-_blob->bounds().pos());
-    }
     
     std::sort(output.begin(), output.end(),
        [](const pv::BlobPtr& a, const pv::BlobPtr& b) { 

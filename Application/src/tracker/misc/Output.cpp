@@ -486,7 +486,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     double time;
     
-    data_long_t prev_frame = -1;
+    Frame_t prev_frame;
     data_long_t frameIndex;
     
     //!TODO: too much resize.
@@ -504,8 +504,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     //! read the actual frame data, pushing to worker thread each time
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);
-        if(prev_frame == -1 && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
-            prev_frame = frameIndex;
+        //if(!prev_frame.valid()
+        //   && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
+        //    prev_frame = frameIndex;
         
         {
             ref.read<Vec2>(data.pos);
@@ -530,8 +531,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         data.index = index;
         data.stuff = std::make_unique<BasicStuff>();
         data.stuff->frame = Frame_t(frameIndex);
-        data.stuff->centroid.init(prev, time, data.pos, data.angle);
-        prev = &data.stuff->centroid;
         
         read_blob(ref, data.stuff->blob);
         
@@ -545,10 +544,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             continue;
         }
         
-        data.prev_frame =
-            prev_frame == -1
-                ? Frame_t{Frame_t::invalid}
-                : Frame_t(prev_frame);
+        data.prev_frame = prev_frame;
+        prev_frame = Frame_t(frameIndex);
+        
+        data.stuff->centroid.init(prev, time, data.pos, data.angle);
+        prev = &data.stuff->centroid;
         
         {
             std::unique_lock guard(mutex);
@@ -556,7 +556,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
         variable.notify_one();
         
-        prev_frame = frameIndex;
         ++index;
         
         if(i%100000 == 0 && i)

@@ -3902,9 +3902,14 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 if(config.has("gui_focus_group"))
                     focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
                 
-                if(GUI::instance()) {
-                    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame), focus_group](){
+                if(GUI::instance() && !gui_frame_on_startup().frame.valid()) {
+                    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame)](){
                         SETTING(gui_frame) = f;
+                    });
+                }
+                
+                if(GUI::instance() && !gui_frame_on_startup().focus_group.has_value()) {
+                    WorkProgress::add_queue("", [focus_group](){
                         SETTING(gui_focus_group) = focus_group;
                     });
                 }

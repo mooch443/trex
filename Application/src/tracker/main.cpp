@@ -1340,8 +1340,16 @@ int main(int argc, char** argv)
             
             // explicitly set gui_frame if present in command-line
             if(cmd.settings_keys().find("gui_frame") != cmd.settings_keys().end()) {
+                GUI::gui_frame_on_startup().frame = Meta::fromStr<Frame_t>(cmd.settings_keys().at("gui_frame"));
                 gui::WorkProgress::add_queue("", [&](){
-                    SETTING(gui_frame) = Meta::fromStr<Frame_t>(cmd.settings_keys().at("gui_frame"));
+                    SETTING(gui_frame) = GUI::gui_frame_on_startup().frame;
+                });
+            }
+            
+            if(cmd.settings_keys().find("gui_focus_group") != cmd.settings_keys().end()) {
+                GUI::gui_frame_on_startup().focus_group = Meta::fromStr<std::vector<Idx_t>>(cmd.settings_keys().at("gui_focus_group"));
+                gui::WorkProgress::add_queue("", [&](){
+                    SETTING(gui_focus_group) = GUI::gui_frame_on_startup().focus_group.value();
                 });
             }
         }
