@@ -236,15 +236,16 @@ void draw(Frame_t frame, DrawStructure& graph) {
                 continue;
             }
             
-            auto midline = fish->midline(frame)->transform(normalize);
+            auto midline = fish->midline(frame);
+            auto transform = midline ? midline->transform(normalize) : gui::Transform();
             auto segment = fish->segment_for(frame);
             if(!segment)
                 U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", fish->identity(), " despite finding a blob ", *blob);
             
             auto filters = constraints::local_midline_length(fish, segment->range);
-            auto &&[image, pos] = constraints::diff_image(normalize, pixels, midline, filters ? filters->median_midline_length_px : 0, output_shape, &Tracker::average());
+            auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &Tracker::average());
             
-            if(image->empty())
+            if(!image || image->empty())
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
