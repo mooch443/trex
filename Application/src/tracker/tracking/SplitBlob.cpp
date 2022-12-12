@@ -64,10 +64,6 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_algorithm", SETTING(blob_split_algorithm).get());
     }
     
-#if DEBUG_ME
-    print("SplitBlob(", blob->blob_id(),")");
-#endif
-    
     imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), posture_threshold, &average.image());
     
     blob->set_tried_to_split(true);
@@ -101,107 +97,186 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
        });
     
     return output.empty() ? 0 : (*output.begin())->pixels()->size();
-    /*auto first_method = timer.elapsed();
-    
-    static std::mutex local_mutex;
-    static double samples, timer1, timer2, ratio;
-    std::lock_guard<std::mutex> guard(local_mutex);
-    ++samples;
-    timer1 += first_method;
-    timer2 += second_method;
-    ratio += first_method / second_method;
-    if(size_t(samples) % 10000 == 0) {
-        if(samples >= 100000) {
-            timer1 /= samples;
-            timer2 /= samples;
-            ratio /= samples;
-            samples = 1;
-        }
-        
-        print("Samples: ",size_t(samples),"u, timer1: ",timer1 / samples * 1000,"ms timer2: ",timer2 / samples * 1000,"ms ratio: ",ratio / samples);
-    }
-    
-        return max_size;*/
 }
 
-SplitBlob::Action SplitBlob::evaluate_result_single(std::vector<pv::BlobPtr> &result) {
-    float size = result.front()->num_pixels() * SQR(SLOW_SETTING(cm_per_pixel));
-    // dont use fish that are too big
-    if(size > fish_minmax.max_range().end)
-        return REMOVE;
-    
-#if DEBUG_ME
-    // evaluate result
-    display_match({0, result}, {});
-#endif
-    
-    // delete unnecessary blobs
-    if(result.size() > 1) {
-        result.resize(1);
-    }
-    
-    return KEEP;
-}
-
-SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs, ResultProp &r)
+/**
+ * This function evaluates the result of `apply_threshold`, looking for acceptable configurations of blobs given the expected number of objects and relative sizes.
+ *
+ * It expects the blobs to be given in descending order of size.
+ *
+ * The rules are enforced in this order:
+ *  1. given `presumed_number` of expected objects, are enough objects found?
+ *  2. the `num_px * sqcmppx` of each object must have a similar value as the preceeding and following one, up to the number of `presumed_number` objects down. this is enforced by finding the minimum ratio between focal and following object sizes - which is a ratio between [0,1] - and comparing to 0.3/0.4 depending on the algorithm. if the min ratio is smaller than e.g. 0.3, then the objects are of vastly different sizes where we would expect similar sized objects.
+ *  3. objects have to be larger than a minimum threshold, which is the `blob_size_ranges.max_range[0] * global_shrink_limit`. anything (within objects `0..presumed_nr`) that's smaller than that is not considered a valid object
+ *  4. the size of the object that we started out with, before splitting, cannot be shrunk further than `blob_split_max_shrink * first_size`. so each object has to be larger than that divided by the number of expected blobs in order to form the min number of objects required.
+ */
+split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs)
 {
-    // this is way more than we need...
-    //assert(presumed_nr <= 2); // only tested with 2 so far
-    //display_match({0, result});
-    if(blobs.size() > presumed_nr) {
-    //    blobs.resize(presumed_nr);
+    size_t pixels = 0;
+    std::optional<size_t> min_size;
+    for(size_t i=0; i < blobs.size(); ++i) {
+        pixels += blobs.at(i)->num_pixels();
     }
     
-    const float min_size_threshold = fish_minmax.max_range().start * blob_split_global_shrink_limit;// * presumed_nr;
-    
-    size_t offset = 0;
-    float ratio = 0;
-    while(presumed_nr <= blobs.size() && offset <= blobs.size() - presumed_nr && ratio < 0.3) {
-        float fsize = float(blobs.at(0 + offset)->num_pixels()) * sqrcm;
-        if(fsize < min_size_threshold || (first_size != 0 && fsize / first_size < blob_split_max_shrink / presumed_nr)) { //)) {
-#if DEBUG_ME
-            print("\tbreaking because fsize ", fsize," / ", min_size_threshold," / ",first_size);
-#endif
-            break;
-        }
-        
-        float min_ratio = FLT_MAX;
-        for(size_t i=1; i<presumed_nr; ++i) {
-            ratio = blobs.size() > 1 ? (fsize / ( float(blobs.at(offset+i)->num_pixels() * sqrcm))) : 1;
-            if(ratio > 1)
-                ratio = 1/ratio;
-            
-            if(ratio < min_ratio)
-                min_ratio = ratio;
-        }
-        
-        if(min_ratio != FLT_MAX)
-            ratio = min_ratio;
-        else
-            ratio = 0;
-        
-        ++offset;
+    if(pixels * sqrcm < blob_split_max_shrink * first_size) {
+        return split::Action::ABORT;
     }
-    r.ratio = ratio;
     
-    if(presumed_nr <= blobs.size() && ((blob_split_algorithm == blob_split_algorithm_t::threshold && ratio >= 0.3) || (blob_split_algorithm == blob_split_algorithm_t::fill && ratio >= 0.4))) 
+    const float min_size_threshold = fish_minmax.max_range().start * blob_split_global_shrink_limit;
+    auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
+        auto fsize = blob->num_pixels() * sqrcm;
+        return fsize < min_size_threshold;
+    });
+    blobs.erase(it, blobs.end());
+    
+    for(size_t i=0; i<presumed_nr && i < blobs.size(); ++i) {
+        if(!min_size.has_value() || blobs.at(i)->num_pixels() < min_size.value()) {
+            min_size = blobs.at(i)->num_pixels();
+        }
+    }
+    
+    if(min_size.has_value()
+       && min_size.value() * sqrcm > fish_minmax.max_range().end)
     {
-        return KEEP_ABORT;
+        return split::Action::REMOVE;
     }
     
-    return REMOVE;
+    if(blobs.size() < presumed_nr) {
+        return split::Action::TOO_FEW;
+    }
+    
+    return split::Action::KEEP_ABORT;
+}
+
+struct Run {
+    int count{0};
+    int best{-1};
+    int found_in_step{-1};
+    robin_hood::unordered_flat_map<int, split::Action_t> results;
+    std::vector<std::tuple<int, split::Action_t>> tried;
+    int lowest_non_remove{-1}, highest_remove{-1};
+    
+    split::Action_t perform(int threshold, int step, auto&& F, auto... args) {
+        if(best != -1 && best < threshold)
+            return split::Action::ABORT;
+        if(results.contains(threshold)) {
+            auto action = results.at(threshold);
+            if(action == split::Action::KEEP_ABORT
+               && (best == -1 || best > threshold))
+            {
+                print("Somehow found this in ", threshold, " in the map.");
+                best = threshold;
+                found_in_step = step;
+            }
+            
+            if(action != split::Action::REMOVE
+               && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
+                lowest_non_remove = threshold;
+            } else if(action == split::Action::REMOVE) {
+                if(threshold > highest_remove) {
+                    highest_remove = threshold;
+                }
+            }
+            
+            return action;
+        }
+        
+        auto action = F(threshold, args...);
+        if(action == split::Action::KEEP
+           || action == split::Action::KEEP_ABORT)
+        {
+            assert(best == -1 || best > threshold);
+            best = threshold;
+            found_in_step = step;
+        }
+        
+        if(action != split::Action::REMOVE
+           && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
+            lowest_non_remove = threshold;
+        } else if(action == split::Action::REMOVE) {
+            if(threshold > highest_remove) {
+                highest_remove = threshold;
+            }
+        }
+        
+        //tried.push_back({threshold, action});
+        results[threshold] = action;
+        ++count;
+        return action;
+    }
+};
+
+void commit_run(pv::bid bdx, Run naive, Run next) {
+    static std::atomic<int64_t> thresholds = 0, samples_naive{0};
+    static std::atomic<int64_t> samples = 0;
+    
+    thresholds += next.count;
+    ++samples;
+    samples_naive += naive.count;
+    
+    static std::atomic<size_t> matches{0}, mismatches{0};
+    static std::atomic<int64_t> offsets{0}, max_offset{0}, not_found{0}, would_find{0}, second_try{0}, preproc{0}, third{0}, count_from_not_found{0};
+    static std::mutex m;
+    static std::map<int64_t, size_t> often;
+    
+    if(next.found_in_step == 2)
+        ++second_try;
+    if(next.found_in_step == 0)
+        ++preproc;
+    if(next.found_in_step >= 3)
+        ++third;
+    
+    if(naive.best == -1) {
+        count_from_not_found += next.count;
+    }
+    
+    if(naive.best != next.best) {
+        
+        
+        if(next.best != -1 && naive.best != -1) {
+            if(std::abs(next.best - naive.best) > 2) {
+                print(bdx, " Naive count: ", naive.count, " (t=",naive.best,") vs ", next.count, " (t=",next.best,") and map ", next.tried, " vs ", naive.tried);
+            }
+                auto offset = std::abs(next.best - naive.best);
+                offsets += offset;
+                max_offset = max(max_offset.load(), offset);
+                ++mismatches;
+                
+                std::unique_lock guard(m);
+                ++often[next.best - naive.best];
+            //} else {
+                // slight deviation is okay
+             //   ++matches;
+            //}
+            
+        } else if(next.best == -1) {
+            ++not_found;
+            ++mismatches;
+        }
+        
+    } else
+        ++matches;
+    
+    if(samples.load() % 2000 == 0) {
+        auto m0 = matches.load(), m1 = mismatches.load();
+        auto off = offsets.load();
+        print("Samples: ", float(thresholds) / float(samples), " (vs. ", float(samples_naive.load()) / float(samples.load()),") ", float(m1) / float(m0 + m1) * 100, "% mismatches (avg. ", float(off) / float(m1), " offset for ", m1," elements) ", float(not_found.load()) / float(m1) * 100, "% not found, ", float(would_find.load()) / float(not_found.load()) * 100, "% could have been found, ", float(second_try.load()) / float(samples.load()) * 100, "% found in second try, ", float(preproc.load()) / float(samples.load()) * 100, "% found in preprocess ", float(third.load()) / float(samples.load()) * 100, "% found in third try, ", float(count_from_not_found.load()) / float(thresholds.load()) * 100, "% from not found objects");
+        std::unique_lock guard(m);
+        print(often);
+    }
 }
 
 std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers)
 {
-    std::map<int, ResultProp> best_matches;
+    //std::map<int, ResultProp> best_matches;
+    ResultProp best_match;
     
     size_t calculations = 0;
     Timer timer;
     std::vector<pv::BlobPtr> blobs;
     float first_size = 0;
     size_t more_than_1_times = 0;
-
+    
     const auto apply_watershed = [this](const std::vector<Vec2>& centers, std::vector<pv::BlobPtr>& output) {
         static const cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * 1 + 1, 2 * 1 + 1), cv::Point(1, 1));
 
@@ -275,22 +350,19 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         return output.empty() ? 0 : (*output.begin())->pixels()->size();
     };
     
-    const auto fn = [&apply_watershed, &calculations, &blobs, &centers, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold)
+    float max_size;
+    const auto fn = [&](int threshold, bool save)
     {
         calculations++;
         
-#if DEBUG_ME
-        print("T:", threshold);
-#endif
-        float max_size;
         if(blob_split_algorithm == blob_split_algorithm_t::threshold)
             max_size = apply_threshold(threshold, blobs) * sqrcm;
         else
             max_size = (threshold == -1 ? apply_threshold(threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
         
         // cant find any blobs anymore...
-        if(blobs.empty())
-            return ABORT;
+        //if(blobs.empty())
+        //    return split::Action::ABORT;
         
         // save the maximum number of objects found
         max_objects = max(max_objects, blobs.size());
@@ -298,17 +370,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         ResultProp result;
         result.threshold = threshold;
         
-        Action action;
-        // reduced the blob way too much
-        if(first_size != 0 && max_size / first_size <= blob_split_max_shrink / presumed_nr) { //* presumed_nr) {
-            action = ABORT;
-            
-            // differentiate between "search [single/multiple]" fish cases
-        } else if(presumed_nr == 1) {
-            action = evaluate_result_single(blobs);
-        } else {
-            action = evaluate_result_multiple(presumed_nr, first_size, blobs, result);
-        }
+        auto action = evaluate_result_multiple(presumed_nr, first_size, blobs);
         
         if(first_size == 0)
             first_size = max_size;
@@ -317,89 +379,235 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             more_than_1_times++;
         
         // we found enough blobs, so we're allowed to keep it
-        if(action == KEEP || action == KEEP_ABORT) {
-#if DEBUG_ME
-            print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,") with centers: ", centers);
-#endif
-            
-            result.blobs = std::move(blobs);
-            best_matches[threshold] = std::move(result);
+        if(action == split::Action::KEEP
+           || action == split::Action::KEEP_ABORT)
+        {
+            if(save) {
+                if(best_match.threshold == -1
+                   || result.threshold < best_match.threshold)
+                {
+                    result.blobs = std::move(blobs);
+                    best_match = std::move(result);
+                }
+            }
+            //print(" inserting ", threshold);
         }
 
         blobs.clear();
         return action;
     };
     
-    auto action = fn(-1);
+    auto action = fn(-1, true);
     
-    if(action != KEEP 
-        && action != KEEP_ABORT 
+    if(action != split::Action::KEEP
+       && action != split::Action::KEEP_ABORT
         && _blob->pixels()->size() * sqrcm < fish_minmax.max_range().end * 100) 
     {
         
         if(presumed_nr > 1) {
             if(blob_split_algorithm == blob_split_algorithm_t::threshold) {
-                for(int i = posture_threshold + 10; i < 255; i += 1) {
-                    action = fn(i);
-                    if(action == ABORT || action == KEEP_ABORT)
-                        break;
+                
+                // start in the center
+                // 51, half = 26
+                /*
+                 t = 26
+                 fn(26) = ABORT => half = half * 0.5 + 0.5 = 13; t -= half
+                 
+                 fn(13) = KEEP_ABORT => 0.5half = 7; t -= half = 6;
+                 fn(6) = REMOVE => 0.5half = 4; t += half = 10;
+                 fn(10) = KEEP_ABORT => 0.5half = 2; t -= half = 8
+                 fn(8) = REMOVE => 0.5half = 1; t += half = 9
+                 fn(9) = REMOVE
+                 
+                 -------------
+                 >> use fn(10) since it was the smallest possible threshold
+                 
+                 RULES:
+                    1. IF ABORT => LOWER
+                    2. IF REMOVE => INCREASE
+                    3. IF KEEP_ABORT => try a lower threshold
+                 */
+                
+                Run run;
+                const auto min_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), posture_threshold) : SLOW_SETTING(track_threshold)) + 1;
+                
+                //if(false)
+                /*{
+                    static constexpr std::array<int, 3> offsets {
+                        1, 8, 16
+                    };
+                    
+                    const float normalization = 1.f;
+                    //const float normalization = 1.f / 64.f * (254.f - (min_threshold + 1));
+                    
+                    //print("starting at ", posture_threshold + 1, " with offsets ", offsets, " and normalize ", normalization);
+                    for (const auto o : offsets) {
+                        const auto t = saturate(int(min_threshold + o * std::max(1.f, normalization)), min_threshold, 254);
+                        auto action = run.perform(t, 0, fn, true);
+                        
+                        if(action == split::Action::ABORT
+                           || action == split::Action::KEEP_ABORT)
+                        {
+                            break;
+                        }
+                    }
+                }*/
+                
+                int begin = min(254, min_threshold);
+                int end = run.best == -1 ? 254 : (run.best - 1);
+                auto half = int((end - begin) * 0.5 + 0.5);
+                int t = begin + half;
+                int minimal = min_threshold, maximal = 254;
+                int avoided = 0;
+                
+                //print("Solving ", *_blob, " starting at ", t, " begin=",begin," end=",end);
+                
+                /*while ((run.best == -1 || run.best > min_threshold)
+                       && half >= 1)
+                {
+                    auto action = run.perform(t, 1, fn, true);
+                    //print(*_blob, "@t=",t, " half=",half," => ", action, " max_size=",max_size, " (", run.best, " ", run.count,")");
+                    
+                    if(action == split::Action::ABORT
+                       || action == split::Action::KEEP_ABORT
+                       || action == split::Action::KEEP
+                       || action == split::Action::SKIP)
+                    {
+                        if(half == 1)
+                            half = 0;
+                        else
+                            half = int(half * 0.5);
+                        
+                        t -= half;
+                        
+                    } else if(action == split::Action::REMOVE) {
+                        if(half == 1)
+                            half = 0;
+                        else
+                            half = int(half * 0.5);
+                        t += half;
+                        
+                    } else if(action == split::Action::TOO_FEW) {
+                        if(half == 1)
+                            half = 0;
+                        else {
+                            half = int(half * 0.5);
+                            //q.push({t - half, half});
+                        }
+                        t += half;
+                        
+                    } else
+                        throw U_EXCEPTION("Invalid action ", action);
+                }*/
+                
+                static constexpr bool accurate = false;
+                
+                if(run.best == -1) {
+                    
+                    auto search_range = [&fn, &minimal, &maximal, &avoided](const arange<int> range, Run& run, const int step, const int offset, const int index = 1)
+                    {
+                        //print("Searching ", range.first, " to ", range.last, " with step ", step, " and offset ", offset, " minimal=", minimal, " and maximal=", maximal);
+                        
+                        for(int i = range.first + offset; i < range.last; i += step)
+                        {
+                            auto action = run.perform(i, index, fn, true);
+                            //if(i < minimal || i > maximal)
+                            //    ++avoided;
+                            
+                            if(action == split::Action::ABORT
+                               || action == split::Action::KEEP_ABORT)
+                            {
+                                return;
+                            }
+                        }
+                    };
+                    
+                    //search_range(arange(min_threshold, maximal), run, 50, 0, 0);
+                    
+                    const int step = 4;
+                    //run.best = -1;
+                    int resolution = step;
+                    
+                    for(int o = 0; o < step; ++o) {
+                        //maximal = run.best == -1 ? 254 : run.best;
+                        //if(run.lowest_non_remove != -1)
+                        //    minimal = max(min_threshold, run.lowest_non_remove - step);
+                        //step = int((maximal - min_threshold) * 0.015) + 1;
+                        resolution = step - o;
+                        int best = run.best;
+                        search_range(arange(minimal, maximal), run, step, o);
+                        
+                        if(run.best != -1) {
+                            if constexpr(accurate)
+                                break;
+                            else
+                                maximal = min(run.best, maximal);
+                        }
+                        //minimal = max(min_threshold, run.lowest_non_remove + 1 - step * 2);
+                        
+                        if(!accurate) {
+                            if(best == -1 && run.best != -1) {
+                                minimal = max(min_threshold, (run.best - ((run.best - min_threshold) % step)) - step);
+                                maximal = max(min_threshold, run.best);
+                            } /*else if(run.lowest_non_remove != -1 && run.best == -1) {
+                               minimal = max(min_threshold, (run.lowest_non_remove - ((run.lowest_non_remove - min_threshold) % step)) - step);
+                               }*/
+                        }
+                    }
+                    
+                    if(accurate && run.best != -1) {
+                        for(int i=minimal; i<run.best; ++i) {
+                            auto action = run.perform(i, 3, fn, true);
+                            //if(i < minimal || i > maximal)
+                            //    ++avoided;
+                            
+                            if(action == split::Action::ABORT
+                               || action == split::Action::KEEP_ABORT)
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    //if(run.best != -1 && resolution > 0)
+                    //    search_range(arange(run.best - resolution, run.best), run, 1, 0);
                 }
+                
+                /*if(run.best != -1) {
+                    for(int i = max(min_threshold, run.best - 9); i < 255 && i < run.best; i+=2)
+                    {
+                        auto action = run.perform(i, 3, fn, true);
+                        //print("##",*_blob, "@t=",i," => ", action, " max_size=",max_size, " (", run.best, " ", run.count,")");
+                        if(action == split::Action::ABORT
+                           || action == split::Action::KEEP_ABORT)
+                        {
+                            break;
+                        }
+                    }
+                }*/
+                
+                /*Run naive;
+                for(int i = min_threshold; i < 254; ++i)
+                {
+                    auto action = naive.perform(i, 0, fn, false);
+                    if(action == split::Action::ABORT
+                       || action == split::Action::KEEP_ABORT)
+                    {
+                        break;
+                    }
+                }
+                
+                commit_run(_blob->blob_id(), naive, run);*/
             }
             else
-                action = fn(0);
+                action = fn(0, true);
         }
     }
     
-    int best = INT_MIN;
-    if(presumed_nr > 1) {
-        if(!best_matches.empty())
-            best = best_matches.begin()->first;
-        
-    } else if(presumed_nr == 1 && (max_objects == 1 || more_than_1_times < 2)) {
-        // special case, where an object just has part of a wall inside it
-        // just take something in the middle.
-        
-        auto it = best_matches.begin();
-        for (size_t i=0; i<=ceil(best_matches.size() * 0.3) && it != best_matches.end(); i++, ++it)
-            best = it->first;
-        
-    } else {
-        bool after_two = false;
-        size_t max_size = 0;
-        float bestp = 0;
-        
-        for (auto &p : best_matches) {
-            float percent = p.second.ratio * p.second.blobs.front()->num_pixels();
-            max_size = max(p.second.blobs.front()->num_pixels(), max_size);
-            
-            if(max_objects >= 2) {
-                if(!after_two && p.second.blobs.size() < 2)
-                    continue;
-                else if(!after_two)
-                    after_two = true;
-            }
-#if DEBUG_ME
-            print("Match: ",p.first," with ratio ",p.second.ratio,", ",p.second.blobs.size()," blobs, ",percent," percent");
-#endif
-            if(percent > bestp) {
-                best = p.first;
-                bestp = percent;
-            }
-        }
-    }
-    
-#if DEBUG_ME
-    print(calculations," calculations in ",dec<4>(timer.elapsed()),"s");
-#endif
-    
-    std::vector<pv::BlobPtr> result;
-    if(best != INT_MIN) {
-        result = { best_matches.at(best).blobs };
+    if(best_match.threshold != -1) {
         std::vector<uchar> grey;
         
-        for (size_t idx = 0; idx < result.size(); idx++) {
-            auto& blob = result.at(idx);
-            
+        for (auto& blob : best_match.blobs) {
             if(!blob->pixels()) {
                 grey.clear();
                 int32_t N = 0;
@@ -416,82 +624,9 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             }
         }
         
-        
-#if DEBUG_ME
-        print("Best result with threshold ", best);
-        display_match({best, best_matches.at(best).blobs}, centers);
-#endif
-    } else {
-#if DEBUG_ME
-        FormatWarning("Not found ", presumed_nr," objects. ", best_matches);
-        tf::imshow("original", _original);
-        
-        /*cv::Mat tmp;
-        
-        for(int i=0; i<100; i++) {
-            cv::threshold(_original, tmp, posture_threshold + i*5, 255, cv::THRESH_BINARY);
-            //cv::morphologyEx(tmp, tmp, cv::MORPH_OPEN, element);
-            //cv::dilate(tmp, tmp, element);
-            
-            cv::putText(tmp, std::to_string(posture_threshold + i*5), Vec2(10, 10), cv::FONT_HERSHEY_PLAIN, 0.5, cv::Scalar(255, 255, 255));
-            
-            cv::imshow("erosion", tmp);
-            cv::waitKey();
-        }*/
-#endif
+        return best_match.blobs;
     }
     
-    best_matches.clear();
-    return result;
+    //! could not find anything
+    return {};
 }
-
-#if DEBUG_ME
-void SplitBlob::display_match(const std::pair<const int, std::vector<pv::BlobPtr>>& blobs, const std::vector<Vec2>& centers)
-{
-    ColorWheel wheel;
-    cv::Mat copy;
-    cv::cvtColor(_original, copy, cv::COLOR_GRAY2BGR);
-    
-    for (auto& blob : blobs.second) {
-        auto clr = wheel.next();
-        
-        cv::Mat fish;
-        auto lines = blob->hor_lines();
-        lines2mask(lines, fish);
-        
-        cv::Mat mask;
-        fish.copyTo(mask);
-        cv::cvtColor(fish, fish, cv::COLOR_GRAY2BGR);
-        fish = clr;
-        
-        int offx, offy;
-        offx = (blob->bounds().width - fish.cols)/2;
-        offy = (blob->bounds().height - fish.rows)/2;
-        
-        int x = blob->bounds().x + offx,
-        y = blob->bounds().y + offy;
-        if(x < 0) x = 0;
-        if(y < 0) y = 0;
-        
-        int w = fish.cols, h = fish.rows;
-        w = min(_original.cols-x, w);
-        h = min(_original.rows-y, h);
-        
-        auto subtmp = copy(cv::Rect(x, y, w, h));
-        auto submask = mask(cv::Rect(0, 0, w, h));
-        
-        // make the fish thinner again
-        cv::bitwise_and(submask, _original(cv::Rect(x, y, w, h)), submask);
-        fish(cv::Rect(0, 0, w, h)).copyTo(subtmp, submask);
-    }
-
-    for(auto& p : centers) {
-        cv::circle(copy, p, 2, gui::Red, 1);
-        cv::circle(copy, p, 2, gui::White, cv::FILLED);
-    }
-
-    tf::imshow("copy", copy);
-//cv::waitKey();
-}
-#endif
-

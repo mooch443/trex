@@ -117,6 +117,7 @@ struct slow {
     DEF_SLOW_SETTINGS(analysis_range);
     DEF_SLOW_SETTINGS(track_threshold);
     DEF_SLOW_SETTINGS(track_max_reassign_time);
+    DEF_SLOW_SETTINGS(calculate_posture);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);

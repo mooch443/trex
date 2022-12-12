@@ -251,6 +251,9 @@ namespace pv {
                 num_pixels += l.x1() - l.x0() + 1;
             }
             
+            if(num_pixels >= std::numeric_limits<uint32_t>::max()) {
+                FormatWarning("Something is happening here ", index(), " ", num_pixels, " ", uint64_t(-1));
+            }
             pixels.resize(num_pixels, false);
             ptr->read_data(num_pixels, pixels.data());
             

@@ -4,11 +4,29 @@
 #include <misc/GlobalSettings.h>
 #include <misc/PVBlob.h>
 
-//#define DEBUG_ME true
-
 namespace track { class SplitBlob; }
 
 namespace cmn { namespace CPULabeling { struct ListCache_t; }}
+
+namespace track {
+
+namespace split {
+
+ENUM_CLASS(Action,
+    KEEP,
+    KEEP_ABORT,
+    REMOVE,
+    ABORT,
+    TOO_FEW,
+           SKIP,
+    NO_CHANCE
+)
+
+using Action_t = Action::Class;
+
+}
+
+}
 
 //! This class tries to find multiple blobs within a big blob.
 //  One blob represents one individual.
@@ -16,7 +34,7 @@ class track::SplitBlob {
     struct ResultProp {
         float fitness;
         float ratio;
-        int threshold;
+        int threshold{-1};
         std::vector<pv::BlobPtr> blobs;
         //std::vector<std::vector<uchar>> pixels;
         
@@ -26,13 +44,6 @@ class track::SplitBlob {
         static std::string class_name() {
             return "SplitBlob::ResultProp";
         }
-    };
-    
-    enum Action {
-        KEEP,
-        KEEP_ABORT,
-        REMOVE,
-        ABORT
     };
     
 private:
@@ -60,12 +71,7 @@ public:
     
 private:
     size_t apply_threshold(int threshold, std::vector<pv::BlobPtr> &output);
-    Action evaluate_result_single(std::vector<pv::BlobPtr>&);
-    Action evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&, ResultProp&);
-    
-#if DEBUG_ME
-    void display_match(const std::pair<const int, std::vector<pv::BlobPtr>>&, const std::vector<Vec2>& centers);
-#endif
+    split::Action_t evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&);
 };
 
 #endif
