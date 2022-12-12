@@ -169,14 +169,14 @@ struct Run {
                 found_in_step = step;
             }
             
-            if(action != split::Action::REMOVE
-               && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
-                lowest_non_remove = threshold;
-            } else if(action == split::Action::REMOVE) {
-                if(threshold > highest_remove) {
-                    highest_remove = threshold;
-                }
-            }
+            //if(action != split::Action::REMOVE
+            //   && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
+            //    lowest_non_remove = threshold;
+            //} else if(action == split::Action::REMOVE) {
+            //    if(threshold > highest_remove) {
+            //        highest_remove = threshold;
+            //    }
+            //}
             
             return action;
         }
@@ -190,14 +190,14 @@ struct Run {
             found_in_step = step;
         }
         
-        if(action != split::Action::REMOVE
+        /*if(action != split::Action::REMOVE
            && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
             lowest_non_remove = threshold;
         } else if(action == split::Action::REMOVE) {
             if(threshold > highest_remove) {
                 highest_remove = threshold;
             }
-        }
+        }*/
         
         //tried.push_back({threshold, action});
         results[threshold] = action;
