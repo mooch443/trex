@@ -49,6 +49,9 @@ class track::SplitBlob {
 private:
     cv::Mat _original, _original_grey;
     size_t max_objects;
+    std::mutex mutex;
+    
+    uint8_t min_pixel, max_pixel;
     
     // parameters
     pv::BlobPtr _blob;
@@ -70,7 +73,7 @@ public:
     std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<Vec2>& centers);
     
 private:
-    size_t apply_threshold(int threshold, std::vector<pv::BlobPtr> &output);
+    size_t apply_threshold(CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output);
     split::Action_t evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&);
 };
 
