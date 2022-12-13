@@ -696,7 +696,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                             std::unique_lock guard(clock);
                             caches.push(c);
                         }
-                    } guard;
+                    };
                     
                     if(distance < num_threads || _blob->num_pixels() < 5000) {
                         //print("Distance:", distance, " < ", num_threads);
@@ -761,8 +761,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     
                     else {
                         distribute_indexes([&](auto, auto start, auto end, auto, auto j)
-                                           {
-                            
+                            {
+                                Guard guard;
                             
                             end = begin_threshold + int(_step * (start + 1) + 0.5);
                             start = begin_threshold + int(_step * start);
