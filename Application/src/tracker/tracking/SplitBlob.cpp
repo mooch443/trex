@@ -479,7 +479,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     
     float max_size;
     const auto min_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), posture_threshold) : SLOW_SETTING(track_threshold)) + 1;
-    
+
     const auto fn = [&](CPULabeling::ListCache_t* cache, int threshold, bool save)
     {
         std::vector<pv::BlobPtr> blobs;
@@ -671,14 +671,32 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     //run.best = -1;
                     int resolution = step;
 
-                    static GenericThreadPool threads(9, "Thresholds", nullptr);
-                    static std::queue<CPULabeling::ListCache_t*> caches;
-                    static std::mutex clock;
                     constexpr size_t num_threads = 3;
                     std::latch latch{ptrdiff_t(num_threads)}, end_latch{ptrdiff_t(num_threads)};
                     
                     const float distance = float(max_pixel - begin_threshold);
                     const float _step = distance / float(num_threads);
+
+                    static GenericThreadPool threads(9, "Thresholds", nullptr);
+                    static std::queue<CPULabeling::ListCache_t*> caches;
+                    static std::mutex clock;
+
+                    struct Guard {
+                        CPULabeling::ListCache_t* c{ nullptr };
+                        Guard() {
+                            std::unique_lock guard(clock);
+                            if(caches.empty()) {
+                                c = new CPULabeling::ListCache_t;
+                            } else {
+                                c = caches.front();
+                                caches.pop();
+                            }
+                        }
+                        ~Guard() {
+                            std::unique_lock guard(clock);
+                            caches.push(c);
+                        }
+                    } guard;
                     
                     if(distance < num_threads || _blob->num_pixels() < 5000) {
                         //print("Distance:", distance, " < ", num_threads);
@@ -744,22 +762,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     else {
                         distribute_indexes([&](auto, auto start, auto end, auto, auto j)
                                            {
-                            struct Guard {
-                                CPULabeling::ListCache_t *c{nullptr};
-                                Guard() {
-                                    std::unique_lock guard(clock);
-                                    if(caches.empty()) {
-                                        c = new CPULabeling::ListCache_t;
-                                    } else {
-                                        c = caches.front();
-                                        caches.pop();
-                                    }
-                                }
-                                ~Guard() {
-                                    std::unique_lock guard(clock);
-                                    caches.push(c);
-                                }
-                            } guard;
+                            
                             
                             end = begin_threshold + int(_step * (start + 1) + 0.5);
                             start = begin_threshold + int(_step * start);
