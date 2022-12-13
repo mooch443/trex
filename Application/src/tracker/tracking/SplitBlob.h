@@ -59,7 +59,7 @@ private:
     CPULabeling::ListCache_t* _cache{nullptr};
     
 public:
-    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobPtr blob);
+    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, const pv::BlobPtr& blob);
     
     /**
      * @param presumed_nr number of individuals to find

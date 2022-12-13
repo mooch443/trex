@@ -11,60 +11,83 @@
 using namespace track;
 using namespace default_config;
 
-std::atomic_bool registered_callbacks = false;
-float blob_split_max_shrink = 0.02f;
-float blob_split_global_shrink_limit = 0.01f;
-float sqrcm = 1.f;
-BlobSizeRange fish_minmax({Rangef(0.001,1000)});
-int posture_threshold = 15;
-auto blob_split_algorithm = blob_split_algorithm_t::threshold;
+namespace track::split {
 
-SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobPtr blob)
+//! Shorthand for defining slow settings cache entries:
+#define DEF_SLOW_SETTINGS(X) using X##_t = Settings:: X##_t; inline static X##_t X
+#define DEF_SLOW_SETTINGS_T(T, X) using X##_t = T; inline static X##_t X
+
+//! Parameters that are only saved once per frame,
+//! but have faster access than the settings cache.
+//! Slower update, but faster access.
+struct slow {
+    DEF_SLOW_SETTINGS_T(float, blob_split_max_shrink);
+    DEF_SLOW_SETTINGS_T(float, blob_split_global_shrink_limit);
+    DEF_SLOW_SETTINGS(cm_per_pixel);
+    DEF_SLOW_SETTINGS(blob_size_ranges);
+    DEF_SLOW_SETTINGS(track_threshold);
+    DEF_SLOW_SETTINGS(track_posture_threshold);
+    DEF_SLOW_SETTINGS_T(blob_split_algorithm_t::Class, blob_split_algorithm);
+};
+
+#undef DEF_SLOW_SETTINGS
+
+//! Slow updated, but faster access:
+#define SPLIT_SETTING(NAME) (track::split::slow:: NAME)
+
+}
+
+SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, const pv::BlobPtr& blob)
     :   max_objects(0),
         _blob(blob),
         _cache(cache)
 {
-    // generate greyscale and mask images
-    //
-    bool result = false;
-    if(registered_callbacks.compare_exchange_strong(result, true)) {
+    static const volatile auto _ = []{
+#define DEF_CALLBACK(X) if( first ) { \
+        SPLIT_SETTING( X ) = map[#X].value<track::split::slow:: X##_t >(); \
+        print("Setting", #X, "=", SPLIT_SETTING(X), " @ ", (int*)&SPLIT_SETTING(X)); \
+    } else if (name == #X) { \
+        SPLIT_SETTING( X ) = value.value<track::split::slow:: X##_t >(); \
+        print("Setting", #X, "=", SPLIT_SETTING(X), " @ ", (int*)&SPLIT_SETTING(X)); \
+    } void()
+        
         auto callback = "SplitBlob";
+        
         auto fn = [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
         {
+            static bool first = true;
+            
             if(signal == sprite::Map::Signal::EXIT) {
                 map.unregister_callback(callback);
                 return;
             }
             
-            if(name == "blob_split_max_shrink") {
-                blob_split_max_shrink = value.value<float>();
-                
-            } else if(name == "blob_split_global_shrink_limit") {
-                blob_split_global_shrink_limit = value.value<float>();
-                
-            } else if(name == "cm_per_pixel") {
-                sqrcm = SQR(value.value<float>());
-                
-            } else if(name == "track_posture_threshold") {
-               posture_threshold = value.value<int>();
-            } else if(name == "blob_split_algorithm")
-                blob_split_algorithm = value.value<blob_split_algorithm_t::Class>();
+            DEF_CALLBACK(blob_split_max_shrink);
+            DEF_CALLBACK(blob_split_global_shrink_limit);
+            DEF_CALLBACK(cm_per_pixel);
+            DEF_CALLBACK(blob_size_ranges);
+            DEF_CALLBACK(track_threshold);
+            DEF_CALLBACK(track_posture_threshold);
             
-            if(name == "blob_size_ranges" || name == "cm_per_pixel") {
-                fish_minmax = SETTING(blob_size_ranges).value<BlobSizeRange>();
-            }
+            DEF_CALLBACK(blob_split_algorithm);
+            
+            if(first)
+                first = false;
         };
-        GlobalSettings::map().register_callback(callback, fn);
         
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_max_shrink", SETTING(blob_split_max_shrink).get());
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_global_shrink_limit", SETTING(blob_split_global_shrink_limit).get());
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "cm_per_pixel", SETTING(cm_per_pixel).get());
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "track_posture_threshold", SETTING(track_posture_threshold).get());
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_size_ranges", SETTING(blob_size_ranges).get());
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_algorithm", SETTING(blob_split_algorithm).get());
-    }
+        GlobalSettings::map().register_callback(callback, fn);
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "", GlobalSettings::map()["cm_per_pixel"].get());
+        
+        return 0;
+    }(); UNUSED(_);
     
-    imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), posture_threshold, &average.image());
+    /*static std::once_flag f;
+    std::call_once(f, [&]() {
+
+    });*/
+    
+    // generate greyscale and mask images
+    imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), SPLIT_SETTING(track_posture_threshold), &average.image());
     
     blob->set_tried_to_split(true);
 }
@@ -120,17 +143,18 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
  */
 split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs)
 {
+    const float sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
     size_t pixels = 0;
     std::optional<size_t> min_size;
     for(size_t i=0; i < blobs.size(); ++i) {
         pixels += blobs.at(i)->num_pixels();
     }
     
-    if(pixels * sqrcm < blob_split_max_shrink * first_size) {
+    if(pixels * sqrcm < SPLIT_SETTING(blob_split_max_shrink) * first_size) {
         return split::Action::ABORT;
     }
     
-    const float min_size_threshold = fish_minmax.max_range().start * blob_split_global_shrink_limit;
+    const float min_size_threshold = SPLIT_SETTING(blob_size_ranges).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
     auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
         auto fsize = blob->num_pixels() * sqrcm;
         return fsize < min_size_threshold;
@@ -144,7 +168,7 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
     }
     
     if(min_size.has_value()
-       && min_size.value() * sqrcm > fish_minmax.max_range().end)
+       && min_size.value() * sqrcm > SPLIT_SETTING(blob_size_ranges).max_range().end)
     {
         return split::Action::REMOVE;
     }
@@ -181,7 +205,7 @@ struct Run {
                 if(action == split::Action::KEEP_ABORT
                    && (best == -1 || best > threshold))
                 {
-                    print("Somehow found this in ", threshold, " in the map.");
+                    //print("Somehow found this in ", threshold, " in the map.");
                     best = threshold;
                     found_in_step = step;
                 }
@@ -404,6 +428,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     float first_size = 0;
     size_t more_than_1_times = 0;
     
+    const float sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
+    
     const auto apply_watershed = [this](const std::vector<Vec2>& centers, std::vector<pv::BlobPtr>& output) {
         static const cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * 1 + 1, 2 * 1 + 1), cv::Point(1, 1));
 
@@ -478,7 +504,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     };
     
     float max_size;
-    const auto min_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), posture_threshold) : SLOW_SETTING(track_threshold)) + 1;
+    const auto min_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), SPLIT_SETTING(track_posture_threshold)) : SLOW_SETTING(track_threshold)) + 1;
 
     const auto fn = [&](CPULabeling::ListCache_t* cache, int threshold, bool save)
     {
@@ -489,7 +515,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         if(initial)
             threshold = min_threshold;
         
-        if(blob_split_algorithm == blob_split_algorithm_t::threshold)
+        if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::threshold)
             max_size = apply_threshold(cache, threshold, blobs) * sqrcm;
         else
             max_size = (initial ? apply_threshold(cache, threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
@@ -536,11 +562,11 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     
     if(action != split::Action::KEEP
        && action != split::Action::KEEP_ABORT
-        && _blob->pixels()->size() * sqrcm < fish_minmax.max_range().end * 100) 
+        && _blob->pixels()->size() * sqrcm < SPLIT_SETTING(blob_size_ranges).max_range().end * 100)
     {
         
         if(presumed_nr > 1) {
-            if(blob_split_algorithm == blob_split_algorithm_t::threshold) {
+            if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::threshold) {
                 
                 // start in the center
                 // 51, half = 26
