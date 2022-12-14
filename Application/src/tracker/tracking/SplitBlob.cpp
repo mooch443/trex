@@ -183,11 +183,16 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
 
 template<bool thread_safe>
 struct Run {
+#ifdef TREX_SPLIT_DEBUG
     int count{0};
-    std::atomic<int> best{-1};
-    int found_in_step{-1};
-    robin_hood::unordered_flat_map<int, split::Action_t> results;
     std::vector<std::tuple<int, split::Action_t>> tried;
+    int found_in_step{-1};
+#endif
+    
+    robin_hood::unordered_flat_map<int, split::Action_t> results;
+    using best_t = std::conditional_t<thread_safe, std::atomic<int>, int>;
+    best_t best{-1};
+    
     std::mutex mutex;
     
     bool has_best() const {
@@ -240,8 +245,11 @@ struct Run {
         {
             if(best == -1 || threshold < best) {
                 best = threshold;
+#ifdef TREX_SPLIT_DEBUG
                 found_in_step = step;
-                
+#else
+                UNUSED(step);
+#endif
                 add_result(action, threshold);
             }
             
@@ -256,7 +264,9 @@ struct Run {
         auto action = from_cache(threshold);
         if(action == split::Action::NO_CHANCE) {
             action = F(cache, threshold, args...);
+#ifdef TREX_SPLIT_DEBUG
             ++count;
+#endif
         }
         
         check_viable_option(action, threshold, step);
