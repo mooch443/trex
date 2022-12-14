@@ -105,6 +105,7 @@ namespace default_config {
 
     ENUM_CLASS_DOCS(blob_split_algorithm_t,
         "Adaptively increase the threshold of closeby objects, until separation.",
+        "Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.",
         "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
     )
 

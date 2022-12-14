@@ -79,6 +79,8 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
                 first = false;
         };
         
+#undef DEF_CALLBACK
+        
         GlobalSettings::map().register_callback(callback, fn);
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "", GlobalSettings::map()["cm_per_pixel"].get());
         
@@ -234,8 +236,7 @@ struct Run {
     }
     
     bool check_viable_option(split::Action_t action, int threshold, int step) {
-        if(action == split::Action::KEEP
-           || action == split::Action::KEEP_ABORT)
+        if(is_in(action, split::Action::KEEP, split::Action::KEEP_ABORT))
         {
             if(best == -1 || threshold < best) {
                 best = threshold;
@@ -270,14 +271,14 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
     static std::atomic<int64_t> thresholds = 0, samples_naive{0};
     static std::atomic<int64_t> samples = 0;
     
-    thresholds += next.count;
-    ++samples;
-    samples_naive += naive.count;
-    
     static std::atomic<size_t> matches{0}, mismatches{0};
     static std::atomic<int64_t> offsets{0}, max_offset{0}, not_found{0}, would_find{0}, second_try{0}, preproc{0}, third{0}, count_from_not_found{0};
     static std::mutex m;
     static std::map<int64_t, size_t> often;
+    
+    thresholds += next.count;
+    ++samples;
+    samples_naive += naive.count;
     
     if(next.found_in_step == 2)
         ++second_try;
@@ -296,7 +297,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
         if(next.best != -1 && naive.best != -1) {
             //if(std::abs(next.best - naive.best) > 2)
             {
-                print(bdx, " Naive count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", next.tried, " vs ", naive.tried);
+                print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Naive count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", next.tried, " vs ", naive.tried);
             }
                 auto offset = std::abs(next.best - naive.best);
                 offsets += offset;
@@ -311,7 +312,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
             //}
             
         } else if(next.best == -1) {
-            print(bdx, " Not found count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", next.tried, " vs ", naive.tried);
+            print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Not found count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", naive.tried, " vs ", next.tried);
             ++not_found;
             ++mismatches;
         }
@@ -322,7 +323,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
     if(samples.load() % 100 == 0) {
         auto m0 = matches.load(), m1 = mismatches.load();
         auto off = offsets.load();
-        print("Samples: ", float(thresholds) / float(samples), " (vs. ", float(samples_naive.load()) / float(samples.load()),") ", float(m1) / float(m0 + m1) * 100, "% mismatches (avg. ", float(off) / float(m1), " offset for ", m1," elements) ", float(not_found.load()) / float(m1) * 100, "% not found, ", float(would_find.load()) / float(not_found.load()) * 100, "% could have been found, ", float(second_try.load()) / float(samples.load()) * 100, "% found in second try, ", float(preproc.load()) / float(samples.load()) * 100, "% found in preprocess ", float(third.load()) / float(samples.load()) * 100, "% found in third try, ", float(count_from_not_found.load()) / float(thresholds.load()) * 100, "% from not found objects");
+        print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Samples: ", float(thresholds) / float(samples), " (vs. ", float(samples_naive.load()) / float(samples.load()),") ", float(m1) / float(m0 + m1) * 100, "% mismatches (avg. ", float(off) / float(m1), " offset for ", m1," elements) ", float(not_found.load()) / float(m1) * 100, "% not found, ", float(would_find.load()) / float(not_found.load()) * 100, "% could have been found, ", float(second_try.load()) / float(samples.load()) * 100, "% found in second try, ", float(preproc.load()) / float(samples.load()) * 100, "% found in preprocess ", float(third.load()) / float(samples.load()) * 100, "% found in third try, ", float(count_from_not_found.load()) / float(thresholds.load()) * 100, "% from not found objects");
         std::unique_lock guard(m);
         print(often);
     }
@@ -331,13 +332,8 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
 
 std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers)
 {
-    //std::map<int, ResultProp> best_matches;
     ResultProp best_match;
-    
-    size_t calculations = 0;
-    Timer timer;
     float first_size = 0;
-    size_t more_than_1_times = 0;
     
     const float sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
     
@@ -415,18 +411,17 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     };
     
     float max_size;
-    const auto min_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), SPLIT_SETTING(track_posture_threshold)) : SLOW_SETTING(track_threshold)) + 1;
+    const auto initial_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), SPLIT_SETTING(track_posture_threshold)) : SLOW_SETTING(track_threshold)) + 1;
 
-    const auto fn = [&](CPULabeling::ListCache_t* cache, int threshold, bool save)
+    const auto try_threshold = [&](CPULabeling::ListCache_t* cache, int threshold, bool save)
     {
         std::vector<pv::BlobPtr> blobs;
-        calculations++;
         
         bool initial = threshold == -1;
         if(initial)
-            threshold = min_threshold;
+            threshold = initial_threshold;
         
-        if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::threshold)
+        if(is_in(SPLIT_SETTING(blob_split_algorithm), blob_split_algorithm_t::threshold, blob_split_algorithm_t::threshold_approximate))
             max_size = apply_threshold(cache, threshold, blobs) * sqrcm;
         else
             max_size = (initial ? apply_threshold(cache, threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
@@ -442,12 +437,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         if(first_size == 0)
             first_size = max_size;
         
-        if(blobs.size() > 1)
-            more_than_1_times++;
-        
         // we found enough blobs, so we're allowed to keep it
-        if(action == split::Action::KEEP
-           || action == split::Action::KEEP_ABORT)
+        if(is_in(action, split::Action::KEEP, split::Action::KEEP_ABORT))
         {
             if(save) {
                 std::unique_lock guard(mutex);
@@ -465,7 +456,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         return action;
     };
     
-    auto action = fn(_cache, -1, true);
+    auto action = try_threshold(_cache, -1, true);
     
     if(action != split::Action::KEEP
        && action != split::Action::KEEP_ABORT
@@ -473,7 +464,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     {
         
         if(presumed_nr > 1) {
-            if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::threshold) {
+            if(is_in(SPLIT_SETTING(blob_split_algorithm), blob_split_algorithm_t::threshold, blob_split_algorithm_t::threshold_approximate))
+            {
                 // start in the center
                 // 51, half = 26
                 /*
@@ -495,13 +487,9 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     3. IF KEEP_ABORT => try a lower threshold
                  */
                 
-                const int begin_threshold = max(min_threshold, (int)min_pixel);
-                static constexpr bool accurate = false;
-                
-                constexpr size_t num_threads = 3;
-                
+                const int begin_threshold = max(initial_threshold, (int)min_pixel);
                 const float distance = float(max_pixel - begin_threshold);
-                const float _step = distance / float(num_threads);
+                constexpr int segments = 3;
                 
                 static std::queue<CPULabeling::ListCache_t*> caches;
                 static std::mutex clock;
@@ -523,70 +511,93 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     }
                 };
                 
-                const int segments = 3;
-                
-                auto work = [&](auto cache, auto& run, auto j)
+                auto work = [&]<bool accurate>(auto cache, auto& run, int thread_index)
                 {
-                    const int step = segments * 2;
+                    //! we run two samplings with a step of 2 each
+                    //! for this thread
+                    constexpr int sampling_runs = 2;
+                    //! across threads sample with `segments` step,
+                    //! so here we do `global_step * local_step`
+                    constexpr int step = segments * sampling_runs;
+                    
+                    //! we start at `max(threshold, min_pixel)`
+                    //! and end at maximum pixel value
                     int start = begin_threshold;
                     int end = max_pixel;
                     
-                    Range<int> first_stage(start,
-                                           start + int((end - start) * 0.3) + 1);
-                    //print("Thread ", j, "/", num_threads, " => ", step, " ", Range<int>(start, end), " first:", first_stage);
+                    //! traverse the lower 30% of thresholds first
+                    //! this is the most likely place that we will
+                    //! find a useful threshold.
+                    Range<int> first_stage{
+                        start,
+                        start + int((end - start) * 0.3)
+                    };
                     
-                    for(auto i = first_stage.start + j * 2; i < first_stage.end; i += step)
+                    //! iterate through the local sampling runs,
+                    //! with offsets 0 to 2
+                    for(int offset = 0; offset < sampling_runs; ++offset) {
+                        // stopping after a solution has been found
+                        // makes the method inaccurate, since we then
+                        // do not traverse all remaining offsets at all:
+                        if(!accurate && run.has_best())
+                            break;
+                        
+                        // go from start, but offset by thread index
+                        // as well as sampling offset, go towards the end
+                        // skipping big steps (segments * sampling_runs)
+                        for(int threshold = first_stage.start + thread_index * sampling_runs + offset;
+                            threshold < first_stage.end;
+                            threshold += step)
+                        {
+                            // we really can abort, if the found best
+                            // is larger than our current threshold
+                            if(run.has_best() && threshold >= run.best)
+                                break;
+                            
+                            auto action = run.perform(cache, threshold, offset, try_threshold, true);
+                            
+                            if(is_in(action, split::Action::ABORT, split::Action::KEEP_ABORT))
+                            {
+                                if constexpr (!accurate) {
+                                    if(action == split::Action::KEEP_ABORT)
+                                        return;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    
+                    //! potentially traverse the upper part of possible
+                    //! thresholds. this is unlikely to yield a good result,
+                    //! but if we are forced to be deterministic, do it.
+                    //! although we dont need to if the found best is below
+                    //! the high thresholds we havent searched yet:
+                    if(run.has_best() && (!accurate || run.best < first_stage.end))
+                        return;
+                    
+                    //! could use step (without /2) here for the upper 70%
+                    //! if we want to accept solutions not being found
+                    //! in like 1% of cases.
+                    constexpr int use_step = step / 2;//accurate ? step / 2 : step;
+                    for(int threshold = first_stage.end + thread_index;
+                        threshold < end;
+                        threshold += use_step)
                     {
-                        auto action = run.perform(cache, i, 0, fn, true);
-                        
-                        if(action == split::Action::ABORT
-                           || action == split::Action::KEEP_ABORT)
-                        {
-                            if(action == split::Action::KEEP_ABORT)
-                                return;
+                        // although if the current best is already
+                        // lower, stop (since we go in single steps
+                        // when accurate):
+                        if(run.has_best() && threshold >= run.best)
                             break;
-                        }
                         
-                        if(run.has_best() && i >= run.best) {
-                            break;
-                        }
-                    }
-                    
-                    if(!run.has_best()) {
-                        for(auto i = first_stage.start + j * 2 + 1; i < first_stage.end; i+=step)
+                        auto action = run.perform(cache, threshold, 3, try_threshold, true);
+                        
+                        if(is_in(action, split::Action::ABORT, split::Action::KEEP_ABORT))
                         {
-                            if(run.has_best() && i >= run.best) {
-                                break;
-                            }
-                            
-                            auto action = run.perform(cache, i, 1, fn, true);
-                            
-                            if(action == split::Action::ABORT
-                               || action == split::Action::KEEP_ABORT)
-                            {
+                            if constexpr (!accurate) {
                                 if(action == split::Action::KEEP_ABORT)
                                     return;
-                                break;
                             }
-                        }
-                    }
-                    
-                    if(!run.has_best()) {
-                        for(auto i = first_stage.end + j; i < end; i+=step / 2)
-                        {
-                            if(run.has_best() && i >= run.best) {
-                                break;
-                            }
-                            
-                            auto action = run.perform(cache, i, 3, fn, true);
-                            
-                            if(action == split::Action::ABORT
-                               || action == split::Action::KEEP_ABORT)
-                            {
-                                if(action == split::Action::KEEP_ABORT)
-                                    return;
-                                break;
-                            }
+                            break;
                         }
                     }
                 };
@@ -596,35 +607,38 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                 Run<false> naive;
                 for(int i = begin_threshold; i < 254; ++i)
                 {
-                    auto action = naive.perform(_cache, i, 0, fn, false);
-                    if(action == split::Action::ABORT
-                       || action == split::Action::KEEP_ABORT)
+                    auto action = naive.perform(_cache, i, 0, try_threshold, false);
+                    if(is_in(action, split::Action::ABORT, split::Action::KEEP_ABORT))
                     {
                         break;
                     }
                 }
 #endif
+                const bool complete_search = SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::threshold;
                 
-                static std::map<int, std::tuple<uint64_t, double>> tens_times, tens_times_thread;
-                static std::mutex mutex;
-                
-                if(distance < num_threads || _blob->num_pixels() < 16000)
+                if(distance < segments || _blob->num_pixels() < 16000)
                 {
                     Timer timer;
                     Run<false> run;
                     
-                    work(_cache, run, 0);
-                    if(!run.has_best())
-                        work(_cache, run, 1);
-                    if(!run.has_best())
-                        work(_cache, run, 2);
+                    if(complete_search) {
+                        for(int i = 0; i < segments; ++i)
+                            work.operator()<true>(_cache, run, i);
+                    } else {
+                        for(int i = 0; i < segments; ++i) {
+                            if(run.has_best())
+                                break;
+                            work.operator()<false>(_cache, run, i);
+                        }
+                    }
+                    
                     
 #ifdef TREX_SPLIT_DEBUG
                     commit_run(_blob->blob_id(), naive, run);
 #endif
                 } else {
-                    Timer timer;
                     static GenericThreadPool threads(9, "Thresholds", nullptr);
+                    Timer timer;
                     Run<true> run;
                     
                     //! Counts down for all threads, to synchronize
@@ -635,7 +649,10 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                         //! protects the usage of CPULabeling caches
                         //! via RAII
                         const Guard guard{};
-                        work(guard.c, run, j);
+                        if(complete_search)
+                            work.operator()<true>(guard.c, run, j);
+                        else
+                            work.operator()<false>(guard.c, run, j);
                         
                     }, threads, 0, (int)segments + 1);
                     
@@ -645,7 +662,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                 }
             }
             else
-                action = fn(_cache, 0, true);
+                action = try_threshold(_cache, 0, true);
         }
     }
     
