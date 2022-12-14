@@ -527,14 +527,6 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                 
                 auto work = [&](auto cache, auto& run, auto j)
                 {
-                    //end = begin_threshold + int(_step * (start + 1) + 0.5);
-                    //start = begin_threshold + int(_step * start);
-                    
-                    //int minimal = start;
-                    //const int step = max(1, int(_step * 0.2));
-                    //print(_blob->blob_id(), " ",i, ": ", start, "-", end, " step:", _step, " pixels:", Range<int>(min_pixel, max_pixel), " distance:", distance, " _step:", _step, " recounted at:", _blob->last_recount_threshold(), " step:",step);
-                    
-                    //for(auto o=0; o<step; ++o) {
                     const int step = segments * 2;
                     int start = begin_threshold;
                     int end = max_pixel;
@@ -597,11 +589,6 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                             }
                         }
                     }
-                    
-                    /*if(!run.has_best()) {
-                        print(_blob->blob_id(), " Still not found: ", first_stage, " t",j, " step=", step);
-                    }*/
-                    
                 };
                 
                 
@@ -617,10 +604,11 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     }
                 }
 #endif
-
+                
                 static std::map<int, std::tuple<uint64_t, double>> tens_times, tens_times_thread;
                 static std::mutex mutex;
-                //if(true || (distance < num_threads || _blob->num_pixels() < 5000))
+                
+                if(distance < num_threads || _blob->num_pixels() < 16000)
                 {
                     Timer timer;
                     Run<false> run;
@@ -631,83 +619,10 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     if(!run.has_best())
                         work(_cache, run, 2);
                     
-                    auto t = timer.elapsed();
-                    uint64_t px = _blob->num_pixels();
-                    int index = 0;
-                    while(px > 0) {
-                        px /= 2u;
-                        ++index;
-                    }
-                    
-                    std::unique_lock guard(mutex);
-                    auto &e = tens_times[index];
-                    std::get<0>(e)++;
-                    std::get<1>(e)+=t;
-                    
-                    /*int max_detected = max_pixel;
-                    
-                    for(auto i = begin_threshold; i < max_detected; i+=3)
-                    {
-                        auto action = run.perform(_cache, i, 0, fn, true);
-                        
-                        if(action == split::Action::ABORT
-                           || action == split::Action::KEEP_ABORT)
-                        {
-                            max_detected = i;
-                            break;
-                        }
-                    }
-                    
-                    if(!run.has_best()) {
-                        for(auto i = begin_threshold + 1; i < run.best.load(); i+=3)
-                        {
-                            auto action = run.perform(_cache, i, 2, fn, true);
-                            
-                            if(action == split::Action::ABORT
-                               || action == split::Action::KEEP_ABORT)
-                            {
-                                max_detected = i;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if(!run.has_best()) {
-                        for(auto i = begin_threshold + 2; i < run.best.load(); i+=3)
-                        {
-                            auto action = run.perform(_cache, i, 3, fn, true);
-                            
-                            if(action == split::Action::ABORT
-                               || action == split::Action::KEEP_ABORT)
-                            {
-                                break;
-                            }
-                        }
-                    }*/
-                    
-                    /*if(false && run.has_best()) {
-                        auto best = run.best.load();
-                        for(auto i = best - 4; i < best; ++i)
-                        {
-                            if(i <= min_pixel)
-                                continue;
-                            
-                            auto action = run.perform(_cache, i, 2, fn, true);
-                            
-                            if(action == split::Action::ABORT
-                               || action == split::Action::KEEP_ABORT)
-                            {
-                                break;
-                            }
-                        }
-                    }*/
-                    
 #ifdef TREX_SPLIT_DEBUG
                     commit_run(_blob->blob_id(), naive, run);
 #endif
-                }
-                //else
-                {
+                } else {
                     Timer timer;
                     static GenericThreadPool threads(9, "Thresholds", nullptr);
                     Run<true> run;
@@ -724,74 +639,10 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                         
                     }, threads, 0, (int)segments + 1);
                     
-                    /*distribute_indexes([&](auto, auto start, auto end, auto)
-                    {
-                        //! protects the usage of CPULabeling caches
-                        //! via RAII
-                        const Guard guard{};
-                        
-                        end = begin_threshold + int(_step * (start + 1) + 0.5);
-                        start = begin_threshold + int(_step * start);
-                        
-                        int minimal = start;
-                        const int step = max(1, int(_step * 0.2));
-                        //print(_blob->blob_id(), " ",i, ": ", start, "-", end, " step:", _step, " pixels:", Range<int>(min_pixel, max_pixel), " distance:", distance, " _step:", _step, " recounted at:", _blob->last_recount_threshold(), " step:",step);
-                        
-                        for(auto o=0; o<step; ++o) {
-                            for(auto i = start + o; i < end; i+=step)
-                            {
-                                if(i <  minimal)
-                                    continue;
-                                
-                                auto action = run.perform(guard.c, i, 0, fn, true);
-                                
-                                if(action == split::Action::ABORT
-                                   || action == split::Action::KEEP_ABORT)
-                                {
-                                    break;
-                                }
-                            }
-                            
-                            if(o == 0)
-                                latch.arrive_and_wait();
-                            
-                            if(run.has_best()) {
-                                auto best = run.best.load();
-                                minimal = max((int)begin_threshold, (best - ((best - begin_threshold) % step)) - step);
-                                end = max((int)begin_threshold, best);
-
-                                if(end <= start + o)
-                                    break;
-                            }
-                        }
-                        
-                    }, threads, 0, (int)num_threads+1);*/
-                    
-                    auto t = timer.elapsed();
-                    uint64_t px = _blob->num_pixels();
-                    int index = 0;
-                    while(px > 0) {
-                        px /= 2u;
-                        ++index;
-                    }
-                    
-                    std::unique_lock guard(mutex);
-                    auto &e = tens_times_thread[index];
-                    std::get<0>(e)++;
-                    std::get<1>(e)+=t;
-                    
 #ifdef TREX_SPLIT_DEBUG
                     commit_run(_blob->blob_id(), naive, run);
 #endif
                 }
-                
-                static std::atomic<int64_t> count{0};
-                if(count.load() % 10000 == 0) {
-                    std::unique_lock guard(mutex);
-                    print("tens = ",tens_times);
-                    print("thread = ", tens_times_thread);
-                }
-                
             }
             else
                 action = fn(_cache, 0, true);
