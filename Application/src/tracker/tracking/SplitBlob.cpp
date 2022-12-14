@@ -307,7 +307,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
         if(next.best != -1 && naive.best != -1) {
             //if(std::abs(next.best - naive.best) > 2)
             {
-                print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Naive count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", next.tried, " vs ", naive.tried);
+                print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Naive count: ", naive.count, " (t=",(int)naive.best,") vs ", next.count, " (t=",(int)next.best,") and map ", next.tried, " vs ", naive.tried);
             }
                 auto offset = std::abs(next.best - naive.best);
                 offsets += offset;
@@ -322,7 +322,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
             //}
             
         } else if(next.best == -1) {
-            print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Not found count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", naive.tried, " vs ", next.tried);
+            print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Not found count: ", naive.count, " (t=",(int)naive.best,") vs ", next.count, " (t=",(int)next.best,") and map ", naive.tried, " vs ", next.tried);
             ++not_found;
             ++mismatches;
         }
@@ -632,8 +632,15 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     Run<false> run;
                     
                     if(complete_search) {
-                        for(int i = 0; i < segments; ++i)
-                            work.operator()<true>(_cache, run, i);
+                        for(int i = begin_threshold; i < max_pixel; ++i)
+                        {
+                            auto action = run.perform(_cache, i, 0, try_threshold, true);
+                            if(is_in(action, split::Action::ABORT, split::Action::KEEP_ABORT))
+                            {
+                                break;
+                            }
+                        }
+                        
                     } else {
                         for(int i = 0; i < segments; ++i) {
                             if(run.has_best())
