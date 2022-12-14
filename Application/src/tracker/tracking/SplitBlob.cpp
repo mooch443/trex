@@ -16,6 +16,29 @@ using namespace default_config;
 
 namespace track::split {
 
+//! secures the CPULabeling caches while in use
+//! + queue & dequeue and reusing
+struct Guard {
+    inline static std::queue<CPULabeling::ListCache_t*> caches;
+    inline static std::mutex clock;
+    
+    CPULabeling::ListCache_t* c{ nullptr };
+    Guard() {
+        std::unique_lock guard(clock);
+        if(caches.empty()) {
+            c = new CPULabeling::ListCache_t;
+        } else {
+            c = caches.front();
+            caches.pop();
+        }
+    }
+    ~Guard() {
+        std::unique_lock guard(clock);
+        caches.push(c);
+    }
+};
+
+
 //! Shorthand for defining slow settings cache entries:
 #define DEF_SLOW_SETTINGS(X) using X##_t = Settings:: X##_t; inline static X##_t X
 #define DEF_SLOW_SETTINGS_T(T, X) using X##_t = T; inline static X##_t X
@@ -501,26 +524,6 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                 const float distance = float(max_pixel - begin_threshold);
                 constexpr int segments = 3;
                 
-                static std::queue<CPULabeling::ListCache_t*> caches;
-                static std::mutex clock;
-
-                struct Guard {
-                    CPULabeling::ListCache_t* c{ nullptr };
-                    Guard() {
-                        std::unique_lock guard(clock);
-                        if(caches.empty()) {
-                            c = new CPULabeling::ListCache_t;
-                        } else {
-                            c = caches.front();
-                            caches.pop();
-                        }
-                    }
-                    ~Guard() {
-                        std::unique_lock guard(clock);
-                        caches.push(c);
-                    }
-                };
-                
                 auto work = [&]<bool accurate>(auto cache, auto& run, int thread_index)
                 {
                     //! we run two samplings with a step of 2 each
@@ -662,10 +665,10 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     //! the first stage of the algorithm.
                     //! This reduces the number of misses.
                     //std::latch latch{ptrdiff_t(num_threads)};
-                    distribute_indexes([&](auto, auto, auto, auto j) {
+                    distribute_indexes([&](auto, auto, auto, int j) {
                         //! protects the usage of CPULabeling caches
                         //! via RAII
-                        const Guard guard{};
+                        const split::Guard guard{};
                         if(complete_search)
                             work.operator()<true>(guard.c, run, j);
                         else
