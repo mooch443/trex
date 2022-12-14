@@ -635,7 +635,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     uint64_t px = _blob->num_pixels();
                     int index = 0;
                     while(px > 0) {
-                        px /= 10u;
+                        px /= 2u;
                         ++index;
                     }
                     
@@ -771,7 +771,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     uint64_t px = _blob->num_pixels();
                     int index = 0;
                     while(px > 0) {
-                        px /= 10u;
+                        px /= 2u;
                         ++index;
                     }
                     
@@ -786,10 +786,10 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                 }
                 
                 static std::atomic<int64_t> count{0};
-                if(count.load() % 100 == 0) {
+                if(count.load() % 10000 == 0) {
                     std::unique_lock guard(mutex);
-                    print("tens: ",tens_times);
-                    print("thread: ", tens_times_thread);
+                    print("tens = ",tens_times);
+                    print("thread = ", tens_times_thread);
                 }
                 
             }
