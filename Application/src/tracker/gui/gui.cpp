@@ -2662,7 +2662,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
         size_t gpixels = 0;
         double gaverage_pixels = 0, gsamples = 0;
         
-        distribute_vector([&](auto, auto start, auto end, auto){
+        distribute_indexes([&](auto, auto start, auto end, auto){
             std::unordered_map<pv::Blob*, SimpleBlob*> map;
             //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
@@ -2861,14 +2861,14 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             auto mat = PD(collection)->source()->get();
             //std::fill((int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows, 0);
             
-            distribute_vector([](auto, auto start, auto end, auto) {
+            distribute_indexes([](auto, auto start, auto end, auto) {
                 std::fill(start, end, 0);
                 
             }, _blob_thread_pool, (int*)PD(collection)->source()->data(), (int*)PD(collection)->source()->data() + PD(collection)->source()->cols * PD(collection)->source()->rows);
             
             const auto image = Bounds(Size2(mat));
             
-            distribute_vector([&mat, &image](auto, auto start, auto end, auto){
+            distribute_indexes([&mat, &image](auto, auto start, auto end, auto){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e.second->ptr->source()->get();

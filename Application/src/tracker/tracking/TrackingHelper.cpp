@@ -562,7 +562,7 @@ double TrackingHelper::process_postures() {
             need_postures.pop();
         }
         
-        distribute_vector([frameIndex, &combined_posture_seconds](auto, auto start, auto end, auto){
+        distribute_indexes([frameIndex, &combined_posture_seconds](auto, auto start, auto end, auto){
             Timer t;
             double collected = 0;
             

@@ -8,6 +8,9 @@
 #include <misc/cnpy_wrapper.h>
 #include <tracker/misc/default_config.h>
 
+//#define TREX_SPLIT_DEBUG
+//#define TREX_SPLIT_DEBUG_TIMINGS
+
 using namespace track;
 using namespace default_config;
 
@@ -42,7 +45,8 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         _blob(blob),
         _cache(cache)
 {
-    static const volatile auto _ = []{
+    //! Settings initializer:
+    static const auto _ = []{
 #define DEF_CALLBACK(X) if( first ) { \
         SPLIT_SETTING( X ) = map[#X].value<track::split::slow:: X##_t >(); \
         print("Setting", #X, "=", SPLIT_SETTING(X), " @ ", (int*)&SPLIT_SETTING(X)); \
@@ -80,11 +84,6 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         
         return 0;
     }(); UNUSED(_);
-    
-    /*static std::once_flag f;
-    std::call_once(f, [&]() {
-
-    });*/
     
     // generate greyscale and mask images
     imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), SPLIT_SETTING(track_posture_threshold), &average.image());
@@ -131,15 +130,15 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
 }
 
 /**
- * This function evaluates the result of `apply_threshold`, looking for acceptable configurations of blobs given the expected number of objects and relative sizes.
+ * This function evaluates the result of `apply_threshold`, looking for acceptable configurations of blobs given the expected number of objects and their sizes.
  *
  * It expects the blobs to be given in descending order of size.
  *
  * The rules are enforced in this order:
  *  1. given `presumed_number` of expected objects, are enough objects found?
- *  2. the `num_px * sqcmppx` of each object must have a similar value as the preceeding and following one, up to the number of `presumed_number` objects down. this is enforced by finding the minimum ratio between focal and following object sizes - which is a ratio between [0,1] - and comparing to 0.3/0.4 depending on the algorithm. if the min ratio is smaller than e.g. 0.3, then the objects are of vastly different sizes where we would expect similar sized objects.
- *  3. objects have to be larger than a minimum threshold, which is the `blob_size_ranges.max_range[0] * global_shrink_limit`. anything (within objects `0..presumed_nr`) that's smaller than that is not considered a valid object
- *  4. the size of the object that we started out with, before splitting, cannot be shrunk further than `blob_split_max_shrink * first_size`. so each object has to be larger than that divided by the number of expected blobs in order to form the min number of objects required.
+ *  2. the overall number of pixels should not shrink further than `blob_split_max_shrink * first_size`, i.e. a certain percentage of the unthresholded image
+ *  3. all objects smaller than `blob_size_ranges.max.start * blob_split_global_shrink_limit` are removed
+ *  4. if the smallest found object is bigger than `blob_size_ranges.max.end`, ignore the results
  */
 split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs)
 {
@@ -180,80 +179,94 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
     return split::Action::KEEP_ABORT;
 }
 
+template<bool thread_safe>
 struct Run {
     int count{0};
     std::atomic<int> best{-1};
     int found_in_step{-1};
     robin_hood::unordered_flat_map<int, split::Action_t> results;
     std::vector<std::tuple<int, split::Action_t>> tried;
-    int lowest_non_remove{-1}, highest_remove{-1};
     std::mutex mutex;
     
     bool has_best() const {
         return best != -1;
     }
     
-    split::Action_t perform(pv::bid bdx, CPULabeling::ListCache_t* cache, int threshold, int step, auto&& F, auto... args)
-    {
-        {
-            std::unique_lock guard(mutex);
-            //if(best != -1 && best < threshold)
-            //    return split::Action::ABORT;
-            
-            if(results.contains(threshold)) {
-                auto action = results.at(threshold);
-                if(action == split::Action::KEEP_ABORT
-                   && (best == -1 || best > threshold))
-                {
-                    //print("Somehow found this in ", threshold, " in the map.");
-                    best = threshold;
-                    found_in_step = step;
-                }
-                
-                /*if(action != split::Action::REMOVE
-                   && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
-                    lowest_non_remove = threshold;
-                } else if(action == split::Action::REMOVE) {
-                    if(threshold > highest_remove) {
-                        highest_remove = threshold;
-                    }
-                }*/
-                
-                return action;
-            }
-        }
-        
-        auto action = F(cache, threshold, args...);
-        
-        
+    template<bool TF = thread_safe>
+        requires TF
+    split::Action_t from_cache(int threshold) {
         std::unique_lock guard(mutex);
-        if((action == split::Action::KEEP
+        return _unsafe_from_cache(threshold);
+    }
+    
+    template<bool TF = thread_safe>
+        requires (!TF)
+    split::Action_t from_cache(int threshold) {
+        return _unsafe_from_cache(threshold);
+    }
+    
+    split::Action_t _unsafe_from_cache(int threshold) {
+        auto it = results.find(threshold);
+        if(it != results.end()) {
+            return it->second;
+        }
+        return split::Action::NO_CHANCE;
+    }
+    
+    template<bool TF=thread_safe>
+        requires TF
+    void add_result(split::Action_t action, int threshold) {
+        std::unique_lock guard(mutex);
+        _unsafe_add_result(action, threshold);
+    }
+    
+    template<bool TF=thread_safe>
+        requires (!TF)
+    void add_result(split::Action_t action, int threshold) {
+        _unsafe_add_result(action, threshold);
+    }
+    
+    void _unsafe_add_result(split::Action_t action, int threshold) {
+        results[threshold] = action;
+#ifdef TREX_SPLIT_DEBUG
+        tried.push_back({threshold, action});
+#endif
+    }
+    
+    bool check_viable_option(split::Action_t action, int threshold, int step) {
+        if(action == split::Action::KEEP
            || action == split::Action::KEEP_ABORT)
-           && (best == -1 || best > threshold))
         {
-            assert(best == -1 || best > threshold);
-            best = threshold;
-            found_in_step = step;
-            //print("Found best for ", bdx, " in ", threshold, " step=", step);
+            if(best == -1 || threshold < best) {
+                best = threshold;
+                found_in_step = step;
+                
+                add_result(action, threshold);
+            }
+            
+            return true;
         }
         
-        results[threshold] = action;
-        //tried.push_back({threshold, action});
-        /*if(action != split::Action::REMOVE
-           && (lowest_non_remove == -1 || threshold < lowest_non_remove)) {
-            lowest_non_remove = threshold;
-        } else if(action == split::Action::REMOVE) {
-            if(threshold > highest_remove) {
-                highest_remove = threshold;
-            }
-        }*/
+        return false;
+    }
+    
+    split::Action_t perform(CPULabeling::ListCache_t* cache, int threshold, int step, auto&& F, auto... args)
+    {
+        auto action = from_cache(threshold);
+        if(action == split::Action::NO_CHANCE) {
+            action = F(cache, threshold, args...);
+            ++count;
+        }
         
-        ++count;
+        check_viable_option(action, threshold, step);
         return action;
     }
 };
 
-void commit_run(pv::bid bdx, const Run& naive, const Run& next) {
+#ifdef TREX_SPLIT_DEBUG
+template<bool thread_safe>
+void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& next)
+{
     static std::atomic<int64_t> thresholds = 0, samples_naive{0};
     static std::atomic<int64_t> samples = 0;
     
@@ -281,7 +294,8 @@ void commit_run(pv::bid bdx, const Run& naive, const Run& next) {
         
         
         if(next.best != -1 && naive.best != -1) {
-            if(std::abs(next.best - naive.best) > 2) {
+            //if(std::abs(next.best - naive.best) > 2)
+            {
                 print(bdx, " Naive count: ", naive.count, " (t=",naive.best.load(),") vs ", next.count, " (t=",next.best.load(),") and map ", next.tried, " vs ", naive.tried);
             }
                 auto offset = std::abs(next.best - naive.best);
@@ -313,110 +327,7 @@ void commit_run(pv::bid bdx, const Run& naive, const Run& next) {
         print(often);
     }
 }
-
-template<typename F, typename Iterator, typename Pool>
-void distribute_indexes(F&& fn, Pool& pool, Iterator start, Iterator end) {
-    const auto threads = pool.num_threads();
-    int64_t i = 0, N = end - start;
-    const int64_t per_thread = max(1, int64_t(N) / int64_t(threads));
-#if defined(COMMONS_HAS_LATCH) //&& false
-    int64_t enqueued{0};
-    
-    {
-        Iterator nex = start;
-        int64_t i = 0;
-        
-        for(auto it = start; it != end;) {
-            auto step = (i + per_thread) < (N - per_thread) ? per_thread : (N - i);
-            nex += step;
-            if(nex != end) {
-                ++enqueued;
-            }
-            
-            it = nex;
-            i += step;
-        }
-    }
-    
-    std::latch work_done{static_cast<ptrdiff_t>(enqueued)};
-    Iterator nex = start;
-    std::exception_ptr ex;
-    
-    size_t j=0;
-    for(auto it = start; it != end; ++j) {
-        auto step = (i + per_thread) < (N - per_thread) ? per_thread : (N - i);
-        nex += step;
-        if(nex != end) {
-            pool.enqueue([&](auto i, auto it, auto nex, auto step, auto index) {
-                try {
-                    fn(i, it, nex, step, index);
-                } catch(...) {
-                    ex = std::current_exception();
-                }
-                work_done.count_down();
-                
-            }, i, it, nex, step, j);
-            
-        } else {
-            try {
-                // run in local thread
-                fn(i, it, nex, step, j);
-            } catch(...) {
-                ex = std::current_exception();
-            }
-        }
-        
-        it = nex;
-        i += step;
-    }
-    
-    work_done.wait();
-    if(ex)
-        std::rethrow_exception(ex);
-#else
-    std::atomic<int64_t> processed(0);
-    int64_t enqueued{0};
-    
-    {
-        Iterator nex = start;
-        int64_t i = 0;
-        
-        for(auto it = start; it != end;) {
-            auto step = (i + per_thread) < (N - per_thread) ? per_thread : (N - i);
-            assert(step > 0);
-            
-            nex += step;
-            if(nex != end)
-                ++enqueued;
-            
-            it = nex;
-            i += step;
-        }
-    }
-    
-    Iterator nex = start;
-    for(auto it = start; it != end;) {
-        auto step = (i + per_thread) < (N - per_thread) ? per_thread : (N - i);
-        nex += step;
-        
-        if(nex == end) {
-            fn(i, it, nex, step);
-            
-        } else {
-            pool.enqueue([&](auto i, auto it, auto nex, auto step) {
-                fn(i, it, nex, step);
-                ++processed;
-                
-            }, i, it, nex, step);
-        }
-        
-        it = nex;
-        i += step;
-    }
-    
-    while(processed < enqueued) { }
 #endif
-}
 
 std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers)
 {
@@ -520,10 +431,6 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         else
             max_size = (initial ? apply_threshold(cache, threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
         
-        // cant find any blobs anymore...
-        //if(blobs.empty())
-        //    return split::Action::ABORT;
-        
         // save the maximum number of objects found
         max_objects = max(max_objects, blobs.size());
         
@@ -567,7 +474,6 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         
         if(presumed_nr > 1) {
             if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::threshold) {
-                
                 // start in the center
                 // 51, half = 26
                 /*
@@ -589,148 +495,173 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     3. IF KEEP_ABORT => try a lower threshold
                  */
                 
-                Run run;
+                const int begin_threshold = max(min_threshold, (int)min_pixel);
+                static constexpr bool accurate = false;
                 
-                //if(false)
-                /*{
-                    static constexpr std::array<int, 3> offsets {
-                        1, 8, 16
-                    };
+                constexpr size_t num_threads = 3;
+                
+                const float distance = float(max_pixel - begin_threshold);
+                const float _step = distance / float(num_threads);
+                
+                static std::queue<CPULabeling::ListCache_t*> caches;
+                static std::mutex clock;
+
+                struct Guard {
+                    CPULabeling::ListCache_t* c{ nullptr };
+                    Guard() {
+                        std::unique_lock guard(clock);
+                        if(caches.empty()) {
+                            c = new CPULabeling::ListCache_t;
+                        } else {
+                            c = caches.front();
+                            caches.pop();
+                        }
+                    }
+                    ~Guard() {
+                        std::unique_lock guard(clock);
+                        caches.push(c);
+                    }
+                };
+                
+                const int segments = 3;
+                
+                auto work = [&](auto cache, auto& run, auto j)
+                {
+                    //end = begin_threshold + int(_step * (start + 1) + 0.5);
+                    //start = begin_threshold + int(_step * start);
                     
-                    const float normalization = 1.f;
-                    //const float normalization = 1.f / 64.f * (254.f - (min_threshold + 1));
+                    //int minimal = start;
+                    //const int step = max(1, int(_step * 0.2));
+                    //print(_blob->blob_id(), " ",i, ": ", start, "-", end, " step:", _step, " pixels:", Range<int>(min_pixel, max_pixel), " distance:", distance, " _step:", _step, " recounted at:", _blob->last_recount_threshold(), " step:",step);
                     
-                    //print("starting at ", posture_threshold + 1, " with offsets ", offsets, " and normalize ", normalization);
-                    for (const auto o : offsets) {
-                        const auto t = saturate(int(min_threshold + o * std::max(1.f, normalization)), min_threshold, 254);
-                        auto action = run.perform(t, 0, fn, true);
+                    //for(auto o=0; o<step; ++o) {
+                    const int step = segments * 2;
+                    int start = begin_threshold;
+                    int end = max_pixel;
+                    
+                    Range<int> first_stage(start,
+                                           start + int((end - start) * 0.3) + 1);
+                    //print("Thread ", j, "/", num_threads, " => ", step, " ", Range<int>(start, end), " first:", first_stage);
+                    
+                    for(auto i = first_stage.start + j * 2; i < first_stage.end; i += step)
+                    {
+                        auto action = run.perform(cache, i, 0, fn, true);
                         
                         if(action == split::Action::ABORT
                            || action == split::Action::KEEP_ABORT)
                         {
+                            if(action == split::Action::KEEP_ABORT)
+                                return;
+                            break;
+                        }
+                        
+                        if(run.has_best() && i >= run.best) {
                             break;
                         }
                     }
-                }*/
-                
-                const int begin_threshold = max(min_threshold, (int)min_pixel);
-                
-                /*int begin = min(254, begin_threshold);
-                int end = run.best == -1 ? max_pixel : (run.best - 1);
-                auto half = int((end - begin) * 0.5 + 0.5);
-                int t = begin + half;
-                int minimal = begin_threshold, maximal = max_pixel;
-                int avoided = 0;*/
-                
-                //print("Solving ", *_blob, " starting at ", t, " begin=",begin," end=",end);
-                
-                /*while ((run.best == -1 || run.best > min_threshold)
-                       && half >= 1)
-                {
-                    auto action = run.perform(t, 1, fn, true);
-                    //print(*_blob, "@t=",t, " half=",half," => ", action, " max_size=",max_size, " (", run.best, " ", run.count,")");
                     
-                    if(action == split::Action::ABORT
-                       || action == split::Action::KEEP_ABORT
-                       || action == split::Action::KEEP
-                       || action == split::Action::SKIP)
-                    {
-                        if(half == 1)
-                            half = 0;
-                        else
-                            half = int(half * 0.5);
-                        
-                        t -= half;
-                        
-                    } else if(action == split::Action::REMOVE) {
-                        if(half == 1)
-                            half = 0;
-                        else
-                            half = int(half * 0.5);
-                        t += half;
-                        
-                    } else if(action == split::Action::TOO_FEW) {
-                        if(half == 1)
-                            half = 0;
-                        else {
-                            half = int(half * 0.5);
-                            //q.push({t - half, half});
-                        }
-                        t += half;
-                        
-                    } else
-                        throw U_EXCEPTION("Invalid action ", action);
-                }*/
-                
-                static constexpr bool accurate = false;
-                /*uint8_t max_pixel = 254, min_pixel = min_threshold;
-                
-                auto [fit, eit] = std::minmax_element(_diff_px.begin(), _diff_px.end());
-                if(fit != _blob->pixels()->end()) {
-                    max_pixel = max(min_threshold, (int)*eit);
-                    min_pixel = max(min_threshold, (int)*fit);
-                }*/
-                
-                if(run.best == -1) {
-                    
-                    /*auto search_range = [this, &fn, &minimal, &maximal, &avoided](const arange<int> range, Run& run, const int step, const int offset, const int index = 1)
-                    {
-                        //print("Searching ", range.first, " to ", range.last, " with step ", step, " and offset ", offset, " minimal=", minimal, " and maximal=", maximal);
-                        
-                        for(int i = range.first + offset; i < range.last; i += step)
+                    if(!run.has_best()) {
+                        for(auto i = first_stage.start + j * 2 + 1; i < first_stage.end; i+=step)
                         {
-                            auto action = run.perform(_blob->blob_id(), _cache, i, index, fn, true);
-                            //if(i < minimal || i > maximal)
-                            //    ++avoided;
+                            if(run.has_best() && i >= run.best) {
+                                break;
+                            }
+                            
+                            auto action = run.perform(cache, i, 1, fn, true);
                             
                             if(action == split::Action::ABORT
                                || action == split::Action::KEEP_ABORT)
                             {
-                                return;
+                                if(action == split::Action::KEEP_ABORT)
+                                    return;
+                                break;
                             }
                         }
-                    };*/
+                    }
                     
-                    //search_range(arange(min_threshold, maximal), run, 50, 0, 0);
-                    
-                    const int step = 4;
-                    //run.best = -1;
-                    int resolution = step;
-
-                    constexpr size_t num_threads = 3;
-                    std::latch latch{ptrdiff_t(num_threads)}, end_latch{ptrdiff_t(num_threads)};
-                    
-                    const float distance = float(max_pixel - begin_threshold);
-                    const float _step = distance / float(num_threads);
-
-                    static GenericThreadPool threads(9, "Thresholds", nullptr);
-                    static std::queue<CPULabeling::ListCache_t*> caches;
-                    static std::mutex clock;
-
-                    struct Guard {
-                        CPULabeling::ListCache_t* c{ nullptr };
-                        Guard() {
-                            std::unique_lock guard(clock);
-                            if(caches.empty()) {
-                                c = new CPULabeling::ListCache_t;
-                            } else {
-                                c = caches.front();
-                                caches.pop();
-                            }
-                        }
-                        ~Guard() {
-                            std::unique_lock guard(clock);
-                            caches.push(c);
-                        }
-                    };
-                    
-                    if(distance < num_threads || _blob->num_pixels() < 5000) {
-                        //print("Distance:", distance, " < ", num_threads);
-                        int max_detected = max_pixel;
-                        
-                        for(auto i = begin_threshold; i < max_detected; i+=3)
+                    if(!run.has_best()) {
+                        for(auto i = first_stage.end + j; i < end; i+=step / 2)
                         {
-                            auto action = run.perform(_blob->blob_id(), _cache, i, 0, fn, true);
+                            if(run.has_best() && i >= run.best) {
+                                break;
+                            }
+                            
+                            auto action = run.perform(cache, i, 3, fn, true);
+                            
+                            if(action == split::Action::ABORT
+                               || action == split::Action::KEEP_ABORT)
+                            {
+                                if(action == split::Action::KEEP_ABORT)
+                                    return;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    /*if(!run.has_best()) {
+                        print(_blob->blob_id(), " Still not found: ", first_stage, " t",j, " step=", step);
+                    }*/
+                    
+                };
+                
+                
+#ifdef TREX_SPLIT_DEBUG
+                Run<false> naive;
+                for(int i = begin_threshold; i < 254; ++i)
+                {
+                    auto action = naive.perform(_cache, i, 0, fn, false);
+                    if(action == split::Action::ABORT
+                       || action == split::Action::KEEP_ABORT)
+                    {
+                        break;
+                    }
+                }
+#endif
+
+                static std::map<int, std::tuple<uint64_t, double>> tens_times, tens_times_thread;
+                static std::mutex mutex;
+                //if(true || (distance < num_threads || _blob->num_pixels() < 5000))
+                {
+                    Timer timer;
+                    Run<false> run;
+                    
+                    work(_cache, run, 0);
+                    if(!run.has_best())
+                        work(_cache, run, 1);
+                    if(!run.has_best())
+                        work(_cache, run, 2);
+                    
+                    auto t = timer.elapsed();
+                    uint64_t px = _blob->num_pixels();
+                    int index = 0;
+                    while(px > 0) {
+                        px /= 10u;
+                        ++index;
+                    }
+                    
+                    std::unique_lock guard(mutex);
+                    auto &e = tens_times[index];
+                    std::get<0>(e)++;
+                    std::get<1>(e)+=t;
+                    
+                    /*int max_detected = max_pixel;
+                    
+                    for(auto i = begin_threshold; i < max_detected; i+=3)
+                    {
+                        auto action = run.perform(_cache, i, 0, fn, true);
+                        
+                        if(action == split::Action::ABORT
+                           || action == split::Action::KEEP_ABORT)
+                        {
+                            max_detected = i;
+                            break;
+                        }
+                    }
+                    
+                    if(!run.has_best()) {
+                        for(auto i = begin_threshold + 1; i < run.best.load(); i+=3)
+                        {
+                            auto action = run.perform(_cache, i, 2, fn, true);
                             
                             if(action == split::Action::ABORT
                                || action == split::Action::KEEP_ABORT)
@@ -739,164 +670,12 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                                 break;
                             }
                         }
-                        
-                        if(!run.has_best()) {
-                            for(auto i = begin_threshold + 1; i < run.best.load(); i+=3)
-                            {
-                                auto action = run.perform(_blob->blob_id(), _cache, i, 2, fn, true);
-                                
-                                if(action == split::Action::ABORT
-                                   || action == split::Action::KEEP_ABORT)
-                                {
-                                    max_detected = i;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if(!run.has_best()) {
-                            for(auto i = begin_threshold + 2; i < run.best.load(); i+=3)
-                            {
-                                auto action = run.perform(_blob->blob_id(), _cache, i, 3, fn, true);
-                                
-                                if(action == split::Action::ABORT
-                                   || action == split::Action::KEEP_ABORT)
-                                {
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if(false && run.has_best()) {
-                            auto best = run.best.load();
-                            for(auto i = best - 4; i < best; ++i)
-                            {
-                                if(i <= min_pixel)
-                                    continue;
-                                
-                                auto action = run.perform(_blob->blob_id(), _cache, i, 2, fn, true);
-                                
-                                if(action == split::Action::ABORT
-                                   || action == split::Action::KEEP_ABORT)
-                                {
-                                    break;
-                                }
-                            }
-                        }
                     }
                     
-                    else {
-                        distribute_indexes([&](auto, auto start, auto end, auto, auto j)
-                            {
-                                Guard guard;
-                            
-                            end = begin_threshold + int(_step * (start + 1) + 0.5);
-                            start = begin_threshold + int(_step * start);
-                            
-                            if(distance == 0 && j == 0) {
-                                end++;
-                            }
-                            
-                            int minimal = start;
-                            
-                            //CPULabeling::ListCache_t cache;
-                            
-                            const int step = max(1, int(_step * 0.2));
-                            //print(_blob->blob_id(), " ",i, ": ", start, "-", end, " step:", _step, " pixels:", Range<int>(min_pixel, max_pixel), " distance:", distance, " _step:", _step, " recounted at:", _blob->last_recount_threshold(), " step:",step);
-                            
-                            for(auto o=0; o<step; ++o) {
-                                //if(run.has_best() && run.best.load() <= start + o)
-                                //    return;
-                                
-                                for(auto i = start + o; i < end; i+=step)
-                                {
-                                    if(i <  minimal)
-                                        continue;
-                                    
-                                    auto action = run.perform(_blob->blob_id(), guard.c, i, 0, fn, true);
-                                    
-                                    if(action == split::Action::ABORT
-                                       || action == split::Action::KEEP_ABORT)
-                                    {
-                                        break;
-                                    }
-                                    
-                                    
-                                }
-                                //print("i:", i, " start:", " end:");
-                                
-                                if(o == 0) {
-                                    //print("Arrived ", j, " ", latch.max());
-                                    latch.arrive_and_wait();
-                                }
-                                
-                                if(run.has_best()) {
-                                    auto best = run.best.load();
-                                     minimal = max((int)begin_threshold, (best - ((best - begin_threshold) % step)) - step);
-                                     end = max((int)begin_threshold, best);
-                                     //if(minimal < start + o)
-                                     //break;
-                                    //end = min(run.best.load(), end);
-                                    //print(_blob->blob_id(), " found run.best=", run.best.load(), " in ", end, " o:",o, " start:", start);
-                                    if(end <= start + o)
-                                        break;
-                                }
-                            }
-                            
-                            //if(!run.has_best())
-                            /*    end_latch.arrive_and_wait();
-                            //else
-                            //    end_latch.count_down();
-                            
-                            if(run.has_best()) {
-                                float width = step / float(num_threads) + 1;
-                                int t = run.best.load() - 1;
-                                int start = max((int)min_pixel, t - (j + 1) * width);
-                                int end = saturate(t - (j) * width, (int)min_pixel, (int)t);
-                                
-                                //print(_blob->blob_id(), " third stage from ", start, "-", end, " in ", j, " width=",width, " best=", t+1);
-                                
-                                for(int i = start; i < end; i+=2) {
-                                    if(run.best.load() < i)
-                                        break;
-                                    
-                                    run.perform(_blob->blob_id(), guard.c, i, 3, fn, true);
-                                }
-                            }*/
-                            
-                        }, threads, 0, (int)num_threads+1);
-                    }
-                    
-                    /*for(int o = 1; o < step; ++o) {
-                        //maximal = run.best == -1 ? 254 : run.best;
-                        //if(run.lowest_non_remove != -1)
-                        //    minimal = max(min_threshold, run.lowest_non_remove - step);
-                        //step = int((maximal - min_threshold) * 0.015) + 1;
-                        resolution = step - o;
-                        int best = run.best;
-                        search_range(arange(minimal, maximal), run, step, o);
-                        
-                        if(run.best != -1) {
-                            if constexpr(accurate)
-                                break;
-                            else
-                                maximal = min(run.best.load(), maximal);
-                        }
-                        //minimal = max(min_threshold, run.lowest_non_remove + 1 - step * 2);
-                        
-                        if(!accurate) {
-                            if(best == -1 && run.best != -1) {
-                                minimal = max(min_threshold, (run.best - ((run.best - min_threshold) % step)) - step);
-                                maximal = max(min_threshold, run.best.load());
-                            }
-                        }
-                    }*/
-                    
-                    /*if(accurate && run.best != -1) {
-                        for(int i=minimal; i<run.best; ++i) {
+                    if(!run.has_best()) {
+                        for(auto i = begin_threshold + 2; i < run.best.load(); i+=3)
+                        {
                             auto action = run.perform(_cache, i, 3, fn, true);
-                            //if(i < minimal || i > maximal)
-                            //    ++avoided;
                             
                             if(action == split::Action::ABORT
                                || action == split::Action::KEEP_ABORT)
@@ -906,36 +685,113 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                         }
                     }*/
                     
-                    //if(run.best != -1 && resolution > 0)
-                    //    search_range(arange(run.best - resolution, run.best), run, 1, 0);
-                }
-                
-                /*if(run.best != -1) {
-                    for(int i = max((int)min_pixel, run.best - 3); i < max_pixel && i < run.best; i+=1)
-                    {
-                        auto action = run.perform(_blob->blob_id(), _cache, i, 3, fn, true);
-                        //print("##",*_blob, "@t=",i," => ", action, " max_size=",max_size, " (", run.best, " ", run.count,")");
-                        if(action == split::Action::ABORT
-                           || action == split::Action::KEEP_ABORT)
+                    /*if(false && run.has_best()) {
+                        auto best = run.best.load();
+                        for(auto i = best - 4; i < best; ++i)
                         {
-                            break;
+                            if(i <= min_pixel)
+                                continue;
+                            
+                            auto action = run.perform(_cache, i, 2, fn, true);
+                            
+                            if(action == split::Action::ABORT
+                               || action == split::Action::KEEP_ABORT)
+                            {
+                                break;
+                            }
                         }
-                    }
-                }*/
-                
-                /*Run naive;
-                for(int i = begin_threshold; i < 254; ++i)
+                    }*/
+                    
+#ifdef TREX_SPLIT_DEBUG
+                    commit_run(_blob->blob_id(), naive, run);
+#endif
+                }
+                //else
                 {
-                    auto action = naive.perform(_blob->blob_id(), _cache, i, 0, fn, false);
-                    if(action == split::Action::ABORT
-                       || action == split::Action::KEEP_ABORT)
+                    Timer timer;
+                    static GenericThreadPool threads(9, "Thresholds", nullptr);
+                    Run<true> run;
+                    
+                    //! Counts down for all threads, to synchronize
+                    //! the first stage of the algorithm.
+                    //! This reduces the number of misses.
+                    //std::latch latch{ptrdiff_t(num_threads)};
+                    distribute_indexes([&](auto, auto, auto, auto j) {
+                        //! protects the usage of CPULabeling caches
+                        //! via RAII
+                        const Guard guard{};
+                        work(guard.c, run, j);
+                        
+                    }, threads, 0, (int)segments + 1);
+                    
+                    /*distribute_indexes([&](auto, auto start, auto end, auto)
                     {
-                        break;
+                        //! protects the usage of CPULabeling caches
+                        //! via RAII
+                        const Guard guard{};
+                        
+                        end = begin_threshold + int(_step * (start + 1) + 0.5);
+                        start = begin_threshold + int(_step * start);
+                        
+                        int minimal = start;
+                        const int step = max(1, int(_step * 0.2));
+                        //print(_blob->blob_id(), " ",i, ": ", start, "-", end, " step:", _step, " pixels:", Range<int>(min_pixel, max_pixel), " distance:", distance, " _step:", _step, " recounted at:", _blob->last_recount_threshold(), " step:",step);
+                        
+                        for(auto o=0; o<step; ++o) {
+                            for(auto i = start + o; i < end; i+=step)
+                            {
+                                if(i <  minimal)
+                                    continue;
+                                
+                                auto action = run.perform(guard.c, i, 0, fn, true);
+                                
+                                if(action == split::Action::ABORT
+                                   || action == split::Action::KEEP_ABORT)
+                                {
+                                    break;
+                                }
+                            }
+                            
+                            if(o == 0)
+                                latch.arrive_and_wait();
+                            
+                            if(run.has_best()) {
+                                auto best = run.best.load();
+                                minimal = max((int)begin_threshold, (best - ((best - begin_threshold) % step)) - step);
+                                end = max((int)begin_threshold, best);
+
+                                if(end <= start + o)
+                                    break;
+                            }
+                        }
+                        
+                    }, threads, 0, (int)num_threads+1);*/
+                    
+                    auto t = timer.elapsed();
+                    uint64_t px = _blob->num_pixels();
+                    int index = 0;
+                    while(px > 0) {
+                        px /= 10u;
+                        ++index;
                     }
+                    
+                    std::unique_lock guard(mutex);
+                    auto &e = tens_times_thread[index];
+                    std::get<0>(e)++;
+                    std::get<1>(e)+=t;
+                    
+#ifdef TREX_SPLIT_DEBUG
+                    commit_run(_blob->blob_id(), naive, run);
+#endif
                 }
                 
-                //naive.best = max(naive.best.load(), (int)min_pixel);
-                commit_run(_blob->blob_id(), naive, run);*/
+                static std::atomic<int64_t> count{0};
+                if(count.load() % 100 == 0) {
+                    std::unique_lock guard(mutex);
+                    print("tens: ",tens_times);
+                    print("thread: ", tens_times_thread);
+                }
+                
             }
             else
                 action = fn(_cache, 0, true);

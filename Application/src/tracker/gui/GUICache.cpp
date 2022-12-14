@@ -501,7 +501,7 @@ namespace gui {
                     if(raw_blobs.size() > 50) {
                         std::vector<int> labels(raw_blobs.size());
                         
-                        distribute_vector([&](auto i, auto start, auto end, auto){
+                        distribute_indexes([&](auto i, auto start, auto end, auto){
                             for(auto it = start; it != end; ++it, ++i) {
                                 labels[i] = Categorize::DataStore::_ranged_label_unsafe(f, (*it)->blob->blob_id());
                             }

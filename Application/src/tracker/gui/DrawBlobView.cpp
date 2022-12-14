@@ -138,7 +138,7 @@ void draw_blob_view(const DisplayParameters& parm)
         std::atomic<size_t> added_items = 0;
         auto copy = shown_ids;
         
-        distribute_vector([&](auto, auto start, auto end, auto) {
+        distribute_indexes([&](auto, auto start, auto end, auto) {
             std::unordered_set<pv::bid> added_ids;
             
             for(auto it = start; it != end; ++it) {

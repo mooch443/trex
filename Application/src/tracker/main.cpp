@@ -872,7 +872,7 @@ int main(int argc, char** argv)
         size_t added_frames = 0, processed_frames = 0;
         
         auto range = arange<size_t>(0, video.length()-1, size_t(float(video.length()) / 1000.f));
-        distribute_vector([&](auto, auto start, auto end, auto){
+        distribute_indexes([&](auto, auto start, auto end, auto){
             pv::Frame frame;
             for(auto it = start; it != end; ++it) {
                 frame.clear();

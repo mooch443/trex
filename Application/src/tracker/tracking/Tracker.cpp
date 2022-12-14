@@ -933,7 +933,7 @@ std::vector<pv::BlobPtr> Tracker::split_big(
     };
     
     if(big_blobs.size() >= 2 && pool) {
-        distribute_vector(work, *pool, big_blobs.begin(), big_blobs.end());
+        distribute_indexes(work, *pool, big_blobs.begin(), big_blobs.end());
     } else
         work(0, big_blobs.begin(), big_blobs.end(), 0);
     
@@ -1082,9 +1082,9 @@ Match::PairedProbabilities calculate_paired_probabilities
         const auto N_fish  = unassigned_individuals.size();
         const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
         
-        auto work = [&](auto, auto start, auto end, auto N){
+        auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
-            std::vector< Match::pairing_map_t<Match::Blob_t, Match::prob_t> > _probs(N);
+            std::vector< Match::pairing_map_t<Match::Blob_t, Match::prob_t> > _probs(std::distance(start, end));
             
             for (auto it = start; it != end; ++it, ++pid) {
                 auto fish = *it;
@@ -1137,7 +1137,7 @@ Match::PairedProbabilities calculate_paired_probabilities
         
         Timer timer;
         //if(pool && N_fish > 100)
-            distribute_vector(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
+        distribute_indexes(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
         {
             auto s = timer.elapsed();
             
@@ -1223,7 +1223,7 @@ Match::PairedProbabilities calculate_paired_probabilities
         }
 #else
         if(pool && N_fish > 100)
-            distribute_vector(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
+            distribute_indexes(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
         else
             work(0, unassigned_individuals.begin(), unassigned_individuals.end(), N_fish);
 #endif
@@ -1511,7 +1511,7 @@ void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool)
         };
         
         const auto frameIndex = s.frame.index();
-        distribute_vector(work_cliques, thread_pool, cliques.begin(), cliques.end());
+        distribute_indexes(work_cliques, thread_pool, cliques.begin(), cliques.end());
         
         //! update cliques in the global array:
         Tracker::Clique translated;
@@ -2894,7 +2894,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         auto f = fopen(file::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
         float N = float(_individuals.size());
-        distribute_vector([&count, &callback, N](auto, auto start, auto end, auto)
+        distribute_indexes([&count, &callback, N](auto, auto start, auto end, auto)
         {
             for(auto it = start; it != end; ++it) {
                 auto & [fdx, fish] = *it;

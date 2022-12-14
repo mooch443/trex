@@ -162,7 +162,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
 //#endif
     
     // distribute the tasks across threads
-    distribute_vector([&](auto i, auto start, auto end, auto) {
+    distribute_indexes([&](auto i, auto start, auto end, auto) {
         size_t N = 0;
 #ifndef NDEBUG
         size_t pushed = 0;
