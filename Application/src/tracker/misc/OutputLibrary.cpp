@@ -140,7 +140,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
                 clear_cache();
                 
-            } else if (name == "output_graphs" || name == "output_default_options" || name == "midline_resolution")
+            } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
             {
                 auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                 std::lock_guard<std::mutex> lock(_output_variables_lock);

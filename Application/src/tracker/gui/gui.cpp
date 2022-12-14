@@ -355,7 +355,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 _setting_animation.display = nullptr;
             }*/
             
-            if(name == "app_name" || name == "output_prefix") {
+            if(is_in(name, "app_name", "output_prefix")) {
                 if(_base)
                     _base->set_title(window_title());
             } //else if(name == "gui_run")
@@ -363,7 +363,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             //else if(name == "nowindow")
                 //globals::_settings.nowindow = value.value<bool>();
                 
-            if(name == "output_graphs" || name == "limit" || name == "event_min_peak_offset" || name == "output_normalize_midline_data") {//name != "gui_frame" && name != "analysis_paused") {
+            if(is_in(name, "output_graphs", "limit", "event_min_peak_offset", "output_normalize_midline_data"))
+            {
                 Output::Library::clear_cache();
                 for(auto &graph : PD(fish_graphs))
                     graph->reset();
@@ -385,10 +386,11 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 GUI::set_redraw();
             }
         
-            if((name == "track_threshold" || name == "grid_points" || name == "recognition_shapes" || name == "grid_points_scaling" || name == "recognition_border_shrink_percent" || name == "recognition_border" || name == "recognition_coeff" || name == "recognition_border_size_rescale") && Tracker::instance())
+            if(is_in(name, "track_threshold", "grid_points", "recognition_shapes", "grid_points_scaling", "recognition_border_shrink_percent", "recognition_border", "recognition_coeff", "recognition_border_size_rescale") && Tracker::instance())
             {
                 WorkProgress::add_queue("updating border", [this, name](){
-                    if(name == "recognition_coeff" || name == "recognition_border_shrink_percent" || name == "recognition_border_size_rescale" || name == "recognition_border") {
+                    if(is_in(name, "recognition_coeff", "recognition_border_shrink_percent", "recognition_border_size_rescale", "recognition_border"))
+                    {
                         PD(tracker).border().clear();
                     }
                     PD(tracker).border().update(PD(video_source));
@@ -4349,9 +4351,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
                         }
                     }
                         
-                    if(mode == TrainingMode::Continue
-                        || mode == TrainingMode::Restart
-                        || mode == TrainingMode::Apply)
+                    if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
                     {
                         print("Registering auto correct callback.");
                             

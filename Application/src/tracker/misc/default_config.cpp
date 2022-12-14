@@ -182,7 +182,7 @@ file::Path conda_environment_path() {
         home = file::Path(home).remove_filename().str();
 #endif
 
-    if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
+    if(is_in(home, "CONDA_PREFIX", "", compiled_path)) {
 #ifndef NDEBUG
         if(!SETTING(quiet))
             print("Reset conda prefix ",home," / ",compiled_path);
@@ -884,7 +884,8 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                 } else {
                     if(!quiet)
                         print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
-                    if(key == "whitelist_rect" || key == "exclude_rect" || key == "recognition_rect") {
+                    if(is_in(key, "whitelist_rect", "exclude_rect", "recognition_rect"))
+                    {
                         auto values = Meta::fromStr<std::vector<float>>(val);
                         if(values.size() == 4) {
                             map[r] = std::vector<std::vector<Vec2>>{
@@ -894,7 +895,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         } else if(!quiet)
                             FormatExcept("Invalid number of values while trying to correct ",val," deprecated parameter from ",key," to ",r,".");
                         
-                    } else if(key == "whitelist_rects" || key == "exclude_rects") {
+                    } else if(is_in(key, "whitelist_rects", "exclude_rects")) {
                         auto values = Meta::fromStr<std::vector<Bounds>>(val);
                         std::vector<std::vector<Vec2>> value;
                         

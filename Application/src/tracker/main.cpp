@@ -554,7 +554,7 @@ int main(int argc, char** argv)
 #if !COMMONS_NO_PYTHON
                 case Arguments::update: {
                     auto status = CheckUpdates::perform(false).get();
-                    if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
+                    if(is_in(status, CheckUpdates::VersionStatus::OLD, CheckUpdates::VersionStatus::ALREADY_ASKED))
                     {
                         CheckUpdates::display_update_dialog();
                     } else if(status == CheckUpdates::VersionStatus::NEWEST) {

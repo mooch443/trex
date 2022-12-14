@@ -223,7 +223,7 @@ VideoOpener::VideoOpener()
             if(_buffer)
                 _buffer->_threshold = value.template value<int>();
             
-        } else if(key == "average_samples" || key == "averaging_method") {
+        } else if(is_in(key, "average_samples", "averaging_method")) {
             if(_buffer)
                 _buffer->restart_background();
         }

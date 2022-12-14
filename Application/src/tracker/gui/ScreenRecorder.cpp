@@ -213,8 +213,7 @@ struct ScreenRecorder::Data {
         using namespace default_config;
         auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
         
-        if(format == gui_recording_format_t::avi
-           || format == gui_recording_format_t::mp4)
+        if(is_in(format, gui_recording_format_t::avi, gui_recording_format_t::mp4))
         {
             auto original_dims = size;
             if(size.width % 2 > 0)
@@ -247,8 +246,7 @@ struct ScreenRecorder::Data {
             
             _recording_capture->set(cv::VIDEOWRITER_PROP_QUALITY, 100);
             
-        } else if(format == gui_recording_format_t::jpg
-                  || format == gui_recording_format_t::png)
+        } else if(is_in(format, gui_recording_format_t::jpg, gui_recording_format_t::png))
         {
             if(!frames.exists()) {
                 if(!frames.create_folder()) {

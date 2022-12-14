@@ -253,7 +253,7 @@ void HeatmapController::sort_data_into_custom_grid() {
         });
         
     } else if(isPowerOfTwo(uniform_grid_cell_size)
-              && (_normalization == normalization_t::none || _normalization == normalization_t::value || _normalization == normalization_t::variance))
+              && is_in(_normalization, normalization_t::none, normalization_t::value, normalization_t::variance))
     {
         values.clear();
         

@@ -197,7 +197,7 @@ public:
                             status = CheckUpdates::perform(false).get();
                         } catch(...) { }
                         
-                        if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
+                        if(is_in(status, CheckUpdates::VersionStatus::OLD, CheckUpdates::VersionStatus::ALREADY_ASKED))
                             CheckUpdates::display_update_dialog();
                         else if(GUI::instance() && status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");

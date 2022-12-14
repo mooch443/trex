@@ -879,7 +879,7 @@ bool Accumulation::start() {
         unique_map = map;
     }
     
-    if(_mode == TrainingMode::Restart || _mode == TrainingMode::Continue) {
+    if(is_in(_mode, TrainingMode::Restart, TrainingMode::Continue)) {
         // save validation data
         if(_mode == TrainingMode::Restart
            && SETTING(recognition_save_training_images))
@@ -970,7 +970,10 @@ bool Accumulation::start() {
     const float good_uniqueness = SETTING(gpu_accepted_uniqueness).value<float>();//this->good_uniqueness();
     auto analysis_range = Tracker::analysis_range();
     
-    if(!ranges.empty() && (_mode == TrainingMode::Continue || _mode == TrainingMode::Restart) && SETTING(gpu_enable_accumulation) && best_uniqueness() < good_uniqueness)
+    if(!ranges.empty()
+       && is_in(_mode, TrainingMode::Continue, TrainingMode::Restart)
+       && SETTING(gpu_enable_accumulation)
+       && best_uniqueness() < good_uniqueness)
     {
         DebugHeader("Beginning accumulation from %d ranges in training mode '%s'.", ranges.size(), _mode.name());
         

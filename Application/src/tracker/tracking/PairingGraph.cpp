@@ -994,8 +994,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             static std::mutex mutex;
             static ska::bytell_hash_map<matching_mode_t::Class, Benchmark_t> benchmarks;
             
-            if(match_mode == matching_mode_t::hungarian
-               || match_mode == matching_mode_t::benchmark)
+            if(is_in(match_mode, matching_mode_t::hungarian, matching_mode_t::benchmark))
             {
                 Timer timer;
                 //HungarianAlgorithm alg;
@@ -1083,8 +1082,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 free(dist_matrix);
             }
             
-            if(match_mode == matching_mode_t::approximate
-               || match_mode == matching_mode_t::benchmark)
+            if(is_in(match_mode, matching_mode_t::approximate, matching_mode_t::benchmark))
             {
                 //! approximate matching
                 using namespace Match;
@@ -1132,8 +1130,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
             
             //! Compares the degree of two nodes
-            if(match_mode == matching_mode_t::tree
-               || match_mode == matching_mode_t::benchmark)
+            if(is_in(match_mode, matching_mode_t::tree, matching_mode_t::benchmark))
             {
                 Timer timer;
                 _optimal_pairing->calculations = 0;

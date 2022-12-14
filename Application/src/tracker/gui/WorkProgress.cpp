@@ -493,7 +493,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
                 if(!c)
                     continue;
                 
-                if(c == &custom_static_button || c == &static_button) {
+                if(is_in(c, &custom_static_button , &static_button)) {
                     static_button.set_pos(Vec2(width * 0.5 - (has_custom_button() ? static_button.width() * 0.5 + 5 : 0), c->pos().y));
                     custom_static_button.set_pos(Vec2(width * 0.5 + (_item_abortable && !_item_aborted ? custom_static_button.width() * 0.5 + 5 : 0), c->pos().y));
                 } else

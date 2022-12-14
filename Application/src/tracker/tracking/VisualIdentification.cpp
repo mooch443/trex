@@ -398,8 +398,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 }
                 
                 //! decide whether to reload the network
-                if(load_results == TrainingMode::LoadWeights
-                   || load_results == TrainingMode::Apply)
+                if(is_in(load_results, TrainingMode::LoadWeights, TrainingMode::Apply))
                     load_weights_internal();
                 else if(load_results == TrainingMode::Restart)
                     reinitialize_internal();
@@ -526,7 +525,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                         //}
                     }
                     
-                    if((load_results == TrainingMode::Continue || load_results == TrainingMode::Restart) && !dont_save)
+                    if(is_in(load_results, TrainingMode::Continue, TrainingMode::Restart)
+                       && !dont_save)
                     {
                         FileSize size(images.size());
                         auto ss = size.to_string();
