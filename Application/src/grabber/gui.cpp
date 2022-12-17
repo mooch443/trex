@@ -327,7 +327,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 gui::DrawStructure::SectionGuard guard(base, "blobs");
                 ColorWheel wheel;
                 static cv::Mat output;
-                static StaticBackground bg(Image::Make(_grabber.average()), nullptr);
+                static Background bg(Image::Make(_grabber.average()), nullptr);
                 for (size_t i = 0; i < _frame->mask().size(); i++) {
                     auto& m = _frame->mask().at(i);
                     if (m->empty())

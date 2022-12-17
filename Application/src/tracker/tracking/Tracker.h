@@ -5,7 +5,7 @@
 #include "Individual.h"
 #include <pv.h>
 #include <misc/ThreadPool.h>
-#include <tracking/StaticBackground.h>
+#include <processing/Background.h>
 #include <tracking/FOI.h>
 #include <tracking/Border.h>
 #include <misc/Timer.h>
@@ -101,9 +101,9 @@ public:
     static uint64_t max_individuals() { return instance()->_max_individuals.load(); }
     
 protected:
-    StaticBackground* _background{nullptr};
+    Background* _background{nullptr};
 public:
-    static StaticBackground* background() { return instance()->_background; }
+    static Background* background() { return instance()->_background; }
     
     ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
     ska::bytell_hash_map<Idx_t, size_t> _segment_map_known_capacity;
@@ -173,7 +173,7 @@ private:
 public:
     void set_average(const Image::Ptr& average) {
         _average = average;
-        _background = new StaticBackground(_average, nullptr);
+        _background = new Background(_average, nullptr);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
         if(!instance()->_average)

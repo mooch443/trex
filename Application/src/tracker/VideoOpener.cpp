@@ -1106,7 +1106,7 @@ void VideoOpener::select_file(const file::Path &p) {
         {
             cmn::set_thread_name("_accumulate_video_frames_thread");
             
-            track::StaticBackground bg(Image::Make(video->average()), nullptr);
+            Background bg(Image::Make(video->average()), nullptr);
             
             size_t step = max(1ul, min(video->length() / 100ul, (ushort)video->framerate()));
             pv::Frame frame;

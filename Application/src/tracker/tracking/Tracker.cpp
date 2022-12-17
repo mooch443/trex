@@ -51,6 +51,7 @@ void update_analysis_range() {
         DEF_CALLBACK(track_threshold);
         DEF_CALLBACK(track_max_reassign_time);
         DEF_CALLBACK(calculate_posture);
+        DEF_CALLBACK(enable_absolute_difference);
         
         DEF_CALLBACK(track_trusted_probability);
         DEF_CALLBACK(huge_timestamp_ends_segment);
