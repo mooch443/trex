@@ -54,12 +54,12 @@ private:
     uint8_t min_pixel, max_pixel;
     
     // parameters
-    pv::BlobPtr _blob;
+    pv::BlobWeakPtr _blob;
     std::vector<uchar> _diff_px;
     CPULabeling::ListCache_t* _cache{nullptr};
     
 public:
-    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, const pv::BlobPtr& blob);
+    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobWeakPtr blob);
     
     /**
      * @param presumed_nr number of individuals to find

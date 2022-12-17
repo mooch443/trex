@@ -223,7 +223,7 @@ namespace track {
         return eps;
     }
 
-    void Posture::calculate_posture(Frame_t frame, pv::BlobPtr blob)
+    void Posture::calculate_posture(Frame_t frame, pv::BlobWeakPtr blob)
     {
         const int initial_threshold = FAST_SETTING(track_posture_threshold);
         int threshold = initial_threshold;
@@ -245,7 +245,7 @@ namespace track {
             thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::instance()->background(), FAST_SETTING(posture_closing_steps), FAST_SETTING(posture_closing_size));
             thresholded_blob->add_offset(-blob->bounds().pos());
 
-            auto outlines = pixel::find_outer_points(thresholded_blob, threshold);
+            auto outlines = pixel::find_outer_points(thresholded_blob.get(), threshold);
             std::vector<Vec2> interp;
             _outlines = outlines;
             custom = interp;
@@ -336,7 +336,7 @@ namespace track {
         if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second
            && outline_point) {
             print(frame, " ", blob->blob_id(),": threshold ", threshold);
-            auto blob = thresholded_blob;
+            auto &blob = thresholded_blob;
             auto && [pos, image] = blob->image();
             //tf::imshow("image", image->get());
             std::this_thread::sleep_for(std::chrono::seconds(1));

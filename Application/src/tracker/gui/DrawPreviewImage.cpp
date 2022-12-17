@@ -230,7 +230,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
                 continue;
             
             auto blob = fish->compressed_blob(frame);
-            auto pixels = pp.find_bdx(blob->blob_id());
+            auto pixels = pp.bdx_to_ptr(blob->blob_id());
             if(!pixels) {
                 FormatWarning("Cannot find ", blob->blob_id(), " in frame ", frame, ".");
                 continue;

@@ -95,7 +95,6 @@ namespace pv {
         GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
         GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
         GETTER_NCONST(std::vector<uint8_t>, flags)
-        GETTER(std::vector<pv::BlobPtr>, blobs)
         
     public:
         //! Initialize copy
@@ -124,8 +123,7 @@ namespace pv {
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
-        std::vector<pv::BlobPtr>& get_blobs();
-        const std::vector<pv::BlobPtr>& get_blobs() const;
+        std::vector<pv::BlobPtr> get_blobs() const;
         
         /**
          * Adds a new object to this frame.

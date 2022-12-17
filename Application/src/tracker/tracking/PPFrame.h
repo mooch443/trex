@@ -19,22 +19,22 @@
 namespace track {
 using namespace cmn;
 
-struct split_expectation {
-    size_t number;
-    bool allow_less_than;
-    std::vector<Vec2> centers;
-    
-    split_expectation(size_t number = 0, bool allow_less_than = false)
-        : number(number), allow_less_than(allow_less_than)
-    { }
-    
-    std::string toStr() const {
-        return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
-    }
-    static std::string class_name() {
-        return "split_expectation";
-    }
-};
+template<class T> struct is_bytell : public std::false_type {};
+template<class T, class Compare, class Alloc>
+struct is_bytell<ska::bytell_hash_map<T, Compare, Alloc>> : public std::true_type {};
+
+template<typename U, typename T>
+concept VoidTransformer = std::invocable<T, U&> && std::is_same<std::invoke_result_t<T, U&>, void>::value;
+
+template<typename U, typename T>
+concept Predicate = std::invocable<T, U&> && std::is_same<std::invoke_result_t<T, U&>, bool>::value;
+
+template<typename U, typename T>
+concept IndexedTransformer = std::invocable<T, size_t, U&> && std::is_same<std::invoke_result_t<T, size_t, U&>, void>::value;
+
+template<typename U, typename T>
+concept Transformer = VoidTransformer<U, T> || Predicate<U, T> || IndexedTransformer<U, T>;
+
 
 class PPFrame {
     GETTER_NCONST(pv::Frame, frame)
@@ -46,20 +46,23 @@ public:
     robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
     robin_hood::unordered_map<Idx_t, Vec2> last_positions;
     
+    std::atomic<uint64_t> _split_objects{0}, _split_pixels{0};
+    
 #if TREX_ENABLE_HISTORY_LOGS
     inline static std::shared_ptr<std::ofstream> history_log;
     inline static std::mutex log_mutex;
 #endif
     
     template<typename... Args>
-    static inline void Log(Args... args) {
+    static inline void Log([[maybe_unused]] Args&& ...args) {
 #if TREX_ENABLE_HISTORY_LOGS
         if(!history_log)
             return;
+        write_log(format<FormatterType::NONE>(std::forward<Args>(args)...));
 #else
+        
         return;
 #endif
-        write_log(format<FormatterType::NONE>(args...));
     }
     
     static void CloseLogs();
@@ -80,13 +83,15 @@ public:
     //! Original frame index
     //long_t index;
     bool _finalized = false;
+    Settings::manual_matches_t::mapped_type fixed_matches;
     
 private:
     std::vector<pv::BlobPtr> _tags;
-    std::vector<pv::BlobPtr> _single_blobs;
-    GETTER(std::vector<pv::BlobPtr>, blobs)
-    GETTER(std::vector<pv::BlobPtr>, original_blobs)
-    GETTER(std::vector<pv::BlobPtr>, noise)
+    //GETTER(std::vector<pv::bid>, blobs)
+    //GETTER(std::vector<pv::bid>, original_blobs)
+    //GETTER(std::vector<pv::bid>, noise)
+    std::vector<pv::BlobPtr> _blob_owner;
+    std::vector<pv::BlobPtr> _noise_owner;
     
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
@@ -105,22 +110,39 @@ private:
     //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
 //public:
 //    UnorderedVectorSet<pv::bid> split_blobs;
+public:
+    /*struct Container {
+        bool regular;
+        pv::BlobPtr blob;
+        
+        bool operator==(pv::bid bdx) const {
+            return blob->blob_id() == bdx;
+        }
+    };*/
     
 protected:
-    ska::bytell_hash_map<pv::bid, pv::BlobPtr> _bdx_to_ptr;
+    //ska::bytell_hash_map<pv::bid, pv::BlobWeakPtr> _bdx_to_ptr;
+    //std::vector<Container> _owner;
+    
     GETTER(grid::ProximityGrid, blob_grid)
     
 public:
-    int label(const pv::BlobPtr&) const;
+    auto& unsafe_access_all_blobs() { return _blob_owner; }
+    
+    int label(const pv::bid&) const;
+    bool has_fixed_matches() const;
+    size_t number_objects() const { return _blob_owner.size() + _noise_owner.size(); }
+    size_t N_blobs() const { return _blob_owner.size(); }
+    size_t N_noise() const { return _noise_owner.size(); }
     
     /**
      * Blob related functions below.
      */
     
     //! Adds one blob to _blobs.
-    void add_regular(const pv::BlobPtr&);
+    void add_regular(pv::BlobPtr&&);
     //! Adds one blob to _noise.
-    void add_noise(const pv::BlobPtr&);
+    void add_noise(pv::BlobPtr&&);
     
     //! Adds a vector of blobs to _blobs.
     void add_regular(std::vector<pv::BlobPtr>&& v);
@@ -132,36 +154,268 @@ public:
     void move_to_noise(size_t blob_index);
     
     //! Tries to find the given blob in any of the arrays and removes it.
-    void erase_anywhere(const pv::BlobPtr& blob);
-    pv::BlobPtr erase_anywhere(pv::bid bdx);
+    //bool erase_anywhere(pv::bid bdx);
+    pv::BlobPtr extract(pv::bid bdx);
+    
+    template<typename T, typename K = remove_cvref_t<T>>
+    auto extract_from_range(std::vector<pv::BlobPtr>& objects,
+                            std::vector<pv::BlobPtr>&& owner,
+                            T&& vector,
+                            bool physical_remove = true)
+    {
+        for(auto it = owner.begin(); it != owner.end(); ) {
+            auto&& own = *it;
+            if(!own) {
+                ++it;
+                continue;
+            }
+            
+            auto bdx = own->blob_id();
+            
+            bool found;
+            
+            if constexpr(cmn::is_map<K>::value && !is_bytell<K>::value) {
+                found = vector.contains(bdx);
+            } else if constexpr(is_bytell<K>::value) {
+                found = vector.count(bdx);
+            } else {
+                if(vector.empty())
+                    break;
+                
+                auto vit = std::find(vector.begin(), vector.end(), bdx);
+                found = vit != vector.end();
+                if(found)
+                    vector.erase(vit);
+            }
+            
+            if(!found) {
+                ++it;
+            } else {
+                //! we found the blob, so remove it everywhere...
+                if(!_finalized) {
+                    _blob_grid.erase(bdx);
+                    
+                    _num_pixels -= own->num_pixels();
+                    _pixel_samples--;
+                }
+                
+            #ifndef NDEBUG
+                print(this->index(), " Removing ", own);
+            #endif
+                
+                // move object out and delete
+                objects.emplace_back(std::move(own));
+                
+                // update iterator
+                if(physical_remove)
+                    it = owner.erase(it);
+                else
+                    ++it;
+            }
+        }
+        
+    }
+    
+    template<typename T, typename K = remove_cvref_t<T>>
+        requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
+    std::vector<pv::BlobPtr> extract_from_blobs(T&& vector) {
+        std::vector<pv::BlobPtr> objects;
+        objects.reserve(vector.size());
+        extract_from_range(objects, std::move(_blob_owner), std::forward<T>(vector));
+        _check_owners();
+        return objects;
+    }
+    
+    template<typename T, typename K = remove_cvref_t<T>>
+        requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
+    std::vector<pv::BlobPtr> extract_from_noise(T&& vector) {
+        std::vector<pv::BlobPtr> objects;
+        objects.reserve(vector.size());
+        extract_from_range(objects, std::move(_noise_owner), std::forward<T>(vector));
+        _check_owners();
+        return objects;
+    }
+    
+    template<typename T, typename K = remove_cvref_t<T>>
+        requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
+    std::vector<pv::BlobPtr> extract_from_all(T&& vector) {
+        std::vector<pv::BlobPtr> objects;
+        objects.reserve(vector.size());
+        extract_from_range(objects, std::move(_blob_owner), std::forward<T>(vector));
+        extract_from_range(objects, std::move(_noise_owner), std::forward<T>(vector));
+        _check_owners();
+        return objects;
+    }
+    
+    template<typename T, typename K = remove_cvref_t<T>>
+        requires (cmn::is_container<K>::value)
+                || (cmn::is_map<K>::value)
+                || (cmn::is_set<K>::value)
+                || (std::same_as<K, UnorderedVectorSet<pv::bid>>)
+    std::vector<pv::BlobPtr> extract_from_blobs_unsafe(T&& vector) {
+        std::vector<pv::BlobPtr> objects;
+        objects.reserve(vector.size());
+        extract_from_range(objects, std::move(_blob_owner), std::forward<T>(vector), false);
+        _check_owners();
+        return objects;
+    }
+    
+    pv::BlobPtr create_copy(pv::bid bdx) const;
     
     //! If the bdx can be found, this removes it from the _blobs array
     /// and returns a pv::BlobPtr. Otherwise nullptr is returned.
-    pv::BlobPtr erase_regular(pv::bid bdx);
+    //bool erase_regular(pv::bid bdx);
     
     //! If the bdx can be found in any of the arrays, this will return
     /// something != nullptr.
-    pv::BlobPtr find_bdx(pv::bid bdx) const;
+    pv::BlobWeakPtr bdx_to_ptr(pv::bid bdx) const;
+    bool has_bdx(pv::bid bdx) const;
     
     //! Tries to find a blob in the original blobs.
-    pv::BlobPtr find_original_bdx(pv::bid bdx) const;
+    //pv::BlobPtr find_original_bdx(pv::bid bdx) const;
     
     //! Will return the pv::BlobPtr assigned with the given bdx.
     /// If the bdx cannot be found, this will throw!
-    const pv::BlobPtr& bdx_to_ptr(pv::bid bdx) const;
+    //const pv::BlobPtr& bdx_to_ptr(pv::bid bdx) const;
 
     void set_tags(std::vector<pv::BlobPtr>&&);
-    std::vector<pv::BlobPtr>& tags() { return _tags; }
+    auto& tags() { return _tags; }
     
     //! Only remove blobs and update pixels arrays.
     void clear_blobs();
     
     //! Adds both from blobs and noise, assuming that pixels and samples are already known.
-    void add_blobs(std::vector<pv::BlobPtr>&& blobs, std::vector<pv::BlobPtr>&& noise, size_t pixels, size_t samples);
+    void add_blobs(std::vector<pv::BlobPtr>&& blobs,
+                   std::vector<pv::BlobPtr>&& noise,
+                   size_t pixels, size_t samples);
     
     void fill_proximity_grid();
     void finalize();
     void init_from_blobs(std::vector<pv::BlobPtr>&& vec);
+    
+    template<typename T>
+        requires Transformer<pv::Blob, T>
+    void transform_all(T&& F) const {
+        size_t i = 0;
+        
+        for(auto &own : _blob_owner) {
+            if(!own)
+                continue;
+            
+            if constexpr(VoidTransformer<pv::Blob, T>) {
+                F(*own);
+            } else if constexpr(Predicate<pv::Blob, T>) {
+                if(!F(*own))
+                    break;
+            } else if constexpr(IndexedTransformer<pv::Blob, T>) {
+                F(i++, *own);
+            } else {
+                static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+            }
+        }
+        
+        for(auto &own : _noise_owner) {
+            if(!own)
+                continue;
+            
+            if constexpr(VoidTransformer<pv::Blob, T>) {
+                F(*own);
+            } else if constexpr(Predicate<pv::Blob, T>) {
+                if(!F(*own))
+                    break;
+            } else if constexpr(IndexedTransformer<pv::Blob, T>) {
+                F(i++, *own);
+            } else {
+                static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+            }
+        }
+    }
+    
+    template<typename T>
+        requires Transformer<pv::Blob, T>
+    void transform_noise(T&& F) const {
+        size_t i = 0;
+        for(auto &own : _noise_owner) {
+            if(!own)
+                continue;
+            
+            if constexpr(VoidTransformer<pv::Blob, T>) {
+                F(*own);
+            } else if constexpr(Predicate<pv::Blob, T>) {
+                if(!F(*own))
+                    break;
+            } else if constexpr(IndexedTransformer<pv::Blob, T>) {
+                F(i++, *own);
+            } else {
+                static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+            }
+        }
+    }
+    
+    template<typename T>
+        requires Transformer<pv::bid, T>
+    void transform_blob_ids(T&& F) const {
+        size_t i = 0;
+        for(auto &blob : _blob_owner) {
+            if(!blob)
+                continue;
+            
+            if constexpr(VoidTransformer<pv::bid, T>) {
+                F(blob->blob_id());
+            } else if constexpr(Predicate<pv::bid, T>) {
+                if(!F(blob->blob_id()))
+                    break;
+            } else if constexpr(IndexedTransformer<pv::bid, T>) {
+                F(i++, blob->blob_id());
+            } else {
+                static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+            }
+        }
+    }
+    
+    template<typename F>
+        requires Transformer<pv::Blob, F>
+    void transform_blobs(F&& fn) const {
+        size_t i = 0;
+        for(auto &own : _blob_owner) {
+            if(!own)
+                continue;
+            
+            if constexpr(VoidTransformer<pv::Blob, F>) {
+                fn(*own);
+            } else if constexpr(Predicate<pv::Blob, F>) {
+                if(!fn(*own))
+                    break;
+            } else if constexpr(IndexedTransformer<pv::Blob, F>) {
+                fn(i++, *own);
+            } else {
+                static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+            }
+        }
+    }
+    
+    template<typename F>
+        requires Predicate<pv::Blob, F>
+    void move_to_noise_if(F && fn) {
+        for(auto it = _blob_owner.begin(); it != _blob_owner.end(); ) {
+            auto &&own = *it;
+            if(!own)
+                continue;
+            
+            if(fn(*own)) {
+                _noise_owner.emplace_back(std::move(own));
+                it = _blob_owner.erase(it);
+                //_blob_owner.erase(std::find(_blobs.begin(), _blobs.end(), own.blob->blob_id()));
+            } else
+                ++it;
+        }
+        
+        _check_owners();
+    }
+    
+    //bool is_noise(pv::bid bdx) const;
+    bool is_regular(pv::bid bdx) const;
+    //bool is_big(pv::bid bdx) const;
     
     PPFrame();
     ~PPFrame();
@@ -170,8 +424,9 @@ public:
     
 private:
     void _assume_not_finalized(const char*, int);
-    bool _add_to_map(const pv::BlobPtr&);
-    void _remove_from_map(pv::bid);
+    pv::bid _add_ownership(bool regular, pv::BlobPtr&&);
+    pv::BlobPtr _extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx);
+    void _check_owners();
 };
 
 }

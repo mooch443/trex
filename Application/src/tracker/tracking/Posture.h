@@ -39,7 +39,7 @@ namespace track {
         ~Posture() {
         }
         
-        void calculate_posture(Frame_t frameIndex, pv::BlobPtr blob);//const cv::Mat& greyscale, Vec2 previous_direction);
+        void calculate_posture(Frame_t frameIndex, pv::BlobWeakPtr blob);//const cv::Mat& greyscale, Vec2 previous_direction);
         
         bool outline_empty() const { return _outline.empty(); }
         static std::vector<EntryPoint> subpixel_threshold(const cv::Mat& greyscale, int threshold) 

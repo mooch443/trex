@@ -23,7 +23,7 @@ namespace gui {
         return _cache != nullptr;
     }
 
-    SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
+    SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
     {
         assert(ptr);
@@ -397,7 +397,7 @@ namespace gui {
             const bool nothing_to_zoom_on = !has_selection() || (inactive_estimates.empty() && selected_blobs.empty());
             
             _num_pixels = 0;
-            auto L = processed_frame.blobs().size() + processed_frame.noise().size();
+            auto L = processed_frame.number_objects();
             
             if(reload_blobs) {
                 display_blobs.clear();
@@ -411,21 +411,19 @@ namespace gui {
             }
             
             size_t i = 0;
-            for (; i<processed_frame.blobs().size(); i++) {
-                auto& blob = processed_frame.blobs().at(i);
-                
-                if(nothing_to_zoom_on || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
+            processed_frame.transform_blobs([&](pv::Blob& blob) {
+                if(nothing_to_zoom_on || selected_blobs.find(blob.blob_id()) != selected_blobs.end())
                 {
-                    min_vec = min(min_vec, blob->bounds().pos());
-                    max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
+                    min_vec = min(min_vec, blob.bounds().pos());
+                    max_vec = max(max_vec, blob.bounds().pos() + blob.bounds().size());
                 }
                 
-                _num_pixels += size_t(blob->bounds().width * blob->bounds().height);
+                _num_pixels += size_t(blob.bounds().width * blob.bounds().height);
                 
                 if(reload_blobs) {
                     if(i < raw_blobs.size()) {
                         auto &obj = raw_blobs[i];
-                        obj->blob = blob;
+                        obj->blob = &blob;
                         obj->threshold = threshold;
                         
                     } else {
@@ -434,49 +432,51 @@ namespace gui {
                             ptr = std::move(available_blobs_list.back());
                             available_blobs_list.pop_back();
                             
-                            ptr->blob = blob;
+                            ptr->blob = &blob;
                             ptr->threshold = threshold;
                         } else
-                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
-                        
-                        raw_blobs.emplace_back(std::move(ptr));
-                    }
-                }
-            }
-            
-            for(auto &blob : processed_frame.noise()) {
-                blob->calculate_moments();
-                
-                if((nothing_to_zoom_on && blob->recount(-1) >= FAST_SETTING(blob_size_ranges).max_range().start)
-                   || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
-                {
-                    min_vec = min(min_vec, blob->bounds().pos());
-                    max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
-                }
-                
-                if(reload_blobs) {
-                    if(i < raw_blobs.size()) {
-                        auto &obj = raw_blobs[i];
-                        obj->blob = blob;
-                        obj->threshold = threshold;
-                        
-                    } else {
-                        std::unique_ptr<SimpleBlob> ptr;
-                        if(!available_blobs_list.empty()) {
-                            ptr = std::move(available_blobs_list.back());
-                            available_blobs_list.pop_back();
-                            
-                            ptr->blob = blob;
-                            ptr->threshold = threshold;
-                        } else
-                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), &blob, threshold);
                         
                         raw_blobs.emplace_back(std::move(ptr));
                     }
                 }
                 
                 ++i;
-            }
+            });
+            
+            processed_frame.transform_noise([&](pv::Blob& blob) {
+                blob.calculate_moments();
+                
+                if((nothing_to_zoom_on && blob.recount(-1) >= FAST_SETTING(blob_size_ranges).max_range().start)
+                   || selected_blobs.find(blob.blob_id()) != selected_blobs.end())
+                {
+                    min_vec = min(min_vec, blob.bounds().pos());
+                    max_vec = max(max_vec, blob.bounds().pos() + blob.bounds().size());
+                }
+                
+                if(reload_blobs) {
+                    if(i < raw_blobs.size()) {
+                        auto &obj = raw_blobs[i];
+                        obj->blob = &blob;
+                        obj->threshold = threshold;
+                        
+                    } else {
+                        std::unique_ptr<SimpleBlob> ptr;
+                        if(!available_blobs_list.empty()) {
+                            ptr = std::move(available_blobs_list.back());
+                            available_blobs_list.pop_back();
+                            
+                            ptr->blob = &blob;
+                            ptr->threshold = threshold;
+                        } else
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), &blob, threshold);
+                        
+                        raw_blobs.emplace_back(std::move(ptr));
+                    }
+                }
+                
+                ++i;
+            });
             
             if(reload_blobs) {
                 /**
@@ -586,15 +586,15 @@ namespace gui {
             LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame.cached(fdx);
             if(c) {
-                for(auto& blob : processed_frame.blobs()) {
+                processed_frame.transform_blobs([&](const pv::Blob& blob) {
                     auto it = individuals.find(fdx);
                     if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
-                        continue;
+                        return;
                     
-                    auto p = individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob);
+                    auto p = individuals.at(fdx)->probability(processed_frame.label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
-                        probabilities[c->_idx][blob->blob_id()] = p;
-                }
+                        probabilities[c->_idx][blob.blob_id()] = p;
+                });
             }
         }
         

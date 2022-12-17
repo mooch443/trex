@@ -1150,7 +1150,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 ? fish->calculate_midline_for(*basic, *posture)
                 : nullptr;
             
-            image = std::get<0>(constraints::diff_image(normalized(), blob, midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
+            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

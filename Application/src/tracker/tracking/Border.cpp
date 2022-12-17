@@ -121,10 +121,10 @@ namespace track {
                 if(SETTING(terminate))
                     break;
                 
-                for(auto b : blobs) {
-                    auto pb = pixel::threshold_blob(b, FAST_SETTING(track_threshold), Tracker::instance()->background());
+                for(auto &b : blobs) {
+                    auto pb = pixel::threshold_blob(b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
                     
-                    for(auto b : pb) {
+                    for(auto &b : pb) {
                         auto size = b->num_pixels() * sqcm;
                         if(FAST_SETTING(blob_size_ranges).in_range_of_one(size, rescale)) {  //size >= min_size && size <= max_size) {
                             for(auto &line : b->hor_lines()) {
@@ -214,13 +214,13 @@ namespace track {
                     video.read_frame(frame, i);
                     auto blobs = frame.get_blobs();
                     
-                    for(auto b : blobs) {
-                        auto pb = pixel::threshold_blob(b, FAST_SETTING(track_threshold), Tracker::instance()->background());
+                    for(auto &b : blobs) {
+                        auto pb = pixel::threshold_blob(b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
                         
-                        for(auto b : pb) {
+                        for(auto &&b : pb) {
                             auto size = b->num_pixels() * sqcm;
                             if(FAST_SETTING(blob_size_ranges) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
-                                collection.push_back(b);
+                                collection.push_back(std::move(b));
                         }
                     }
                 }

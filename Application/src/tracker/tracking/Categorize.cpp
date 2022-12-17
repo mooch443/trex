@@ -1869,8 +1869,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame.get()));
 
             Tracker::instance()->preprocess_frame(*ptr, active, NULL);
-            for (auto& b : ptr->blobs())
-                b->calculate_moments();
+            ptr->transform_blobs([](pv::Blob& b){
+                b.calculate_moments();
+            });
         }
 
 #ifndef NDEBUG
@@ -2201,7 +2202,7 @@ Sample::Ptr DataStore::temporary(
             
             auto [image, pos] =
                 constraints::diff_image(normalize,
-                                        blob,
+                                        blob.get(),
                                         midline ? midline->transform(normalize) : gui::Transform(),
                                         custom_len.median_midline_length_px,
                                         dims,

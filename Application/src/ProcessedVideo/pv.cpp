@@ -75,7 +75,7 @@ namespace pv {
         
         std::swap(_mask, other._mask);
         std::swap(_pixels, other._pixels);
-        std::swap(_blobs, other._blobs);
+        //std::swap(_blobs, other._blobs);
         std::swap(_flags, other._flags);
     }
 
@@ -84,7 +84,7 @@ namespace pv {
         _n = other._n;
         _loading_time = other._loading_time;
         
-        _blobs.clear();
+        //_blobs.clear();
         
         _mask.clear();
         _pixels.clear();
@@ -113,14 +113,11 @@ namespace pv {
         return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i]);
     }
     
-    const std::vector<pv::BlobPtr>& Frame::get_blobs() const {
-        if(_blobs.size() != n())
-            throw U_EXCEPTION("Have to call the non-const variant of this function first at some point (",_blobs.size()," != ",n(),").");
-        return _blobs;
-    }
-    
-    std::vector<pv::BlobPtr>& Frame::get_blobs() {
-        if(_blobs.empty()) {
+    std::vector<pv::BlobPtr> Frame::get_blobs() const {
+        //if(_blobs.empty())
+        std::vector<pv::BlobPtr> _blobs;
+        {
+            _blobs.clear();
             _blobs.reserve(n());
             for (uint32_t i=0; i<n(); i++)
                 _blobs.push_back(blob_at(i));
@@ -136,7 +133,7 @@ namespace pv {
         _n = 0;
         _timestamp = 0;
         _loading_time = 0;
-        _blobs.clear();
+        //_blobs.clear();
         
         set_index(-1);
     }

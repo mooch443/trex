@@ -201,6 +201,7 @@ TRex parameters
 
 	**possible values:**
 		- `threshold`: Adaptively increase the threshold of closeby objects, until separation.
+		- `threshold_approximate`: Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.
 		- `fill`: Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run.
 
 	The default splitting algorithm used to split objects that are too close together.
@@ -256,7 +257,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wthread-safety -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -DNDEBUG -std=c++2a -mcpu=apple-m1 -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -2195,7 +2196,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-124-g72d5b3f"
+	**default value:** "v1.1.9-147-gffa717c"
 
 
 	Current application version.

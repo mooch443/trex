@@ -63,7 +63,7 @@ struct slow {
 
 }
 
-SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, const pv::BlobPtr& blob)
+SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobWeakPtr blob)
     :   max_objects(0),
         _blob(blob),
         _cache(cache)
@@ -412,7 +412,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 
             output.clear();
             for(auto&& [lines, pixels, flags] : detections) {
-                output.emplace_back(pv::Blob::make(std::move(lines), std::move(pixels), flags));
+                output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags));
                 //output.back()->add_offset(-_blob->bounds().pos());
             }
         }
@@ -706,7 +706,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             }
         }
         
-        return best_match.blobs;
+        return std::move(best_match.blobs);
     }
     
     //! could not find anything

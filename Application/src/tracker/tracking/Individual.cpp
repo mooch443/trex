@@ -917,7 +917,7 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-int64_t Individual::add(const TrackingHelper& helper, const pv::BlobPtr& blob, prob_t current_prob)
+int64_t Individual::add(const TrackingHelper& helper, pv::BlobPtr&& blob, prob_t current_prob)
 {
     const auto frameIndex = helper.frame.index();
     if (has(frameIndex))
@@ -967,12 +967,12 @@ int64_t Individual::add(const TrackingHelper& helper, const pv::BlobPtr& blob, p
     }
     
     stuff->frame = frameIndex;
+    stuff->thresholded_size = blob->raw_recount(-1);//,
     stuff->blob = blob;
-    stuff->pixels = blob;
+    stuff->pixels = std::move(blob);
     
     //const auto ft = FAST_SETTING(track_threshold);
-    //assert(blob->last_recount_threshold() == ft);
-    stuff->thresholded_size = blob->raw_recount(-1);//, *Tracker::instance()->background());
+    //assert(blob->last_recount_threshold() == ft); *Tracker::instance()->background());
     
     //!TODO: can use previous segment here
     //if(prev_props)
@@ -988,7 +988,7 @@ int64_t Individual::add(const TrackingHelper& helper, const pv::BlobPtr& blob, p
             p = 0;
         else
             p = probability(cached->consistent_categories
-                                ? helper.frame.label(blob)
+                                ? helper.frame.label(stuff->pixels->blob_id())
                                 : -1,
                             *cached,
                             frameIndex,
@@ -2057,8 +2057,8 @@ Individual::Probability Individual::probability(int label, const IndividualCache
     return probability(label, cache, frameIndex, bounds.pos() + bounds.size() * 0.5, blob.num_pixels());
 }
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::BlobPtr& blob) const {
-    return probability(label, cache, frameIndex, blob->bounds().pos() + blob->bounds().size() * 0.5, blob->num_pixels());
+Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::Blob& blob) const {
+    return probability(label, cache, frameIndex, blob.bounds().pos() + blob.bounds().size() * 0.5, blob.num_pixels());
 }
 
 Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
@@ -2350,7 +2350,7 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
     
     assert(stuff.pixels);
     Posture ptr(frameIndex, identity().ID());
-    ptr.calculate_posture(frameIndex, stuff.pixels);
+    ptr.calculate_posture(frameIndex, stuff.pixels.get());
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);
     
     if(ptr.outline_empty() /*|| !ptr.normalized_midline()*/) {

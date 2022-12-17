@@ -2243,7 +2243,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 
                 for(auto fish : active) {
                     auto loaded_blob = fish->compressed_blob(idx);
-                    auto blob = frame.find_bdx(loaded_blob->blob_id());
+                    auto blob = frame.bdx_to_ptr(loaded_blob->blob_id());
                     if(loaded_blob && blob) {
                         if(blob->split())
                             continue;
@@ -2306,8 +2306,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
             print("Preprocessed frame ", PD(cache).frame_idx,":");
-            print("Filtered out: ", PD(cache).processed_frame.noise());
-            print("Blobs: ", PD(cache).processed_frame.blobs());
+            //print("Filtered out: ", PD(cache).processed_frame.noise());
+            //print("Blobs: ", PD(cache).processed_frame.blobs());
         }
         
         layout.remove_child(&textfield);
@@ -2665,7 +2665,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
         double gaverage_pixels = 0, gsamples = 0;
         
         distribute_indexes([&](auto, auto start, auto end, auto){
-            std::unordered_map<pv::Blob*, SimpleBlob*> map;
+            std::unordered_map<pv::bid, SimpleBlob*> map;
             //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
@@ -2684,11 +2684,11 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
                     //if(bds.overlaps(screen_bounds))
                     //{
                 if(!gui_show_only_unassigned ||
-                   (!PD(cache).display_blobs.contains((*it)->blob.get()) && !contains(PD(cache).active_blobs, (*it)->blob->blob_id())))
+                   (!PD(cache).display_blobs.contains((*it)->blob->blob_id()) && !contains(PD(cache).active_blobs, (*it)->blob->blob_id())))
                 {
                     (*it)->convert();
                     //vector.push_back((*it)->convert());
-                    map[(*it)->blob.get()] = it->get();
+                    map[(*it)->blob->blob_id()] = it->get();
                 }
                     //}
                 //}
@@ -3722,7 +3722,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 
                 for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
                     GUI::instance()->video_source()->read_frame(f, k.get());
-                    auto & blobs = f.blobs();
+                    auto blobs = f.get_blobs();
                     N += v.size();
                     
                     for(auto &[bid, ps] : v) {
@@ -3828,7 +3828,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                             } else {
                                 const pv::CompressedBlob* found = nullptr;
                                 GUI::instance()->video_source()->read_frame(f, k.get());
-                                for(auto &b : f.blobs()) {
+                                for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {
                                         //print("Found blob close to ", center, " at ", c, ": ", *b);
@@ -4453,21 +4453,21 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         Tracker::instance()->preprocess_frame(frame, active, NULL);
         
         cv::Mat image, padded, mask;
-        for(auto &blob : frame.blobs()) {
-            if(!PD(tracker).border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
-                print("Skipping ", blob->blob_id(),"@",i," because its out of bounds.");
-                continue;
+        frame.transform_blobs([&](pv::Blob& blob){
+            if(!PD(tracker).border().in_recognition_bounds(blob.center() * 0.5)) {
+                print("Skipping ", blob.blob_id(),"@",i," because its out of bounds.");
+                return;
             }
             
-            auto recount = blob->recount(FAST_SETTING(track_threshold), *PD(tracker).background());
+            auto recount = blob.recount(FAST_SETTING(track_threshold), *PD(tracker).background());
             if(recount < FAST_SETTING(blob_size_ranges).max_range().start) 
             {
-                continue;
+                return;
             }
             
-            imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
+            imageFromLines(blob.hor_lines(), &mask, NULL, &image, blob.pixels().get(), 0, &Tracker::average(), 0);
             
-            auto b = blob->bounds();
+            auto b = blob.bounds();
             b << output_size;
             
             Vec2 offset = (Size2(padded) - Size2(image)) * 0.5;
@@ -4481,11 +4481,11 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             b.restrict_to(_average_image.bounds());
             
             //_average_image(b).copyTo(padded);//image(dims), mask(dims));
-            b = blob->bounds();
+            b = blob.bounds();
             
             b.restrict_to(_average_image.bounds());
             
-            Bounds p(blob->bounds());
+            Bounds p(blob.bounds());
             p << Size2(mask);
             p << Vec2(offset);
             
@@ -4520,7 +4520,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                     auto fish_blob = fish->blob(i);
                     auto head = fish->head(i);
                     
-                    if(fish_blob && fish_blob->blob_id() == blob->blob_id() && head) {
+                    if(fish_blob && fish_blob->blob_id() == blob.blob_id() && head) {
                         found_head = head;
                         break;
                     }
@@ -4546,7 +4546,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 tf::imshow("too big", image);
                 FormatWarning(prefix.c_str()," image too big (",image.cols,"x",image.rows,")");
             }
-        }
+        });
     }
     
     /*-------------------------/

@@ -27,9 +27,8 @@ Settings::manual_splits_t::mapped_type HistorySplit::apply_manual_matches(PPFram
             }*/
             
             PPFrame::Log("\t\tManually splitting ", (uint32_t)bdx);
-            auto ptr = frame.erase_anywhere(bdx);
-            if(ptr) {
-                big_blobs.insert(ptr);
+            if(frame.has_bdx(bdx)) {
+                big_blobs.insert(bdx);
                 
                 expect[bdx].number = 2;
                 expect[bdx].allow_less_than = false;
@@ -232,7 +231,7 @@ HistorySplit::HistorySplit(PPFrame &frame, const set_of_individuals_t& active, G
             if(!max_id.valid())
                 continue; // no more blobs assignable
             
-            auto ptr = frame.find_bdx(max_id);
+            auto ptr = frame.bdx_to_ptr(max_id);
             if(ptr) {
                 if(assign_blob.count(max_id)) {
                     ++expect[max_id].number;
@@ -243,10 +242,11 @@ HistorySplit::HistorySplit(PPFrame &frame, const set_of_individuals_t& active, G
                 auto last_pos = frame.last_positions.at(fdx);
 
                 ++expect[max_id].number;
-                big_blobs.insert(ptr);
                 expect[max_id].centers.push_back(last_pos - ptr->bounds().pos());
-                
                 PPFrame::Log("Increasing split number in ", *ptr, " to ", expect[max_id]);
+                
+                big_blobs.insert(max_id);
+                
             } else
                 PPFrame::Log("Cannot split blob ", max_id, " since it cannot be found.");
 
@@ -260,20 +260,42 @@ HistorySplit::HistorySplit(PPFrame &frame, const set_of_individuals_t& active, G
         }
     }
     
-    for(auto& b : big_blobs)
-        frame.erase_regular(b->blob_id());
+    //for(auto& b : big_blobs)
+    //    frame.erase_regular(b->blob_id());
     
-    auto big_filtered = Tracker::split_big(BlobReceiver(frame, BlobReceiver::noise), big_blobs._data, expect, true, nullptr, pool);
+    auto collection = frame.extract_from_blobs(big_blobs);
+    assert(frame.extract_from_blobs(big_blobs).empty());
+    assert(collection.size() == big_blobs.size());
+    big_blobs.clear();
     
-    if(!big_filtered.empty())
-        frame.add_regular(std::move(big_filtered));
+    PPFrame::Log("&nbsp;Collected ", collection, " from frame.");
+    for(auto &b: collection)
+        frame._split_pixels += b->num_pixels();
+    frame._split_objects += collection.size();
     
-    for(size_t i=0; i<frame.blobs().size(); ) {
-        if(!FAST_SETTING(blob_size_ranges).in_range_of_one(frame.blobs()[i]->recount(-1))) {
-            frame.move_to_noise(i);
-        } else
-            ++i;
-    }
+    PrefilterBlobs::split_big(
+           std::move(collection),
+           BlobReceiver(frame, BlobReceiver::noise),
+           BlobReceiver(frame, BlobReceiver::regular),
+           expect, true, nullptr, pool);
+    
+    PPFrame::Log("&nbsp;collection = ", collection);
+    
+    //for(auto &&b : collection) {
+    //    if(b)
+    //        frame.add_regular(std::move(b));
+    //}
+        
+    
+    //! final filtering step that filters out small blobs
+    //! from the split_big TODO: (which might not be possible?)
+    frame.move_to_noise_if([size = FAST_SETTING(blob_size_ranges)](const pv::Blob& blob) {
+        if(!size.in_range_of_one(blob.recount(-1))) {
+            PPFrame::Log("&nbsp;Filtering out ", blob, " not in ", size);
+            return true;
+        }
+        return false;
+    });
     
     frame.finalize();
 }

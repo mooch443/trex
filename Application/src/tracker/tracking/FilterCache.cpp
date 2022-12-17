@@ -109,7 +109,7 @@ std::tuple<Image::UPtr, Vec2> normalize_image(
 
 std::tuple<Image::UPtr, Vec2>
 calculate_normalized_image(const gui::Transform &midline_transform,
-                           const pv::BlobPtr& blob,
+                           const pv::BlobWeakPtr& blob,
                            float midline_length,
                            const Size2 &output_size,
                            bool use_legacy,
@@ -125,7 +125,7 @@ calculate_normalized_image(const gui::Transform &midline_transform,
 
 std::tuple<Image::UPtr, Vec2>
 calculate_normalized_diff_image(const gui::Transform &midline_transform,
-                                const pv::BlobPtr& blob,
+                                const pv::BlobWeakPtr& blob,
                                 float midline_length,
                                 const Size2 &output_size,
                                 bool use_legacy,
@@ -140,7 +140,7 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
 }
 
 std::tuple<Image::UPtr, Vec2>
-calculate_diff_image(pv::BlobPtr blob,
+calculate_diff_image(pv::BlobWeakPtr blob,
                      const Size2& output_size,
                      const Image* background)
 {
@@ -236,7 +236,7 @@ inline float standard_deviation(const std::set<float> & v) {
 
 std::tuple<Image::UPtr, Vec2> diff_image(
      const individual_image_normalization_t::Class &normalize,
-     const pv::BlobPtr& blob,
+     pv::BlobWeakPtr blob,
      const gui::Transform& midline_transform,
      float median_midline_length_px,
      const Size2& output_shape,

@@ -216,7 +216,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
      
      for(size_t i=0; i<f.n(); ++i) {
-     auto b = std::make_shared<pv::Blob>(f.mask().at(i), f.pixels().at(i));
+     auto b = pv::Blob::Make(f.mask().at(i), f.pixels().at(i));
      auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
      
      if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
@@ -267,7 +267,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {
-                auto b = std::make_shared<pv::Blob>(
+                auto b = pv::Blob::Make(
                     std::move(f.mask().at(i)),
                     std::move(f.pixels().at(i)),
                     f.flags().at(i));
@@ -290,7 +290,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 } else {
                     meta[frame][b->blob_id()] = Source{ vdx, frame, id };
                     
-                    ptrs.push_back(b);
+                    ptrs.push_back(std::move(b));
                     indexes.push_back(vdx);
                 }
             }
@@ -305,20 +305,21 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             if (viewed[i])
                 continue;
             
-            std::set<pv::BlobPtr> clique{ ptrs.at(i) };
+            std::set<pv::BlobPtr> clique;
+            clique.insert(std::move(ptrs.at(i)));
             viewed[i] = true;
             
             for (size_t j=i+1; j<ptrs.size(); ++j) {
-                if(viewed.at(j) /*|| indexes.at(j) == indexes.at(i)*/)
+                if(!ptrs.at(i) || viewed.at(j) /*|| indexes.at(j) == indexes.at(i)*/)
                     continue;
                 
                 if(ptrs.at(i)->bounds().overlaps(ptrs.at(j)->bounds())) {
                     viewed.at(j) = true;
-                    clique.insert(ptrs.at(j));
+                    clique.insert(std::move(ptrs.at(j)));
                 }
             }
             
-            cliques.push_back(clique);
+            cliques.push_back(std::move(clique));
         }
         
         for(auto &clique : cliques) {
@@ -381,7 +382,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                         line.y += bounds.pos().y;
                     }
                     o.add_object(std::move(pair));
-                    //std::make_shared<pv::Blob>(lines, pixels);
+                    //pv::Blob::Make(lines, pixels);
                 }
                 //cv::imshow("blended", mat);
                 //cv::waitKey(10);

@@ -58,11 +58,11 @@ namespace gui {
 #define GUI_SETTINGS(NAME) gui::globals::Cache::copy< gui::globals::Cache:: NAME >()
 
     struct SimpleBlob {
-        pv::BlobPtr blob;
+        pv::BlobWeakPtr blob;
         int threshold;
         std::unique_ptr<ExternalImage> ptr;
         
-        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t);
+        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
         void convert();
     };
     
@@ -124,7 +124,7 @@ namespace gui {
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
-        std::unordered_map<pv::Blob*, SimpleBlob*> display_blobs;
+        std::unordered_map<pv::bid, SimpleBlob*> display_blobs;
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         

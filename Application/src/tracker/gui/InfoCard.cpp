@@ -422,31 +422,33 @@ void InfoCard::update() {
     if(fprobs) {
         track::Match::prob_t max_prob = 0;
         pv::bid bdx;
-        for(auto &blob : cache.processed_frame.blobs()) {
-            if(fprobs->count(blob->blob_id())) {
-                auto &probs = (*fprobs).at(blob->blob_id());
+        cache.processed_frame.transform_blob_ids([&](pv::bid blob) {
+            if(fprobs->count(blob)) {
+                auto &probs = (*fprobs).at(blob);
                 if(probs/*.p*/ > max_prob) {
                     max_prob = probs/*.p*/;
-                    bdx = blob->blob_id();
+                    bdx = blob;
                 }
             }
-        }
+        });
         
-        for(auto &blob : cache.processed_frame.blobs()) {
-            if(fprobs->count(blob->blob_id())) {
+        cache.processed_frame.transform_blob_ids([&](pv::bid blob) {
+            if(fprobs->count(blob)) {
                 auto color = Color(200, 200, 200, 255);
-                if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end() && blob->blob_id() == cache.fish_selected_blobs.at(fdx)) {
+                if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end()
+                   && blob == cache.fish_selected_blobs.at(fdx))
+                {
                     color = Green;
-                } else if(blob->blob_id() == bdx) {
+                } else if(blob == bdx) {
                     color = Yellow;
                 }
                 
-                auto &probs = (*fprobs).at(blob->blob_id());
+                auto &probs = (*fprobs).at(blob);
                 auto probs_str = Meta::toStr(probs/*.p*/);
                 /*if(detail)
                     probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";*/
                 
-                auto text = add<Text>(Meta::toStr(blob->blob_id())+": ", Loc(10, y), White, Font(0.8f));
+                auto text = add<Text>(Meta::toStr(blob)+": ", Loc(10, y), White, Font(0.8f));
                 auto second = add<Text>(probs_str, Loc(text->pos() + Vec2(text->width(), 0)), color, Font(0.8f));
                 y += text->height();
                 
@@ -454,7 +456,7 @@ void InfoCard::update() {
                 if(w > max_w)
                     max_w = w;
             }
-        }
+        });
     }
         
     tmp.width = max_w;

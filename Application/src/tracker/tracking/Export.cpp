@@ -457,7 +457,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         
                                         std::lock_guard<std::mutex> guard(sync);
                                         waiting_pixels[frame][id] = ImageData{
-                                            .blob = blob,
+                                            .blob = std::move(blob),
                                             .fdx = fish->identity().ID(),
                                             .midline_transform = trans,
                                             .median_midline_length_px = filters ? filters->median_midline_length_px : 0,
@@ -794,15 +794,15 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         pv::BlobPtr blob;
                     } reduced, full;
                     
-                    reduced.blob = obj.find_bdx(data.blob->blob_id());
+                    reduced.blob = obj.create_copy(data.blob->blob_id());
                     if(!reduced.blob) {
                         auto small = Tracker::find_blob_noisy(obj, data.blob->blob_id(), data.blob->parent_id(), Bounds());
                         if(small)
-                            reduced.blob = small;
+                            reduced.blob = std::move(small);
                         
                         if(data.blob->parent_id().valid()) {
                             if(!full.blob)
-                                full.blob = obj.find_bdx(data.blob->parent_id());
+                                full.blob = obj.create_copy(data.blob->parent_id());
                         }
                     }
                     
@@ -823,7 +823,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         if(tracklet_export_difference_images) {
                             reduced.image = std::get<0>(
                                 constraints::diff_image(normalize,
-                                                        data.blob,
+                                                        data.blob.get(),
                                                         data.midline_transform,
                                                         data.median_midline_length_px,
                                                         output_size,
@@ -831,7 +831,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
 
                             //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy)));
                         } else
-                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average())));
+                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average())));
                         
                     } else {
                         if(tracklet_export_difference_images) {
@@ -879,9 +879,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         
                         if(do_normalize_tracklets) {
                             if(tracklet_export_difference_images)
-                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
+                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
                             else
-                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
+                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
                             
                         } else {
                             if(tracklet_export_difference_images) {

@@ -16,7 +16,7 @@ struct TrackingHelper {
 public:
     inline static Frame_t _approximative_enabled_in_frame;
     
-    bool blob_assigned(const pv::BlobPtr&) const;
+    bool blob_assigned(pv::bid) const;
     bool fish_assigned(Individual*) const;
     
 public:
@@ -30,7 +30,7 @@ public:
     std::queue<std::tuple<Individual*, BasicStuff*>> need_postures;
     
 private:
-    robin_hood::unordered_flat_set<pv::Blob*> _blob_assigned;
+    robin_hood::unordered_flat_set<pv::bid> _blob_assigned;
     robin_hood::unordered_flat_set<Individual*> _fish_assigned;
     //ska::bytell_hash_map<pv::Blob*, bool> _blob_assigned;
     //ska::bytell_hash_map<Individual*, bool> _fish_assigned;
@@ -61,7 +61,7 @@ public:
     TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames);
     ~TrackingHelper();
     
-    void assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode);
+    void assign_blob_individual(Individual* fish, pv::BlobPtr&& blob, default_config::matching_mode_t::Class match_mode);
     
     void apply_manual_matches(const ska::bytell_hash_map<Idx_t, Individual*>& individuals);
     void apply_automatic_matches();

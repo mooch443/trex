@@ -95,11 +95,18 @@ Fish::~Fish() {
 
     void Fish::check_tags() {
         if (_blob) {
-
-            auto p = tags::prettify_blobs(
-                GUICache::instance().processed_frame.blobs(),
-                GUICache::instance().processed_frame.noise(),
-                GUICache::instance().processed_frame.original_blobs(),
+            std::vector<pv::BlobPtr> blobs;
+            std::vector<pv::BlobPtr> noise;
+            
+            GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob &blob) {
+                blobs.emplace_back(pv::Blob::Make(blob));
+            });
+            GUICache::instance().processed_frame.transform_noise([&](const pv::Blob &blob) {
+                noise.emplace_back(pv::Blob::Make(blob));
+            });
+            
+            auto p = tags::prettify_blobs(blobs, noise, {},
+                //GUICache::instance().processed_frame.original_blobs(),
                 Tracker::instance()->background()->image());
 
             for (auto& image : p) {
@@ -306,7 +313,7 @@ Fish::~Fish() {
         auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
         if (it != cache.fish_selected_blobs.end()) {
             for (auto& [b, ptr] : cache.display_blobs) {
-                if (b->blob_id() == it->second) {
+                if (b == it->second) {
                     //ptr->ptr->set_pos(Vec2());
                     if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value
                         && is_selected)
@@ -591,67 +598,59 @@ Fish::~Fish() {
         
                 auto color_source = GUIOPTION(gui_fish_color);
                 if(color_source == "viridis") {
-                    for(auto &b : GUICache::instance().processed_frame.blobs()) {
-                        if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
-                            auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
-                            auto rgba = Image::Make(difference->rows, difference->cols, 4);
+                    GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob& b)
+                    {
+                        if(!is_in(b.blob_id(), _blob->blob_id(), _blob->parent_id))
+                            return true;
                         
-                            uchar maximum_grey = 255, minimum_grey = 0;//std::numeric_limits<uchar>::max();
-                            /*for(size_t i=0; i<difference->size(); ++i) {
-                                auto c = difference->data()[i];
-                                maximum_grey = max(maximum_grey, c);
-                            
-                                if(difference->data()[i] > 0)
-                                    minimum_grey = min(minimum_grey, c);
-                            }
-                            for(size_t i=0; i<difference->size(); ++i)
-                                difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum_grey * 255);
+                        auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                        auto rgba = Image::Make(difference->rows, difference->cols, 4);
+                    
+                        uchar maximum_grey = 255, minimum_grey = 0;
                         
-                            if(minimum_grey == maximum_grey)
-                                minimum_grey = maximum_grey - 1;*/
-                        
-                            auto ptr = rgba->data();
-                            auto m = difference->data();
-                            for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
-                                auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
-                                *(ptr) = c.r;
-                                *(ptr+1) = c.g;
-                                *(ptr+2) = c.b;
-                                *(ptr+3) = *m;
-                            }
-                        
-                            _view.add<ExternalImage>(std::move(rgba), dpos + offset);
-                        
-                            break;
+                        auto ptr = rgba->data();
+                        auto m = difference->data();
+                        for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
+                            auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
+                            *(ptr) = c.r;
+                            *(ptr+1) = c.g;
+                            *(ptr+2) = c.b;
+                            *(ptr+3) = *m;
                         }
-                    }
+                    
+                        _view.add<ExternalImage>(std::move(rgba), dpos + offset);
+                        
+                        return false;
+                    });
                 
                 } else if(!Graph::is_invalid(_library_y)) {
                     auto percent = min(1.f, cmn::abs(_library_y));
                     Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
-                    for(auto &b : GUICache::instance().processed_frame.blobs()) {
-                        if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
-                            auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
-                            auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
+                    GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob& b)
+                    {
+                        if(!is_in(b.blob_id(), _blob->blob_id(), _blob->parent_id))
+                            return true;
                         
-                            auto rgba = Image::Make(image->rows, image->cols, 4);
-                        
-                            uchar maximum = 0;
-                            for(size_t i=0; i<difference->size(); ++i) {
-                                maximum = max(maximum, difference->data()[i]);
-                            }
-                            for(size_t i=0; i<difference->size(); ++i)
-                                difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
-                        
-                            rgba->set_channels(image->data(), {0, 1, 2});
-                            rgba->set_channel(3, difference->data());
-                        
-                            _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
-                        
-                            break;
+                        auto && [image_pos, image] = b.binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
+                        auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                    
+                        auto rgba = Image::Make(image->rows, image->cols, 4);
+                    
+                        uchar maximum = 0;
+                        for(size_t i=0; i<difference->size(); ++i) {
+                            maximum = max(maximum, difference->data()[i]);
                         }
-                    }
+                        for(size_t i=0; i<difference->size(); ++i)
+                            difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
+                    
+                        rgba->set_channels(image->data(), {0, 1, 2});
+                        rgba->set_channel(3, difference->data());
+                    
+                        _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
+                    
+                        return false;
+                    });
                 }
         
             

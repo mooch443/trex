@@ -162,7 +162,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
 //#endif
     
     // distribute the tasks across threads
-    distribute_indexes([&](auto i, auto start, auto end, auto) {
+    distribute_indexes([&](auto, auto start, auto end, auto) {
         size_t N = 0;
 #ifndef NDEBUG
         size_t pushed = 0;
@@ -176,7 +176,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
         }
         
 #ifndef NDEBUG
-        print("[IE] Thread ", i, " going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
+        print("[IE] Thread going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
 #endif
             
         auto commit_results = [&](std::vector<Result>&& results) {
@@ -187,14 +187,14 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             }
 #ifndef NDEBUG
             pushed += results.size();
-            print("[IE] Taking a break in thread ", i, " after ", pushed, "/",N," items (",results.size()," being pushed at once).");
+            print("[IE] Taking a break in thread after ", pushed, "/",N," items (",results.size()," being pushed at once).");
 #endif
             apply(std::move(results));
             results.clear();
             
             std::unique_lock guard(mutex);
 #ifndef NDEBUG
-            print("[IE] Thread ", i, " callback ", pushed_items, " / ", total_items);
+            print("[IE] Thread callback ", pushed_items, " / ", total_items);
 #endif
             callback(this, double(pushed_items) / double(total_items), false);
         };
@@ -216,9 +216,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             }
             
             for(const auto &[fdx, bdx, range] : samples) {
-                auto blob = pp.find_bdx(bdx);
+                auto blob = pp.bdx_to_ptr(bdx);
                 if(!blob) {
-                    blob = pp.find_original_bdx(bdx);
+                    //! TODO: original_blobs
+                    /*blob = pp.find_original_bdx(bdx);
                     if(!blob) {
                         //print("Cannot find ", bdx, " in frame ", index);
                         {
@@ -226,7 +227,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                             --total_items;
                         }
                         continue;
-                    }
+                    }*/
+                    continue;
                 }
                 
                 float median_midline_length_px = 0;
@@ -284,7 +286,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             commit_results(std::move(results));
         
 #ifndef NDEBUG
-        print("[IE] Thread ", i, " ended. Pushed ", pushed, " items (of ", N,").");
+        print("[IE] Thread ended. Pushed ", pushed, " items (of ", N,").");
 #endif
         
     }, pool, _tasks.begin(), _tasks.end());

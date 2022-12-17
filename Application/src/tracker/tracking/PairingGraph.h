@@ -99,7 +99,7 @@ struct hash<track::Match::fish_index_t>
 namespace track {
 namespace Match {
     using prob_t = double;
-    using Blob_t = const pv::BlobPtr*;
+    using Blob_t = pv::bid;
     template<typename K, typename V>
     using pairing_map_t = std::unordered_map<K, V>;
 

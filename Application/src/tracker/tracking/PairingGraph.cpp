@@ -34,7 +34,7 @@ std::string PairedProbabilities::toStr() const {
     for(auto &row : _rows) {
         ss << row->identity().name() << ":\n";
         for(auto idx : edges_for_row(index(row))) {
-            ss << "\t" << (col(idx.cdx) ? (*col(idx.cdx))->name() : "null") << ":" << idx.p << "\n";
+            ss << "\t" << (col(idx.cdx).valid() ? col(idx.cdx).toStr() : "null") << ":" << idx.p << "\n";
         }
     }
     return ss.str();
@@ -47,7 +47,7 @@ size_t PairedProbabilities::degree(fish_index_t rdx) const {
 
 blob_index_t PairedProbabilities::index(col_t::value_type col) const {
     if(!_col_index.count(col))
-        throw U_EXCEPTION("Cannot find blob ",(*col)->blob_id()," in map.");
+        throw U_EXCEPTION("Cannot find blob ",col," in map.");
     return _col_index.at(col);
 }
 
@@ -731,7 +731,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 if(current.blobs[i].valid())
                     _optimal_pairing->path[i].blob = _paired.col(current.blobs[i]);
                 else
-                    _optimal_pairing->path[i].blob = nullptr;
+                    _optimal_pairing->path[i].blob = pv::bid::invalid;
                 _optimal_pairing->path[i].fish = it->fish;
             }
             
@@ -857,7 +857,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             file << frame().toStr() << ":\t[" << _optimal_pairing->objects_looked_at <<",\t"<<elapsed*1000<<",\t"<<elapsed*1000/ _optimal_pairing->objects_looked_at <<"" << ",[";
             for(auto &a: _optimal_pairing->path)
             {
-                file << "(" << a.fish->identity().ID() << "," << (a.blob ? long_t((*a.blob)->bounds().pos().x) : LONG_MIN) << "," << (a.blob ? long_t((*a.blob)->bounds().pos().y) : LONG_MIN) <<"," << (a.blob ? prob(a.fish, a.blob) : 0) << "), ";
+                file << "(" << a.fish->identity().ID() << "," << a.blob.toStr() << "," << (a.blob.valid() ? prob(a.fish, a.blob) : 0) << "), ";
             }
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
@@ -1255,7 +1255,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 ska::bytell_hash_map<matching_mode_t::Class, ska::bytell_hash_map<const Individual*, Blob_t>> assignments;
                 for(auto &fish : _paired.rows()) {
                     for(auto && [key, values] : benchmarks)
-                        assignments[key][fish] = nullptr;
+                        assignments[key][fish] = pv::bid::invalid;
                 }
                 
                 for(auto && [key, values] : benchmarks) {
@@ -1299,12 +1299,12 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                                     auto p1 = _paired.probability(fish, assignments[key_1][fish]);
                                     FormatWarning("\tindividual ",fish->identity(),":",
                                         "(", key_0.name(), ")",
-                                        assignments[key_0][fish] ?
-                                            (*assignments[key_0][fish])->blob_id() : pv::bid::invalid,
+                                        assignments[key_0][fish].valid() ?
+                                            (assignments[key_0][fish]) : pv::bid::invalid,
                                         " (", p0, ") != "
                                         "(", key_1.name(), ")",
-                                        assignments[key_1][fish] ?
-                                            (*assignments[key_1][fish])->blob_id() : pv::bid::invalid,
+                                        assignments[key_1][fish].valid() ?
+                                            (assignments[key_1][fish]) : pv::bid::invalid,
                                         " (",p1,")");
                                 }
                             }

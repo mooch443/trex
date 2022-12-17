@@ -1651,7 +1651,7 @@ bool Accumulation::start() {
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
                         
-                        image = std::get<0>(constraints::diff_image(method, blob, midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
+                        image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
                     }

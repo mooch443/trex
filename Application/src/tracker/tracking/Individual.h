@@ -295,7 +295,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        int64_t add(const TrackingHelper&, const pv::BlobPtr& blob, Match::prob_t current_prob);
+        int64_t add(const TrackingHelper&, pv::BlobPtr&& blob, Match::prob_t current_prob);
         void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -367,7 +367,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::BlobPtr& blob) const;
+        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;

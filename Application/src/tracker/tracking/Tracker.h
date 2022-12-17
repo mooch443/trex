@@ -197,7 +197,6 @@ public:
     static Frame_t start_frame() { return instance()->_startFrame.load(); }
     static Frame_t end_frame() { return instance()->_endFrame.load(); }
     static size_t number_frames() { return instance()->_added_frames.size(); }
-    static bool blob_matches_shapes(const pv::BlobPtr&, const std::vector<std::vector<Vec2>>&);
     
     // filters a given frames blobs for size and splits them if necessary
     static void preprocess_frame(PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split = true);
@@ -258,7 +257,10 @@ public:
     static std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<pv::BlobPtr>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
     
 private:
-    static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
+    static void prefilter(
+        const std::shared_ptr<PrefilterBlobs>&,
+          std::move_iterator<std::vector<pv::BlobPtr>::iterator> it,
+          std::move_iterator<std::vector<pv::BlobPtr>::iterator> end);
     
     void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     

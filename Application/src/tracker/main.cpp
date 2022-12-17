@@ -891,8 +891,8 @@ int main(int argc, char** argv)
                             // consider blob
                             auto &l = frame.mask().at(k);
                             auto &p = frame.pixels().at(k);
-                            auto blob = std::make_shared<pv::Blob>(std::make_unique<std::vector<HorizontalLine>>(*l), std::make_unique<std::vector<uchar>>(*p), frame.flags().at(k));
-                            auto blobs = pixel::threshold_blob(blob, narrow_cast<int>(threshold), Tracker::instance()->background());
+                            auto blob = pv::Blob::Make(std::make_unique<std::vector<HorizontalLine>>(*l), std::make_unique<std::vector<uchar>>(*p), frame.flags().at(k));
+                            auto blobs = pixel::threshold_blob(blob.get(), narrow_cast<int>(threshold), Tracker::instance()->background());
                             float pixels = 0, samps = 0;
                             
                             for(auto &b : blobs) {

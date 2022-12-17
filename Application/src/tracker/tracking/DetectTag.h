@@ -30,7 +30,7 @@ namespace track {
         };
         
         struct result_t {
-            const pv::BlobPtr blob;
+            const pv::bid bdx;
             Image::UPtr grey;
             Image::UPtr mask;
         };
