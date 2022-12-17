@@ -1,6 +1,6 @@
 #include "pvinfo_merge.h"
 #include <pv.h>
-#include <tracking/StaticBackground.h>
+#include <processing/Background.h>
 #include <misc/SpriteMap.h>
 #include <misc/GlobalSettings.h>
 #include <misc/default_config.h>
@@ -27,7 +27,7 @@ std::string date_time() {
 void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, char**argv) {
     uint64_t min_length = std::numeric_limits<uint64_t>::max();
     std::vector<std::shared_ptr<pv::File>> files;
-    std::vector<std::shared_ptr<track::StaticBackground>> backgrounds;
+    std::vector<std::shared_ptr<Background>> backgrounds;
     std::vector<std::shared_ptr<sprite::Map>> configs;
     
     std::map<pv::File*, float> cms_per_pixel;
@@ -68,7 +68,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             min_length = file->length();
         
         resolution += Size2(file->header().resolution);
-        backgrounds.push_back(std::make_shared<track::StaticBackground>(Image::Make(file->average()), nullptr));
+        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), nullptr));
         //cv::imshow(name.str(), backgrounds.back()->image().get());
         //cv::waitKey(1);
         
@@ -142,7 +142,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution = Size2(average);
     }
     
-    track::StaticBackground new_background(Image::Make(average), nullptr);
+    Background new_background(Image::Make(average), nullptr);
     
     if(SETTING(frame_rate).value<int>() == 0){
         if(!files.front()->header().metadata.empty())

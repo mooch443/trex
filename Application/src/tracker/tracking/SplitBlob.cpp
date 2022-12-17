@@ -128,14 +128,22 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
         min_pixel = 254;
         max_pixel = 0;
         
-        for (auto &line : _blob->hor_lines()) {
-            for (auto x=line.x0; x<=line.x1; ++x, ++px, ++out) {
-                *out = (uchar)saturate(float(bg->diff(x, line.y, *px)) / (grid ? float(grid->relative_threshold(x, line.y)) : 1.f));
-                if(*out < min_pixel)
-                    min_pixel = *out;
-                if(*out > max_pixel)
-                    max_pixel = *out;
+        auto work = [&]<DifferenceMethod method>() {
+            for (auto &line : _blob->hor_lines()) {
+                for (auto x=line.x0; x<=line.x1; ++x, ++px, ++out) {
+                    *out = (uchar)saturate(float(bg->diff<method>(x, line.y, *px)) / (grid ? float(grid->relative_threshold(x, line.y)) : 1.f));
+                    if(*out < min_pixel)
+                        min_pixel = *out;
+                    if(*out > max_pixel)
+                        max_pixel = *out;
+                }
             }
+        };
+        
+        if(SLOW_SETTING(enable_absolute_difference)) {
+            work.operator()<DifferenceMethod::absolute>();
+        } else {
+            work.operator()<DifferenceMethod::sign>();
         }
         
         threshold = max(threshold, (int)min_pixel);

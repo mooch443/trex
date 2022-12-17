@@ -8,7 +8,7 @@
 
 #include <python/GPURecognition.h>
 #include <misc/default_settings.h>
-#include <tracking/StaticBackground.h>
+#include <processing/Background.h>
 
 #include <tracking/FilterCache.h>
 #include <tracking/PythonWrapper.h>
