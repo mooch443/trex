@@ -297,7 +297,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         }
         
         // collect cliques of potentially overlapping blobs
-        std::vector<std::set<pv::BlobPtr>> cliques;
+        std::vector<std::vector<pv::BlobPtr>> cliques;
         std::vector<bool> viewed;
         viewed.resize(ptrs.size());
         
@@ -305,8 +305,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             if (viewed[i])
                 continue;
             
-            std::set<pv::BlobPtr> clique;
-            clique.insert(std::move(ptrs.at(i)));
+            std::vector<pv::BlobPtr> clique;
+            clique.emplace_back(std::move(ptrs.at(i)));
             viewed[i] = true;
             
             for (size_t j=i+1; j<ptrs.size(); ++j) {
@@ -315,11 +315,11 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 
                 if(ptrs.at(i)->bounds().overlaps(ptrs.at(j)->bounds())) {
                     viewed.at(j) = true;
-                    clique.insert(std::move(ptrs.at(j)));
+                    clique.emplace_back(std::move(ptrs.at(j)));
                 }
             }
             
-            cliques.push_back(std::move(clique));
+            cliques.emplace_back(std::move(clique));
         }
         
         for(auto &clique : cliques) {
