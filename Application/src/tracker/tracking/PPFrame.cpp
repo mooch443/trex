@@ -533,6 +533,57 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     _blob_owner.reserve(_blob_owner.size() + blobs.size());
     _noise_owner.reserve(_noise_owner.size() + noise.size());
     
+    if(_blob_owner.empty()
+       && _noise_owner.empty())
+    {
+        auto integrate_blob = [this](const pv::BlobPtr& blob){
+            assert(blob != nullptr);
+            //auto bdx = blob->blob_id();
+            
+            //! see if this blob is already part of the frame
+            /*if(has_bdx(blob->blob_id())) {
+        #ifdef TREX_DEBUG_BLOBS
+                auto blob1 = bdx_to_ptr(blob->blob_id());
+                
+                print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
+                
+                print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
+                
+                auto bid0 = pv::bid::from_blob(blob);
+                auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
+                
+                FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
+        #endif
+                return pv::bid::invalid;
+            }*/
+            
+            //! update metadata
+            _pixel_samples++;
+            _num_pixels += blob->num_pixels();
+            
+        #ifdef TREX_DEBUG_BLOBS
+            print(this->index(), " Added ", blob, " with regular=", regular);
+        #endif
+        };
+        
+        for(auto &blob : blobs)
+            integrate_blob(blob);
+        
+        _blob_owner.insert(_blob_owner.end(), std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
+        
+        for(auto &blob : noise)
+            integrate_blob(blob);
+        
+        _noise_owner.insert(_noise_owner.end(), std::make_move_iterator(noise.begin()), std::make_move_iterator(noise.end()));
+        
+        blobs.clear();
+        noise.clear();
+        
+        _check_owners();
+        
+        return;
+    }
+    
     for(auto it = blobs.begin(); it != blobs.end(); ++it) {
         _add_ownership(true, std::move(*it));
     }
