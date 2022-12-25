@@ -183,26 +183,27 @@ namespace gui {
         
         frame_idx = frameIndex;
         
-        static std::atomic_bool done_calculating = false;
-        {
-            std::lock_guard guard(percentile_mutex);
-            if(!done_calculating && !percentile_ptr) {
-                percentile_ptr = std::make_unique<std::thread>([this](){
-                    cmn::set_thread_name("percentile_thread");
-                    auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
-                    
-                    if(_graph) {
-                        std::lock_guard<std::recursive_mutex> guard(_graph->lock());
-                        pixel_value_percentiles = percentiles;
-                    }
-                    
-                    done_calculating = true;
-                });
-            }
+        if(!GUI_SETTINGS(nowindow)) {
+            //! Calculate average pixel values. This is not a high-priority action, especially if the GUI is disabled. Only used for `gui_equalize_blob_histograms`.
+            static std::atomic<bool> done_calculating{false};
+            static auto percentile_ptr = std::make_unique<std::thread>([this](){
+                cmn::set_thread_name("percentile_thread");
+                auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
+                
+                if(_graph) {
+                    std::lock_guard guard(_graph->lock());
+                    pixel_value_percentiles = percentiles;
+                }
+                
+                done_calculating = true;
+            });
             
-            if(percentile_ptr && done_calculating) {
-                percentile_ptr->join();
-                percentile_ptr = nullptr;
+            {
+                std::lock_guard guard(percentile_mutex);
+                if(percentile_ptr && done_calculating) {
+                    percentile_ptr->join();
+                    percentile_ptr = nullptr;
+                }
             }
         }
         

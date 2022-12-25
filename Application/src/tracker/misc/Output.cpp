@@ -988,7 +988,7 @@ uint64_t Data::write(const Individual& val) {
         pack.write<data_long_t>(frame.get());
 
         auto& [id, prob, n] = match;
-        pack.write<int32_t>(id);
+        pack.write<int32_t>(narrow_cast<int32_t>(id));
         pack.write<float>(prob);
         pack.write<uint32_t>(n);
     }
@@ -1234,7 +1234,7 @@ namespace Output {
     void ResultsFormat::write_file(
         const std::vector<track::FrameProperties::Ptr> &frames,
         const active_individuals_map_t &active_individuals_frame,
-        const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
+        const individuals_map_t &individuals)
     {
         estimated_size = sizeof(uint64_t)*3
             + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties))
@@ -1373,7 +1373,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             prev_props = nullptr;
         
         _tracker.update_consecutive(active, props->frame, false);
-        _tracker.update_warnings(props->frame, props->time, (long_t)number_fish, n, prev, props.get(), prev_props, active, iterator_map);
+        _tracker.update_warnings(props->frame, props->time, (long_t)number_fish, (long_t)n, (long_t)prev, props.get(), prev_props, active, iterator_map);
         
         prev = n;
         prev_props = props.get();

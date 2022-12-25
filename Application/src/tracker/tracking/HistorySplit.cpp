@@ -265,7 +265,7 @@ HistorySplit::HistorySplit(PPFrame &frame, const set_of_individuals_t& active, G
     
     auto collection = frame.extract_from_blobs(big_blobs);
     assert(frame.extract_from_blobs(big_blobs).empty());
-    assert(collection.size() == big_blobs.size());
+    //assert(collection.size() == big_blobs.size());
     big_blobs.clear();
     
     PPFrame::Log("&nbsp;Collected ", collection, " from frame.");

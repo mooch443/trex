@@ -5,6 +5,8 @@
 #include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
 
+//#define TREX_BLOB_DEBUG
+
 namespace track {
 using namespace cmn;
 
@@ -15,14 +17,14 @@ PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const BlobSizeRange
 }
 
 void PrefilterBlobs::big_blob(pv::BlobPtr&& b) {
-#ifndef NDEBUG
+#ifdef TREX_BLOB_DEBUG
     print(frame_index, " Big blob ", b);
 #endif
     big_blobs.emplace_back(std::move(b));
 }
 
 void PrefilterBlobs::commit(pv::BlobPtr&& b) {
-#ifndef NDEBUG
+#ifdef TREX_BLOB_DEBUG
     print(frame_index, " Commit ", b);
 #endif
     overall_pixels += b->num_pixels();
@@ -31,7 +33,7 @@ void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 }
 
 void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
-#ifndef NDEBUG
+#ifdef TREX_BLOB_DEBUG
     print(frame_index, " Commit ", v);
 #endif
     for(const auto &b:v) {
@@ -48,14 +50,14 @@ void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
 void PrefilterBlobs::filter_out(pv::BlobPtr&& b) {
     overall_pixels += b->num_pixels();
     ++samples;
-#ifndef NDEBUG
+#ifdef TREX_BLOB_DEBUG
     print(frame_index, " Filter out ", b);
 #endif
     filtered_out.emplace_back(std::move(b));
 }
 
 void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v) {
-#ifndef NDEBUG
+#ifdef TREX_BLOB_DEBUG
     print(frame_index, " Filter out ", v);
 #endif
     for(const auto &b:v) {

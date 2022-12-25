@@ -160,7 +160,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, pv::BlobPtr&& blob
     ++assigned_count;
 }
 
-void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype(Tracker::individuals)> individuals)
+void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
 {
     const auto frameIndex = frame.index();
     

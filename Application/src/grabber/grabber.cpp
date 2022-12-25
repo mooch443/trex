@@ -1489,6 +1489,7 @@ struct ProcessingTask {
     std::unique_ptr<gpuMat> gpu_buffer, scaled_buffer;
     TagCache tags;
     size_t index;
+    CPULabeling::ListCache_t list_cache;
     Image::UPtr mask;
     Image::UPtr current, raw;
     std::unique_ptr<pv::Frame> frame;
@@ -1825,7 +1826,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 #if defined(TAGS_ENABLE)
         if(!GRAB_SETTINGS(tags_saved_only))
 #endif
-            rawblobs = CPULabeling::run(task->current->get(), true);
+            rawblobs = CPULabeling::run(task->current->get(), task->list_cache, true);
 
         constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag);
         for (auto& blob : task->tags.tags) {
@@ -2072,6 +2073,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             }, i));
         }
         _multi_variable.notify_all();
+        print("Done.");
     });
 
     std::unique_ptr<ProcessingTask> task;

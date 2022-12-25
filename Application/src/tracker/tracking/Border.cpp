@@ -114,6 +114,8 @@ namespace track {
             pv::Frame frame;
             size_t step_size = max(1, video.length() * 0.0002);
             const size_t count_steps = video.length() / step_size;
+            CPULabeling::ListCache_t cache;
+            
             for (size_t i=0; i<video.length(); i+=step_size) {
                 video.read_frame(frame, i);
                 auto blobs = frame.get_blobs();
@@ -122,7 +124,7 @@ namespace track {
                     break;
                 
                 for(auto &b : blobs) {
-                    auto pb = pixel::threshold_blob(b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
+                    auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
                     
                     for(auto &b : pb) {
                         auto size = b->num_pixels() * sqcm;
@@ -207,6 +209,7 @@ namespace track {
                 y_range.resize(video.size().width);
                 
                 const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
+                CPULabeling::ListCache_t cache;
                 
                 std::vector<pv::BlobPtr> collection;
                 pv::Frame frame;
@@ -215,7 +218,7 @@ namespace track {
                     auto blobs = frame.get_blobs();
                     
                     for(auto &b : blobs) {
-                        auto pb = pixel::threshold_blob(b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
+                        auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
                         
                         for(auto &&b : pb) {
                             auto size = b->num_pixels() * sqcm;

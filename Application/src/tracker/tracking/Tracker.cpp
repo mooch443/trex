@@ -87,16 +87,6 @@ void update_analysis_range() {
     });
 }
 
-const ska::bytell_hash_map<Idx_t, Individual*>& Tracker::individuals() {
-    //LockGuard guard("individuals()");
-    return instance()->_individuals;
-}
-
-const set_of_individuals_t& Tracker::active_individuals() {
-    //LockGuard guard("active_individuals()");
-    return instance()->_active_individuals;
-}
-
 const set_of_individuals_t& Tracker::active_individuals(Frame_t frame) {
     //LockGuard guard;
     if(instance()->_active_individuals_frame.count(frame))
@@ -567,7 +557,7 @@ void Tracker::preprocess_frame(PPFrame& frame, const set_of_individuals_t& activ
 }
 
 void Tracker::prefilter(
-        const std::shared_ptr<PrefilterBlobs>& result,
+        PrefilterBlobs& result,
         std::move_iterator<std::vector<pv::BlobPtr>::iterator> it,
         std::move_iterator<std::vector<pv::BlobPtr>::iterator> end)
 {
@@ -587,26 +577,26 @@ void Tracker::prefilter(
     auto check_blob = [&tags_dont_track, &track_ignore, &track_include, &result, &cm_sqr](pv::BlobPtr&& b)
     {
         // TODO: magic numbers
-        if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
-            b->force_set_recount(result->threshold);
+        if(b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
+            b->force_set_recount(result.threshold);
         else
-            b->recount(result->threshold, *result->background);
+            b->recount(result.threshold, *result.background);
         
         if(b->is_tag() && tags_dont_track) {
-            result->filter_out(std::move(b));
+            result.filter_out(std::move(b));
             return false;
         }
         
         if (!track_ignore.empty()) {
             if (PrefilterBlobs::blob_matches_shapes(*b, track_ignore)) {
-                result->filter_out(std::move(b));
+                result.filter_out(std::move(b));
                 return false;
             }
         }
 
         if (!track_include.empty()) {
             if (!PrefilterBlobs::blob_matches_shapes(*b, track_include)) {
-                result->filter_out(std::move(b));
+                result.filter_out(std::move(b));
                 return false;
             }
         }
@@ -632,8 +622,8 @@ void Tracker::prefilter(
         //  posture_threshold. Using the minimum ensures that the thresholds dont depend on each other
         //  as the threshold used here will reduce the number of available pixels for posture analysis
         //  or tracking respectively (pixels below used threshold will be removed).
-        if(result->fish_size.close_to_minimum_of_one(recount, 0.5)) {
-            auto pblobs = pixel::threshold_blob(result->cache, own.get(), result->threshold, result->background);
+        if(result.fish_size.close_to_minimum_of_one(recount, 0.5)) {
+            auto pblobs = pixel::threshold_blob(result.cache, own.get(), result.threshold, result.background);
             
             // only use blobs that split at least into 2 new blobs
             for(auto &&add : pblobs) {
@@ -657,23 +647,23 @@ void Tracker::prefilter(
         for(auto&& ptr : ptrs) {
             recount = ptr->recount(-1);
 
-            if(result->fish_size.in_range_of_one(recount)) {
+            if(result.fish_size.in_range_of_one(recount)) {
                 if(FAST_SETTING(track_threshold_2) > 0) {
-                    auto second_count = ptr->recount(FAST_SETTING(track_threshold_2), *result->background);
+                    auto second_count = ptr->recount(FAST_SETTING(track_threshold_2), *result.background);
                     
-                    ptr->force_set_recount(result->threshold, recount / cm_sqr);
+                    ptr->force_set_recount(result.threshold, recount / cm_sqr);
                     
                     if(!(FAST_SETTING(threshold_ratio_range) * recount).contains(second_count)) {
-                        result->filter_out(std::move(ptr));
+                        result.filter_out(std::move(ptr));
                         continue;
                     }
                 }
                 
 #if !COMMONS_NO_PYTHON
                 if(!only_allowed.empty()) {
-                    auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
+                    auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), ptr->blob_id());
                     if(ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
-                        result->filter_out(std::move(ptr));
+                        result.filter_out(std::move(ptr));
                         continue;
                     }
                 }
@@ -681,12 +671,12 @@ void Tracker::prefilter(
                 
                 //! only after all the checks passed, do we commit the blob
                 /// to the "filtered" array:
-                result->commit(std::move(ptr));
+                result.commit(std::move(ptr));
                 
-            } else if(recount < result->fish_size.max_range().start) {
-                result->filter_out(std::move(ptr));
+            } else if(recount < result.fish_size.max_range().start) {
+                result.filter_out(std::move(ptr));
             } else
-                result->big_blob(std::move(ptr));
+                result.big_blob(std::move(ptr));
         }
         
         //! all pointers have been moved, so clear to be safe
@@ -696,24 +686,24 @@ void Tracker::prefilter(
         ptrs.clear();
     }
     
-    for(auto &blob : result->filtered)
+    for(auto &blob : result.filtered)
         blob->calculate_moments();
     
-    if (result->frame_index == Tracker::start_frame() || !Tracker::start_frame().valid())
+    if (result.frame_index == Tracker::start_frame() || !Tracker::start_frame().valid())
     {
 #if !COMMONS_NO_PYTHON
         std::vector<pv::BlobPtr> noises;
 #endif
         PrefilterBlobs::split_big(
-              std::move(result->big_blobs),
-              BlobReceiver(*result, BlobReceiver::noise),
-              BlobReceiver(*result, BlobReceiver::regular,
+              std::move(result.big_blobs),
+              BlobReceiver(result, BlobReceiver::noise),
+              BlobReceiver(result, BlobReceiver::regular,
 #if !COMMONS_NO_PYTHON
                   [&](auto& blob) {
                       if(only_allowed.empty())
                           return false;
                       
-                      auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), blob->blob_id());
+                      auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), blob->blob_id());
                       if (ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name))
                       {
                           noises.push_back(std::move(blob));
@@ -725,15 +715,15 @@ void Tracker::prefilter(
 #endif
               {});
         
-        result->big_blobs.clear();
+        result.big_blobs.clear();
 #if !COMMONS_NO_PYTHON
-        result->filter_out(std::move(noises));
+        result.filter_out(std::move(noises));
 #endif
     }
     
-    if(!result->big_blobs.empty()) {
-        result->commit(std::move(result->big_blobs));
-        result->big_blobs.clear();
+    if(!result.big_blobs.empty()) {
+        result.commit(std::move(result.big_blobs));
+        result.big_blobs.clear();
     }
 }
 
@@ -755,7 +745,7 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         && available_threads > 1
         && pool)
     {
-        size_t used_threads = min(needed_threads, available_threads);
+        /*size_t used_threads = min(needed_threads, available_threads);
         size_t last = num_blobs % used_threads;
         size_t per_thread = (num_blobs - last) / used_threads;
         
@@ -787,16 +777,88 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
             frame.add_blobs(std::move(filter->filtered),
                             std::move(filter->filtered_out),
                             filter->overall_pixels, filter->samples);
-        }
+        }*/
 
+        std::atomic<int> current{0};
+        std::vector<PrefilterBlobs> prefilters;
+        std::mutex lock;
+        
+        prefilters.reserve(needed_threads + 1);
+        for(size_t i=0; i<needed_threads + 1; ++i) {
+            prefilters.emplace_back(frame.index(), threshold, fish_size, *Tracker::background());
+        }
+        
+        std::latch latch(needed_threads);
+        std::atomic<bool> cleared{false};
+        
+        PrefilterBlobs global(frame.index(), threshold, fish_size, *Tracker::background());
+        
+        distribute_indexes([&](auto, auto start, auto end, auto j){
+            //auto result = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
+            {
+#ifndef NDEBUG
+                std::lock_guard guard(lock);
+                assert(prefilters.size() <= j);
+#endif
+                //prefilters.at(j) = result;
+            }
+            
+            prefilter(prefilters.at(j), start, end);
+            
+            std::unique_lock guard(lock);
+            global.commit(std::move(prefilters.at(j).filtered));
+            global.filter_out(std::move(prefilters.at(j).filtered_out));
+            global.overall_pixels += prefilters.at(j).overall_pixels;
+            global.samples += prefilters.at(j).samples;
+            
+            /*frame.add_blobs(std::move(result.filtered),
+                            std::move(result.filtered_out),
+                            result.overall_pixels, result.samples);*/
+            
+            /*latch.arrive_and_wait();
+            
+            if(j == 0) {
+                frame.clear_blobs();
+                cleared = true;
+            } else {
+                while(!cleared) {}
+            }*/
+            
+            // wait for other threads
+            /*while (current.load() < j) { }
+            
+            if(result) {
+                frame.add_blobs(std::move(result.filtered),
+                                std::move(result.filtered_out),
+                                result.overall_pixels, result.samples);
+            }
+            
+            current++;*/
+            
+        }, *pool, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()), (uint32_t)needed_threads);
+        
+        frame.clear_blobs();
+        frame.add_blobs(std::move(global.filtered),
+                        std::move(global.filtered_out),
+                        global.overall_pixels, global.samples);
+        
+        /*std::lock_guard guard(lock);
+        frame.clear_blobs();
+        
+        for(auto&& filter : prefilters) {
+            frame.add_blobs(std::move(filter.filtered),
+                            std::move(filter.filtered_out),
+                            filter.overall_pixels, filter.samples);
+        }*/
+        
     } else {
-        auto pref = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
+        PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
         prefilter(pref, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
         
         frame.clear_blobs();
-        frame.add_blobs(std::move(pref->filtered),
-                        std::move(pref->filtered_out),
-                        pref->overall_pixels, pref->samples);
+        frame.add_blobs(std::move(pref.filtered),
+                        std::move(pref.filtered_out),
+                        pref.overall_pixels, pref.samples);
     }
     
     //initial_filter.conclude_measure();

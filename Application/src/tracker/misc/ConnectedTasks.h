@@ -13,14 +13,13 @@ namespace track {
 namespace cmn {
     class ConnectedTasks {
     public:
-        typedef std::shared_ptr<track::PPFrame> Type;
+        typedef std::unique_ptr<track::PPFrame> Type;
         
         struct Stage {
             std::mutex mutex;
             std::condition_variable condition;
             std::queue<Type> queue;
             uint32_t id;
-            std::atomic_bool paused;
             
             Timer timer;
             float timings;
@@ -31,8 +30,9 @@ namespace cmn {
     private:
         std::atomic_bool _stop;
         
-        std::vector<std::function<bool(Type, const Stage&)>> _tasks;
+        std::vector<std::function<bool(Type&&, const Stage&)>> _tasks;
         std::vector<std::thread*> _threads;
+        std::vector<bool> _thread_paused;
         std::vector<Stage> _stages;
         
         std::thread *_main_thread;
@@ -42,22 +42,22 @@ namespace cmn {
         GETTER(std::atomic_bool,  paused)
         
     public:
-        ConnectedTasks(const std::vector<std::function<bool(Type, const Stage&)>>&);
+        ConnectedTasks(std::vector<std::function<bool(Type&&, const Stage&)>>&&);
         ~ConnectedTasks();
         
         void start(const std::function<void()>& main);
         
-        void add(Type obj) {
+        void add(Type&& obj) {
             {
                 std::unique_lock<std::mutex> lock(_stages[0].mutex);
-                _stages[0].queue.push(obj);
+                _stages[0].queue.emplace(std::move(obj));
             }
             
             _stages[0].condition.notify_one();
         }
         
         void bump() {
-            _stages[0].condition.notify_one();
+            _stages[0].condition.notify_all();
             _finish_condition.notify_all();
         }
         void terminate();

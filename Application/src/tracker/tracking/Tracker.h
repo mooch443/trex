@@ -79,7 +79,7 @@ protected:
     GETTER_SETTER(cv::Mat, mask)
     
     //! All the individuals that have been detected and are being maintained
-    ska::bytell_hash_map<Idx_t, Individual*> _individuals;
+    individuals_map_t _individuals;
     friend class Individual;
     
 public:
@@ -202,8 +202,17 @@ public:
     static void preprocess_frame(PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split = true);
     
     friend class VisualField;
-    static const ska::bytell_hash_map<Idx_t, Individual*>& individuals();
-    static const set_of_individuals_t& active_individuals();
+    
+    static const individuals_map_t& individuals() {
+        //LockGuard guard("individuals()");
+        return instance()->_individuals;
+    }
+
+    static const set_of_individuals_t& active_individuals() {
+        //LockGuard guard("active_individuals()");
+        return instance()->_active_individuals;
+    }
+    
     static const set_of_individuals_t& active_individuals(Frame_t frame);
     
     static const Range<Frame_t>& analysis_range();
@@ -258,7 +267,7 @@ public:
     
 private:
     static void prefilter(
-        const std::shared_ptr<PrefilterBlobs>&,
+        PrefilterBlobs&,
           std::move_iterator<std::vector<pv::BlobPtr>::iterator> it,
           std::move_iterator<std::vector<pv::BlobPtr>::iterator> end);
     

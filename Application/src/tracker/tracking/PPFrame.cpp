@@ -4,6 +4,8 @@
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
 
+//#define TREX_DEBUG_BLOBS
+
 namespace track {
 
 void PPFrame::UpdateLogs() {
@@ -321,7 +323,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
     
     //! see if this blob is already part of the frame
     if(has_bdx(blob->blob_id())) {
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_BLOBS
         auto blob1 = bdx_to_ptr(blob->blob_id());
         
         print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
@@ -331,7 +333,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         auto bid0 = pv::bid::from_blob(blob);
         auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
         
-        FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
+        FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
 #endif
         return pv::bid::invalid;
     }
@@ -346,7 +348,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         .regular = regular,
         .blob = std::move(blob)
     });*/
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_BLOBS
     print(this->index(), " Added ", blob, " with regular=", regular);
 #endif
     
@@ -396,7 +398,7 @@ void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
 
 void PPFrame::move_to_noise(size_t blob_index) {
     ASSUME_NOT_FINALIZED;
-    assert(blob_index < _blobs.size());
+    assert(blob_index < _blob_owner.size());
     
     // no update of pixels or maps is required
     _noise_owner.insert(_noise_owner.end(), std::make_move_iterator(_blob_owner.begin() + blob_index), std::make_move_iterator(_blob_owner.begin() + blob_index + 1));
@@ -427,8 +429,8 @@ pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx
             _num_pixels -= own->num_pixels();
             _pixel_samples--;
             
-        #ifndef NDEBUG
-            print(this->index(), " Removing ", own.blob);
+        #ifdef TREX_DEBUG_BLOBS
+            print(this->index(), " Removing ", own->blob_id());
         #endif
             
             // move object out and delete
@@ -442,7 +444,7 @@ pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx
     }
     
     [[unlikely]];
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_BLOBS
     print("Cannot find ", bdx, " in _bdx_to_ptr");
 #endif
     return nullptr;
@@ -506,14 +508,14 @@ void PPFrame::clear_blobs() {
 
 void PPFrame::_check_owners() {
 #ifndef NDEBUG
-    size_t i=0;
+    /*size_t i=0;
     for(; i < _owner.size(); ++i) {
         auto &o = _owner.at(i);
         assert(o.blob != nullptr);
         //assert(_bdx_to_ptr.at(o.blob->blob_id()) == i);
         assert((o.regular && std::find(_blobs.begin(), _blobs.end(), o.blob->blob_id()) != _blobs.end())
                || (!o.regular && std::find(_noise.begin(), _noise.end(), o.blob->blob_id()) != _noise.end()));
-    }
+    }*/
 #endif
 }
 

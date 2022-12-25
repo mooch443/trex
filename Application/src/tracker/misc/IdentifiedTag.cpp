@@ -243,11 +243,11 @@ namespace tags {
         print("tags take up ", FileSize{counter});
         
         DataPackage package(counter);
-        package.write<uint32_t>(assignments.size());
+        package.write<uint32_t>(narrow_cast<uint32_t>(assignments.size()));
         
         for(const auto &[id, tag] : assignments) {
             package.write<uint32_t>(id._identity);
-            package.write<uint32_t>(tag.detections.size());
+            package.write<uint32_t>(narrow_cast<uint32_t>(tag.detections.size()));
             for(auto &[frame, pair] : tag.detections) {
                 package.write<uint32_t>(frame.get());
                 package.write<uint32_t>(pair.bdx._id);

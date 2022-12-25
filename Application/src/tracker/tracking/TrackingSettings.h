@@ -28,6 +28,9 @@ using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
 //! purpose (sparse container for frame to individuals association).
 using active_individuals_map_t = std::unordered_map<Frame_t, set_of_individuals_t>;
 
+//! The global map of individual ids -> Individual*
+using individuals_map_t = robin_hood::unordered_flat_map<Idx_t, Individual*>;
+
 //! Where is the external identity information sourced from?
 //! 1. Visual identification
 //! 2. QRCode recognition

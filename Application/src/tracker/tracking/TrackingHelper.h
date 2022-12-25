@@ -63,7 +63,7 @@ public:
     
     void assign_blob_individual(Individual* fish, pv::BlobPtr&& blob, default_config::matching_mode_t::Class match_mode);
     
-    void apply_manual_matches(const ska::bytell_hash_map<Idx_t, Individual*>& individuals);
+    void apply_manual_matches(const individuals_map_t& individuals);
     void apply_automatic_matches();
     
     void apply_matching();
