@@ -207,10 +207,12 @@ prob_t PairedProbabilities::probability(row_t::value_type row, col_t::value_type
 }
 
 prob_t PairedProbabilities::probability(fish_index_t rdx, blob_index_t cdx) const {
-    size_t next = (index_t)rdx + 1 < (index_t)_num_rows ? _offsets[(index_t)rdx+1] : _probabilities.size();
-    auto it = std::find(_probabilities.begin() + _offsets[(index_t)rdx], _probabilities.begin() + next, cdx);
-    if(it != _probabilities.end()) {
-        return it->p;
+    size_t next = ((index_t)rdx + 1 < (index_t)_num_rows) ? _offsets[(index_t)rdx+1] : _probabilities.size();
+    //auto it = std::find(_probabilities.begin() + _offsets[(index_t)rdx], _probabilities.begin() + next, cdx);
+    for(size_t i = _offsets[(index_t)rdx]; i < next; ++i) {
+        if(_probabilities[i].cdx == cdx) {
+            return _probabilities[i].p;
+        }
     }
     
     return 0;
@@ -220,35 +222,42 @@ fish_index_t PairedProbabilities::add(
       row_t::value_type row,
       const pairing_map_t<col_t::value_type, prob_t>& edges)
 {
-    fish_index_t rdx;
-    size_t offset;
+#ifndef NDEBUG
     if(_row_index.count(row))
         throw U_EXCEPTION("Already added individual ",row->identity().ID()," to map.");
+#endif
     
-    rdx = fish_index_t(_rows.size());
-    _row_index[row] = rdx;
-    _rows.push_back(row);
-    _num_rows = fish_index_t(_rows.size());
+    const fish_index_t rdx = fish_index_t(narrow_cast<index_t>(_rows.size()));
     
-    offset = _probabilities.size();
-    _offsets.push_back(offset);
-    
-    _probabilities.resize(_probabilities.size() + edges.size());
+    const prob_t matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
+    const size_t offset = _probabilities.size();
+    _probabilities.reserve(offset + edges.size());
     
     //! now add the edges / cols needed
     prob_t maximum = 0;
     size_t degree = 0;
-    for(auto && [col, p] : edges) {
-        auto cdx = add(col);
-        _probabilities[offset++] = Edge(cdx, p);
-        _col_edges[col].push_back(rdx);
-        if(p > maximum)
-            maximum = p;
-        if(p > FAST_SETTING(matching_probability_threshold))
+    for(const auto & [col, p] : edges) {
+        if(p > matching_probability_threshold) {
+            auto cdx = add(col);
+            _probabilities.emplace_back(cdx, p);
+            _col_edges[col].push_back(rdx);
+            
+            if(p > maximum)
+                maximum = p;
+        
             ++degree;
+        }
     }
-    _row_max_probs.push_back(maximum);
-    _degree.push_back(degree);
+    
+    if(degree > 0) {
+        _row_max_probs.push_back(maximum);
+        _degree.push_back(degree);
+        
+        _row_index[row] = rdx;
+        _rows.push_back(row);
+        _num_rows = fish_index_t(narrow_cast<index_t>(_rows.size()));
+        _offsets.push_back(offset);
+    }
     
     return rdx;
 }
@@ -1137,45 +1146,17 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
                 //! save all node indices to a set ordered by the nodes degree
                 //! and then by the nodes maximum probability (decreasing), to reduce branching
-                /*for (auto &e : _paired.edges()) {
-                    size_t degree = 0;
-                    for(auto &b : e.second) {
-                        assert(b.blob_index != -1);
-                        degree += _paired.edges_for_col(b.blob_index).size();
-                    }
-                    if(degree > 0)
-                        _optimal_pairing->set.insert(Node{e.first, _paired.degree(_paired.index(e.first)), _paired.max_prob(e.first)});
-                    else
-                        print("Individual ",e.first->identity().ID()," is empty");
-                }*/
                 for(auto row : _paired.rows()) {
                     auto rdx = _paired.index(row);
                     auto degree = _paired.degree(rdx);
                     
                     if(degree > 0)
                         _optimal_pairing->set.insert(Node{row, degree, _paired.max_prob(rdx)});
+#ifndef NDEBUG
                     else
                         cmn::print("Individual ",row->identity().ID()," is empty");
+#endif
                 }
-                
-               /* {
-                    size_t i = 0;
-                    for(auto &fish : _optimal_pairing->set) {
-                        _fish_2_idx[fish.fish] = i++;
-                    }
-                    
-                    for(size_t i=0; i<_blobs.size(); ++i) {
-                    
-                        auto & edges = _blob_edges.at(_blobs[i]);
-                    //for(auto && [blob, edges] : _blob_edges) {
-                        std::vector<size_t> indexes;
-                        for(auto &fish : edges) {
-                            indexes.push_back(_fish_2_idx[fish]);
-                        }
-                        _blob_edges_idx.push_back(indexes);
-                    //}
-                    }
-                }*/
                 
 #ifndef NDEBUG
                 if(debug)
