@@ -72,10 +72,8 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
     static const auto _ = []{
 #define DEF_CALLBACK(X) if( first ) { \
         SPLIT_SETTING( X ) = map[#X].value<track::split::slow:: X##_t >(); \
-        print("Setting", #X, "=", SPLIT_SETTING(X), " @ ", (int*)&SPLIT_SETTING(X)); \
     } else if (name == #X) { \
         SPLIT_SETTING( X ) = value.value<track::split::slow:: X##_t >(); \
-        print("Setting", #X, "=", SPLIT_SETTING(X), " @ ", (int*)&SPLIT_SETTING(X)); \
     } void()
         
         auto callback = "SplitBlob";

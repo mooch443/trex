@@ -43,7 +43,7 @@ Range<Frame_t> _analysis_range;
 void update_analysis_range() {
     static std::once_flag f;
     std::call_once(f, [&]() {
-#define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); print("Setting", #X, "=", SLOW_SETTING(X), " @ ", (int*)&SLOW_SETTING(X)); })
+#define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); })
         
         DEF_CALLBACK(frame_rate);
         DEF_CALLBACK(track_max_speed);

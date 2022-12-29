@@ -1003,7 +1003,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             static std::mutex mutex;
             static ska::bytell_hash_map<matching_mode_t::Class, Benchmark_t> benchmarks;
             
-            if(is_in(match_mode, matching_mode_t::hungarian, matching_mode_t::benchmark))
+            if(is_in(match_mode, matching_mode_t::automatic, matching_mode_t::hungarian, matching_mode_t::benchmark))
             {
                 Timer timer;
                 //HungarianAlgorithm alg;

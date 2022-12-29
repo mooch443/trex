@@ -361,9 +361,11 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {
+#ifndef NDEBUG
     if(_finalized) {
-        throw U_EXCEPTION("PPFrame already finalized at [",file,":",line,"].");
+        throw U_EXCEPTION("PPFrame already finalized @ [",file,":",line,"]. Finalized at ", _finalized_at.file_name(),":", _finalized_at.line(), " in function ", _finalized_at.function_name(), ".");
     }
+#endif
 }
 
 int PPFrame::label(const pv::bid& bdx) const {
@@ -598,9 +600,10 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     _check_owners();
 }
 
-void PPFrame::finalize() {
+void PPFrame::finalize(source_location loc) {
     ASSUME_NOT_FINALIZED;
     _finalized = true;
+    _finalized_at = std::move(loc);
     _check_owners();
 }
 

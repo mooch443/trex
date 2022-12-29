@@ -1,6 +1,7 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
+
 #include <pv.h>
 #include <misc/bid.h>
 #include <misc/idx_t.h>
@@ -83,6 +84,7 @@ public:
     //! Original frame index
     //long_t index;
     bool _finalized = false;
+    source_location _finalized_at;
     Settings::manual_matches_t::mapped_type fixed_matches;
     
 private:
@@ -290,7 +292,7 @@ public:
                    size_t pixels, size_t samples);
     
     void fill_proximity_grid();
-    void finalize();
+    void finalize(source_location loc = source_location::current());
     void init_from_blobs(std::vector<pv::BlobPtr>&& vec);
     
     template<typename T>
