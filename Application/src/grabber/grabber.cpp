@@ -263,7 +263,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     _video(NULL), _video_mask(NULL),
     _camera(NULL),
     _current_fps(0), _fps(0),
-    _processed(make_filename()),
+    _processed(make_filename(), pv::FileMode::WRITE | pv::FileMode::OVERWRITE),
     previous_time(0), _loading_timing(0), _grid(NULL), file(NULL)
 #if WITH_FFMPEG
 , mp4_thread(NULL), mp4_queue(NULL)
@@ -646,8 +646,7 @@ FrameGrabber::~FrameGrabber() {
         }
     }
     
-    if (_processed.open()) {
-        _processed.stop_writing();
+    if (_processed.is_open()) {
         _processed.close();
         print("[closed]");
     }
@@ -746,8 +745,7 @@ FrameGrabber::~FrameGrabber() {
         file::Path filename = make_filename().add_extension("pv");
         if (filename.exists()) {
             print("Opening ", filename, "...");
-            pv::File file(filename);
-            file.start_reading();
+            pv::File file(filename, pv::FileMode::READ);
             file.print_info();
         }
         else {
@@ -1566,12 +1564,11 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     // write frame to file if recording (and if there's anything in the frame)
     if(/*task->frame->n() > 0 &&*/ (!conversion_range.end.valid() || task->current->index() <= conversion_range.end.get()) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average))
     {
-        if(!_processed.open()) {
+        if(!_processed.is_open()) {
             // set (real time) timestamp for video start
             // (just for the user to read out later)
             auto epoch = std::chrono::time_point<std::chrono::system_clock>();
             _processed.set_start_time(!_video || !_video->has_timestamps() ? std::chrono::system_clock::now() : (epoch + std::chrono::microseconds(_video->start_timestamp().get())));
-            _processed.start_writing(true);
             
         } else {
             assert(task->current->index() == 0 || task->current->index() == _last_index + 1);
@@ -2179,8 +2176,8 @@ void FrameGrabber::safely_close() {
         
         file::Path filename = GRAB_SETTINGS(filename).add_extension("pv");
         if(filename.exists()){
-            pv::File file(filename);
-            file.start_reading();
+            pv::File file(filename, pv::FileMode::READ);
+            file.print_info();
         }
         
     } catch(const std::system_error& e) {

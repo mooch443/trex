@@ -203,9 +203,8 @@ int main(int argc, char**argv) {
     print("Input: ",input);
     print("Output to: ",output_dir);
     
-    pv::File video(input);
-    video.start_reading();
-    
+    pv::File video(input, pv::FileMode::READ);
+
     if(SETTING(end_frame).value<long_t>() == -1) {
         SETTING(end_frame).value<long_t>() = video.length() - 1;
     }

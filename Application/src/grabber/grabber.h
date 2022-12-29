@@ -145,7 +145,7 @@ public:
     bool is_paused() const {
         if(!is_recording())
             return false;
-        return !_processed.open() || _paused;
+        return !_processed.is_open() || _paused;
     }
     
     void initialize_from_source(const std::string& source);

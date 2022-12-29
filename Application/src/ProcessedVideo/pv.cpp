@@ -50,12 +50,16 @@ namespace pv {
     };
 
     File::~File() {
-        std::unique_lock guard(_task_list_mutex); // try to lock once to sync
-        for(auto & [i, ptr] : _task_list)
-            ptr->_please_terminate = true;
+        {
+            std::unique_lock guard(_task_list_mutex); // try to lock once to sync
+            for(auto & [i, ptr] : _task_list)
+                ptr->_please_terminate = true;
+            
+            while(!_task_list.empty())
+                _task_variable.wait_for(guard, std::chrono::milliseconds(1));
+        }
         
-        while(!_task_list.empty())
-            _task_variable.wait_for(guard, std::chrono::milliseconds(1));
+        close();
     }
 
 
@@ -464,10 +468,23 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         }
     }
 
-    void File::_write_header() { 
+    /*void File::start_writing(bool overwrite) {
+        DataFormat::start_writing(overwrite);
+    }*/
+
+    void File::_write_header() {
+        if (not (bool(_mode & FileMode::WRITE)
+              || bool(_mode & FileMode::MODIFY))
+            || not is_open())
+            throw U_EXCEPTION("File not opened when writing header ", _filename, ".");
         _header.write(*this);
     }
     void File::_read_header() {
+        if (not (bool(_mode & FileMode::READ)
+              || bool(_mode & FileMode::MODIFY))
+            || not is_open())
+            throw U_EXCEPTION("File not opened when reading header ", _filename, ".");
+        
         _header.read(*this);
 
         _average = _header.average->get();
@@ -718,6 +735,25 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         return ret;
     }
     
+    Header& File::header() {
+        _check_opened();
+        return _header;
+    }
+
+    const Header& File::header() const {
+        _check_opened();
+        return _header;
+    }
+
+    void File::close() {
+        if(is_open()) {
+            if(bool(_mode & FileMode::WRITE))
+                stop_writing();
+        }
+        DataFormat::close();
+        _tried_to_open = false;
+    }
+
     std::string File::get_info(bool full) {
         auto str = get_info_rich_text(full);
         str = utils::find_replace(str, "<b>", "");
@@ -727,9 +763,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     
     std::string File::filesize() const {
         uint64_t bytes = 0;
-        if(_open_for_writing)
+        if(bool(_mode & FileMode::WRITE)) {
+            if(!_open_for_writing)
+                throw U_EXCEPTION("File has to be opened for filesize() to work in WRITE mode.");
+            
             bytes = current_offset();
-        else {
+        } else {
 #if defined(__EMSCRIPTEN__)
             bytes = reading_file_size();
 #else
@@ -741,6 +780,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     std::string File::get_info_rich_text(bool full) {
+        _check_opened();
+        
         std::stringstream ss;
         ss << this->summary() << "\n";
         
@@ -749,7 +790,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
          */
         std::chrono::microseconds ns_l, ns_e;
         
-        if(!_open_for_writing){
+        if(bool(_mode & FileMode::READ)
+           or bool(_mode & FileMode::MODIFY))
+        {
             uint64_t idx = length() / 2u;
             uint64_t edx = length()-1;
             if(idx < length()) {
@@ -800,7 +843,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     void File::set_start_time(std::chrono::time_point<std::chrono::system_clock> tp) {
-        assert(!open());
+        assert(!is_open());
         _header.timestamp = narrow_cast<uint64_t>(std::chrono::time_point_cast<std::chrono::microseconds>(tp).time_since_epoch().count());
     }
     
@@ -810,6 +853,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     void File::add_individual(const Frame& frame, DataPackage& pack, bool compressed) {
+        _check_opened();
+        
         assert(_open_for_writing);
         assert(_header.timestamp != 0); // start time has to be set
 
@@ -842,7 +887,23 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         _last_frame = frame;
     }
 
+    void File::_check_opened() const {
+        if(_tried_to_open)
+            return;
+        
+        _tried_to_open = true;
+        
+        if(bool(_mode & FileMode::MODIFY))
+            const_cast<pv::File*>(this)->start_modifying();
+        else if(bool(_mode & FileMode::READ))
+            const_cast<pv::File*>(this)->start_reading();
+        else
+            const_cast<pv::File*>(this)->start_writing(bool(_mode & FileMode::OVERWRITE));
+    }
+
     void File::add_individual(Frame&& frame) {
+        _check_opened();
+        
         static std::mutex pack_mutex;
         static DataPackage pack;
 
@@ -853,11 +914,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
         
     void File::stop_writing() {
+        if(not is_open()
+           || not bool(_mode & FileMode::WRITE))
+            throw U_EXCEPTION("Do not stop writing on a file that was not open for writing (",_filename,").");
         write(uint64_t(0));
         _header.update(*this);
     }
     
     void File::read_frame(Frame& frame, uint64_t frameIndex) {
+        _check_opened();
+        
         assert(!_open_for_writing);
         
         std::unique_lock<std::mutex> guard(_lock);
@@ -875,6 +941,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     void File::read_next_frame(Frame& frame, uint64_t frame_to_read) {
+        _check_opened();
         assert(!_open_for_writing);
         
         std::unique_lock<std::mutex> guard(_lock);
@@ -895,6 +962,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     void File::frame_optional_background(uint64_t frameIndex, cv::Mat& output, bool with_background) {
+        _check_opened();
+        
         Frame frame;
         read_frame(frame, frameIndex);
         
@@ -919,7 +988,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     void fix_file(File& file) {
         print("Starting file copy and fix (",file.filename(),")...");
         
-        File copy(file.filename()+"_fix");
+        File copy(file.filename()+"_fix", FileMode::WRITE | FileMode::OVERWRITE);
         copy.set_resolution(file.header().resolution);
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
@@ -932,7 +1001,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             copy.set_mask(file.mask());
         
         copy.header().timestamp = file.header().timestamp;
-        copy.start_writing(true);
         
         uint64_t raw_prev_timestamp = 0;
         uint64_t last_reset = 0;
@@ -967,13 +1035,15 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             }
         }
         
-        copy.stop_writing();
+        copy.close();
         
         print("Written fixed file.");
     }
     
     void File::try_compress() {
-        File copy(filename()+"_test");
+        _check_opened();
+        
+        File copy(filename()+"_test", FileMode::WRITE);
         copy.set_resolution(header().resolution);
         copy.set_offsets(crop_offsets());
         copy.set_average(average());
@@ -1010,7 +1080,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         {
             print_info();
             
-            File test(filename()+"_test");
+            File test(filename()+"_test", FileMode::READ);
             test.start_reading();
         }
         
@@ -1018,7 +1088,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     void File::update_metadata() {
-        if(!_open_for_modifying)
+        _check_opened();
+        
+        if(not bool(_mode & FileMode::MODIFY)
+           || not is_open())
             throw U_EXCEPTION("Must be open for writing.");
     
         print("Updating metadata...");
@@ -1033,6 +1106,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     std::vector<float> File::calculate_percentiles(const std::initializer_list<float> &percent) {
+        _check_opened();
+        
         if(_open_for_writing)
             throw U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
         Timer timer;
@@ -1093,6 +1168,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     double File::generate_average_tdelta() {
+        _check_opened();
+        
         if(!_open_for_writing && _header.average_tdelta == 0 && length()>0) {
             // readable
             double average = 0;

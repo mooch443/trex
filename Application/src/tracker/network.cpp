@@ -34,9 +34,8 @@ int main(int argc, char**argv) {
     //file::Path path("/Users/tristan/Videos/locusts/converted/four_patches_tagged_60_locusts_top_right_high_top_left_low_20220610_142144_body.pv");
     SETTING(filename) = path.remove_extension("pv");
     
-    pv::File video(path);
-    video.start_reading();
-    if(!video.open())
+    pv::File video(path, pv::FileMode::READ);
+    if(!video.is_open())
         throw U_EXCEPTION("Cannot open video file ",path,".");
     
     file::Path settings_file(path.replace_extension("settings"));

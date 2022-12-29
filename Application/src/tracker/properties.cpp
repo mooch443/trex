@@ -63,7 +63,7 @@ void async_main(void*) {
 	pv::File file("group_1.pv");
 #else
 	//VideoSource source({ file::Path("C:\\Users\\tristan\\trex\\Application\\build_js\\guppy_8_t36_d15_20191212_085800.avi") });
-	pv::File file("C:/Users/tristan/Videos/group_1.pv");
+	pv::File file("C:/Users/tristan/Videos/group_1.pv", pv::FileMode::READ);
 	//pv::File file("C:/Users/tristan/trex/videos/test.pv");
 #endif
 	//cv::Mat mat;
@@ -73,7 +73,6 @@ void async_main(void*) {
 	//cv::waitKey(0);
 	print("Will open... group_1...");
 
-	file.start_reading();
 	file.print_info();
 
 	SETTING(gui_frame) = Frame_t(0);

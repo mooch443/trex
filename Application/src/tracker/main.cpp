@@ -662,8 +662,7 @@ int main(int argc, char** argv)
     
     DebugHeader("LOADING FILE");
     
-    pv::File video(SETTING(filename).value<Path>());
-    video.start_reading();
+    pv::File video(SETTING(filename).value<Path>(), pv::FileMode::READ);
     
     if(video.header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
@@ -679,7 +678,6 @@ int main(int argc, char** argv)
         }
         
         video.close();
-        video.start_reading();
     }
     
     try {
@@ -718,15 +716,6 @@ int main(int argc, char** argv)
             FormatWarning("Settings file ",settings_file," does not exist.");
         }
     }
-    
-    if(SETTING(meta_real_width).value<float>() == 0) {
-        FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
-        SETTING(meta_real_width) = float(30.0);
-    }
-    
-    // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-        SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(average.cols);
     
     /**
      * Try to load Settings from the command-line that have been

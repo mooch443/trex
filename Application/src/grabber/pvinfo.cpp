@@ -440,9 +440,7 @@ int main(int argc, char**argv) {
     //    throw U_EXCEPTION("Cannot find file ",input.str(),".");
     
     if(SETTING(is_video)) {
-        pv::File video(input);
-        video.start_reading();
-        
+        pv::File video(input, pv::FileMode::READ);
         if(video.header().version <= pv::Version::V_2) {
             SETTING(crop_offsets) = CropOffsets();
             
@@ -456,7 +454,6 @@ int main(int argc, char**argv) {
             }
             
             video.close();
-            video.start_reading();
         }
         
         SETTING(crop_offsets) = video.header().offsets;
@@ -636,12 +633,14 @@ int main(int argc, char**argv) {
                 throw U_EXCEPTION("Image at ",SETTING(replace_background).value<file::Path>()," is not of compatible resolution (",mat.cols,"x",mat.rows," / ",video.header().resolution.width,"x",video.header().resolution.height,")");
             } else {
                 using namespace pv;
+                // close the current file
                 video.close();
-                video.start_modifying();
-                video.set_average(mat);
                 
-                video.close();
-                video.start_reading();
+                {
+                    // open a different instance and replace the average embedded in it
+                    pv::File modify(video.filename(), pv::FileMode::MODIFY);
+                    modify.set_average(mat);
+                }
                 
                 print("Written new average image.");
             }
@@ -655,7 +654,7 @@ int main(int argc, char**argv) {
             } else {
                 print("Starting file copy and fix (",video.filename(),")...");
 
-                File copy(video.filename().remove_extension().str()+"_fix.pv");
+                File copy(video.filename().remove_extension().str()+"_fix.pv", pv::FileMode::WRITE | pv::FileMode::OVERWRITE);
                 copy.set_resolution(video.header().resolution);
                 copy.set_offsets(video.crop_offsets());
                 copy.set_average(video.average());
@@ -664,7 +663,6 @@ int main(int argc, char**argv) {
                     copy.set_mask(video.mask());
 
                 copy.header().timestamp = video.header().timestamp;
-                copy.start_writing(true);
 
                 for (size_t idx = 0; true; idx++) {
                     pv::Frame frame;
@@ -683,8 +681,6 @@ int main(int argc, char**argv) {
                     }
                 }
 
-                copy.stop_writing();
-
                 print("Written fixed video.");
             }
         }
@@ -692,9 +688,14 @@ int main(int argc, char**argv) {
         if(fix)
 	        pv::fix_file(video);
         
-        if(!updated_settings.empty() || !remove_settings.empty()) {
+        if(!updated_settings.empty() || !remove_settings.empty())
+        {
             video.close();
-            video.start_modifying();
+            
+            file::Path name = video.filename();
+            
+            // new instance with modify rights
+            pv::File video(name, pv::FileMode::MODIFY);
             
             std::vector<std::string> keys = sprite::parse_values(video.header().metadata).keys();
             sprite::parse_values(GlobalSettings::map(), video.header().metadata);
@@ -836,8 +837,7 @@ int main(int argc, char**argv) {
         }
         
         if(path.add_extension("pv").exists()) {
-            pv::File video(path);
-            video.start_reading();
+            pv::File video(path, pv::FileMode::READ);
             
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
@@ -910,8 +910,8 @@ int main(int argc, char**argv) {
         printf("\n");
     
     if(!updated_settings.empty() || !remove_settings.empty()) {
-        pv::File video(input);
-        video.start_reading();
+        pv::File video(input, pv::FileMode::READ);
+        video.print_info();
     }
     
     return 0;

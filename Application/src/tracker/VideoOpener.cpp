@@ -1033,8 +1033,7 @@ void VideoOpener::select_file(const file::Path &p) {
     _extra->update_layout();
     
     try {
-        auto video = std::make_unique<pv::File>(SETTING(filename).value<file::Path>());
-        video->start_reading();
+        auto video = std::make_unique<pv::File>(SETTING(filename).value<file::Path>(), pv::FileMode::READ);
         auto text = video->get_info(false);
         
         _mini_bowl = std::make_shared<Entangled>();

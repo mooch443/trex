@@ -60,8 +60,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(!name.has_extension() || name.extension() != "pv")
             name = name.add_extension("pv");
         
-        auto file = std::make_shared<pv::File>(name);
-        file->start_reading();
+        auto file = std::make_shared<pv::File>(name, pv::FileMode::READ);
         files.push_back(file);
         
         if(min_length > file->length())
@@ -118,9 +117,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         path = file::DataLocation::parse("input", path);
         
         if((!path.has_extension() && path.add_extension("pv").exists()) || (path.has_extension() && path.extension() == "pv")) {
-            pv::File file(path);
-            file.start_reading();
-            
+            pv::File file(path, pv::FileMode::READ);
             file.average().copyTo(average);
         } else {
             if(!path.exists()) {
@@ -182,13 +179,12 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         SETTING(merge_output_path) = file::Path("merged");
     
     file::Path out_path = file::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
-    pv::File output(out_path);
+    pv::File output(out_path, pv::FileMode::WRITE | pv::FileMode::OVERWRITE);
     
     output.set_resolution((cv::Size)resolution);
     output.set_average(average);
     
     output.set_start_time(std::chrono::system_clock::now());
-    output.start_writing(true);
     
     //auto start_time = output.header().timestamp;
     print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
@@ -402,10 +398,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         }
     }
     
-    output.stop_writing();
     output.close();
     
-    output.start_reading();
-    output.print_info();
-    output.close();
+    {
+        pv::File video(output.filename(), pv::FileMode::READ);
+        video.print_info();
+    }
 }

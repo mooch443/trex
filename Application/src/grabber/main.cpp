@@ -128,9 +128,9 @@ static void at_exit() {
         printf("Didn't clean up FrameGrabber properly.\n");
         printf("Waiting for analysis to be paused...");
         
-        if(FrameGrabber::instance && FrameGrabber::instance->processed().open()) {
+        if(FrameGrabber::instance && FrameGrabber::instance->processed().is_open()) {
             printf("Trying to close file...\n");
-            FrameGrabber::instance->processed().stop_writing();
+            FrameGrabber::instance->processed().close();
         }
         
         if(FrameGrabber::instance)

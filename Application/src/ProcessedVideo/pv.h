@@ -222,6 +222,27 @@ namespace pv {
     };
 
     struct TaskSentinel;
+
+    enum class FileMode : std::uint8_t {
+        READ      = 0b00000001,
+        WRITE     = 0b00000010,
+        OVERWRITE = 0b00000100,
+        MODIFY    = 0b00001000
+    };
+
+    inline FileMode operator|(FileMode lhs, FileMode rhs) {
+        return static_cast<FileMode>(
+            static_cast<std::underlying_type_t<FileMode>>(lhs) |
+            static_cast<std::underlying_type_t<FileMode>>(rhs)
+        );
+    }
+
+    inline FileMode operator&(FileMode lhs, FileMode rhs) {
+        return static_cast<FileMode>(
+            static_cast<std::underlying_type_t<FileMode>>(lhs) &
+            static_cast<std::underlying_type_t<FileMode>>(rhs)
+        );
+    }
     
     class File : public cmn::DataFormat, public cmn::GenericVideo {
     protected:
@@ -243,16 +264,28 @@ namespace pv {
         
         friend struct pv::TaskSentinel;
         
+        const FileMode _mode;
+        void _check_opened() const;
+        mutable bool _tried_to_open{false};
+        
+        using DataFormat::start_writing;
+        using DataFormat::start_reading;
+        using DataFormat::start_modifying;
+        //void start_writing(bool overwrite) override;
+        //void start_reading() override;
+        
     public:
-        File(const file::Path& filename = "")
+        File(const file::Path& filename, FileMode mode)
             : DataFormat(filename.add_extension("pv"), filename.str()),
                 _header(filename.str()),
                 _filename(filename),
-                _prev_frame_time(0)
+                _prev_frame_time(0),
+                _mode(mode)
         { }
         
         ~File();
         
+        void close() override;
         const pv::Frame& last_frame();
         
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
@@ -274,7 +307,10 @@ namespace pv {
         void read_frame(Frame& frame, uint64_t frameIndex);
         void read_next_frame(Frame& frame, uint64_t frame_to_read);
         
+    private:
         virtual void stop_writing() override;
+        
+    public:
         void set_resolution(const Size2& size) { _header.resolution = (cv::Size)size; }
         void set_average(const cv::Mat& average) {
             if(average.type() != CV_8UC1) {
@@ -296,13 +332,17 @@ namespace pv {
             _header.average = new Image(average);
             this->_average = _header.average->get();
             
-            if(_open_for_modifying) {
+            if(bool(_mode & FileMode::MODIFY)) {
+                _check_opened();
+                if(not is_open())
+                    throw U_EXCEPTION("Not open for modifying.");
+                
                 cmn::Data::write_data(header()._average_offset, header().average->size(), (char*)header().average->data());
             }
         }
-        const Header& header() const { return _header; }
-        Header& header() { return _header; }
-        const cv::Mat& average() const override { assert(_header.average); return _average; }
+        const Header& header() const; //{ return _header; }
+        Header& header(); //{ return _header; }
+        const cv::Mat& average() const override { _check_opened(); assert(_header.average); return _average; }
         
         void set_mask(const cv::Mat& mask) {
             if(_header.mask)
