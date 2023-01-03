@@ -228,11 +228,11 @@ public:
                             } else if(result == Dialog::OKAY) {
                                 // load from settings file
                                 auto settings_file = file::DataLocation::parse("settings");
-                                GUI::execute_settings(settings_file, AccessLevelType::PUBLIC);
+                                default_config::execute_settings_file(settings_file, AccessLevelType::PUBLIC);
                                 
                                 auto output_settings = file::DataLocation::parse("output_settings");
                                 if(output_settings.exists() && output_settings != settings_file)
-                                    GUI::execute_settings(output_settings, AccessLevelType::STARTUP);
+                                    default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP);
                             }
                         }, "Loading settings will replace values of currently loaded settings. Where do you want to source from?", "load settings", "from .settings", "cancel", "from results");
                     });

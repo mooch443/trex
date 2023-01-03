@@ -126,9 +126,6 @@ public:
     void set_base(gui::Base* base);
     
     static Frame_t frame();
-    //static inline sprite::Property<long_t>& frame_ref() { return GUI::current_frame; }
-    
-    static bool execute_settings(file::Path, AccessLevelType::Class);
     static void reanalyse_from(Frame_t frame, bool in_thread = true);
     
     static void trigger_redraw();

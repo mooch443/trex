@@ -252,24 +252,6 @@ void drawOptFlowMap (const cv::Mat& flow, cv::Mat& map) {
     }
 }
 
-bool GUI::execute_settings(file::Path settings_file, AccessLevelType::Class accessLevel) {
-    if(settings_file.exists()) {
-        DebugHeader("LOADING ", settings_file);
-        try {
-            auto content = utils::read_file(settings_file.str());
-            default_config::load_string_with_deprecations(settings_file, content, GlobalSettings::map(), accessLevel);
-            
-        } catch(const cmn::illegal_syntax& e) {
-            FormatError("Illegal syntax in settings file.");
-            return false;
-        }
-        DebugHeader("LOADED ", settings_file);
-        return true;
-    }
-    
-    return false;
-}
-
 GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
   :
     _average_image(average),
@@ -374,7 +356,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             if(name == "exec") {
                 if(!SETTING(exec).value<file::Path>().empty()) {
                     file::Path settings_file = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
-                    execute_settings(settings_file, AccessLevelType::PUBLIC);
+                    default_config::execute_settings_file(settings_file, AccessLevelType::PUBLIC);
                     SETTING(exec) = file::Path();
                 }
             }

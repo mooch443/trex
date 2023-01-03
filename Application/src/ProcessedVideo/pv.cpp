@@ -1166,6 +1166,35 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //auto str = Meta::toStr(samples);
         return p;
     }
+
+void File::set_average(const cv::Mat& average) {
+    if(average.type() != CV_8UC1) {
+        auto str = getImgType(average.type());
+        throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC1'.");
+    }
+    
+    if(!_header.resolution.width && !_header.resolution.height) {
+        _header.resolution.width = average.cols;
+        _header.resolution.height = average.rows;
+    }
+    else if(average.cols != _header.resolution.width || average.rows != _header.resolution.height) {
+        throw U_EXCEPTION("Average image is of size ",average.cols,"x",average.rows," but has to be ",_header.resolution.width,"x",_header.resolution.height,"");
+    }
+    
+    if(_header.average)
+        delete _header.average;
+    
+    _header.average = new Image(average);
+    this->_average = _header.average->get();
+    
+    if(bool(_mode & FileMode::MODIFY)) {
+        _check_opened();
+        if(not is_open())
+            throw U_EXCEPTION("Not open for modifying.");
+        
+        cmn::Data::write_data(header()._average_offset, header().average->size(), (char*)header().average->data());
+    }
+}
     
     double File::generate_average_tdelta() {
         _check_opened();

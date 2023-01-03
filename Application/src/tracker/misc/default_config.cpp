@@ -275,6 +275,34 @@ file::Path conda_environment_path() {
         return std::string_view("release");
 #endif
     }
+
+void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level) {
+    try {
+        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level);
+        
+    } catch(const cmn::illegal_syntax& e) {
+        FormatError("Illegal syntax in settings file.");
+        return;
+    }
+}
+
+bool execute_settings_file(const file::Path& source, AccessLevelType::Class level) {
+    if(source.exists()) {
+        DebugHeader("LOADING ", source);
+        try {
+            auto content = utils::read_file(source.str());
+            execute_settings_string(content, source, level);
+            
+        } catch(const cmn::illegal_syntax& e) {
+            FormatError("Illegal syntax in settings file.");
+            return false;
+        }
+        DebugHeader("LOADED ", source);
+        return true;
+    }
+    
+    return false;
+}
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn)
     {

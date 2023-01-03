@@ -668,12 +668,12 @@ int main(int argc, char** argv)
         SETTING(crop_offsets) = CropOffsets();
         
         Path settings_file = file::DataLocation::parse("settings");
-        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
+            if(default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
         }
         
@@ -709,7 +709,7 @@ int main(int argc, char** argv)
     
     Path settings_file = file::DataLocation::parse("settings");
     if(SETTING(settings_file).value<file::Path>().empty()) {
-        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         else {
             SETTING(settings_file) = file::Path();
@@ -726,14 +726,14 @@ int main(int argc, char** argv)
     if(SETTING(settings_file).value<file::Path>().empty()) {
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
+            if(default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
             else if(!executed_a_settings)
                 FormatWarning("Output settings ",output_settings," does not exist.");
         }
         
     } else {
-        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         else
             FormatWarning("Settings file ",settings_file," does not exist.");
@@ -817,7 +817,7 @@ int main(int argc, char** argv)
     
     if(!SETTING(exec).value<file::Path>().empty()) {
         Path exec_settings = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
-        if(!GUI::execute_settings(exec_settings, AccessLevelType::STARTUP))
+        if(!default_config::execute_settings_file(exec_settings, AccessLevelType::STARTUP))
             FormatExcept("Settings file ",exec_settings.str()," cannot be found or execution failed.");
         else
             executed_a_settings = true;
