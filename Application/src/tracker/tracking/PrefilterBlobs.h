@@ -50,6 +50,10 @@ struct PrefilterBlobs {
                    int threshold,
                    const BlobSizeRange& fish_size,
                    const Background& background);
+    PrefilterBlobs(const PrefilterBlobs&) = delete;
+    PrefilterBlobs(PrefilterBlobs&&) noexcept = default;
+    PrefilterBlobs& operator=(const PrefilterBlobs&) = delete;
+    PrefilterBlobs& operator=(PrefilterBlobs&&) noexcept = default;
     
     void commit(pv::BlobPtr&& b);
     void commit(std::vector<pv::BlobPtr>&& v);

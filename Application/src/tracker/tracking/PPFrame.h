@@ -421,6 +421,11 @@ public:
     
     PPFrame();
     ~PPFrame();
+
+    PPFrame(const PPFrame&) = delete;
+    PPFrame(PPFrame&&) noexcept = default;
+    PPFrame& operator=(const PPFrame&) = delete;
+    PPFrame& operator=(PPFrame&&) noexcept = default;
     
     void clear();
     
