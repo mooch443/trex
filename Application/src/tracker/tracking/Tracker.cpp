@@ -522,14 +522,17 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
 {
     static std::once_flag flag;
     std::call_once(flag, [&video](){
-        if(video.header().meta_real_width <= 0) {
-            FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
-            SETTING(meta_real_width) = float(30.0);
-        } else {
-            if(not GlobalSettings::has("meta_real_width")
-               || SETTING(meta_real_width).value<float>() == 0)
-            {
-                SETTING(meta_real_width) = video.header().meta_real_width;
+        if(not GlobalSettings::has("meta_real_width")
+            || SETTING(meta_real_width).value<float>() == 0) 
+        {
+            if(video.header().meta_real_width <= 0) {
+                FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
+                SETTING(meta_real_width) = float(30.0);
+            } else {
+                if(not GlobalSettings::has("meta_real_width")
+                    || SETTING(meta_real_width).value<float>() == 0) {
+                    SETTING(meta_real_width) = video.header().meta_real_width;
+                }
             }
         }
         

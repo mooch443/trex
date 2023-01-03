@@ -11,7 +11,7 @@ TGRABS=tgrabs
 TREX=trex
 
 if ! which git; then
-    GIT="C:\Users\tristan\anaconda3\envs\trex\Library\bin\git.exe"
+    GIT="C:/Users/tristan/miniconda3/envs/trex/Library/bin/git.exe"
 else
     GIT=git
 fi
@@ -48,7 +48,7 @@ CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -th
     -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" 
     -enable_live_tracking -auto_no_results -output_format csv -nowindow"
 echo "Running TGrabs... ${CMD}"
-if ! { ${CMD} 2>&1; } > "${PWD}/tgrabs.log"; then
+if ! { ${CMD} 2>&1; } ; then
     cat "${PWD}/tgrabs.log"
     echo "TGrabs could not be executed."
     exit_code=1
@@ -61,6 +61,9 @@ else
         cat "${PWD}/tgrabs.log"
         exit_code=1
     else
+        f="test_fish0"
+        echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv"
+        echo "${PWD}/data: $(ls ${PWD}/data)"
         for f in ${FILES}; do
             f=$(basename $f .csv)
 
@@ -103,6 +106,10 @@ for MODE in ${MODES}; do
             cat "${PWD}/trex.log"
             exit_code=1
         else
+            f="test_fish0"
+            echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv"
+            echo "${PWD}/corrected/data: $FILES"
+
             for f in ${FILES}; do
                 f=$(basename $f .csv)
 
