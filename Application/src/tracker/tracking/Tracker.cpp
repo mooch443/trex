@@ -461,12 +461,12 @@ void Tracker::add(PPFrame &frame) {
         return;
     }
     
-    if(frame.frame().timestamp() > uint64_t(INT64_MAX)) {
+    if(frame.timestamp > uint64_t(INT64_MAX)) {
         print("frame timestamp is bigger than INT64_MAX! (",time," time)");
     }
     
     auto props = properties(frame.index() - 1_f);
-    if(props && frame.frame().timestamp() < props->org_timestamp.get()) {
+    if(props && frame.timestamp < props->org_timestamp.get()) {
         FormatError("Cannot add frame with timestamp smaller than previous timestamp. Frames have to be in order. Skipping.");
         return;
     }
@@ -518,16 +518,19 @@ void Tracker::update_history_log() {
     PPFrame::UpdateLogs();
 }
 
-void Tracker::preprocess_frame(PPFrame& frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split)
+void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame& pp, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split)
 {
     static std::once_flag flag;
-    std::call_once(flag, [](){
-        if(!GlobalSettings::has("meta_real_width"))
-            throw U_EXCEPTION("Please load default settings before attempting to preprocess any frames (`meta_real_width` was not set, this is usually in there).");
-        
-        if(SETTING(meta_real_width).value<float>() == 0) {
+    std::call_once(flag, [&video](){
+        if(video.header().meta_real_width <= 0) {
             FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
             SETTING(meta_real_width) = float(30.0);
+        } else {
+            if(not GlobalSettings::has("meta_real_width")
+               || SETTING(meta_real_width).value<float>() == 0)
+            {
+                SETTING(meta_real_width) = video.header().meta_real_width;
+            }
         }
         
         // setting cm_per_pixel after average has been generated (and offsets have been set)
@@ -535,25 +538,28 @@ void Tracker::preprocess_frame(PPFrame& frame, const set_of_individuals_t& activ
             SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(average().cols);
     });
     
-    double time = double(frame.frame().timestamp()) / double(1000*1000);
+    double time = double(frame.timestamp()) / double(1000*1000);
     
     //! Free old memory
-    frame.clear();
+    pp.clear();
     
-    frame.time = time;
-    frame.timestamp = frame.frame().timestamp();
-    frame.set_index(Frame_t(frame.frame().index()));
-    //assert(frame.index() == frame.frame().index());
-    frame.init_from_blobs(frame.frame().get_blobs());
+    pp.time = time;
+    pp.set_index(frame.index());
+    pp.timestamp = frame.timestamp();
+    pp.set_loading_time(frame.loading_time());
+    pp.init_from_blobs(frame.get_blobs());
     
-    filter_blobs(frame, pool);
-    frame.fill_proximity_grid();
+    filter_blobs(pp, pool);
+    pp.fill_proximity_grid();
     
     if(do_history_split) {
         //LockGuard guard("preprocess_frame");
-        HistorySplit{frame, active_individuals, pool};
+        HistorySplit{pp, active_individuals, pool};
         //Tracker::instance()->history_split(frame, active_individuals, out, pool);
     }
+    
+    //! discarding frame...
+    frame.clear();
 }
 
 void Tracker::prefilter(
@@ -1952,7 +1958,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         tags_saver.wait();
     
     auto adding = (float)overall_timer.elapsed();
-    auto loading = (float)frame.frame().loading_time();
+    auto loading = (float)frame.loading_time();
     
     std::lock_guard<std::mutex> guard(_statistics_mutex);
     auto& entry = _statistics[frameIndex];
@@ -3306,7 +3312,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
     }
     
     void Tracker::auto_calculate_parameters(pv::File& video, bool quiet) {
-        if(video.length() > 1000 && (SETTING(auto_minmax_size) || SETTING(auto_number_individuals))) {
+        if(video.length() > 1000_f && (SETTING(auto_minmax_size) || SETTING(auto_number_individuals))) {
             gpuMat average;
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
@@ -3326,8 +3332,8 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
             std::vector<std::multiset<float>> blobs;
             Median<float> median;
             
-            auto step = (video.length() - video.length()%500) / 500;
-            for (size_t i=0; i<video.length(); i+=step) {
+            auto step = Frame_t((video.length().get() - video.length().get()%500) / 500);
+            for (Frame_t i=0_f; i<video.length(); i+=step) {
                 video.read_frame(frame, i);
                 
                 std::multiset<float> frame_values;

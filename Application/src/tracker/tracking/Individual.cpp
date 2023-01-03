@@ -923,7 +923,7 @@ int64_t Individual::add(const TrackingHelper& helper, pv::BlobPtr&& blob, prob_t
     if (has(frameIndex))
         return -1;
     
-    if (frameIndex >= _startFrame && frameIndex <= _endFrame)
+    if (_startFrame.valid() && frameIndex >= _startFrame && frameIndex <= _endFrame)
         throw UtilsException("Cannot add intermediate frames out of order.");
     
     // find valid previous frame

@@ -696,7 +696,7 @@ int main(int argc, char** argv)
     
     SETTING(video_size) = Size2(average.cols, average.rows);
     SETTING(video_mask) = video.has_mask();
-    SETTING(video_length) = uint64_t(video.length());
+    SETTING(video_length) = uint64_t(video.length().get());
     SETTING(video_info) = std::string(video.get_info());
     
     if(SETTING(frame_rate).value<int>() <= 0) {
@@ -860,13 +860,12 @@ int main(int argc, char** argv)
         
         size_t added_frames = 0, processed_frames = 0;
         
-        auto range = arange<size_t>(0, video.length()-1, size_t(float(video.length()) / 1000.f));
+        auto range = arange<Frame_t>(0_f, video.length()-1_f, max(1_f, Frame_t(float(video.length().get()) / 1000.f)));
         distribute_indexes([&](auto, auto start, auto end, auto){
             pv::Frame frame;
             CPULabeling::ListCache_t cache;
             
             for(auto it = start; it != end; ++it) {
-                frame.clear();
                 video.read_frame(frame, *it);
             //video.read_frame(next_frame, i+1);
             
@@ -918,7 +917,7 @@ int main(int argc, char** argv)
             }
             
             std::lock_guard<std::mutex> guard(sync);
-            processed_frames += *end - *start + 1;
+            processed_frames += (*end).get() - (*start).get() + 1;
             if(processed_frames % 10000 == 0) {
                 print(processed_frames,"/",added_frames," (",processed_frames / float(added_frames) * 100,"%)");
             }
@@ -1065,7 +1064,7 @@ int main(int argc, char** argv)
     
     //try {
     GUI &gui = *gui_instance;
-    gui.frameinfo().video_length = video.length() > 0 ? (video.length() - 1) : 0;
+    gui.frameinfo().video_length = video.length() > 0_f ? (video.length().get() - 1) : 0;
     
     if(!SETTING(gui_connectivity_matrix_file).value<file::Path>().empty()) {
         try {
@@ -1100,11 +1099,11 @@ int main(int argc, char** argv)
             }
 
             Timer timer;
-            video.read_frame(ptr->frame(), (size_t)idx.get());
-            ptr->frame().set_index(idx.get());
-            Tracker::preprocess_frame(*ptr, {}, pool.num_threads() > 1 ? &pool : NULL, false);
+            pv::Frame frame;
+            video.read_frame(frame, idx);
+            Tracker::preprocess_frame(video, std::move(frame), *ptr, {}, pool.num_threads() > 1 ? &pool : NULL, false);
 
-            ptr->frame().set_loading_time(narrow_cast<float>(timer.elapsed()));
+            ptr->set_loading_time(narrow_cast<float>(timer.elapsed()));
 
             return true;
         },
@@ -1135,12 +1134,12 @@ int main(int argc, char** argv)
                 static Timing after_track("Analysis::after_track", 10);
                 TakeTiming after_trackt(after_track);
                 
-                if(size_t(idx.get() + 1) == video.length())
+                if(idx + 1_f == video.length())
                     please_stop_analysis = true;
 
                 {
                     std::lock_guard<std::mutex> lock(data_mutex);
-                    data_kbytes += ptr->frame().size() / 1024.0;
+                    data_kbytes += ptr->N_blobs() / 1024.0;
                 }
 
                 double elapsed = fps_timer.elapsed();
@@ -1247,7 +1246,7 @@ int main(int argc, char** argv)
             }
             
             while(currentID.load() < max(range.start, endframe) + cache_size
-                  && size_t((currentID.load() + 1_f).get()) < video.length())
+                  && currentID.load() + 1_f < video.length())
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 if(unused.empty())

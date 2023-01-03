@@ -189,9 +189,10 @@ void draw(Frame_t frame, DrawStructure& graph) {
     Loc offset(5);
     
     PPFrame pp;
+    pv::Frame vframe;
     pp.set_index(frame);
-    GUI::video_source()->read_frame(pp.frame(), frame.get());
-    Tracker::preprocess_frame(pp, {}, nullptr);
+    GUI::video_source()->read_frame(vframe, frame);
+    Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, {}, nullptr);
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {

@@ -102,8 +102,18 @@ CREATE_STRUCT(GrabSettings,
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
 
-static std::deque<std::unique_ptr<track::PPFrame>> unused_pp;
-static std::deque<std::unique_ptr<track::PPFrame>> ppframe_queue;
+struct PPCache {
+    using Ptr = std::unique_ptr<PPCache>;
+    [[nodiscard]] static auto Make(auto&&... args) noexcept {
+        return std::make_unique<PPCache>(std::forward<decltype(args)>(args)...);
+    }
+    
+    track::PPFrame pp;
+    pv::Frame frame;
+};
+
+static std::deque<PPCache::Ptr> unused_pp;
+static std::deque<PPCache::Ptr> ppframe_queue;
 static std::mutex ppframe_mutex, ppqueue_mutex;
 static std::condition_variable ppvar;
 
@@ -240,7 +250,7 @@ Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
     static const Frame_t conversion_range_start =
         (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? Frame_t(min(_video->length() - 1, (uint32_t)GRAB_SETTINGS(video_conversion_range).first))
+        ? Frame_t(min(_video->length() - 1_f, Frame_t(GRAB_SETTINGS(video_conversion_range).first)))
         : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
@@ -248,8 +258,8 @@ Range<Frame_t> FrameGrabber::processing_range() const {
     static const Frame_t conversion_range_end =
         _video
         ? Frame_t(GRAB_SETTINGS(video_conversion_range).second != -1
-            ? GRAB_SETTINGS(video_conversion_range).second
-            : (_video->length() - 1))
+            ? Frame_t(GRAB_SETTINGS(video_conversion_range).second)
+            : (_video->length() - 1_f))
         : Frame_t();
 
     return Range<Frame_t>{ conversion_range_start, conversion_range_end };
@@ -894,10 +904,10 @@ bool FrameGrabber::prepare_image(long_t prev, Image_t &current) {
 
     if (_video && !_average_finished) {
         //! Special indexing for video averaging (skipping over frames)
-        double step = (_video->length()
-            / floor((double)min(
-                _video->length()-1,
-                max(1u, GRAB_SETTINGS(average_samples))
+        double step = (_video->length().get()
+            / floor(min(
+                double(_video->length().get()-1),
+                double(max(1u, GRAB_SETTINGS(average_samples)))
             )));
 
         current.set_index(prev != -1 ? (prev + step) : 0);
@@ -922,7 +932,7 @@ bool FrameGrabber::prepare_image(long_t prev, Image_t &current) {
         }
         else {
             try {
-                current.set_timestamp(_video->timestamp(current.index()));
+                current.set_timestamp(_video->timestamp(Frame_t(current.index())));
             }
             catch (const UtilsException& e) {
                 // failed to retrieve timestamp, so fake the timestamp
@@ -945,8 +955,10 @@ bool FrameGrabber::load_image(Image_t& current) {
     static gpuMat scaled;
     static const bool does_change_size = _cam_size != _cropped_size || GRAB_SETTINGS(cam_scale) != 1;
     
+    Frame_t frame{current.index()};
+    
     if(_video) {
-        if(_average_finished && current.index() >= long_t(_video->length())) {
+        if(_average_finished && frame >= _video->length()) {
             --_frame_processing_ratio;
             //print("average finished ", _frame_processing_ratio.load(), " by ", current.index());
             return false;
@@ -957,14 +969,14 @@ bool FrameGrabber::load_image(Image_t& current) {
         
         try {
             if(does_change_size)
-                _video->frame(current.index(), m);
+                _video->frame(frame, m);
             else
-                _video->frame(current.index(), c);
+                _video->frame(frame, c);
             
             Image *mask_ptr = NULL;
             if(_video_mask) {
                 static cv::Mat mask;
-                _video_mask->frame(current.index(), mask);
+                _video_mask->frame(frame, mask);
                 assert(mask.channels() == 1);
                 
                 mask_ptr = new Image(mask.rows, mask.cols, 1);
@@ -973,7 +985,7 @@ bool FrameGrabber::load_image(Image_t& current) {
             
             current.set_mask(mask_ptr);
         } catch(const UtilsException& e) {
-            FormatExcept("Skipping frame ", current.index()," and ending conversion (an exception occurred). Ending normally. Make sure that the video is intact, you can try this before conversion:\n\tffmpeg -i ", SETTING(video_source).value<std::string>(), " -c copy -o fixed.mp4");
+            FormatExcept("Skipping frame ", frame," and ending conversion (an exception occurred). Ending normally. Make sure that the video is intact, you can try this before conversion:\n\tffmpeg -i ", SETTING(video_source).value<std::string>(), " -c copy -o fixed.mp4");
             if(!GRAB_SETTINGS(terminate)) {
                 SETTING(terminate) = true;
             }
@@ -1024,7 +1036,7 @@ bool FrameGrabber::load_image(Image_t& current) {
 }
 
 void FrameGrabber::add_tracker_queue(const pv::Frame& frame, std::vector<pv::BlobPtr>&& tags, Frame_t index) {
-    std::unique_ptr<track::PPFrame> ptr;
+    PPCache::Ptr ptr;
     static size_t created_items = 0;
     static Timer print_timer;
     
@@ -1043,21 +1055,18 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, std::vector<pv::Blo
         if(!unused_pp.empty()) {
             ptr = std::move(unused_pp.front());
             unused_pp.pop_front();
-            ptr->clear();
         } else
             ++created_items;
     }
     
     if(!ptr) {
-        ptr = std::make_unique<track::PPFrame>();
+        ptr = PPCache::Make();
     }
     
-    ptr->clear();
-    ptr->frame() = frame;
-    ptr->frame().set_index(index.get());
-    ptr->frame().set_timestamp(frame.timestamp());
-    ptr->set_index(index);
-    ptr->set_tags(std::move(tags));
+    ptr->pp.clear();
+    ptr->frame = frame;
+    ptr->frame.set_index(index);
+    ptr->pp.set_tags(std::move(tags));
     tags.clear();
     
     {
@@ -1145,17 +1154,17 @@ void FrameGrabber::update_tracker_queue() {
             guard.unlock();
             
             if(copy && !tracker) {
-                throw U_EXCEPTION("Cannot track frame ",copy->index()," since tracker has been deleted.");
+                throw U_EXCEPTION("Cannot track frame ",copy->pp.index()," since tracker has been deleted.");
             }
 
             //print("Handling frame ", copy->index(), " -> ", tracker);
-            last_processed = copy->index();
+            last_processed = copy->frame.index();
             
             if(copy && tracker) {
                 track::LockGuard guard(track::w_t{}, "update_tracker_queue");
-                track::Tracker::preprocess_frame(*copy, {}, NULL, false);
-                tracker->add(*copy);
-                Frame_t frame{copy->frame().index()};
+                track::Tracker::preprocess_frame(processed(), std::move(copy->frame), copy->pp, {}, NULL, false);
+                tracker->add(copy->pp);
+                Frame_t frame{copy->pp.index()};
                 
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
@@ -1327,7 +1336,7 @@ void FrameGrabber::update_tracker_queue() {
             
             if(copy) {
                 std::lock_guard<std::mutex> guard(ppframe_mutex);
-                copy->clear();
+                copy->pp.clear();
                 unused_pp.emplace_back(std::move(copy));
             }
             
@@ -1671,7 +1680,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         std::swap(_last_frame, task->frame);
 
         if (_last_frame)
-            _last_frame->set_index(index);
+            _last_frame->set_index(Frame_t(index));
 
         {
             std::lock_guard<std::mutex> guard(_frame_lock);

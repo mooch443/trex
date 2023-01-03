@@ -63,21 +63,17 @@ int main(int argc, char**argv) {
         print("Loading failed. Analysing instead...");
         
         PPFrame pp;
+        pv::Frame frame;
         Timer timer;
         double s = 0;
-        for(size_t i=0; i<video.length(); ++i) {
-            
-            video.read_frame(pp.frame(), i);
-            pp.frame().set_index(i);
-            track::Tracker::preprocess_frame(pp, {}, NULL, false);
-            //Tracker::preprocess_frame(pp, tracker.active_individuals(), nullptr);
-            
-            //LockGuard guard("tracking");
+        for(Frame_t i=0_f; i<video.length(); ++i) {
+            video.read_frame(frame, i);
+            track::Tracker::preprocess_frame(video, std::move(frame), pp, {}, NULL, false);
             tracker.add(pp);
             
             s += timer.elapsed();
-            if(i % 1000 == 0)
-                print(1.0 / (s / double(i)), "fps ", i, "/", video.length());
+            if(i.get() % 1000 == 0)
+                print(1.0 / (s / double(i.get())), "fps ", i, "/", video.length());
             timer.reset();
         }
     }

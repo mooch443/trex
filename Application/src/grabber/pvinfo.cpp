@@ -478,7 +478,7 @@ int main(int argc, char**argv) {
         
         SETTING(video_size) = Size2(average.cols, average.rows);
         SETTING(video_mask) = video.has_mask();
-        SETTING(video_length) = uint64_t(video.length());
+        SETTING(video_length) = uint64_t(video.length().get());
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
@@ -649,7 +649,7 @@ int main(int argc, char**argv) {
         if(repair_index) {
             using namespace pv;
 
-            if(video.length() != 0) {
+            if(not video.length().valid()) {
                 FormatError("The videos index cannot be repaired because it doesnt seem to be broken.");
             } else {
                 print("Starting file copy and fix (",video.filename(),")...");
@@ -668,7 +668,7 @@ int main(int argc, char**argv) {
                     pv::Frame frame;
 
                     try {
-                        frame.read_from(video, idx);
+                        frame.read_from(video, Frame_t(idx));
                     } catch(const UtilsException& e) {
                         print("Breaking after ", idx," frames.");
                         break;
@@ -745,10 +745,10 @@ int main(int argc, char**argv) {
             Timer timer;
             
             timestamp_t prev_timestamp;
-            for (size_t i=0; i<video.length(); i++) {
+            for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
-                if(i==0)
+                if(i==0_f)
                     prev_timestamp = frame.timestamp();
                 
                 std::string str = ""+timestamp_t(frame.timestamp()).toStr()+","+(timestamp_t(frame.timestamp())-prev_timestamp).toStr()+"\n";
@@ -756,7 +756,7 @@ int main(int argc, char**argv) {
                 fwrite(str.data(), 1, str.length(), f);
                 prev_timestamp = frame.timestamp();
                 
-                if(i%1000 == 0) {
+                if(i.get()%1000 == 0) {
                     print("Frame ", i,"/",video.length());
                 }
             }
@@ -773,7 +773,7 @@ int main(int argc, char**argv) {
             size_t min_pixels = std::numeric_limits<size_t>::max(), max_pixels = 0;
             Median<size_t> pixels_median;
             
-            for (size_t i=0; i<video.length(); i++) {
+            for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
                 size_t bytes = 0;
@@ -791,7 +791,7 @@ int main(int argc, char**argv) {
                 }
                 overall += bytes;
                 
-                if(i%size_t(video.length()*0.1) == 0) {
+                if(i.get()%size_t(video.length().get()*0.1) == 0) {
                     print("Frame ", i,"/",video.length());
                 }
             }
@@ -799,7 +799,7 @@ int main(int argc, char**argv) {
             print("Finding blobs...");
             Median<size_t> blobs_per_frame;
             size_t pixels_median_value = pixels_median.getValue();
-            for (size_t i=0; i<video.length(); i++) {
+            for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
                 size_t this_frame = 0;
@@ -811,7 +811,7 @@ int main(int argc, char**argv) {
                 
                 blobs_per_frame.addNumber(this_frame);
                 
-                if(i%size_t(video.length()*0.1) == 0) {
+                if(i.get()%size_t(video.length().get()*0.1) == 0) {
                     print("Frame ", i,"/",video.length());
                 }
             }
@@ -845,7 +845,7 @@ int main(int argc, char**argv) {
             
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_mask) = video.has_mask();
-            SETTING(video_length) = uint64_t(video.length());
+            SETTING(video_length) = uint64_t(video.length().get());
         }
         
         if(SETTING(meta_real_width).value<float>() == 0)

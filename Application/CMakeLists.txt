@@ -17,6 +17,8 @@ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
     include(FetchContent)
 endif()
 
+enable_testing()
+
 set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.trexing.trex")
 set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "tristan")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
@@ -340,6 +342,8 @@ elseif(${TREX_BUILD_DOCS})
         )
     endif()
 endif()
+
+add_subdirectory(Tests)
 
 if(POLICY CMP0114)
   cmake_policy(POP)

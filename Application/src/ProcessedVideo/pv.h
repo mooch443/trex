@@ -7,6 +7,7 @@
 #include <file/Path.h>
 #include <misc/Image.h>
 #include <misc/PVBlob.h>
+#include <misc/frame_t.h>
 
 namespace pv {
     using namespace cmn;
@@ -84,8 +85,10 @@ namespace pv {
         current = V_8
     };
     
-    class Frame : public IndexedDataTransport {
+    class Frame {
     private:
+        GETTER_SETTER(Frame_t, index)
+        
         //! time since movie start in microseconds
         GETTER_SETTER(uint64_t, timestamp)
         //! number of mask/pixel arrays
@@ -97,20 +100,18 @@ namespace pv {
         GETTER_NCONST(std::vector<uint8_t>, flags)
         
     public:
-        //! Initialize copy
-        //Frame(const Frame& other);
-        Frame(Frame&& other);
         void operator=(const Frame& other);
         void operator=(Frame&& other);
         
         //! initialize empty object
         Frame() : Frame(0, 0) {}
+        Frame(Frame&&) noexcept = default;
         
         //! create a new one from scratch
         Frame(const uint64_t& timestamp, decltype(_n) n);
         
         //! read from a file
-        Frame(File& ref, long_t idx);
+        Frame(File& ref, Frame_t idx);
         
         ~Frame() {
             //for(auto m: _mask)
@@ -119,7 +120,7 @@ namespace pv {
             //    delete p;
         }
         
-        void read_from(File& ref, long_t idx);
+        void read_from(File& ref, Frame_t idx);
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
@@ -137,7 +138,7 @@ namespace pv {
         void serialize(DataPackage&, bool& compressed) const;
         
         std::string toStr() const {
-            return "pv::Frame<"+std::to_string(index())+">";
+            return "pv::Frame<"+index().toStr()+">";
         }
         
     protected:
@@ -151,8 +152,15 @@ namespace pv {
         friend class File;
         
     public:
+        /**
+         ==============================
+                Can be read
+                from file directly
+         ==============================
+         */
+        
         //! Fileformat version
-        Version version;
+        Version version{current};
         
         //! Name of the project
         std::string name;
@@ -161,48 +169,77 @@ namespace pv {
         std::string metadata;
         
         //! Number of channels per pixel
-        uchar channels;
+        uchar channels{1u};
         
         //! Size of a horizontal line struct
         //  in the mask images in bytes
-        uchar line_size;
+        uchar line_size{narrow_cast<uchar>(sizeof(line_type))};
         
         //! Resolution of the video frames (constant)
-        cv::Size resolution;
+        cv::Size resolution{0, 0};
         
         //! Number of frames in the video
-        uint32_t num_frames;
+        uint32_t num_frames{0u};
         
         //! Offset of the index table at the end of the file
-        uint64_t index_offset;
+        uint64_t index_offset{0u};
         
         //! Timestamp in microseconds since 1970 of when the recording started
         //  (all following frames have delta-timestamps)
-        uint64_t timestamp;
+        uint64_t timestamp{0u};
         
         //! Contains an index for each frame, pointing
         //  to its location in the file
         std::vector<uint64_t> index_table;
         
         //! Full-size average image
-        Image *average;
+        Image *average{nullptr};
         
         //! Binary mask applied to image (or NULL)
-        Image *mask;
+        Image *mask{nullptr};
         
         //! Offsets for cutting on all sides (left, top, right, bottom)
         CropOffsets offsets;
         
+    public:
+        /**
+         ==============================
+                Calculated at
+                load time
+         ==============================
+         */
+        
+        //! The width of the arena from left to right edge
+        //! of the video frame (in cm).
+        float meta_real_width;
+        
         //! Contains average time delta between frames
         double average_tdelta;
         
+    private:
+        /**
+         ==============================
+            Calculated at
+            runtime while writing
+         ==============================
+         */
+        uint64_t _num_frames_offset{0u};
+        uint64_t _average_offset{0u};
+        uint64_t _index_offset{0u};
+        uint64_t _timestamp_offset{0u};
+        double _running_average_tdelta{0.0};
+        GETTER_I(uint64_t, meta_offset, 0u)
+        
+    public:
         void write(DataFormat& ref);
         void read(DataFormat& ref);
         
         void update(DataFormat& ref);
         
+    public:
+        Header() = default;
         Header(const std::string& n)
-        : version(current), name(n), channels(1), line_size(sizeof(line_type)), resolution(0, 0), num_frames(0), index_offset(0), timestamp(0), average(NULL), mask(NULL), average_tdelta(0), _num_frames_offset(0), _average_offset(0), _running_average_tdelta(0)
+            : name(n)
         { }
         
         ~Header() {
@@ -211,14 +248,6 @@ namespace pv {
         }
         
         std::string generate_metadata() const;
-        
-    private:
-        uint64_t _num_frames_offset;
-        uint64_t _average_offset;
-        uint64_t _index_offset;
-        uint64_t _timestamp_offset;
-        double _running_average_tdelta;
-        GETTER(uint64_t, meta_offset)
     };
 
     struct TaskSentinel;
@@ -304,8 +333,8 @@ namespace pv {
         void add_individual(Frame&& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
-        void read_frame(Frame& frame, uint64_t frameIndex);
-        void read_next_frame(Frame& frame, uint64_t frame_to_read);
+        void read_frame(Frame& frame, Frame_t frameIndex);
+        void read_next_frame(Frame& frame, Frame_t frame_to_read);
         
     private:
         virtual void stop_writing() override;
@@ -330,12 +359,12 @@ namespace pv {
          * ### GENERICVIDEO INTERFACE ###
          **/
         const cv::Size& size() const override { return _header.resolution; }
-        uint32_t length() const override { return _header.num_frames; }
-        void frame(uint64_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
+        Frame_t length() const override { return Frame_t(_header.num_frames); }
+        void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #ifdef USE_GPU_MAT
-        void frame(uint64_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
+        void frame(Frame_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #endif
-        void frame_optional_background(uint64_t frameIndex, cv::Mat& output, bool with_background);
+        void frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background);
         bool supports_multithreads() const override { return false; }
         
         void try_compress();
@@ -345,7 +374,7 @@ namespace pv {
         virtual bool has_timestamps() const override {
             return true;
         }
-        virtual timestamp_t timestamp(uint64_t, cmn::source_location loc = cmn::source_location::current()) const override;
+        virtual timestamp_t timestamp(Frame_t, cmn::source_location loc = cmn::source_location::current()) const override;
         virtual timestamp_t start_timestamp() const override;
         virtual short framerate() const override;
         double generate_average_tdelta();

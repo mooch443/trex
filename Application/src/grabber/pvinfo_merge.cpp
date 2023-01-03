@@ -25,7 +25,7 @@ std::string date_time() {
 }
 
 void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, char**argv) {
-    uint64_t min_length = std::numeric_limits<uint64_t>::max();
+    Frame_t min_length;
     std::vector<std::shared_ptr<pv::File>> files;
     std::vector<std::shared_ptr<Background>> backgrounds;
     std::vector<std::shared_ptr<sprite::Map>> configs;
@@ -63,7 +63,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         auto file = std::make_shared<pv::File>(name, pv::FileMode::READ);
         files.push_back(file);
         
-        if(min_length > file->length())
+        if(not min_length.valid() || min_length > file->length())
             min_length = file->length();
         
         resolution += Size2(file->header().resolution);
@@ -150,7 +150,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     struct Source {
         uint64_t video_index;
-        uint64_t frame_index;
+        Frame_t frame_index;
         pv::bid blob_id;
     };
     
@@ -174,7 +174,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     SETTING(meta_number_merged_videos) = size_t(files.size());
     
     // frame: {blob : source}
-    std::map<long_t, std::map<pv::bid, Source>> meta;
+    std::map<Frame_t, std::map<pv::bid, Source>> meta;
     if(SETTING(merge_output_path).value<file::Path>().empty())
         SETTING(merge_output_path) = file::Path("merged");
     
@@ -239,10 +239,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      }
      }*/
     
-    auto timestamp_offset = output.length() == 0 ? timestamp_t(0) : output.last_frame().timestamp();
+    auto timestamp_offset = output.length() == 0_f ? timestamp_t(0) : output.last_frame().timestamp();
     merge_mode_t::Class merge_mode = SETTING(merge_mode);
     
-    for (uint64_t frame=0; frame<min_length; ++frame) {
+    for (Frame_t frame=0_f; frame<min_length; ++frame) {
         pv::Frame f, o;
         if(SETTING(terminate))
             break;
@@ -393,7 +393,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         
         output.add_individual(std::move(o));
         
-        if(frame % size_t(min_length * 0.1) == 0) {
+        if(frame.get() % size_t(min_length.get() * 0.1) == 0) {
             print("merging ", frame,"/",min_length);
         }
     }

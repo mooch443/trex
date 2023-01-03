@@ -68,19 +68,14 @@ namespace pv {
         operator=(other);
     }*/
 
-    Frame::Frame(Frame&& other) {
-        operator=(std::move(other));
-    }
-
     void Frame::operator=(Frame && other) {
         _timestamp = other._timestamp;
         _n = other._n;
         _loading_time = other._loading_time;
-        
-        std::swap(_mask, other._mask);
-        std::swap(_pixels, other._pixels);
-        //std::swap(_blobs, other._blobs);
-        std::swap(_flags, other._flags);
+    
+        _mask = std::move(other._mask);
+        _pixels = std::move(other._pixels);
+        _flags = std::move(other._flags);
     }
 
     void Frame::operator=(const Frame &other) {
@@ -94,9 +89,12 @@ namespace pv {
         _pixels.clear();
         _flags = other._flags;
         
+        _mask.reserve(other.n());
+        _pixels.reserve(other.n());
+        
         for (size_t i=0; i<other.n(); ++i) {
-            _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
-            _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
+            _mask.emplace_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
+            _pixels.emplace_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
         }
     }
 
@@ -109,7 +107,7 @@ namespace pv {
         _flags.reserve(n);
     }
     
-    Frame::Frame(File& ref, long_t idx) {
+    Frame::Frame(File& ref, Frame_t idx) {
         read_from(ref, idx);
     }
 
@@ -139,10 +137,10 @@ namespace pv {
         _loading_time = 0;
         //_blobs.clear();
         
-        set_index(-1);
+        set_index({});
     }
     
-    void Frame::read_from(pv::File &ref, long_t idx) {
+    void Frame::read_from(pv::File &ref, Frame_t idx) {
         //for(auto m: _mask)
         //    delete m;
         //for(auto p: _pixels)
@@ -495,21 +493,21 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         uint64_t fps_l = 0;
 
         if (!_open_for_writing) {
-            uint64_t idx = length() / 2u;
+            uint64_t idx = length().get() / 2u;
             //uint64_t edx = length()-1;
-            if (idx < length()) {
+            if (idx < length().get()) {
                 pv::Frame lastframe;
                 //read_frame(lastframe, edx);
 
                 //ns_e = std::chrono::microseconds(lastframe.timestamp());
 
-                read_frame(lastframe, idx);
+                read_frame(lastframe, Frame_t(idx));
                 //ns_l = std::chrono::microseconds(lastframe.timestamp());
 
                 if (idx >= 1) {
                     uint64_t last = lastframe.timestamp();
 
-                    read_frame(lastframe, idx - 1);
+                    read_frame(lastframe, Frame_t(idx - 1));
                     fps_l = last - lastframe.timestamp();
                 }
             }
@@ -608,6 +606,20 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(version >= Version::V_5) {
             _meta_offset = index_offset+len;
             ref.read(metadata, _meta_offset);
+            
+            try {
+                sprite::Map map;
+                map["quiet"] = true;
+                map["meta_real_width"] = float();
+                sprite::parse_values(map, metadata);
+                for(auto key : map.keys()) {
+                    print("Key: ", key, " Value: ", map[key].toStr());
+                }
+                if(map.has("meta_real_width"))
+                    meta_real_width = map.get<float>("meta_real_width");
+            } catch(...) {
+                FormatExcept("Error parsing settings metadata from ", ref.filename(), ".");
+            }
         }
     }
 
@@ -793,8 +805,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(bool(_mode & FileMode::READ)
            or bool(_mode & FileMode::MODIFY))
         {
-            uint64_t idx = length() / 2u;
-            uint64_t edx = length()-1;
+            Frame_t idx = length() / 2_f;
+            Frame_t edx = length() - 1_f;
             if(idx < length()) {
                 pv::Frame lastframe;
                 read_frame(lastframe, edx);
@@ -921,47 +933,48 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         _header.update(*this);
     }
     
-    void File::read_frame(Frame& frame, uint64_t frameIndex) {
+    void File::read_frame(Frame& frame, Frame_t frameIndex) {
         _check_opened();
         
         assert(!_open_for_writing);
+        assert(frameIndex.valid());
         
         std::unique_lock<std::mutex> guard(_lock);
-        if(frameIndex >= _header.num_frames)
+        if(frameIndex.get() >= _header.num_frames)
            throw U_EXCEPTION("Frame index ", frameIndex," out of range.");
         
-        uint64_t pos = _header.index_table.at(frameIndex);
+        uint64_t pos = _header.index_table.at(frameIndex.get());
         uint64_t old = current_offset();
         
         if(old != pos)
             seek(pos);
         
-        frame.read_from(*this, (long_t)frameIndex);
+        frame.read_from(*this, frameIndex);
         frame.get_blobs();
     }
     
-    void File::read_next_frame(Frame& frame, uint64_t frame_to_read) {
+    void File::read_next_frame(Frame& frame, Frame_t frame_to_read) {
         _check_opened();
         assert(!_open_for_writing);
         
         std::unique_lock<std::mutex> guard(_lock);
-        if(frame_to_read >= _header.num_frames)
+        if(frame_to_read.get() >= _header.num_frames)
            throw U_EXCEPTION("Frame index ", frame_to_read," out of range.");
         
-        frame.read_from(*this, (long_t)frame_to_read);
+        frame.read_from(*this, frame_to_read);
     }
 #ifdef USE_GPU_MAT
-    void File::frame(uint64_t frameIndex, gpuMat &output, cmn::source_location) {
+    void File::frame(Frame_t frameIndex, gpuMat &output, cmn::source_location) {
         cv::Mat local;
         frame_optional_background(frameIndex, local, true);
         local.copyTo(output);
     }
 #endif
-    void File::frame(uint64_t frameIndex, cv::Mat &output, cmn::source_location) {
+    void File::frame(Frame_t frameIndex, cv::Mat &output, cmn::source_location) {
         frame_optional_background(frameIndex, output, true);
     }
     
-    void File::frame_optional_background(uint64_t frameIndex, cv::Mat& output, bool with_background) {
+    void File::frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background) {
         _check_opened();
         
         Frame frame;
@@ -1004,10 +1017,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         uint64_t raw_prev_timestamp = 0;
         uint64_t last_reset = 0;
-        uint64_t last_reset_idx = 0;
+        Frame_t last_reset_idx;
         uint64_t last_difference = 0;
         
-        for (uint64_t idx = 0; idx < file.length(); idx++) {
+        for (Frame_t idx = 0_f; idx < Frame_t(file.length()); ++idx) {
             pv::Frame frame;
             file.read_frame(frame, idx);
             
@@ -1024,13 +1037,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             
             raw_prev_timestamp = frame.timestamp();
             
-            if(last_reset_idx) {
+            if(last_reset_idx.valid()) {
                 frame.set_timestamp(last_reset + frame.timestamp());
             }
             
             copy.add_individual(std::move(frame));
             
-            if (idx % 1000 == 0) {
+            if (idx.get() % 1000 == 0) {
                 print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
             }
         }
@@ -1062,13 +1075,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         SETTING(meta_write_these) = map.keys();
         
         pv::Frame frame;
-        for (uint64_t i=0; i<length(); i++) {
+        for (Frame_t i=0_f; i<length(); ++i) {
             read_frame(frame, i);
             frame.set_timestamp(header().timestamp + frame.timestamp());
             
             copy.add_individual(std::move(frame));
             
-            if (i % 1000 == 0) {
+            if (i.get() % 1000 == 0) {
                 print("Frame ", i," / ",length(),"...");
             }
         }
@@ -1126,16 +1139,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 #endif
         
         uint64_t num_frames = 0;
-        uint64_t start_frame = 0;
-        std::set<long_t> samples;
+        Frame_t start_frame = 0_f;
+        std::set<Frame_t> samples;
         
         while(!sentinel.terminate() && timer.elapsed() < 1 && pixel_values.size() < 10000000 && start_frame < length()) {
-            auto range = arange<long_t>((long_t)start_frame, (long_t)length(), max(1, long_t(length() * 0.1)));
+            auto range = arange<Frame_t>(start_frame, length(), max(1_f, Frame_t(length().get() * 0.1)));
             pv::Frame frame;
             uint64_t big_loop_size = samples.size();
             
             for (auto frameIndex : range) {
-                if((uint64_t)frameIndex >= length())
+                if(frameIndex >= length())
                     continue;
                 
                 uint64_t prev_size = samples.size();
@@ -1143,7 +1156,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 if(samples.size() == prev_size)
                     continue;
                 
-                read_frame(frame, (uint64_t)frameIndex);
+                read_frame(frame, frameIndex);
                 for(uint64_t i=0; i<frame.n(); ++i) {
                     pixel_values.insert(pixel_values.end(), frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
                 }
@@ -1199,17 +1212,17 @@ void File::set_average(const cv::Mat& average) {
     double File::generate_average_tdelta() {
         _check_opened();
         
-        if(!_open_for_writing && _header.average_tdelta == 0 && length()>0) {
+        if(!_open_for_writing && _header.average_tdelta == 0 && length().valid()) {
             // readable
             double average = 0;
             uint64_t samples = 0;
-            const uint64_t step = max(1u, (length()-1) / 10u);
+            const Frame_t step = max(1_f, (length()-1_f) / 10_f);
             pv::Frame frame;
-            for (uint64_t i=1; i<length(); i+=step) {
+            for (Frame_t i=1_f; i<length(); i+=step) {
                 read_frame(frame, i);
                 double stamp = frame.timestamp();
-                if(i < length()-1) {
-                    read_frame(frame, i+1);
+                if(i < length()-1_f) {
+                    read_frame(frame, i+1_f);
                     stamp = double(frame.timestamp()) - stamp;
                 }
                 average += stamp;
@@ -1222,14 +1235,14 @@ void File::set_average(const cv::Mat& average) {
         return _header.average_tdelta;
     }
     
-    timestamp_t File::timestamp(uint64_t frameIndex, cmn::source_location loc) const {
+    timestamp_t File::timestamp(Frame_t frameIndex, cmn::source_location loc) const {
         if(_open_for_writing)
             throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot get timestamps for video while writing.", loc);
         
-        if(frameIndex >= header().num_frames)
+        if(frameIndex >= Frame_t(header().num_frames))
             throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,". (caller ", loc.file_name(),":", loc.line(),")");
         
-        return header().index_table[frameIndex];
+        return header().index_table[frameIndex.get()];
     }
     
     timestamp_t File::start_timestamp() const {

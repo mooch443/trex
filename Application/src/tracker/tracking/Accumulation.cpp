@@ -1594,7 +1594,8 @@ bool Accumulation::start() {
             for(auto method : default_config::individual_image_normalization_t::values)
             {
                 std::map<Idx_t, std::vector<Image::Ptr>> images;
-                PPFrame video_frame;
+                PPFrame pp;
+                pv::Frame video_frame;
                 auto &video_file = *GUI::instance()->video_source();
                 
                 size_t failed_blobs = 0, found_blobs = 0;
@@ -1605,8 +1606,8 @@ bool Accumulation::start() {
                             ? set_of_individuals_t()
                             : Tracker::active_individuals(frame - 1_f);
                     
-                    video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));
-                    Tracker::instance()->preprocess_frame(video_frame, active, NULL);
+                    video_file.read_frame(video_frame, frame);
+                    Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, active, NULL);
                     
                     for(auto id : ids) {
                         auto filters = _collected_data->filters().has(id)
@@ -1630,7 +1631,7 @@ bool Accumulation::start() {
                         auto bid = basic->blob.blob_id();
                         auto pid = basic->blob.parent_id;
                         
-                        auto blob = Tracker::find_blob_noisy(video_frame, bid, pid, basic->blob.calculate_bounds());
+                        auto blob = Tracker::find_blob_noisy(pp, bid, pid, basic->blob.calculate_bounds());
                         if(!blob)
                             ++failed_blobs;
                         else

@@ -38,8 +38,8 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<FrameProperties
       : cache(new CachedSettings), frame(frame)
 {
     const BlobSizeRange minmax = FAST_SETTING(blob_size_ranges);
-    double time(double(frame.frame().timestamp()) / double(1000*1000));
-    props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.frame().timestamp()));
+    double time(double(frame.timestamp) / double(1000*1000));
+    props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     
     {
         auto it = --added_frames.end();

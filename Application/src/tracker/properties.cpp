@@ -106,32 +106,30 @@ void async_main(void*) {
 				}
 
 				Frame_t index = tracker.end_frame();
-				if(!index.valid())
+				if(not index.valid())
 					index = 0_f;
-				else if(index.get() < file.length() - 1)
+				else if(index + 1_f < file.length())
 					index += 1_f;
 				else {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					continue;
 				}
 
-				file.read_frame(single, index.get());
-
-				frame.clear();
-				frame.set_index(index);
-				frame.frame() = single;
-				frame.frame().set_index(index.get());
-				frame.frame().set_timestamp(single.timestamp());
-				frame.set_index(index);
+				file.read_frame(single, index);
+                
+				//frame = std::move(single);
+				//frame.set_index(index);
+				//frame.set_timestamp(single.timestamp());
 
                 track::LockGuard guard(track::w_t{}, "update_tracker_queue");
-				if(frame.index() != Tracker::end_frame() + 1_f && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
+				if(frame.index() != Tracker::end_frame() + 1_f
+                   && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
 				{
 					print("Reanalyse event ", frame.index(), " -> ", Tracker::end_frame());
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(frame, {}, NULL, false);
+				track::Tracker::preprocess_frame(file, std::move(single), frame, {}, NULL, false);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();
@@ -167,7 +165,7 @@ void async_main(void*) {
 
 			static Timer frame_timer;
 			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<int>()
-				&& index.get() + 1 < file.length())
+				&& index + 1_f < file.length())
 			{
 				if (SETTING(gui_run)) {
 					index += 1_f;
@@ -206,7 +204,7 @@ void async_main(void*) {
 				graph.image(Vec2(0), std::make_unique<Image>(tracker.average().get()), Vec2(1), White.alpha(150));
 				//graph.image(Vec2(0), std::make_unique<Image>(mat), Vec2(1), White.alpha(150));
 				frameinfo.analysis_range = tracker.analysis_range();
-				frameinfo.video_length = file.length();
+				frameinfo.video_length = file.length().get();
 				frameinfo.consecutive = tracker.consecutive();
 				frameinfo.current_fps = fps;
 

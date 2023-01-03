@@ -358,7 +358,6 @@ namespace gui {
             
             bool reload_blobs = frameIndex != last_frame || last_threshold != threshold;
             if(reload_blobs) {
-                processed_frame.frame().clear();
                 processed_frame.clear();
                 
                 if(frameIndex.valid()) {
@@ -367,8 +366,9 @@ namespace gui {
                         prev_active = _tracker.active_individuals(frameIndex - 1_f);
                     
                     try {
-                        _video->read_frame(processed_frame.frame(), frameIndex.get());
-                        Tracker::instance()->preprocess_frame(processed_frame, prev_active, &_pool);
+                        pv::Frame frame;
+                        _video->read_frame(frame, frameIndex);
+                        Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, prev_active, &_pool);
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Frame ", frameIndex," cannot be loaded from file.");

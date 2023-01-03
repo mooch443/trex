@@ -199,7 +199,7 @@ public:
     static size_t number_frames() { return instance()->_added_frames.size(); }
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split = true);
+    static void preprocess_frame(const pv::File&, pv::Frame&&, PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split = true);
     
     friend class VisualField;
     

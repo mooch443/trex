@@ -459,7 +459,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 timer.reset();
 
                 offset.x += (shadowed_text(offset, "/", text_color)) + 5;
-                offset.x += (shadowed_text(offset, std::to_string(_grabber.video()->length()), text_color)) + 5;
+                offset.x += (shadowed_text(offset, _grabber.video()->length().toStr(), text_color)) + 5;
                 //offset.x = offset.x + 5 - int(offset.x) % 5;
             }
 
@@ -656,7 +656,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                     continue;
                 
                 const auto is_end = seg->contains(Frame_t(_frame->index()));
-                float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
+                float percent = saturate((float(_frame->index().get()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
                 
                 base.line(positions, 1, color.alpha(alpha));
@@ -749,7 +749,7 @@ std::string GUI::info_text() const {
     if(frame)
         ss << "frame "+std::to_string(frame);
     if(_grabber.video()) {
-        ss << "/" << _grabber.video()->length();
+        ss << "/" << _grabber.video()->length().toStr();
     }
     ss << " " << std::fixed << std::setprecision(1) << _grabber.fps() << "fps";
     //ss << " compratio:" << std::fixed << std::setprecision(2) << _grabber.processed().compression_ratio()*100 << "%";

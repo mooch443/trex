@@ -1865,10 +1865,11 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         }
 
         if(GUI::instance()) {
+            pv::Frame video_frame;
             auto& video_file = *GUI::instance()->video_source();
-            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame.get()));
+            video_file.read_frame(video_frame, frame);
 
-            Tracker::instance()->preprocess_frame(*ptr, active, NULL);
+            Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), *ptr, active, NULL);
             ptr->transform_blobs([](pv::Blob& b){
                 b.calculate_moments();
             });

@@ -1165,11 +1165,12 @@ void GUI::draw_grid(gui::DrawStructure &base) {
 }
 
 void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
-    if(size_t(frameIndex.get()) >= PD(video_source).length())
+    if(frameIndex >= PD(video_source).length())
         return;
     
     auto gen_ov = [this](Frame_t frameIndex, cv::Mat& image) -> std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>>{
-        if(size_t(frameIndex.get()) >= PD(video_source).length() || !frameIndex.valid())
+        if(not frameIndex.valid()
+           || frameIndex >= PD(video_source).length())
             return {};
         
         //image = cv::Mat::zeros(_average_image.rows, _average_image.cols, CV_8UC1);
@@ -1178,7 +1179,7 @@ void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
         pv::File *file = PDP(video_source);
         
         pv::Frame frame;
-        file->read_frame(frame, frameIndex.get());
+        file->read_frame(frame, frameIndex);
         
         std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>> lines;
         
@@ -2208,24 +2209,25 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
             std::map<std::string, size_t> average_pixels;
             std::map<std::string, size_t> samples;
-            PPFrame frame;
+            PPFrame pp;
+            pv::Frame frame;
             
             for(auto idx = PD(tracker).start_frame() + 1_f; idx <= PD(tracker).end_frame() && idx <= PD(tracker).start_frame() + 10000_f; ++idx)
             {
                 if(!PD(tracker).properties(idx))
                     continue;
                 
-                PD(video_source).read_frame(frame.frame(), idx.get());
+                PD(video_source).read_frame(frame, idx);
                 auto active = PD(tracker).active_individuals(idx - 1_f);
                 
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
-                    Tracker::instance()->preprocess_frame(frame, active, &_blob_thread_pool);
+                    Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, active, &_blob_thread_pool);
                 }
                 
                 for(auto fish : active) {
                     auto loaded_blob = fish->compressed_blob(idx);
-                    auto blob = frame.bdx_to_ptr(loaded_blob->blob_id());
+                    auto blob = pp.bdx_to_ptr(loaded_blob->blob_id());
                     if(loaded_blob && blob) {
                         if(blob->split())
                             continue;
@@ -2252,13 +2254,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
             float max_val = 0, min_val = FLT_MAX;
             pv::Frame frame;
-            PD(video_source).read_frame(frame, 0);
+            PD(video_source).read_frame(frame, 0_f);
             
             std::vector<double> values {
                 double(frame.timestamp()) / 1000.0 / 1000.0
             };
-            for(size_t i = 1; i<PD(video_source).length(); ++i) {
-                PD(video_source).read_frame(frame, i);
+            for(size_t i = 1; i<PD(video_source).length().get(); ++i) {
+                PD(video_source).read_frame(frame, Frame_t(i));
                 auto t = double(frame.timestamp()) / 1000.0 / 1000.0;
                 values[i - 1] = t - values[i - 1];
                 values.push_back(t);
@@ -2266,7 +2268,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 max_val = max(max_val, values[i-1]);
                 min_val = min(min_val, values[i-1]);
                 
-                if(i % int(PD(video_source).length() * 0.1) == 0) {
+                if(i % int(PD(video_source).length().get() * 0.1) == 0) {
                     print(i,"/",PD(video_source).length());
                 }
             }
@@ -2895,7 +2897,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
 
 void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
     pv::File *file = PDP(video_source);
-    if(file && file->length() > size_t(frameIndex.get())) {
+    if(file && file->length() > frameIndex) {
         auto ptr = PD(gui).find("fishbowl");
         Vec2 ptr_scale(1), ptr_pos(0);
         auto dim = screen_dimensions();
@@ -3102,7 +3104,7 @@ void GUI::key_event(const gui::Event &event) {
                 
                 play_direction() = 1;
                 
-                Frame_t new_frame = min(Frame_t(PD(video_source).length()-1), frame() + Frame_t(inc));
+                Frame_t new_frame = min(PD(video_source).length()-1_f, frame() + Frame_t(inc));
                 SETTING(gui_frame) = new_frame;
                 
                 PD(last_increase_timer).reset();
@@ -3703,7 +3705,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 size_t N = 0;
                 
                 for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
-                    GUI::instance()->video_source()->read_frame(f, k.get());
+                    GUI::instance()->video_source()->read_frame(f, k);
                     auto blobs = f.get_blobs();
                     N += v.size();
                     
@@ -3809,7 +3811,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                 
                             } else {
                                 const pv::CompressedBlob* found = nullptr;
-                                GUI::instance()->video_source()->read_frame(f, k.get());
+                                GUI::instance()->video_source()->read_frame(f, k);
                                 for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {
@@ -4406,7 +4408,8 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     DebugCallback("Generating training dataset ", range," in folder ", path, ".");
     
-    PPFrame frame;
+    PPFrame pp;
+    pv::Frame frame;
     
     std::vector<uchar> images;
     std::vector<float> heads;
@@ -4423,7 +4426,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     for(auto i = range.start; i <= range.end; ++i)
     {
-        if(!i.valid() || (size_t)i.get() >= PD(video_source).length()) {
+        if(not i.valid() || i >= PD(video_source).length()) {
             FormatExcept("Frame ", i," out of range.");
             continue;
         }
@@ -4431,11 +4434,11 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         WorkProgress::set_percent((i - range.start).get() / (float)(range.end - range.start).get());
         
         auto active = i == PD(tracker).start_frame() ? set_of_individuals_t() : Tracker::active_individuals(i - 1_f);
-        PD(video_source).read_frame(frame.frame(), i.get());
-        Tracker::instance()->preprocess_frame(frame, active, NULL);
+        PD(video_source).read_frame(frame, i);
+        Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, active, NULL);
         
         cv::Mat image, padded, mask;
-        frame.transform_blobs([&](pv::Blob& blob){
+        pp.transform_blobs([&](pv::Blob& blob){
             if(!PD(tracker).border().in_recognition_bounds(blob.center() * 0.5)) {
                 print("Skipping ", blob.blob_id(),"@",i," because its out of bounds.");
                 return;

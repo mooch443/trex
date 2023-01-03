@@ -38,9 +38,6 @@ concept Transformer = VoidTransformer<U, T> || Predicate<U, T> || IndexedTransfo
 
 
 class PPFrame {
-    GETTER_NCONST(pv::Frame, frame)
-    GETTER_SETTER(Frame_t, index)
-    
 public:
     //robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
     robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
@@ -78,13 +75,19 @@ public:
     //! Time in seconds
     double time;
     
+    GETTER_SETTER(double, loading_time);
+    
+public:
     //! Original timestamp
     timestamp_t timestamp;
     
     //! Original frame index
-    //long_t index;
+    GETTER_SETTER(Frame_t, index)
+
+public:
     bool _finalized = false;
     source_location _finalized_at;
+public:
     Settings::manual_matches_t::mapped_type fixed_matches;
     
 private:
@@ -107,25 +110,7 @@ public:
 private:
     void set_cache(Idx_t, IndividualCache&&);
     
-    //std::map<Idx_t, IndividualCache> cached_individuals;
-    //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
-    //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
-//public:
-//    UnorderedVectorSet<pv::bid> split_blobs;
-public:
-    /*struct Container {
-        bool regular;
-        pv::BlobPtr blob;
-        
-        bool operator==(pv::bid bdx) const {
-            return blob->blob_id() == bdx;
-        }
-    };*/
-    
 protected:
-    //ska::bytell_hash_map<pv::bid, pv::BlobWeakPtr> _bdx_to_ptr;
-    //std::vector<Container> _owner;
-    
     GETTER(grid::ProximityGrid, blob_grid)
     
 public:
@@ -415,9 +400,7 @@ public:
         _check_owners();
     }
     
-    //bool is_noise(pv::bid bdx) const;
     bool is_regular(pv::bid bdx) const;
-    //bool is_big(pv::bid bdx) const;
     
     PPFrame();
     ~PPFrame();

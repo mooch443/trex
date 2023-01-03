@@ -574,28 +574,28 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
 void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size) {
     static const double frame_rate = SETTING(frame_rate).value<int>();
     static const double frame_ms = 1000.0 / frame_rate; // ms / frame
-    static long_t approximate_length = -1; // approximate length in frames
+    static Frame_t approximate_length; // approximate length in frames
     static double approximate_ms = 0;
     static uint64_t maximum_memory = 0;  // maximum usage of system memory in bytes
     static double maximum_images = 0;
     
-    if(approximate_length == -1 && FrameGrabber::instance->video()) {
+    if(not approximate_length.valid() && FrameGrabber::instance->video()) {
            approximate_length = FrameGrabber::instance->video()->length();
-    } else if(approximate_length == -1 && GlobalSettings::has("approximate_length_minutes")) {
-        approximate_length = SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<int>() * 60;
+    } else if(not approximate_length.valid() && GlobalSettings::has("approximate_length_minutes")) {
+        approximate_length = Frame_t(SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<int>() * 60);
         auto stop_after_minutes = SETTING(stop_after_minutes).value<uint32_t>();
         if(stop_after_minutes > 0) {
-            approximate_length = stop_after_minutes * SETTING(frame_rate).value<int>() * 60;
+            approximate_length = Frame_t(stop_after_minutes * SETTING(frame_rate).value<int>() * 60);
         }
     }
     
-    if(approximate_length > 0) {
+    if(approximate_length.valid() && approximate_length > 0_f) {
         maximum_memory = SETTING(system_memory_limit).value<uint64_t>() == 0 ? (uint64_t)(getTotalSystemMemory()*0.9) : SETTING(system_memory_limit).value<uint64_t>();
-        approximate_ms = approximate_length / frame_rate;
+        approximate_ms = approximate_length.get() / frame_rate;
     }
         
     if(_queue.size() > 0) {
-        if(approximate_length > 0) {
+        if(approximate_length.valid() && approximate_length > 0_f) {
             static Timer last_call;
             static long_t skip_step = 0, added_since = 0;
             
@@ -604,7 +604,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                 
                 // use approximate_length to determine whether we're going to have a problem
                 double current_frame_rate = 1000.0 / double(needed_ms);
-                double remaining = approximate_length - approximate_ms * current_frame_rate; // how many frames we will have written to file, how many will be left in memory if we try to write everything
+                double remaining = approximate_length.get() - approximate_ms * current_frame_rate; // how many frames we will have written to file, how many will be left in memory if we try to write everything
                 
                 auto compressed = FileSize{uint64_t(compressed_size)};
                 

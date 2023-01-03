@@ -112,11 +112,11 @@ namespace track {
             
             print("Reading video...");
             pv::Frame frame;
-            size_t step_size = max(1, video.length() * 0.0002);
-            const size_t count_steps = video.length() / step_size;
+            Frame_t step_size = Frame_t(max(1, video.length().get() * 0.0002));
+            const auto count_steps = video.length() / step_size;
             CPULabeling::ListCache_t cache;
             
-            for (size_t i=0; i<video.length(); i+=step_size) {
+            for (Frame_t i=0_f; i<video.length(); i+=step_size) {
                 video.read_frame(frame, i);
                 auto blobs = frame.get_blobs();
                 
@@ -141,7 +141,7 @@ namespace track {
                     }
                 }
                 
-                if((i / step_size) % size_t(count_steps * 0.1) == 0)
+                if((i / step_size).get() % size_t(count_steps.get() * 0.1) == 0)
                     print("[border] ", i/step_size," / ",count_steps);
             }
             
@@ -213,7 +213,7 @@ namespace track {
                 
                 std::vector<pv::BlobPtr> collection;
                 pv::Frame frame;
-                for (size_t i=0; i<video.length(); i+=max(1, video.length() * 0.0005)) {
+                for (Frame_t i=0_f; i<video.length(); i+=max(1_f, Frame_t(video.length().get() * 0.0005))) {
                     video.read_frame(frame, i);
                     auto blobs = frame.get_blobs();
                     
