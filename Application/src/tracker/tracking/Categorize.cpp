@@ -1856,20 +1856,12 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        set_of_individuals_t active;
-        {
-            LockGuard guard(ro_t{}, "Categorize::sample");
-            active = frame == Tracker::start_frame()
-                ? decltype(active)()
-                : Tracker::active_individuals(frame - 1_f);
-        }
-
         if(GUI::instance()) {
             pv::Frame video_frame;
             auto& video_file = *GUI::instance()->video_source();
             video_file.read_frame(video_frame, frame);
 
-            Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), *ptr, active, NULL);
+            Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), *ptr, NULL);
             ptr->transform_blobs([](pv::Blob& b){
                 b.calculate_moments();
             });

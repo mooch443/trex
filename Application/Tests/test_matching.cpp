@@ -208,7 +208,7 @@ TEST_F(TestSystemTracker, TrackingTest) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(data->video, std::move(frame), pp, data->tracker.active_individuals(), nullptr, false);
+    Tracker::preprocess_frame(data->video, std::move(frame), pp, nullptr, false);
     data->tracker.add(pp);
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);

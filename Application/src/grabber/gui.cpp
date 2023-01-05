@@ -6,6 +6,7 @@
 #include <tracking/Tracker.h>
 #include <tracker/gui/DrawFish.h>
 #include <gui/IMGUIBase.h>
+#include <tracking/IndividualManager.h>
 
 namespace grab {
 
@@ -531,7 +532,11 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
         static const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
         
         auto tracker = _grabber.tracker_instance();
-        auto individuals = tracker->active_individuals();
+        auto result = IndividualManager::active_individuals(Tracker::end_frame());
+        set_of_individuals_t individuals;
+        if(result) {
+            individuals = *result.value();
+        }
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;

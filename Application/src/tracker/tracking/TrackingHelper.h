@@ -5,9 +5,11 @@
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
 #include <tracking/TrackingSettings.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 
+class IndividualManager;
 struct CachedSettings;
 
 struct TrackingHelper {
@@ -23,6 +25,7 @@ public:
     bool save_tags() const;
     
     PPFrame& frame;
+    IndividualManager _manager;
     
     // ------------------------------------
     // filter and calculate blob properties
@@ -44,14 +47,11 @@ public:
 #ifdef TREX_DEBUG_MATCHING
     std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
 #endif
-    // collect all the currently active individuals
-    set_of_individuals_t active_individuals;
     
     //! current frame properties (e.g. time)
     //! as well as previous frame
     const FrameProperties* props = nullptr;
     const FrameProperties* prev_props = nullptr;
-    
     
     bool frame_uses_approximate{false};
     

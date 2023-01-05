@@ -1066,13 +1066,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             continue;
         }
         
-        auto active =
-            frame == Tracker::start_frame()
-                ? set_of_individuals_t()
-                : Tracker::active_individuals(frame - 1_f);
-        
         video_file.read_frame(video_frame, frame);
-        Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, active, NULL);
+        Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, NULL);
         
         for (auto id : filtered_ids) {
             /**

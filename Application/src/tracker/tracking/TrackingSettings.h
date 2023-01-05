@@ -26,7 +26,7 @@ using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
 
 //! A std::unordered_map turns out to be the fastest container for this
 //! purpose (sparse container for frame to individuals association).
-using active_individuals_map_t = std::unordered_map<Frame_t, set_of_individuals_t>;
+using active_individuals_map_t = std::unordered_map<Frame_t, std::unique_ptr<set_of_individuals_t>>;
 
 //! The global map of individual ids -> Individual*
 using individuals_map_t = robin_hood::unordered_flat_map<Idx_t, Individual*>;

@@ -267,15 +267,6 @@ file::Path conda_environment_path() {
 #define PYTHON_TIPPS " (containing pythonXX.exe)"
 #endif
 
-
-    constexpr std::string_view is_ndebug_enabled() {
-#ifndef NDEBUG
-        return std::string_view("debug");
-#else
-        return std::string_view("release");
-#endif
-    }
-
 void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level) {
     try {
         default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level);
@@ -322,7 +313,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("version", std::string(g_GIT_DESCRIBE_TAG), "Current application version.", SYSTEM);
         CONFIG("build_architecture", std::string(g_TREX_BUILD_ARCHITECTURE), "The architecture this executable was built for.", SYSTEM);
         CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
-        CONFIG("build_is_debug", std::string(is_ndebug_enabled()), "If built in debug mode, this will show 'debug'.", SYSTEM);
+        CONFIG("build_is_debug", std::string(compile_mode_name()), "If built in debug mode, this will show 'debug'.", SYSTEM);
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);

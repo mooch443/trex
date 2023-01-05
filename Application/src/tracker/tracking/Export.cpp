@@ -782,11 +782,10 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 {
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
-                    auto active = frame == Tracker::start_frame() ? set_of_individuals_t() : Tracker::active_individuals(frame - 1_f);
                     
                     pv::Frame vframe;
                     GUI::instance()->video_source()->read_frame(vframe, frame);
-                    Tracker::instance()->preprocess_frame(*GUI::instance()->video_source(), std::move(vframe), obj, active, &_blob_thread_pool);
+                    Tracker::instance()->preprocess_frame(*GUI::instance()->video_source(), std::move(vframe), obj, &_blob_thread_pool);
                 }
                 
                 for(auto && [id, data] : vec) {

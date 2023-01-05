@@ -390,7 +390,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     using namespace gui;
     
     auto fish = tracker->_individuals.at(_fish_id);
-    auto &active = tracker->_active_individuals_frame.at(_frame);
+    auto &active = tracker->active_individuals(_frame);
     
     assert(posture);
     

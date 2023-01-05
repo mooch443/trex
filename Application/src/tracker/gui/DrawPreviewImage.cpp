@@ -192,7 +192,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     pv::Frame vframe;
     pp.set_index(frame);
     GUI::video_source()->read_frame(vframe, frame);
-    Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, {}, nullptr);
+    Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, nullptr);
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {

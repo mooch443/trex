@@ -14,7 +14,7 @@ class HistorySplit {
     robin_hood::unordered_map<pv::bid, split_expectation> expect;
     
 public:
-    HistorySplit(PPFrame& frame, const set_of_individuals_t& active = {}, GenericThreadPool* pool = nullptr);
+    HistorySplit(PPFrame& frame, GenericThreadPool* pool = nullptr);
     
 private:
     Settings::manual_splits_t::mapped_type apply_manual_matches(PPFrame& frame);

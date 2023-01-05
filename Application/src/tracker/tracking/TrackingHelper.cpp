@@ -3,6 +3,7 @@
 #include <tracker/misc/default_config.h>
 #include <misc/pretty.h>
 #include <tracking/AutomaticMatches.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 
@@ -34,8 +35,8 @@ TrackingHelper::~TrackingHelper() {
     delete cache;
 }
 
-TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames)
-      : cache(new CachedSettings), frame(frame)
+TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Ptr>& added_frames)
+      : cache(new CachedSettings), frame(f), _manager(frame)
 {
     const BlobSizeRange minmax = FAST_SETTING(blob_size_ranges);
     double time(double(frame.timestamp) / double(1000*1000));
@@ -68,7 +69,9 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<FrameProperties
     blob_grid().clear();
     
     frame.transform_all([](const pv::Blob& blob){
-        blob_grid().insert(blob.bounds().x + blob.bounds().width * 0.5f, blob.bounds().y + blob.bounds().height * 0.5f, blob.blob_id());
+        blob_grid().insert(blob.bounds().x + blob.bounds().width  * 0.5f,
+                           blob.bounds().y + blob.bounds().height * 0.5f,
+                           blob.blob_id());
     });
     
     using namespace default_config;
@@ -78,6 +81,10 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<FrameProperties
     match_mode = frame_uses_approximate
                     ? default_config::matching_mode_t::hungarian
                     : FAST_SETTING(match_mode);
+    
+    // see if there are manually fixed matches for this frame
+    apply_manual_matches(Tracker::individuals());
+    apply_automatic_matches();
 }
 
 void TrackingHelper::assign_blob_individual(Individual* fish, pv::BlobPtr&& blob, default_config::matching_mode_t::Class match_mode)
@@ -235,21 +242,17 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
         auto blobs = frame.extract_from_all(actually_assign);
         assert(blobs.size() == actually_assign.size());
         
-        for(size_t i=0; i<blobs.size(); ++i) {
-            Individual *fish = NULL;
-            auto bdx = blobs[i]->blob_id();
+        for(auto&& blob: blobs) {
+            auto bdx = blob->blob_id();
             auto fdx = actually_assign.at(bdx);
             
-            auto it = individuals.find(fdx);
-            if(it == individuals.end()) {
-                fish = Tracker::create_individual(fdx, active_individuals);
+            auto result = _manager.retrieve_globally(fdx);
+            if(result) {
+                result.value()->add_manual_match(frameIndex);
+                assign_blob_individual(result.value(), std::move(blob), default_config::matching_mode_t::benchmark);
             } else {
-                fish = it->second;
-                active_individuals.insert(fish);
+                FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", result.error());
             }
-            
-            fish->add_manual_match(frameIndex);
-            assign_blob_individual(fish, std::move(blobs[i]), default_config::matching_mode_t::benchmark);
         }
     }
     
@@ -257,7 +260,7 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
      * Now resolve the rest of the objects that have not been
      * assigned yet.
      */
-    if(!cannot_find.empty()) {
+    if(not cannot_find.empty()) {
         struct Blaze {
             PPFrame *_frame;
             Blaze(PPFrame& frame) : _frame(&frame) {
@@ -364,9 +367,6 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
                 fish->add_manual_match(frameIndex);
                 assign_blob_individual(fish, std::move(blob), default_config::matching_mode_t::benchmark);
                 
-                //frame.erase_anywhere(bdx);
-                active_individuals.insert(fish);
-                
                 identities.insert(FOI::fdx_t(fdx));
             }
         }
@@ -385,23 +385,23 @@ void TrackingHelper::apply_automatic_matches() {
         if(!bdx.valid())
             continue; // dont assign this fish
         
-        Individual *fish = nullptr;
-        if(individuals.find(fdx) != individuals.end())
-            fish = individuals.at(fdx);
+        auto result = _manager.retrieve_globally(fdx);
         
-        if(fish
-           && frame.has_bdx(bdx)
-           && !fish_assigned(fish)
+        if(not result) {
+#ifndef NDEBUG
+            FormatError("frame ", frameIndex, ": Automatic assignment cannot be executed with fdx ", fdx, " -> ", bdx, " reporting: ", result.error());
+#endif
+        } else if(frame.has_bdx(bdx)
+           && !fish_assigned(result.value())
            && !blob_assigned(bdx))
         {
-            assign_blob_individual(fish, frame.extract(bdx), default_config::matching_mode_t::benchmark);
+            assign_blob_individual(result.value(), frame.extract(bdx), default_config::matching_mode_t::benchmark);
             //frame.erase_anywhere(blob);
-            fish->add_automatic_match(frameIndex);
-            active_individuals.insert(fish);
+            result.value()->add_automatic_match(frameIndex);
             
         } else {
 #ifndef NDEBUG
-            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",fish ? (fish_assigned(fish) ? "assigned" : "unassigned") : "no fish",") and bdx ",bdx,"(",bdx.valid() ? (blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob",")");
+            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",result ? (fish_assigned(result.value()) ? "assigned" : "unassigned") : result.error(),") and bdx ",bdx,"(",bdx.valid() ? (blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob",")");
 #endif
         }
     }
@@ -507,8 +507,8 @@ void TrackingHelper::apply_matching() {
             }
 #endif
             
+            _manager.become_active(fish);
             assign_blob_individual(fish, std::move(blob), match_mode);
-            active_individuals.insert(fish);
         }
         
     } catch (const UtilsException&) {
@@ -538,8 +538,8 @@ void TrackingHelper::apply_matching() {
         
         auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
         for (auto &p: optimal.pairings) {
+            _manager.become_active(p.first);
             assign_blob_individual(p.first, frame.extract(p.second), default_config::matching_mode_t::hungarian);
-            active_individuals.insert(p.first);
         }
         
         _approximative_enabled_in_frame = frameIndex;

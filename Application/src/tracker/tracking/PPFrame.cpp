@@ -132,7 +132,7 @@ bool PPFrame::has_bdx(pv::bid bdx) const {
     //return it != _bdx_to_ptr.end();
 }
 
-void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals, GenericThreadPool* pool)
+void PPFrame::init_cache(GenericThreadPool* pool)
 {
     ASSUME_NOT_FINALIZED;
     
@@ -144,29 +144,41 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
             fixed_matches = it->second;
     }
     
+    assert(index().valid());
+    const auto previous_frame = index() - 1_f;
     _individual_cache.clear();
-    _individual_cache.reserve(individuals.size());
+    _previously_active_identities.clear();
     
     float tdelta;
+    CacheHints hints;
+    
     {
         LockGuard guard(ro_t{}, "history_split#1");
-        auto props = Tracker::properties(frame.index() - 1_f);
-        tdelta = props ? (frame.time - props->time) : 0;
+        auto props = Tracker::properties(previous_frame);
+        if(props == nullptr) {
+            //! initial frame
+            assert(!Tracker::start_frame().valid() or Tracker::start_frame() == index());
+            return;
+        }
+        
+        tdelta = time - props->time;
+        
+        hints.push(previous_frame, props);
+        hints.push(index(), Tracker::properties(index()));
     }
+    
+    const auto last_active = Tracker::active_individuals(previous_frame);
+    const auto N = last_active.size();
+    _individual_cache.reserve(N);
+    _previously_active_identities.reserve(N);
     
     const float max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5;
     const auto frame_limit = SLOW_SETTING(frame_rate) * SLOW_SETTING(track_max_reassign_time);
-    const auto N = individuals.size();
     
     const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
     const auto space_limit = SQR(Individual::weird_distance() * 0.5);
     const auto frame_rate = SLOW_SETTING(frame_rate);
     const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
-
-    CacheHints hints;
-    if(frame.index().valid() && frame.index() > Tracker::start_frame())
-        hints.push(frame.index() - 1_f, Tracker::properties(frame.index() - 1_f));
-    hints.push(frame.index(), Tracker::properties(frame.index()));
 
     // mutex protecting count and global paired + fish_mappings/blob_mappings
     std::mutex mutex;
@@ -203,27 +215,37 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
             auto fish = *it;
             
             // IndividualCache is in the same position as the indexes here
-            auto &cache = cache_map[fish->identity().ID()];
-            cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
+            IndividualCache *cache;
+            auto result = fish->cache_for_frame(index(), time, &hints);
+            if(result) {
+                auto &ref = cache_map[fish->identity().ID()];
+                ref = std::move(result.value());
+                cache = &ref;
+            } else {
+                //auto result = fish->cache_for_frame(index(), time, &hints);
+                //throw U_EXCEPTION("Cannot create cache_for_frame for ", fish->identity(), " in frame ", index(), " because: ", result.error());
+                continue;
+            }
             
             if(!history_split)
                 continue;
             
-            const auto time_limit = cache.previous_frame.get() - frame_limit; // dont allow too far to the past
-            assert(cache.previous_frame.valid());
+            
+            const auto time_limit = cache->previous_frame.get() - frame_limit; // dont allow too far to the past
+            assert(cache->previous_frame.valid());
                 
             // does the current individual have the frame previous to the current frame?
             //! try to find a frame thats close in time AND space to the current position
             size_t counter = 0;
             Vec2 last_pos(-1,-1);
-            Frame_t last_frame = cache.previous_frame;
+            Frame_t last_frame = cache->previous_frame;
             long_t last_L = -1;
             
-            auto sit = fish->iterator_for(cache.previous_frame);
-            if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame))
+            auto sit = fish->iterator_for(cache->previous_frame);
+            if (sit != fish->frame_segments().end() && (*sit)->contains(cache->previous_frame))
             {
                 for (; sit != fish->frame_segments().end()
-                        && min((*sit)->end(), cache.previous_frame).get() >= time_limit
+                        && min((*sit)->end(), cache->previous_frame).get() >= time_limit
                         && counter < frame_limit; // shouldnt this be the same as the previous?
                     ++counter)
                 {
@@ -236,7 +258,7 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
                         if (last_pos.x == -1
                             || sqdistance(pos, last_pos) < space_limit)
                         {
-                            last_frame = min((*sit)->end(), cache.previous_frame);
+                            last_frame = min((*sit)->end(), cache->previous_frame);
                             assert(last_frame.valid());
                             last_L = (last_frame - (*sit)->start()).get();
                         }
@@ -253,19 +275,19 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
             }
             
             if(last_frame.get() < time_limit) {
-                Log("\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best segment length is ", last_L," and we are in frame ", frame.index(),".");
+                Log("\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best segment length is ", last_L," and we are in frame ", index(),".");
                 
             } else {
-                auto set = frame.blob_grid().query(cache.estimated_px, max_d);
+                auto set = blob_grid().query(cache->estimated_px, max_d);
                 
                 if(!set.empty()) {
                     auto fdx = fish->identity().ID();
                     auto& map = fish_assignments[i - start];
                     map.fdx = fdx;
-                    map.last_pos = last_pos.x == -1 ? cache.estimated_px : last_pos;
+                    map.last_pos = last_pos.x == -1 ? cache->estimated_px : last_pos;
                     
                     for(auto && [d, bdx] : set) {
-                        if(!frame.has_bdx(bdx))
+                        if(!has_bdx(bdx))
                             continue;
                         
                         map.assign.push_back({bdx, d});
@@ -273,13 +295,13 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
                     }
                 }
                 
-                Log("\tFish ", fish->identity()," (", cache.estimated_px.x, ",", cache.estimated_px.y, ") proximity: ", set);
+                Log("\tFish ", fish->identity()," (", cache->estimated_px.x, ",", cache->estimated_px.y, ") proximity: ", set);
             }
         }
 
         std::unique_lock guard(mutex);
         for(auto&& [fdx, cache] : cache_map)
-            frame.set_cache(fdx, std::move(cache));
+            set_cache(fdx, std::move(cache));
         
         if(history_split) {
             for (auto&& [fdx, assign, last_pos] : fish_assignments) {
@@ -299,10 +321,13 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
     };
     
     LockGuard guard(ro_t{}, "history_split#2");
+    for(auto fish : last_active)
+        _previously_active_identities.push_back(fish->identity().ID());
+    
     if(num_threads < 2 || !pool || N < num_threads) {
-        fn(0, individuals.begin(), individuals.end(), N);
+        fn(0, last_active.begin(), last_active.end(), N);
     } else if(N) {
-        distribute_indexes(fn, *pool, individuals.begin(), individuals.end());
+        distribute_indexes(fn, *pool, last_active.begin(), last_active.end());
     }
 }
 

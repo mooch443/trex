@@ -1601,13 +1601,8 @@ bool Accumulation::start() {
                 size_t failed_blobs = 0, found_blobs = 0;
                 
                 for(auto && [frame, ids] : frames_collected) {
-                    auto active =
-                        frame == Tracker::start_frame()
-                            ? set_of_individuals_t()
-                            : Tracker::active_individuals(frame - 1_f);
-                    
                     video_file.read_frame(video_frame, frame);
-                    Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, active, NULL);
+                    Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, NULL);
                     
                     for(auto id : ids) {
                         auto filters = _collected_data->filters().has(id)

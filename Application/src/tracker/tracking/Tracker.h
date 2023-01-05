@@ -89,8 +89,8 @@ public:
     };
     ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
     
-    set_of_individuals_t _active_individuals;
-    active_individuals_map_t _active_individuals_frame;
+    //set_of_individuals_t _active_individuals;
+    //active_individuals_map_t _active_individuals_frame;
     
     std::atomic<Frame_t> _startFrame{ Frame_t() };
     std::atomic<Frame_t> _endFrame{ Frame_t() };
@@ -153,7 +153,7 @@ public:
     static double average_seconds_per_individual();
     
     GETTER(std::deque<Range<Frame_t>>, consecutive)
-    std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
+    //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
 public:
     Tracker();
@@ -199,7 +199,7 @@ public:
     static size_t number_frames() { return instance()->_added_frames.size(); }
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(const pv::File&, pv::Frame&&, PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split = true);
+    static void preprocess_frame(const pv::File&, pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, bool do_history_split = true);
     
     friend class VisualField;
     
@@ -208,11 +208,12 @@ public:
         return instance()->_individuals;
     }
 
-    static const set_of_individuals_t& active_individuals() {
+    /*static const set_of_individuals_t& active_individuals() {
         //LockGuard guard("active_individuals()");
         return instance()->_active_individuals;
-    }
+    }*/
     
+    static void register_individual(Individual*);
     static const set_of_individuals_t& active_individuals(Frame_t frame);
     
     static const Range<Frame_t>& analysis_range();
@@ -220,8 +221,6 @@ public:
     void update_history_log();
     
     Frame_t update_with_manual_matches(const Settings::manual_matches_t& manual_matches);
-
-    
 
     static std::vector<Range<Frame_t>> global_segment_order();
     static void global_segment_order_changed();
@@ -260,7 +259,7 @@ private:
     void check_save_tags(Frame_t frameIndex, const ska::bytell_hash_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
     
     friend struct TrackingHelper;
-    static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
+    //static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
     
 public:
     static std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<pv::BlobPtr>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);

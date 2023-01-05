@@ -2218,14 +2218,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     continue;
                 
                 PD(video_source).read_frame(frame, idx);
-                auto active = PD(tracker).active_individuals(idx - 1_f);
-                
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
-                    Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, active, &_blob_thread_pool);
+                    Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, &_blob_thread_pool);
                 }
                 
-                for(auto fish : active) {
+                for(auto fdx : pp.previously_active_identities()) {
+                    auto fish = Tracker::individuals().at(fdx);
                     auto loaded_blob = fish->compressed_blob(idx);
                     auto blob = pp.bdx_to_ptr(loaded_blob->blob_id());
                     if(loaded_blob && blob) {
@@ -4433,9 +4432,8 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         
         WorkProgress::set_percent((i - range.start).get() / (float)(range.end - range.start).get());
         
-        auto active = i == PD(tracker).start_frame() ? set_of_individuals_t() : Tracker::active_individuals(i - 1_f);
         PD(video_source).read_frame(frame, i);
-        Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, active, NULL);
+        Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, NULL);
         
         cv::Mat image, padded, mask;
         pp.transform_blobs([&](pv::Blob& blob){
@@ -4501,7 +4499,8 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 
                 MotionRecord *found_head = NULL;
                 
-                for(auto fish : active) {
+                for(auto fdx : pp.previously_active_identities()) {
+                    auto fish = Tracker::individuals().at(fdx);
                     auto fish_blob = fish->blob(i);
                     auto head = fish->head(i);
                     

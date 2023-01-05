@@ -495,25 +495,22 @@ Fish::~Fish() {
             auto ML = _obj.midline_length();
             auto radius = (FAST_SETTING(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
-                // DISPLAY NEXT POSITION (estimated position in _idx + 1)
-                //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
-                if(!_next_frame_cache.valid)
-                    _next_frame_cache = _obj.cache_for_frame(_frame + 1_f, next_time);
-                auto estimated = _next_frame_cache.estimated_px + offset;
-            
-                _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(max_color)});
-                    //auto &fcache = cache.processed_frame.cached_individuals.at(_obj.identity().ID());
-                    //auto estimated = cache.estimated_px + offset;
-                    //float tdelta = next_time - current_time;
-                    //float tdelta = fcache.local_tdelta;
-                _view.add<Line>(c_pos, estimated, clr);
-                _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
+                if(!_next_frame_cache.valid) {
+                    auto result = _obj.cache_for_frame(_frame + 1_f, next_time);
+                    if(result) {
+                        _next_frame_cache = std::move(result.value());
+                    } else {
+                        FormatWarning("Cannot create cache_for_frame of ", _obj.identity(), " for frame ", _frame + 1_f, " because: ", result.error());
+                    }
+                }
                 
-                    //const float max_d = FAST_SETTING(track_max_speed) * tdelta / FAST_SETTING(cm_per_pixel);
-                    //window.circle(estimated, max_d * 0.5, Red.alpha(100));
-                //}
-            
-                //window.circle(estimated, FAST_SETTING(track_max_speed) * tdelta, clr);
+                if(_next_frame_cache.valid) {
+                    auto estimated = _next_frame_cache.estimated_px + offset;
+                    
+                    _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(max_color)});
+                    _view.add<Line>(c_pos, estimated, clr);
+                    _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
+                }
             }
         
             if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && _posture_stuff && _posture_stuff->head) {

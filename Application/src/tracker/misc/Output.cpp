@@ -9,6 +9,7 @@
 #include <misc/IdentifiedTag.h>
 #include <tracking/DatasetQuality.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -429,8 +430,12 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         Match::prob_t p = p_threshold;
         if(!fish->empty()) {
             auto cache = fish->cache_for_frame(frameIndex, data.time, cache_ptr);
-            assert(frameIndex > fish->start_frame());
-            p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
+            if(cache) {
+                assert(frameIndex > fish->start_frame());
+                p = fish->probability(label ? label->id : -1, cache.value(), frameIndex, data.stuff->blob);//.p;
+            } else {
+                throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", cache.error());
+            }
         }
         
         if(fish->empty())
@@ -1242,7 +1247,7 @@ namespace Output {
             + sizeof(uint64_t)
             + (active_individuals_frame.empty()
                ? individuals.size()
-               : active_individuals_frame.begin()->second.size())
+               : active_individuals_frame.begin()->second->size())
              * sizeof(data_long_t));
         
         _expected_individuals = individuals.size();
@@ -1276,8 +1281,8 @@ namespace Output {
         write<uint64_t>(active_individuals_frame.size());
         for (auto &p : active_individuals_frame) {
             write<data_long_t>(p.first.get());
-            write<uint64_t>(p.second.size());
-            for(auto &fish : p.second) {
+            write<uint64_t>(p.second->size());
+            for(auto &fish : *p.second) {
                 data_long_t ID = fish->identity().ID();
                 write<data_long_t>(ID);
             }
@@ -1306,7 +1311,7 @@ namespace Output {
         file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
-        file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals);
+        file.write_file(_tracker._added_frames, IndividualManager::_all_frames(), _tracker._individuals);
         file.close();
         
         // go back from .tmp01 to .results
@@ -1324,8 +1329,7 @@ namespace Output {
         _tracker._individuals.clear();
         _tracker._added_frames.clear();
         _tracker.clear_properties();
-        _tracker._active_individuals.clear();
-        _tracker._active_individuals_frame.clear();
+        IndividualManager::remove_frames(0_f);
         _tracker._startFrame = Frame_t();
         _tracker._endFrame = Frame_t();
         _tracker._max_individuals = 0;
@@ -1349,8 +1353,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     data_long_t n = 0;
     
     //auto it = _tracker._active_individuals_frame.begin();
-    if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
-        throw U_EXCEPTION("This is unexpected (",_tracker._active_individuals_frame.size()," != ",_tracker._added_frames.size(),").");
+    if(IndividualManager::_all_frames().size() != _tracker._added_frames.size()) {
+        throw U_EXCEPTION("This is unexpected (",IndividualManager::_all_frames().size()," != ",_tracker._added_frames.size(),").");
     }
     
     const track::FrameProperties* prev_props = nullptr;
@@ -1368,7 +1372,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         
         // update tracker with the numbers
         //assert(it->first == props.frame);
-        auto &active = _tracker._active_individuals_frame.at(props->frame);
+        auto &active = *IndividualManager::active_individuals(props->frame).value();
         if(prev_props && prev_frame - props->frame > 1_f)
             prev_props = nullptr;
         
@@ -1521,7 +1525,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         Frame_t frame;
         file.read<uint64_t>(L);
         for (uint64_t i=0; i<L; i++) {
-            set_of_individuals_t active;
+            auto active = std::make_unique<set_of_individuals_t>();
             
             file.read<data_long_t>(frameIndex);
             file.read<uint64_t>(n);
@@ -1541,7 +1545,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                     //FormatExcept("Individual ", ID," start frame = ", map_id_ptr.at(Idx_t(ID))->start_frame(),", not ",frameIndex);
                     continue;
                 }
-                auto r = active.insert(it->second);
+                auto r = active->insert(it->second);
                 if(!std::get<1>(r))
                     throw U_EXCEPTION("Did not insert ID ",ID," for frame ",frameIndex,".");
             }
@@ -1549,16 +1553,18 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            _tracker._active_individuals_frame[frame] = active;
-            _tracker._active_individuals = active;
+            _tracker._max_individuals = max(_tracker._max_individuals.load(), active->size());
             
-            _tracker._max_individuals = max(_tracker._max_individuals.load(), active.size());
+            IndividualManager::_last_active() = active.get();
+            IndividualManager::_all_frames()[frame] = std::move(active);
         }
         
-        _tracker._inactive_individuals.clear();
-        for(auto&& [id, fish] : _tracker._individuals) {
-            if(_tracker._active_individuals.find(fish) == _tracker._active_individuals.end()) {
-                _tracker._inactive_individuals.insert(id);
+        IndividualManager::_inactive().clear();
+        if(IndividualManager::_last_active()) {
+            for(auto&& [id, fish] : _tracker._individuals) {
+                if(IndividualManager::_last_active()->find(fish) == IndividualManager::_last_active()->end()) {
+                    IndividualManager::_inactive().push_back(fish);
+                }
             }
         }
         
@@ -1574,7 +1580,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for(auto &props : _tracker._added_frames) {
                 // number of individuals actually assigned in this frame
                 n = 0;
-                for(const auto &fish : _tracker._active_individuals_frame.at(props->frame)) {
+                for(const auto &fish : Tracker::active_individuals(props->frame)) {
                     n += fish->has(props->frame);
                 }
                 props->active_individuals = n;

@@ -47,14 +47,10 @@ Settings::manual_splits_t::mapped_type HistorySplit::apply_manual_matches(PPFram
     return manual_splits_frame;
 }
 
-HistorySplit::HistorySplit(PPFrame &frame, const set_of_individuals_t& active, GenericThreadPool* pool)
+HistorySplit::HistorySplit(PPFrame &frame, GenericThreadPool* pool)
 {
     //! Finalize the cache and this frame:
-    frame.init_cache(frame, active, pool);
-    
-    PPFrame::Log("");
-    PPFrame::Log("------------------------");
-    PPFrame::Log("HISTORY MATCHING for frame ", frame.index(), ": ", active);
+    frame.init_cache(pool);
     
     apply_manual_matches(frame);
     

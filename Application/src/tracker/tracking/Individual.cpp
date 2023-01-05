@@ -524,12 +524,7 @@ MinimalOutline::Ptr Individual::outline(Frame_t frameIndex) const {
 Individual::Individual(Identity&& id)
     : _identity(std::move(id))
 {
-    auto identities = Tracker::identities();
-    auto set = std::set<Idx_t>(identities.begin(), identities.end());
-    if(set.count(identity().ID()))
-        identity().set_manual(true);
-    //else
-    //    throw U_EXCEPTION("Hey");
+    Tracker::register_individual(this);
 }
 
 Individual::~Individual() {
@@ -1523,21 +1518,21 @@ const FrameProperties* CacheHints::properties(Frame_t index) const {
     return nullptr;
 }
 
-IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
-    if(!frameIndex.valid())
-        throw U_EXCEPTION("Invalid frame in cache_for_frame");
+tl::expected<IndividualCache, const char*> Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
+    if(not frameIndex.valid())
+        return tl::unexpected("Invalid frame in cache_for_frame");
     
     IndividualCache cache;
     cache._idx = Idx_t(identity().ID());
     if(empty() || !_startFrame.valid() || frameIndex <= _startFrame) {
         cache.individual_empty = true;
-        return cache;
+        return tl::unexpected("The individual is empty.");
     }
     
     cache.individual_empty = false;
     
     if (frameIndex < _startFrame)
-        throw U_EXCEPTION("Cant cache for frame before start frame");
+        return tl::unexpected("Cant cache for frame before start frame");
         //return cache;//centroid(_startFrame)->pos(PX_AND_SECONDS);
     
     // find the first frame thats set for the individual
@@ -2100,82 +2095,59 @@ Individual::Probability Individual::probability(int label, const IndividualCache
 
 const std::unique_ptr<BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
 {
-    if(!empty()) {
-        if(frameIndex <= _startFrame)
-            return _basic_stuff.front();
-        if(frameIndex >= _endFrame)
+    if(empty()) {
+        throw U_EXCEPTION("Individual ", *this," is empty. Cannot retrieve frame ",frameIndex,".");
+    }
+    
+    if(frameIndex <= _startFrame)
+        return _basic_stuff.front();
+    if(frameIndex >= _endFrame)
+        return _basic_stuff.back();
+    
+    auto end = _frame_segments.end();
+    auto it = std::lower_bound(_frame_segments.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
+        return ptr->start() < frame;
+    });
+    
+    if(it == end) { // we are out of range, return last
+        auto idx = _frame_segments.back()->basic_stuff(frameIndex);
+        if(idx != -1)
+            return _basic_stuff[ idx ];
+        else
             return _basic_stuff.back();
-        
-        /*if(_basic_stuff.size() > 1) {
-            auto &l_1 = _basic_stuff.back();
-            if(l_1->frame == frameIndex) {
-                return l_1;
-            }
-        }*/
-        /*{
-            static std::mutex _data;
-            static double distance = 0, samples = 0;
-            static std::map<Frame_t, double> values;
-            std::unique_lock guard(_data);
-            if(_endFrame.valid() && frameIndex.valid() && _endFrame != frameIndex) {
-                values[_endFrame - frameIndex]++;
-                
-                distance += (_endFrame.get() - frameIndex.get());
-                samples++;
-                
-                if(uint64_t(samples) % 100 == 0) {
-                    print("distance: ", distance / samples, values, " ", frameIndex, " vs. ", _endFrame);
-                }
-            }
-        }*/
-        
-        auto end = _frame_segments.end();
-        auto it = std::lower_bound(_frame_segments.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
-            return ptr->start() < frame;
-        });
-        
-        if(it == end) { // we are out of range, return last
-            auto idx = _frame_segments.back()->basic_stuff(frameIndex);
-            if(idx != -1)
-                return _basic_stuff[ idx ];
-            else
-                return _basic_stuff.back();
-        }
-        
-        int32_t index = (int32_t)_basic_stuff.size()-1;
-        if((*it)->start() > frameIndex) {
-            if(it != _frame_segments.begin()) {
-                // it is either in between segments (no frame)
-                // or inside the previous segment
-                --it;
-                
-                if((*it)->contains(frameIndex)) {
-                    index = (*it)->basic_stuff(frameIndex);
-                } else {
-                    index = (*it)->basic_index.back();
-                }
-                
-            } else {
-                // it is located before our first startFrame
-                // this should not happen
-                //index = it->second->basic_index.front();
-                throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding segment ",(*it)->start(),"-",(*it)->end(),"");
-            }
+    }
+    
+    int32_t index = (int32_t)_basic_stuff.size()-1;
+    if((*it)->start() > frameIndex) {
+        if(it != _frame_segments.begin()) {
+            // it is either in between segments (no frame)
+            // or inside the previous segment
+            --it;
             
-        } else {
             if((*it)->contains(frameIndex)) {
                 index = (*it)->basic_stuff(frameIndex);
             } else {
-                assert((*it)->start() == frameIndex);
-                index = (*it)->basic_index.front();
+                index = (*it)->basic_index.back();
             }
+            
+        } else {
+            // it is located before our first startFrame
+            // this should not happen
+            //index = it->second->basic_index.front();
+            throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding segment ",(*it)->start(),"-",(*it)->end(),"");
         }
         
-        assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
-        return _basic_stuff[ index ];
+    } else {
+        if((*it)->contains(frameIndex)) {
+            index = (*it)->basic_stuff(frameIndex);
+        } else {
+            assert((*it)->start() == frameIndex);
+            index = (*it)->basic_index.front();
+        }
     }
     
-    throw U_EXCEPTION("Cannot find a frame for ",frameIndex,"");
+    assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
+    return _basic_stuff[ index ];
 }
 
 std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> Individual::calculate_previous_vector(Frame_t frameIndex) const {
@@ -2238,8 +2210,12 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     if(frameIndex > start_frame()) {
         auto props = Tracker::properties(frameIndex);
         auto cache = cache_for_frame(frameIndex, props->time);
-        movement.position = cache.estimated_px;
-        movement.velocity = Vec2(position_sum);
+        if(cache) {
+            movement.position = cache.value().estimated_px;
+            movement.velocity = Vec2(position_sum);
+        } else {
+            FormatWarning("Cannot calculate cache_for_frame in ", frameIndex, " for ", *this, " because: ", cache.error());
+        }
     }
     //movement.position = last_head;
     //movement.velocity = centroid(frameIndex)->v(PX_AND_SECONDS, true);

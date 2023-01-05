@@ -75,7 +75,7 @@ public:
     //! Time in seconds
     double time;
     
-    GETTER_SETTER(double, loading_time);
+    GETTER_SETTER(double, loading_time)
     
 public:
     //! Original timestamp
@@ -103,9 +103,11 @@ private:
     
     GETTER_NCONST(cache_map_t, individual_cache)
     
+    GETTER(std::vector<Idx_t>, previously_active_identities)
+    
 public:
     const IndividualCache* cached(Idx_t) const;
-    void init_cache(PPFrame& frame, const set_of_individuals_t &individuals, GenericThreadPool* pool);
+    void init_cache(GenericThreadPool* pool);
     
 private:
     void set_cache(Idx_t, IndividualCache&&);
@@ -185,10 +187,6 @@ public:
                     _num_pixels -= own->num_pixels();
                     _pixel_samples--;
                 }
-                
-            #ifndef NDEBUG
-                print(this->index(), " Removing ", own);
-            #endif
                 
                 // move object out and delete
                 objects.emplace_back(std::move(own));
@@ -406,9 +404,9 @@ public:
     ~PPFrame();
 
     PPFrame(const PPFrame&) = delete;
-    PPFrame(PPFrame&&) noexcept = default;
+    PPFrame(PPFrame&&) noexcept = delete;
     PPFrame& operator=(const PPFrame&) = delete;
-    PPFrame& operator=(PPFrame&&) noexcept = default;
+    PPFrame& operator=(PPFrame&&) noexcept = delete;
     
     void clear();
     

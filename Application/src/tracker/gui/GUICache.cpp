@@ -311,8 +311,12 @@ namespace gui {
                         auto fish = individuals.at(id);
                         if(!fish->has(frameIndex) && !fish->empty() && frameIndex >= fish->start_frame()) {
                             auto c = fish->cache_for_frame(frameIndex, time);
-                            inactive_estimates.push_back(c.estimated_px);
-                            inactive_ids.insert(fish->identity().ID());
+                            if(c) {
+                                inactive_estimates.push_back(c.value().estimated_px);
+                                inactive_ids.insert(fish->identity().ID());
+                            } else {
+                                FormatError("Cannot create cache_for_frame of ", fish->identity(), " in frame ", frameIndex," because: ", c.error());
+                            }
                         }
                     }
                 }
@@ -361,14 +365,10 @@ namespace gui {
                 processed_frame.clear();
                 
                 if(frameIndex.valid()) {
-                    set_of_individuals_t prev_active;
-                    if(_tracker.properties(frameIndex - 1_f))
-                        prev_active = _tracker.active_individuals(frameIndex - 1_f);
-                    
                     try {
                         pv::Frame frame;
                         _video->read_frame(frame, frameIndex);
-                        Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, prev_active, &_pool);
+                        Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, &_pool);
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Frame ", frameIndex," cannot be loaded from file.");
