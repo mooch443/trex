@@ -17,6 +17,7 @@
 #include <tracking/ImageExtractor.h>
 
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 namespace Categorize {
@@ -256,41 +257,34 @@ Label::Ptr DataStore::label(int ID) {
 Sample::Ptr DataStore::random_sample(Idx_t fid) {
     static std::mt19937 mt(rd());
     std::shared_ptr<SegmentInformation> segment;
-    Individual *fish;
     
-    {
-        LockGuard guard(ro_t{}, "Categorize::random_sample");
-        auto iit = Tracker::instance()->individuals().find(fid);
-        if (iit != Tracker::instance()->individuals().end()) {
-            fish = iit->second;
-            auto& basic_stuff = fish->basic_stuff();
-            if (basic_stuff.empty())
-                return Sample::Invalid();
+    return IndividualManager::transform_if_exists(fid, [&](auto fish) {
+        auto& basic_stuff = fish->basic_stuff();
+        if (basic_stuff.empty())
+            return Sample::Invalid();
 
-            std::uniform_int_distribution<remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
-            auto it = fish->frame_segments().begin();
-            std::advance(it, sample_dist(mt));
-            segment = *it;
-        }
-    }
-    
-    if(!segment)
+        std::uniform_int_distribution<typename remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
+        
+        auto it = fish->frame_segments().begin();
+        std::advance(it, sample_dist(mt));
+        segment = *it;
+        
+        if(!segment)
+            return Sample::Invalid();
+        
+        const auto max_len = FAST_SETTING(track_segment_max_length);
+        const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
+        return sample(segment, fish, 150u, min_len);
+        
+    }).or_else([](auto) -> tl::expected<Sample::Ptr, const char*> {
         return Sample::Invalid();
-    
-    const auto max_len = FAST_SETTING(track_segment_max_length);
-    const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
-    return sample(segment, fish, 150u, min_len);
+    }).value();
 }
 
 Sample::Ptr DataStore::get_random() {
     static std::mt19937 mt(rd());
     
-    std::set<Idx_t> individuals;
-    {
-        LockGuard guard(ro_t{}, "Categorize::random_sample");
-        individuals = extract_keys(Tracker::instance()->individuals());
-    }
-    
+    std::set<Idx_t> individuals = IndividualManager::all_ids();
     if(individuals.empty())
         return {};
     
@@ -501,13 +495,14 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
 }
 
 Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
-    auto it = Tracker::individuals().find(fish);
-    if(it == Tracker::individuals().end()) {
-        //print("Individual ",fish._identity," not found.");
+    return IndividualManager::transform_if_exists(fish, [frame](auto fish){
+        return label_averaged(fish, frame);
+        
+    }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
+        //print("Individual ",fish._identity," not found: ", error);
         return nullptr;
-    }
-    
-    return label_averaged(it->second, frame);
+        
+    }).value();
 }
 
 bool DataStore::empty() {
@@ -658,13 +653,14 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
 }
 
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
-    auto it = Tracker::individuals().find(fish);
-    if(it == Tracker::individuals().end()) {
-        print("Individual ",fish._identity," not found.");
+    return IndividualManager::transform_if_exists(fish, [frame](auto fish){
+        return label_interpolated(fish, frame);
+        
+    }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
+        //print("Individual ",fish._identity," not found: ", error);
         return nullptr;
-    }
-    
-    return label_interpolated(it->second, frame);;
+        
+    }).value();
 }
 
 void DataStore::reanalysed_from(Frame_t /* keeping for future purposes */) {
@@ -1022,7 +1018,7 @@ void start_applying() {
                 std::vector<float> sums(Work::_number_labels);
                 std::fill(sums.begin(), sums.end(), 0);
                 
-                for(auto &[fdx, fish] : Tracker::individuals()) {
+                IndividualManager::transform_all([&](auto, auto fish) {
                     for(auto& seg : fish->frame_segments()) {
                         RangedLabel ranged;
                         ranged._range = *seg;
@@ -1063,7 +1059,7 @@ void start_applying() {
                         } //else
                             //FormatWarning("!No data for ", ranged._range);
                     }
-                }
+                });
             }
             
             if(SETTING(auto_categorize) && SETTING(auto_quit)) {

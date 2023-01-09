@@ -4,6 +4,7 @@
 #include <misc/PixelTree.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/FilterCache.h>
+#include <tracking/IndividualManager.h>
 
 namespace py = Python;
 
@@ -857,9 +858,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     
     std::map<Idx_t, std::set<Frame_t>> illegal_frames;
     
-    for(auto && [frame, ids] : individuals_per_frame) {
-        for(auto id : ids) {
-            auto fish = Tracker::individuals().at(id);
+    for(const auto & [frame, ids] : individuals_per_frame) {
+        IndividualManager::transform_ids(ids, [frame=frame, &illegal_frames](auto id, auto fish){
             auto && [basic, posture] = fish->all_stuff(frame);
             
             if(!py::VINetwork::is_good(basic, posture)
@@ -867,7 +867,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             {
                 illegal_frames[id].insert(frame);
             }
-        }
+        });
     }
     
     for(auto && [id, frames] : illegal_frames) {
@@ -1030,36 +1030,36 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         if(frame > inserted_end)
             inserted_end = frame;
         
-        for (auto id : filtered_ids) {
+        IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish) {
+            if(available_images.empty())
+                return false;
+            
             assert(individuals_per_frame.count(frame) && individuals_per_frame.at(frame).find(id) != individuals_per_frame.at(frame).end());
             
-            if(!available_images.empty()) {
-                auto fit = available_images[id].find(frame);
-                if(fit != available_images[id].end()) {
-                    auto fish = Tracker::individuals().at(id);
-                    auto it = fish->iterator_for(frame);
-                    if(it == fish->frame_segments().end())
-                        continue;
-                    
-                    auto&& [ID, image] = fit->second;
-                    add_frame(data, frame, id, id, image, Vec2(), fish->thresholded_size(frame), *it->get());
-                    if(image_is(image, ImageClass::TRAINING))
-                        ++N_training_images;
-                    else
-                        ++N_validation_images;
+            auto fit = available_images[id].find(frame);
+            if(fit != available_images[id].end()) {
+                auto it = fish->iterator_for(frame);
+                if(it == fish->frame_segments().end())
+                    return true;
+                
+                auto&& [ID, image] = fit->second;
+                add_frame(data, frame, id, id, image, Vec2(), fish->thresholded_size(frame), *it->get());
+                if(image_is(image, ImageClass::TRAINING))
+                    ++N_training_images;
+                else
+                    ++N_validation_images;
 
-                    ++counter;
-                    ++N_reused_images;
-                    individuals_per_frame.at(frame).erase(id);
-                    if(individuals_per_frame.at(frame).empty()) {
-                        individuals_per_frame.erase(frame);
-                        break;
-                    }
-                    
-                    continue;
+                ++counter;
+                ++N_reused_images;
+                individuals_per_frame.at(frame).erase(id);
+                if(individuals_per_frame.at(frame).empty()) {
+                    individuals_per_frame.erase(frame);
+                    return false;
                 }
             }
-        }
+            
+            return true;
+        });
         
         if(individuals_per_frame.find(frame) == individuals_per_frame.end()) {
             ++i;
@@ -1069,7 +1069,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         video_file.read_frame(video_frame, frame);
         Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, NULL);
         
-        for (auto id : filtered_ids) {
+        IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
             /**
              * Check various conditions for whether the image is eligible for
              * training.
@@ -1080,42 +1080,26 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
              */
             
             if(!individuals_per_frame.empty() && individuals_per_frame.at(frame).find(id) == individuals_per_frame.at(frame).end())
-                continue;
+                return;
             
-            auto fish = Tracker::individuals().at(id);
             auto filters = custom_midline_lengths.has(id)
                 ? custom_midline_lengths.get(id, frame)
                 : FilterCache();
             
             auto it = fish->iterator_for(frame);
             if(it == fish->frame_segments().end())
-                continue;
+                return;
             
             auto bidx = (*it)->basic_stuff(frame);
             auto pidx = (*it)->posture_stuff(frame);
             if(bidx == -1 || (pidx == -1 && calculate_posture))
-                continue;
-            
-            /*if(!available_images.empty()) {
-                auto fit = available_images[id].find(frame);
-                if(fit != available_images[id].end()) {
-                    auto&& [ID, image] = fit->second;
-                    add_frame(data, frame, id, id, image, Vec2(), fish->thresholded_size(frame), *it->second);
-                    if(image_is(image, ImageClass::TRAINING))
-                        ++N_training_images;
-                    else
-                        ++N_validation_images;
-                    
-                    ++N_reused_images;
-                    continue;
-                }
-            }*/
+                return;
             
             auto basic = fish->basic_stuff()[bidx].get();
             auto posture = pidx != -1 ? fish->posture_stuff()[pidx].get() : nullptr;
             
             if(!py::VINetwork::is_good(basic, posture))
-                continue;
+                return;
 
             auto bid = basic->blob.blob_id();
             auto pid = basic->blob.parent_id;
@@ -1126,7 +1110,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             else
                 ++found_blobs;
             if(!blob || blob->split())
-                continue;
+                return;
             
             ++counter;
             median_size_x.addNumber(blob->bounds().size().width);
@@ -1170,7 +1154,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 
                 add_frame(data, frame, id, id, image, Vec2(), fish->thresholded_size(frame), *it->get());
             }
-        }
+        });
         
         callback(++i / float(frames.size()));
     }

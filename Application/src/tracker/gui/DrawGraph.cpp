@@ -46,7 +46,7 @@ namespace gui {
         //_pgraph.changed = false;
     }
     
-    void PropertiesGraph::setup_graph(long_t frameNr, const Rangel& range, Individual* fish, Output::LibraryCache::Ptr cache) {
+    void PropertiesGraph::setup_graph(long_t frameNr, const Rangel& range, const Individual* fish, Output::LibraryCache::Ptr cache) {
         if(_fish != fish || frameNr != _frameNr) {
             if(!range.empty()) {
                 _graph.set_ranges(Rangef(max(range.start, fish->start_frame().get()),

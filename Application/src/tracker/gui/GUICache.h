@@ -111,7 +111,7 @@ namespace gui {
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
-        individuals_map_t individuals;
+        std::unordered_map<Idx_t, Individual*> individuals;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;

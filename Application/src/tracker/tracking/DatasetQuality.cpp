@@ -3,6 +3,7 @@
 #include <gui/gui.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/FilterCache.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 namespace DatasetQuality {
@@ -101,25 +102,28 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     
     std::set<Individual*> found;
     
-    for(auto &[id, fish] : Tracker::individuals()) {
+    auto success = IndividualManager::transform_all([&](auto, auto fish){
         if(!fish->frame_segments().empty()) {
             auto it = fish->frame_segments().rbegin();
             if((*it)->range.overlaps(consec)) {
                 assert((*it)->range.end == fish->end_frame());
-                                                                /* implicitly abusing uint64_t(-1) < video_length here */
-                if(fish->end_frame() == Tracker::end_frame() && uint64_t(Tracker::end_frame().get()) < video_length)
+                
+                // has not finished analysing, but our consecutive segment is still being continued. so we cannot calculate the result yet
+                if(Tracker::end_frame().valid()
+                   && fish->end_frame() == Tracker::end_frame()
+                   && uint64_t(Tracker::end_frame().get()) < video_length)
+                {
                     return false;
+                }
             }
         }
         
-        // if this fish is still found at the end of the analysis range
-        /*if(consec.end < video_length && fish->end_frame() == Tracker::end_frame() && consec.end == fish->end_frame())
-            return false; // send "not ok" signal
-        if(consec.end == fish->end_frame() && fish->end_frame() == Tracker::end_frame() && Tracker::end_frame() < video_length)
-            return false;*/
-        
         found.insert(fish);
-    }
+        return true;
+    });
+    
+    if(not success)
+        return false;
     
     for(auto fish : found)
         Tracker::instance()->thread_pool().enqueue(work, fish);

@@ -48,7 +48,7 @@ class track::SplitBlob {
     
 private:
     cv::Mat _original, _original_grey;
-    size_t max_objects;
+    std::atomic<size_t> max_objects;
     std::mutex mutex;
     
     uint8_t min_pixel, max_pixel;

@@ -1069,7 +1069,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                         auto idx = assignment[i][1];
                         assert(j < (index_t)_paired.n_rows());
                         if(idx != -1 && idx < (index_t)_paired.n_cols())
-                            _optimal_pairing->pairings.push_back({_paired.row(fish_index_t(j)), _paired.col(blob_index_t(idx))});
+                            _optimal_pairing->pairings[_paired.col(blob_index_t(idx))] = _paired.row(fish_index_t(j));
                         free(assignment[i]);
                     }
                     free(assignment);
@@ -1125,7 +1125,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     
                     if(max_fish) {
                         used_blobs.insert(max_fish);
-                        ptr->pairings.push_back({max_fish, blob});
+                        ptr->pairings[blob] = max_fish;
                     }
                 }
                 
@@ -1206,7 +1206,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 //! Collect assignments and save them as pairings:
                 for (auto &node : _optimal_pairing->path) {
                     if (node.blob != NULL) {
-                        _optimal_pairing->pairings.push_back({node.fish, node.blob});
+                        _optimal_pairing->pairings[node.blob] = node.fish;
                     }
                 }
                 
@@ -1241,7 +1241,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
                 for(auto && [key, values] : benchmarks) {
                     if (values.ptr) {
-                        for (auto&& [fish, blob] : values.ptr->pairings)
+                        for (auto&& [blob, fish] : values.ptr->pairings)
                             assignments[key][fish] = blob;
                     }
                 }
@@ -1346,8 +1346,8 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
 #endif
     }
     
-PairingGraph::PairingGraph(const FrameProperties& props, Frame_t frame, const decltype(_paired)& paired)
-    : _frame(frame), _time(props.time), _paired(paired), _optimal_pairing(NULL)
+PairingGraph::PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired)
+    : _frame(frame), _time(props.time), _paired(std::move(paired)), _optimal_pairing(NULL)
 {
 }
 

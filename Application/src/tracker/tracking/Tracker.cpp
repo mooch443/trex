@@ -178,7 +178,9 @@ const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints*
     
     auto &frames = instance()->frames();
     auto it = properties_iterator(frameIndex);
-    return it != frames.end() ? (*it).get() : nullptr;
+    if(it == frames.end())
+        return nullptr;
+    return (*it).get();
 }
 
 decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Frame_t frameIndex) {
@@ -292,16 +294,12 @@ Tracker::Tracker()
             auto worker = [key](){
                 {
                     LockGuard guard(w_t{}, "Updating midlines in changed_setting("+key+")");
-                    
-                    for (auto && [id, fish] : Tracker::individuals()) {
-                        Tracker::instance()->_thread_pool.enqueue([](long_t id, Individual *fish){
-                            print("\t", id);
-                            fish->clear_post_processing();
-                            fish->update_midlines(nullptr);
-                        }, id, fish);
-                    }
-                    
-                    Tracker::instance()->_thread_pool.wait();
+                    IndividualManager::transform_parallel(Tracker::instance()->thread_pool(), [](auto fdx, auto fish)
+                    {
+                        print("\t", fdx);
+                        fish->clear_post_processing();
+                        fish->update_midlines(nullptr);
+                    });
                 }
                 DatasetQuality::update();
             };
@@ -353,10 +351,7 @@ Tracker::~Tracker() {
     
     _instance = NULL;
     
-    auto individuals = _individuals;
-    for (auto& fish_ptr : individuals)
-        delete fish_ptr.second;
-    
+    IndividualManager::clear();
     emergency_finish();
 }
 
@@ -376,6 +371,7 @@ void Tracker::prepare_shutdown() {
         FormatWarning("Exception during py::deinit().");
     }
 #endif
+    IndividualManager::clear();
 }
 
 Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& manual_matches) {
@@ -904,17 +900,6 @@ bool Tracker::has_identities() {
     return FAST_SETTING(track_max_individuals) > 0;
 }
 
-void Tracker::register_individual(Individual* fish) {
-    assert(LockGuard::owns_write());
-    print("Registering new ", fish->identity().name());
-    instance()->_individuals[fish->identity().ID()] = fish;
-    
-    auto identities = Tracker::identities();
-    auto set = std::set<Idx_t>(identities.begin(), identities.end());
-    if(set.count(fish->identity().ID()))
-        fish->identity().set_manual(true);
-}
-
 const std::set<Idx_t> Tracker::identities() {
     if(!has_identities())
         return {};
@@ -1205,7 +1190,7 @@ Match::PairedProbabilities calculate_paired_probabilities
 //! The only real difference here is that instead of distance, the probability
 //! is used (from `calculate_paired_probabilities`), which is the value actually
 //! used by the matching function.
-void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool) {
+void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool) {
     using namespace default_config;
     
     struct IndexClique {
@@ -1453,7 +1438,7 @@ void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool)
                         paired.add(fish, probs);
                 }
                 
-                PairingGraph graph(*s.props, frameIndex, paired);
+                PairingGraph graph(*s.props, frameIndex, std::move(paired));
                 
                 try {
                     // we use hungarian matching here by default, although
@@ -1461,13 +1446,15 @@ void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool)
                     auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
                     
                     std::unique_lock g(thread_mutex);
-                    std::unordered_map<pv::bid, Individual*> bdxes;
-                    for(auto& [fdx, bdx] : optimal.pairings)
-                        bdxes[bdx] = fdx;
-                    
-                    auto blobs = s.frame.extract_from_blobs_unsafe(bdxes);
+                    const auto& paired = optimal.pairings;
+                    auto blobs = s.frame.extract_from_blobs_unsafe(paired);
                     for (auto&& blob : blobs) {
-                        auto fish = bdxes.at(blob->blob_id());
+                        /*auto it = std::find_if(paired.begin(), paired.end(), [&](auto& tuple){
+                            auto& [bdx, fish] = tuple;
+                            return bdx == blob->blob_id();
+                        });
+                        auto fish = std::get<1>(*it);*/
+                        auto fish = paired.at(blob->blob_id());
                         s._manager.become_active(fish);
                         s.assign_blob_individual(fish, std::move(blob), matching_mode_t::hungarian);
                     }
@@ -1653,12 +1640,14 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         // now find all individuals that have left the "active individuals" group already
         // and re-assign them if needed
         // yep, theres at least one who is not active anymore. we may reassign them.
-        std::vector<Individual*> lost_individuals;
-        
-        for (auto &[fdx, fish]: _individuals) {
-            if(fish->empty())
+        /*std::vector<Individual*> lost_individuals;
+        IndividualManager::transform_all([&](auto, auto fish){
+            if(fish->empty()) {
                 lost_individuals.push_back(fish);
-            else {
+                if(not s._manager.is_inactive(fish)) {
+                    FormatWarning("fish ", fish->identity(), " should have been inactive since its empty.");
+                }
+            } else {
                 auto found = fish->find_frame(frameIndex)->frame;
                 
                 if (found != frameIndex) {
@@ -1668,13 +1657,18 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                     // dont reassign them directly!
                     // this would lead to a lot of jumping around. mostly these problems
                     // solve themselves after a few frames.
-                    if(frame.time - props->time >= SLOW_SETTING(track_max_reassign_time))
+                    if(frame.time - props->time >= SLOW_SETTING(track_max_reassign_time)) {
                         lost_individuals.push_back(fish);
+                        if(not s._manager.is_inactive(fish)) {
+                            FormatWarning("fish ", fish->identity(), " should have been inactive since ",frame.time - props->time," >= ", SLOW_SETTING(track_max_reassign_time),".");
+                        }
+                    }
                 }
             }
-        }
+        });*/
         
-        if(not lost_individuals.empty()) {
+        //if(not lost_individuals.empty())
+        {
             // if an individual needs to be reassigned, chose the blobs that are the closest
             // to the estimated position.
             using namespace Match;
@@ -1684,9 +1678,11 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             std::map<Individual*, Match::prob_t> max_probs;
             const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
             
-            for (auto& fish : lost_individuals) {
+            IndividualManager::transform_inactive([&](auto fish)                                    {
+            //for(auto &fish : lost_individuals) {
                 if(fish->empty()) {
                     for (auto& blob : unassigned_blobs) {
+                        assert(not s.blob_assigned(blob));
                         new_table.insert(PairProbability(fish, blob, p_threshold));
                         new_pairings[fish][blob] = p_threshold;
                     }
@@ -1708,22 +1704,30 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                         new_table.insert(PairProbability(fish, blob, p));
                     }
                 }
-            }
+            });
             
             for(auto it = new_table.rbegin(); it != new_table.rend(); ++it) {
                 auto &r = *it;
                 
+                //assert(s._manager.is_inactive(r.idx()));
                 if(not s.blob_assigned(r.bdx())
-                   && contains(lost_individuals, r.idx()))
+                   && new_pairings.contains(r.idx()))
+                   //&& contains(lost_individuals, r.idx()))
                 {
-                    auto it = std::find(lost_individuals.begin(), lost_individuals.end(), r.idx());
+                    /*auto it = std::find(lost_individuals.begin(), lost_individuals.end(), r.idx());
                     assert(it != lost_individuals.end());
-                    lost_individuals.erase(it);
+                    lost_individuals.erase(it);*/
                     
                     Individual *fish = r.idx();
                     auto bdx = r.bdx();
                     s._manager.become_active(fish);
                     s.assign_blob_individual(fish, frame.extract(bdx), default_config::matching_mode_t::benchmark);
+                    
+                    {
+                        auto it = new_pairings.find(r.idx());
+                        assert(it != new_pairings.end());
+                        new_pairings.erase(it);
+                    }
                 }
             }
         }
@@ -1732,12 +1736,12 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
 #ifndef NDEBUG
     if(not number_fish) {
         static std::set<Idx_t> lost_ids;
-        for(auto && [fdx, fish] : _individuals) {
+        IndividualManager::transform_all([&](auto fdx, auto fish){
             if(   not s._manager.is_active(fish)
                && not s._manager.is_inactive(fish))
             {
                 if(lost_ids.find(fdx) != lost_ids.end())
-                    continue;
+                    return;
                 lost_ids.insert(fdx);
                 auto basic = fish->empty() ? nullptr : fish->find_frame(frameIndex).get();
                 
@@ -1749,7 +1753,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 lost_ids.erase(fdx);
                 FormatWarning("Fish ", fdx," found again in frame ",frameIndex,".");
             }
-        }
+        });
     }
 #endif
     
@@ -1761,6 +1765,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         tags_saver = promise.get_future();
         
        _thread_pool.enqueue([&]() {
+           std::shared_lock guard(s.blob_fish_mutex);
            this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTING(tags_path));
            promise.set_value();
         });
@@ -1793,19 +1798,15 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         }
         
     } else {
-        for(auto id : Tracker::identities()) {
-            //! TODO: check _individuals?
-            auto it = _individuals.find(id);
-            if(it != _individuals.end()) {
-                auto& fish = it->second;
-                assert((fish->end_frame() == frameIndex) == (fish->has(frameIndex)));
-                
-                if(fish->end_frame() == frameIndex)
-                    ++n;
-                if(fish->has(frameIndex - 1_f))
-                    ++prev;
-            }
-        }
+        IndividualManager::transform_ids_with_error(Tracker::identities(), [&](auto, auto fish)
+        {
+            assert((fish->end_frame() == frameIndex) == (fish->has(frameIndex)));
+            if(fish->end_frame() == frameIndex)
+                ++n;
+            if(fish->has(frameIndex - 1_f))
+                ++prev;
+            
+        }, [](auto){});
     }
     
     update_warnings(frameIndex, s.frame.time, number_fish, n, prev, s.props, s.prev_props, s._manager.current(), _individual_add_iterator_map);
@@ -1846,10 +1847,10 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
 
         //! use calculated probabilities to find optimal assignments
         //! then add the qrcode to the matched individual
-        Match::PairingGraph graph(*s.props, frameIndex, paired);
+        Match::PairingGraph graph(*s.props, frameIndex, std::move(paired));
         try {
             auto& optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
-            for (auto& [fish, bdx] : optimal.pairings) {
+            for (auto& [bdx, fish] : optimal.pairings) {
                 if (!fish->add_qrcode(frameIndex, std::move(owner.at(bdx))))
                 {
                     //FormatWarning("Fish ", fish->identity(), " rejected tag at ", (*blob)->bounds());
@@ -2029,13 +2030,16 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             }
             
 #ifndef NDEBUG
-            for(auto id : segment_end) {
-                assert(individuals().at(Idx_t(id.id))->segment_for(frameIndex) != individuals().at(Idx_t(id.id))->segment_for(frameIndex - 1_f));
-            }
-            for(auto id : fdx) {
-                assert(!individuals().at(Idx_t(id.id))->has(frameIndex));
-                assert(frameIndex != start_frame() && _individuals.at(Idx_t(id.id))->has(frameIndex - 1_f));
-            }
+            IndividualManager::transform_ids(segment_end, [frameIndex](auto, auto fish)
+            {
+                assert(fish->segment_for(frameIndex) != fish->segment_for(frameIndex - 1_f));
+            });
+            
+            IndividualManager::transform_ids(fdx, [frameIndex](auto, auto fish)
+            {
+                assert(not fish->has(frameIndex));
+                assert(frameIndex != start_frame() && fish->has(frameIndex - 1_f));
+            });
 #endif
             
             if(!fdx.empty()) {
@@ -2202,27 +2206,31 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         }
         
         DatasetQuality::remove_frames(frameIndex);
-        
-        std::vector<Idx_t> to_delete;
-        std::vector<Individual*> ptrs;
-        for(auto & [fdx, fish] : _individuals) {
-            fish->remove_frame(frameIndex);
-            
-            //! TODO: note that this also deletes "wanted" individuals
-            //! and so we need to check if this is OK
-            if(fish->empty()) {
-                to_delete.push_back(fdx);
-                ptrs.push_back(fish);
+        IndividualManager::remove_frames(frameIndex
+#ifndef NDEBUG
+            , [this](Individual* fish){
+                assert (_individual_add_iterator_map.find(fish->identity().ID()) == _individual_add_iterator_map.end() );
             }
-        }
+#endif
+        );
         
-        for(auto& fdx : to_delete)
-            _individuals.erase(fdx);
-        
-        while(!_added_frames.empty()) {
-            if((*(--_added_frames.end()))->frame < frameIndex)
-                break;
-            _added_frames.erase(--_added_frames.end());
+        {
+            //! update the cache for frame properties
+            std::unique_lock guard(_properties_mutex);
+            while(!_added_frames.empty()) {
+                if((*(--_added_frames.end()))->frame < frameIndex)
+                    break;
+                _added_frames.erase(--_added_frames.end());
+            }
+            
+            _properties_cache.clear();
+            
+            auto it = _added_frames.rbegin();
+            while(it != _added_frames.rend() && !_properties_cache.full())
+            {
+                _properties_cache.push((*it)->frame, (*it).get());
+                ++it;
+            }
         }
         
         for (auto it=_statistics.begin(); it != _statistics.end();) {
@@ -2245,34 +2253,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         if(end_frame().valid() && end_frame() < analysis_range().start)
             _endFrame = _startFrame = Frame_t();
         
-        IndividualManager::remove_frames(frameIndex);
-        
-        for (auto ptr : ptrs) {
-            assert (_individual_add_iterator_map.find(ptr->identity().ID()) == _individual_add_iterator_map.end() );
-            delete ptr;
-        }
-        
-        if(_individuals.empty())
-            Identity::set_running_id(Idx_t(0));
+        assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame == end_frame()));
         
         FilterCache::clear();
         //! TODO: MISSING remove_frames
         //_recognition->remove_frames(frameIndex);
         DatasetQuality::update();
-        
-        {
-            //! update the cache for frame properties
-            std::unique_lock guard(_properties_mutex);
-            _properties_cache.clear();
-            
-            auto it = _added_frames.rbegin();
-            while(it != _added_frames.rend() && !_properties_cache.full())
-            {
-                _properties_cache.push((*it)->frame, (*it).get());
-                ++it;
-            }
-            assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame == end_frame()));
-        }
         
         VisualField::remove_frames_after(frameIndex);
         FOI::remove_frames(frameIndex);
@@ -2405,9 +2391,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         if(fid != -1)
             FOI::remove_frames(Frame_t(0), fid);
         
-        for(auto && [fdx, fish] : _individuals) {
+        IndividualManager::transform_all([](auto, auto fish){
             fish->clear_recognition();
-        }
+        });
         
         AutoAssign::clear_automatic_ranges();
     }
@@ -2482,9 +2468,11 @@ void process_vi
 
                     if (virtual_fish.count(next_id) && virtual_fish.at(next_id).track_ids.count(rit->first)) {
                         auto org_id = virtual_fish.at(next_id).track_ids.at(rit->first);
-                        auto blob = Tracker::individuals().at(org_id)->centroid_weighted(next->second.start());
-                        if (blob)
-                            next_pos = blob;
+                        IndividualManager::transform_if_exists(org_id, [&](auto fish){
+                            auto blob = fish->centroid_weighted(next->second.start());
+                            if (blob)
+                                next_pos = blob;
+                        });
                     }
                     break;
                 }
@@ -2503,10 +2491,12 @@ void process_vi
 
                     if (virtual_fish.count(prev_id) && virtual_fish.at(prev_id).track_ids.count(rit->first)) {
                         auto org_id = virtual_fish.at(prev_id).track_ids.at(rit->first);
-                        auto pos = Tracker::individuals().at(org_id)->centroid_weighted(previous->second.end());
-                        if (pos) {
-                            prev_pos = pos;
-                        }
+                        IndividualManager::transform_if_exists(org_id, [&](auto fish){
+                            auto pos = fish->centroid_weighted(previous->second.end());
+                            if (pos) {
+                                prev_pos = pos;
+                            }
+                        });
                     }
                     break;
                 }
@@ -2590,9 +2580,11 @@ void process_qr(Frame_t after_frame,
 
                     if (virtual_fish.count(next_id) && virtual_fish.at(next_id).track_ids.count(rit->first)) {
                         auto org_id = virtual_fish.at(next_id).track_ids.at(rit->first);
-                        auto blob = Tracker::individuals().at(org_id)->centroid_weighted((*next)->start());
-                        if (blob)
-                            next_pos = blob;
+                        IndividualManager::transform_if_exists(org_id, [&](auto fish){
+                            auto blob = fish->centroid_weighted((*next)->start());
+                            if (blob)
+                                next_pos = blob;
+                        });
                     }
                     break;
                 }
@@ -2611,10 +2603,12 @@ void process_qr(Frame_t after_frame,
 
                     if (virtual_fish.count(prev_id) && virtual_fish.at(prev_id).track_ids.count(rit->first)) {
                         auto org_id = virtual_fish.at(prev_id).track_ids.at(rit->first);
-                        auto pos = Tracker::individuals().at(org_id)->centroid_weighted((*previous)->end());
-                        if (pos) {
-                            prev_pos = pos;
-                        }
+                        IndividualManager::transform_if_exists(org_id, [&](auto fish){
+                            auto pos = fish->centroid_weighted((*previous)->end());
+                            if (pos) {
+                                prev_pos = pos;
+                            }
+                        });
                     }
                     break;
                 }
@@ -2764,20 +2758,14 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 #ifdef TREX_DEBUG_IDENTITIES
         auto f = fopen(file::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
-        float N = float(_individuals.size());
-        distribute_indexes([&count, &callback, N](auto, auto start, auto end, auto)
-        {
-            for(auto it = start; it != end; ++it) {
-                auto & [fdx, fish] = *it;
-                
-                fish->clear_recognition();
-                fish->calculate_average_recognition();
-                
-                callback(count / N * 0.5f);
-                ++count;
-            }
+        float N = float(IndividualManager::num_individuals());
+        IndividualManager::transform_parallel(recognition_pool, [&](auto, auto fish) {
+            fish->clear_recognition();
+            fish->calculate_average_recognition();
             
-        }, recognition_pool, _individuals.begin(), _individuals.end());
+            callback(count / N * 0.5f);
+            ++count;
+        });
         
         using namespace v;
         Settings::manual_matches_t automatic_matches;
@@ -2921,22 +2909,22 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         // try to find the longest segments and assign them to virtual fish
         if(source == IdentitySource::QRCodes) {
             //! When using QRCodes...
-            for(const auto & [fdx, fish] : _individuals) {
+            IndividualManager::transform_all([&](auto fdx, auto fish) {
                 for (auto& [start, assign] : fish->qrcodes()) {
                     auto segment = fish->segment_for(start);
                     if (segment && segment->contains(start)) {
-                        collect_virtual_fish(fish->identity().ID(), fish, *segment, assign.samples, {
+                        collect_virtual_fish(fdx, fish, *segment, assign.samples, {
                             { Idx_t(assign.best_id), assign.p }
                         });
                     }
                 }
-            }
+            });
             
         } else {
             //! When using other ML information (visual identification)...
             assert(source == IdentitySource::VisualIdent);
             
-            for(const auto & [fdx, fish] : _individuals) {
+            IndividualManager::transform_all([&](auto fdx, auto fish) {
                 //! TODO: MISSING recalculate recognition for all segments
                 //fish->clear_recognition();
 
@@ -2947,7 +2935,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                     auto& [n, average] = fish->processed_recognition(start);
                     collect_virtual_fish(fdx, fish, segment, n, average);
                 }
-            }
+            });
         }
         
         Settings::manual_splits_t manual_splits;
@@ -2968,22 +2956,26 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 if(!fish.track_ids.count(segment.range))
                     throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in track_ids");
                 
-                auto track = _individuals.at(fish.track_ids.at(segment.range));
-                
-                if(segment.first_usable.valid() && segment.first_usable != segment.start()) {
-                    auto blob = track->compressed_blob(segment.first_usable);
-                    if(blob)
-                        automatic_matches[segment.first_usable][fdx] = blob->blob_id();
-                    else
-                        FormatWarning("Have first_usable (=", segment.first_usable,"), but blob is null (fish ",fdx,")");
-                }
-                
-                auto blob = track->compressed_blob(segment.start());
-                if(blob) {
-                    automatic_matches[segment.start()][fdx] = blob->blob_id();
-                    if(blob->split() && blob->parent_id.valid())
-                        manual_splits[segment.start()].insert(blob->parent_id);
-                }
+                auto tid = fish.track_ids.at(segment.range);
+                IndividualManager::transform_if_exists(tid, [&, fdx=fdx](auto track){
+                    if(segment.first_usable.valid() && segment.first_usable != segment.start()) {
+                        auto blob = track->compressed_blob(segment.first_usable);
+                        if(blob)
+                            automatic_matches[segment.first_usable][fdx] = blob->blob_id();
+                        else
+                            FormatWarning("Have first_usable (=", segment.first_usable,"), but blob is null (fish ",fdx,")");
+                    }
+                    
+                    auto blob = track->compressed_blob(segment.start());
+                    if(blob) {
+                        automatic_matches[segment.start()][fdx] = blob->blob_id();
+                        if(blob->split() && blob->parent_id.valid())
+                            manual_splits[segment.start()].insert(blob->parent_id);
+                    }
+                    
+                }).or_else([tid](auto message){
+                    FormatWarning("Cannot find individual with ID ", tid, ": ", message);
+                });
             }
             
             for(auto segment : fish.segments) {
@@ -2997,59 +2989,64 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 #ifdef TREX_DEBUG_IDENTITIES
                 log(f, "\t\t",segment,": ",fish.probs.at(segment)," (from ", fish.track_ids.at(segment.range),")");
 #endif
-                auto track = _individuals.at(fish.track_ids.at(segment.range));
-                assert(track->compressed_blob(segment.start()));
-                
-                //automatic_matches[segment.start()][fdx] = track->blob(segment.start())->blob_id();
-                if(!assigned_ranges.count(track->identity().ID()) || !assigned_ranges.at(track->identity().ID()).count(segment.range))
-                    assigned_ranges[track->identity().ID()][segment.range] = fdx;
-                
-                auto blob = track->compressed_blob(segment.start());
-                if(blob && blob->split() && blob->parent_id.valid())
-                    manual_splits[segment.start()].insert(blob->parent_id);
-                
-                std::vector<pv::bid> blob_ids;
-                for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
-                    blob = track->compressed_blob(frame);
-                    if(blob) {
-                        //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
-                        blob_ids.push_back(blob->blob_id());
-                        //if(blob->split() && blob->parent_id().valid())
-                        //    manual_splits[frame].insert(blob->parent_id());
-                    } else
-                        blob_ids.push_back(pv::bid::invalid);
+                auto tid = fish.track_ids.at(segment.range);
+                IndividualManager::transform_if_exists(tid, [&, fdx=fdx](auto track) {
+                    assert(track->compressed_blob(segment.start()));
                     
-                    std::set<Range<Frame_t>> remove_from;
-                    auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
-                    if(it != tmp_assigned_ranges.end()) {
-                        for(auto & assign : it->ranges) {
-                            if(assign.range != segment.range && assign.range.contains(frame)) {
-                                remove_from.insert(assign.range);
-                            }
-                        }
-                    }
+                    //automatic_matches[segment.start()][fdx] = track->blob(segment.start())->blob_id();
+                    if(!assigned_ranges.count(track->identity().ID()) || !assigned_ranges.at(track->identity().ID()).count(segment.range))
+                        assigned_ranges[track->identity().ID()][segment.range] = fdx;
                     
-                    if(!remove_from.empty()) {
-                        for(auto range : remove_from) {
-                            // find individual fdx,
-                            // then delete range range:
-                            auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
-                            if(it != tmp_assigned_ranges.end()) {
-                                for(auto dit = it->ranges.begin(); dit != it->ranges.end(); ) {
-                                    if(dit->range == range) {
-                                        it->ranges.erase(dit);
-                                        break;
-                                    }
+                    auto blob = track->compressed_blob(segment.start());
+                    if(blob && blob->split() && blob->parent_id.valid())
+                        manual_splits[segment.start()].insert(blob->parent_id);
+                    
+                    std::vector<pv::bid> blob_ids;
+                    for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
+                        blob = track->compressed_blob(frame);
+                        if(blob) {
+                            //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
+                            blob_ids.push_back(blob->blob_id());
+                            //if(blob->split() && blob->parent_id().valid())
+                            //    manual_splits[frame].insert(blob->parent_id());
+                        } else
+                            blob_ids.push_back(pv::bid::invalid);
+                        
+                        std::set<Range<Frame_t>> remove_from;
+                        auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
+                        if(it != tmp_assigned_ranges.end()) {
+                            for(auto & assign : it->ranges) {
+                                if(assign.range != segment.range && assign.range.contains(frame)) {
+                                    remove_from.insert(assign.range);
                                 }
                             }
                         }
                         
-                        FormatWarning("While assigning ",frame,",",blob ? (int64_t)blob->blob_id() : -1," to ",fdx," -> same fish already assigned in ranges ",remove_from);
+                        if(!remove_from.empty()) {
+                            for(auto range : remove_from) {
+                                // find individual fdx,
+                                // then delete range range:
+                                auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
+                                if(it != tmp_assigned_ranges.end()) {
+                                    for(auto dit = it->ranges.begin(); dit != it->ranges.end(); ) {
+                                        if(dit->range == range) {
+                                            it->ranges.erase(dit);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            FormatWarning("While assigning ",frame,",",blob ? (int64_t)blob->blob_id() : -1," to ",fdx," -> same fish already assigned in ranges ",remove_from);
+                        }
                     }
-                }
-                
-                assert(Frame_t(blob_ids.size()) == segment.range.end - segment.range.start + 1_f);
-                AutoAssign::add_assigned_range(tmp_assigned_ranges, fdx, segment.range, std::move(blob_ids));
+                    
+                    assert(Frame_t(blob_ids.size()) == segment.range.end - segment.range.start + 1_f);
+                    AutoAssign::add_assigned_range(tmp_assigned_ranges, fdx, segment.range, std::move(blob_ids));
+                    
+                }).or_else([tid](auto message) {
+                    FormatWarning("Cannot find individual with ID ", tid, ": ", message);
+                });
             }
         }
 #ifdef TREX_DEBUG_IDENTITIES
@@ -3085,13 +3082,15 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         };
         
         if(source == IdentitySource::QRCodes) {
-            for(const auto &[fdx, fish] : _individuals)
+            IndividualManager::transform_all([&](auto fdx, auto fish){
                 process_qr(after_frame, fdx, fish, assigned_ranges, virtual_fish, _apply);
+            });
             
         } else {
             assert(source == IdentitySource::VisualIdent);
-            for(const auto &[fdx, fish] : _individuals)
+            IndividualManager::transform_all([&](auto fdx, auto fish){
                 process_vi(after_frame, fish->recognition_segments(), fdx, fish, assigned_ranges, virtual_fish, _apply);
+            });
         }
         
         //auto str = prettify_array(Meta::toStr(still_unassigned));
@@ -3105,9 +3104,9 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 {
                     LockGuard guard(w_t{}, "check_segments_identities::auto_correct");
                     Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start : after_frame);
-                    for(auto && [fdx, fish] : instance()->individuals()) {
+                    IndividualManager::transform_all([](auto, auto fish){
                         fish->clear_recognition();
-                    }
+                    });
                     
                     print("automatically_assigned_ranges ", tmp_assigned_ranges.size());
                     AutoAssign::set_automatic_ranges(std::move(tmp_assigned_ranges));

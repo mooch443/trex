@@ -2,6 +2,7 @@
 #include <file/CSVExport.h>
 #include <tracking/Outline.h>
 #include <misc/OutputLibrary.h>
+#include <tracking/IndividualManager.h>
 
 using namespace file;
 using namespace Output;
@@ -54,16 +55,15 @@ bool Results::save_events(const Path &filename, std::function<void(float)> set_p
 }
 
 bool Results::save(const Path &filename) const {
-	auto &tmp = _tracker.individuals();
 	std::vector<Individual*> individuals;
 	std::map<Individual*, bool> fitness;
 
 #define CONTINUE_IF_UNFIT(IND) { if(fitness.at(IND) == false) continue; }
 
-	for (auto &ind : tmp) {
-		individuals.push_back(ind.second);
-		fitness[ind.second] = ind.second->evaluate_fitness();
-	}
+    IndividualManager::transform_all([&](auto, auto fish){
+        individuals.push_back(fish);
+        fitness[fish] = fish->evaluate_fitness();
+    });
 
 	std::vector<std::string> header = {"frame"};
 	for (auto &fish : individuals) {
@@ -71,7 +71,7 @@ bool Results::save(const Path &filename) const {
 		header.push_back(fish->identity().name());
 	}
 
-	for (uint32_t idx = 0; idx < _tracker.individuals().size(); idx++) {
+	for (uint32_t idx = 0; idx < individuals.size(); idx++) {
 		auto &fish = individuals.at(idx);
 		CONTINUE_IF_UNFIT(fish);
 		

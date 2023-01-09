@@ -6,21 +6,27 @@
 #include <tracking/Categorize.h>
 #include <gui/Timeline.h>
 #include <gui/DrawBase.h>
+#include <tracking/IndividualManager.h>
 
 namespace gui {
     static std::unique_ptr<std::thread> percentile_ptr = nullptr;
     static std::mutex percentile_mutex;
-    static GUICache* _cache{ nullptr };
+
+    GUICache*& cache() {
+        static GUICache* _cache{ nullptr };
+        return _cache;
+    }
+
     static GenericThreadPool _pool(cmn::hardware_concurrency(), "GUICache::_pool");
 
     GUICache& GUICache::instance() {
-        if (!_cache)
+        if (!cache())
             throw U_EXCEPTION("No cache created yet.");
-        return *_cache;
+        return *cache();
     }
 
     bool GUICache::exists() {
-        return _cache != nullptr;
+        return cache() != nullptr;
     }
 
     SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t)
@@ -35,7 +41,7 @@ namespace gui {
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
         : _video(video), _graph(graph)
     {
-        _cache = this;
+        cache() = this;
         globals::Cache::init();
     }
 
@@ -48,7 +54,7 @@ namespace gui {
             percentile_ptr = nullptr;
         }
 
-        _cache = nullptr;
+        cache() = nullptr;
     }
     
     void SimpleBlob::convert() {
@@ -74,7 +80,9 @@ namespace gui {
     }
     
     Individual * GUICache::primary_selection() const {
-        return has_selection() && individuals.count(selected.front()) ? individuals.at(selected.front()) : NULL;
+        return has_selection() && individuals.count(selected.front())
+                ? individuals.at(selected.front())
+                : nullptr;
     }
     
     bool GUICache::is_animating(Drawable* obj) const {
@@ -223,7 +231,7 @@ namespace gui {
         auto properties = _tracker.properties(frameIndex);
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
-            individuals = _tracker.individuals();
+            individuals = IndividualManager::copy();
             selected = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
             active_blobs.clear();
             selected_blobs.clear();
@@ -234,7 +242,7 @@ namespace gui {
             tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
-                if(!_graph)
+                if(!cache() || !_graph)
                     return;
                 
                 std::lock_guard<std::recursive_mutex> guard(_graph->lock());
@@ -263,18 +271,12 @@ namespace gui {
                     _registered_callback.erase(cit);
             };
             
-            if(FAST_SETTING(track_max_individuals) == 0) {
-                for(auto fish : active) {
-                    if(!contains(_registered_callback,fish)) {
-                        fish->register_delete_callback((void*)12341337, delete_callback);
-                        _registered_callback.insert(fish);
-                    }
-                }
-            } else {
-                for(auto &[id, fish] : Tracker::individuals()) {
+            IndividualManager::transform_all([&](auto, auto fish){
+                if(!contains(_registered_callback, fish)) {
                     fish->register_delete_callback((void*)12341337, delete_callback);
+                    _registered_callback.insert(fish);
                 }
-            }
+            });
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
             if(connectivity_map.count(frameIndex.get()))
@@ -292,17 +294,6 @@ namespace gui {
                 } else {
                     inactive_ids.insert(fish->identity().ID());
                 }
-                
-                fish->register_delete_callback((void*)133742, [this](auto){
-                    std::lock_guard<std::recursive_mutex> guard(_graph->lock());
-                    active.clear();
-                    individuals.clear();
-                    active_blobs.clear();
-                    active_ids.clear();
-                    inactive_ids.clear();
-                    last_frame.invalidate();
-                    selected.clear();
-                });
             }
             
             if(has_selection()) {

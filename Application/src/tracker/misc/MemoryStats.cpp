@@ -254,7 +254,7 @@ TrackerMemoryStats::TrackerMemoryStats() {
     IND_BYTE_SIZE(_added_frames);
     IND_BYTE_SIZE(_consecutive);
     //IND_BYTE_SIZE(_active_individuals_frame);
-    IND_BYTE_SIZE(_individuals);
+    //IND_BYTE_SIZE(_individuals);
     //IND_BYTE_SIZE(_active_individuals);
     //IND_BYTE_SIZE(_inactive_individuals);
     

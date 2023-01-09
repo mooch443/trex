@@ -13,6 +13,7 @@
 #include <gui/IdentityHeatmap.h>
 #include <tracking/FilterCache.h>
 #include <tracking/VisualIdentification.h>
+#include <tracking/IndividualManager.h>
 
 #if WIN32
 #include <io.h>
@@ -224,8 +225,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     try {
         std::map<long_t, float> all_percents;
         std::mutex percent_mutex;
-        for(auto && [id, fish] : Tracker::individuals())
-            all_percents[id] = 0;
+        IndividualManager::transform_all([&all_percents](auto fdx, auto) {
+            all_percents[fdx] = 0;
+        });
         
         struct ImageData {
             pv::BlobPtr blob;
@@ -241,7 +243,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
         std::vector<Output::LibraryCache::Ptr> library_cache;
         float last_percent = -1;
         
-        auto work_item = [&](size_t thread_index, long_t id, Individual* fish){
+        auto work_item = [&](size_t thread_index, long_t id, const Individual* fish){
             if(fdx != -1 && fdx != id)
                 return;
             
@@ -623,14 +625,14 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             std::vector<std::queue<std::tuple<long_t, Individual*>>> packages;
             packages.resize(max_threads);
             
-            for (auto&& [id, fish] : tracker.individuals()) {
+            IndividualManager::transform_all([&](auto id, auto fish) {
                 packages.at(current_thread_id).push({ id, fish });
                 
                 ++current_thread_id;
                 if(current_thread_id >= max_threads) {
                     current_thread_id = 0;
                 }
-            }
+            });
             
             std::mutex lock;
             for (size_t i=0; i<threads.size(); ++i) {
@@ -669,8 +671,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             }
             
         } else {
-            for (auto&& [id, fish] : tracker.individuals())
-                work_item(0, id, fish);
+            IndividualManager::transform_all([&](auto fdx, const auto fish){
+                work_item(0, fdx, fish);
+            });
         }
         
         if(SETTING(output_heatmaps)) {
@@ -704,11 +707,11 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         print("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
                         std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
-                        for(auto && [fdx, fish] : tracker.individuals()) {
+                        IndividualManager::transform_all([&](auto fdx, auto fish) {
                             mem::IndividualMemoryStats stats(fish);
                             indstats[fdx] = stats;
                             overall += stats;
-                        }
+                        });
                         
                         overall.print();
                         

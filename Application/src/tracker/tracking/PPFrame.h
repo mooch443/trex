@@ -20,22 +20,67 @@
 namespace track {
 using namespace cmn;
 
+template<typename T>
+concept set_type = is_set<T>::value;
+
+template<typename T>
+concept container_type = is_container<T>::value;
+
+template<typename T>
+concept map_type = is_map<T>::value;
+
 template<class T> struct is_bytell : public std::false_type {};
 template<class T, class Compare, class Alloc>
 struct is_bytell<ska::bytell_hash_map<T, Compare, Alloc>> : public std::true_type {};
 
-template<typename U, typename T>
-concept VoidTransformer = std::invocable<T, U&> && std::is_same<std::invoke_result_t<T, U&>, void>::value;
+template<class T> struct is_robin_hood_map : public std::false_type {};
+template<bool T, size_t S, typename K, typename V, class... Args>
+    requires (not std::is_same<V, void>::value)
+struct is_robin_hood_map<robin_hood::detail::Table<T, S, K, V, Args...>> : public std::true_type {};
 
-template<typename U, typename T>
-concept Predicate = std::invocable<T, U&> && std::is_same<std::invoke_result_t<T, U&>, bool>::value;
+template<class T> struct is_robin_hood_set : public std::false_type {};
+template<bool T, size_t S, typename K, typename V, class... Args>
+    requires (std::is_same<V, void>::value)
+struct is_robin_hood_set<robin_hood::detail::Table<T, S, K, V, Args...>> : public std::true_type {};
 
-template<typename U, typename T>
-concept IndexedTransformer = std::invocable<T, size_t, U&> && std::is_same<std::invoke_result_t<T, size_t, U&>, void>::value;
+template<typename T>
+concept robin_hood_type = is_robin_hood_map<T>::value || is_robin_hood_set<T>::value;
 
-template<typename U, typename T>
-concept Transformer = VoidTransformer<U, T> || Predicate<U, T> || IndexedTransformer<U, T>;
+template<typename T, typename... Args>
+concept AnyTransformer =
+    (std::invocable<T, Args...>)
+    ||  (std::invocable<T, Args&...>)
+    ||  (std::invocable<T, Args&&...>);
 
+template<typename T, typename... Args>
+concept VoidTransformer =
+    (std::invocable<T, Args...>
+        && std::is_same<std::invoke_result_t<T, Args...>, void>::value)
+    ||  (std::invocable<T, Args&...>
+            && std::is_same<std::invoke_result_t<T, Args&...>, void>::value)
+    ||  (std::invocable<T, Args&&...>
+            && std::is_same<std::invoke_result_t<T, Args&&...>, void>::value);
+
+template<typename T, typename... Args>
+concept Predicate =
+        (std::invocable<T, Args&...>
+            && std::is_same<std::invoke_result_t<T, Args&...>, bool>::value)
+    ||  (std::invocable<T, Args&&...>
+            && std::is_same<std::invoke_result_t<T, Args&&...>, bool>::value);
+
+template<typename T, typename... Args>
+concept IndexedTransformer =
+    (std::invocable<T, size_t, Args...>
+        && std::is_same<std::invoke_result_t<T, size_t, Args...>, void>::value)
+    ||  (std::invocable<T, size_t, Args&...>
+            && std::is_same<std::invoke_result_t<T, size_t, Args&...>, void>::value)
+    ||  (std::invocable<T, size_t, Args&&...>
+            && std::is_same<std::invoke_result_t<T, size_t, Args&&...>, void>::value);
+
+template<typename T, typename... Args>
+concept Transformer = VoidTransformer<T, Args...>
+                   || Predicate<T, Args...>
+                   || IndexedTransformer<T, Args...>;
 
 class PPFrame {
 public:
@@ -171,10 +216,30 @@ public:
                 if(vector.empty())
                     break;
                 
-                auto vit = std::find(vector.begin(), vector.end(), bdx);
-                found = vit != vector.end();
-                if(found)
-                    vector.erase(vit);
+                if constexpr(_clean_same<typename K::value_type, pv::bid>) {
+                    auto vit = std::find(vector.begin(), vector.end(), bdx);
+                    found = vit != vector.end();
+                    if(found)
+                        vector.erase(vit);
+                    
+                } else {
+                    auto vit = std::find_if(vector.begin(), vector.end(), [bdx](const auto& tuple) -> bool
+                    {
+                        auto work = [bdx](auto... args) -> bool {
+                            return find_argtype_apply([bdx](pv::bid a) -> bool {
+                                return a == bdx;
+                            }, args...);
+                        };
+                        
+                        return apply_to_tuple(tuple, work);
+                    });
+
+                    found = vit != vector.end();
+                    if constexpr(not std::is_const_v<std::remove_reference_t<T>>) {
+                        if(found)
+                            vector.erase(vit);
+                    }
+                }
             }
             
             if(!found) {
@@ -279,7 +344,7 @@ public:
     void init_from_blobs(std::vector<pv::BlobPtr>&& vec);
     
     template<typename T>
-        requires Transformer<pv::Blob, T>
+        requires Transformer<T, pv::Blob>
     void transform_all(T&& F) const {
         size_t i = 0;
         
@@ -287,12 +352,12 @@ public:
             if(!own)
                 continue;
             
-            if constexpr(VoidTransformer<pv::Blob, T>) {
+            if constexpr(VoidTransformer<T, pv::Blob>) {
                 F(*own);
-            } else if constexpr(Predicate<pv::Blob, T>) {
+            } else if constexpr(Predicate<T, pv::Blob>) {
                 if(!F(*own))
                     break;
-            } else if constexpr(IndexedTransformer<pv::Blob, T>) {
+            } else if constexpr(IndexedTransformer<T, pv::Blob>) {
                 F(i++, *own);
             } else {
                 static_assert(sizeof(T) == 0, "Transformer type not implemented.");
@@ -303,12 +368,12 @@ public:
             if(!own)
                 continue;
             
-            if constexpr(VoidTransformer<pv::Blob, T>) {
+            if constexpr(VoidTransformer<T, pv::Blob>) {
                 F(*own);
-            } else if constexpr(Predicate<pv::Blob, T>) {
+            } else if constexpr(Predicate<T, pv::Blob>) {
                 if(!F(*own))
                     break;
-            } else if constexpr(IndexedTransformer<pv::Blob, T>) {
+            } else if constexpr(IndexedTransformer<T, pv::Blob>) {
                 F(i++, *own);
             } else {
                 static_assert(sizeof(T) == 0, "Transformer type not implemented.");
@@ -317,19 +382,19 @@ public:
     }
     
     template<typename T>
-        requires Transformer<pv::Blob, T>
+        requires Transformer<T, pv::Blob>
     void transform_noise(T&& F) const {
         size_t i = 0;
         for(auto &own : _noise_owner) {
             if(!own)
                 continue;
             
-            if constexpr(VoidTransformer<pv::Blob, T>) {
+            if constexpr(VoidTransformer<T, pv::Blob>) {
                 F(*own);
-            } else if constexpr(Predicate<pv::Blob, T>) {
+            } else if constexpr(Predicate<T, pv::Blob>) {
                 if(!F(*own))
                     break;
-            } else if constexpr(IndexedTransformer<pv::Blob, T>) {
+            } else if constexpr(IndexedTransformer<T, pv::Blob>) {
                 F(i++, *own);
             } else {
                 static_assert(sizeof(T) == 0, "Transformer type not implemented.");
@@ -338,19 +403,19 @@ public:
     }
     
     template<typename T>
-        requires Transformer<pv::bid, T>
+        requires Transformer<T, pv::bid>
     void transform_blob_ids(T&& F) const {
         size_t i = 0;
         for(auto &blob : _blob_owner) {
             if(!blob)
                 continue;
             
-            if constexpr(VoidTransformer<pv::bid, T>) {
+            if constexpr(VoidTransformer<T, pv::bid>) {
                 F(blob->blob_id());
-            } else if constexpr(Predicate<pv::bid, T>) {
+            } else if constexpr(Predicate<T, pv::bid>) {
                 if(!F(blob->blob_id()))
                     break;
-            } else if constexpr(IndexedTransformer<pv::bid, T>) {
+            } else if constexpr(IndexedTransformer<T, pv::bid>) {
                 F(i++, blob->blob_id());
             } else {
                 static_assert(sizeof(T) == 0, "Transformer type not implemented.");
@@ -359,19 +424,19 @@ public:
     }
     
     template<typename F>
-        requires Transformer<pv::Blob, F>
+        requires Transformer<F, pv::Blob>
     void transform_blobs(F&& fn) const {
         size_t i = 0;
         for(auto &own : _blob_owner) {
             if(!own)
                 continue;
             
-            if constexpr(VoidTransformer<pv::Blob, F>) {
+            if constexpr(VoidTransformer<F, pv::Blob>) {
                 fn(*own);
-            } else if constexpr(Predicate<pv::Blob, F>) {
+            } else if constexpr(Predicate<F, pv::Blob>) {
                 if(!fn(*own))
                     break;
-            } else if constexpr(IndexedTransformer<pv::Blob, F>) {
+            } else if constexpr(IndexedTransformer<F, pv::Blob>) {
                 fn(i++, *own);
             } else {
                 static_assert(sizeof(F) == 0, "Transformer type not implemented.");
@@ -380,7 +445,7 @@ public:
     }
     
     template<typename F>
-        requires Predicate<pv::Blob, F>
+        requires Predicate<F, pv::Blob>
     void move_to_noise_if(F && fn) {
         for(auto it = _blob_owner.begin(); it != _blob_owner.end(); ) {
             auto &&own = *it;

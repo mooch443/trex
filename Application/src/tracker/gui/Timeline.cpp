@@ -11,6 +11,7 @@
 #include <gui/GUICache.h>
 #include <gui/GuiTypes.h>
 #include <misc/vec2.h>
+#include <tracking/IndividualManager.h>
 
 namespace gui {
     //! NeighborDistances drawn out
@@ -568,7 +569,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             count++;
                     }
                 }
-                return (1 - count / float(Tracker::instance()->individuals().size()));
+                return (1 - count / float(IndividualManager::num_individuals()));
             };
             
             if(!_proximity_bar.end.valid()) {
@@ -670,8 +671,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                         Timer timer;
 
                         auto index = _frame_info->frameIndex.load();
-                        auto props = Tracker::properties(index);
-                        auto prev_props = Tracker::properties(index - 1_f);
+                        auto props = index.valid() ? Tracker::properties(index) : nullptr;
+                        auto prev_props = index.valid() && index > 0_f ? Tracker::properties(index - 1_f) : nullptr;
 
                         {
                             std::unique_lock info_lock(_frame_info_mutex);
@@ -693,8 +694,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             _frame_info->consecutive = _tracker->consecutive();
                             _frame_info->global_segment_order = track::Tracker::global_segment_order();
 
-                            if (Tracker::properties(_frame_info->frameIndex)) {
-                                for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ? Tracker::active_individuals(_frame_info->frameIndex) : set_of_individuals_t{}) {
+                            if (props) {
+                                for (auto& fish : index >= tracker_startframe.load() && index < tracker_endframe.load() ? Tracker::active_individuals(index) : set_of_individuals_t{}) {
                                     if ((int)fish->frame_count() < FAST_SETTING(frame_rate) * 3) {
                                         _frame_info->small_count++;
                                     }

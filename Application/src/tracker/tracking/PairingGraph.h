@@ -188,6 +188,12 @@ namespace Match {
         std::string toStr() const;
         static std::string class_name() { return "PairedProbabilities"; }
         
+        PairedProbabilities() noexcept = default;
+        PairedProbabilities(const PairedProbabilities&) = delete;
+        PairedProbabilities(PairedProbabilities&&) noexcept = default;
+        PairedProbabilities& operator=(const PairedProbabilities&) noexcept = delete;
+        PairedProbabilities& operator=(PairedProbabilities&&) noexcept = default;
+        
     private:
         blob_index_t add(col_t::value_type);
     };
@@ -230,7 +236,7 @@ namespace Match {
             //! Individuals and Blobs paired in the optimal way.
             //  Does not necessarily contain all Individuals/Blobs
             //  (as some might have improved the result by not being used)
-            std::vector<std::pair<Individual*, Blob_t>> pairings;
+            robin_hood::unordered_flat_map<Blob_t, Individual*> pairings;
             
             //! Optimal path down the tree (indicies of nodes)
             std::vector<Combination> path;
@@ -255,7 +261,7 @@ namespace Match {
     protected:
         GETTER(Frame_t, frame)
         GETTER(float, time)
-        PairedProbabilities _paired;
+        GETTER(PairedProbabilities, paired)
         
         std::vector<prob_t> _ordered_max_probs;
         GETTER_PTR(Result*, optimal_pairing)
@@ -263,7 +269,7 @@ namespace Match {
         //GETTER(EdgeMap, edges)
         
     public:
-        PairingGraph(const FrameProperties& props, Frame_t frame, const decltype(_paired)& paired);
+        PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired);
         ~PairingGraph();
         
         static void prepare_shutdown();

@@ -8,6 +8,7 @@
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace Python {
 
@@ -470,8 +471,9 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     
                     {
                         LockGuard guard(w_t{}, "train_internally");
-                        for(auto && [fdx, fish] : Tracker::individuals())
+                        IndividualManager::transform_all([](auto, auto fish) {
                             fish->clear_recognition();
+                        });
                     }
                     
                     //! TODO: MISSING probability clearing
@@ -603,9 +605,7 @@ std::vector<float> VINetwork::transform_results(
 }
 
 std::set<Idx_t> VINetwork::classes() {
-    std::set<Idx_t> identities;
-    for(auto &[id, fish] : Tracker::individuals())
-        identities.insert(id);
+    auto identities = IndividualManager::all_ids();
     assert(FAST_SETTING(track_max_individuals) == identities.size());
     return identities;
 }

@@ -17,6 +17,7 @@
 #include <tracking/Categorize.h>
 #include <file/DataLocation.h>
 #include <tracking/TrackingHelper.h>
+#include <tracking/IndividualManager.h>
 
 #if !COMMONS_NO_PYTHON
 #include <tracking/PythonWrapper.h>
@@ -523,9 +524,7 @@ MinimalOutline::Ptr Individual::outline(Frame_t frameIndex) const {
 
 Individual::Individual(Identity&& id)
     : _identity(std::move(id))
-{
-    Tracker::register_individual(this);
-}
+{ }
 
 Individual::~Individual() {
 #if !COMMONS_NO_PYTHON
@@ -3006,12 +3005,12 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     update(2.8/3. * 0.5 + 0.5, "");
     std::vector<int> colors;
-    for(auto && [fdx, fish] : Tracker::instance()->_individuals) {
-        colors.push_back((int)fish->identity().ID());
+    IndividualManager::transform_all([&colors](auto fdx, auto fish) {
+        colors.push_back((int)fdx);
         colors.push_back(fish->identity().color().r);
         colors.push_back(fish->identity().color().g);
         colors.push_back(fish->identity().color().b);
-    }
+    });
     
     try {
         file::Path meta_path = use_npz ? (path.str() + ".npz") : (path.str() + "_meta.npz");

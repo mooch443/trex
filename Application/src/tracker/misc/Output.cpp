@@ -343,7 +343,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ID = (uint32_t)sid;
     }
     
-    Individual *fish = new Individual(Idx_t{ID});
+    Individual *fish = IndividualManager::make_individual(Idx_t{ID});
     auto thread_name = get_thread_name();
     set_thread_name(fish->identity().name()+"_read");
     
@@ -1311,7 +1311,7 @@ namespace Output {
         file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
-        file.write_file(_tracker._added_frames, IndividualManager::_all_frames(), _tracker._individuals);
+        file.write_file(_tracker._added_frames, IndividualManager::_all_frames(), IndividualManager::individuals());
         file.close();
         
         // go back from .tmp01 to .results
@@ -1326,10 +1326,9 @@ namespace Output {
     }
     
     void TrackingResults::clean_up() {
-        _tracker._individuals.clear();
         _tracker._added_frames.clear();
         _tracker.clear_properties();
-        IndividualManager::remove_frames(0_f);
+        IndividualManager::clear();
         _tracker._startFrame = Frame_t();
         _tracker._endFrame = Frame_t();
         _tracker._max_individuals = 0;
@@ -1423,16 +1422,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             print("Trying to open results ",filename.str());
         ResultsFormat file(filename.str(), update_progress);
         
-        auto tmp = _tracker.individuals();
         clean_up();
         
         data_long_t biggest_id = -1;
         
         Tracker::instance()->_individual_add_iterator_map.clear();
         Tracker::instance()->_segment_map_known_capacity.clear();
-
-        for (auto& p : tmp)
-            delete p.second;
 
         file.start_reading();
 
@@ -1514,7 +1509,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 if(biggest_id < fish->identity().ID())
                     biggest_id = fish->identity().ID();
                 map_id_ptr[fish->identity().ID()] = fish;
-                _tracker._individuals[fish->identity().ID()] = fish;
             }
         }
         
@@ -1561,11 +1555,11 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         
         IndividualManager::_inactive().clear();
         if(IndividualManager::_last_active()) {
-            for(auto&& [id, fish] : _tracker._individuals) {
+            IndividualManager::transform_all([](auto, auto fish){
                 if(IndividualManager::_last_active()->find(fish) == IndividualManager::_last_active()->end()) {
                     IndividualManager::_inactive().push_back(fish);
                 }
-            }
+            });
         }
         
         file.close();

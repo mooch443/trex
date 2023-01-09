@@ -6,6 +6,7 @@
 #include <misc/checked_casts.h>
 #include <tracking/Export.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace gui {
 namespace heatmap {
@@ -482,18 +483,18 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             Individual::segment_map::const_iterator kit;
             
             auto &range = updated.add_range;
-            for(auto [id, fish] : Tracker::individuals()) {
+            IndividualManager::transform_all([&](auto id, auto fish) {
                 if(!_ids.empty()) {
                     if(!contains(_ids, id._identity)) {
-                        continue;
+                        return;
                     }
                 }
                 
                 auto frame = max(Tracker::start_frame(), range.start);
                 if(fish->end_frame() < frame)
-                    continue;
+                    return;
                 if(fish->start_frame() > range.end)
-                    continue;
+                    return;
                 
                 auto it = _iterators.find(fish);
                 if(it == _iterators.end()) {
@@ -555,7 +556,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                     auto bid = (*kit)->basic_stuff(frame);
                     if(bid != -1) {
                         auto &basic = fish->basic_stuff()[(uint32_t)bid];
-                        auto pos = basic->centroid.pos<Units::PX_AND_SECONDS>();
+                        auto pos = basic->centroid.template pos<Units::PX_AND_SECONDS>();
                         //auto speed = basic->centroid->speed(Units::PX_AND_SECONDS);
                         
                         double v = 1;
@@ -575,7 +576,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 }
                 
                 _iterators[fish] = kit;
-            }
+            });
             
             updated.added = data.size();
             _grid.fill(data);

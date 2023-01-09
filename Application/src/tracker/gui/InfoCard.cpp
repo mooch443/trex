@@ -6,7 +6,7 @@
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
 #include <tracking/AutomaticMatches.h>
-
+#include <tracking/IndividualManager.h>
 #include <misc/IdentifiedTag.h>
 
 namespace gui {
@@ -82,9 +82,7 @@ void InfoCard::update() {
     if(_shadow->fdx.valid()) {
         LockGuard guard(ro_t{}, "InfoCard::update", 10);
         if(guard.locked()) {
-            auto it = Tracker::individuals().find(_shadow->fdx);
-            if(it != Tracker::individuals().end()) {
-                auto fish = it->second;
+            IndividualManager::transform_if_exists(_shadow->fdx, [&](auto fish) {
                 _shadow->has_vi_predictions = Tracker::instance()->has_vi_predictions();
                 _shadow->identity = fish->identity();
                 _shadow->has_frame = fish->has(_shadow->frame);
@@ -92,7 +90,7 @@ void InfoCard::update() {
                 
                 auto basic = fish->basic_stuff(_shadow->frame);
                 if(basic) {
-                    _shadow->speed = basic->centroid.speed<Units::CM_AND_SECONDS>();
+                    _shadow->speed = basic->centroid.template speed<Units::CM_AND_SECONDS>();
                     _shadow->blob = basic->blob;
                 } else {
                     _shadow->speed = -1;
@@ -165,9 +163,11 @@ void InfoCard::update() {
                 _shadow->current_range = current_range;
                 
                 _shadow->qrcode = tags::find(_shadow->frame, _shadow->blob.blob_id());
+                    
                 
-            } else
+            }).or_else([&](auto){
                 _shadow->fdx = Idx_t{};
+            });
             
         }
     }
@@ -190,11 +190,7 @@ void InfoCard::update() {
     
     segment_texts.clear();
     
-    auto add_segments = [&font, this
-#if DEBUG_ORIENTATION
-                         ,fish
-#endif
-                         ](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
+    auto add_segments = [&font, this](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
     {
         auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(Vec2(10, 10) + Vec2(offx, Base::default_line_spacing(font))), White, Font(0.8f));
         

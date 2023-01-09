@@ -3,6 +3,7 @@
 #include <gui/gui.h>
 #include <gui/Timeline.h>
 #include <gui/types/StaticText.h>
+#include <tracking/IndividualManager.h>
 
 namespace gui {
     using namespace track;
@@ -71,15 +72,12 @@ namespace gui {
             
             using dataset_t = std::tuple<std::map<track::Idx_t, DatasetQuality::Single>, DatasetQuality::Quality>;
             auto identities = Tracker::identities();
-            for(auto &[id, fish] : Tracker::individuals()) {
+            IndividualManager::transform_all([&](auto id, const auto fish) {
                 if(!identities.count(id))
-                    continue;
+                    return;
                 
                 _names[id] = fish->identity().name();
                 _cache[id] = {};
-                
-                if(!Tracker::individuals().count(id))
-                    continue;
                 
                 auto && [condition, seg] = fish->has_processed_segment(frame);
                 if(condition) {
@@ -98,7 +96,7 @@ namespace gui {
                         }
                     }
                 }
-            }
+            });
             
             // the frame we're currently in is not in the range we selected as "best"
             // so we want to display information about the other one too

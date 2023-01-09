@@ -145,6 +145,9 @@ void PPFrame::init_cache(GenericThreadPool* pool)
     }
     
     assert(index().valid());
+    if(index() == 0_f)
+        return;
+    
     const auto previous_frame = index() - 1_f;
     _individual_cache.clear();
     _previously_active_identities.clear();
@@ -157,7 +160,9 @@ void PPFrame::init_cache(GenericThreadPool* pool)
         auto props = Tracker::properties(previous_frame);
         if(props == nullptr) {
             //! initial frame
-            assert(!Tracker::start_frame().valid() or Tracker::start_frame() == index());
+            assert(previous_frame.valid());
+            assert(not Tracker::start_frame().valid()
+                   or previous_frame < Tracker::start_frame());
             return;
         }
         

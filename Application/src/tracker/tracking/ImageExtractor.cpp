@@ -2,6 +2,7 @@
 #include <tracking/VisualIdentification.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
+#include <tracking/IndividualManager.h>
 
 using namespace cmn;
 using namespace track;
@@ -59,16 +60,14 @@ void ImageExtractor::collect(selector_t&& selector) {
     Query q;
     Task task;
     
-    for (auto &[fdx, fish] : Tracker::individuals()) {
-        //print("Individual ", fdx, " has ", fish->frame_count(), " frames.");
-        
+    IndividualManager::transform_all([&](auto fdx, auto fish){
         size_t i{0};
         fish->iterate_frames(Range<Frame_t>(fish->start_frame(), fish->end_frame()),
-         [&, fdx=fdx](Frame_t frame,
-                      auto& seg,
-                      const BasicStuff* basic,
-                      auto posture)
-             -> bool
+         [&](Frame_t frame,
+             auto& seg,
+             const BasicStuff* basic,
+             auto posture)
+           -> bool
          {
             if(seg->length() < _settings.segment_min_samples)
                 return true;
@@ -92,7 +91,8 @@ void ImageExtractor::collect(selector_t&& selector) {
             
             return true;
          });
-    }
+    });
+    
     
     //! finished
     size_t counter = 0;
@@ -236,9 +236,9 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 gui::Transform midline_transform;
                 
                 if(individual_image_normalization == default_config::individual_image_normalization_t::posture) {
-                    LockGuard guard(ro_t{}, "normalization");
-                    auto fish = Tracker::individuals().at(fdx);
-                    if(fish) {
+                    IndividualManager::transform_if_exists(fdx, [&, index=index, range=range](auto fish)
+                    {
+                        LockGuard guard(ro_t{}, "normalization");
                         auto filter = constraints::local_midline_length(fish, range, false);
                         median_midline_length_px = filter->median_midline_length_px;
                         
@@ -253,10 +253,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                                     std::unique_lock guard(mutex);
                                     --total_items;
                                 }
-                                continue;
+                                return;
                             }
                         }
-                    }
+                    });
                 }
                 
                 auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());

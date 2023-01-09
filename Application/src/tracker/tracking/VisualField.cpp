@@ -3,6 +3,7 @@
 #include <gui/DrawCVBase.h>
 #include <misc/Timer.h>
 #include <tracking/Individual.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 static constexpr double right_angle = RADIANS(90);
@@ -389,13 +390,15 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     
     using namespace gui;
     
-    auto fish = tracker->_individuals.at(_fish_id);
+    Midline::Ptr midline{nullptr};
+    IndividualManager::transform_if_exists(_fish_id, [&](auto fish) {
+        midline = fish->calculate_midline_for(basic, *posture);
+    });
     auto &active = tracker->active_individuals(_frame);
     
     assert(posture);
     
     auto angle = posture->head->angle();
-    auto midline = fish->calculate_midline_for(basic, *posture);
     auto &outline = posture->outline;
     auto opts = outline->uncompress();
     _fish_angle = angle;
@@ -494,10 +497,10 @@ void VisualField::show(gui::DrawStructure &base) {
     if(!tracker->properties(_frame))
         throw U_EXCEPTION("Does not have frame ",_frame,"");
     
-    auto fish = tracker->individuals().at(_fish_id);
+    //auto fish = tracker->individuals().at(_fish_id);
     auto active = tracker->active_individuals(_frame);
     
-    assert(fish->head(_frame));
+    //assert(fish->head(_frame));
     
     using namespace gui;
     
@@ -523,7 +526,7 @@ void VisualField::show(gui::DrawStructure &base) {
                 //    base.line(eye.pos, eye.pos + Vec2(cos(percent), sin(percent)) * max_d, Red.alpha(100));
             }
             
-            if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)fish->identity().ID())
+            if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)_fish_id)
             {
                 auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
                 //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
@@ -619,10 +622,9 @@ void VisualField::show_ts(gui::DrawStructure &base, Frame_t frameNr, Individual*
                         if(id == selected->identity().ID())
                             clr = White;
                         else {
-                            auto it = Tracker::individuals().find(id);
-                            if(it != Tracker::individuals().end()) {
-                                clr = it->second->identity().color().alpha(e._fov.data()[i]);
-                            }
+                            IndividualManager::transform_if_exists(id, [&](auto fish){
+                                clr = fish->identity().color().alpha(e._fov.data()[i]);
+                            });
                         }
                     }
                     

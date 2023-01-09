@@ -79,7 +79,6 @@ protected:
     GETTER_SETTER(cv::Mat, mask)
     
     //! All the individuals that have been detected and are being maintained
-    individuals_map_t _individuals;
     friend class Individual;
     
 public:
@@ -203,17 +202,6 @@ public:
     
     friend class VisualField;
     
-    static const individuals_map_t& individuals() {
-        //LockGuard guard("individuals()");
-        return instance()->_individuals;
-    }
-
-    /*static const set_of_individuals_t& active_individuals() {
-        //LockGuard guard("active_individuals()");
-        return instance()->_active_individuals;
-    }*/
-    
-    static void register_individual(Individual*);
     static const set_of_individuals_t& active_individuals(Frame_t frame);
     
     static const Range<Frame_t>& analysis_range();
@@ -271,6 +259,7 @@ private:
           std::move_iterator<std::vector<pv::BlobPtr>::iterator> end);
     
     void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+    void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool);
     
 public:
     void print_memory();

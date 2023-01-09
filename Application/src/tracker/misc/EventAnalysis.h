@@ -50,7 +50,7 @@ namespace track {
         
         class EventsContainer {
             std::lock_guard<std::mutex> _guard;
-            const std::map<Individual*, EventMap>& _ref;
+            const std::map<const Individual*, EventMap>& _ref;
             
         public:
             EventsContainer(std::mutex& mutex, decltype(_ref) ref) : _guard(mutex), _ref(ref) {}
@@ -63,10 +63,10 @@ namespace track {
         std::string status();
         EventsContainer* events();
         
-        bool threshold_reached(Individual *fish, Frame_t frame);
+        bool threshold_reached(const Individual *fish, Frame_t frame);
         void reset_events(Frame_t after_frame = {});
         bool update_events(const std::set< Individual* >& individuals);
-        float midline_offset(Individual *fish, Frame_t frame);
-        void fish_deleted(Individual *fish);
+        float midline_offset(const Individual *fish, Frame_t frame);
+        void fish_deleted(const Individual *fish);
     }
 }

@@ -59,12 +59,12 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         }
     };
     
-    static std::map<Individual*, AnalysisState> states;
-    static std::map<Individual*, EventMap> individual_maps;
+    static std::map<const Individual*, AnalysisState> states;
+    static std::map<const Individual*, EventMap> individual_maps;
     static std::string analysis_status = "";
     static std::mutex mutex;
     
-    void fish_deleted(Individual *fish) {
+    void fish_deleted(const Individual *fish) {
         std::lock_guard<decltype(mutex)> guard(mutex);
         
         auto it = individual_maps.find(fish);
@@ -77,7 +77,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         }
     }
     
-    bool threshold_reached(Individual* fish, Frame_t frame) {
+    bool threshold_reached(const Individual* fish, Frame_t frame) {
         std::lock_guard<decltype(mutex)> guard(mutex);
         auto &state = states[fish];
         if(contains(state.threshold_reached, frame))
@@ -85,7 +85,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         return false;
     }
     
-    bool advance_analysis(Individual* fish, EventMap &map, bool insert = true)
+    bool advance_analysis(const Individual* fish, EventMap &map, bool insert = true)
     {
         auto &state = states[fish];
         
@@ -207,7 +207,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         return false;
     }
 
-    float midline_offset(Individual *fish, Frame_t frame) {
+    float midline_offset(const Individual *fish, Frame_t frame) {
         ///** ZEBRAFISH **
         auto midline = fish->fixed_midline(frame);
         if (!midline)

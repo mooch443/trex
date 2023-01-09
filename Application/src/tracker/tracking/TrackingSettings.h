@@ -29,7 +29,7 @@ using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
 using active_individuals_map_t = std::unordered_map<Frame_t, std::unique_ptr<set_of_individuals_t>>;
 
 //! The global map of individual ids -> Individual*
-using individuals_map_t = robin_hood::unordered_flat_map<Idx_t, Individual*>;
+using individuals_map_t = robin_hood::unordered_flat_map<Idx_t, std::unique_ptr<Individual>>;
 
 //! Where is the external identity information sourced from?
 //! 1. Visual identification

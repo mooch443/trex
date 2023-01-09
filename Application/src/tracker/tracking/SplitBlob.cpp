@@ -449,7 +449,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         return output.empty() ? 0 : (*output.begin())->pixels()->size();
     };
     
-    float max_size;
+    std::atomic<float> max_size;
     const auto initial_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), SPLIT_SETTING(track_posture_threshold)) : SLOW_SETTING(track_threshold)) + 1;
 
     const auto try_threshold = [&](CPULabeling::ListCache_t* cache, int threshold, bool save)
@@ -466,7 +466,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             max_size = (initial ? apply_threshold(cache, threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
         
         // save the maximum number of objects found
-        max_objects = max(max_objects, blobs.size());
+        max_objects = max(max_objects.load(), blobs.size());
         
         ResultProp result;
         result.threshold = threshold;

@@ -19,12 +19,34 @@ inline auto& blob_grid() {
     return grid;
 }
 
+void TrackingHelper::blob_assign(pv::bid bdx) {
+    std::scoped_lock guard(blob_mutex);
+    _blob_assigned.insert(bdx);
+}
+
+void TrackingHelper::clear_blob_assigned() noexcept {
+    std::scoped_lock guard(blob_mutex);
+    _blob_assigned.clear();
+}
+
 bool TrackingHelper::blob_assigned(pv::bid blob) const {
+    std::shared_lock guard(blob_mutex);
     return _blob_assigned.contains(blob);
 }
 
 bool TrackingHelper::fish_assigned(Individual* fish) const {
+    std::shared_lock guard(fish_mutex);
     return _fish_assigned.contains(fish);
+}
+
+void TrackingHelper::clear_fish_assigned() noexcept {
+    std::scoped_lock guard(fish_mutex);
+    _fish_assigned.clear();
+}
+
+void TrackingHelper::fish_assign(Individual* fish) {
+    std::scoped_lock guard(fish_mutex);
+    _fish_assigned.insert(fish);
 }
 
 bool TrackingHelper::save_tags() const {
@@ -58,12 +80,7 @@ TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Pt
         });
     }
     
-    _blob_assigned.clear();
-    /*for(auto &blob: frame.blobs()) {
-        auto it = _blob_assigned.find(blob.get());
-        
-    }
-        _blob_assigned[blob.get()] = false;*/
+    clear_blob_assigned();
     
     //! TODO: Can probably reuse frame.blob_grid here, but need to add noise() as well
     blob_grid().clear();
@@ -83,7 +100,7 @@ TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Pt
                     : FAST_SETTING(match_mode);
     
     // see if there are manually fixed matches for this frame
-    apply_manual_matches(Tracker::individuals());
+    apply_manual_matches();
     apply_automatic_matches();
 }
 
@@ -132,6 +149,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, pv::BlobPtr&& blob
     
     if(save_tags()) {
         if(!blob->split()){
+            std::scoped_lock guard(blob_fish_mutex);
             blob_fish_map[bdx] = fish;
             if(blob->parent_id().valid())
                 blob_fish_map[blob->parent_id()] = fish;
@@ -155,8 +173,8 @@ void TrackingHelper::assign_blob_individual(Individual* fish, pv::BlobPtr&& blob
     }
     
     auto &basic = fish->basic_stuff()[size_t(index)];
-    _fish_assigned.insert(fish);
-    _blob_assigned.insert(bdx);
+    fish_assign(fish);
+    blob_assign(bdx);
     
     if (cache->do_posture)
         need_postures.push({fish, basic.get()});
@@ -167,7 +185,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, pv::BlobPtr&& blob
     ++assigned_count;
 }
 
-void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
+void TrackingHelper::apply_manual_matches()
 {
     const auto frameIndex = frame.index();
     
@@ -180,55 +198,51 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
         ska::bytell_hash_map<pv::bid, std::set<Idx_t>> double_find;
         ska::bytell_hash_map<pv::bid, Idx_t> actually_assign;
         
-        for(auto && [fdx, bdx] : frame.fixed_matches) {
-            auto it = individuals.find(fdx);
-            if(it != individuals.end()) { //&& size_t(fm.second) < blobs.size()) {
-                auto fish = it->second;
-                
-                if(!bdx.valid()) {
-                    // dont assign this fish! (bdx == -1)
-                    continue;
-                }
-                
-                if(!frame.has_bdx(bdx)) {
-                    cannot_find[bdx].insert(fdx);
-                    continue;
-                }
-                
-                if(actually_assign.count(bdx) > 0) {
-                    FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
-                    double_find[bdx].insert(fdx);
-                    
-                } else if(blob_assigned(bdx)) {
-                    FormatError("(fixed matches, blob_assigned) Trying to assign blob ", bdx," twice in frame ", frameIndex," (fish ",fdx,").");
-                    // TODO: remove assignment from the other fish as well and add it to cannot_find
-                    double_find[bdx].insert(fdx);
-                    
-                } else if(fish_assigned(fish)) {
-                    FormatError("Trying to assign fish ", fish->identity().ID()," twice in frame ",frameIndex,".");
-                } else {
-                    actually_assign[bdx] = fdx;
-                }
-                
-            } else {
-#ifndef NDEBUG
-                if(frameIndex != Tracker::start_frame())
-                    FormatWarning("Individual number ", fdx," out of range in frame ",frameIndex,". Creating new one.");
-#endif
-                
-                if(!frame.has_bdx(bdx)) {
-                    //FormatWarning("Cannot find blob ", it->second," in frame ",frameIndex,". Fallback to normal assignment behavior.");
-                    cannot_find[bdx].insert(fdx);
-                    continue;
-                }
-                
-                if(actually_assign.count(bdx) > 0) {
-                    FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
-                    double_find[bdx].insert(fdx);
-                } else
-                    actually_assign[bdx] = fdx;
+        IndividualManager::transform_ids_with_error(frame.fixed_matches, [&](Idx_t fdx, pv::bid bdx, Individual* fish)
+        {
+            if(not bdx.valid()) {
+                // dont assign this fish! (bdx == -1)
+                return;
             }
-        }
+            
+            if(not frame.has_bdx(bdx)) {
+                cannot_find[bdx].insert(fdx);
+                return;
+            }
+            
+            if(actually_assign.count(bdx) > 0) {
+                FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
+                double_find[bdx].insert(fdx);
+                
+            } else if(blob_assigned(bdx)) {
+                FormatError("(fixed matches, blob_assigned) Trying to assign blob ", bdx," twice in frame ", frameIndex," (fish ",fdx,").");
+                // TODO: remove assignment from the other fish as well and add it to cannot_find
+                double_find[bdx].insert(fdx);
+                
+            } else if(fish_assigned(fish)) {
+                FormatError("Trying to assign fish ", fish->identity().ID()," twice in frame ",frameIndex,".");
+            } else {
+                actually_assign[bdx] = fdx;
+            }
+            
+        }, [&](Idx_t fdx, pv::bid bdx) {
+#ifndef NDEBUG
+           if(frameIndex != Tracker::start_frame())
+               FormatWarning("Individual number ", fdx," out of range in frame ",frameIndex,". Creating new one.");
+#endif
+           
+           if(!frame.has_bdx(bdx)) {
+               //FormatWarning("Cannot find blob ", it->second," in frame ",frameIndex,". Fallback to normal assignment behavior.");
+               cannot_find[bdx].insert(fdx);
+               return;
+           }
+           
+           if(actually_assign.count(bdx) > 0) {
+               FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
+               double_find[bdx].insert(fdx);
+           } else
+               actually_assign[bdx] = fdx;
+        });
         
         for(auto && [bdx, fdxs] : double_find) {
             if(actually_assign.count(bdx) > 0) {
@@ -347,17 +361,9 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
         
         std::set<FOI::fdx_t> identities;
         
-        for(auto && [fdx, bdx] : actual_assignments) {
+        IndividualManager::transform_ids(actual_assignments, [&](Idx_t fdx, pv::bid bdx, Individual* fish)
+        {
             auto && blob = frame.extract(bdx);
-            
-            Individual *fish = nullptr;
-            auto it = individuals.find(fdx);
-            
-            // individual doesnt exist yet. create it
-            if(it == individuals.end()) {
-                throw U_EXCEPTION("Should have created it already.");
-            } else
-                fish = it->second;
             
             if(blob_assigned(bdx)) {
                 print("Trying to assign blob ",bdx," twice.");
@@ -369,7 +375,7 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
                 
                 identities.insert(FOI::fdx_t(fdx));
             }
-        }
+        });
         
         FOI::add(FOI(frameIndex, identities, "failed matches"));
     }
@@ -378,8 +384,6 @@ void TrackingHelper::apply_manual_matches(const individuals_map_t& individuals)
 
 void TrackingHelper::apply_automatic_matches() {
     const auto frameIndex = frame.index();
-    auto &individuals = Tracker::individuals();
-    
     auto automatic_assignments = AutoAssign::automatically_assigned(frameIndex);
     for(auto && [fdx, bdx] : automatic_assignments) {
         if(!bdx.valid())
@@ -392,8 +396,8 @@ void TrackingHelper::apply_automatic_matches() {
             FormatError("frame ", frameIndex, ": Automatic assignment cannot be executed with fdx ", fdx, " -> ", bdx, " reporting: ", result.error());
 #endif
         } else if(frame.has_bdx(bdx)
-           && !fish_assigned(result.value())
-           && !blob_assigned(bdx))
+           && not fish_assigned(result.value())
+           && not blob_assigned(bdx) )
         {
             assign_blob_individual(result.value(), frame.extract(bdx), default_config::matching_mode_t::benchmark);
             //frame.erase_anywhere(blob);
@@ -416,7 +420,7 @@ void TrackingHelper::apply_matching() {
     
     using namespace Match;
     const auto frameIndex = frame.index();
-    PairingGraph graph(*props, frameIndex, paired);
+    PairingGraph graph(*props, frameIndex, std::move(paired));
     
 #if defined(PAIRING_PRINT_STATS)
     size_t nedges = 0;
@@ -473,7 +477,9 @@ void TrackingHelper::apply_matching() {
         auto &optimal = graph.get_optimal_pairing(false, match_mode);
         
         if(match_mode != default_config::matching_mode_t::approximate) {
-            /*std::lock_guard<std::mutex> guard(_statistics_mutex);
+            /*
+             NOT SAFE BECAUSE PAIRED HAS BEEN MOVED FROM
+             std::lock_guard<std::mutex> guard(_statistics_mutex);
             _statistics[frameIndex].match_number_blob = (Match::index_t)paired.n_cols();
             _statistics[frameIndex].match_number_fish = (Match::index_t)paired.n_rows();
             _statistics[frameIndex].match_stack_objects = optimal.objects_looked_at;
@@ -486,16 +492,15 @@ void TrackingHelper::apply_matching() {
         print_statistics(optimal);
 #endif
         
-        std::unordered_map<pv::bid, Individual*> assignments;
-        for(auto &[fdx, bdx] : optimal.pairings) {
-            assignments[bdx] = fdx;
-        }
-        
-        auto blobs = frame.extract_from_blobs_unsafe(assignments);
-        assert(blobs.size() == assignments.size());
-        
+        const auto& paired = optimal.pairings;
+        auto blobs = frame.extract_from_blobs_unsafe(paired);
         for(auto &blob : blobs) {
-            auto fish = assignments.at(blob->blob_id());
+            /*auto it = std::find_if(paired.begin(), paired.end(), [&](auto& tuple){
+                auto& [bdx, fish] = tuple;
+                return bdx == blob->blob_id();
+            });
+            auto fish = std::get<1>(*it);*/
+            auto fish = paired.at(blob->blob_id());
 #ifdef TREX_DEBUG_MATCHING
             for(auto &[i, b] : pairs) {
                 if(i == p.first) {
@@ -537,9 +542,9 @@ void TrackingHelper::apply_matching() {
 #endif
         
         auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
-        for (auto &p: optimal.pairings) {
-            _manager.become_active(p.first);
-            assign_blob_individual(p.first, frame.extract(p.second), default_config::matching_mode_t::hungarian);
+        for (auto &[bdx, fdx]: optimal.pairings) {
+            _manager.become_active(fdx);
+            assign_blob_individual(fdx, frame.extract(bdx), default_config::matching_mode_t::hungarian);
         }
         
         _approximative_enabled_in_frame = frameIndex;

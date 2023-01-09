@@ -23,6 +23,7 @@
 #include <tracking/ImageExtractor.h>
 #include <python/GPURecognition.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace py = Python;
 
@@ -284,10 +285,10 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTING(calculate_posture);
     
-    for(auto &[id, fish] : Tracker::individuals()) {
+    IndividualManager::transform_all([&](auto id, auto fish) {
         if(!Tracker::identities().count(id)) {
             print("Individual ",id," not part of the training dataset.");
-            continue;
+            return;
         }
         
         Range<Frame_t> overall_range(range);
@@ -332,7 +333,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         if(coverage)
             (*coverage)[Idx_t(id)].insert(used_segments.begin(), used_segments.end());
-    }
+    });
     
     /*std::map<long_t, long_t> lengths;
     for(auto && [frame, ids] : individuals_per_frame) {
@@ -581,7 +582,6 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
             Tracker::analysis_range().end
         };
         
-        auto &individuals = Tracker::individuals();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
         for(Frame_t frame = analysis_range.start;
@@ -593,10 +593,10 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
             if(frame > Tracker::end_frame())
                 break;
             
-            for(auto &[id, fish] : individuals) {
+            IndividualManager::transform_all([&](auto id, auto fish) {
                 auto blob = fish->compressed_blob(frame);
                 if(!blob || blob->split())
-                    continue;
+                    return;
                 
                 auto bounds = blob->calculate_bounds();
                 if(Tracker::instance()->border().in_recognition_bounds(bounds.center()))
@@ -609,7 +609,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
                         disc_individuals_per_frame[frame].insert(Idx_t(id));
                     }
                 }
-            }
+            });
         }
         
         if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *GUI::instance()->video_source(), disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
@@ -1604,21 +1604,19 @@ bool Accumulation::start() {
                     video_file.read_frame(video_frame, frame);
                     Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, NULL);
                     
-                    for(auto id : ids) {
+                    IndividualManager::transform_ids(ids, [&, frame=frame](auto id, auto fish) {
                         auto filters = _collected_data->filters().has(id)
                             ? _collected_data->filters().get(id, frame)
                             : FilterCache();
                         
-                        auto fish = Tracker::individuals().at(id);
-                        
                         auto it = fish->iterator_for(frame);
                         if(it == fish->frame_segments().end())
-                            continue;
+                            return;
                         
                         auto bidx = (*it)->basic_stuff(frame);
                         auto pidx = (*it)->posture_stuff(frame);
                         if(bidx == -1 || pidx == -1)
-                            continue;
+                            return;
                         
                         auto &basic = fish->basic_stuff()[size_t(bidx)];
                         auto posture = pidx > -1 ? fish->posture_stuff()[size_t(pidx)].get() : nullptr;
@@ -1633,7 +1631,7 @@ bool Accumulation::start() {
                             ++found_blobs;
                         
                         if(!blob || blob->split())
-                            continue;
+                            return;
                         
                         // try loading it all into a vector
                         Image::Ptr image;
@@ -1650,7 +1648,7 @@ bool Accumulation::start() {
                         image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
-                    }
+                    });
                 }
                 
                 DebugHeader("Generated images for '%s'", method.name());

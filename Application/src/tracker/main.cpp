@@ -32,6 +32,7 @@
 #include <misc/Output.h>
 #include <gui/WorkProgress.h>
 #include <gui/CheckUpdates.h>
+#include <tracking/IndividualManager.h>
 
 #include <tracking/SplitBlob.h>
 
@@ -1557,11 +1558,11 @@ int main(int argc, char** argv)
                     else if(utils::lowercase(command) == "print_memory") {
                         LockGuard guard(ro_t{}, "print_memory");
                         mem::IndividualMemoryStats overall;
-                        for(auto && [fdx, fish] : Tracker::individuals()) {
+                        IndividualManager::transform_all([&](auto, auto fish) {
                             mem::IndividualMemoryStats stats(fish);
                             stats.print();
                             overall += stats;
-                        }
+                        });
                     
                         overall.print();
                         

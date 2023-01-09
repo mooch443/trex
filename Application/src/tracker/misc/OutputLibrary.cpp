@@ -9,6 +9,7 @@
 #include <tracker/misc/default_config.h>
 #include <tracking/Categorize.h>
 #include <misc/IdentifiedTag.h>
+#include <tracking/IndividualManager.h>
 
 namespace Output {
     using namespace gui;
@@ -1088,7 +1089,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func[name] = func;
     }
     
-    void Library::init_graph(Graph &graph, Individual *fish, LibraryCache::Ptr cache) {
+    void Library::init_graph(Graph &graph, const Individual *fish, LibraryCache::Ptr cache) {
         if(!cache)
             cache = _default_cache;
         
@@ -1344,8 +1345,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         std::vector<Individual*> neighbors;
         
         LockGuard guard(ro_t{}, "save_focussed_on");
-        
-        for (auto && [id, neighbor] : Tracker::individuals()) {
+        IndividualManager::transform_all([&](auto, auto neighbor){
             if(neighbor != fish) {
                 neighbors.push_back(neighbor);
                 
@@ -1353,7 +1353,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 for(size_t i=header.size()-nheader.size(); i<header.size(); i++)
                     header[i] += std::to_string(neighbors.size());
             }
-        }
+        });
         
         Table table(header);
         Row row;

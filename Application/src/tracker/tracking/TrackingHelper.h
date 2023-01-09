@@ -18,8 +18,8 @@ struct TrackingHelper {
 public:
     inline static Frame_t _approximative_enabled_in_frame;
     
-    bool blob_assigned(pv::bid) const;
-    bool fish_assigned(Individual*) const;
+    [[nodiscard]] bool blob_assigned(pv::bid) const;
+    [[nodiscard]] bool fish_assigned(Individual*) const;
     
 public:
     bool save_tags() const;
@@ -38,11 +38,20 @@ private:
     //ska::bytell_hash_map<pv::Blob*, bool> _blob_assigned;
     //ska::bytell_hash_map<Individual*, bool> _fish_assigned;
     
+    mutable std::shared_mutex blob_mutex, fish_mutex;
+    void clear_blob_assigned() noexcept;
+    void clear_fish_assigned() noexcept;
+    void blob_assign(pv::bid);
+    void fish_assign(Individual*);
+    
 public:
     size_t assigned_count = 0;
     
     std::vector<tags::blob_pixel> tagged_fish, noise;
+    
     ska::bytell_hash_map<pv::bid, Individual*> blob_fish_map;
+    std::shared_mutex blob_fish_mutex;
+    
 //#define TREX_DEBUG_MATCHING
 #ifdef TREX_DEBUG_MATCHING
     std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
@@ -63,7 +72,7 @@ public:
     
     void assign_blob_individual(Individual* fish, pv::BlobPtr&& blob, default_config::matching_mode_t::Class match_mode);
     
-    void apply_manual_matches(const individuals_map_t& individuals);
+    void apply_manual_matches();
     void apply_automatic_matches();
     
     void apply_matching();

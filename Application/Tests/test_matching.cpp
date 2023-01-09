@@ -4,6 +4,7 @@
 #include <tracker/misc/default_config.h>
 #include <tracking/Tracker.h>
 #include <misc/frame_t.h>
+#include <tracking/IndividualManager.h>
 #include <filesystem>
 
 using ::testing::TestWithParam;
@@ -139,10 +140,10 @@ TEST_P(TestPairing, TestInit) {
     ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0], table_->blobs[0]->blob_id()), 0.5);
     ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0], table_->blobs[1]->blob_id()), 0.0);
     
-    table_->graph = std::make_unique<PairingGraph>(table_->prop, Frame_t(0), table_->probs);
+    table_->graph = std::make_unique<PairingGraph>(table_->prop, Frame_t(0), std::move(table_->probs));
     
     ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0], table_->blobs[0]->blob_id()), 0.5);
-    ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0], table_->blobs[1]->blob_id()), 0.0) << _format(table_->blobs[1]->blob_id(), " of individual at ", table_->probs.index(table_->individuals[0]), " should not have been in \n", table_->probs);
+    ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0], table_->blobs[1]->blob_id()), 0.0) << _format(table_->blobs[1]->blob_id(), " of individual at ", table_->graph->paired().index(table_->individuals[0]), " should not have been in \n", table_->graph->paired());
     
     ASSERT_TRUE(table_->graph->connected_to(table_->individuals[0], table_->blobs[0]->blob_id()));
     ASSERT_FALSE(table_->graph->connected_to(table_->individuals[0], table_->blobs[1]->blob_id()));
@@ -155,11 +156,12 @@ TEST_P(TestPairing, TestInit) {
     auto& pairing = table_->graph->get_optimal_pairing(false, table_->match_mode);
     ASSERT_EQ(pairing.pairings.size(), 2u) << _format(pairing.pairings);
     
-    for(auto &[fish, bdx] : pairing.pairings) {
+    print(table_->match_mode, "=>", pairing.pairings);
+    for(auto &[bdx, fish] : pairing.pairings) {
         if(fish == table_->individuals[0]) {
             ASSERT_EQ(bdx, table_->blobs[0]);
         } else if(fish == table_->individuals[1]) {
-            ASSERT_EQ(bdx, table_->blobs[2]);
+            ASSERT_EQ(bdx, table_->blobs[2]) << _format(fish->identity(), " was ", bdx, " instead of ", table_->blobs[2]->blob_id(), ": ", table_->blobs);
         } else {
             FAIL() << "This individual is not supposed to be here: " << fish->identity().ID();
         }
@@ -212,7 +214,7 @@ TEST_F(TestSystemTracker, TrackingTest) {
     data->tracker.add(pp);
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);
-    ASSERT_EQ(data->tracker.individuals().size(), 8u);
+    ASSERT_EQ(IndividualManager::num_individuals(), 8u);
 }
 
 template<typename _Number_t>

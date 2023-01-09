@@ -43,6 +43,7 @@
 #include <pv.h>
 #include <file/DataLocation.h>
 #include <gui/types/SettingsTooltip.h>
+#include <tracking/IndividualManager.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -2172,7 +2173,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                               ceil(PD(video_source).header().resolution.height / float(width)));
                 
                 size_t count = 0;
-                for(auto && [id, fish] : Tracker::instance()->individuals()) {
+                IndividualManager::transform_all([&, N = IndividualManager::num_individuals()](auto, auto fish){
                     for(auto && stuff : fish->basic_stuff()) {
                         auto blob = stuff->blob.unpack();
                         for (auto &h : blob->hor_lines()) {
@@ -2184,8 +2185,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     }
                     
                     ++count;
-                    WorkProgress::set_percent(count / float(Tracker::instance()->individuals().size()));
-                }
+                    WorkProgress::set_percent(count / float(N));
+                });
                 
                 auto mval = *std::max_element(grid.begin(), grid.end());
                 
@@ -2223,20 +2224,19 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, &_blob_thread_pool);
                 }
                 
-                for(auto fdx : pp.previously_active_identities()) {
-                    auto fish = Tracker::individuals().at(fdx);
+                IndividualManager::transform_ids(pp.previously_active_identities(), [&](Idx_t fdx, Individual* fish) -> void {
                     auto loaded_blob = fish->compressed_blob(idx);
                     auto blob = pp.bdx_to_ptr(loaded_blob->blob_id());
                     if(loaded_blob && blob) {
                         if(blob->split())
-                            continue;
+                            return;
                         
                         auto thresholded = blob->threshold(FAST_SETTING(track_threshold), *PD(tracker).background());
                         
                         average_pixels[fish->identity().name()] += thresholded->pixels()->size();
                         samples[fish->identity().name()] ++;
                     }
-                }
+                });
             }
             
             float sum = 0;
@@ -4006,24 +4006,18 @@ void GUI::save_visual_fields() {
     } else {
         std::atomic_size_t counter = 0;
         WorkProgress::set_percent(0);
-        auto &individuals = Tracker::individuals();
-        
-        auto worker = [&counter, fishdata, filename, &individuals](Individual* fish){
+        static GenericThreadPool visual_field_thread_pool(cmn::hardware_concurrency(), "visual_fields");
+        IndividualManager::transform_parallel(visual_field_thread_pool, [&, N = float(IndividualManager::num_individuals())](auto, auto fish)
+        {
             auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
             WorkProgress::set_progress("generating visual fields", -1, path.str());
             
-            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){ WorkProgress::set_progress(title, (counter + 0) / float(individuals.size())); }, false);
+            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){
+                WorkProgress::set_progress(title, (counter + 0) / N);
+            }, false);
             
             ++counter;
-        };
-        
-        std::lock_guard<std::mutex> guard(blob_thread_pool_mutex());
-        for(auto && [id, fish] : Tracker::individuals()) {
-            while(blob_thread_pool().queue_length() >= cmn::hardware_concurrency())
-                blob_thread_pool().wait_one();
-            blob_thread_pool().enqueue(worker, fish);
-        }
-        blob_thread_pool().wait();
+        });
     }
     
     SETTING(analysis_paused) = before;
@@ -4499,16 +4493,17 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 
                 MotionRecord *found_head = NULL;
                 
-                for(auto fdx : pp.previously_active_identities()) {
-                    auto fish = Tracker::individuals().at(fdx);
+                IndividualManager::transform_ids(pp.previously_active_identities(), [&](auto, auto fish) {
                     auto fish_blob = fish->blob(i);
                     auto head = fish->head(i);
                     
                     if(fish_blob && fish_blob->blob_id() == blob.blob_id() && head) {
                         found_head = head;
-                        break;
+                        return false;
                     }
-                }
+                    
+                    return true;
+                });
                 
                 if(found_head) {
                     images.insert(images.end(), padded.data, padded.data + padded.cols * padded.rows);

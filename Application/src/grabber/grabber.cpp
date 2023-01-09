@@ -26,6 +26,7 @@
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 #if !COMMONS_NO_PYTHON
 namespace py = Python;
@@ -1169,7 +1170,7 @@ void FrameGrabber::update_tracker_queue() {
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
                     test_timer.reset();
-                    print("(tracker) ", tracker->individuals().size()," individuals");
+                    print("(tracker) ", track::IndividualManager::num_individuals()," individuals");
                 }
                 
 #if !COMMONS_NO_PYTHON

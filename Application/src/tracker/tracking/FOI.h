@@ -4,6 +4,7 @@
 #include <gui/types/Basic.h>
 #include <gui/colors.h>
 #include <misc/ranges.h>
+#include <misc/idx_t.h>
 
 namespace track {
     //! Frames of interest
@@ -30,6 +31,7 @@ namespace track {
             static std::string class_name() {
                 return "fdx_t";
             }
+            [[nodiscard]] operator Idx_t() const { return Idx_t{id}; }
         };
         
         struct bdx_t {

@@ -47,6 +47,7 @@ void update(std::promise<void>&& init_promise) {
         }
         
         ~Guard() {
+            print("[py] ...");
             py::deinit();
             print("[py] deinit()");
         }
