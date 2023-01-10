@@ -913,7 +913,8 @@ Fish::~Fish() {
             
             for (; i.valid() && i>=from; --i) {
                 if(fit == end || (*fit)->start() > i) {
-                    while(fit != begin && (*fit)->start() > i) {
+                    while(fit != begin && (fit == end || (*fit)->start() > i))
+                    {
                         --fit;
                     }
                 }

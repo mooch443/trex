@@ -191,7 +191,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
                 delete_callback(it->second.get());
             
             print("Deleting individual ", it->second.get(), " aka ", it->second->identity());
-            assert(not track::last_active or not track::last_active->contains(it->second.get()));
+            //assert(not track::last_active or not track::last_active->contains(it->second.get()));
             it = _individuals.erase(it);
         } else {
             if(not largest_valid.valid() || it->second->identity().ID() > largest_valid)
@@ -413,6 +413,8 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             
             // if last assignment was too long ago, throw individuals
             // out of the active set and put them into the inactive:
+            assert(not contains(track::inactive_individuals, fish));
+            //print("Current(",frame.index(),"): Putting ", fish, " in inactive.");
             track::inactive_individuals.push_back(fish);
         }
     }

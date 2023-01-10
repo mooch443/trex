@@ -846,7 +846,7 @@ const std::set<Idx_t> Tracker::identities() {
         //    set.insert(id);
         
         //if(set.empty()) {
-            for(Idx_t i = Idx_t(0); i < Idx_t(FAST_SETTING(track_max_individuals)); i = Idx_t(i._identity + 1)) {
+            for(Idx_t i = Idx_t(0); i < Idx_t(FAST_SETTING(track_max_individuals)); i = i + Idx_t(1)) {
                 set.insert(i);
             }
         //}
@@ -1609,9 +1609,9 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                         assert(ptr != nullptr);
                         auto pos_blob = ptr->center();
                         
-                        Match::prob_t p = p_threshold + Match::prob_t(1.0) / sqdistance(pos_fish.value().last_seen_px, pos_blob) / pos_fish.value().tdelta;
+                        Match::prob_t p = Match::prob_t(1.0) / sqdistance(pos_fish.value().last_seen_px, pos_blob) / pos_fish.value().tdelta;
                         
-                        for_this[blob] = p;
+                        for_this[blob] = p_threshold + p;
                         
                         //new_table.emplace_back(p, fish->identity().ID(), blob);
                         //new_pairings[fish->identity().ID()][blob] = p;
@@ -1648,7 +1648,6 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 }*/
                 
                 //print("\t *accepting ", bdx, " -> ", fdx);
-                return true;
                 
             }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
                 throw U_EXCEPTION(frameIndex, ": Cannot assign individual ", fdx," to blob ", bdx, ". Reason: ", error);
@@ -1671,7 +1670,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 if(basic && basic->frame == frameIndex) {
                     FormatWarning("Fish ", fdx," not in any of the arrays, but has frame ",frameIndex,".");
                 } else
-                    FormatWarning("Fish ", fdx," is gone (",basic ? basic->frame : -1_f,")");
+                    FormatWarning("Fish ", fdx," is gone (",basic ? basic->frame : Frame_t{},")");
             } else if(lost_ids.find(fdx) != lost_ids.end()) {
                 lost_ids.erase(fdx);
                 FormatWarning("Fish ", fdx," found again in frame ",frameIndex,".");

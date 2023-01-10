@@ -1644,12 +1644,18 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(Frame_t f
         : Tracker::properties(cache.previous_frame, hints);
     assert(!prev_props || prev_props->time != time);
     
-    float ptime = pp_props ? pp_props->time : (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
+    float ptime = pp_props ? pp_props->time : (- ((double)frameIndex.get() - (double)cache.previous_frame.get()) * 1 / double(frame_rate) + time);
+    
+    assert(ptime >= 0);
+    assert(time >= ptime);
     if(time - ptime >= track_max_reassign_time) {
-        ptime = (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
+        assert(frameIndex.valid() && cache.previous_frame.valid());
+        assert(frameIndex > cache.previous_frame);
+        ptime = (- ((double)frameIndex.get() - (double)cache.previous_frame.get()) * 1 / double(frame_rate) + time);
     }
     //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(SLOW_SETTING(frame_rate)) + time);
     
+    assert(time >= ptime);
     cache.tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
     cache.local_tdelta = prev_props ? time - prev_props->time : 0;
     

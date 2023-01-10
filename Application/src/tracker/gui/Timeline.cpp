@@ -478,7 +478,9 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             framemOver = idx;
                             distance2frame = 0;
                         }
-                        else if ((it = _proximity_bar.changed_frames.find(idx - 1_f)) != _proximity_bar.changed_frames.end()) {
+                        else if (idx > 0_f
+                                 && (it = _proximity_bar.changed_frames.find(idx - 1_f)) != _proximity_bar.changed_frames.end())
+                        {
                             framemOver = idx - 1_f;
                             distance2frame = 1;
                         }

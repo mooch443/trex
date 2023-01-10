@@ -163,7 +163,7 @@ TEST_P(TestPairing, TestInit) {
         } else if(fish == table_->individuals[1]->identity().ID()) {
             ASSERT_EQ(bdx, table_->blobs[2]) << _format(fish, " was ", bdx, " instead of ", table_->blobs[2]->blob_id(), ": ", table_->blobs);
         } else {
-            FAIL() << "This individual is not supposed to be here: " << fish;
+            FAIL() << "This individual is not supposed to be here: " << fish.toStr();
         }
     }
     

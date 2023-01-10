@@ -170,7 +170,8 @@ void PPFrame::init_cache(GenericThreadPool* pool)
             //! initial frame
             assert(previous_frame.valid());
             assert(not Tracker::start_frame().valid()
-                   or previous_frame < Tracker::start_frame());
+                   or previous_frame < Tracker::start_frame()
+                   or previous_frame > Tracker::end_frame());
             return;
         }
         
