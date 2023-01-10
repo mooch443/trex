@@ -57,7 +57,7 @@ namespace gui {
                                   Rangef(RADIANS(-180), RADIANS(180)));
             }
             
-            _graph.set_title("Individual "+std::to_string(fish->identity().ID()));
+            _graph.set_title("Individual "+fish->identity().ID().toStr());
             _graph.set_zero(frameNr);
             _graph.clear();
             _graph.set_scroll_enabled(true);

@@ -35,20 +35,20 @@ using prob_t = track::Match::prob_t;
 
 std::atomic<uint32_t> RUNNING_ID(0);
 
-void Identity::set_running_id(Idx_t value) { RUNNING_ID = value; }
+void Identity::set_running_id(Idx_t value) { RUNNING_ID = value.get(); }
 Idx_t Identity::running_id() { return Idx_t(RUNNING_ID.load()); }
 
 Identity::Identity(Idx_t myID)
-    : _color(myID.valid() ? ColorWheel(myID).next() : ColorWheel(RUNNING_ID).next()), _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)), _name(Meta::toStr(_myID))
+    : _color(myID.valid() ? ColorWheel(myID.get()).next() : ColorWheel(RUNNING_ID).next()), _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)), _name(Meta::toStr(_myID))
 {
-    if(myID.valid() && RUNNING_ID < myID) {
-        RUNNING_ID = Idx_t(myID + 1);
+    if(myID.valid() && RUNNING_ID < myID.get()) {
+        RUNNING_ID = (myID + Idx_t(1)).get();
     }
 }
 
 const std::string& Identity::raw_name() {
     auto names = Settings::get<Settings::individual_names>();
-    auto it = names->find(_myID);
+    auto it = names->find(_myID.get());
     if(it != names->end()) {
         _name = it->second;
     }
@@ -58,7 +58,7 @@ const std::string& Identity::raw_name() {
 std::string Identity::name() const {
     {
         auto names = Settings::get<Settings::individual_names>();
-        auto it = names->find(_myID);
+        auto it = names->find(_myID.get());
         if(it != names->end()) {
             return it->second;
         }
@@ -68,7 +68,7 @@ std::string Identity::name() const {
 
 std::string Identity::raw_name() const {
     auto names = Settings::get<Settings::individual_names>();
-    auto it = names->find(_myID);
+    auto it = names->find(_myID.get());
     if(it != names->end()) {
         return it->second;
     }
@@ -2484,7 +2484,7 @@ std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fis
             for (auto && [fdx, p] : map) {
                 if(p > max_p) {
                     max_p = p;
-                    max_id = fdx;
+                    max_id = fdx.get();
                 }
             }
         }
@@ -3012,7 +3012,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     update(2.8/3. * 0.5 + 0.5, "");
     std::vector<int> colors;
     IndividualManager::transform_all([&colors](auto fdx, auto fish) {
-        colors.push_back((int)fdx);
+        colors.push_back(fdx.get());
         colors.push_back(fish->identity().color().r);
         colors.push_back(fish->identity().color().g);
         colors.push_back(fish->identity().color().b);

@@ -866,7 +866,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             file << frame().toStr() << ":\t[" << _optimal_pairing->objects_looked_at <<",\t"<<elapsed*1000<<",\t"<<elapsed*1000/ _optimal_pairing->objects_looked_at <<"" << ",[";
             for(auto &a: _optimal_pairing->path)
             {
-                file << "(" << a.fish << "," << a.blob.toStr() << "," << (a.blob.valid() ? prob(a.fish, a.blob) : 0) << "), ";
+                file << "(" << a.fish.toStr() << "," << a.blob.toStr() << "," << (a.blob.valid() ? prob(a.fish, a.blob) : 0) << "), ";
             }
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
@@ -1123,7 +1123,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                         }
                     }
                     
-                    if(max_fish) {
+                    if(max_fish.valid()) {
                         used_blobs.insert(max_fish);
                         ptr->pairings[blob] = max_fish;
                     }

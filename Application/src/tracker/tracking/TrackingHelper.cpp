@@ -498,6 +498,8 @@ void TrackingHelper::apply_matching() {
         std::vector<std::tuple<Idx_t, pv::bid, pv::BlobPtr>> vector;
         //std::unordered_map<pv::bid, pv::BlobPtr> map;
         for(auto&& blob : blobs) {
+            if(not paired.at(blob->blob_id()).valid())
+                throw U_EXCEPTION("Invalid Idx_t for blob ", blob->blob_id(), " in frame ", frame.index());
             vector.emplace_back(paired.at(blob->blob_id()), blob->blob_id(), std::move(blob));
             //map[blob->blob_id()] = std::move(blob);
         }

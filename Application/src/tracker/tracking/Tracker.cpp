@@ -753,40 +753,6 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         && available_threads > 1
         && pool)
     {
-        /*size_t used_threads = min(needed_threads, available_threads);
-        size_t last = num_blobs % used_threads;
-        size_t per_thread = (num_blobs - last) / used_threads;
-        
-        std::vector<std::shared_ptr<PrefilterBlobs>> prefilters;
-        prefilters.resize(used_threads);
-        
-        auto start = std::make_move_iterator(frame.unsafe_access_all_blobs().begin());
-        auto end = start + per_thread;
-        
-        for(size_t i=0; i<used_threads - 1; ++i) {
-            assert(end.base() < frame.unsafe_access_all_blobs().end());
-            
-            prefilters.at(i) = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
-            pool->enqueue(prefilter, prefilters[i], start, end);
-            
-            start = end;
-            end = end + per_thread;
-        }
-        
-        prefilters.back() = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
-        prefilter(prefilters.back(), start, std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
-        pool->wait();
-        
-        frame.clear_blobs();
-        
-        for(auto&& filter : prefilters) {
-            if(!filter)
-                continue;
-            frame.add_blobs(std::move(filter->filtered),
-                            std::move(filter->filtered_out),
-                            filter->overall_pixels, filter->samples);
-        }*/
-
         std::atomic<int> current{0};
         std::vector<PrefilterBlobs> prefilters;
         std::mutex lock;
@@ -819,45 +785,12 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
             global.overall_pixels += prefilters.at(j).overall_pixels;
             global.samples += prefilters.at(j).samples;
             
-            /*frame.add_blobs(std::move(result.filtered),
-                            std::move(result.filtered_out),
-                            result.overall_pixels, result.samples);*/
-            
-            /*latch.arrive_and_wait();
-            
-            if(j == 0) {
-                frame.clear_blobs();
-                cleared = true;
-            } else {
-                while(!cleared) {}
-            }*/
-            
-            // wait for other threads
-            /*while (current.load() < j) { }
-            
-            if(result) {
-                frame.add_blobs(std::move(result.filtered),
-                                std::move(result.filtered_out),
-                                result.overall_pixels, result.samples);
-            }
-            
-            current++;*/
-            
         }, *pool, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()), (uint32_t)needed_threads);
         
         frame.clear_blobs();
         frame.add_blobs(std::move(global.filtered),
                         std::move(global.filtered_out),
                         global.overall_pixels, global.samples);
-        
-        /*std::lock_guard guard(lock);
-        frame.clear_blobs();
-        
-        for(auto&& filter : prefilters) {
-            frame.add_blobs(std::move(filter.filtered),
-                            std::move(filter.filtered_out),
-                            filter.overall_pixels, filter.samples);
-        }*/
         
     } else {
         PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
@@ -868,12 +801,7 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
                         std::move(pref.filtered_out),
                         pref.overall_pixels, pref.samples);
     }
-    
-    //initial_filter.conclude_measure();
 }
-
-
-
 
 const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     auto &frames = instance()->frames();
@@ -1980,11 +1908,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         
         update_iterator_maps(frameIndex - 1_f, active_individuals, individual_iterators);
         for(auto &fish : active_individuals) {
-            if(_warn_individual_status.size() <= (size_t)fish->identity().ID()) {
-                _warn_individual_status.resize(fish->identity().ID() + 1);
+            if(_warn_individual_status.size() <= (size_t)fish->identity().ID().get()) {
+                _warn_individual_status.resize(fish->identity().ID().get() + 1);
             }
             
-            auto &property = _warn_individual_status[fish->identity().ID()];
+            auto &property = _warn_individual_status[fish->identity().ID().get()];
             
             auto fit = individual_iterators.find(fish->identity().ID());
             if(fit == individual_iterators.end()) {
@@ -2008,12 +1936,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         
 #ifndef NDEBUG
         for(auto &fish : active_individuals) {
-            if(_warn_individual_status.size() <= fish->identity().ID()) {
+            if(_warn_individual_status.size() <= fish->identity().ID().get()) {
                 assert(!fish->has(frameIndex - 1_f));
                 continue;
             }
             
-            auto &property = _warn_individual_status.at(fish->identity().ID());
+            auto &property = _warn_individual_status.at(fish->identity().ID().get());
             if(property.prev == nullptr) {
                 assert(!fish->has(frameIndex - 1_f));
             } else {
@@ -2034,7 +1962,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             std::set<FOI::fdx_t> fdx;
             
             for(auto fish : active_individuals) {
-                auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID() ? &_warn_individual_status[fish->identity().ID()] : nullptr;
+                auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID().get() ? &_warn_individual_status[fish->identity().ID().get()] : nullptr;
                 
                 if(properties && properties->current) {
                     if(properties->current->speed<Units::CM_AND_SECONDS>() >= Individual::weird_distance()) {
@@ -2280,7 +2208,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         }
         
         _endFrame = frameIndex - 1_f;
-        while (!properties(end_frame())) {
+        while (end_frame().valid()
+               && not properties(end_frame()))
+        {
             if (end_frame() < start_frame()) {
                 _endFrame = _startFrame = Frame_t();
                 break;
@@ -2289,8 +2219,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             _endFrame = end_frame() - 1_f;
         }
         
-        if(end_frame().valid() && end_frame() < analysis_range().start)
+        if(not end_frame().valid()
+           or end_frame() < analysis_range().start)
+        {
             _endFrame = _startFrame = Frame_t();
+        }
         
         assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame == end_frame()));
         
@@ -2749,9 +2682,9 @@ void apply(
 
             if (remove) {
 #ifndef NDEBUG
-                FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", (uint32_t)chosen_id, " -> same fish already assigned in ranges ", remove_from);
+                FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", chosen_id, " -> same fish already assigned in ranges ", remove_from);
 #else
-                FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", (uint32_t)chosen_id, " -> same fish already assigned in another range.");
+                FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", chosen_id, " -> same fish already assigned in another range.");
 #endif
             }
             else {

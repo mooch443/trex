@@ -5,6 +5,7 @@
 
 #include "Outline.h"
 #include <misc/bid.h>
+#include <misc/idx_t.h>
 
 //#define POSTURE_DEBUG
 namespace track {
@@ -30,12 +31,12 @@ namespace track {
         std::shared_ptr<std::vector<Vec2>> _outline_points;
         
         Frame_t frameIndex;
-        uint32_t fishID;
+        Idx_t fishID;
         GETTER(Outline, outline)
         GETTER_PTR(Midline::Ptr, normalized_midline)
         
     public:
-        Posture(Frame_t frameIndex, uint32_t fishID);
+        Posture(Frame_t frameIndex, Idx_t fishID);
         ~Posture() {
         }
         

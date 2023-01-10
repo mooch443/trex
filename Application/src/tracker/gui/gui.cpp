@@ -1569,7 +1569,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             
             PD(cache).updated_tracking();
             
-            std::map<long_t, Color> colors;
+            std::map<Idx_t, Color> colors;
             for(auto fish : PD(cache).active)
                 colors[fish->identity().ID()] = fish->identity().color();
             
@@ -2137,7 +2137,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 FormatExcept("File ",filename.str()," does not exist.");
         }
         else if(settings_dropdown.text() == "free_fish") {
-            std::set<long_t> free_fish, inactive;
+            std::set<Idx_t> free_fish, inactive;
             for(auto && [fdx, fish] : PD(cache).individuals) {
                 if(!PD(cache).fish_selected_blobs.at(fdx).valid()
                    || PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end())
@@ -4085,7 +4085,7 @@ Vec2 GUI::pad_image(cv::Mat& padded, Size2 output_size) {
     return offset;
 }
 
-void GUI::export_tracks(const file::Path& , long_t fdx, Range<Frame_t> range) {
+void GUI::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
     bool before = GUI::analysis()->is_paused();
     GUI::analysis()->set_paused(true).get();
     

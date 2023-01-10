@@ -452,7 +452,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     if(GUI::frame() > Tracker::start_frame() && c) {
                         d = (c->estimated_px - blob_pos).length();
                     }
-                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), id + 1, parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
+                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
                 }
             }
             

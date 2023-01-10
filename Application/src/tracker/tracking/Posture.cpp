@@ -22,7 +22,7 @@ namespace track {
         Vec2(-1,0)
     };
     
-    Posture::Posture(Frame_t frameIndex, uint32_t fishID)
+    Posture::Posture(Frame_t frameIndex, Idx_t fishID)
         : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(NULL)
     { }
 

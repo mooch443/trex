@@ -167,7 +167,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
     return cmn::abs(area / 2.0f);
 }
 
-void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
+void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
     using namespace gui;
     using namespace track::image;
     
@@ -223,7 +223,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     print("[exporting] Writing recognition data to ",recognition_path);
     
     try {
-        std::map<long_t, float> all_percents;
+        std::map<Idx_t, float> all_percents;
         std::mutex percent_mutex;
         IndividualManager::transform_all([&all_percents](auto fdx, auto) {
             all_percents[fdx] = 0;
@@ -236,15 +236,15 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             float median_midline_length_px{0.f};
             Range<Frame_t> range;
         };
-        std::map<Frame_t, std::map<long_t, ImageData>> waiting_pixels;
+        std::map<Frame_t, std::map<Idx_t, ImageData>> waiting_pixels;
         std::mutex sync;
         
         std::vector<std::shared_ptr<PropertiesGraph>> fish_graphs;
         std::vector<Output::LibraryCache::Ptr> library_cache;
         float last_percent = -1;
         
-        auto work_item = [&](size_t thread_index, long_t id, const Individual* fish){
-            if(fdx != -1 && fdx != id)
+        auto work_item = [&](size_t thread_index, Idx_t id, const Individual* fish){
+            if(fdx.valid() && fdx != id)
                 return;
             
             if(SETTING(terminate))
@@ -362,7 +362,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         std::vector<uchar> image_data;
                         Size2 shape;
                         
-                        printf("tags for %u: ", (uint32_t)fish->identity().ID());
+                        print("tags for ", fish->identity().ID(),":");
                         for(auto && [var, bid, ptr, frame] : *set) {
                             shape = Size2(ptr->cols, ptr->rows);
                             // had previous frame, lost in this frame (finalize segment)
@@ -370,12 +370,12 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             auto before = arrays.size();
                             arrays.resize(arrays.size() + ptr->size());
                             
-                            printf("%d ", frame.get());
+                            print(frame);
                             frame_indices.push_back(frame.get());
                             blob_ids.push_back(bid);
                             std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
                         }
-                        printf("\n");
+                        print();
                         
                         if(arrays.size() > 0) {
                             auto range = fish->get_segment(seg->end());
@@ -622,7 +622,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             std::vector<std::thread*> threads;
             threads.resize(max_threads);
             
-            std::vector<std::queue<std::tuple<long_t, Individual*>>> packages;
+            std::vector<std::queue<std::tuple<Idx_t, Individual*>>> packages;
             packages.resize(max_threads);
             
             IndividualManager::transform_all([&](auto id, auto fish) {
@@ -715,10 +715,10 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         
                         overall.print();
                         
-                        std::vector<long_t> ids;
+                        std::vector<Idx_t> ids;
                         std::map<std::string, std::vector<uint64_t>> sizes;
                         
-                        ids.push_back(-1);
+                        ids.push_back(Idx_t());
                         for (auto && [key, size] : overall.sizes) {
                             sizes[key].push_back(size);
                         }
@@ -774,7 +774,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             const bool tracklet_export_difference_images = SETTING(tracklet_export_difference_images).value<bool>();
             
-            std::map<long_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, long_t, Image::UPtr>>>> queues;
+            std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, Idx_t, Image::UPtr>>>> queues;
             PPFrame obj;
             
             size_t index = 0;
@@ -977,7 +977,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             
                             assert(full.image->cols == output_size.width && full.image->rows == output_size.height);
                             
-                            split_ids.push_back(data.fdx);
+                            split_ids.push_back(data.fdx.get());
                             split_frames.push_back(frame.get());
                             split_masks.insert(split_masks.end(), full.image->data(), full.image->data() + full.image->size());
                         }
@@ -1083,7 +1083,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         if(tracklet_max_images == 0) {
                             single_images.insert(single_images.end(), image->data(), image->data() + image->size());
                             single_frames.push_back(frame.get());
-                            single_ids.push_back(fid);
+                            single_ids.push_back(fid.get());
                             byte_counter += image->size();
                         }
                         ++image_count;
@@ -1098,14 +1098,14 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         med.copyTo(tmp);
                         assert(tmp.isContinuous() && tmp.channels() == 1);
                         all_images.insert(all_images.end(), tmp.data, tmp.data + tmp.cols * tmp.rows);
-                        all_ranges.push_back(id);
+                        all_ranges.push_back(id.get());
                         all_ranges.push_back(range.start.get());
                         all_ranges.push_back(range.end.get());
                         //tf::imshow("median"+fish->identity().name()+" - "+Meta::toStr(range.range), tmp);
                     }
                 }
                 
-                if(id % max(1, int(ceil(queues.size() * 0.01))) == 0)
+                if(id.get() % max(1, int(ceil(queues.size() * 0.01))) == 0)
                     print("[tracklet_images] Fish ", id,"...");
             }
             

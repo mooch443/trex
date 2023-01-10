@@ -143,7 +143,7 @@ public:
     
     static void write_config(bool overwrite, GUIType type = GUIType::GRAPHICAL, const std::string& suffix = "");
     
-    void export_tracks(const file::Path& prefix = "", long_t fdx = -1, Range<Frame_t> range = Range<Frame_t>({}, {}));
+    void export_tracks(const file::Path& prefix = "", Idx_t fdx = Idx_t(), Range<Frame_t> range = Range<Frame_t>({}, {}));
     void save_visual_fields();
     void load_connectivity_matrix();
     

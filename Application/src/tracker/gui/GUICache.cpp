@@ -114,7 +114,7 @@ namespace gui {
         if(!selected.empty()) {
             selected.clear();
             SETTING(gui_focus_group) = selected;
-            SETTING(heatmap_ids) = std::vector<uint32_t>();
+            SETTING(heatmap_ids) = std::vector<Idx_t>();
         }
     }
     
@@ -126,7 +126,7 @@ namespace gui {
         if(!is_selected(id)) {
             selected.push_back(id);
             SETTING(gui_focus_group) = selected;
-            SETTING(heatmap_ids) = std::vector<uint32_t>(selected.begin(), selected.end());
+            SETTING(heatmap_ids) = std::vector<Idx_t>(selected.begin(), selected.end());
         }
     }
     
@@ -135,7 +135,7 @@ namespace gui {
         if(it != selected.end()) {
             selected.erase(it);
             SETTING(gui_focus_group) = selected;
-            SETTING(heatmap_ids) = std::vector<uint32_t>(selected.begin(), selected.end());
+            SETTING(heatmap_ids) = std::vector<Idx_t>(selected.begin(), selected.end());
         }
     }
     
@@ -144,7 +144,7 @@ namespace gui {
         selected.push_back(id);
         
         SETTING(gui_focus_group) = selected;
-        SETTING(heatmap_ids) = std::vector<uint32_t>(selected.begin(), selected.end());
+        SETTING(heatmap_ids) = std::vector<Idx_t>(selected.begin(), selected.end());
     }
     
     void GUICache::set_tracking_dirty() {

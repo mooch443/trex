@@ -51,7 +51,7 @@ protected:
     
 public:
     ItemIndividual(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid)
-        : gui::List::Item(fish),
+        : gui::List::Item(fish.valid() ? fish.get() : -1),
         _ptr(fish),
         _selected_blob_id(blob)
     {
@@ -353,8 +353,8 @@ public:
                     auto obj = static_cast<ItemIndividual*>(ptr.get());
                     auto name = id.name();
                     
-                    if(fish != obj->ID() || blob != obj->selected_blob_id() || name != obj->name()) {
-                        obj->set_ID(fish);
+                    if(fish.get() != obj->ID() || blob != obj->selected_blob_id() || name != obj->name()) {
+                        obj->set_ID(fish.get());
                         obj->set_name(name);
                         obj->set_ptr(fish);
                         obj->set_selected_blob_id(blob);

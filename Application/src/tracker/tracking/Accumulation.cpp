@@ -455,7 +455,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
                 break;
             }
             
-            missing_predicted_id = Idx_t((uint32_t)missing_predicted_id + 1u);
+            missing_predicted_id = missing_predicted_id + Idx_t(1);
         }
         
         // find out which one is double
@@ -705,8 +705,8 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
             _this->_uniqueness_per_class.resize(0);
             _this->_uniqueness_per_class.resize(FAST_SETTING(track_max_individuals));
             for(auto && [id, ps] : unique_percent_per_identity) {
-                assert(id < FAST_SETTING(track_max_individuals));
-                _this->_uniqueness_per_class[id] = per_identity_samples[id] > 0 ? ps / per_identity_samples[id] : 0;
+                assert(id.get() < FAST_SETTING(track_max_individuals));
+                _this->_uniqueness_per_class[id.get()] = per_identity_samples[id] > 0 ? ps / per_identity_samples[id] : 0;
             }
         }
     }
@@ -895,7 +895,8 @@ bool Accumulation::start() {
                     it += image->size();
                 }
                 std::vector<long_t> ids;
-                ids.insert(ids.end(), data.validation_ids.begin(), data.validation_ids.end());
+                for(auto& id : data.validation_ids)
+                    ids.emplace_back(id.get());
                 
                 cmn::npz_save(ranges_path.str(), "validation_ids", ids, "w");
                 cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -905,7 +906,9 @@ bool Accumulation::start() {
                     it += image->size();
                 }
                 
-                ids.insert(ids.end(), data.training_ids.begin(), data.training_ids.end());
+                ids.clear();
+                for(auto& id : data.training_ids)
+                    ids.emplace_back(id.get());
                 
                 auto ss = size.to_string();
                 print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
@@ -1463,7 +1466,8 @@ bool Accumulation::start() {
             it += image->size();
         }
         std::vector<long_t> ids;
-        ids.insert(ids.end(), data.validation_ids.begin(), data.validation_ids.end());
+        for(auto& id : data.validation_ids)
+            ids.emplace_back(id.get());
         
         cmn::npz_save(ranges_path.str(), "validation_ids", ids, "w");
         cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -1473,7 +1477,9 @@ bool Accumulation::start() {
             it += image->size();
         }
         
-        ids.insert(ids.end(), data.training_ids.begin(), data.training_ids.end());
+        ids.clear();
+        for(auto& id : data.training_ids)
+            ids.emplace_back(id.get());
         
         auto ss = size.to_string();
         print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");

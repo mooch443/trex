@@ -972,7 +972,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto tag = tags::find(frame, blob->blob_id());
             if(!tag.valid())
                 return gui::Graph::invalid();
-            return tag.id;
+            return tag.id.get();
         });
         
         _cache_func["qr_p"] = LIBGLFNC({

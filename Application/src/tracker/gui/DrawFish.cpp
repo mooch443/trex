@@ -1219,7 +1219,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
         auto&& [valid, segment] = _obj.has_processed_segment(_frame);
         if (valid) {
             auto [samples, map] = _obj.processed_recognition(segment.start());
-            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                 return a.second < b.second;
             });
 
@@ -1233,7 +1233,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
             auto pred = Tracker::instance()->find_prediction(_frame, blob->blob_id());
             if(pred) {
                 auto map = Tracker::prediction2map(*pred);
-                auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                         return a.second < b.second;
                     });
 

@@ -691,7 +691,7 @@ FrameGrabber::~FrameGrabber() {
         {
             track::LockGuard guard(track::w_t{}, "GUI::save_state");
             if(!SETTING(auto_no_tracking_data))
-                track::export_data(*tracker, -1, Range<Frame_t>());
+                track::export_data(*tracker, track::Idx_t(), Range<Frame_t>());
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;
@@ -1179,8 +1179,8 @@ void FrameGrabber::update_tracker_queue() {
                 _tracker_current_individuals = narrow_cast<uint32_t>(active.size());
 
                 if(GRAB_SETTINGS(enable_closed_loop)) {
-                    std::map<long_t, std::shared_ptr<track::VisualField>> visual_fields;
-                    std::map<long_t, track::Midline::Ptr> midlines;
+                    std::map<track::Idx_t, std::shared_ptr<track::VisualField>> visual_fields;
+                    std::map<track::Idx_t, track::Midline::Ptr> midlines;
                     
                     if(CL_HAS_FEATURE(VISUAL_FIELD)) {
                         for(auto fish : active) {
@@ -1232,7 +1232,7 @@ void FrameGrabber::update_tracker_queue() {
                             auto basic = fish->basic_stuff(frame);
                             if(basic) {
                                 
-                                ids.push_back(fish->identity().ID());
+                                ids.push_back(fish->identity().ID().get());
                                 colors.insert(colors.end(), { (long_t)fish->identity().color().r, (long_t)fish->identity().color().g, (long_t)fish->identity().color().b });
 
                                 auto bounds = basic->blob.calculate_bounds();
@@ -1262,7 +1262,7 @@ void FrameGrabber::update_tracker_queue() {
                             std::vector<float> points;
                             
                             for(auto id : ids) {
-                                auto it = midlines.find(id);
+                                auto it = midlines.find(track::Idx_t(id));
                                 if(it == midlines.end() || it->second->segments().size() != FAST_SETTING(midline_resolution))
                                 {
                                     points.resize(0);

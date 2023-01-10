@@ -384,7 +384,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 using py = PythonIntegration;
                 //check_learning_module();
                 
-                std::vector<long_t> classes(data->all_classes().begin(), data->all_classes().end());
+                std::vector<Idx_t> classes(data->all_classes().begin(), data->all_classes().end());
                 auto joined_data = data->join_split_data();
                 
                 if(number_classes() > classes.size()) {
@@ -518,7 +518,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                                     }
                                     
                                     images.insert(images.end(), fish.images.at(i)->data(), fish.images.at(i)->data() + size_t(resolution.width * resolution.height));
-                                    ids.insert(ids.end(), id);
+                                    ids.insert(ids.end(), id.get());
                                     positions.insert(positions.end(), fish.positions.at(i).x);
                                     positions.insert(positions.end(), fish.positions.at(i).y);
                                     frames.insert(frames.end(), fish.frame_indexes.at(i).get());

@@ -53,7 +53,7 @@ namespace gui {
                 
                 size_t counter = 0, j = 0;
                 std::map<Idx_t, size_t> fdx_to_idx;
-                std::map<size_t, long_t> idx_to_fdx;
+                std::map<size_t, Idx_t> idx_to_fdx;
                 
                 outputs.resize(output_size * sorted.size());
                 
@@ -85,7 +85,7 @@ namespace gui {
                 
                 for(size_t row = 0; row < sorted.size(); ++row) {
                     for (size_t j=0; j<output_size; ++j) {
-                        auto p = idx_to_fdx.count(j) ? outputs.at(row * output_size + idx_to_fdx.at(j)) : 0;
+                        auto p = idx_to_fdx.count(j) ? outputs.at(row * output_size + idx_to_fdx.at(j).get()) : 0;
                         
                         Color interp = Viridis::value(p).alpha(200);
                         cv::rectangle(mat,

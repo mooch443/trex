@@ -103,8 +103,8 @@ void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, d
         //  but only remember each fish once per angle.
         //  (layers are only there in order to account for missing Z components)
         if(e._depth[i] > d) {
-            if(e._visible_ids[i] != (long_t)_fish_id
-               && e._visible_ids[i] != (long_t)id
+            if(e._visible_ids[i] != (long_t)_fish_id.get()
+               && e._visible_ids[i] != (long_t)id.get()
                && e._depth[i + field_resolution] > e._depth[i])
             {
                 e._depth[i + field_resolution] = e._depth[i];
@@ -115,23 +115,23 @@ void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, d
             }
             
             e._depth[i] = d;
-            e._visible_ids[i] = (long_t)id;
+            e._visible_ids[i] = (long_t)id.get();
             e._visible_points[i] = point;
             e._fov[i] = uchar(SQR(1.0 - min(1.0, max(0.0, d / max_d))) * 255);
             e._visible_head_distance[i] = hd;
             
             /* remove 2. stage after self occlusions */
-            if(id == (int64_t)_fish_id) {
+            if(id == _fish_id) {
                 if(e._depth[i + field_resolution] != FLT_MAX)
                     e._depth[i + field_resolution] = FLT_MAX;
             }
             
-        } else if(e._visible_ids[i] != (long_t)_fish_id /* remove 2. stage after self occlusions */
-                  && (long_t)id != e._visible_ids[i]
+        } else if(e._visible_ids[i] != (long_t)_fish_id.get() /* remove 2. stage after self occlusions */
+                  && (long_t)id.get() != e._visible_ids[i]
                   && e._depth[i + field_resolution] > d)
         {
             e._depth[i + field_resolution] = d;
-            e._visible_ids[i + field_resolution] = (long_t)id;
+            e._visible_ids[i + field_resolution] = (long_t)id.get();
             e._visible_points[i + field_resolution] = point;
             e._fov[i + field_resolution] = uchar(SQR(1.0 - min(1.0, max(0.0, d / max_d))) * 255);
             e._visible_head_distance[i + field_resolution] = hd;
@@ -526,7 +526,7 @@ void VisualField::show(gui::DrawStructure &base) {
                 //    base.line(eye.pos, eye.pos + Vec2(cos(percent), sin(percent)) * max_d, Red.alpha(100));
             }
             
-            if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)_fish_id)
+            if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)_fish_id.get())
             {
                 auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
                 //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);

@@ -130,7 +130,7 @@ namespace gui {
         
     protected:
         ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
-        std::set<uint32_t> checked_probs;
+        std::set<Idx_t> checked_probs;
         
     public:
         std::unordered_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;

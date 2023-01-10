@@ -5,6 +5,7 @@
 #include <misc/Timer.h>
 #include <misc/OutputLibrary.h>
 #include <misc/ThreadPool.h>
+#include <misc/idx_t.h>
 
 namespace track {
 class Individual;
@@ -311,7 +312,7 @@ protected:
     uint32_t stride, N;
     Range<double> custom_heatmap_value_range;
     Frame_t _frame_context;
-    std::vector<uint32_t> _ids;
+    std::vector<track::Idx_t> _ids;
     double smooth_heatmap_factor;
     
     Image::UPtr grid_image;

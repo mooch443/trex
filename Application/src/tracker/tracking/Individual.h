@@ -118,7 +118,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         Identity(Idx_t myID = Idx_t());
         Idx_t ID() const { return _myID; }
         void set_ID(Idx_t val) {
-            _color = ColorWheel(val).next();
+            _color = ColorWheel(val.get()).next();
             _myID = val;
             _name = Meta::toStr(_myID);
         }

@@ -16,7 +16,8 @@ struct Idx_t {
     explicit constexpr Idx_t(T ID) : _identity((uint32_t)ID) {}
     
     explicit constexpr Idx_t(uint32_t ID) : _identity(ID) {}
-    constexpr operator uint32_t() const { return _identity; }
+    constexpr uint32_t get() const { return _identity; }
+    explicit constexpr operator bool() const noexcept { return valid(); }
     constexpr bool valid() const { return _identity != cmn::infinity<uint32_t>(); }
     
     constexpr auto operator<=>(const Idx_t& other) const {
@@ -25,6 +26,31 @@ struct Idx_t {
             throw std::invalid_argument("Comparing to an invalid Idx_t does not produce the desired outcome.");
 #endif
         return _identity <=> other._identity;
+    }
+    constexpr bool operator==(const Idx_t& other) const {
+        if(not other.valid() && not valid())
+            return true;
+        else if(other.valid() != valid())
+            return false;
+        
+        return other.get() == get();
+    }
+    
+    constexpr bool operator!=(const Idx_t& other) const {
+        return not operator==(other);
+    }
+    
+    constexpr Idx_t operator-(const Idx_t& other) const {
+        return Idx_t(get() - other.get());
+    }
+    constexpr Idx_t operator+(const Idx_t& other) const {
+        return Idx_t(get() + other.get());
+    }
+    constexpr Idx_t operator/(const Idx_t& other) const {
+        return Idx_t{ get() / other.get() };
+    }
+    constexpr Idx_t operator*(const Idx_t& other) const {
+        return Idx_t(get() * other.get());
     }
     
     static std::string class_name() { return "Idx_t"; }
@@ -41,7 +67,7 @@ namespace std
     {
         size_t operator()(const track::Idx_t& k) const
         {
-            return std::hash<uint32_t>{}((uint32_t)k);
+            return std::hash<uint32_t>{}(k.get());
         }
     };
 }

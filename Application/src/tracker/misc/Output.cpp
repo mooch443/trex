@@ -908,8 +908,8 @@ uint64_t Data::write(const Individual& val) {
     DataPackage pack(pack_size, &callback);
     
     // header
-    assert(val.identity().ID() >= 0);
-    uint32_t ID = (uint32_t)val.identity().ID();
+    assert(val.identity().ID().valid());
+    uint32_t ID = val.identity().ID().get();
     pack.write<uint32_t>(ID);
     pack.write<std::string>(val.identity().raw_name());
     
@@ -1283,7 +1283,7 @@ namespace Output {
             write<data_long_t>(p.first.get());
             write<uint64_t>(p.second->size());
             for(auto &fish : *p.second) {
-                data_long_t ID = fish->identity().ID();
+                data_long_t ID = fish->identity().ID().get();
                 write<data_long_t>(ID);
             }
         }
@@ -1506,8 +1506,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         
         for(auto &fish : fishes) {
             if(fish) {
-                if(biggest_id < fish->identity().ID())
-                    biggest_id = fish->identity().ID();
+                if(biggest_id < (data_long_t)fish->identity().ID().get())
+                    biggest_id = fish->identity().ID().get();
                 map_id_ptr[fish->identity().ID()] = fish;
             }
         }

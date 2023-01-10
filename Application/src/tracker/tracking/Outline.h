@@ -7,6 +7,7 @@
 #include <gui/Transform.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
+#include <misc/idx_t.h>
 
 namespace Output {
     class ResultsFormat;
@@ -19,7 +20,7 @@ namespace track {
     
     struct DebugInfo {
         Frame_t frameIndex;
-        uint32_t fdx;
+        Idx_t fdx;
         bool debug;
         //Vec2 previous_position;
     };

@@ -120,7 +120,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     if(not largest_valid.valid())
         Identity::set_running_id(Idx_t(0));
     else
-        Identity::set_running_id(Idx_t((uint32_t)largest_valid + 1));
+        Identity::set_running_id(largest_valid + Idx_t(1));
     
     print("[IManager] Removed frames from ", from, ".");
     print("[IManager] Inactive individuals: ", track::inactive_individuals);

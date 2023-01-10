@@ -377,7 +377,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
         CONFIG("gui_show_individual_preview", false, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
         CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_blur_enabled` is set to true).");
-        CONFIG("heatmap_ids", std::vector<uint32_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
+        CONFIG("heatmap_ids", std::vector<track::Idx_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");
         CONFIG("heatmap_normalization", heatmap_normalization_t::cell, "Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.");

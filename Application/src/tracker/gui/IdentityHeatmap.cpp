@@ -485,7 +485,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             auto &range = updated.add_range;
             IndividualManager::transform_all([&](auto id, auto fish) {
                 if(!_ids.empty()) {
-                    if(!contains(_ids, id._identity)) {
+                    if(!contains(_ids, id)) {
                         return;
                     }
                 }
@@ -567,7 +567,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                                 .frame   = frame,
                                 .x       = uint32_t(pos.x),
                                 .y       = uint32_t(pos.y),
-                                .ID      = uint32_t(fish->identity().ID()),
+                                .ID      = uint32_t(fish->identity().ID().get()),
                                 .IDindex = uint32_t(0),
                                 .value   = v
                             });
@@ -661,7 +661,7 @@ bool HeatmapController::update_variables() {
     }
     
     //SETTING(heatmap_resolution) = uniform_grid_cell_size + 1;
-    auto ids = SETTING(heatmap_ids).value<std::vector<uint32_t>>();
+    auto ids = SETTING(heatmap_ids).value<std::vector<Idx_t>>();
     if(ids != _ids) {
         has_to_paint = true;
         

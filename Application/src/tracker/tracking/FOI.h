@@ -16,8 +16,8 @@ namespace track {
         };
         
         struct fdx_t {
-            uint32_t id;
-            explicit fdx_t(uint32_t i) : id(i) {}
+            Idx_t id;
+            explicit fdx_t(Idx_t i) : id(i) {}
             bool operator <(const fdx_t& other) const {
                 return id < other.id;
             }

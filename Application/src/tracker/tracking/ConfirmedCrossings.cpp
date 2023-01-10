@@ -140,7 +140,7 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
                     Frame_t((Frame_t::number_t)status)
                 });
                 
-                const auto range = arange<long_t>(0, FAST_SETTING(track_max_individuals));
+                const auto range = arange<Idx_t>(Idx_t(0), Idx_t(FAST_SETTING(track_max_individuals)));
                 for(auto id : range) {
                     if(foi.fdx().count(FOI::fdx_t(id)))
                         rows.push_back(1_f);
