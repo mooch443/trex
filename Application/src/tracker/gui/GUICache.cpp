@@ -470,12 +470,12 @@ namespace gui {
                 ++i;
             });
             
-            if(frameIndex.valid() && reload_blobs) {
+            if(reload_blobs) {
                 /**
                  * Delete what we know about cliques and replace it
                  * with current information.
                  */
-                if(Tracker::instance()->_cliques.count(frameIndex)) {
+                if(frameIndex.valid() && Tracker::instance()->_cliques.count(frameIndex)) {
                     _cliques = Tracker::instance()->_cliques.at(frameIndex);
                 } else
                     _cliques.clear();
@@ -487,7 +487,7 @@ namespace gui {
                 
 #if !COMMONS_NO_PYTHON
                 std::shared_lock guard(Categorize::DataStore::range_mutex());
-                if(!Categorize::DataStore::_ranges_empty_unsafe()) {
+                if(frameIndex.valid() && !Categorize::DataStore::_ranges_empty_unsafe()) {
                     Frame_t f(frameIndex);
                     
                     if(raw_blobs.size() > 50) {

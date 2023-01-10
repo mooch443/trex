@@ -911,7 +911,7 @@ Fish::~Fish() {
             auto begin = _obj.frame_segments().begin();
             //auto seg = _obj.segment_for(i);
             
-            for (; i>=from; --i) {
+            for (; i.valid() && i>=from; --i) {
                 if(fit == end || (*fit)->start() > i) {
                     while(fit != begin && (*fit)->start() > i) {
                         --fit;
