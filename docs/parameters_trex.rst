@@ -475,7 +475,7 @@ TRex parameters
 	.. seealso:: :func:`output_dir`, :func:`output_graphs`
 
 
-.. function:: frame_rate(int)
+.. function:: frame_rate(uint)
 
 	**default value:** 0
 
@@ -888,7 +888,7 @@ TRex parameters
 
 .. function:: gui_show_fish(pair<blob,frame>)
 
-	**default value:** [null,-1]
+	**default value:** [null,null]
 
 
 	Show debug output for {blob_id, fish_id}.
@@ -1178,7 +1178,7 @@ TRex parameters
 	.. seealso:: :func:`heatmap_dynamic`
 
 
-.. function:: heatmap_ids(array<uint>)
+.. function:: heatmap_ids(array<Idx_t>)
 
 	**default value:** []
 
@@ -1408,6 +1408,7 @@ TRex parameters
 		- `hungarian`: The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).
 		- `benchmark`: Runs all algorithms and pits them against each other, outputting statistics every few frames.
 		- `automatic`: Uses automatic selection based on density.
+		- `none`: No algorithm, direct assignment.
 
 	Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.
 
@@ -1629,7 +1630,7 @@ TRex parameters
 	.. seealso:: :func:`auto_quit`
 
 
-.. function:: output_frame_window(int)
+.. function:: output_frame_window(uint)
 
 	**default value:** 100
 
@@ -2196,7 +2197,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-147-gffa717c"
+	**default value:** "v1.1.9-170-gc99c1d9"
 
 
 	Current application version.

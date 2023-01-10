@@ -1537,7 +1537,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     Frame_t used_index_here;
     bool added = false;
     
-    static int64_t last_task_processed = conversion_range.start.get() - 1;
+    static int64_t last_task_processed = (int64_t)conversion_range.start.get() - 1;
     DataPackage pack;
     bool compressed;
     int64_t _last_task_peek;
@@ -2057,14 +2057,15 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                         guard.unlock();
                         _multi_variable.notify_one();
                         
-                        //try {
+                        try {
                             threadable_task(task);
 
-                        /*} catch(const std::exception& ex) {
+                        } catch(const std::exception& ex) {
                             FormatExcept("std::exception from threadable task: ", ex.what());
                         } catch(...) {
                             FormatExcept("Unknown exception from threadable task.");
-                        }*/
+                            throw;
+                        }
                         
                         {
                             std::unique_lock g(inactive_task_mutex);

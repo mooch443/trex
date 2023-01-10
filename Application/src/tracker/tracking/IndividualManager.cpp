@@ -351,6 +351,8 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
 
 tl::expected<set_of_individuals_t*, const char*> IndividualManager::active_individuals(Frame_t frame) noexcept
 {
+    if(not frame.valid())
+        return tl::unexpected("Given frame is invalid.");
     std::scoped_lock scoped(global_mutex);
     auto it = track::all_frames.find(frame);
     if(it != track::all_frames.end())
