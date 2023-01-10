@@ -104,7 +104,7 @@ struct ScreenRecorder::Data {
         
         static Timer last_print;
         if(last_print.elapsed() > 2) {
-            DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start).get() / float(SETTING(frame_rate).value<int>()) * 1000) * 1000};
+            DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start).get() / float(SETTING(frame_rate).value<uint32_t>()) * 1000) * 1000};
             auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(max_frame)+" length: "+Meta::toStr(duration));
             auto playback_speed = SETTING(gui_playback_speed).value<float>();
             if(playback_speed > 1) {
@@ -220,7 +220,7 @@ struct ScreenRecorder::Data {
                 size.width -= size.width % 2;
             if(size.height % 2 > 0)
                 size.height -= size.height % 2;
-            print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",SETTING(frame_rate).value<int>());
+            print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",SETTING(frame_rate).value<uint32_t>());
             
             frames = frames.add_extension(format.toStr()).str();
             _recording_capture = new cv::VideoWriter{
@@ -233,7 +233,7 @@ struct ScreenRecorder::Data {
                     ? cv::VideoWriter::fourcc('m', 'p', '4', 'v')
                     : cv::VideoWriter::fourcc('F', 'F', 'V', '1'),
 #endif
-                (double)SETTING(frame_rate).value<int>(), size, true};
+                (double)SETTING(frame_rate).value<uint32_t>(), size, true};
             
             if(!_recording_capture->isOpened()) {
                 FormatExcept("Cannot open video writer for path ",frames,". Please check file permissions, or try another format (`gui_recording_format`).");

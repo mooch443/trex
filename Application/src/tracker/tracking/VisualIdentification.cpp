@@ -418,7 +418,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     throw U_EXCEPTION("Validation image array size ",joined_data.validation_images.size()," != ids array size ",joined_data.validation_ids.size(),"");
                 }
                 
-                py::set_variable("global_segment", std::vector<long_t>{ global_range.start().get(), global_range.end().get() }, "learn_static");
+                py::set_variable("global_segment", std::vector<long_t>{ (long_t)global_range.start().get(), (long_t)global_range.end().get() }, "learn_static");
                 py::set_variable("accumulation_step", (long_t)accumulation_step, "learn_static");
                 py::set_variable("classes", classes, "learn_static");
                 py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");

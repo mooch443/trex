@@ -81,7 +81,7 @@ namespace default_config {
         CONFIG("color_channel", uint8_t(1), "Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file.");
         CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
         
-        CONFIG("frame_rate", int(-1), "Frame rate of the video will be set according to `cam_framerate` or the framerate of a given video for conversion.");
+        CONFIG("frame_rate", uint32_t(0), "Frame rate of the video will be set according to `cam_framerate` or the framerate of a given video for conversion.");
         CONFIG("blob_size_range", Rangef(0.01f, 500000.f), "Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.");
         CONFIG("crop_offsets", CropOffsets(), "Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).");
         CONFIG("crop_window", false, "If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.");

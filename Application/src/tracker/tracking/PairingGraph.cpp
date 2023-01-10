@@ -32,7 +32,7 @@ PairedProbabilities::col_t::value_type PairedProbabilities::col(blob_index_t cdx
 std::string PairedProbabilities::toStr() const {
     std::stringstream ss;
     for(auto &row : _rows) {
-        ss << row->identity().name() << ":\n";
+        ss << row.toStr() << ":\n";
         for(auto idx : edges_for_row(index(row))) {
             ss << "\t" << (col(idx.cdx).valid() ? col(idx.cdx).toStr() : "null") << ":" << idx.p << "\n";
         }
@@ -53,7 +53,7 @@ blob_index_t PairedProbabilities::index(col_t::value_type col) const {
 
 fish_index_t PairedProbabilities::index(row_t::value_type row) const {
     if(!_row_index.count(row))
-        throw U_EXCEPTION("Cannot find individual ",row->identity().ID()," in map.");
+        throw U_EXCEPTION("Cannot find individual ",row," in map.");
     return _row_index.at(row);
 }
 
@@ -224,7 +224,7 @@ fish_index_t PairedProbabilities::add(
 {
 #ifndef NDEBUG
     if(_row_index.count(row))
-        throw U_EXCEPTION("Already added individual ",row->identity().ID()," to map.");
+        throw U_EXCEPTION("Already added individual ",row," to map.");
 #endif
     
     const fish_index_t rdx = fish_index_t(narrow_cast<index_t>(_rows.size()));
@@ -353,7 +353,7 @@ long_t PairingGraph::Stack::idx(const multiset& fish_set, const multiset::const_
     bool PairingGraph::Node::operator<(const Node& other) const {
         //return max_prob * degree > other.max_prob * other.degree || (max_prob * degree == other.max_prob * other.degree && fish->identity().ID() < other.fish->identity().ID());
         //return degree > other.degree || (degree == other.degree && fish->identity().ID() < other.fish->identity().ID());
-        return degree > other.degree || (degree == other.degree && (max_prob > other.max_prob || (max_prob == other.max_prob && fish->identity().ID() < other.fish->identity().ID())));
+        return degree > other.degree || (degree == other.degree && (max_prob > other.max_prob || (max_prob == other.max_prob && fish < other.fish)));
     }
     
     /*void PairingGraph::work(gq_t_& global_stack, std::deque<Stack*>& local_stack, Stack &current) {
@@ -630,7 +630,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     --degree;
                 }
             }
-            cmn::print("\tidentity:", current.fish_it->fish->identity().ID(),", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
+            cmn::print("\tidentity:", current.fish_it->fish,", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
             cmn::print("\tdegree:", degree,"/",current.fish_it->degree);
             cmn::print("\tacc_p:",current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p,"/",_optimal_pairing->p.load()," (",current.acc_p,", ",hierarchy_best_p,", ",local_best_p,")");
             if(_optimal_pairing->p.load() > 0 && current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p > _optimal_pairing->p.load()) {
@@ -866,7 +866,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             file << frame().toStr() << ":\t[" << _optimal_pairing->objects_looked_at <<",\t"<<elapsed*1000<<",\t"<<elapsed*1000/ _optimal_pairing->objects_looked_at <<"" << ",[";
             for(auto &a: _optimal_pairing->path)
             {
-                file << "(" << a.fish->identity().ID() << "," << a.blob.toStr() << "," << (a.blob.valid() ? prob(a.fish, a.blob) : 0) << "), ";
+                file << "(" << a.fish << "," << a.blob.toStr() << "," << (a.blob.valid() ? prob(a.fish, a.blob) : 0) << "), ";
             }
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
@@ -1007,7 +1007,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             {
                 Timer timer;
                 //HungarianAlgorithm alg;
-                std::unordered_map<const Individual*, fish_index_t> individual_index;
+                std::unordered_map<Fish_t, fish_index_t> individual_index;
                 size_t num = 0;
                 for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
                     individual_index[_paired.row(i)] = i;
@@ -1107,11 +1107,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 Timer timer;
-                set_of_individuals_t used_blobs;
+                robin_hood::unordered_flat_set<Fish_t> used_blobs;
                 
                 for(auto && [blob, edges] : _paired.col_edges()) {
                     prob_t max_p = 0;
-                    Individual* max_fish = nullptr;
+                    Fish_t max_fish{};
                     
                     for(auto & fish : edges) {
                         if(used_blobs.find(_paired.row(fish)) == used_blobs.end()) {
@@ -1154,7 +1154,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                         _optimal_pairing->set.insert(Node{row, degree, _paired.max_prob(rdx)});
 #ifndef NDEBUG
                     else
-                        cmn::print("Individual ",row->identity().ID()," is empty");
+                        cmn::print("Individual ",row," is empty");
 #endif
                 }
                 
@@ -1233,7 +1233,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     }
                 }
                 
-                ska::bytell_hash_map<matching_mode_t::Class, ska::bytell_hash_map<const Individual*, Blob_t>> assignments;
+                ska::bytell_hash_map<matching_mode_t::Class, ska::bytell_hash_map<Fish_t, Blob_t>> assignments;
                 for(auto &fish : _paired.rows()) {
                     for(auto && [key, values] : benchmarks)
                         assignments[key][fish] = pv::bid::invalid;
@@ -1278,7 +1278,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                                 {
                                     auto p0 = _paired.probability(fish, assignments[key_0][fish]);
                                     auto p1 = _paired.probability(fish, assignments[key_1][fish]);
-                                    FormatWarning("\tindividual ",fish->identity(),":",
+                                    FormatWarning("\tindividual ",fish,":",
                                         "(", key_0.name(), ")",
                                         assignments[key_0][fish].valid() ?
                                             (assignments[key_0][fish]) : pv::bid::invalid,
@@ -1375,7 +1375,7 @@ PairingGraph::~PairingGraph() {
      return b->pos() + b->center();
      }*/
     
-    Match::prob_t PairingGraph::prob(Individual* o, Blob_t b) const {
+    Match::prob_t PairingGraph::prob(Fish_t o, Blob_t b) const {
         /*auto it = _paired.find(o);
         if(it != _paired.end()) {
             auto jt = it->second.find(b);
@@ -1388,7 +1388,7 @@ PairingGraph::~PairingGraph() {
         return _paired.probability(o, b);
     }
     
-    bool PairingGraph::connected_to(Individual *o, Blob_t b) const {
+    bool PairingGraph::connected_to(Fish_t o, Blob_t b) const {
         return prob(o, b) > FAST_SETTING(matching_probability_threshold);
     }
     

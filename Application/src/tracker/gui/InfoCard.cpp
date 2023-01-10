@@ -18,7 +18,7 @@ struct InfoCard::ShadowIndividual {
     Idx_t fdx{};
     track::Identity identity;
     pv::CompressedBlob blob;
-    Frame_t frame{Frame_t::invalid};
+    Frame_t frame;
     FrameRange current_range{};
     tags::Assignment qrcode;
     bool has_frame{false};

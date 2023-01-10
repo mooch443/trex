@@ -441,7 +441,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     UpdatedStats updated;
     
     {
-        auto d = abs(current_frame - _frame);
+        auto d = cmn::abs(current_frame - _frame);
         const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
         
         if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {

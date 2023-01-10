@@ -413,7 +413,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     std::tuple<float, float> p0;
     
     //! allow for a couple of frames look-back, in case individuals arent present in the current frame but have been previously
-    const Frame_t max_back_view = Frame_t(max(1, FAST_SETTING(track_max_reassign_time) * FAST_SETTING(frame_rate)));
+    const Frame_t max_back_view = Frame_t(max(1u, uint32_t(FAST_SETTING(track_max_reassign_time) * FAST_SETTING(frame_rate))));
     
     //! iterate over all currently visible individuals
     //  for all individuals with outline...

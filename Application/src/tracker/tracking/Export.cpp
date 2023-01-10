@@ -180,7 +180,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     
     Output::Library::remove_calculation_options();
     
-    auto previous_output_frame_window = SETTING(output_frame_window).value<long_t>();
+    auto previous_output_frame_window = SETTING(output_frame_window).value<uint32_t>();
     auto output_image_per_tracklet = GUI::instance() ? SETTING(output_image_per_tracklet).value<bool>() : false;
     auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();

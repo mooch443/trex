@@ -9,7 +9,7 @@ namespace gui {
     using namespace track;
     
     DrawDataset::DrawDataset()
-        : _last_frame(-1), _last_consecutive_frames({}, {}), _initial_pos_set(false)
+        : _last_consecutive_frames({}, {}), _initial_pos_set(false)
     {
         set_background(Black.alpha(150));
         set_origin(Vec2(1));

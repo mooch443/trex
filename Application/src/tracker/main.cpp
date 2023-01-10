@@ -700,10 +700,10 @@ int main(int argc, char** argv)
     SETTING(video_length) = uint64_t(video.length().get());
     SETTING(video_info) = std::string(video.get_info());
     
-    if(SETTING(frame_rate).value<int>() <= 0) {
+    if(SETTING(frame_rate).value<uint32_t>() <= 0) {
         FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
         video.generate_average_tdelta();
-        SETTING(frame_rate) = max(1, int(video.framerate()));
+        SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
     }
     
     Library::InitVariables();
@@ -861,7 +861,10 @@ int main(int argc, char** argv)
         
         size_t added_frames = 0, processed_frames = 0;
         
-        auto range = arange<Frame_t>(0_f, video.length()-1_f, max(1_f, Frame_t(float(video.length().get()) / 1000.f)));
+        auto range = arange<Frame_t>{
+            0_f, video.length(),
+            max(1_f, Frame_t(Frame_t::number_t(float(video.length().get()) / 1000.f)))
+        };
         distribute_indexes([&](auto, auto start, auto end, auto){
             pv::Frame frame;
             CPULabeling::ListCache_t cache;
@@ -1078,7 +1081,7 @@ int main(int argc, char** argv)
     static std::atomic<Frame_t> currentID(Frame_t{});
     static std::queue<std::unique_ptr<PPFrame>> unused;
     static std::mutex mutex;
-    static constexpr Frame_t cache_size{10};
+    static constexpr Frame_t cache_size{Frame_t::number_t(10)};
     
     for (auto i=0_f; i<cache_size; ++i)
         unused.emplace(std::make_unique<PPFrame>());
@@ -1126,8 +1129,8 @@ int main(int argc, char** argv)
 
             auto idx = ptr->index();
             if (idx >= range.start
-                && max(range.start, tracker.end_frame() + 1_f) == idx
-                && !tracker.properties(idx)
+                && max(range.start, tracker.end_frame().valid() ? (tracker.end_frame() + 1_f) : 0_f) == idx
+                && tracker.properties(idx) == nullptr
                 && idx <= Tracker::analysis_range().end)
             {
                 tracker.add(*ptr);
@@ -1226,8 +1229,9 @@ int main(int argc, char** argv)
         [&tracker, &analysis, &video]() {
             auto endframe = tracker.end_frame();
             auto current = currentID.load();
-            if(current > endframe + cache_size
-               || !current.valid()
+            if(not current.valid()
+               || not endframe.valid()
+               || current > endframe + cache_size
                || (analysis.stage_empty(0) && analysis.stage_empty(1))
                || current < endframe)
             {
@@ -1235,28 +1239,36 @@ int main(int argc, char** argv)
             }
         
             auto range = Tracker::analysis_range();
-            if(current < range.start)
+            if(current.valid()
+               && current < range.start)
                 currentID = range.start - 1_f;
             
+            if(not endframe.valid())
+                endframe = range.start;
+            
             if(FAST_SETTING(analysis_range).second != -1
-               && endframe >= Frame_t(FAST_SETTING(analysis_range).second)
+               && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).second))
                && !SETTING(terminate)
                && !please_stop_analysis)
             {
                 please_stop_analysis = true;
             }
             
-            while(currentID.load() < max(range.start, endframe) + cache_size
-                  && currentID.load() + 1_f < video.length())
+            while(not currentID.load().valid()
+                  || (currentID.load() < max(range.start, endframe) + cache_size
+                      && currentID.load() + 1_f < video.length()))
             {
-                std::unique_lock<std::mutex> lock(mutex);
+                std::scoped_lock lock(mutex);
                 if(unused.empty())
                     break;
                 
                 auto ptr = std::move(unused.front());
                 unused.pop();
                 
-                currentID = currentID.load() + 1_f;
+                if(not currentID.load().valid())
+                    currentID = 0_f;
+                else
+                    currentID = currentID.load() + 1_f;
                 ptr->set_index(currentID.load());
                 
                 analysis.add(std::move(ptr));

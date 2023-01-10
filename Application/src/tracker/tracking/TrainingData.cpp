@@ -308,7 +308,7 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     
     std::vector<Vec2> unique_points;
     for(auto && [frame, p] : unique_percentages) {
-        Vec2 topleft((frame - analysis_range.start).get() * column_width, mat.rows * (1 - p) + 1);
+        Vec2 topleft((frame.get() - analysis_range.start.get()) * column_width, mat.rows * (1 - p) + 1);
         unique_points.push_back(topleft);
     }
     
@@ -353,7 +353,7 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
         unique_points.clear();
         
         for(auto && [frame, p] : uniquenesses_temp) {
-            Vec2 topleft((frame - analysis_range.start).get() * column_width, mat.rows * (1 - p) + 1);
+            Vec2 topleft((frame.get() - analysis_range.start.get()) * column_width, mat.rows * (1 - p) + 1);
             unique_points.push_back(topleft);
         }
         
@@ -362,8 +362,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     
     if(!added_ranges.empty()) {
         for(auto &range : added_ranges) {
-            Vec2 topleft((range.start - analysis_range.start).get() * column_width, 0);
-            Vec2 bottomright((range.end - analysis_range.start + 1_f).get() * column_width, 1);
+            Vec2 topleft((range.start.get() - analysis_range.start.get()) * column_width, 0);
+            Vec2 bottomright((range.end.get() - analysis_range.start.get() + 1) * column_width, 1);
             DEBUG_CV(cv::rectangle(mat, topleft, bottomright, gui::Green.alpha(100 + 100), cv::FILLED));
             DEBUG_CV(cv::putText(mat, Meta::toStr(range), (topleft + (bottomright - topleft) * 0.5) + Vec2(0,10), cv::FONT_HERSHEY_PLAIN, 0.5, gui::Green));
         }
@@ -377,8 +377,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
             
             auto next_range = *it;
             
-            Vec2 topleft((next_range.start - analysis_range.start).get() * column_width, 0);
-            Vec2 bottomright((next_range.end - analysis_range.start + 1_f).get() * column_width, 1);
+            Vec2 topleft((next_range.start.get() - analysis_range.start.get()) * column_width, 0);
+            Vec2 bottomright((next_range.end.get() - analysis_range.start.get() + 1) * column_width, 1);
             DEBUG_CV(cv::rectangle(mat, topleft, bottomright, color.alpha(100 + 100), cv::FILLED));
             
             if(it == --next_ranges.rend())
@@ -400,8 +400,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     if(current_salt) {
         for(auto && [id, per] : current_salt->mappings) {
             for(size_t i=0; i<per.frame_indexes.size(); ++i) {
-                Vec2 topleft((per.frame_indexes[i] - analysis_range.start).get() * column_width, row_height * (id + 0.2));
-                Vec2 bottomright((per.frame_indexes[i] - analysis_range.start + 1_f).get() * column_width, row_height * (id + 0.8));
+                Vec2 topleft((per.frame_indexes[i].get() - analysis_range.start.get()) * column_width, row_height * (id + 0.2));
+                Vec2 bottomright((per.frame_indexes[i].get() - analysis_range.start.get() + 1) * column_width, row_height * (id + 0.8));
                 DEBUG_CV(cv::rectangle(mat, topleft, bottomright, gui::White.alpha(100 + 100), cv::FILLED));
             }
         }

@@ -44,7 +44,7 @@ enum IdentitySource {
 CREATE_STRUCT(Settings,
   (uint32_t, smooth_window),
   (float, cm_per_pixel),
-  (int, frame_rate),
+  (uint32_t, frame_rate),
   (float, track_max_reassign_time),
   (float, speed_extrapolation),
   (bool, calculate_posture),

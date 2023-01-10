@@ -42,7 +42,7 @@ using conversion_range_t = std::pair<long_t,long_t>;
 CREATE_STRUCT(GrabSettings,
   (bool, tgrabs_use_threads),
   (bool, cam_undistort),
-  (int, frame_rate),
+  (uint32_t, frame_rate),
   (Rangef,        blob_size_range),
   (int,        threshold),
   (int,        threshold_maximum),
@@ -71,7 +71,7 @@ CREATE_STRUCT(GrabSettings,
 CREATE_STRUCT(GrabSettings,
     (bool, tgrabs_use_threads),
     (bool, cam_undistort),
-    (int, frame_rate),
+    (uint32_t, frame_rate),
     (Rangef, blob_size_range),
     (int, threshold),
     (int, threshold_maximum),
@@ -463,8 +463,8 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
     if(utils::lowercase(source) == "basler") {
         std::lock_guard<std::mutex> guard(_camera_lock);
         _camera = new fg::PylonCamera;
-        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
+        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<uint32_t>() == 0) {
+            SETTING(frame_rate) = uint32_t(SETTING(cam_framerate).value<int>());
         }
         
         auto path = average_name();
@@ -510,9 +510,9 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
             SETTING(cam_framerate).value<int>() = ((fg::Webcam*)_camera)->frame_rate();
         }
 
-        if (SETTING(frame_rate).value<int>() <= 0) {
+        if (SETTING(frame_rate).value<uint32_t>() == 0) {
             print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25;
+            SETTING(frame_rate) = uint32_t(SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25);
         }
         
     } else if(utils::lowercase(source) == "test_image") {
@@ -525,10 +525,10 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         _current_average_timestamp = 1337;
         
     } else if(utils::lowercase(source) == "interactive") {
-        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
+        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<uint32_t>() == 0) {
             SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
         } else
-            SETTING(frame_rate).value<int>() = 30;
+            SETTING(frame_rate).value<uint32_t>() = 30u;
         
         std::lock_guard<std::mutex> guard(_camera_lock);
         _camera = new fg::InteractiveCamera();
@@ -574,16 +574,16 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
             _video = new VideoSource(filenames);
         }
         
-        int frame_rate = _video->framerate();
+        auto frame_rate = _video->framerate();
         if(frame_rate == -1) {
             frame_rate = 25;
         }
         
-        if(SETTING(frame_rate).value<int>() == -1) {
+        if(SETTING(frame_rate).value<uint32_t>() == 0) {
             print("Setting frame rate to ", frame_rate," (from video).");
-            SETTING(frame_rate) = (int)frame_rate;
-        } else if(SETTING(frame_rate).value<int>() != frame_rate) {
-            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<int>(),".");
+            SETTING(frame_rate) = (uint32_t)frame_rate;
+        } else if(SETTING(frame_rate).value<uint32_t>() != (uint32_t)frame_rate) {
+            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<uint32_t>(),".");
         }
         
         if(!SETTING(mask_path).value<file::Path>().empty()) {
@@ -1313,7 +1313,7 @@ void FrameGrabber::update_tracker_queue() {
                                     sizeof(float)
                                 }
                             );
-                            py::set_variable("frame", frame.get(), "closed_loop");
+                            py::set_variable("frame", (uint64_t)frame.get(), "closed_loop");
                             py::set_variable("visual_field", vids, "closed_loop",
                                 std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
                                 std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(long_t), track::VisualField::field_resolution * sizeof(long_t), sizeof(long_t) }); 
@@ -2120,7 +2120,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                 _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
                 
                 if(timer.elapsed() > 10) {
-                    if (SETTING(frame_rate).value<int>() < 10) {
+                    if (SETTING(frame_rate).value<uint32_t>() < 10) {
                         print(current.index(), ": There might be a problem. Have been waiting for ", timer.elapsed(), " with no progress (", for_the_pool.size(), " items processing).");
                     }
                     timer.reset();

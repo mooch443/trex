@@ -53,7 +53,6 @@ Fish::~Fish() {
 
     Fish::Fish(Individual& obj)
         :   _obj(obj),
-            _frame(-1),
             _info(&_obj, Output::Options_t{}),
             _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
     {
@@ -161,7 +160,7 @@ Fish::~Fish() {
                 _image.unsafe_get_source().set_index(-1);
             points.clear();
             
-            auto seg = _obj.segment_for(_frame);
+            auto seg = _frame.valid() ? _obj.segment_for(_frame) : nullptr;
             if(seg) {
                 _match_mode = (int)_obj.matched_using().at(seg->basic_stuff(_frame)).value();
             } else
@@ -228,7 +227,7 @@ Fish::~Fish() {
     }*/
     
     void Fish::update(Base* base, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
-        const int frame_rate = FAST_SETTING(frame_rate);
+        const auto frame_rate = FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
@@ -463,7 +462,7 @@ Fish::~Fish() {
         
         _view.update([&](Entangled&) {
             if (GUIOPTION(gui_show_paths))
-                paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame - 1000_f), base_color);
+                paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame.try_sub(1000_f)), base_color);
 
             if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
@@ -877,9 +876,9 @@ Fish::~Fish() {
         to = min(_obj.end_frame(), _frame);
         
         float color_start = max(0, round(_frame.get() - FAST_SETTING(frame_rate) * GUIOPTION(gui_max_path_time)));
-        float color_end = max(color_start + 1, _frame.get());
+        float color_end = max(color_start + 1, (float)_frame.get());
         
-        from = max(Frame_t(color_start), from);
+        from = max(Frame_t(sign_cast<Frame_t::number_t>(color_start)), from);
         
         if(_prev_frame_range.start != _obj.start_frame() || _prev_frame_range.end > _obj.end_frame()) {
             frame_vertices.clear();
@@ -903,7 +902,9 @@ Fish::~Fish() {
             first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         }
         
-        if(first > from) {
+        if(not first.valid()
+           || first > from)
+        {
             auto i = (first.valid() ? first - 1_f : from);
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
@@ -944,8 +945,10 @@ Fish::~Fish() {
         
         last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
         
-        if(last < to) {
-            auto i = max(from, last);
+        if(not last.valid()
+           || last < to)
+        {
+            auto i = last.valid() ? max(from, last) : from;
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
             

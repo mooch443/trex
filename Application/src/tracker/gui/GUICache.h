@@ -45,7 +45,7 @@ namespace gui {
         (gui::Color, gui_background_color),
         (bool, gui_equalize_blob_histograms),
         (float, gui_playback_speed),
-        (int, frame_rate),
+        (uint32_t, frame_rate),
         (float, gui_interface_scale),
         (default_config::output_format_t::Class, output_format),
         (uchar, gui_timeline_alpha),

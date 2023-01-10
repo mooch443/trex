@@ -1121,7 +1121,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
                 auto func = Graph::Function(mod_name,
                     info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                    [fname, mod_name, info, e](int x) {
+                    [fname, mod_name, info, e](Frame_t::number_t x) {
                         return e.second.apply(Library::get(fname, info, Frame_t(x)));
                         
                     }, gui::Color(), units);
@@ -1131,7 +1131,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 if(info.modifiers.is(Modifiers::PLUSMINUS)) {
                     graph.add_function(Graph::Function(mod_name,
                        info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                       [fname, mod_name, info, e](int x) {
+                       [fname, mod_name, info, e](Frame_t::number_t x) {
                            return -e.second.apply(Library::get(fname, info, Frame_t(x)));
                            
                        }, func._color, units));

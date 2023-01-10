@@ -260,6 +260,11 @@ private:
     
     void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool);
+    static Match::PairedProbabilities calculate_paired_probabilities
+     (
+        const TrackingHelper& s,
+        GenericThreadPool* pool
+      );
     
 public:
     void print_memory();

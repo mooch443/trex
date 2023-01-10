@@ -120,6 +120,7 @@ public:
     //! Time in seconds
     double time;
     
+    CacheHints hints;
     GETTER_SETTER(double, loading_time)
     
 public:

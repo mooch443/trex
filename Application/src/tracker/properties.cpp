@@ -164,7 +164,7 @@ void async_main(void*) {
 			graph.draw_log_messages();//Bounds(Vec2(0), dim));
 
 			static Timer frame_timer;
-			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<int>()
+			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<uint32_t>()
 				&& index + 1_f < file.length())
 			{
 				if (SETTING(gui_run)) {
@@ -375,12 +375,12 @@ int main(int argc, char**argv) {
 
 	for (int i = 1; i <= 10; ++i) {
 		SETTING(cm_per_pixel) = float(i);
-		SETTING(frame_rate) = int(60);
+		SETTING(frame_rate) = uint32_t(60);
 
 		Frame_t f0 = 0_f, f1 = 1_f;
 
 		double t0 = 0;
-		double t1 = double(f1.get()) / double(SETTING(frame_rate).value<int>());
+		double t1 = double(f1.get()) / double(SETTING(frame_rate).value<uint32_t>());
 
 		Vec2 p0(i, sqrtf(i)), 
 			p1((i - 1) / float(i) + 1, i - 1);
@@ -401,7 +401,7 @@ int main(int argc, char**argv) {
 
 
 	SETTING(cm_per_pixel) = float(2);
-	SETTING(frame_rate) = int(60);
+	SETTING(frame_rate) = uint32_t(60);
 
 	const MotionRecord* previous = nullptr;
 	std::vector<MotionRecord> vector;
@@ -410,7 +410,7 @@ int main(int argc, char**argv) {
 	auto speed = v.length();
 
 	for (Frame_t frame = 0_f; frame <= 10_f; ++frame) {
-		double time = (double)frame.get() / (double)SETTING(frame_rate).value<int>();
+		double time = (double)frame.get() / (double)SETTING(frame_rate).value<uint32_t>();
 		double dt = time - (previous ? previous->time() : 0);
 		
 		pos = pos + v * dt;

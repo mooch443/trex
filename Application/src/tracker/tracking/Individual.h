@@ -337,13 +337,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Raw blobs
         pv::BlobPtr blob(Frame_t frameIndex) const;
         pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
-        bool empty() const { return !_startFrame.valid(); }
+        [[nodiscard]] bool empty() const noexcept;
         
-        //const decltype(_training_data)& training_data() const { return _training_data; }
-        //decltype(_training_data)& training_data() { return _training_data; }
-        //void clear_training_data();
-        
-        //void save_posture(Frame_t frameIndex, Image::Ptr greyscale, Vec2 previous_direction);
         void save_posture(const BasicStuff& ptr, Frame_t frameIndex);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
@@ -374,7 +369,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
         Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
-        const std::unique_ptr<BasicStuff>& find_frame(Frame_t frameIndex) const;
+        const BasicStuff* find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);

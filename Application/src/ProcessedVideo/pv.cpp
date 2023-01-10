@@ -1142,8 +1142,17 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         Frame_t start_frame = 0_f;
         std::set<Frame_t> samples;
         
-        while(!sentinel.terminate() && timer.elapsed() < 1 && pixel_values.size() < 10000000 && start_frame < length()) {
-            auto range = arange<Frame_t>(start_frame, length(), max(1_f, Frame_t(length().get() * 0.1)));
+        while(!sentinel.terminate()
+              && timer.elapsed() < 1
+              && pixel_values.size() < 10000000
+              && start_frame < length())
+        {
+            auto range = arange<Frame_t>{
+                start_frame,
+                length(),
+                max(1_f, Frame_t(Frame_t::number_t(length().get() * 0.1)))
+            };
+            
             pv::Frame frame;
             uint64_t big_loop_size = samples.size();
             

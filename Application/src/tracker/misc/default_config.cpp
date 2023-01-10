@@ -328,7 +328,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
 
-        CONFIG("frame_rate", int(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
+        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
         
         CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
@@ -368,7 +368,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG<std::pair<pv::bid, Frame_t>>("gui_show_fish", {pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
-        CONFIG("gui_frame", Frame_t(0), "The currently visible frame.");
+        CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
 //#endif
@@ -601,7 +601,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_centered", false, "If set to true, the origin of all X and Y coordinates is going to be set to the center of the video.");
         CONFIG("output_default_options", output_default_options, "Default scaling and smoothing options for output functions, which are applied to functions in `output_graphs` during export.");
         CONFIG("output_annotations", output_annotations, "Units (as a string) of output functions to be annotated in various places like graphs.");
-        CONFIG("output_frame_window", long_t(100), "If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).");
+        CONFIG("output_frame_window", uint32_t(100), "If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).");
         CONFIG("smooth_window", uint32_t(2), "Smoothing window used for exported data with the #smooth tag.");
         
         CONFIG("tags_path", file::Path(""), "If this path is set, the program will try to find tags and save them at the specified location.");

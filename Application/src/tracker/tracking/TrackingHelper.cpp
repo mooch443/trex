@@ -11,7 +11,7 @@ struct CachedSettings {
     const bool do_posture{FAST_SETTING(calculate_posture)};
     const bool save_tags{!FAST_SETTING(tags_path).empty()};
     const uint32_t number_fish{(uint32_t)FAST_SETTING(track_max_individuals)};
-    const Frame_t approximation_delay_time{Frame_t(max(1, SLOW_SETTING(frame_rate) * 0.25))};
+    const Frame_t approximation_delay_time{Frame_t(max(1u, SLOW_SETTING(frame_rate) / 4u))};
 };
 
 inline auto& blob_grid() {
@@ -34,7 +34,7 @@ bool TrackingHelper::blob_assigned(pv::bid blob) const {
     return _blob_assigned.contains(blob);
 }
 
-bool TrackingHelper::fish_assigned(Individual* fish) const {
+bool TrackingHelper::fish_assigned(Idx_t fish) const {
     std::shared_lock guard(fish_mutex);
     return _fish_assigned.contains(fish);
 }
@@ -44,7 +44,7 @@ void TrackingHelper::clear_fish_assigned() noexcept {
     _fish_assigned.clear();
 }
 
-void TrackingHelper::fish_assign(Individual* fish) {
+void TrackingHelper::fish_assign(Idx_t fish) {
     std::scoped_lock guard(fish_mutex);
     _fish_assigned.insert(fish);
 }
@@ -173,7 +173,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, pv::BlobPtr&& blob
     }
     
     auto &basic = fish->basic_stuff()[size_t(index)];
-    fish_assign(fish);
+    fish_assign(fish->identity().ID());
     blob_assign(bdx);
     
     if (cache->do_posture)
@@ -219,8 +219,8 @@ void TrackingHelper::apply_manual_matches()
                 // TODO: remove assignment from the other fish as well and add it to cannot_find
                 double_find[bdx].insert(fdx);
                 
-            } else if(fish_assigned(fish)) {
-                FormatError("Trying to assign fish ", fish->identity().ID()," twice in frame ",frameIndex,".");
+            } else if(fish_assigned(fdx)) {
+                FormatError("Trying to assign fish ", fdx," twice in frame ",frameIndex,".");
             } else {
                 actually_assign[bdx] = fdx;
             }
@@ -367,7 +367,7 @@ void TrackingHelper::apply_manual_matches()
             
             if(blob_assigned(bdx)) {
                 print("Trying to assign blob ",bdx," twice.");
-            } else if(fish_assigned(fish)) {
+            } else if(fish_assigned(fdx)) {
                 print("Trying to assign fish ",fdx," twice.");
             } else {
                 fish->add_manual_match(frameIndex);
@@ -396,7 +396,7 @@ void TrackingHelper::apply_automatic_matches() {
             FormatError("frame ", frameIndex, ": Automatic assignment cannot be executed with fdx ", fdx, " -> ", bdx, " reporting: ", result.error());
 #endif
         } else if(frame.has_bdx(bdx)
-           && not fish_assigned(result.value())
+           && not fish_assigned(fdx)
            && not blob_assigned(bdx) )
         {
             assign_blob_individual(result.value(), frame.extract(bdx), default_config::matching_mode_t::benchmark);
@@ -405,7 +405,7 @@ void TrackingHelper::apply_automatic_matches() {
             
         } else {
 #ifndef NDEBUG
-            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",result ? (fish_assigned(result.value()) ? "assigned" : "unassigned") : result.error(),") and bdx ",bdx,"(",bdx.valid() ? (blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob",")");
+            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",result ? (fish_assigned(fdx) ? "assigned" : "unassigned") : result.error(),") and bdx ",bdx,"(",bdx.valid() ? (blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob",")");
 #endif
         }
     }
@@ -494,12 +494,33 @@ void TrackingHelper::apply_matching() {
         
         const auto& paired = optimal.pairings;
         auto blobs = frame.extract_from_blobs_unsafe(paired);
-        for(auto &blob : blobs) {
-            /*auto it = std::find_if(paired.begin(), paired.end(), [&](auto& tuple){
-                auto& [bdx, fish] = tuple;
-                return bdx == blob->blob_id();
-            });
-            auto fish = std::get<1>(*it);*/
+        
+        std::vector<std::tuple<Idx_t, pv::bid, pv::BlobPtr>> vector;
+        //std::unordered_map<pv::bid, pv::BlobPtr> map;
+        for(auto&& blob : blobs) {
+            vector.emplace_back(paired.at(blob->blob_id()), blob->blob_id(), std::move(blob));
+            //map[blob->blob_id()] = std::move(blob);
+        }
+        blobs.clear();
+        
+        IndividualManager::transform_ids(std::move(vector), [this](Idx_t fdx, pv::bid, pv::BlobPtr& blob,  Individual* fish){
+            _manager.become_active(fdx);
+            
+#ifdef TREX_DEBUG_MATCHING
+            for(auto &[i, b] : pairs) {
+                if(i == p.first) {
+                    if(b != p.second) {
+                        FormatWarning("Frame ",frameIndex,": Assigning individual ",i->identity().ID()," to ",p.second ? (*p.second)->blob_id() : 0," instead of ", b ? (*b)->blob_id() : 0);
+                    }
+                    break;
+                }
+            }
+#endif
+            
+            assign_blob_individual(fish, std::move(blob), match_mode);
+        });
+        
+        /*for(auto &blob : blobs) {
             auto fish = paired.at(blob->blob_id());
 #ifdef TREX_DEBUG_MATCHING
             for(auto &[i, b] : pairs) {
@@ -514,7 +535,7 @@ void TrackingHelper::apply_matching() {
             
             _manager.become_active(fish);
             assign_blob_individual(fish, std::move(blob), match_mode);
-        }
+        }*/
         
     } catch (const UtilsException&) {
 #if !defined(NDEBUG) && defined(PAIRING_PRINT_STATS)
@@ -542,10 +563,12 @@ void TrackingHelper::apply_matching() {
 #endif
         
         auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
-        for (auto &[bdx, fdx]: optimal.pairings) {
+        const auto&paired = optimal.pairings;
+        IndividualManager::transform_ids(paired, [&](pv::bid bdx,Idx_t fdx,  Individual* fish)
+        {
             _manager.become_active(fdx);
-            assign_blob_individual(fdx, frame.extract(bdx), default_config::matching_mode_t::hungarian);
-        }
+            assign_blob_individual(fish, frame.extract(bdx), default_config::matching_mode_t::hungarian);
+        });
         
         _approximative_enabled_in_frame = frameIndex;
         

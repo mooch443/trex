@@ -572,7 +572,7 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
 }
 
 void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size) {
-    static const double frame_rate = SETTING(frame_rate).value<int>();
+    static const double frame_rate = SETTING(frame_rate).value<uint32_t>();
     static const double frame_ms = 1000.0 / frame_rate; // ms / frame
     static Frame_t approximate_length; // approximate length in frames
     static double approximate_ms = 0;
@@ -582,10 +582,10 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
     if(not approximate_length.valid() && FrameGrabber::instance->video()) {
            approximate_length = FrameGrabber::instance->video()->length();
     } else if(not approximate_length.valid() && GlobalSettings::has("approximate_length_minutes")) {
-        approximate_length = Frame_t(SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<int>() * 60);
+        approximate_length = Frame_t(SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<uint32_t>() * 60);
         auto stop_after_minutes = SETTING(stop_after_minutes).value<uint32_t>();
         if(stop_after_minutes > 0) {
-            approximate_length = Frame_t(stop_after_minutes * SETTING(frame_rate).value<int>() * 60);
+            approximate_length = Frame_t(stop_after_minutes * SETTING(frame_rate).value<uint32_t>() * 60);
         }
     }
     

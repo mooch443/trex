@@ -499,11 +499,11 @@ int main(int argc, char**argv) {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
         }
         
-        if(SETTING(frame_rate).value<int>() == 0) {
+        if(SETTING(frame_rate).value<uint32_t>() == 0) {
             if(!SETTING(quiet))
                 FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
             video.generate_average_tdelta();
-            SETTING(frame_rate) = max(1, int(video.framerate()));
+            SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
         }
         
         Output::Library::Init();

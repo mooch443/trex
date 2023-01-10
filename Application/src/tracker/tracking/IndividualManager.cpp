@@ -5,7 +5,7 @@
 namespace track {
 
 std::shared_mutex individual_mutex;
-std::mutex global_mutex;
+std::shared_mutex global_mutex;
 
 individuals_map_t _individuals;
 
@@ -37,6 +37,11 @@ const individuals_map_t& IndividualManager::individuals() {
 std::shared_mutex& IndividualManager::_individual_mutex() {
     return individual_mutex;
 }
+
+std::shared_mutex& IndividualManager::_global_mutex() {
+    return global_mutex;
+}
+
 
 size_t IndividualManager::num_individuals() noexcept {
     std::shared_lock guard(individual_mutex);
@@ -79,20 +84,6 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
         }
     }
     
-    // regenerate inactive individuals later on
-    track::inactive_individuals.clear();
-    
-    if(largest.valid()) {
-        track::last_active = all_frames.at(largest).get();
-        
-        //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
-        for(auto& [id, fish] : _individuals) {
-            if(not track::last_active->contains(fish.get()))
-                track::inactive_individuals.push_back(fish.get());
-        }
-    } else
-        track::last_active = nullptr;
-    
     // delete empty individuals
     Idx_t largest_valid = Idx_t();
     for(auto it = _individuals.begin(); it != _individuals.end(); ) {
@@ -111,6 +102,20 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
             ++it;
         }
     }
+    
+    // regenerate inactive individuals later on
+    track::inactive_individuals.clear();
+    
+    if(largest.valid()) {
+        track::last_active = all_frames.at(largest).get();
+        
+        //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
+        for(auto& [id, fish] : _individuals) {
+            if(not track::last_active->contains(fish.get()))
+                track::inactive_individuals.push_back(fish.get());
+        }
+    } else
+        track::last_active = nullptr;
     
     if(not largest_valid.valid())
         Identity::set_running_id(Idx_t(0));
@@ -300,7 +305,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
                 continue;
             }
             
-            auto &basic = fish->find_frame(_frame);
+            auto basic = fish->find_frame(_frame);
             if(props == nullptr || props->frame != basic->frame)
                 props = Tracker::properties(basic->frame);
             assert(props != nullptr);
@@ -353,16 +358,20 @@ IndividualManager::~IndividualManager() {
     track::last_active = track::all_frames[_frame].get();
 }
 
-void IndividualManager::become_active(Individual * fish) {
+void IndividualManager::become_active(Idx_t fish) {
     //if(is_active(fish))
     //    return;
     
-    std::scoped_lock scoped(global_mutex, current_mutex);
-    auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), fish);
+    //std::scoped_lock scoped(global_mutex, current_mutex);
+    auto vit = _individuals.find(fish);
+    if(vit == _individuals.end())
+        throw U_EXCEPTION("Cannot find individual ", fish, " as was expected.");
+    
+    auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), vit->second.get());
     if(it != track::inactive_individuals.end())
         track::inactive_individuals.erase(it);
     
-    _current.insert(fish);
+    _current.insert(vit->second.get());
 }
 
 }

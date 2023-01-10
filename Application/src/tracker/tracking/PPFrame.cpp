@@ -153,7 +153,6 @@ void PPFrame::init_cache(GenericThreadPool* pool)
     _previously_active_identities.clear();
     
     float tdelta;
-    CacheHints hints;
     
     {
         LockGuard guard(ro_t{}, "history_split#1");
@@ -558,7 +557,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
 {
     ASSUME_NOT_FINALIZED;
     
-    assert(samples == blobs.size() + noise.size());
+    //assert(samples == blobs.size() + noise.size());
     //_num_pixels += pixels;
     //_pixel_samples += samples;
     
@@ -653,6 +652,7 @@ void PPFrame::clear() {
     _noise_owner.clear();
     _individual_cache.clear();
     _blob_grid.clear();
+    hints.clear();
     //! TODO: original_blobs
     //_original_blobs.clear();
     //clique_for_blob.clear();
@@ -691,20 +691,23 @@ void PPFrame::fill_proximity_grid() {
         const ptr_safe_t step_size = 2;
         const ptr_safe_t step_size_x = (ptr_safe_t)max(1, b.bounds().width * 0.1);
         
+        auto bdx = b.blob_id();
+        assert(bdx.valid());
+        
         if(N >= step_size * 2) {
-            insert_line(_blob_grid, ptr, b.blob_id(), step_size_x);
+            insert_line(_blob_grid, ptr, bdx, step_size_x);
             
             for(ptr = ptr + 1; ptr < end-1; ++ptr) {
                 if(ptr->y % step_size == 0) {
-                    insert_line(_blob_grid, ptr, b.blob_id(), step_size_x);
+                    insert_line(_blob_grid, ptr, bdx, step_size_x);
                 }
             }
             
-            insert_line(_blob_grid, end-1, b.blob_id(), step_size_x);
+            insert_line(_blob_grid, end-1, bdx, step_size_x);
             
         } else {
             for(; ptr != end; ++ptr)
-                insert_line(_blob_grid, ptr, b.blob_id(), step_size_x);
+                insert_line(_blob_grid, ptr, bdx, step_size_x);
         }
     });
 }

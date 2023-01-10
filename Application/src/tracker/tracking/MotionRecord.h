@@ -58,7 +58,7 @@ public:
     {}
         
     FrameProperties()
-        : time(-1), org_timestamp(0), frame(-1), active_individuals(-1)
+        : time(-1), org_timestamp(0), active_individuals(-1)
     {}
         
     bool operator<(Frame_t frame) const {

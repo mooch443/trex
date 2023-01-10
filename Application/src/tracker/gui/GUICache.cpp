@@ -340,7 +340,7 @@ namespace gui {
             selected_blobs.clear();
         }
         
-        bool something_important_changed = frameIndex != last_frame || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position;
+        bool something_important_changed = (not last_frame.valid() or frameIndex != last_frame) || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position;
         if(something_important_changed || (is_tracking_dirty() && mode() == mode_t::tracking)) {
             previous_active_fish = selected;
             previous_active_blobs = active_blobs;
@@ -351,7 +351,7 @@ namespace gui {
             if(something_important_changed && mode() == mode_t::tracking)
                 set_tracking_dirty();
             
-            bool reload_blobs = frameIndex != last_frame || last_threshold != threshold;
+            bool reload_blobs = (not last_frame.valid() || frameIndex != last_frame) || last_threshold != threshold;
             if(reload_blobs) {
                 processed_frame.clear();
                 
@@ -470,7 +470,7 @@ namespace gui {
                 ++i;
             });
             
-            if(reload_blobs) {
+            if(frameIndex.valid() && reload_blobs) {
                 /**
                  * Delete what we know about cliques and replace it
                  * with current information.

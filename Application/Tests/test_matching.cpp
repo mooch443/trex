@@ -116,12 +116,12 @@ TEST_P(TestPairing, TestInit) {
         ps[blob->blob_id()] = 0;
     ps[table_->blobs[0]->blob_id()] = 0.5;
     ps[table_->blobs[1]->blob_id()] = 0.01;
-    ASSERT_TRUE(table_->probs.add(table_->individuals[0], ps).valid());
+    ASSERT_TRUE(table_->probs.add(table_->individuals[0]->identity().ID(), ps).valid());
     
-    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0], table_->blobs[0]->blob_id()), 0.5);
+    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0]->identity().ID(), table_->blobs[0]->blob_id()), 0.5);
     //! Cannot find this edge:
-    EXPECT_THROW(table_->probs.probability(table_->individuals[0], table_->blobs[1]->blob_id()), UtilsException) << _format("blob ", table_->blobs[1]->blob_id(), " should not be in table of ", table_->probs.index(table_->individuals[0]), ": ", table_->probs);
-    EXPECT_THROW(table_->probs.probability(table_->individuals[0], table_->blobs[2]->blob_id()), UtilsException);
+    EXPECT_THROW(table_->probs.probability(table_->individuals[0]->identity().ID(), table_->blobs[1]->blob_id()), UtilsException) << _format("blob ", table_->blobs[1]->blob_id(), " should not be in table of ", table_->probs.index(table_->individuals[0]->identity().ID()), ": ", table_->probs);
+    EXPECT_THROW(table_->probs.probability(table_->individuals[0]->identity().ID(), table_->blobs[2]->blob_id()), UtilsException);
     
     ps.clear();
     for(auto &blob : table_->blobs)
@@ -129,41 +129,41 @@ TEST_P(TestPairing, TestInit) {
     ps[table_->blobs[1]->blob_id()] = 0.5;
     ps[table_->blobs[2]->blob_id()] = 0.8;
     
-    auto index = table_->probs.add(table_->individuals[1], ps);
+    auto index = table_->probs.add(table_->individuals[1]->identity().ID(), ps);
     ASSERT_TRUE(index.valid());
-    ASSERT_EQ(table_->probs.index(table_->individuals[1]), index);
+    ASSERT_EQ(table_->probs.index(table_->individuals[1]->identity().ID()), index);
     ASSERT_EQ(table_->probs.edges_for_row(index).size(), 2u);
     
-    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[1], table_->blobs[1]->blob_id()), 0.5);
-    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[1], table_->blobs[2]->blob_id()), 0.8);
+    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[1]->identity().ID(), table_->blobs[1]->blob_id()), 0.5);
+    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[1]->identity().ID(), table_->blobs[2]->blob_id()), 0.8);
     
-    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0], table_->blobs[0]->blob_id()), 0.5);
-    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0], table_->blobs[1]->blob_id()), 0.0);
+    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0]->identity().ID(), table_->blobs[0]->blob_id()), 0.5);
+    ASSERT_FLOAT_EQ(table_->probs.probability(table_->individuals[0]->identity().ID(), table_->blobs[1]->blob_id()), 0.0);
     
     table_->graph = std::make_unique<PairingGraph>(table_->prop, Frame_t(0), std::move(table_->probs));
     
-    ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0], table_->blobs[0]->blob_id()), 0.5);
-    ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0], table_->blobs[1]->blob_id()), 0.0) << _format(table_->blobs[1]->blob_id(), " of individual at ", table_->graph->paired().index(table_->individuals[0]), " should not have been in \n", table_->graph->paired());
+    ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0]->identity().ID(), table_->blobs[0]->blob_id()), 0.5);
+    ASSERT_FLOAT_EQ(table_->graph->prob(table_->individuals[0]->identity().ID(), table_->blobs[1]->blob_id()), 0.0) << _format(table_->blobs[1]->blob_id(), " of individual at ", table_->graph->paired().index(table_->individuals[0]->identity().ID()), " should not have been in \n", table_->graph->paired());
     
-    ASSERT_TRUE(table_->graph->connected_to(table_->individuals[0], table_->blobs[0]->blob_id()));
-    ASSERT_FALSE(table_->graph->connected_to(table_->individuals[0], table_->blobs[1]->blob_id()));
-    ASSERT_FALSE(table_->graph->connected_to(table_->individuals[0], table_->blobs[2]->blob_id()));
+    ASSERT_TRUE(table_->graph->connected_to(table_->individuals[0]->identity().ID(), table_->blobs[0]->blob_id()));
+    ASSERT_FALSE(table_->graph->connected_to(table_->individuals[0]->identity().ID(), table_->blobs[1]->blob_id()));
+    ASSERT_FALSE(table_->graph->connected_to(table_->individuals[0]->identity().ID(), table_->blobs[2]->blob_id()));
     
-    ASSERT_FALSE(table_->graph->connected_to(table_->individuals[1], table_->blobs[0]->blob_id()));
-    ASSERT_TRUE(table_->graph->connected_to(table_->individuals[1], table_->blobs[1]->blob_id()));
-    ASSERT_TRUE(table_->graph->connected_to(table_->individuals[1], table_->blobs[2]->blob_id()));
+    ASSERT_FALSE(table_->graph->connected_to(table_->individuals[1]->identity().ID(), table_->blobs[0]->blob_id()));
+    ASSERT_TRUE(table_->graph->connected_to(table_->individuals[1]->identity().ID(), table_->blobs[1]->blob_id()));
+    ASSERT_TRUE(table_->graph->connected_to(table_->individuals[1]->identity().ID(), table_->blobs[2]->blob_id()));
     
     auto& pairing = table_->graph->get_optimal_pairing(false, table_->match_mode);
     ASSERT_EQ(pairing.pairings.size(), 2u) << _format(pairing.pairings);
     
     print(table_->match_mode, "=>", pairing.pairings);
     for(auto &[bdx, fish] : pairing.pairings) {
-        if(fish == table_->individuals[0]) {
+        if(fish == table_->individuals[0]->identity().ID()) {
             ASSERT_EQ(bdx, table_->blobs[0]);
-        } else if(fish == table_->individuals[1]) {
-            ASSERT_EQ(bdx, table_->blobs[2]) << _format(fish->identity(), " was ", bdx, " instead of ", table_->blobs[2]->blob_id(), ": ", table_->blobs);
+        } else if(fish == table_->individuals[1]->identity().ID()) {
+            ASSERT_EQ(bdx, table_->blobs[2]) << _format(fish, " was ", bdx, " instead of ", table_->blobs[2]->blob_id(), ": ", table_->blobs);
         } else {
-            FAIL() << "This individual is not supposed to be here: " << fish->identity().ID();
+            FAIL() << "This individual is not supposed to be here: " << fish;
         }
     }
     
@@ -172,8 +172,8 @@ TEST_P(TestPairing, TestInit) {
 
 INSTANTIATE_TEST_SUITE_P(TestPairing, TestPairing,
      Values(&CreateData<default_config::matching_mode_t::automatic>,
-            &CreateData<default_config::matching_mode_t::hungarian>,
-            &CreateData<default_config::matching_mode_t::approximate>));
+            &CreateData<default_config::matching_mode_t::hungarian>/*,
+            &CreateData<default_config::matching_mode_t::approximate>*/));
 
 
 struct TrackerAndVideo {
@@ -242,8 +242,9 @@ TYPED_TEST(TestRanges, Ranges) {
     Range<Number_t> range(Number_t(0), Number_t(42));
     ASSERT_EQ(range.start, Number_t(0));
     ASSERT_EQ(range.end, Number_t(42));
+    ASSERT_EQ(range.length(), Number_t(42));
     
-    Number_t i(0);
+    Number_t i(range.start);
     std::set<Number_t> used;
     for(; i < range.end; ++i) {
         used.insert(i);

@@ -112,7 +112,7 @@ namespace track {
             
             print("Reading video...");
             pv::Frame frame;
-            Frame_t step_size = Frame_t(max(1, video.length().get() * 0.0002));
+            Frame_t step_size = Frame_t(max(Frame_t::number_t(1), Frame_t::number_t(video.length().get() * 0.0002)));
             const auto count_steps = video.length() / step_size;
             CPULabeling::ListCache_t cache;
             
@@ -213,7 +213,7 @@ namespace track {
                 
                 std::vector<pv::BlobPtr> collection;
                 pv::Frame frame;
-                for (Frame_t i=0_f; i<video.length(); i+=max(1_f, Frame_t(video.length().get() * 0.0005))) {
+                for (Frame_t i=0_f; i<video.length(); i+=max(1_f, Frame_t(Frame_t::number_t(video.length().get() * 0.0005)))) {
                     video.read_frame(frame, i);
                     auto blobs = frame.get_blobs();
                     

@@ -540,9 +540,9 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-        const auto displayed_range = FAST_SETTING(frame_rate) * 5;
+        const auto displayed_range = FAST_SETTING(frame_rate) * 5u;
 
-        const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
+        const Frame_t min_display_frame = Frame_t(max(Frame_t::number_t(0), Tracker::end_frame().get() - displayed_range));
 #endif
         static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
         static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();

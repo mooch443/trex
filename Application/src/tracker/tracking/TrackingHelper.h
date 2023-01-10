@@ -19,7 +19,7 @@ public:
     inline static Frame_t _approximative_enabled_in_frame;
     
     [[nodiscard]] bool blob_assigned(pv::bid) const;
-    [[nodiscard]] bool fish_assigned(Individual*) const;
+    [[nodiscard]] bool fish_assigned(Idx_t) const;
     
 public:
     bool save_tags() const;
@@ -34,7 +34,7 @@ public:
     
 private:
     robin_hood::unordered_flat_set<pv::bid> _blob_assigned;
-    robin_hood::unordered_flat_set<Individual*> _fish_assigned;
+    robin_hood::unordered_flat_set<Idx_t> _fish_assigned;
     //ska::bytell_hash_map<pv::Blob*, bool> _blob_assigned;
     //ska::bytell_hash_map<Individual*, bool> _fish_assigned;
     
@@ -42,7 +42,7 @@ private:
     void clear_blob_assigned() noexcept;
     void clear_fish_assigned() noexcept;
     void blob_assign(pv::bid);
-    void fish_assign(Individual*);
+    void fish_assign(Idx_t);
     
 public:
     size_t assigned_count = 0;

@@ -66,14 +66,16 @@ HistorySplit::HistorySplit(PPFrame &frame, GenericThreadPool* pool)
     }
     
     for(auto && [bdx, set] : frame.blob_mappings) {
-        if(already_walked.contains(bdx)) {
-            PPFrame::Log("\tblob ", bdx," already walked");
-            continue;
-        }
         PPFrame::Log("\tblob ", bdx," has ", set.size()," fish mapped to it");
         
         if(set.size() <= 1)
             continue;
+        
+        if(already_walked.contains(bdx)) {
+            PPFrame::Log("\tblob ", bdx," already walked");
+            continue;
+        }
+        
         PPFrame::Log("\tFinding clique of this blob:");
         
         UnorderedVectorSet<Idx_t> available_fdx;

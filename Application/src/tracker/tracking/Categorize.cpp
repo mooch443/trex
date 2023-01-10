@@ -337,7 +337,8 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static Frame_t start_frame = FAST_SETTING(analysis_range).first == -1 ? Frame_t(0) : Frame_t(FAST_SETTING(analysis_range).first);
+    static Frame_t start_frame = Tracker::analysis_range().start;
+    assert(start_frame == (FAST_SETTING(analysis_range).first == -1 ? Frame_t(Frame_t::number_t(0)) : Frame_t(FAST_SETTING(analysis_range).first)));
     return start_frame;
 }
 
@@ -1426,7 +1427,7 @@ Work::Task Work::_pick_front_thread() {
         static Timing timing("SortTaskQueue", 0.1);
         TakeTiming take(timing);
 
-        int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+        Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
         double mean = 0;
         std::vector<int64_t> vector;
         {
@@ -1451,7 +1452,7 @@ Work::Task Work::_pick_front_thread() {
         if(!vector.empty())
             mean /= double(vector.size());
 
-        center = Frame_t(mean);//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+        center = Frame_t(sign_cast<Frame_t::number_t>(mean));//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
         
         sorted.clear();
         sorted.reserve(Work::task_queue().size());
@@ -1662,7 +1663,7 @@ void paint_distributions(int64_t frame) {
 #ifndef __linux__
     static std::mutex distri_mutex;
     static Timer distri_timer;
-    int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+    Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
     std::vector<int64_t> v;
     std::vector<int64_t> current;
     static std::vector<int64_t> recent_frames;
@@ -1875,7 +1876,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
     std::vector<int64_t> v;
     std::vector<Range<Frame_t>> ranges, secondary;
-    int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+    Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
     
     {
         std::lock_guard g(Work::_mutex);

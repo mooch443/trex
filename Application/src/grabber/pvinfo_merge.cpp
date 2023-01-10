@@ -141,7 +141,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     Background new_background(Image::Make(average), nullptr);
     
-    if(SETTING(frame_rate).value<int>() == 0){
+    if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(!files.front()->header().metadata.empty())
             sprite::parse_values(GlobalSettings::map(), files.front()->header().metadata);
         

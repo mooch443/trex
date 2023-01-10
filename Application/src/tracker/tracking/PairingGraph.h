@@ -6,6 +6,7 @@
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
 #include <tracking/MotionRecord.h>
+#include <misc/idx_t.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -100,12 +101,14 @@ namespace track {
 namespace Match {
     using prob_t = double;
     using Blob_t = pv::bid;
+    using Fish_t = Idx_t;
+
     template<typename K, typename V>
     using pairing_map_t = std::unordered_map<K, V>;
 
     class PairedProbabilities {
     public:
-        using row_t = std::vector<Individual*>;
+        using row_t = std::vector<Fish_t>;
         using col_t = std::vector<Blob_t>;
         
         struct Edge {
@@ -209,7 +212,7 @@ namespace Match {
         typedef psets_t::const_iterator pset_ptr_t;
         
         struct Node {
-            Individual* fish;
+            Fish_t fish;
             size_t degree;
             prob_t max_prob;
             
@@ -220,7 +223,7 @@ namespace Match {
         };
         
         struct Combination {
-            Individual* fish;
+            Fish_t fish;
             Blob_t blob;
         };
         
@@ -236,7 +239,7 @@ namespace Match {
             //! Individuals and Blobs paired in the optimal way.
             //  Does not necessarily contain all Individuals/Blobs
             //  (as some might have improved the result by not being used)
-            robin_hood::unordered_flat_map<Blob_t, Individual*> pairings;
+            robin_hood::unordered_flat_map<Blob_t, Fish_t> pairings;
             
             //! Optimal path down the tree (indicies of nodes)
             std::vector<Combination> path;
@@ -320,8 +323,8 @@ namespace Match {
         
         typedef std::priority_queue<Stack*, std::vector<Stack*>, std::function<bool(const Stack*, const Stack*)>> gq_t_;
         
-        prob_t prob(Individual*, Blob_t) const;
-        bool connected_to(Individual *o, Blob_t b) const;
+        prob_t prob(Fish_t, Blob_t) const;
+        bool connected_to(Fish_t, Blob_t b) const;
         
     public:
         std::queue<Stack*> unused;

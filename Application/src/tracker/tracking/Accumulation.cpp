@@ -577,16 +577,12 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         
         print("Generating discrimination data.");
         
-        Range<Frame_t> analysis_range = Range<Frame_t>{
-            Tracker::analysis_range().start,
-            Tracker::analysis_range().end
-        };
-        
+        auto analysis_range = Tracker::analysis_range();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
         for(Frame_t frame = analysis_range.start;
             frame <= analysis_range.end;
-            frame += Frame_t(max(1, analysis_range.length().get() / 333)))
+            frame += Frame_t(max(1u, analysis_range.length().get() / 333)))
         {
             if(frame < Tracker::start_frame())
                 continue;
@@ -801,7 +797,7 @@ bool Accumulation::start() {
         LockGuard guard(ro_t{}, "GUI::generate_training_data");
         gui::WorkProgress::set_progress("generating images", 0);
         
-        DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
+        DebugCallback("Generating initial training dataset ", _initial_range," (",_initial_range.length(),") in memory.");
         
         /**
          * also generate an anonymous dataset that can be used for validation
@@ -1013,7 +1009,7 @@ bool Accumulation::start() {
                     
                     auto center = range.length() / 2_f + range.start;
                     FrameRange extended_range(Range<Frame_t>(
-                        max(analysis_range.start, center - frames_around_center),
+                        max(analysis_range.start, center.try_sub(frames_around_center)),
                         min(analysis_range.end, center + frames_around_center))
                     );
                     
@@ -1034,7 +1030,7 @@ bool Accumulation::start() {
                     if(distance < min_distance) min_distance = distance;
                     //distance = roundf((1 - SQR(average)) * 10) * 10;
                     
-                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2<uint64_t>(sign_cast<uint64_t>(range_distance.get()))));
+                    range_distance = Frame_t(narrow_cast<Frame_t::number_t>(next_pow2<uint64_t>(sign_cast<uint64_t>(range_distance.get()))));
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {
