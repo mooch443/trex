@@ -18,9 +18,6 @@ struct TrackingHelper {
 public:
     inline static Frame_t _approximative_enabled_in_frame;
     
-    [[nodiscard]] bool blob_assigned(pv::bid) const;
-    [[nodiscard]] bool fish_assigned(Idx_t) const;
-    
 public:
     bool save_tags() const;
     
@@ -30,23 +27,8 @@ public:
     // ------------------------------------
     // filter and calculate blob properties
     // ------------------------------------
-    std::queue<std::tuple<Individual*, BasicStuff*>> need_postures;
-    
-private:
-    robin_hood::unordered_flat_set<pv::bid> _blob_assigned;
-    robin_hood::unordered_flat_set<Idx_t> _fish_assigned;
-    //ska::bytell_hash_map<pv::Blob*, bool> _blob_assigned;
-    //ska::bytell_hash_map<Individual*, bool> _fish_assigned;
-    
-    mutable std::shared_mutex blob_mutex, fish_mutex;
-    void clear_blob_assigned() noexcept;
-    void clear_fish_assigned() noexcept;
-    void blob_assign(pv::bid);
-    void fish_assign(Idx_t);
     
 public:
-    size_t assigned_count = 0;
-    
     std::vector<tags::blob_pixel> tagged_fish, noise;
     
     ska::bytell_hash_map<pv::bid, Individual*> blob_fish_map;
@@ -69,8 +51,6 @@ public:
     
     TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames);
     ~TrackingHelper();
-    
-    void assign_blob_individual(Individual* fish, pv::BlobPtr&& blob, default_config::matching_mode_t::Class match_mode);
     
     void apply_manual_matches();
     void apply_automatic_matches();

@@ -42,14 +42,111 @@ std::shared_mutex& IndividualManager::_global_mutex() {
     return global_mutex;
 }
 
-
 size_t IndividualManager::num_individuals() noexcept {
     std::shared_lock guard(individual_mutex);
     return _individuals.size();
 }
 
+size_t IndividualManager::assigned_count() const noexcept {
+    return _assigned_count.load();
+}
+
+void IndividualManager::clear_blob_assigned() noexcept {
+    std::scoped_lock guard(assign_mutex);
+    _blob_assigned.clear();
+}
+
+bool IndividualManager::blob_assigned(pv::bid blob) const {
+    //std::shared_lock guard(assign_mutex);
+    return _blob_assigned.contains(blob);
+}
+
+bool IndividualManager::fish_assigned(Idx_t fish) const {
+    //std::shared_lock guard(assign_mutex);
+    return _fish_assigned.contains(fish);
+}
+
+void IndividualManager::clear_fish_assigned() noexcept {
+    std::scoped_lock guard(assign_mutex);
+    _fish_assigned.clear();
+}
+
+void IndividualManager::_assign(Idx_t fish, pv::bid bdx) {
+    //std::scoped_lock guard(assign_mutex);
+    _fish_assigned.insert(fish);
+    _blob_assigned.insert(bdx);
+}
+
+bool IndividualManager::fish_assigned(const Individual * fish) const {
+    return fish_assigned(fish->identity().ID());
+}
+
+
+void IndividualManager::assign_blob_individual(const AssignInfo& info, Individual* fish, pv::BlobPtr&& blob)
+{
+    // transfer ownership of blob to individual
+    // delete the copied objects from the original array.
+    // otherwise they would be deleted after the RawProcessing
+    // object gets deleted (ownership of blobs is gonna be
+    // transferred to Individuals)
+    
+#ifdef TREX_DEBUG_MATCHING
+    for(auto &[i, b] : pairs) {
+        if(i == fish) {
+            if(b != &blob) {
+                FormatWarning("Frame ",frameIndex,": Assigning individual ",i->identity().ID()," to ",blob ? blob->blob_id() : 0," instead of ", b ? (*b)->blob_id() : 0);
+            }
+            break;
+        }
+    }
+#endif
+    
+    assert(blob->properties_ready());
+    auto bdx = blob->blob_id();
+    if(!blob->moments().ready) {
+        blob->calculate_moments();
+    }
+    
+    //! TODO: implement this feature again
+    /*if(save_tags()) {
+        if(!blob->split()){
+            std::scoped_lock guard(blob_fish_mutex);
+            blob_fish_map[bdx] = fish;
+            if(blob->parent_id().valid())
+                blob_fish_map[blob->parent_id()] = fish;
+            
+            tagged_fish.push_back(
+                pv::Blob::Make(
+                    *blob->lines(),
+                    *blob->pixels(),
+                    blob->flags())
+            );
+        }
+    }*/
+    
+    auto index = fish->add(info, std::move(blob), -1);
+    if(index == -1) {
+#ifndef NDEBUG
+        FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", bdx," in frame ", info.frame);
+#endif
+        return;
+    }
+    
+    auto &basic = fish->basic_stuff()[size_t(index)];
+    _assign(fish->identity().ID(), bdx);
+    become_active(fish);
+    
+    if (FAST_SETTING(calculate_posture))
+        need_postures.push({fish, basic.get()});
+    else {
+        //basic->pixels = nullptr;
+    }
+    
+    ++_assigned_count;
+}
+
 IndividualManager::expected_individual_t IndividualManager::individual_by_id(Idx_t fdx) noexcept {
-    std::shared_lock guard(individual_mutex);
+    //std::shared_lock guard(individual_mutex);
     auto it = _individuals.find(fdx);
     if(it == _individuals.end())
         return tl::unexpected("Cannot find individual in global map.");
@@ -173,7 +270,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
           -> expected_individual_t
     {
         {
-            std::scoped_lock scoped(global_mutex);
+            //std::scoped_lock scoped(global_mutex);
             auto it = std::find(track::inactive_individuals.begin(),
                                 track::inactive_individuals.end(),
                                 fish);
@@ -184,7 +281,6 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
             }
         }
         
-        std::scoped_lock guard(current_mutex);
         _current.insert(fish);
         return fish;
         
@@ -196,7 +292,6 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
         {
             auto fish = make_individual(fdx);
             
-            std::scoped_lock guard(current_mutex);
             _current.insert(fish);
             return fish;
             
@@ -211,9 +306,9 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
 IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Idx_t ID) noexcept {
     Individual* fish{nullptr};
     
-    std::scoped_lock scoped(global_mutex, current_mutex);
+    //std::scoped_lock scoped(global_mutex, current_mutex);
     if(inactive_individuals.empty()) {
-        LockGuard guard(w_t{}, "Creating individual");
+        //LockGuard guard(w_t{}, "Creating individual");
         //! check if we are allowed to create new individuals,
         //! otherwise we can only return nullptr:
         const auto track_max_individuals = FAST_SETTING(track_max_individuals);
@@ -264,12 +359,12 @@ tl::expected<set_of_individuals_t*, const char*> IndividualManager::active_indiv
 }
 
 bool IndividualManager::is_active(Individual * fish) const noexcept {
-    std::shared_lock guard(current_mutex);
+    //std::shared_lock guard(current_mutex);
     return _current.contains(fish);
 }
 
 bool IndividualManager::is_inactive(Individual * fish) const noexcept {
-    std::scoped_lock scoped(global_mutex);
+    //std::scoped_lock scoped(global_mutex);
     return contains(track::inactive_individuals, fish);
 }
 
@@ -358,20 +453,20 @@ IndividualManager::~IndividualManager() {
     track::last_active = track::all_frames[_frame].get();
 }
 
-void IndividualManager::become_active(Idx_t fish) {
+void IndividualManager::become_active(Individual* fish) {
     //if(is_active(fish))
     //    return;
     
     //std::scoped_lock scoped(global_mutex, current_mutex);
-    auto vit = _individuals.find(fish);
-    if(vit == _individuals.end())
-        throw U_EXCEPTION("Cannot find individual ", fish, " as was expected.");
+    //auto vit = _individuals.find(fish);
+    //if(vit == _individuals.end())
+    //    throw U_EXCEPTION("Cannot find individual ", fish, " as was expected.");
     
-    auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), vit->second.get());
+    auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), fish);
     if(it != track::inactive_individuals.end())
         track::inactive_individuals.erase(it);
     
-    _current.insert(vit->second.get());
+    _current.insert(fish);
 }
 
 }

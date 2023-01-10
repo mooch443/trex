@@ -22,7 +22,7 @@ using analrange_t = std::pair<long_t,long_t>;
 
 //! Stable references arent technically needed, but the speed difference
 //! here is negligible.
-using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
+using set_of_individuals_t = UnorderedVectorSet<Individual*>;//robin_hood::unordered_node_set<Individual*>;
 
 //! A std::unordered_map turns out to be the fastest container for this
 //! purpose (sparse container for frame to individuals association).
@@ -37,6 +37,17 @@ using individuals_map_t = robin_hood::unordered_flat_map<Idx_t, std::unique_ptr<
 enum IdentitySource {
     VisualIdent,
     QRCodes
+};
+
+//! Information needed to assign an individual to a blob
+class PPFrame;
+struct FrameProperties;
+
+struct AssignInfo {
+    PPFrame* frame;
+    const FrameProperties* f_prop;
+    const FrameProperties* f_prev_prop;
+    default_config::matching_mode_t::Class match_mode;
 };
 
 //! A global settings cache used across the application by

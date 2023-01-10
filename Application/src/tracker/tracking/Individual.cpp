@@ -921,9 +921,9 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-int64_t Individual::add(const TrackingHelper& helper, pv::BlobPtr&& blob, prob_t current_prob)
+int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t current_prob)
 {
-    const auto frameIndex = helper.frame.index();
+    const auto frameIndex = info.frame->index();
     if (has(frameIndex))
         return -1;
     
@@ -957,10 +957,10 @@ int64_t Individual::add(const TrackingHelper& helper, pv::BlobPtr&& blob, prob_t
         _startFrame = _endFrame = frameIndex;
     }
     
-    _hints.push(frameIndex, helper.props);
+    _hints.push(frameIndex, info.f_prop);
     
     auto stuff = std::make_unique<BasicStuff>();
-    stuff->centroid.init(prev_prop, helper.frame.time, blob->center(), blob->orientation());
+    stuff->centroid.init(prev_prop, info.frame->time, blob->center(), blob->orientation());
     
     auto v = _local_cache.add(frameIndex, &stuff->centroid);
     
@@ -990,21 +990,21 @@ int64_t Individual::add(const TrackingHelper& helper, pv::BlobPtr&& blob, prob_t
     //stuff->weighted_centroid = new MotionRecord(prev_props, time, centroid_point, current->angle());
     //push_to_segments(frameIndex, prev_frame);
     
-    auto cached = helper.frame.cached(identity().ID());
+    auto cached = info.frame->cached(identity().ID());
     prob_t p{current_prob};
     if(current_prob == -1 && cached) {
         if(cached->individual_empty /* || frameIndex < start_frame() */)
             p = 0;
         else
             p = probability(cached->consistent_categories
-                                ? helper.frame.label(stuff->pixels->blob_id())
+                                ? info.frame->label(stuff->pixels->blob_id())
                                 : -1,
                             *cached,
                             frameIndex,
                             stuff->blob);//.p;
     }
     
-    auto segment = update_add_segment(frameIndex, helper.props, helper.prev_props, stuff->centroid, prev_frame, &stuff->blob, p);
+    auto segment = update_add_segment(frameIndex, info.f_prop, info.f_prev_prop, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
     auto index = _basic_stuff.size();
@@ -1012,7 +1012,7 @@ int64_t Individual::add(const TrackingHelper& helper, pv::BlobPtr&& blob, prob_t
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
         throw SoftException("(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
     _basic_stuff.emplace_back(std::move(stuff));
-    _matched_using.push_back(helper.match_mode);
+    _matched_using.push_back(info.match_mode);
     
     const auto video_length = Tracker::analysis_range().end;
     if(frameIndex >= video_length) {

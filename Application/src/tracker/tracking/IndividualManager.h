@@ -5,6 +5,7 @@
 #include <misc/frame_t.h>
 #include <tracking/TrackingSettings.h>
 #include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 
 namespace Output {
 class TrackingResults;
@@ -13,24 +14,6 @@ class ResultsFormat;
 
 namespace track {
 
-template<typename T>
-concept set_or_container = container_type<T> || set_type<T>;
-
-template <typename T>
-struct is_tuple final {
-    using type = std::false_type;
-};
-template <typename... Ts>
-struct is_tuple<std::tuple<Ts...>> final {
-using type = std::true_type;
-};
-
-template <typename T>
-using is_tuple_t = typename is_tuple<T>::type;
-
-template <typename T>
-constexpr auto is_tuple_v = is_tuple_t<T>{};
-
 class Individual;
 
 // collect all the currently active individuals
@@ -38,6 +21,217 @@ class IndividualManager {
     const Frame_t _frame;
     GETTER(set_of_individuals_t, current)
     mutable std::shared_mutex current_mutex;
+    
+private:
+    robin_hood::unordered_flat_set<pv::bid> _blob_assigned;
+    robin_hood::unordered_flat_set<Idx_t> _fish_assigned;
+    
+    mutable std::shared_mutex assign_mutex;
+    
+protected:
+    void clear_blob_assigned() noexcept;
+    void clear_fish_assigned() noexcept;
+    void _assign(Idx_t, pv::bid);
+    
+    [[nodiscard]] bool blob_assigned(pv::bid) const;
+    [[nodiscard]] bool fish_assigned(Idx_t) const;
+    [[nodiscard]] bool fish_assigned(const Individual*) const;
+    
+    [[nodiscard]] Idx_t id_of_fish(const Individual*) const noexcept;
+
+private:
+    std::queue<std::tuple<Individual*, BasicStuff*>> need_postures;
+    std::atomic<size_t> _assigned_count{0u};
+    
+public:
+    size_t assigned_count() const noexcept;
+    
+protected:
+    void assign_blob_individual(const AssignInfo&, Individual*, pv::BlobPtr&& blob);
+public:
+    template<typename... Args, template<typename...> class Vector,
+             typename F, typename ErrorF>
+        requires is_container<Vector<Args...>>::value
+              && AnyTransformer<F, pv::bid, Individual*>
+              && AnyTransformer<ErrorF, pv::bid, Individual*, const char*>
+    void assign_to_inactive(AssignInfo&& info,
+                Vector<pv::bid, Args...>& map,
+                F&& apply,
+                ErrorF&& error)
+    {
+        //const auto& cref = map;
+        //auto blobs = info.frame->extract_from_all(cref);
+        //assert(blobs.size() == map.size());
+        
+        //auto bit = blobs.begin();
+        for(auto it = map.begin(); it != map.end();) {
+            //auto&& blob = *bit;
+            
+            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            auto result = retrieve_inactive();
+            auto bdx = *it;
+            
+            if(not result) {
+                error(bdx, nullptr, result.error());
+                
+            } else if(   not fish_assigned(result.value())
+                      && not blob_assigned(bdx)
+                      && info.frame->has_bdx(bdx))
+            {
+                assign_blob_individual(info, result.value(), info.frame->extract(bdx));
+                apply(bdx, result.value());
+                
+                it = map.erase(it);
+                continue; // do not increase iterator
+                
+            } else {
+                error(bdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "Frame does not contain bdx."));
+            }
+            
+            ++it;
+        }
+    }
+    
+    template<bool safe = true, class Map,
+             typename F, typename ErrorF>
+        requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
+              && VoidTransformer<ErrorF, pv::bid, Idx_t, Individual*, const char*>
+              && is_map<std::remove_cvref_t<Map>>::value
+    void assign(AssignInfo&& info,
+                Map&& map,
+                F&& apply,
+                ErrorF&& error)
+    {
+        std::vector<pv::bid> blobs;
+        std::vector<std::tuple<Idx_t, Individual*>> individuals;
+        blobs.reserve(map.size());
+        individuals.reserve(map.size());
+        
+        auto assigned_bdx = _blob_assigned;
+        auto assigned_fdx = _fish_assigned;
+        
+        for(auto&& [bdx, fdx] : map) {
+            if(not bdx.valid()) {
+                error(bdx, fdx, nullptr, "Blob ID invalid.");
+                continue; // dont assign this blob
+            }
+            
+            if(not fdx.valid()) {
+                error(bdx, fdx, nullptr, "Individual ID invalid.");
+                continue; // dont assign this fish
+            }
+            
+            if constexpr(Predicate<F, pv::bid, Idx_t, Individual*>) {
+                if(not apply(bdx, fdx, nullptr)) {
+                    continue;
+                }
+            }
+            
+            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            auto result = retrieve_globally(fdx);
+            
+            if(not result) {
+                error(bdx, fdx, nullptr, result.error());
+                
+            } else if(   not assigned_fdx.contains(fdx)
+                      && not assigned_bdx.contains(bdx))
+                      //&& info.frame->has_bdx(bdx))
+            {
+                assigned_bdx.insert(bdx);
+                assigned_fdx.insert(fdx);
+                
+                blobs.emplace_back(bdx);
+                individuals.emplace_back(fdx, result.value());
+                
+            } else {
+                error(bdx, fdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "Frame does not contain bdx."));
+            }
+        }
+        
+        if(blobs.empty())
+            return;
+        
+        std::vector<pv::BlobPtr> ptrs;
+        if constexpr(safe)
+            ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::OneToOne>(std::move(blobs));
+        else
+            ptrs = info.frame->extract_from_blobs_unsafe<PPFrame::VectorHandling::OneToOne>(std::move(blobs));
+        
+        assert(ptrs.size() == individuals.size());
+        for(size_t i=0; i<ptrs.size(); ++i) {
+            if(ptrs.at(i) == nullptr)
+                continue;
+            
+            auto [fdx, fish] = individuals.at(i);
+            auto bdx = ptrs.at(i)->blob_id();
+            assign_blob_individual(info, fish, std::move(ptrs[i]));
+            apply(bdx, fdx, fish);
+        }
+    }
+    
+    template<class Vector, typename F, typename ErrorF, typename Tuple_t = typename std::remove_cvref_t<Vector>::value_type>
+        requires AnyTransformer<F, pv::bid, Idx_t>
+              && VoidTransformer<ErrorF, pv::bid, Idx_t, const char*>
+              && is_container<std::remove_cvref_t<Vector>>::value
+              && is_tuple_v<Tuple_t>
+    void assign(AssignInfo&& info,
+                Vector&& vector,
+                F&& apply,
+                ErrorF&& error)
+    {
+        const auto& cref = vector;
+        auto size = vector.size();
+        auto blobs = info.frame->extract_from_all<PPFrame::VectorHandling::OneToOne>(cref);
+        assert(blobs.size() == size);
+        
+        for(size_t i = 0; i<vector.size(); ++i) {
+            auto &&tuple = vector[i];
+            auto work = [](auto&&... args) -> Idx_t {
+                return find_argtype_apply([](Idx_t fdx) {
+                    return fdx;
+                }, args...);
+            };
+            
+            auto fdx = apply_to_tuple(std::forward<decltype(tuple)>(tuple), work);
+            auto bdx = apply_to_tuple(std::forward<decltype(tuple)>(tuple), [](auto&&... args) -> pv::bid {
+                return find_argtype_apply([](pv::bid bdx) {
+                    return bdx;
+                }, args...);
+            });
+            
+            if constexpr(Predicate<F, pv::bid, Idx_t>) {
+                if(not apply(bdx, fdx)) {
+                    continue;
+                }
+            }
+            
+            auto &&blob = blobs[i];
+            if(blob == nullptr) {
+                error(bdx, fdx, "Cannot find the blob.");
+                continue;
+            }
+            
+            assert(bdx.valid());
+            
+            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            auto result = retrieve_globally(fdx);
+            
+            if(not result) {
+                error(bdx, fdx, result.error());
+                
+            } else if(info.frame->has_bdx(bdx)
+                      && not fish_assigned(fdx)
+                      && not blob_assigned(bdx) )
+            {
+                assign_blob_individual(info, result.value(), std::move(blob));
+                if constexpr(not Predicate<F, pv::bid, Idx_t>)
+                    apply(bdx, fdx);
+                
+            } else {
+                error(bdx, result ? fdx : Idx_t(), "Object was not found, or was already assigned.");
+            }
+        }
+    }
     
 public:
     using expected_individual_t = tl::expected<Individual*, const char*>;
@@ -69,7 +263,7 @@ protected:
     //! if it exists, as well as setting it to "active":
     expected_individual_t retrieve_globally(Idx_t) noexcept;
     
-    void become_active(Idx_t);
+    void become_active(Individual*);
     
 public:
     [[nodiscard]] static tl::expected<set_of_individuals_t*, const char*> active_individuals(Frame_t) noexcept;

@@ -295,7 +295,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        int64_t add(const TrackingHelper&, pv::BlobPtr&& blob, Match::prob_t current_prob);
+        int64_t add(const AssignInfo&, pv::BlobPtr&& blob, Match::prob_t current_prob);
+        
         void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);

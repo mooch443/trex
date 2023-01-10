@@ -109,6 +109,8 @@ void PrefilterBlobs::split_big(
         
         for(auto it = start; it != end; ++it) {
             auto &&b = *it;
+            if(not b)
+                continue;
             
             if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
             {

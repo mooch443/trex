@@ -20,32 +20,6 @@
 namespace track {
 using namespace cmn;
 
-template<typename T>
-concept set_type = is_set<T>::value;
-
-template<typename T>
-concept container_type = is_container<T>::value;
-
-template<typename T>
-concept map_type = is_map<T>::value;
-
-template<class T> struct is_bytell : public std::false_type {};
-template<class T, class Compare, class Alloc>
-struct is_bytell<ska::bytell_hash_map<T, Compare, Alloc>> : public std::true_type {};
-
-template<class T> struct is_robin_hood_map : public std::false_type {};
-template<bool T, size_t S, typename K, typename V, class... Args>
-    requires (not std::is_same<V, void>::value)
-struct is_robin_hood_map<robin_hood::detail::Table<T, S, K, V, Args...>> : public std::true_type {};
-
-template<class T> struct is_robin_hood_set : public std::false_type {};
-template<bool T, size_t S, typename K, typename V, class... Args>
-    requires (std::is_same<V, void>::value)
-struct is_robin_hood_set<robin_hood::detail::Table<T, S, K, V, Args...>> : public std::true_type {};
-
-template<typename T>
-concept robin_hood_type = is_robin_hood_map<T>::value || is_robin_hood_set<T>::value;
-
 template<typename T, typename... Args>
 concept AnyTransformer =
     (std::invocable<T, Args...>)
@@ -192,12 +166,30 @@ public:
     //bool erase_anywhere(pv::bid bdx);
     pv::BlobPtr extract(pv::bid bdx);
     
-    template<typename T, typename K = remove_cvref_t<T>>
-    auto extract_from_range(std::vector<pv::BlobPtr>& objects,
-                            std::vector<pv::BlobPtr>&& owner,
-                            T&& vector,
-                            bool physical_remove = true)
+    enum class VectorHandling {
+        Compress,
+        OneToOne
+    };
+    
+    enum class RemoveHandling {
+        RemoveFromOwner,
+        Leave
+    };
+    
+    template<VectorHandling compress,
+             RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             typename T, typename K = remove_cvref_t<T>,
+             typename Value = typename K::value_type,
+             typename Positions,
+             typename... Owners>
+    void _extract_from_single_range(T& vector,
+                                    std::vector<pv::BlobPtr>& objects,
+                                    std::vector<pv::BlobPtr>& owner,
+                                    Positions&& positions = {})
     {
+#ifndef NDEBUG
+        std::set<pv::bid> bdxes;
+#endif
         for(auto it = owner.begin(); it != owner.end(); ) {
             auto&& own = *it;
             if(!own) {
@@ -206,7 +198,6 @@ public:
             }
             
             auto bdx = own->blob_id();
-            
             bool found;
             
             if constexpr(cmn::is_map<K>::value && !is_bytell<K>::value) {
@@ -220,8 +211,10 @@ public:
                 if constexpr(_clean_same<typename K::value_type, pv::bid>) {
                     auto vit = std::find(vector.begin(), vector.end(), bdx);
                     found = vit != vector.end();
-                    if(found)
-                        vector.erase(vit);
+                    if constexpr(not std::is_const_v<std::remove_reference_t<T>>) {
+                        if(found)
+                            vector.erase(vit);
+                    }
                     
                 } else {
                     auto vit = std::find_if(vector.begin(), vector.end(), [bdx](const auto& tuple) -> bool
@@ -245,7 +238,16 @@ public:
             
             if(!found) {
                 ++it;
+                
             } else {
+#ifndef NDEBUG
+                if(bdxes.contains(bdx)) {
+                    throw U_EXCEPTION("Already have ", bdx, " in the map!");
+                } else {
+                    bdxes.insert(bdx);
+                }
+#endif
+                
                 //! we found the blob, so remove it everywhere...
                 if(!_finalized) {
                     _blob_grid.erase(bdx);
@@ -255,50 +257,115 @@ public:
                 }
                 
                 // move object out and delete
-                objects.emplace_back(std::move(own));
+                if constexpr(compress == VectorHandling::OneToOne)
+                    objects[positions.at(bdx)] = std::move(own);
+                else {
+                    objects.emplace_back(std::move(own));
+                }
                 
                 // update iterator
-                if(physical_remove)
+                if constexpr(remove == RemoveHandling::RemoveFromOwner)
                     it = owner.erase(it);
                 else
                     ++it;
             }
         }
-        
     }
     
-    template<typename T, typename K = remove_cvref_t<T>>
+    // variant that ensures correct ordering
+    template<VectorHandling compress,
+             RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             typename T, typename K = remove_cvref_t<T>,
+             typename Value = typename K::value_type,
+             typename... Owners>
+        requires (container_type<K>
+                  && compress == VectorHandling::OneToOne
+                  && (is_tuple_v<Value>
+                      || _clean_same<Value, pv::bid>))
+    void extract_from_range(T&& vector,
+                            std::vector<pv::BlobPtr>& objects,
+                            Owners&... owners)
+    {
+        std::unordered_map<pv::bid, size_t> positions;
+        for(size_t i = 0; i < vector.size(); ++i) {
+            if constexpr(is_tuple_v<Value>) {
+                //! if we are dealing with a tuple, we first need
+                //! to find and extract the bit that is the bid
+                auto work = [](auto... args) {
+                    return find_argtype_apply([](pv::bid a) {
+                        return a;
+                    }, args...);
+                };
+                
+                auto bdx = apply_to_tuple(vector.at(i), work);
+                positions[bdx] = i;
+                
+            } else {
+                //! otherwise, assuming a vector of bids,
+                //! this becomes a bit easier:
+                positions[vector.at(i)] = i;
+            }
+        }
+        
+        assert(objects.empty());
+        objects.resize(vector.size());
+        
+        ( _extract_from_single_range<VectorHandling::OneToOne, remove>(vector, objects, owners, positions), ... );
+    }
+    
+    template<VectorHandling compress,
+             RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             typename T, typename K = remove_cvref_t<T>,
+             typename... Owners>
+        requires (compress == VectorHandling::Compress)
+                && (not (container_type<K>
+                    && (is_tuple_v<typename K::value_type>
+                        || _clean_same<typename K::value_type, pv::bid>)))
+    void extract_from_range(T&& vector,
+                            std::vector<pv::BlobPtr>& objects,
+                            Owners&... owners)
+    {
+        ( _extract_from_single_range<VectorHandling::Compress, remove>(std::forward<T>(vector), objects, owners, (void*)nullptr), ...);
+    }
+    
+    template<VectorHandling compress = VectorHandling::Compress,
+             RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
     std::vector<pv::BlobPtr> extract_from_blobs(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range(objects, std::move(_blob_owner), std::forward<T>(vector));
+        extract_from_range<compress, remove>(std::forward<T>(vector), objects, _blob_owner);
         _check_owners();
         return objects;
     }
     
-    template<typename T, typename K = remove_cvref_t<T>>
+    template<VectorHandling compress = VectorHandling::Compress,
+             RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
     std::vector<pv::BlobPtr> extract_from_noise(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range(objects, std::move(_noise_owner), std::forward<T>(vector));
+        extract_from_range<compress, remove>(std::forward<T>(vector), objects,  std::move(_noise_owner));
         _check_owners();
         return objects;
     }
     
-    template<typename T, typename K = remove_cvref_t<T>>
+    template<VectorHandling compress = VectorHandling::Compress,
+             RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
     std::vector<pv::BlobPtr> extract_from_all(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range(objects, std::move(_blob_owner), std::forward<T>(vector));
-        extract_from_range(objects, std::move(_noise_owner), std::forward<T>(vector));
+        extract_from_range<compress, remove>(std::forward<T>(vector), objects, _blob_owner, _noise_owner);
         _check_owners();
         return objects;
     }
     
-    template<typename T, typename K = remove_cvref_t<T>>
+    template<VectorHandling compress = VectorHandling::Compress,
+             typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value)
                 || (cmn::is_map<K>::value)
                 || (cmn::is_set<K>::value)
@@ -306,7 +373,7 @@ public:
     std::vector<pv::BlobPtr> extract_from_blobs_unsafe(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range(objects, std::move(_blob_owner), std::forward<T>(vector), false);
+        extract_from_range<compress, RemoveHandling::Leave>(std::forward<T>(vector), objects, _blob_owner);
         _check_owners();
         return objects;
     }
@@ -467,7 +534,6 @@ public:
     bool is_regular(pv::bid bdx) const;
     
     PPFrame();
-    ~PPFrame();
 
     PPFrame(const PPFrame&) = delete;
     PPFrame(PPFrame&&) noexcept = delete;
@@ -475,6 +541,9 @@ public:
     PPFrame& operator=(PPFrame&&) noexcept = delete;
     
     void clear();
+    
+    static std::string class_name() { return "PPFrame"; }
+    std::string toStr() const;
     
 private:
     void _assume_not_finalized(const char*, int);

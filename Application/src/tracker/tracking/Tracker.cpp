@@ -888,7 +888,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         unassigned_individuals.reserve(s._manager.current().size());
         
         s._manager.transform_active([&](Individual* fish) {
-            if(not s.fish_assigned(fish->identity().ID()))
+            if(not s._manager.fish_assigned(fish->identity().ID()))
                 unassigned_individuals.push_back(fish);
         });
         
@@ -908,7 +908,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 auto bdx = blob.blob_id();
                 bdxes[i] = bdx;
                 
-                if(!s.blob_assigned(bdx)) {
+                if(!s._manager.blob_assigned(bdx)) {
                     auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), bdx);
                     blob_labels[i] = label ? label->id : -1;
                     ptrs[i] = &blob;
@@ -923,7 +923,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #endif
             s.frame.transform_blobs([&](size_t i, pv::Blob& blob) {
                 auto bdx = blob.blob_id();
-                if(!s.blob_assigned(bdx)) {
+                if(!s._manager.blob_assigned(bdx)) {
                     unassigned_blobs.push_back(i);
                     ptrs[i] = &blob;
                 } else
@@ -1351,24 +1351,27 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                 Match::PairedProbabilities paired;
                 auto &clique = *it;
                 
-                for (auto& [fish, fdi] : s.paired.row_indexes()) {
-                    if (!clique.fids.contains(fdi))
-                        continue;
-                    
-                    if (s.fish_assigned(fish))
-                        continue;
-                    
-                    auto edges = s.paired.edges_for_row(fdi);
-                    
-                    Match::pairing_map_t<Match::Blob_t, prob_t> probs;
-                    for (auto& e : edges) {
-                        auto blob = s.paired.col(e.cdx);
-                        if (!s.blob_assigned(blob))
-                            probs[blob] = e.p;
+                {
+                    IndividualManager::Protect{};
+                    for (auto& [fish, fdi] : s.paired.row_indexes()) {
+                        if (!clique.fids.contains(fdi))
+                            continue;
+                        
+                        if (s._manager.fish_assigned(fish))
+                            continue;
+                        
+                        auto edges = s.paired.edges_for_row(fdi);
+                        
+                        Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+                        for (auto& e : edges) {
+                            auto blob = s.paired.col(e.cdx);
+                            if (!s._manager.blob_assigned(blob))
+                                probs[blob] = e.p;
+                        }
+                        
+                        if (!probs.empty())
+                            paired.add(fish, probs);
                     }
-                    
-                    if (!probs.empty())
-                        paired.add(fish, probs);
                 }
                 
                 PairingGraph graph(*s.props, frameIndex, std::move(paired));
@@ -1379,24 +1382,19 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                     auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
                     
                     std::unique_lock g(thread_mutex);
-                    const auto& paired = optimal.pairings;
-                    auto blobs = s.frame.extract_from_blobs_unsafe(paired);
+                    //const auto& paired = optimal.pairings;
+                    //auto blobs = s.frame.extract_from_blobs_unsafe(paired);
                     
-                    IndividualManager::transform_ids(paired, [&]( pv::bid bdx, Idx_t fdx, Individual* fish){
-                        s._manager.become_active(fdx);
-                        auto it = std::find(blobs.begin(), blobs.end(), bdx);
-                        if(it != blobs.end()) {
-                            auto&& blob = *it;
-                            s.assign_blob_individual(fish, std::move(blob), matching_mode_t::hungarian);
-                        }
+                    s._manager.assign<false>(AssignInfo{
+                        .frame = &s.frame,
+                        .f_prop = s.props,
+                        .f_prev_prop = s.prev_props,
+                        .match_mode = default_config::matching_mode_t::hungarian
+                    }, std::move(optimal.pairings), [&s](pv::bid, Idx_t, Individual*)
+                    {
+                    }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+                        FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
                     });
-                    
-                    /*for (auto&& blob : blobs) {
-                        auto fish = paired.at(blob->blob_id());
-                        s._manager.become_active(fish);
-                        s.assign_blob_individual(fish, std::move(blob), matching_mode_t::hungarian);
-                    }*/
-                    
                 }
                 catch (...) {
                     FormatExcept("Failed to generate optimal solution (frame ", frameIndex,").");
@@ -1448,13 +1446,13 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
         
         Match::PairedProbabilities paired;
         for(auto &[fish, idx] : s.paired.row_indexes()) {
-            if(!s.fish_assigned(fish)) {
+            if(!s._manager.fish_assigned(fish)) {
                 auto edges = s.paired.edges_for_row(idx);
                 
                 Match::pairing_map_t<Match::Blob_t, Match::prob_t> probs;
                 for(auto &e : edges) {
                     auto blob = s.paired.col(e.cdx);
-                    if(s.blob_assigned(blob))
+                    if(s._manager.blob_assigned(blob))
                         continue;
 #ifndef NDEBUG
                     if(!s.frame.has_bdx(blob)) {
@@ -1540,7 +1538,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     // Create Individuals for unassigned blobs
     std::vector<pv::bid> unassigned_blobs;
     frame.transform_blob_ids([&](pv::bid bdx) {
-        if(!s.blob_assigned(bdx))
+        if(!s._manager.blob_assigned(bdx))
             unassigned_blobs.emplace_back(bdx);
     });
     
@@ -1548,24 +1546,23 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         // the number of individuals is unlimited (==0)
         // fallback to creating new individuals if the blobs cant be matched
         // to existing ones
-        
-        const auto fn = [&](pv::bid bdx) {
-            auto result = s._manager.retrieve_inactive();
-            if(not result) {
-                throw U_EXCEPTION("Cannot create individual for blob ", bdx, ". Reason: ", result.error());
+        s._manager.assign_to_inactive(AssignInfo{
+            .frame = &s.frame,
+            .f_prop = s.props,
+            .f_prev_prop = s.prev_props,
+            .match_mode = default_config::matching_mode_t::none
+        }, unassigned_blobs, [](pv::bid bdx, Individual* fish) {
+            // nothing
+            //print("Assigned inactive ", bdx, " to ", fish);
+        }, [frameIndex](pv::bid bdx, Individual* fish, const char* error) {
+            if(!fish)
+                throw U_EXCEPTION(frameIndex, ": Cannot create individual for blob ", bdx, ". Reason: ", error);
+            else {
+                FormatWarning(frameIndex, ": Cannot assign individual ", fish," with blob ", bdx," because ", error);
             }
-            
-            s.assign_blob_individual(result.value(), s.frame.extract(bdx), default_config::matching_mode_t::benchmark);
-            return true;
-        };
+        });
         
-        unassigned_blobs.erase(
-           std::remove_if(unassigned_blobs.begin(),
-                          unassigned_blobs.end(),
-                          fn),
-           unassigned_blobs.end());
-        
-    } else if(s.assigned_count < number_fish
+    } else if(s._manager.assigned_count() < number_fish
               && not unassigned_blobs.empty())
     {
         //  + the count of individuals is fixed (which means that no new individuals can
@@ -1577,37 +1574,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
       
         // now find all individuals that have left the "active individuals" group already
         // and re-assign them if needed
-        // yep, theres at least one who is not active anymore. we may reassign them.
-        /*std::vector<Individual*> lost_individuals;
-        IndividualManager::transform_all([&](auto, auto fish){
-            if(fish->empty()) {
-                lost_individuals.push_back(fish);
-                if(not s._manager.is_inactive(fish)) {
-                    FormatWarning("fish ", fish->identity(), " should have been inactive since its empty.");
-                }
-            } else {
-                auto found = fish->find_frame(frameIndex)->frame;
-                
-                if (found != frameIndex) {
-                    // this fish is not active in frameIndex
-                    auto props = properties(found);
-                    
-                    // dont reassign them directly!
-                    // this would lead to a lot of jumping around. mostly these problems
-                    // solve themselves after a few frames.
-                    if(frame.time - props->time >= SLOW_SETTING(track_max_reassign_time)) {
-                        lost_individuals.push_back(fish);
-                        if(not s._manager.is_inactive(fish)) {
-                            FormatWarning("fish ", fish->identity(), " should have been inactive since ",frame.time - props->time," >= ", SLOW_SETTING(track_max_reassign_time),".");
-                        }
-                    }
-                }
-            }
-        });*/
-        
-        //if(not lost_individuals.empty())
         {
-            // if an individual needs to be reassigned, chose the blobs that are the closest
+            // if an individual needs to be reassigned, choose the blobs that are the closest
             // to the estimated position.
             using namespace Match;
             
@@ -1617,14 +1585,17 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             std::map<Individual*, Match::prob_t> max_probs;
             const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
             
-            IndividualManager::transform_inactive([&](auto fish)                                    {
-            //for(auto &fish : lost_individuals) {
+            PairedProbabilities pairs;
+            
+            IndividualManager::transform_inactive([&](auto fish)
+            {
+                pairing_map_t<pv::bid, Match::prob_t> for_this;
                 if(fish->empty()) {
                     for (auto& blob : unassigned_blobs) {
-                        assert(not s.blob_assigned(blob));
-                        new_table.emplace_back(p_threshold, fish->identity().ID(), blob);
-                        //new_table.insert(PairProbability(fish, blob, p_threshold));
-                        new_pairings[fish->identity().ID()][blob] = p_threshold;
+                        //assert(not s._manager.blob_assigned(blob));
+                        //new_table.emplace_back(p_threshold, fish->identity().ID(), blob);
+                        //new_pairings[fish->identity().ID()][blob] = p_threshold;
+                        for_this[blob] = p_threshold;
                     }
                     
                 } else {
@@ -1640,54 +1611,48 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                         
                         Match::prob_t p = p_threshold + Match::prob_t(1.0) / sqdistance(pos_fish.value().last_seen_px, pos_blob) / pos_fish.value().tdelta;
                         
-                        new_table.emplace_back(p, fish->identity().ID(), blob);
-                        new_pairings[fish->identity().ID()][blob] = p;
+                        for_this[blob] = p;
+                        
+                        //new_table.emplace_back(p, fish->identity().ID(), blob);
+                        //new_pairings[fish->identity().ID()][blob] = p;
                         //new_table.insert(PairProbability(fish, blob, p));
                     }
                 }
+                
+                //print(fish->identity(), " -> ", for_this);
+                pairs.add(fish->identity().ID(), for_this);
             });
             
-            std::sort(new_table.begin(), new_table.end());
+            PairingGraph g(*s.props, s.frame.index(), std::move(pairs));
+            auto& optimal = g.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
             
-            IndividualManager::transform_ids(new_table, [&s, &new_pairings, &frame](auto, Idx_t fdx, pv::bid bdx, Individual* fish) {
-                if(not s.blob_assigned(bdx)
-                   && new_pairings.contains(fdx))
-                {
-                    s._manager.become_active(fdx);
-                    s.assign_blob_individual(fish, frame.extract(bdx), default_config::matching_mode_t::benchmark);
-                    
-                    {
-                        auto it = new_pairings.find(fdx);
-                        assert(it != new_pairings.end());
-                        new_pairings.erase(it);
-                    }
-                }
+            //std::sort(new_table.begin(), new_table.end());
+            
+            s._manager.assign(AssignInfo{
+                .frame = &s.frame,
+                .f_prop = s.props,
+                .f_prev_prop = s.prev_props,
+                .match_mode = default_config::matching_mode_t::none
                 
+            }, std::move(optimal.pairings), [&new_pairings](pv::bid bdx, Idx_t fdx, Individual*) {
+                //print("Test for ", bdx, " -> ", fdx);
+                /*if(not new_pairings.contains(fdx)) {
+                    print("\t not accepting ", bdx, " -> ", fdx);
+                    return false;
+                }*/
+                    
+                /*{
+                    auto it = new_pairings.find(fdx);
+                    assert(it != new_pairings.end());
+                    new_pairings.erase(it);
+                }*/
+                
+                //print("\t *accepting ", bdx, " -> ", fdx);
+                return true;
+                
+            }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+                throw U_EXCEPTION(frameIndex, ": Cannot assign individual ", fdx," to blob ", bdx, ". Reason: ", error);
             });
-            /*for(auto it = new_table.rbegin(); it != new_table.rend(); ++it) {
-                auto &r = *it;
-                
-                //assert(s._manager.is_inactive(r.idx()));
-                if(not s.blob_assigned(r.bdx())
-                   && new_pairings.contains(r.idx()))
-                   //&& contains(lost_individuals, r.idx()))
-                {
-                    /auto it = std::find(lost_individuals.begin(), lost_individuals.end(), r.idx());
-                    assert(it != lost_individuals.end());
-                    lost_individuals.erase(it);/
-                    
-                    Individual *fish = r.idx();
-                    auto bdx = r.bdx();
-                    s._manager.become_active(fish);
-                    s.assign_blob_individual(fish, frame.extract(bdx), default_config::matching_mode_t::benchmark);
-                    
-                    {
-                        auto it = new_pairings.find(r.idx());
-                        assert(it != new_pairings.end());
-                        new_pairings.erase(it);
-                    }
-                }
-            }*/
         }
     }
     
@@ -1736,12 +1701,12 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     
     Output::Library::frame_changed(frameIndex);
     
-    if(number_fish && s.assigned_count >= number_fish) {
+    if(number_fish && s._manager.assigned_count() >= number_fish) {
         update_consecutive(s._manager.current(), frameIndex, true);
     }
     
-    _max_individuals = cmn::max(_max_individuals.load(), s.assigned_count);
-    _added_frames.back()->active_individuals = narrow_cast<long_t>(s.assigned_count);
+    _max_individuals = cmn::max(_max_individuals.load(), s._manager.assigned_count());
+    _added_frames.back()->active_individuals = narrow_cast<long_t>(s._manager.assigned_count());
     
     uint32_t n = 0;
     uint32_t prev = 0;
@@ -1834,7 +1799,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     
     std::lock_guard<std::mutex> guard(_statistics_mutex);
     auto& entry = _statistics[frameIndex];
-    entry.number_fish = s.assigned_count;
+    entry.number_fish = s._manager.assigned_count();
     entry.posture_seconds = posture_seconds;
     entry.combined_posture_seconds = combined_posture_seconds;
     

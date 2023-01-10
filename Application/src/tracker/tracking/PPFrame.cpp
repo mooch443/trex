@@ -114,6 +114,15 @@ PPFrame::PPFrame()
 {
 }
 
+std::string PPFrame::toStr() const {
+    return "PPFrame<"+index().toStr()
+        +" t:"+Meta::toStr(time)
+        +" "+(_finalized ? "final":"")
+        +" "+Meta::toStr(_blob_owner.size())+" blobs "
+        +" "+Meta::toStr(_noise_owner.size())+" noise "
+        +">";
+}
+
 const IndividualCache* PPFrame::cached(Idx_t id) const {
     auto it = _individual_cache.find(id);
     if(it != _individual_cache.end())
@@ -644,7 +653,7 @@ void PPFrame::init_from_blobs(std::vector<pv::BlobPtr>&& vec) {
     _check_owners();
 }
 
-PPFrame::~PPFrame() { }
+
 
 void PPFrame::clear() {
     _finalized = false;

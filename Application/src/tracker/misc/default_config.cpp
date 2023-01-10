@@ -78,7 +78,8 @@ namespace default_config {
         "Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.",
         "The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).",
         "Runs all algorithms and pits them against each other, outputting statistics every few frames.",
-        "Uses automatic selection based on density."
+        "Uses automatic selection based on density.",
+        "No algorithm, direct assignment."
     )
 
     ENUM_CLASS_DOCS(output_format_t,

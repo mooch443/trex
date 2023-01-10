@@ -237,7 +237,7 @@ fish_index_t PairedProbabilities::add(
     prob_t maximum = 0;
     size_t degree = 0;
     for(const auto & [col, p] : edges) {
-        if(p > matching_probability_threshold) {
+        if(p >= matching_probability_threshold) {
             auto cdx = add(col);
             _probabilities.emplace_back(cdx, p);
             _col_edges[col].push_back(rdx);
