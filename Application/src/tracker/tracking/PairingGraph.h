@@ -104,7 +104,7 @@ namespace Match {
     using Fish_t = Idx_t;
 
     template<typename K, typename V>
-    using pairing_map_t = std::unordered_map<K, V>;
+    using pairing_map_t = std::map<K, V>;
 
     class PairedProbabilities {
     public:
