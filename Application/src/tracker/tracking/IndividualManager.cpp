@@ -155,7 +155,7 @@ IndividualManager::expected_individual_t IndividualManager::individual_by_id(Idx
 
 
 void IndividualManager::clear() noexcept {
-    std::scoped_lock scoped(global_mutex, individual_mutex);
+    //std::scoped_lock scoped(global_mutex, individual_mutex);
     all_frames.clear();
     track::last_active = nullptr;
     _individuals.clear();
@@ -169,7 +169,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     Frame_t largest;
     assert(LockGuard::owns_write());
     
-    std::scoped_lock scoped(global_mutex, individual_mutex);
+    //std::scoped_lock scoped(global_mutex, individual_mutex);
     for(auto it = all_frames.begin(); it != all_frames.end(); ) {
         if(not from.valid() || it->first >= from) {
             it = all_frames.erase(it);
@@ -353,7 +353,7 @@ tl::expected<set_of_individuals_t*, const char*> IndividualManager::active_indiv
 {
     if(not frame.valid())
         return tl::unexpected("Given frame is invalid.");
-    std::scoped_lock scoped(global_mutex);
+    //std::scoped_lock scoped(global_mutex);
     auto it = track::all_frames.find(frame);
     if(it != track::all_frames.end())
         return it->second.get();

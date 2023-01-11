@@ -127,7 +127,7 @@ public:
                 }
             }
             
-            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            //std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
             auto result = retrieve_globally(fdx);
             
             if(not result) {
@@ -213,7 +213,7 @@ public:
             
             assert(bdx.valid());
             
-            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            //std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
             auto result = retrieve_globally(fdx);
             
             if(not result) {
@@ -284,7 +284,7 @@ public:
     static void transform_inactive(F&& fn) {
         //std::shared_lock im(_individual_mutex(), std::defer_lock),
         //                 gm(_global_mutex(), std::defer_lock);
-        std::scoped_lock slock(_individual_mutex(), _global_mutex());
+        //std::scoped_lock slock(_individual_mutex(), _global_mutex());
         for(auto fish : _inactive()) {
             if constexpr(Predicate<F, Individual*>) {
                 if(not fn(fish))
@@ -300,7 +300,7 @@ public:
     void transform_active(F&& fn) const {
         //std::shared_lock im(_individual_mutex(), std::defer_lock),
         //                 gm(_global_mutex(), std::defer_lock);
-        std::scoped_lock slock(_individual_mutex(), _global_mutex());
+        //std::scoped_lock slock(_individual_mutex(), _global_mutex());
         for(auto fish : _current) {
             if constexpr(Predicate<F, Individual*>) {
                 if(not fn(fish))
@@ -314,7 +314,7 @@ public:
     template<typename F, typename R = std::invoke_result_t<F, Individual*>>
         requires AnyTransformer<F, Individual*>
     static auto transform_if_exists(Idx_t fdx, F&& fn) -> tl::expected<R, const char*> {
-        std::scoped_lock slock(_global_mutex(), _individual_mutex());
+        //std::scoped_lock slock(_global_mutex(), _individual_mutex());
         auto it = individuals().find(fdx);
         if(it == individuals().end()) {
             return tl::unexpected("Cannot find individual ID.");
@@ -330,7 +330,7 @@ public:
     template<typename F, typename R = std::conditional_t<Predicate<F, Idx_t, Individual*>, bool, void>>
         requires Transformer<F, Idx_t, Individual*>
     static R transform_all(F&& fn) {
-        std::scoped_lock slock(_global_mutex(), _individual_mutex());
+        //std::scoped_lock slock(_global_mutex(), _individual_mutex());
         for(const auto& [fdx, fish] : individuals()) {
             if constexpr(Predicate<F, Idx_t, Individual*>) {
                 if(not fn(fdx, fish.get())) {
@@ -348,7 +348,7 @@ public:
     template<typename F>
         requires Transformer<F, Idx_t, Individual*>
     static void transform_parallel(GenericThreadPool& pool, F&& fn) {
-        std::scoped_lock slock(_global_mutex(), _individual_mutex());
+        //std::scoped_lock slock(_global_mutex(), _individual_mutex());
         distribute_indexes([&](auto, auto start, auto end, auto){
             for(auto it = start; it != end; ++it)
                 std::invoke(std::forward<F>(fn), it->first, it->second.get());
@@ -359,7 +359,7 @@ public:
                && VoidTransformer<ErrorF, Key, Value>
     static void _transform_ids_with_error(Map&& ids, F&& fn, ErrorF&& error) {
         for(const auto &[id, value] : ids) {
-            std::scoped_lock slock(_global_mutex(), _individual_mutex());
+            //std::scoped_lock slock(_global_mutex(), _individual_mutex());
             individuals_map_t::const_iterator it;
             if constexpr(_clean_same<Idx_t, Key>)
                 it = individuals().find(id);
@@ -392,7 +392,7 @@ public:
                 && VoidTransformer<ErrorF, Idx_t>
     static void transform_ids_with_error(const set_or_container auto& ids, F&& fn, ErrorF&& error) {
         for(const auto &id : ids) {
-            std::scoped_lock slock(_global_mutex(), _individual_mutex());
+            //std::scoped_lock slock(_global_mutex(), _individual_mutex());
             auto it = individuals().find(id);
             if(it != individuals().end()) {
                 if constexpr(Predicate<F, Idx_t, Individual*>) {
@@ -433,7 +433,7 @@ public:
         if constexpr( is_tuple_v< typename std::remove_reference_t< decltype(ids)>::value_type >)
         {
             for(auto &&tuple : ids) {
-                std::scoped_lock slock(_global_mutex(), _individual_mutex());
+                //std::scoped_lock slock(_global_mutex(), _individual_mutex());
                 auto get_id = [&fn](auto&&... args) mutable {
                     auto fish = find_argtype_apply([](Idx_t id) -> Individual* {
                         auto it = individuals().find(id);
@@ -461,7 +461,7 @@ public:
         if constexpr( is_tuple_v< typename std::remove_reference_t< decltype(ids)>::value_type >)
         {
             for(auto &&tuple : ids) {
-                std::scoped_lock slock(_global_mutex(), _individual_mutex());
+                //std::scoped_lock slock(_global_mutex(), _individual_mutex());
                 auto get_id = [&fn](auto... args) {
                     auto fish = find_argtype_apply([](Idx_t id) -> Individual* {
                         auto it = individuals().find(id);
