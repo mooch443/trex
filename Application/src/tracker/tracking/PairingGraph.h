@@ -203,6 +203,7 @@ namespace Match {
 
     class PairingGraph {
     public:
+        using ordered_map_t = std::map<Blob_t, Fish_t>;
         //! this is the "queue" for permutations from this node on
         typedef PairedProbabilities::Edge _value_t;
         //typedef std::multiset<_value_t, std::function<bool(const _value_t&, const _value_t&)>> pset;
@@ -239,7 +240,7 @@ namespace Match {
             //! Individuals and Blobs paired in the optimal way.
             //  Does not necessarily contain all Individuals/Blobs
             //  (as some might have improved the result by not being used)
-            robin_hood::unordered_flat_map<Blob_t, Fish_t> pairings;
+            ordered_map_t pairings;
             
             //! Optimal path down the tree (indicies of nodes)
             std::vector<Combination> path;

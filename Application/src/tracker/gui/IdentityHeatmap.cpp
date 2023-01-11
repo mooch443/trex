@@ -457,7 +457,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             // we cant use any frames from before
             updated.removed = _grid.size();
             _grid.clear();
-            updated.add_range = Range<Frame_t>(current_frame - frame_range,
+            updated.add_range = Range<Frame_t>(current_frame.try_sub(frame_range),
                                                current_frame + frame_range + 1_f);
             _iterators.clear();
             _capacities.clear();
@@ -471,11 +471,11 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             } else {
                 //removed = _grid.erase(Range<long_t>(current_frame + frame_range + 1, std::numeric_limits<long_t>::max()));
                 //remove_range = Range<long_t>(current_frame + frame_range + 1, std::numeric_limits<long_t>::max());
-                updated.add_range = Range<Frame_t>(current_frame - frame_range,
-                                                  min(max(0_f, _frame - frame_range), current_frame + frame_range + 1_f));
+                updated.add_range = Range<Frame_t>(current_frame.try_sub(frame_range),
+                                                  min((_frame.valid() ? _frame.try_sub(frame_range) : 0_f), current_frame + frame_range + 1_f));
             }
             
-            updated.remove_range = Range<Frame_t>(current_frame - frame_range,
+            updated.remove_range = Range<Frame_t>(current_frame.try_sub(frame_range),
                                                   current_frame + frame_range + 1_f);
         }
         
