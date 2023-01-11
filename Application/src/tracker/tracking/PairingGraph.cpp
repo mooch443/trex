@@ -1205,7 +1205,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
                 //! Collect assignments and save them as pairings:
                 for (auto &node : _optimal_pairing->path) {
-                    if (node.blob != NULL) {
+                    if (node.blob.valid()) {
                         _optimal_pairing->pairings[node.blob] = node.fish;
                     }
                 }

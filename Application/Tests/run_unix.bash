@@ -49,9 +49,7 @@ if [ -f "${WPWD}/average_test.png" ]; then
     rm "${WPWD}/average_test.png"
 fi
 
-CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
-    -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" 
-    -enable_live_tracking -auto_no_results -output_format csv -nowindow"
+CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" -enable_live_tracking -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {}"
 echo "Running TGrabs... ${CMD}"
 if ! { ${CMD} 2>&1; } ; then
     cat "${PWD}/tgrabs.log"
@@ -94,7 +92,7 @@ hungarian
 tree"
 
 for MODE in ${MODES}; do
-    CMD="${TREX} -d \"${WPWD}\" -i test -s \"${WPWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow"
+    CMD="${TREX} -d \"${WPWD}\" -i test -s \"${WPWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {}"
 
     echo "Running TRex (${MODE})... ${CMD}"
 
