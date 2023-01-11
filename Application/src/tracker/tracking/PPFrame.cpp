@@ -184,7 +184,6 @@ void PPFrame::init_cache(GenericThreadPool* pool)
     const auto last_active = Tracker::active_individuals(previous_frame);
     const auto N = last_active.size();
     _individual_cache.reserve(N);
-    _previously_active_identities.reserve(N);
     
     const float max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5;
     const auto frame_limit = SLOW_SETTING(frame_rate) * SLOW_SETTING(track_max_reassign_time);
@@ -335,6 +334,7 @@ void PPFrame::init_cache(GenericThreadPool* pool)
     };
     
     LockGuard guard(ro_t{}, "history_split#2");
+    _previously_active_identities.reserve(N);
     for(auto fish : last_active)
         _previously_active_identities.push_back(fish->identity().ID());
     

@@ -540,9 +540,12 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-        const auto displayed_range = FAST_SETTING(frame_rate) * 5u;
+        const auto displayed_range = Frame_t(FAST_SETTING(frame_rate) * 5u);
 
-        const Frame_t min_display_frame = Frame_t(max(Frame_t::number_t(0), (Tracker::end_frame().valid() ? Tracker::end_frame().get() : Frame_t::number_t(0)) - displayed_range));
+        const Frame_t min_display_frame = max(0_f, (Tracker::end_frame().valid()
+                                                    ? Tracker::end_frame()
+                                                    : 0_f)
+                                              .try_sub(displayed_range));
 #endif
         static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
         static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
@@ -562,7 +565,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                     continue;
                 
                 positions.clear();
-                positions.reserve(min((size_t)displayed_range, seg->basic_index.size()));
+                positions.reserve(min((size_t)displayed_range.get(), seg->basic_index.size()));
                 
                 const auto code =
                     tags_recognize
@@ -661,7 +664,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                     continue;
                 
                 const auto is_end = seg->contains(Frame_t(_frame->index()));
-                float percent = saturate((float(_frame->index().get()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
+                float percent = saturate((float(_frame->index().get()) - float(seg->end().get())) / float(displayed_range.get()), 0.f, 1.f);
                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
                 
                 base.line(positions, 1, color.alpha(alpha));

@@ -44,6 +44,11 @@ if ! which tgrabs; then
     fi
 fi
 
+if [ -f "${WPWD}/average_test.png" ]; then
+    # delete the average file, as to test that process as well
+    rm "${WPWD}/average_test.png"
+fi
+
 CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
     -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" 
     -enable_live_tracking -auto_no_results -output_format csv -nowindow"

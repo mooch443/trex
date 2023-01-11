@@ -582,7 +582,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         
         for(Frame_t frame = analysis_range.start;
             frame <= analysis_range.end;
-            frame += Frame_t(max(1u, analysis_range.length().get() / 333)))
+            frame += max(1_f, analysis_range.length() / 333_f))
         {
             if(frame < Tracker::start_frame())
                 continue;

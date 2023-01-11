@@ -440,11 +440,20 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     static std::vector<heatmap::DataPoint> data;
     UpdatedStats updated;
     
-    {
-        auto d = cmn::abs(current_frame - _frame);
-        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
+    if(current_frame.valid()) {
+        auto d = _frame.valid()
+                ? ((current_frame >= _frame)
+                   ? (current_frame - _frame)
+                   : (_frame - current_frame))
+                : current_frame;
+        const auto frame_range = _frame_context.valid()
+            ? _frame_context
+            : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
         
-        if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
+        if(not _frame.valid()
+           || _grid.empty()
+           || (_frame_context.valid() && d >= _frame_context))
+        {
             // we cant use any frames from before
             updated.removed = _grid.size();
             _grid.clear();

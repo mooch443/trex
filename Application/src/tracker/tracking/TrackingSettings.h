@@ -22,7 +22,7 @@ using analrange_t = std::pair<long_t,long_t>;
 
 //! Stable references arent technically needed, but the speed difference
 //! here is negligible.
-using set_of_individuals_t = UnorderedVectorSet<Individual*>;//robin_hood::unordered_node_set<Individual*>;
+using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
 
 //! A std::unordered_map turns out to be the fastest container for this
 //! purpose (sparse container for frame to individuals association).
