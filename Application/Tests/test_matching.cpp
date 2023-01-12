@@ -111,7 +111,7 @@ TEST_P(TestPairing, TestInit) {
     }
     
     table_->prop = FrameProperties(Frame_t(0), 0, 0);
-    pairing_map_t<PairedProbabilities::col_t::value_type, prob_t> ps;
+    PairedProbabilities::ordered_assign_map_t ps;
     for(auto &blob : table_->blobs)
         ps[blob->blob_id()] = 0;
     ps[table_->blobs[0]->blob_id()] = 0.5;
@@ -210,7 +210,7 @@ TEST_F(TestSystemTracker, TrackingTest) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(data->video, std::move(frame), pp, nullptr, false);
+    Tracker::preprocess_frame(data->video, std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
     data->tracker.add(pp);
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);

@@ -129,7 +129,7 @@ void async_main(void*) {
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(file, std::move(single), frame, NULL, false);
+				track::Tracker::preprocess_frame(file, std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, false);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();

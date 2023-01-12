@@ -554,7 +554,7 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
     pp.init_from_blobs(frame.get_blobs());
     
     filter_blobs(pp, pool);
-    //pp.fill_proximity_grid();
+    pp.fill_proximity_grid();
     
     if(do_history_split)
         HistorySplit{pp, need, pool};
@@ -875,6 +875,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     //max_probs.clear();
     Match::PairedProbabilities paired_blobs;
     std::mutex paired_mutex;
+    std::condition_variable is_paired_free;
     auto frameIndex = s.frame.index();
     
     using namespace default_config;
@@ -886,12 +887,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         TakeTiming take(probs);
         
         // see how many are missing
-        std::vector<Individual*> unassigned_individuals;
-        unassigned_individuals.reserve(s._manager.current().size());
+        std::map<Idx_t, Individual*> unassigned_individuals;
+        //unassigned_individuals.reserve(s._manager.current().size());
         
         s._manager.transform_active([&](Individual* fish) {
             if(not s._manager.fish_assigned(fish->identity().ID()))
-                unassigned_individuals.push_back(fish);
+                unassigned_individuals[fish->identity().ID()] = (fish);
         });
         
         // Create Individuals for unassigned blobs
@@ -947,17 +948,18 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
         IndividualCache empty;
         empty.individual_empty = true;
+        int32_t current_thread{0};
         
-        auto work = [&](auto, auto start, auto end, auto){
+        auto work = [&](auto, auto start, auto end, auto j){
             size_t pid = 0;
             std::vector< PairedProbabilities::ordered_assign_map_t > _probs(std::distance(start, end));
             
             for (auto it = start; it != end; ++it, ++pid) {
-                auto fish = *it;
+                auto &[id, fish] = *it;
                 if(fish->empty())
                     continue;
                 
-                auto cache = s.frame.cached(fish->identity().ID());
+                auto cache = s.frame.cached(id);
                 if(!cache && fish->empty()) {
                     cache = &empty;
                 } else {
@@ -982,9 +984,21 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             
             pid = 0;
-            std::lock_guard<std::mutex> guard(paired_mutex);
-            for (auto it = start; it != end; ++it, ++pid)
-                paired_blobs.add((*it)->identity().ID(), std::move(_probs[pid]));
+            
+            {
+                std::unique_lock guard(paired_mutex);
+                while(current_thread < j)
+                    is_paired_free.wait(guard);
+                
+                for (auto it = start; it != end; ++it, ++pid) {
+                    auto& [id, fish] = *it;
+                    paired_blobs.add(id, std::move(_probs[pid]));
+                }
+                
+                ++current_thread;
+            }
+            
+            is_paired_free.notify_all();
         };
         
         IndividualManager::Protect{};
@@ -1108,7 +1122,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         if(pool && N_fish > 100)
             distribute_indexes(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
         else
-            work(0, unassigned_individuals.begin(), unassigned_individuals.end(), N_fish);
+            work(0, unassigned_individuals.begin(), unassigned_individuals.end(), 0);
 #endif
     }
     

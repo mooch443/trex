@@ -10,7 +10,7 @@ namespace track {
 
 class HistorySplit {
     UnorderedVectorSet<pv::bid> already_walked;
-    robin_hood::unordered_node_set<pv::bid> big_blobs;
+    std::set<pv::bid> big_blobs;
     robin_hood::unordered_map<pv::bid, split_expectation> expect;
     
 public:

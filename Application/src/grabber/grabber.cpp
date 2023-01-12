@@ -1163,7 +1163,7 @@ void FrameGrabber::update_tracker_queue() {
             
             if(copy && tracker) {
                 track::LockGuard guard(track::w_t{}, "update_tracker_queue");
-                track::Tracker::preprocess_frame(processed(), std::move(copy->frame), copy->pp, NULL, false);
+                track::Tracker::preprocess_frame(processed(), std::move(copy->frame), copy->pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
                 tracker->add(copy->pp);
                 Frame_t frame{copy->pp.index()};
                 
