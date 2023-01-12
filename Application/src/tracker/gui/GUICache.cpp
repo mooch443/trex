@@ -359,7 +359,7 @@ namespace gui {
                     try {
                         pv::Frame frame;
                         _video->read_frame(frame, frameIndex);
-                        Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, &_pool);
+                        Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, &_pool, PPFrame::NeedGrid::Need);
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Frame ", frameIndex," cannot be loaded from file.");

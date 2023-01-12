@@ -1105,7 +1105,7 @@ int main(int argc, char** argv)
             Timer timer;
             pv::Frame frame;
             video.read_frame(frame, idx);
-            Tracker::preprocess_frame(video, std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, false);
+            Tracker::preprocess_frame(video, std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, false);
 
             ptr->set_loading_time(narrow_cast<float>(timer.elapsed()));
 

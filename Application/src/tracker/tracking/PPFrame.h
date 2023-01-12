@@ -128,15 +128,21 @@ private:
     
 public:
     const IndividualCache* cached(Idx_t) const;
-    void init_cache(GenericThreadPool* pool);
+    
+    enum class NeedGrid {
+        Need, NoNeed
+    };
+    void init_cache(GenericThreadPool* pool, NeedGrid);
     
 private:
     void set_cache(Idx_t, IndividualCache&&);
     
 protected:
-    GETTER(grid::ProximityGrid, blob_grid)
+    grid::ProximityGrid _blob_grid;
+    std::mutex _blob_grid_mutex;
     
 public:
+    const grid::ProximityGrid& blob_grid() noexcept;
     auto& unsafe_access_all_blobs() { return _blob_owner; }
     
     int label(const pv::bid&) const;
@@ -251,7 +257,10 @@ public:
                 
                 //! we found the blob, so remove it everywhere...
                 if(!_finalized) {
-                    _blob_grid.erase(bdx);
+                    if(not _blob_grid.empty()) {
+                        std::scoped_lock guard(_blob_grid_mutex);
+                        _blob_grid.erase(bdx);
+                    }
                     
                     _num_pixels -= own->num_pixels();
                     _pixel_samples--;

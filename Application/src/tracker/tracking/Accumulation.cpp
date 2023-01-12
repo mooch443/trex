@@ -1604,7 +1604,7 @@ bool Accumulation::start() {
                 
                 for(auto && [frame, ids] : frames_collected) {
                     video_file.read_frame(video_frame, frame);
-                    Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, NULL);
+                    Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
                     
                     IndividualManager::transform_ids(ids, [&, frame=frame](auto id, auto fish) {
                         auto filters = _collected_data->filters().has(id)

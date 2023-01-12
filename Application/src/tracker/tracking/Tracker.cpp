@@ -519,7 +519,7 @@ void Tracker::update_history_log() {
     PPFrame::UpdateLogs();
 }
 
-void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, bool do_history_split)
+void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, bool do_history_split)
 {
     static std::once_flag flag;
     std::call_once(flag, [&video](){
@@ -554,10 +554,10 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
     pp.init_from_blobs(frame.get_blobs());
     
     filter_blobs(pp, pool);
-    pp.fill_proximity_grid();
+    //pp.fill_proximity_grid();
     
     if(do_history_split)
-        HistorySplit{pp, pool};
+        HistorySplit{pp, need, pool};
     
     //! discarding frame...
     frame.clear();
@@ -1497,7 +1497,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     //! E.g.: We know there should be two individuals where we only
     //! find one object -> split the object in order to try to split
     //! the potentially overlapping individuals apart.
-    HistorySplit{frame, &_thread_pool};
+    HistorySplit{frame, PPFrame::NeedGrid::NoNeed, &_thread_pool};
     
     //! Initialize helper structure that encapsulates the substeps
     //! of the Tracker::add method:

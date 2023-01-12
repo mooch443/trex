@@ -134,14 +134,11 @@ bool operator==(const pv::BlobPtr& blob, pv::bid bdx) {
     return blob ? blob->blob_id() == bdx : false;
 }
 
-bool PPFrame::has_bdx(pv::bid bdx) const {
-    return (std::find(_blob_owner.begin(), _blob_owner.end(), bdx) != _blob_owner.end())
-        || (std::find(_noise_owner.begin(), _noise_owner.end(), bdx) != _noise_owner.end());
-    //auto it = _bdx_to_ptr.find(bdx);
-    //return it != _bdx_to_ptr.end();
+bool PPFrame::has_bdx(pv::bid bdx) const noexcept {
+    return bdx_to_ptr(bdx) != nullptr;
 }
 
-void PPFrame::init_cache(GenericThreadPool* pool)
+void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 {
     ASSUME_NOT_FINALIZED;
     
@@ -343,6 +340,11 @@ void PPFrame::init_cache(GenericThreadPool* pool)
     } else if(N) {
         distribute_indexes(fn, *pool, last_active.begin(), last_active.end());
     }
+    
+    if(need == NeedGrid::NoNeed) {
+        std::scoped_lock guard(_blob_grid_mutex);
+        _blob_grid.clear();
+    }
 }
 
 
@@ -453,6 +455,16 @@ pv::BlobPtr PPFrame::extract(pv::bid bdx) {
     return ptr;
 }
 
+const grid::ProximityGrid& PPFrame::blob_grid() noexcept {
+    std::scoped_lock guard(_blob_grid_mutex);
+    if(_blob_grid.empty()) {
+        // have to fill the grid
+        fill_proximity_grid();
+    }
+    
+    return _blob_grid;
+}
+
 pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx) {
     assert(bdx.valid());
     
@@ -465,7 +477,10 @@ pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx
         
         if(own->blob_id() == bdx) {
             //! we found the blob, so remove it everywhere...
-            _blob_grid.erase(bdx);
+            {
+                std::scoped_lock guard(_blob_grid_mutex);
+                _blob_grid.erase(bdx);
+            }
             
             _num_pixels -= own->num_pixels();
             _pixel_samples--;
