@@ -296,7 +296,7 @@ public:
         //std::shared_lock im(_individual_mutex(), std::defer_lock),
         //                 gm(_global_mutex(), std::defer_lock);
         //std::scoped_lock slock(_individual_mutex(), _global_mutex());
-        for(auto fish : _inactive()) {
+        for(auto &[id, fish] : _inactive()) {
             if constexpr(Predicate<F, Individual*>) {
                 if(not fn(fish))
                     break;

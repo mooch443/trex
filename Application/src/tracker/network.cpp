@@ -68,7 +68,7 @@ int main(int argc, char**argv) {
         double s = 0;
         for(Frame_t i=0_f; i<video.length(); ++i) {
             video.read_frame(frame, i);
-            track::Tracker::preprocess_frame(video, std::move(frame), pp, NULL, false);
+            track::Tracker::preprocess_frame(video, std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
             tracker.add(pp);
             
             s += timer.elapsed();

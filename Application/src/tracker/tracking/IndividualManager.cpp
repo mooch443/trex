@@ -213,7 +213,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
         //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
         for(auto& [id, fish] : _individuals) {
             if(not track::last_active->contains(fish.get()))
-                track::inactive_individuals.insert(fish.get());
+                track::inactive_individuals[fish->identity().ID()] = (fish.get());
         }
     } else
         track::last_active = nullptr;
@@ -275,7 +275,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
     {
         {
             //std::scoped_lock scoped(global_mutex);
-            auto it = track::inactive_individuals.find(fish);
+            auto it = track::inactive_individuals.find(fish->identity().ID());
             /*auto it = std::find(track::inactive_individuals.begin(),
                                 track::inactive_individuals.end(),
                                 fish);*/
@@ -328,18 +328,19 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
     } else if(ID.valid()) {
         //! find a fixed ID from inactive and return the object,
         //! move it to active
-        auto result = std::find_if(
+        auto result = track::inactive_individuals.find(ID);
+        /*auto result = std::find_if(
             track::inactive_individuals.begin(),
             track::inactive_individuals.end(),
             [ID](auto &fish) {
                 return fish->identity().ID() == ID;
             }
-        );
+        );*/
         
         if(result == track::inactive_individuals.end())
             return tl::unexpected("Specified ID cannot be found in inactive_individuals.");
         
-        fish = *result;
+        fish = result->second;
         track::inactive_individuals.erase(result);
         
     } else {
@@ -347,7 +348,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
         //! TODO: have to search for the lowest ID within the highest frame
         //! to ensure proper sorting.
         auto it = track::inactive_individuals.begin();
-        fish = *it;
+        fish = it->second;
         track::inactive_individuals.erase(it);
     }
     
@@ -373,7 +374,7 @@ bool IndividualManager::is_active(Individual * fish) const noexcept {
 
 bool IndividualManager::is_inactive(Individual * fish) const noexcept {
     //std::scoped_lock scoped(global_mutex);
-    return contains(track::inactive_individuals, fish);
+    return contains(track::inactive_individuals, fish->identity().ID());
 }
 
 IndividualManager::IndividualManager(const PPFrame& frame)
@@ -421,9 +422,9 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             
             // if last assignment was too long ago, throw individuals
             // out of the active set and put them into the inactive:
-            assert(not contains(track::inactive_individuals, fish));
+            assert(not contains(track::inactive_individuals, fish->identity().ID()));
             //print("Current(",frame.index(),"): Putting ", fish, " in inactive.");
-            track::inactive_individuals.insert(fish);
+            track::inactive_individuals[fish->identity().ID()] = (fish);
         }
     }
     
@@ -433,7 +434,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             if(not has_individual(id)) {
                 auto fish = make_individual(id);
                 //std::scoped_lock guard(global_mutex);
-                track::inactive_individuals.insert(fish);
+                track::inactive_individuals[id] = (fish);
                 /*auto result = retrieve_globally(id);
                 if(not result)
                     throw U_EXCEPTION("Was unable to create a new individual with id ", id, " because: ", result.error());*/
@@ -450,7 +451,7 @@ IndividualManager::~IndividualManager() {
     if constexpr(is_debug_mode()) {
         if(track::last_active) {
             for(auto fish : *track::last_active) {
-                assert((_current.find(fish) == _current.end() && contains(track::inactive_individuals, fish))
+                assert((_current.find(fish) == _current.end() && contains(track::inactive_individuals, fish->identity().ID()))
                        || _current.find(fish) != _current.end());
             }
         }
@@ -472,7 +473,7 @@ void IndividualManager::become_active(Individual* fish) {
     //if(vit == _individuals.end())
     //    throw U_EXCEPTION("Cannot find individual ", fish, " as was expected.");
     
-    auto it = track::inactive_individuals.find(fish);
+    auto it = track::inactive_individuals.find(fish->identity().ID());
     //auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), fish);
     if(it != track::inactive_individuals.end())
         track::inactive_individuals.erase(it);
