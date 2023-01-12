@@ -118,6 +118,8 @@ private:
     //GETTER(std::vector<pv::bid>, noise)
     std::vector<pv::BlobPtr> _blob_owner;
     std::vector<pv::BlobPtr> _noise_owner;
+    robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _blob_map;
+    robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _noise_map;
     
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
@@ -216,11 +218,21 @@ public:
                     break;
                 
                 if constexpr(_clean_same<typename K::value_type, pv::bid>) {
-                    auto vit = std::find(vector.begin(), vector.end(), bdx);
-                    found = vit != vector.end();
-                    if constexpr(not std::is_const_v<std::remove_reference_t<T>>) {
-                        if(found)
-                            vector.erase(vit);
+                    if constexpr(set_type<K>) {
+                        if constexpr(not std::is_const_v<std::remove_reference_t<T>>) {
+                            size_t count = vector.erase(bdx);
+                            found = count != 0;
+                        } else {
+                            found = vector.contains(bdx);
+                        }
+                        
+                    } else {
+                        auto vit = std::find(vector.begin(), vector.end(), bdx);
+                        found = vit != vector.end();
+                        if constexpr(not std::is_const_v<std::remove_reference_t<T>>) {
+                            if(found)
+                                vector.erase(vit);
+                        }
                     }
                     
                 } else {
@@ -274,10 +286,16 @@ public:
                 }
                 
                 // update iterator
-                if constexpr(remove == RemoveHandling::RemoveFromOwner)
+                if constexpr(remove == RemoveHandling::RemoveFromOwner) {
                     it = owner.erase(it);
-                else
+                    
+                } else
                     ++it;
+                
+                if(&owner == &_blob_owner) {
+                    _blob_map.erase(bdx);
+                } else
+                    _noise_map.erase(bdx);
             }
         }
     }
@@ -396,8 +414,8 @@ public:
     
     //! If the bdx can be found in any of the arrays, this will return
     /// something != nullptr.
-    pv::BlobWeakPtr bdx_to_ptr(pv::bid bdx) const;
-    bool has_bdx(pv::bid bdx) const;
+    pv::BlobWeakPtr bdx_to_ptr(pv::bid bdx) const noexcept;
+    bool has_bdx(pv::bid bdx) const noexcept;
     
     //! Tries to find a blob in the original blobs.
     //pv::BlobPtr find_original_bdx(pv::bid bdx) const;
@@ -527,12 +545,18 @@ public:
     void move_to_noise_if(F && fn) {
         for(auto it = _blob_owner.begin(); it != _blob_owner.end(); ) {
             auto &&own = *it;
-            if(!own)
+            if(!own) {
+                ++it;
                 continue;
+            }
             
             if(fn(*own)) {
+                _noise_map[own->blob_id()] = own.get();
+                _blob_map.erase(own->blob_id());
+                
                 _noise_owner.emplace_back(std::move(own));
                 it = _blob_owner.erase(it);
+                
                 //_blob_owner.erase(std::find(_blobs.begin(), _blobs.end(), own.blob->blob_id()));
             } else
                 ++it;

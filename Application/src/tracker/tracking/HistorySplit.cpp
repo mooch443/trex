@@ -261,7 +261,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     //for(auto& b : big_blobs)
     //    frame.erase_regular(b->blob_id());
     
-    auto collection = frame.extract_from_blobs(big_blobs);
+    auto collection = frame.extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave>(big_blobs);
     assert(frame.extract_from_blobs(big_blobs).empty());
     //assert(collection.size() == big_blobs.size());
     big_blobs.clear();

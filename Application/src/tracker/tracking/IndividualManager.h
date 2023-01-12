@@ -102,10 +102,11 @@ public:
                 F&& apply,
                 ErrorF&& error)
     {
-        std::vector<pv::bid> blobs;
-        std::vector<std::tuple<Idx_t, Individual*>> individuals;
-        blobs.reserve(map.size());
-        individuals.reserve(map.size());
+        //std::vector<pv::bid> blobs;
+        //std::vector<std::tuple<Idx_t, Individual*>> individuals;
+        robin_hood::unordered_flat_map<pv::bid, Individual*> blob_map;
+        //blobs.reserve(map.size());
+        //individuals.reserve(map.size());
         
         auto assigned_bdx = _blob_assigned;
         auto assigned_fdx = _fish_assigned;
@@ -140,32 +141,42 @@ public:
                 assigned_bdx.insert(bdx);
                 assigned_fdx.insert(fdx);
                 
-                blobs.emplace_back(bdx);
-                individuals.emplace_back(fdx, result.value());
+                blob_map[bdx] = result.value();
+                //blobs.emplace_back(bdx);
+                //individuals.emplace_back(fdx, result.value());
                 
             } else {
                 error(bdx, fdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "Frame does not contain bdx."));
             }
         }
         
-        if(blobs.empty())
+        if(blob_map.empty())
             return;
         
         std::vector<pv::BlobPtr> ptrs;
-        if constexpr(safe)
+        /*if constexpr(safe)
             ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::OneToOne>(std::move(blobs));
         else
-            ptrs = info.frame->extract_from_blobs_unsafe<PPFrame::VectorHandling::OneToOne>(std::move(blobs));
+            ptrs = info.frame->extract_from_blobs_unsafe<PPFrame::VectorHandling::OneToOne>(std::move(blobs));*/
+        if constexpr(safe)
+            ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave>(blob_map);
+        else
+            ptrs = info.frame->extract_from_blobs_unsafe(blob_map);
         
-        assert(ptrs.size() == individuals.size());
+        /*if(ptrs.size() != individuals.size()) {
+            print("Got pointers: ", ptrs, " for map: ", blob_map, " with individuals: ", individuals, " and blobs: ", blobs);
+        }
+        
+        assert(ptrs.size() == individuals.size());*/
         for(size_t i=0; i<ptrs.size(); ++i) {
             if(ptrs.at(i) == nullptr)
                 continue;
             
-            auto [fdx, fish] = individuals.at(i);
+            //auto [fdx, fish] = individuals.at(i);
             auto bdx = ptrs.at(i)->blob_id();
+            auto fish = blob_map.at(bdx);
             assign_blob_individual(info, fish, std::move(ptrs[i]));
-            apply(bdx, fdx, fish);
+            apply(bdx, id_of_fish(fish), fish);
         }
     }
     

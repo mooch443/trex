@@ -393,10 +393,13 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
     print(this->index(), " Added ", blob, " with regular=", regular);
 #endif
     
-    if(regular)
+    if(regular) {
+        _blob_map[blob->blob_id()] = blob.get();
         _blob_owner.emplace_back(std::move(blob));
-    else
+    } else {
+        _noise_map[blob->blob_id()] = blob.get();
         _noise_owner.emplace_back(std::move(blob));
+    }
     
     return bdx;
 }
@@ -444,6 +447,10 @@ void PPFrame::move_to_noise(size_t blob_index) {
     assert(blob_index < _blob_owner.size());
     
     // no update of pixels or maps is required
+    auto ptr = _blob_owner.at(blob_index).get();
+    _blob_map.erase(ptr->blob_id());
+    _noise_map[ptr->blob_id()] = ptr;
+    
     _noise_owner.insert(_noise_owner.end(), std::make_move_iterator(_blob_owner.begin() + blob_index), std::make_move_iterator(_blob_owner.begin() + blob_index + 1));
     _blob_owner.erase(_blob_owner.begin() + blob_index);
 }
@@ -493,6 +500,12 @@ pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx
             auto object = std::move(own);
             it = range.erase(it);
             
+            if(&_blob_owner == &range) {
+                _blob_map.erase(object->blob_id());
+            } else {
+                _noise_map.erase(object->blob_id());
+            }
+            
             _check_owners();
             return object;
         } else
@@ -532,17 +545,17 @@ void PPFrame::add_regular(std::vector<pv::BlobPtr>&& v) {
 }
 
 bool PPFrame::is_regular(pv::bid bdx) const {
-    return std::find(_blob_owner.begin(), _blob_owner.end(), bdx) != _blob_owner.end();
+    return _blob_map.find(bdx) != _blob_map.end();
 }
 
-pv::BlobWeakPtr PPFrame::bdx_to_ptr(pv::bid bdx) const {
-    auto it = std::find(_blob_owner.begin(), _blob_owner.end(), bdx);
-    if(it != _blob_owner.end())
-        return (*it).get();
+pv::BlobWeakPtr PPFrame::bdx_to_ptr(pv::bid bdx) const noexcept {
+    auto it = _blob_map.find(bdx);
+    if(it != _blob_map.end())
+        return it->second;
     
-    it = std::find(_noise_owner.begin(), _noise_owner.end(), bdx);
-    if(it != _noise_owner.end())
-        return (*it).get();
+    it = _noise_map.find(bdx);
+    if(it != _noise_map.end())
+        return it->second;
     
     return nullptr;
 }
@@ -554,6 +567,8 @@ void PPFrame::set_tags(std::vector<pv::BlobPtr>&& tags) {
 void PPFrame::clear_blobs() {
     ASSUME_NOT_FINALIZED;
     
+    _blob_map.clear();
+    _noise_map.clear();
     _blob_owner.clear();
     _noise_owner.clear();
     _num_pixels = 0;
@@ -563,6 +578,20 @@ void PPFrame::clear_blobs() {
 }
 
 void PPFrame::_check_owners() {
+#ifndef NDEBUG
+    for(auto& [bdx, ptr] : _blob_map) {
+        auto it = std::find(_blob_owner.begin(), _blob_owner.end(), bdx);
+        if(it == _blob_owner.end())
+            throw U_EXCEPTION("Cannot find ", bdx, " in _blob_owner.");
+    }
+    
+    for(auto& [bdx, ptr] : _noise_map) {
+        auto it = std::find(_noise_owner.begin(), _noise_owner.end(), bdx);
+        if(it == _noise_owner.end())
+            throw U_EXCEPTION("Cannot find ", bdx, " in _blob_owner.");
+    }
+#endif
+    
 #ifndef NDEBUG
     /*size_t i=0;
     for(; i < _owner.size(); ++i) {
@@ -625,10 +654,16 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
         for(auto &blob : blobs)
             integrate_blob(blob);
         
+        for(auto& blob : blobs)
+            _blob_map[blob->blob_id()] = blob.get();
+            
         _blob_owner.insert(_blob_owner.end(), std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
         
         for(auto &blob : noise)
             integrate_blob(blob);
+        
+        for(auto& blob: noise)
+            _noise_map[blob->blob_id()] = blob.get();
         
         _noise_owner.insert(_noise_owner.end(), std::make_move_iterator(noise.begin()), std::make_move_iterator(noise.end()));
         
@@ -675,8 +710,13 @@ void PPFrame::clear() {
     _finalized = false;
     _blob_owner.clear();
     _noise_owner.clear();
+    _blob_map.clear();
+    _noise_map.clear();
     _individual_cache.clear();
-    _blob_grid.clear();
+    {
+        std::scoped_lock guard(_blob_grid_mutex);
+        _blob_grid.clear();
+    }
     hints.clear();
     //! TODO: original_blobs
     //_original_blobs.clear();
