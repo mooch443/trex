@@ -59,6 +59,7 @@ namespace gui {
     
     void SimpleBlob::convert() {
         Vec2 image_pos;
+        assert(blob != nullptr);
         
         auto &percentiles = GUICache::instance().pixel_value_percentiles;
         if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
@@ -402,7 +403,9 @@ namespace gui {
                 }
             }
             
+            //! count the actual number of objects
             size_t i = 0;
+            
             processed_frame.transform_blobs([&](pv::Blob& blob) {
                 if(nothing_to_zoom_on || selected_blobs.find(blob.blob_id()) != selected_blobs.end())
                 {
@@ -469,6 +472,11 @@ namespace gui {
                 
                 ++i;
             });
+            
+            //! raw_blobs can be exaggerated because nullptrs within the
+            //! blob and noise arrays are also counted (but not provided
+            //! within the above loop). shrink:
+            raw_blobs.resize(i);
             
             if(reload_blobs) {
                 /**
