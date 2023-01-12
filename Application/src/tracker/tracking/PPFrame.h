@@ -58,10 +58,11 @@ concept Transformer = VoidTransformer<T, Args...>
 
 class PPFrame {
 public:
-    //robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
-    robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
-    robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
-    robin_hood::unordered_map<Idx_t, Vec2> last_positions;
+    template<typename K, typename V>
+    using map_t = robin_hood::unordered_flat_map<K, V>;
+    map_t<pv::bid, std::set<Idx_t>> blob_mappings;
+    map_t<Idx_t, map_t<pv::bid, Match::prob_t>> paired;
+    map_t<Idx_t, Vec2> last_positions;
     
     std::atomic<uint64_t> _split_objects{0}, _split_pixels{0};
     

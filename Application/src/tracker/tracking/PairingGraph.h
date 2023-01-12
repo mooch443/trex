@@ -104,7 +104,7 @@ namespace Match {
     using Fish_t = Idx_t;
 
     template<typename K, typename V>
-    using pairing_map_t = std::map<K, V>;
+    using pairing_map_t = robin_hood::unordered_flat_map<K, V>;
 
     class PairedProbabilities {
     public:
@@ -155,7 +155,8 @@ namespace Match {
     public:
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
         
-        fish_index_t add(row_t::value_type, const pairing_map_t<col_t::value_type, prob_t>&);
+        using ordered_assign_map_t = std::map<col_t::value_type, prob_t>;
+        fish_index_t add(row_t::value_type, const ordered_assign_map_t&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
         

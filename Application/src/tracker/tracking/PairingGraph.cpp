@@ -220,7 +220,7 @@ prob_t PairedProbabilities::probability(fish_index_t rdx, blob_index_t cdx) cons
 
 fish_index_t PairedProbabilities::add(
       row_t::value_type row,
-      const pairing_map_t<col_t::value_type, prob_t>& edges)
+      const ordered_assign_map_t& edges)
 {
 #ifndef NDEBUG
     if(_row_index.count(row))

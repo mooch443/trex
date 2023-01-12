@@ -17,9 +17,9 @@ set_of_individuals_t*& IndividualManager::_last_active() {
 }
 
 //! individuals in first-in-last-out order:
-std::vector<Individual*> inactive_individuals;
+inactive_individuals_t inactive_individuals;
 
-std::vector<Individual*>& IndividualManager::_inactive() {
+inactive_individuals_t& IndividualManager::_inactive() {
     return inactive_individuals;
 }
 
@@ -49,6 +49,10 @@ size_t IndividualManager::num_individuals() noexcept {
 
 size_t IndividualManager::assigned_count() const noexcept {
     return _assigned_count.load();
+}
+
+Idx_t IndividualManager::id_of_fish(const Individual * fish) const noexcept {
+    return fish->identity().ID();
 }
 
 void IndividualManager::clear_blob_assigned() noexcept {
@@ -139,7 +143,7 @@ void IndividualManager::assign_blob_individual(const AssignInfo& info, Individua
     if (FAST_SETTING(calculate_posture))
         need_postures.push({fish, basic.get()});
     else {
-        //basic->pixels = nullptr;
+        basic->pixels = nullptr;
     }
     
     ++_assigned_count;
@@ -209,7 +213,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
         //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
         for(auto& [id, fish] : _individuals) {
             if(not track::last_active->contains(fish.get()))
-                track::inactive_individuals.push_back(fish.get());
+                track::inactive_individuals.insert(fish.get());
         }
     } else
         track::last_active = nullptr;
@@ -271,9 +275,10 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
     {
         {
             //std::scoped_lock scoped(global_mutex);
-            auto it = std::find(track::inactive_individuals.begin(),
+            auto it = track::inactive_individuals.find(fish);
+            /*auto it = std::find(track::inactive_individuals.begin(),
                                 track::inactive_individuals.end(),
-                                fish);
+                                fish);*/
             if(it != track::inactive_individuals.end()) {
                 // is marked as inactive, so has to be set active
                 // and removed here:
@@ -341,8 +346,9 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
         //! return any ID from inactive
         //! TODO: have to search for the lowest ID within the highest frame
         //! to ensure proper sorting.
-        fish = track::inactive_individuals.back();
-        track::inactive_individuals.pop_back();
+        auto it = track::inactive_individuals.begin();
+        fish = *it;
+        track::inactive_individuals.erase(it);
     }
     
     _current.insert(fish);
@@ -375,7 +381,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
 {
     //! no need to do anything first frame
     {
-        std::scoped_lock scoped(global_mutex, current_mutex);
+        //std::scoped_lock scoped(global_mutex, current_mutex);
         if(track::last_active) {
             //! check currently active individuals
             _current = *track::last_active;
@@ -389,7 +395,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
     {
         //! cannot use `remove_if` here since the type could change to e.g.
         //! `bytell_hash_map` or `robin_hood` map, which is not supported.
-        std::scoped_lock guard(global_mutex, current_mutex);
+        //std::scoped_lock guard(global_mutex, current_mutex);
         const FrameProperties* props{nullptr};
         
         for(auto it = _current.begin();
@@ -417,7 +423,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             // out of the active set and put them into the inactive:
             assert(not contains(track::inactive_individuals, fish));
             //print("Current(",frame.index(),"): Putting ", fish, " in inactive.");
-            track::inactive_individuals.push_back(fish);
+            track::inactive_individuals.insert(fish);
         }
     }
     
@@ -426,8 +432,8 @@ IndividualManager::IndividualManager(const PPFrame& frame)
         for(auto id : Tracker::identities()) {
             if(not has_individual(id)) {
                 auto fish = make_individual(id);
-                std::scoped_lock guard(global_mutex);
-                track::inactive_individuals.push_back(fish);
+                //std::scoped_lock guard(global_mutex);
+                track::inactive_individuals.insert(fish);
                 /*auto result = retrieve_globally(id);
                 if(not result)
                     throw U_EXCEPTION("Was unable to create a new individual with id ", id, " because: ", result.error());*/
@@ -437,7 +443,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
 }
 
 IndividualManager::~IndividualManager() {
-    std::scoped_lock scoped(global_mutex, current_mutex);
+    //std::scoped_lock scoped(global_mutex, current_mutex);
     
     //! keep track of individuals that aren't assigned
     //! THIS SHOULD NOT HAPPEN
@@ -466,7 +472,8 @@ void IndividualManager::become_active(Individual* fish) {
     //if(vit == _individuals.end())
     //    throw U_EXCEPTION("Cannot find individual ", fish, " as was expected.");
     
-    auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), fish);
+    auto it = track::inactive_individuals.find(fish);
+    //auto it = std::find(track::inactive_individuals.begin(), track::inactive_individuals.end(), fish);
     if(it != track::inactive_individuals.end())
         track::inactive_individuals.erase(it);
     

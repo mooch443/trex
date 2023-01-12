@@ -206,7 +206,7 @@ void PPFrame::init_cache(GenericThreadPool* pool)
     {
         const auto start = i;
         const auto N = std::distance(start_it, end_it);
-        using DistanceToBdx = std::pair<pv::bid, float>;
+        using DistanceToBdx = map_t<pv::bid, Match::prob_t>::value_type;
         struct FishAssignments {
             Idx_t fdx;
             std::vector<DistanceToBdx> assign;

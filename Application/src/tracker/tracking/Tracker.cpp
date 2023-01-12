@@ -613,8 +613,10 @@ void Tracker::prefilter(
 
     for(; it != end; ++it) {
         auto &&own = *it;
-        if(!own)
+        if(!own) {
+            ++it;
             continue;
+        }
         
         //! check if this blob is of valid size.
         //! if it is NOT of valid size, it will
@@ -948,7 +950,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
-            std::vector< Match::pairing_map_t<Match::Blob_t, Match::prob_t> > _probs(std::distance(start, end));
+            std::vector< PairedProbabilities::ordered_assign_map_t > _probs(std::distance(start, end));
             
             for (auto it = start; it != end; ++it, ++pid) {
                 auto fish = *it;
@@ -1362,7 +1364,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                         
                         auto edges = s.paired.edges_for_row(fdi);
                         
-                        Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+                        PairedProbabilities::ordered_assign_map_t probs;
                         for (auto& e : edges) {
                             auto blob = s.paired.col(e.cdx);
                             if (!s._manager.blob_assigned(blob))
@@ -1449,7 +1451,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
             if(!s._manager.fish_assigned(fish)) {
                 auto edges = s.paired.edges_for_row(idx);
                 
-                Match::pairing_map_t<Match::Blob_t, Match::prob_t> probs;
+                Match::PairedProbabilities::ordered_assign_map_t probs;
                 for(auto &e : edges) {
                     auto blob = s.paired.col(e.cdx);
                     if(s._manager.blob_assigned(blob))
@@ -1589,7 +1591,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             
             IndividualManager::transform_inactive([&](auto fish)
             {
-                pairing_map_t<pv::bid, Match::prob_t> for_this;
+                Match::PairedProbabilities::ordered_assign_map_t for_this;
                 if(fish->empty()) {
                     for (auto& blob : unassigned_blobs) {
                         //assert(not s._manager.blob_assigned(blob));
@@ -1753,7 +1755,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         frame.tags().clear(); // is invalidated now, clear it
         
         s._manager.transform_active([&](Individual* fish){
-            Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+            Match::PairedProbabilities::ordered_assign_map_t probs;
             
             auto cache = frame.cached(fish->identity().ID());
             if (!cache)

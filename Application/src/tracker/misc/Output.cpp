@@ -1557,7 +1557,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if(IndividualManager::_last_active()) {
             IndividualManager::transform_all([](auto, auto fish){
                 if(IndividualManager::_last_active()->find(fish) == IndividualManager::_last_active()->end()) {
-                    IndividualManager::_inactive().push_back(fish);
+                    IndividualManager::_inactive().insert(fish);
                 }
             });
         }

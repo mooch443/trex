@@ -517,7 +517,7 @@ private:
     
     [[nodiscard]] static active_individuals_map_t& _all_frames();
     [[nodiscard]] static set_of_individuals_t*& _last_active();
-    [[nodiscard]] static std::vector<Individual*>& _inactive();
+    [[nodiscard]] static inactive_individuals_t& _inactive();
     [[nodiscard]] static Individual* make_individual(Idx_t);
     [[nodiscard]] static const individuals_map_t& individuals();
     [[nodiscard]] static std::shared_mutex& _individual_mutex();
