@@ -21,7 +21,7 @@ namespace gui {
         std::atomic<Frame_t> frameIndex{Frame_t()};
         
         std::set<Range<Frame_t>> training_ranges;
-        Range<Frame_t> analysis_range;
+        FrameRange analysis_range;
         
         float mx{0}, my{0};
         

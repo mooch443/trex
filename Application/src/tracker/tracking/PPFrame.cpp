@@ -262,7 +262,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                     const auto index = (*sit)->basic_stuff((*sit)->end());
                     const auto pos = fish->basic_stuff().at(index)->centroid.template pos<Units::DEFAULT>();
 
-                    if ((*sit)->length() > frame_rate * track_max_reassign_time * 0.25)
+                    if ((*sit)->length().get() > frame_rate * track_max_reassign_time * 0.25)
                     {
                         //! segment is long enough, we can stop. but only actually use it if its not too far away:
                         if (last_pos.x == -1

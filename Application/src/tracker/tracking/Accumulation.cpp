@@ -580,8 +580,8 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         auto analysis_range = Tracker::analysis_range();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
-        for(Frame_t frame = analysis_range.start;
-            frame <= analysis_range.end;
+        for(Frame_t frame = analysis_range.start();
+            frame <= analysis_range.end();
             frame += max(1_f, analysis_range.length() / 333_f))
         {
             if(frame < Tracker::start_frame())
@@ -1012,8 +1012,8 @@ bool Accumulation::start() {
                     
                     auto center = range.length() / 2_f + range.start;
                     FrameRange extended_range(Range<Frame_t>(
-                        max(analysis_range.start, center.try_sub(frames_around_center)),
-                        min(analysis_range.end, center + frames_around_center))
+                        max(analysis_range.start(), center.try_sub(frames_around_center)),
+                        min(analysis_range.end(), center + frames_around_center))
                     );
                     
                     float average = 0, samples = 0;
@@ -1298,9 +1298,9 @@ bool Accumulation::start() {
                 return gui::WorkProgress::item_custom_triggered(); // otherwise, stop iterating
             }
             
-            std::map<Idx_t, int64_t> sizes;
+            std::map<Idx_t, Frame_t> sizes;
             for(auto id : Tracker::identities()) {
-                sizes[id] = 0;
+                sizes[id] = 0_f;
             }
             
             std::map<Idx_t, std::set<FrameRange>> assigned_ranges;
@@ -1320,29 +1320,29 @@ bool Accumulation::start() {
             }
             
             std::map<Idx_t, std::set<FrameRange>> gaps;
-            std::map<Idx_t, Frame_t::number_t> frame_gaps;
+            std::map<Idx_t, Frame_t> frame_gaps;
             for(auto && [id, ranges] : assigned_ranges)
             {
-                auto previous_frame = analysis_range.start;
+                auto previous_frame = analysis_range.start();
                 for(auto& range : ranges) {
-                    if(previous_frame < range.start() - 1_f) {
+                    if(previous_frame < range.start().try_sub(1_f)) {
                         gaps[id].insert(FrameRange(Range<Frame_t>(previous_frame, range.start())));
-                        frame_gaps[id] += (range.start() - previous_frame).get();
+                        frame_gaps[id] += range.start().try_sub(previous_frame);
                     }
                     
                     sizes[id] += range.length();
                     previous_frame = range.end();
                 }
                 
-                if(previous_frame < analysis_range.end) {
-                    auto r = FrameRange(Range<Frame_t>(previous_frame, analysis_range.end));
+                if(previous_frame < analysis_range.end()) {
+                    auto r = FrameRange(Range<Frame_t>(previous_frame, analysis_range.end()));
                     gaps[id].insert(r);
-                    frame_gaps[id] += r.length() - 1;
+                    frame_gaps[id] += r.length().try_sub(1_f);
                 }
             }
             
             print("\tIndividuals frame gaps: ", frame_gaps);
-            Frame_t::number_t maximal_gaps(0);
+            Frame_t maximal_gaps(0u);
             for(auto && [id, L] : frame_gaps) {
                 if(L > maximal_gaps)
                     maximal_gaps = L;
@@ -1372,10 +1372,10 @@ bool Accumulation::start() {
                 return false;
             }
             
-            if(maximal_gaps < analysis_range.length().get() * 0.25) {
+            if(maximal_gaps < analysis_range.length() / 4_f) {
                 print("---");
                 print("Added enough frames for all individuals - stopping accumulation.");
-                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps / float(analysis_range.length().get()) * 100)+"%).";
+                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps.get() / float(analysis_range.length().get()) * 100)+"%).";
                 tried_ranges.clear(); // dont retry stuff
                 
                 //end_a_step(Result("Added enough frames. Maximal gaps are "+Meta::toStr(maximal_gaps)+"/"+Meta::toStr(analysis_range.length() * 0.25)));

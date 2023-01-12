@@ -173,7 +173,7 @@ void update() {
        || Tracker::instance()->consecutive().empty())
         return;
     
-    auto video_length = Tracker::analysis_range().end.get();
+    auto video_length = Tracker::analysis_range().end().get();
     auto end_frame = Tracker::end_frame();
     auto manual = FAST_SETTING(manually_approved);
     bool changed = false;

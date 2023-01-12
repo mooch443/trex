@@ -19,7 +19,7 @@ void SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
 #endif
 
 void SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
-    long_t L = length();
+    long_t L = length().get();
     if(posture_index.size() != size_t(L)) {
         long_t prev = posture_index.size();
         posture_index.resize(L);

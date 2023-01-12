@@ -807,7 +807,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto segment = fish->segment_for(frame);
             
             if (segment) {
-                return segment->length();
+                return segment->length().get();
             }
             
             return gui::Graph::invalid();

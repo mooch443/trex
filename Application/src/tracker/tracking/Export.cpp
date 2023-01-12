@@ -411,7 +411,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                     
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
-                        if(range->length() >= (long_t)output_min_frames) {
+                        if(range->length().get() >= (long_t)output_min_frames) {
                             auto filters = constraints::local_midline_length(fish, range->range);
                             // Init data strutctures
                             size_t image_count = 0;

@@ -533,7 +533,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     { // do this in order to trigger calculating pixel percentages
         auto range = Tracker::analysis_range();
         LockGuard guard(ro_t{}, "GUI::update_data(-1)");
-        PD(cache).update_data(range.start);
+        PD(cache).update_data(range.start());
     }
     
     while(!PD(timeline)->update_thread_updated_once()) {
@@ -1652,7 +1652,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             auto segment = fish->segment_for(frameNr);
                             if (!GUI_SETTINGS(gui_show_inactive_individuals)
                                 && (!segment || (segment->end() != Tracker::end_frame()
-                                    && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
+                                    && segment->length().get() < (long_t)GUI_SETTINGS(output_min_frames))))
                             {
                                 continue;
                             }
@@ -3955,7 +3955,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         Output::Library::clear_cache();
         
         auto range = PD(tracker).analysis_range();
-        bool finished = PD(tracker).end_frame() >= range.end;
+        bool finished = PD(tracker).end_frame() >= range.end();
 #if !COMMONS_NO_PYTHON
         if(finished && SETTING(auto_categorize)) {
             auto_categorize();

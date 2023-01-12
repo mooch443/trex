@@ -266,13 +266,13 @@ namespace gui {
                 }
             }
 
-            if (_frame_info->analysis_range.start != 0_f) {
+            if (_frame_info->analysis_range.start() != 0_f) {
                 auto start_pos = pos;
-                auto end_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.start.get(), bar_height);
+                auto end_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.start().get(), bar_height);
                 base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
             }
-            if (uint64_t(_frame_info->analysis_range.end.get()) <= _frame_info->video_length) {
-                auto start_pos = pos + Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.end.get(), 0);
+            if (uint64_t(_frame_info->analysis_range.end().get()) <= _frame_info->video_length) {
+                auto start_pos = pos + Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.end().get(), 0);
                 auto end_pos = Vec2(max_w, bar_height);
                 base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
             }
@@ -584,10 +584,11 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             if(!_proximity_bar.end.valid()) {
                 _proximity_bar.start = _proximity_bar.end = _tracker->start_frame();
             }
-            
-            Vec2 pos(max_w / float(_frame_info->video_length) * _proximity_bar.end.get(), 0);
-            
-            if(_proximity_bar.end < _tracker->end_frame()) {
+
+            auto end = _proximity_bar.end.valid() ? _proximity_bar.end : 0_f;
+            Vec2 pos(max_w / float(_frame_info->video_length) * end.get(), 0);
+            if(not _tracker->end_frame().valid() or end < _tracker->end_frame())
+            {
                 _proximity_bar.end = _tracker->end_frame();
                 changed = true;
             }

@@ -545,7 +545,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             ref.read<Vec2>(tmp);
         }
         
-        if(check_analysis_range && (Frame_t(frameIndex) > analysis_range.end || Frame_t(frameIndex) < analysis_range.start)) {
+        if(check_analysis_range && not analysis_range.contains(Frame_t(frameIndex))) {
             continue;
         }
         
@@ -597,7 +597,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             frame = Frame_t( frameIndex );
             
-            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
+            if(check_analysis_range && not analysis_range.contains(frame))
                 continue;
             
             auto stuff = fish->basic_stuff(frame);
@@ -646,7 +646,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             auto midline = read_midline(ref);
             auto outline = read_outline(ref, midline);
         
-            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start)) {
+            if(check_analysis_range && not analysis_range.contains(frame)) {
                 if(prev)
                     delete prev;
                 prev = prop;
@@ -692,7 +692,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             auto midline = read_midline(ref);
             
-            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
+            if(check_analysis_range && not analysis_range.contains(frame))
                 continue;
             
             if(FAST_SETTING(calculate_posture)) {
@@ -715,7 +715,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             auto outline = read_outline(ref, nullptr);
             frame = Frame_t(frameIndex);
             
-            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
+            if(check_analysis_range && not analysis_range.contains(frame))
                 continue;
             
             if(FAST_SETTING(calculate_posture)) {
@@ -1470,7 +1470,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             
             props.frame = Frame_t(frameIndex);
             
-            if(check_analysis_range && (props.frame > analysis_range.end || props.frame < analysis_range.start))
+            if(check_analysis_range && not analysis_range.contains(props.frame))
                 continue;
             
             if(!_tracker._startFrame.load().valid())
@@ -1529,7 +1529,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for (uint64_t j=0; j<n; j++) {
                 file.read<data_long_t>(ID);
                 
-                if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
+                if(check_analysis_range && not analysis_range.contains(frame))
                     continue;
                 
                 auto it = map_id_ptr.find(Idx_t(ID));
@@ -1544,7 +1544,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                     throw U_EXCEPTION("Did not insert ID ",ID," for frame ",frameIndex,".");
             }
             
-            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
+            if(check_analysis_range && not analysis_range.contains(frame))
                 continue;
             
             _tracker._max_individuals = max(_tracker._max_individuals.load(), active->size());

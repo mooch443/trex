@@ -39,7 +39,7 @@ namespace track {
 
 std::mutex _statistics_mutex;
 
-Range<Frame_t> _analysis_range;
+FrameRange _analysis_range;
 
 void update_analysis_range() {
     static std::once_flag f;
@@ -66,12 +66,12 @@ void update_analysis_range() {
             const auto analysis_range = SETTING(analysis_range).value<Settings::analysis_range_t>();
             const auto& [start, end] = analysis_range;
             
-            _analysis_range = Range<Frame_t>{
+            _analysis_range = FrameRange(Range<Frame_t>{
                 Frame_t((uint32_t)max(0, start)),
                 Frame_t((uint32_t)max(end > -1
                             ? min(video_length, end)
                             : video_length, max(0, start)))
-            };
+            });
             
             assert(_analysis_range.start.valid()
                    && _analysis_range.end.valid());
@@ -100,7 +100,7 @@ const set_of_individuals_t& Tracker::active_individuals(Frame_t frame) {
     throw U_EXCEPTION("active_individuals(",frame,") reporting: ", result.error());
 }
 
-const Range<Frame_t>& Tracker::analysis_range() {
+const FrameRange& Tracker::analysis_range() {
     return _analysis_range;
 }
 
@@ -554,7 +554,7 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
     pp.init_from_blobs(frame.get_blobs());
     
     filter_blobs(pp, pool);
-    //pp.fill_proximity_grid();
+    pp.fill_proximity_grid();
     
     if(do_history_split)
         HistorySplit{pp, need, pool};
@@ -2051,7 +2051,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         if(all_good) {
             if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
                 _consecutive.back().end = frameIndex;
-                if(frameIndex == analysis_range().end) {
+                if(frameIndex == analysis_range().end()) {
                     DatasetQuality::update();
                 }
             } else {
@@ -2186,7 +2186,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         }
         
         if(not end_frame().valid()
-           or end_frame() < analysis_range().start)
+           or end_frame() < analysis_range().start())
         {
             _endFrame = _startFrame = Frame_t();
         }
@@ -3041,7 +3041,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 
                 {
                     LockGuard guard(w_t{}, "check_segments_identities::auto_correct");
-                    Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start : after_frame);
+                    Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start() : after_frame);
                     IndividualManager::transform_all([](auto, auto fish){
                         fish->clear_recognition();
                     });

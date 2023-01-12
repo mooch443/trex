@@ -227,7 +227,7 @@ void InfoCard::update() {
         {
             std::string str;
             auto range = it->frames;
-            if(range.length() <= 1)
+            if(range.length() <= 1_f)
                 str = range.start().toStr();
             else
                 str = range.start().toStr() + "-" + range.end().toStr();

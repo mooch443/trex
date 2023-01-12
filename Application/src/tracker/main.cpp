@@ -1096,11 +1096,14 @@ int main(int argc, char** argv)
         [&video](std::unique_ptr<PPFrame>&& ptr, auto&) -> bool {
             auto idx = ptr->index();
             auto range = Tracker::analysis_range();
-            if(!range.contains(idx) && idx != range.end && idx > Tracker::end_frame()) {
+            if(!range.contains(idx) && idx != range.end() && (not Tracker::end_frame().valid() || idx > Tracker::end_frame())) {
                 std::unique_lock<std::mutex> lock(mutex);
                 unused.emplace(std::move(ptr));
                 return false;
             }
+
+            if(not range.contains(idx))
+                throw U_EXCEPTION("Outside of analysis range: ", idx, " vs. ", range);
 
             Timer timer;
             pv::Frame frame;
@@ -1128,10 +1131,10 @@ int main(int argc, char** argv)
             auto range = Tracker::analysis_range();
 
             auto idx = ptr->index();
-            if (idx >= range.start
-                && max(range.start, tracker.end_frame().valid() ? (tracker.end_frame() + 1_f) : 0_f) == idx
+            if (idx >= range.start()
+                && max(range.start(), tracker.end_frame().valid() ? (tracker.end_frame() + 1_f) : 0_f) == idx
                 && tracker.properties(idx) == nullptr
-                && idx <= Tracker::analysis_range().end)
+                && idx <= Tracker::analysis_range().end())
             {
                 tracker.add(*ptr);
 
@@ -1165,12 +1168,12 @@ int main(int argc, char** argv)
                         frames_sec_average += frames_sec;
                         ++frames_sec_samples;
 
-                        float percent = min(1, (ptr->index() - range.start).get() / float(range.length().get() + 1)) * 100;
-                        DurationUS us{ uint64_t(max(0, (double)(range.end - ptr->index()).get() / double( frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
+                        float percent = min(1, (ptr->index() - range.start()).get() / float(range.length().get() + 1)) * 100;
+                        DurationUS us{ uint64_t(max(0, (double)(range.end() - ptr->index()).get() / double( frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
                         std::string str;
                         
                         if(FAST_SETTING(analysis_range).first != -1 || FAST_SETTING(analysis_range).second != -1)
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end(), "(", video.length(), ") (", dec<2>(data_sec / 1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
 #if defined(__APPLE__)
                                                               "µs/individual"
 #else
@@ -1178,7 +1181,7 @@ int main(int argc, char** argv)
 #endif
                                                               );
                         else
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end(), " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
 #if defined(__APPLE__)
                                                               "µs/individual"
 #else
@@ -1228,23 +1231,22 @@ int main(int argc, char** argv)
     analysis.start(// main thread
         [&tracker, &analysis, &video]() {
             auto endframe = tracker.end_frame();
-            auto current = currentID.load();
-            if(not current.valid()
+            if(not currentID.load().valid()
                || not endframe.valid()
-               || current > endframe + cache_size
+               || currentID.load() > endframe + cache_size
                || (analysis.stage_empty(0) && analysis.stage_empty(1))
-               || current < endframe)
+               || currentID.load() < endframe)
             {
-                current = currentID = endframe; // update current as well
+                currentID = endframe; // update current as well
             }
         
             auto range = Tracker::analysis_range();
-            if(current.valid()
-               && current < range.start)
-                currentID = range.start - 1_f;
+            if(not currentID.load().valid()
+               or currentID.load() < range.start())
+                currentID = range.start() - 1_f;
             
             if(not endframe.valid())
-                endframe = range.start;
+                endframe = range.start();
             
             if(FAST_SETTING(analysis_range).second != -1
                && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).second))
@@ -1255,7 +1257,7 @@ int main(int argc, char** argv)
             }
             
             while(not currentID.load().valid()
-                  || (currentID.load() < max(range.start, endframe) + cache_size
+                  || (currentID.load() < max(range.start(), endframe) + cache_size
                       && currentID.load() + 1_f < video.length()))
             {
                 std::scoped_lock lock(mutex);
@@ -1266,7 +1268,7 @@ int main(int argc, char** argv)
                 unused.pop();
                 
                 if(not currentID.load().valid())
-                    currentID = 0_f;
+                    currentID = range.start();
                 else
                     currentID = currentID.load() + 1_f;
                 ptr->set_index(currentID.load());

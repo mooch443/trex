@@ -337,7 +337,7 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static Frame_t start_frame = Tracker::analysis_range().start;
+    static Frame_t start_frame = Tracker::analysis_range().start();
     assert(start_frame == (FAST_SETTING(analysis_range).first == -1 ? Frame_t(Frame_t::number_t(0)) : Frame_t(FAST_SETTING(analysis_range).first)));
     return start_frame;
 }
@@ -900,7 +900,7 @@ void start_applying() {
         .num_threads = max_threads,
         .normalization = normalize,
         .item_step = 1u,
-        .segment_min_samples = FAST_SETTING(categories_min_sample_images),
+        .segment_min_samples = Frame_t(FAST_SETTING(categories_min_sample_images)),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
         }

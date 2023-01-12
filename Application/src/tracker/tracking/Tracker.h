@@ -204,7 +204,7 @@ public:
     
     static const set_of_individuals_t& active_individuals(Frame_t frame);
     
-    static const Range<Frame_t>& analysis_range();
+    static const FrameRange& analysis_range();
     
     void update_history_log();
     

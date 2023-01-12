@@ -680,7 +680,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             (*it)->range.end = frameIndex - 1_f;
             assert((*it)->range.start <= (*it)->range.end);
             
-            (*it)->basic_index.resize((*it)->length());
+            (*it)->basic_index.resize((*it)->length().get());
             _basic_stuff.resize((*it)->basic_index.back() + 1);
             _matched_using.resize(_basic_stuff.size());
             shortened_basic_index = true;
@@ -932,7 +932,7 @@ int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t curre
     
     // find valid previous frame
     //!TODO: can probably use segment ptr here
-    auto prev_frame = frameIndex > Tracker::analysis_range().start
+    auto prev_frame = frameIndex > Tracker::analysis_range().start()
                         ? frameIndex - 1_f
                         : Frame_t();
     const MotionRecord* prev_prop = nullptr;
@@ -1014,7 +1014,7 @@ int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t curre
     _basic_stuff.emplace_back(std::move(stuff));
     _matched_using.push_back(info.match_mode);
     
-    const auto video_length = Tracker::analysis_range().end;
+    const auto video_length = Tracker::analysis_range().end();
     if(frameIndex >= video_length) {
         update_midlines(&_hints);
     }
@@ -1124,7 +1124,7 @@ SegmentInformation* Individual::update_add_segment(const Frame_t frameIndex, con
     error_code |= Reasons::ManualMatch           * uint32_t(is_manual_match(frameIndex));
     error_code |= Reasons::NoBlob                * uint32_t(!blob);
     error_code |= Reasons::WeirdDistance         * uint32_t(track_end_segment_for_speed && current.speed<Units::CM_AND_SECONDS>() >= weird_distance());
-    error_code |= Reasons::MaxSegmentLength      * uint32_t(track_segment_max_length > 0 && segment && *segment && (*segment)->length() / float(frame_rate) >= track_segment_max_length);
+    error_code |= Reasons::MaxSegmentLength      * uint32_t(track_segment_max_length > 0 && segment && *segment && (*segment)->length().get() / float(frame_rate) >= track_segment_max_length);
     
     const bool segment_ended = error_code != 0;
 
@@ -1178,7 +1178,7 @@ void Individual::update_midlines(const CacheHints* hints) {
     }*/
     
     const auto smooth_range = Frame_t(FAST_SETTING(posture_direction_smoothing));
-    const auto video_length = Tracker::analysis_range().end;
+    const auto video_length = Tracker::analysis_range().end();
     auto end_frame = Tracker::end_frame();
     
     //! find the first frame that needs to be cached, but hasnt been yet
@@ -2610,7 +2610,7 @@ void Individual::calculate_average_recognition() {
     _average_recognition.clear();
     
     std::map<Idx_t, size_t> samples;
-    const float frame_limit = SLOW_SETTING(frame_rate) * 2;
+    const Frame_t frame_limit(SLOW_SETTING(frame_rate) * 2u);
     
     for(auto & segment : _frame_segments) {
         auto && [n, vector] = average_recognition(segment->start());
@@ -2713,7 +2713,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         
         const auto &[ segment, usable] = sit->second;
         
-        if(segment.end >= _endFrame && Tracker::instance()->end_frame() != Tracker::analysis_range().end) {
+        if(segment.end >= _endFrame && Tracker::instance()->end_frame() != Tracker::analysis_range().end()) {
             return {0, {}};
         }
         
