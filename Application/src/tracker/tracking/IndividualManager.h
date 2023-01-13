@@ -338,7 +338,7 @@ public:
             return fn(it->second.get());
     }
     
-    template<typename F, typename R = std::conditional_t<Predicate<F, Idx_t, Individual*>, bool, void>>
+    template<typename F, typename R = std::conditional<Predicate<F, Idx_t, Individual*>, bool, void>::type>
         requires Transformer<F, Idx_t, Individual*>
     static R transform_all(F&& fn) {
         //std::scoped_lock slock(_global_mutex(), _individual_mutex());
