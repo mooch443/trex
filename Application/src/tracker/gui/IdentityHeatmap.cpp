@@ -1684,9 +1684,9 @@ void Region::update_ranges() {
         }*/
         
         auto &range = r->frame_range();
-        if(range.start < _frame_range.start || !_frame_range.start.valid())
+        if(not _frame_range.start.valid() || range.start < _frame_range.start)
             _frame_range.start = range.start;
-        if(range.end > _frame_range.end)
+        if(not _frame_range.end.valid() || range.end > _frame_range.end)
             _frame_range.end = range.end;
     }
     

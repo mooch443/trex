@@ -421,11 +421,14 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         auto virtual_frame = _frame;
         MinimalOutline::Ptr outline = nullptr;
         
-        for (; virtual_frame>=a->start_frame() && virtual_frame >= _frame - max_back_view; --virtual_frame) {
+        for (; virtual_frame>=a->start_frame() && virtual_frame + max_back_view >= _frame; --virtual_frame) {
             outline = a->outline(virtual_frame);
             if(outline)
                 break;
         }
+
+        if(not virtual_frame.valid())
+            continue;
         
         auto midline = a->midline(virtual_frame);
         
