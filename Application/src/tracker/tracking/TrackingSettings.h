@@ -24,7 +24,7 @@ using analrange_t = std::pair<long_t,long_t>;
 //! here is negligible.
 using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
 
-using inactive_individuals_t = std::map<Idx_t, Individual*>;
+using inactive_individuals_t = robin_hood::unordered_node_map<Idx_t, Individual*>;
 
 //! A std::unordered_map turns out to be the fastest container for this
 //! purpose (sparse container for frame to individuals association).

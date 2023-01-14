@@ -155,7 +155,7 @@ namespace Match {
     public:
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
         
-        using ordered_assign_map_t = std::map<col_t::value_type, prob_t>;
+        using ordered_assign_map_t = robin_hood::unordered_node_map<col_t::value_type, prob_t>;
         fish_index_t add(row_t::value_type, const ordered_assign_map_t&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
@@ -204,7 +204,7 @@ namespace Match {
 
     class PairingGraph {
     public:
-        using ordered_map_t = std::map<Blob_t, Fish_t>;
+        using ordered_map_t = robin_hood::unordered_node_map<Blob_t, Fish_t>;
         //! this is the "queue" for permutations from this node on
         typedef PairedProbabilities::Edge _value_t;
         //typedef std::multiset<_value_t, std::function<bool(const _value_t&, const _value_t&)>> pset;

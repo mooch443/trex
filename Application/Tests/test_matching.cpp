@@ -28,6 +28,7 @@ static auto _ = [](){
 
 struct PairingTest {
     default_config::matching_mode_t::Class match_mode;
+    bool switch_order;
     FrameProperties prop;
     PairedProbabilities probs;
     std::vector<Individual*> individuals;
@@ -35,12 +36,15 @@ struct PairingTest {
     
     std::unique_ptr<PairingGraph> graph;
     
-    PairingTest(default_config::matching_mode_t::Class match_mode) :
+    PairingTest(default_config::matching_mode_t::Class match_mode, bool switch_order) :
     match_mode(match_mode),
+    switch_order(switch_order),
     individuals({
         new Individual(Identity(Idx_t(0))),
         new Individual(Identity(Idx_t(1))),
-        new Individual(Identity(Idx_t(2)))
+        new Individual(Identity(Idx_t(2))),
+        new Individual(Identity(Idx_t(3))),
+        new Individual(Identity(Idx_t(4)))
     }) {
         blobs.emplace_back(pv::Blob::Make(std::vector<HorizontalLine>{
             HorizontalLine(0, 0, 10),
@@ -72,8 +76,8 @@ struct PairingTest {
 };
 typedef PairingTest* CreatePairingData();
 
-template<default_config::matching_mode_t::Class match_mode>
-PairingTest* CreateData() { return new PairingTest(match_mode); }
+template<default_config::matching_mode_t::Class match_mode, bool switch_order>
+PairingTest* CreateData() { return new PairingTest(match_mode, switch_order); }
 
 class TestPairing : public TestWithParam<CreatePairingData*> {
 public:
@@ -83,6 +87,7 @@ public:
     }
  void SetUp() override {
      table_ = GetParam()();
+     table_->prop = FrameProperties(Frame_t(0), 0, 0);
      
      default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
      SETTING(matching_probability_threshold) = float(0.1);
@@ -97,8 +102,126 @@ protected:
  PairingTest* table_;
 };
 
+
+namespace cmn {
+std::ostream& operator<<(std::ostream& os, const PairingTest* dt)
+{
+    os << dt->match_mode.toStr();
+    return os;
+}
+std::ostream& operator<<(std::ostream& os, const pv::bid& dt)
+{
+    os << (uint32_t)dt;
+    return os;
+}
+std::ostream& operator<<(std::ostream& os, const Individual* dt)
+{
+    os << dt->identity().toStr();
+    return os;
+}
+std::ostream& operator<<(std::ostream& os, const Idx_t& dt)
+{
+    os << dt.get();
+    return os;
+}
+}
+
 auto _format(auto&&... args) {
     return format<FormatterType::UNIX>(std::forward<decltype(args)>(args)...);
+}
+
+TEST_P(TestPairing, TestOrder) {
+    /**
+     * Create some objects with the same probabilities.
+     */
+    pv::bid b0, b1, b2;
+    Idx_t f0 = table_->individuals[0]->identity().ID(),
+          f1 = table_->individuals[1]->identity().ID(),
+          f2 = table_->individuals[2]->identity().ID(),
+          f3 = table_->individuals[3]->identity().ID(),
+          f4 = table_->individuals[4]->identity().ID();
+    
+    b0 = table_->blobs[0]->blob_id();
+    b1 = table_->blobs[1]->blob_id();
+    b2 = table_->blobs[2]->blob_id();
+    
+    auto initialize = [&](bool switch_order){
+        PairedProbabilities::ordered_assign_map_t ps;
+        // everything has a probability of 0.5
+        for(auto &blob : table_->blobs)
+            ps[blob->blob_id()] = 0.5;
+        
+        if (switch_order) {
+            ASSERT_TRUE(table_->probs.add(f0, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f1, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f2, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f3, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f4, ps).valid());
+        } else {
+            ASSERT_TRUE(table_->probs.add(f2, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f4, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f3, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f1, ps).valid());
+            ASSERT_TRUE(table_->probs.add(f0, ps).valid());
+        }
+        
+        // check assigned probabilities
+        for(auto&b : table_->blobs) {
+            auto bdx = b->blob_id();
+            ASSERT_FLOAT_EQ(table_->probs.probability(f0, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->probs.probability(f1, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->probs.probability(f2, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->probs.probability(f3, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->probs.probability(f4, bdx), 0.5);
+        }
+        
+        table_->graph = std::make_unique<PairingGraph>(table_->prop, Frame_t(0), std::move(table_->probs));
+        
+        // check assigned probabilities
+        for(auto&b : table_->blobs) {
+            auto bdx = b->blob_id();
+            ASSERT_FLOAT_EQ(table_->graph->prob(f0, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->graph->prob(f1, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->graph->prob(f2, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->graph->prob(f3, bdx), 0.5);
+            ASSERT_FLOAT_EQ(table_->graph->prob(f4, bdx), 0.5);
+            
+            ASSERT_TRUE(table_->graph->connected_to(f0, bdx));
+            ASSERT_TRUE(table_->graph->connected_to(f1, bdx));
+            ASSERT_TRUE(table_->graph->connected_to(f2, bdx));
+            ASSERT_TRUE(table_->graph->connected_to(f3, bdx));
+            ASSERT_TRUE(table_->graph->connected_to(f4, bdx));
+        }
+        
+        auto& pairing = table_->graph->get_optimal_pairing(false, table_->match_mode);
+        ASSERT_EQ(pairing.pairings.size(), 3u) << _format(pairing.pairings, " in mode ", table_->match_mode, " with ", switch_order);
+        
+        print(table_->match_mode, "=>", pairing.pairings, " with ", switch_order);
+        std::map<pv::bid, size_t> indexes;
+        for(size_t i=0; i<table_->blobs.size(); ++i) {
+            indexes[table_->blobs.at(i)->blob_id()] = i;
+        }
+        
+        std::map<Idx_t, pv::bid> expected;
+        
+        // iterated ordered
+        size_t i = 0;
+        for(auto &[bdx, _] : indexes) {
+            // expect blobs to be matched in order,
+            // since all ids are the same
+            expected[Idx_t(i++)] = bdx;
+        }
+        
+        print("expecting: ", expected, " based on ", indexes);
+        
+        ASSERT_EQ(expected.size(), pairing.pairings.size());
+        for(auto& [bdx, fish] : pairing.pairings) {
+            ASSERT_EQ(expected.contains(fish), true) << _format("fish ", fish, " should be contained in pairings: ", pairing.pairings);
+            ASSERT_EQ(expected.at(fish), bdx) << _format("expected ", expected.at(fish), " but found ", bdx, " for fish ", fish);
+        }
+    };
+    
+    initialize.operator()(table_->switch_order);
 }
 
 TEST_P(TestPairing, TestInit) {
@@ -110,7 +233,6 @@ TEST_P(TestPairing, TestInit) {
         }
     }
     
-    table_->prop = FrameProperties(Frame_t(0), 0, 0);
     PairedProbabilities::ordered_assign_map_t ps;
     for(auto &blob : table_->blobs)
         ps[blob->blob_id()] = 0;
@@ -171,10 +293,10 @@ TEST_P(TestPairing, TestInit) {
 }
 
 INSTANTIATE_TEST_SUITE_P(TestPairing, TestPairing,
-     Values(&CreateData<default_config::matching_mode_t::automatic>,
-            &CreateData<default_config::matching_mode_t::hungarian>/*,
+     Values(&CreateData<default_config::matching_mode_t::automatic, false>,
+            &CreateData<default_config::matching_mode_t::automatic, true>,
+            &CreateData<default_config::matching_mode_t::hungarian, false>/*,
             &CreateData<default_config::matching_mode_t::approximate>*/));
-
 
 struct TrackerAndVideo {
     Tracker tracker;

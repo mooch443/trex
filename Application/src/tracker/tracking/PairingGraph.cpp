@@ -82,7 +82,6 @@ std::span<const PairedProbabilities::Edge> PairedProbabilities::edges_for_row(fi
         ? _offsets[(index_t)rdx+1]
         : _probabilities.size();
     return std::span<const Edge>(_probabilities.data() + _offsets[(index_t)rdx], next - current);
-    //return std::vector<Edge>(_probabilities.begin() + _offsets[(index_t)rdx], _probabilities.begin() + next);
 }
 
 bool PairedProbabilities::empty() const {
@@ -255,6 +254,12 @@ fish_index_t PairedProbabilities::add(
         
         _row_index[row] = rdx;
         _rows.push_back(row);
+        
+        if(row.get() + 1 < _rows.size()) {
+            //print("Adding row not in order: ", row.get() + 1, " vs. ", _rows.size());
+        } //else
+            //print("Adding row ", row.get() + 1, " at ", _rows.size());
+        
         _num_rows = fish_index_t(narrow_cast<index_t>(_rows.size()));
         _offsets.push_back(offset);
     }
@@ -1007,15 +1012,43 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             {
                 Timer timer;
                 //HungarianAlgorithm alg;
-                std::unordered_map<Fish_t, fish_index_t> individual_index;
+                std::vector<std::tuple<Fish_t, fish_index_t>> individual_index;
+                std::vector<std::tuple<Blob_t, blob_index_t>> blob_index;
+                
                 size_t num = 0;
+                //std::set<std::tuple<Fish_t, fish_index_t>> individual_index;
+                for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
+                    individual_index.emplace_back(_paired.row(i), i);
+                    ++num;
+                }
+                
+                for(blob_index_t i{0}; i<_paired.n_cols(); ++i) {
+                    blob_index.emplace_back(_paired.col(i), i);
+                }
+                
+                std::sort(blob_index.begin(), blob_index.end(), std::less{});
+                std::sort(individual_index.begin(), individual_index.end(), std::greater{});
+                assert(individual_index.size() == (size_t)int(_paired.n_rows()));
+                
+                std::map<blob_index_t, size_t> bdi_to_i;
+                std::map<size_t, blob_index_t> i_to_bdi;
+                
+                for(size_t i=0; i<blob_index.size(); ++i) {
+                    auto &[bdx, bdi] = blob_index.at(i);
+                    bdi_to_i[bdi] = i;
+                    i_to_bdi[i] = bdi;
+                }
+                
+               /*for(auto [id, ] : _paired.row_indexes()) {
+                    
+                }
                 for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
                     individual_index[_paired.row(i)] = i;
                     //if(_paired.degree(i) > 0)
                     {
                         ++num;
                     }
-                }
+                }*/
                 
                 //! the number of individuals with edges
                 size_t n = num;
@@ -1044,16 +1077,19 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     dist_matrix[i][i + (index_t)_paired.n_cols()] = Hungarian_t(0);
                 }
                 
+                size_t j = 0;
                 for(auto &&[row, i] : individual_index) {
                     for (auto &e : _paired.edges_for_row(i)) {
                         assert(e.cdx.valid());
                         //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
                         if(e.p >= FAST_SETTING(matching_probability_threshold)) {
-                            assert((Match::index_t)i < n);
+                            assert((Match::index_t)j < n);
                             assert(e.cdx < _paired.n_cols());
-                            dist_matrix[(index_t)i][(index_t)e.cdx] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
+                            dist_matrix[(index_t)j][(index_t)bdi_to_i.at(e.cdx)] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
                         }
                     }
+                    
+                    ++j;
                 }
                 
                 if(!_paired.empty()) {
@@ -1066,10 +1102,12 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     //for(size_t i=0; i<assignment.size(); ++i) {
                     for(size_t i=0; i<n; ++i) {
                         auto j = assignment[i][0];
-                        auto idx = assignment[i][1];
-                        assert(j < (index_t)_paired.n_rows());
-                        if(idx != -1 && idx < (index_t)_paired.n_cols())
-                            _optimal_pairing->pairings[_paired.col(blob_index_t(idx))] = _paired.row(fish_index_t(j));
+                        fish_index_t fdi{std::get<1>(individual_index.at(j))};
+                        auto b = assignment[i][1];
+                        blob_index_t bdi{b != -1 && static_cast<index_t>(b) < (index_t)_paired.n_cols() ? i_to_bdi.at(b) : blob_index_t{blob_index_t::invalid()}};
+                        assert(fdi < _paired.n_rows());
+                        if(bdi.valid() && bdi < _paired.n_cols())
+                            _optimal_pairing->pairings[_paired.col(bdi)] = _paired.row(fdi);
                         free(assignment[i]);
                     }
                     free(assignment);
@@ -1304,6 +1342,14 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
         //}
         
+        /*Idx_t previous;
+        cmn::print(_optimal_pairing->pairings);
+        for(auto &[bdx, fdx] : _optimal_pairing->pairings) {
+            if(previous.valid() && fdx <= previous)
+                throw U_EXCEPTION("Invalid order: ", previous, " -> ", fdx, " assigned to ", bdx);
+            previous = fdx;
+        }*/
+        
         return *_optimal_pairing;
     }
     
@@ -1389,7 +1435,7 @@ PairingGraph::~PairingGraph() {
     }
     
     bool PairingGraph::connected_to(Fish_t o, Blob_t b) const {
-        return prob(o, b) > FAST_SETTING(matching_probability_threshold);
+        return prob(o, b) >= FAST_SETTING(matching_probability_threshold);
     }
     
     /*void PairingGraph::add(Individual *o) {

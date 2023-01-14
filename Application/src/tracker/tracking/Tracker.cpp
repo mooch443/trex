@@ -73,8 +73,8 @@ void update_analysis_range() {
                             : video_length, max(0, start)))
             });
             
-            assert(_analysis_range.start.valid()
-                   && _analysis_range.end.valid());
+            assert(_analysis_range.start().valid()
+                   && _analysis_range.end().valid());
         };
         
         Settings::set_callback(Settings::analysis_range, [](auto&, auto& value) {
@@ -412,7 +412,9 @@ Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& ma
             first_change = Frame_t(itn->first);
     }
     
-    if(first_change.valid() && first_change <= Tracker::end_frame()) {
+    if(first_change.valid() && (not Tracker::end_frame().valid()
+                                || first_change <= Tracker::end_frame()))
+    {
         Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
     }
     
@@ -875,7 +877,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     //max_probs.clear();
     Match::PairedProbabilities paired_blobs;
     std::mutex paired_mutex;
-    std::condition_variable is_paired_free;
+    //std::condition_variable is_paired_free;
     auto frameIndex = s.frame.index();
     
     using namespace default_config;
@@ -887,12 +889,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         TakeTiming take(probs);
         
         // see how many are missing
-        std::map<Idx_t, Individual*> unassigned_individuals;
-        //unassigned_individuals.reserve(s._manager.current().size());
+        std::vector<Individual*> unassigned_individuals;
+        unassigned_individuals.reserve(s._manager.current().size());
         
         s._manager.transform_active([&](Individual* fish) {
             if(not s._manager.fish_assigned(fish->identity().ID()))
-                unassigned_individuals[fish->identity().ID()] = (fish);
+                unassigned_individuals.push_back(fish);
         });
         
         // Create Individuals for unassigned blobs
@@ -948,18 +950,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
         IndividualCache empty;
         empty.individual_empty = true;
-        int32_t current_thread{0};
         
-        auto work = [&](auto, auto start, auto end, auto j){
+        auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
             std::vector< PairedProbabilities::ordered_assign_map_t > _probs(std::distance(start, end));
             
             for (auto it = start; it != end; ++it, ++pid) {
-                auto &[id, fish] = *it;
+                auto fish = *it;
                 if(fish->empty())
                     continue;
                 
-                auto cache = s.frame.cached(id);
+                auto cache = s.frame.cached(fish->identity().ID());
                 if(!cache && fish->empty()) {
                     cache = &empty;
                 } else {
@@ -984,21 +985,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             
             pid = 0;
-            
-            {
-                std::unique_lock guard(paired_mutex);
-                while(current_thread < j)
-                    is_paired_free.wait(guard);
-                
-                for (auto it = start; it != end; ++it, ++pid) {
-                    auto& [id, fish] = *it;
-                    paired_blobs.add(id, std::move(_probs[pid]));
-                }
-                
-                ++current_thread;
-            }
-            
-            is_paired_free.notify_all();
+            std::unique_lock guard(paired_mutex);
+            for (auto it = start; it != end; ++it, ++pid)
+                paired_blobs.add((*it)->identity().ID(), std::move(_probs[pid]));
         };
         
         IndividualManager::Protect{};
@@ -1368,7 +1357,6 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                 auto &clique = *it;
                 
                 {
-                    IndividualManager::Protect{};
                     for (auto& [fish, fdi] : s.paired.row_indexes()) {
                         if (!clique.fids.contains(fdi))
                             continue;
