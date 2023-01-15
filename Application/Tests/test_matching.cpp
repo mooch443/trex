@@ -102,6 +102,13 @@ protected:
  PairingTest* table_;
 };
 
+namespace pv {
+std::ostream& operator<<(std::ostream& os, const pv::bid& dt)
+{
+    os << (uint32_t)dt;
+    return os;
+}
+}
 
 namespace cmn {
 std::ostream& operator<<(std::ostream& os, const PairingTest* dt)
@@ -109,11 +116,10 @@ std::ostream& operator<<(std::ostream& os, const PairingTest* dt)
     os << dt->match_mode.toStr();
     return os;
 }
-std::ostream& operator<<(std::ostream& os, const pv::bid& dt)
-{
-    os << (uint32_t)dt;
-    return os;
 }
+
+namespace track {
+
 std::ostream& operator<<(std::ostream& os, const Individual* dt)
 {
     os << dt->identity().toStr();
@@ -124,6 +130,7 @@ std::ostream& operator<<(std::ostream& os, const Idx_t& dt)
     os << dt.get();
     return os;
 }
+
 }
 
 auto _format(auto&&... args) {
