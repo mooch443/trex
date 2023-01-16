@@ -1112,6 +1112,9 @@ int main(int argc, char** argv)
 
             ptr->set_loading_time(narrow_cast<float>(timer.elapsed()));
 
+            // clear stored blob data, so that the destructor is called
+            // in a different thread (balancing) if they arent needed.
+            IndividualManager::clear_pixels();
             return true;
         },
 

@@ -16,7 +16,6 @@ struct BasicStuff {
     //MotionRecord* weighted_centroid;
     uint64_t thresholded_size;
     pv::CompressedBlob blob;
-    pv::BlobPtr pixels;
 };
 
 //! Stuff that is only present if postures are

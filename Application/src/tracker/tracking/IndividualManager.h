@@ -40,11 +40,12 @@ protected:
     [[nodiscard]] Idx_t id_of_fish(const Individual*) const noexcept;
 
 private:
-    std::queue<std::tuple<Individual*, BasicStuff*>> need_postures;
+    std::queue<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> need_postures;
     std::atomic<size_t> _assigned_count{0u};
     
 public:
     size_t assigned_count() const noexcept;
+    static void clear_pixels() noexcept;
     
 protected:
     void assign_blob_individual(const AssignInfo&, Individual*, pv::BlobPtr&& blob);

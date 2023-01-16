@@ -188,9 +188,6 @@ uint64_t MemoryStats::get_memory_size(const std::shared_ptr<BasicStuff>& obj, co
     //_ADD_DETAIL(weighted_centroid)
     _ADD_DETAIL(blob)
     
-    if(obj->pixels)
-        _ADD_DETAIL(pixels)
-    
     return bytes;
 }
 

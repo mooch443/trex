@@ -7,6 +7,9 @@ namespace track {
 std::shared_mutex individual_mutex;
 std::shared_mutex global_mutex;
 
+std::mutex pixels_mutex;
+std::vector<pv::BlobPtr> _pixels_to_delete;
+
 individuals_map_t _individuals;
 
 //! a non-owning pointer of the last active individuals
@@ -85,6 +88,15 @@ bool IndividualManager::fish_assigned(const Individual * fish) const {
     return fish_assigned(fish->identity().ID());
 }
 
+void move_to_pixel_cache(pv::BlobPtr&& blob) {
+    std::unique_lock guard(pixels_mutex);
+    _pixels_to_delete.emplace_back(std::move(blob));
+}
+
+void IndividualManager::clear_pixels() noexcept {
+    std::unique_lock guard(pixels_mutex);
+    _pixels_to_delete.clear();
+}
 
 void IndividualManager::assign_blob_individual(const AssignInfo& info, Individual* fish, pv::BlobPtr&& blob)
 {
@@ -128,7 +140,7 @@ void IndividualManager::assign_blob_individual(const AssignInfo& info, Individua
         }
     }*/
     
-    auto index = fish->add(info, std::move(blob), -1);
+    auto index = fish->add(info, *blob, -1);
     if(index == -1) {
 #ifndef NDEBUG
         FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", bdx," in frame ", info.frame);
@@ -140,11 +152,10 @@ void IndividualManager::assign_blob_individual(const AssignInfo& info, Individua
     _assign(fish->identity().ID(), bdx);
     become_active(fish);
     
-    if (FAST_SETTING(calculate_posture))
-        need_postures.push({fish, basic.get()});
-    else {
-        basic->pixels = nullptr;
-    }
+    if (FAST_SETTING(calculate_posture)) {
+        need_postures.push({fish, basic.get(), std::move(blob)});
+    } else
+        move_to_pixel_cache(std::move(blob));
     
     ++_assigned_count;
 }
@@ -380,6 +391,9 @@ bool IndividualManager::is_inactive(Individual * fish) const noexcept {
 IndividualManager::IndividualManager(const PPFrame& frame)
     : _frame(frame.index())
 {
+    // in case it hasnt been cleared yet, please clear
+    clear_pixels();
+    
     //! no need to do anything first frame
     {
         //std::scoped_lock scoped(global_mutex, current_mutex);

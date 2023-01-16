@@ -921,7 +921,7 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t current_prob)
+int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t current_prob)
 {
     const auto frameIndex = info.frame->index();
     if (has(frameIndex))
@@ -960,7 +960,7 @@ int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t curre
     _hints.push(frameIndex, info.f_prop);
     
     auto stuff = std::make_unique<BasicStuff>();
-    stuff->centroid.init(prev_prop, info.frame->time, blob->center(), blob->orientation());
+    stuff->centroid.init(prev_prop, info.frame->time, blob.center(), blob.orientation());
     
     auto v = _local_cache.add(frameIndex, &stuff->centroid);
     
@@ -976,9 +976,8 @@ int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t curre
     }
     
     stuff->frame = frameIndex;
-    stuff->thresholded_size = blob->raw_recount(-1);//,
+    stuff->thresholded_size = blob.raw_recount(-1);//,
     stuff->blob = blob;
-    stuff->pixels = std::move(blob);
     
     //const auto ft = FAST_SETTING(track_threshold);
     //assert(blob->last_recount_threshold() == ft); *Tracker::instance()->background());
@@ -997,7 +996,7 @@ int64_t Individual::add(const AssignInfo& info, pv::BlobPtr&& blob, prob_t curre
             p = 0;
         else
             p = probability(cached->consistent_categories
-                                ? info.frame->label(stuff->pixels->blob_id())
+                                ? info.frame->label(blob.blob_id())
                                 : -1,
                             *cached,
                             frameIndex,
@@ -2330,14 +2329,14 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 }
 #endif
 
-void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Image::Ptr greyscale) {
+void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex, pv::BlobPtr&& pixels) {//Image::Ptr greyscale) {
     /*auto c = centroid(frameIndex);
     auto direction = c->v();
     direction /= ::length(direction);*/
     
-    assert(stuff.pixels);
+    assert(pixels);
     Posture ptr(frameIndex, identity().ID());
-    ptr.calculate_posture(frameIndex, stuff.pixels.get());
+    ptr.calculate_posture(frameIndex, pixels.get());
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);
     
     if(ptr.outline_empty() /*|| !ptr.normalized_midline()*/) {

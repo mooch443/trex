@@ -471,7 +471,7 @@ double TrackingHelper::process_postures() {
     static std::mutex _statistics_mutex;
     
     if(cache->do_posture && !_manager.need_postures.empty()) {
-        static std::vector<std::tuple<Individual*, BasicStuff*>> all;
+        static std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> all;
         
         while(!_manager.need_postures.empty()) {
             all.emplace_back(std::move(_manager.need_postures.front()));
@@ -487,11 +487,8 @@ double TrackingHelper::process_postures() {
             for(auto it = start; it != end; ++it) {
                 t.reset();
                 
-                auto fish = std::get<0>(*it);
-                auto basic = std::get<1>(*it);
-                fish->save_posture(*basic, frameIndex);
-                basic->pixels = nullptr;
-                
+                auto &&[fish, basic, pixels] = *it;
+                fish->save_posture(*basic, frameIndex, std::move(pixels));
                 collected += t.elapsed();
             }
             
