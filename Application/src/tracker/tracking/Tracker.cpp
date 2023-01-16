@@ -553,7 +553,8 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
     pp.set_index(frame.index());
     pp.timestamp = frame.timestamp();
     pp.set_loading_time(frame.loading_time());
-    pp.init_from_blobs(frame.get_blobs());
+    pp.init_from_blobs(frame.steal_blobs());
+    frame.clear();
     
     filter_blobs(pp, pool);
     pp.fill_proximity_grid();
@@ -562,7 +563,7 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
         HistorySplit{pp, need, pool};
     
     //! discarding frame...
-    frame.clear();
+    //frame.clear();
 }
 
 void Tracker::prefilter(

@@ -114,6 +114,23 @@ namespace pv {
     std::unique_ptr<pv::Blob> Frame::blob_at(size_t i) const {
         return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i]);
     }
+
+    std::unique_ptr<pv::Blob> Frame::steal_blob(size_t i) {
+        return std::make_unique<pv::Blob>(std::move(_mask[i]), std::move(_pixels[i]), _flags[i]);
+    }
+
+    std::vector<pv::BlobPtr> Frame::steal_blobs() {
+        //if(_blobs.empty())
+        std::vector<pv::BlobPtr> _blobs;
+        {
+            _blobs.clear();
+            _blobs.reserve(n());
+            for (uint32_t i=0; i<n(); i++)
+                _blobs.emplace_back(steal_blob(i));
+        }
+        
+        return _blobs;
+    }
     
     std::vector<pv::BlobPtr> Frame::get_blobs() const {
         //if(_blobs.empty())
@@ -950,7 +967,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             seek(pos);
         
         frame.read_from(*this, frameIndex);
-        frame.get_blobs();
     }
     
     void File::read_next_frame(Frame& frame, Frame_t frame_to_read) {

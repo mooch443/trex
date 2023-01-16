@@ -124,7 +124,9 @@ namespace pv {
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
+        std::unique_ptr<pv::Blob> steal_blob(size_t i);
         std::vector<pv::BlobPtr> get_blobs() const;
+        std::vector<pv::BlobPtr> steal_blobs();
         
         /**
          * Adds a new object to this frame.
