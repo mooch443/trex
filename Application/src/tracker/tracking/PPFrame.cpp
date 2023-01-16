@@ -219,6 +219,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 
         //auto it = active_individuals.begin();
         //std::advance(it, start);
+        auto previous = Tracker::properties(index() - 1_f);
         
         //! go through individuals (for this pack/thread)
         for(auto it = start_it; it != end_it; ++i, ++it) {
@@ -226,7 +227,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
             
             // IndividualCache is in the same position as the indexes here
             IndividualCache *cache;
-            auto result = fish->cache_for_frame(index(), time, &hints);
+            auto result = fish->cache_for_frame(previous, index(), time, &hints);
             if(result) {
                 auto &ref = cache_map[fish->identity().ID()];
                 ref = std::move(result.value());

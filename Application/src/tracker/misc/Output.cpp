@@ -429,7 +429,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
 #endif
         Match::prob_t p = p_threshold;
         if(!fish->empty()) {
-            auto cache = fish->cache_for_frame(frameIndex, data.time, cache_ptr);
+            auto cache = fish->cache_for_frame(Tracker::properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
             if(cache) {
                 assert(frameIndex > fish->start_frame());
                 p = fish->probability(label ? label->id : -1, cache.value(), frameIndex, data.stuff->blob);//.p;

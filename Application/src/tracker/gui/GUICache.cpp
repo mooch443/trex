@@ -298,11 +298,12 @@ namespace gui {
             }
             
             if(has_selection()) {
+                auto previous = Tracker::properties(frameIndex - 1_f);
                 for(auto id : selected) {
                     if(individuals.count(id)) {
                         auto fish = individuals.at(id);
                         if(!fish->has(frameIndex) && !fish->empty() && frameIndex >= fish->start_frame()) {
-                            auto c = fish->cache_for_frame(frameIndex, time);
+                            auto c = fish->cache_for_frame(previous, frameIndex, time);
                             if(c) {
                                 inactive_estimates.push_back(c.value().estimated_px);
                                 inactive_ids.insert(fish->identity().ID());

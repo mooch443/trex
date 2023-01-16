@@ -495,7 +495,7 @@ Fish::~Fish() {
             auto radius = (FAST_SETTING(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
                 if(!_next_frame_cache.valid) {
-                    auto result = _obj.cache_for_frame(_frame + 1_f, next_time);
+                    auto result = _obj.cache_for_frame(Tracker::properties(_frame), _frame + 1_f, next_time);
                     if(result) {
                         _next_frame_cache = std::move(result.value());
                     } else {

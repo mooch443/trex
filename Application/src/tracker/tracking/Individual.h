@@ -394,7 +394,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Estimates the position in the given frame. Uses the previous position, returns
         //  position in the first frame if no previous position was available.
         //  Also pre-caches a few other properties of the individual.
-        tl::expected<IndividualCache, const char*> cache_for_frame(Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
+        tl::expected<IndividualCache, const char*> cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
         
         void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true);
         //size_t memory_size() const;

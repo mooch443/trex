@@ -1591,6 +1591,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
             
             PairedProbabilities pairs;
+            auto previous = Tracker::properties(frameIndex - 1_f);
             
             IndividualManager::transform_inactive([&](auto fish)
             {
@@ -1604,7 +1605,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                     }
                     
                 } else {
-                    auto pos_fish = fish->cache_for_frame(frameIndex, frame.time);
+                    auto pos_fish = fish->cache_for_frame(previous, frameIndex, frame.time);
                     if(not pos_fish) {
                         throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", pos_fish.error());
                     }
@@ -1919,7 +1920,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                     if(property.current == nullptr) {
                         assert(fish->segment_for(frameIndex - 1_f) != fish->segment_for(frameIndex));
                     } else
-                        assert(fish->segment_for(frameIndex - 1_f) == fish->segment_for(frameIndex));
+                        if(fish->segment_for(frameIndex - 1_f) != fish->segment_for(frameIndex)) {
+                            auto A = fish->segment_for(frameIndex-1_f);
+                            auto B = fish->segment_for(frameIndex);
+                            FormatWarning(frameIndex - 1_f, " != ", frameIndex, ": ", A, " vs. ", B);
+                            assert(false);
+                        }
                 } else
                     assert(property.current == nullptr);
             }

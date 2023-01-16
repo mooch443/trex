@@ -369,14 +369,20 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
     if(frameIndex == _startFrame) {
         return _frame_segments.begin();
     }
+    if(frameIndex == _endFrame)
+        return --_frame_segments.end();
     
-    auto it = std::lower_bound(_frame_segments.begin(), _frame_segments.end(), frameIndex, [](const auto& ptr, Frame_t frame){
+    auto begin = _frame_segments.begin();
+    auto end = _frame_segments.end();
+    assert(frameIndex <= (*--_frame_segments.end())->range.end);
+    
+    auto it = std::lower_bound(begin, end, frameIndex, [](const auto& ptr, Frame_t frame){
         return ptr->start() < frame;
     });
-    if(it != _frame_segments.end()) {
+    if(it != end) {
         if((*it)->start() > frameIndex) {
-            if(it == _frame_segments.begin())
-                it = _frame_segments.end();
+            if(it == begin)
+                it = end;
             else
                 --it;
         }
@@ -394,7 +400,7 @@ std::shared_ptr<SegmentInformation> Individual::segment_for(Frame_t frameIndex) 
         return nullptr;
     
     auto it = iterator_for(frameIndex);
-    return it == _frame_segments.end() || !(*it)->contains(frameIndex) ? nullptr : *it;
+    return it == _frame_segments.end() || not (*it)->contains(frameIndex) ? nullptr : *it;
 }
 
 #ifndef NDEBUG
@@ -1515,7 +1521,7 @@ const FrameProperties* CacheHints::properties(Frame_t index) const {
     return nullptr;
 }
 
-tl::expected<IndividualCache, const char*> Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
+tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* hints) const {
     if(not frameIndex.valid())
         return tl::unexpected("Invalid frame in cache_for_frame");
     
@@ -1623,7 +1629,8 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(Frame_t f
     assert(pp); // fish is not empty, find_frame should at least return _startFrame
     
     //auto props = Tracker::properties(frameIndex);
-    auto prev_props = Tracker::properties(frameIndex - 1_f, hints);
+    assert(not previous || frameIndex - 1_f == previous->frame);
+    auto prev_props = previous;//Tracker::properties(frameIndex - 1_f, hints);
     if(!prev_props) {
         if(!Tracker::instance()->frames().empty()) {
             auto it = Tracker::instance()->frames().rbegin();
@@ -2219,7 +2226,8 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     
     if(frameIndex > start_frame()) {
         auto props = Tracker::properties(frameIndex);
-        auto cache = cache_for_frame(frameIndex, props->time);
+        auto previous = Tracker::properties(frameIndex - 1_f);
+        auto cache = cache_for_frame(previous, frameIndex, props->time);
         if(cache) {
             movement.position = cache.value().estimated_px;
             movement.velocity = Vec2(position_sum);
