@@ -729,6 +729,23 @@ IMPL_VARIABLE(const std::string&)
 IMPL_VARIABLE(bool)
 IMPL_VARIABLE(uint64_t)
 
+void PythonIntegration::set_variable(const std::string & name, const std::vector<Idx_t> & v, const std::string& m) {
+    check_correct_thread_id();
+    
+    std::vector<uint32_t> copy(v.size());
+    for(size_t i=0; i<v.size(); ++i) {
+        copy[i] = v[i].get();
+    }
+    
+    if(m.empty())
+        (*_locals)[name.c_str()] = copy;
+    else if(_modules.count(m)) {
+        auto &mod = _modules[m];
+        if(mod.ptr() != nullptr)
+            mod.attr(name.c_str()) = copy;
+    }
+}
+
 void PythonIntegration::set_variable(const std::string & name, const std::vector<std::string> & v, const std::string& m) {
     check_correct_thread_id();
     

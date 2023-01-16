@@ -7,6 +7,7 @@
 #include <file/Path.h>
 #include <misc/Image.h>
 #include <misc/PVBlob.h>
+#include <misc/frame_t.h>
 
 namespace pv {
     using namespace cmn;
@@ -84,8 +85,10 @@ namespace pv {
         current = V_8
     };
     
-    class Frame : public IndexedDataTransport {
+    class Frame {
     private:
+        GETTER_SETTER(Frame_t, index)
+        
         //! time since movie start in microseconds
         GETTER_SETTER(uint64_t, timestamp)
         //! number of mask/pixel arrays
@@ -95,23 +98,20 @@ namespace pv {
         GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
         GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
         GETTER_NCONST(std::vector<uint8_t>, flags)
-        GETTER(std::vector<pv::BlobPtr>, blobs)
         
     public:
-        //! Initialize copy
-        //Frame(const Frame& other);
-        Frame(Frame&& other);
         void operator=(const Frame& other);
         void operator=(Frame&& other);
         
         //! initialize empty object
         Frame() : Frame(0, 0) {}
+        Frame(Frame&&) noexcept = default;
         
         //! create a new one from scratch
         Frame(const uint64_t& timestamp, decltype(_n) n);
         
         //! read from a file
-        Frame(File& ref, long_t idx);
+        Frame(File& ref, Frame_t idx);
         
         ~Frame() {
             //for(auto m: _mask)
@@ -120,12 +120,13 @@ namespace pv {
             //    delete p;
         }
         
-        void read_from(File& ref, long_t idx);
+        void read_from(File& ref, Frame_t idx);
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
-        std::vector<pv::BlobPtr>& get_blobs();
-        const std::vector<pv::BlobPtr>& get_blobs() const;
+        std::unique_ptr<pv::Blob> steal_blob(size_t i);
+        std::vector<pv::BlobPtr> get_blobs() const;
+        std::vector<pv::BlobPtr> steal_blobs();
         
         /**
          * Adds a new object to this frame.
@@ -139,7 +140,7 @@ namespace pv {
         void serialize(DataPackage&, bool& compressed) const;
         
         std::string toStr() const {
-            return "pv::Frame<"+std::to_string(index())+">";
+            return "pv::Frame<"+index().toStr()+">";
         }
         
     protected:
@@ -153,8 +154,15 @@ namespace pv {
         friend class File;
         
     public:
+        /**
+         ==============================
+                Can be read
+                from file directly
+         ==============================
+         */
+        
         //! Fileformat version
-        Version version;
+        Version version{current};
         
         //! Name of the project
         std::string name;
@@ -163,48 +171,77 @@ namespace pv {
         std::string metadata;
         
         //! Number of channels per pixel
-        uchar channels;
+        uchar channels{1u};
         
         //! Size of a horizontal line struct
         //  in the mask images in bytes
-        uchar line_size;
+        uchar line_size{narrow_cast<uchar>(sizeof(line_type))};
         
         //! Resolution of the video frames (constant)
-        cv::Size resolution;
+        cv::Size resolution{0, 0};
         
         //! Number of frames in the video
-        uint32_t num_frames;
+        uint32_t num_frames{0u};
         
         //! Offset of the index table at the end of the file
-        uint64_t index_offset;
+        uint64_t index_offset{0u};
         
         //! Timestamp in microseconds since 1970 of when the recording started
         //  (all following frames have delta-timestamps)
-        uint64_t timestamp;
+        uint64_t timestamp{0u};
         
         //! Contains an index for each frame, pointing
         //  to its location in the file
         std::vector<uint64_t> index_table;
         
         //! Full-size average image
-        Image *average;
+        Image *average{nullptr};
         
         //! Binary mask applied to image (or NULL)
-        Image *mask;
+        Image *mask{nullptr};
         
         //! Offsets for cutting on all sides (left, top, right, bottom)
         CropOffsets offsets;
         
+    public:
+        /**
+         ==============================
+                Calculated at
+                load time
+         ==============================
+         */
+        
+        //! The width of the arena from left to right edge
+        //! of the video frame (in cm).
+        float meta_real_width;
+        
         //! Contains average time delta between frames
         double average_tdelta;
         
+    private:
+        /**
+         ==============================
+            Calculated at
+            runtime while writing
+         ==============================
+         */
+        uint64_t _num_frames_offset{0u};
+        uint64_t _average_offset{0u};
+        uint64_t _index_offset{0u};
+        uint64_t _timestamp_offset{0u};
+        double _running_average_tdelta{0.0};
+        GETTER_I(uint64_t, meta_offset, 0u)
+        
+    public:
         void write(DataFormat& ref);
         void read(DataFormat& ref);
         
         void update(DataFormat& ref);
         
+    public:
+        Header() = default;
         Header(const std::string& n)
-        : version(current), name(n), channels(1), line_size(sizeof(line_type)), resolution(0, 0), num_frames(0), index_offset(0), timestamp(0), average(NULL), mask(NULL), average_tdelta(0), _num_frames_offset(0), _average_offset(0), _running_average_tdelta(0)
+            : name(n)
         { }
         
         ~Header() {
@@ -213,17 +250,30 @@ namespace pv {
         }
         
         std::string generate_metadata() const;
-        
-    private:
-        uint64_t _num_frames_offset;
-        uint64_t _average_offset;
-        uint64_t _index_offset;
-        uint64_t _timestamp_offset;
-        double _running_average_tdelta;
-        GETTER(uint64_t, meta_offset)
     };
 
     struct TaskSentinel;
+
+    enum class FileMode : std::uint8_t {
+        READ      = 0b00000001,
+        WRITE     = 0b00000010,
+        OVERWRITE = 0b00000100,
+        MODIFY    = 0b00001000
+    };
+
+    inline FileMode operator|(FileMode lhs, FileMode rhs) {
+        return static_cast<FileMode>(
+            static_cast<std::underlying_type_t<FileMode>>(lhs) |
+            static_cast<std::underlying_type_t<FileMode>>(rhs)
+        );
+    }
+
+    inline FileMode operator&(FileMode lhs, FileMode rhs) {
+        return static_cast<FileMode>(
+            static_cast<std::underlying_type_t<FileMode>>(lhs) &
+            static_cast<std::underlying_type_t<FileMode>>(rhs)
+        );
+    }
     
     class File : public cmn::DataFormat, public cmn::GenericVideo {
     protected:
@@ -245,16 +295,28 @@ namespace pv {
         
         friend struct pv::TaskSentinel;
         
+        const FileMode _mode;
+        void _check_opened() const;
+        mutable bool _tried_to_open{false};
+        
+        using DataFormat::start_writing;
+        using DataFormat::start_reading;
+        using DataFormat::start_modifying;
+        //void start_writing(bool overwrite) override;
+        //void start_reading() override;
+        
     public:
-        File(const file::Path& filename = "")
+        File(const file::Path& filename, FileMode mode)
             : DataFormat(filename.add_extension("pv"), filename.str()),
                 _header(filename.str()),
                 _filename(filename),
-                _prev_frame_time(0)
+                _prev_frame_time(0),
+                _mode(mode)
         { }
         
         ~File();
         
+        void close() override;
         const pv::Frame& last_frame();
         
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
@@ -273,38 +335,18 @@ namespace pv {
         void add_individual(Frame&& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
-        void read_frame(Frame& frame, uint64_t frameIndex);
-        void read_next_frame(Frame& frame, uint64_t frame_to_read);
+        void read_frame(Frame& frame, Frame_t frameIndex);
+        void read_next_frame(Frame& frame, Frame_t frame_to_read);
         
+    private:
         virtual void stop_writing() override;
+        
+    public:
         void set_resolution(const Size2& size) { _header.resolution = (cv::Size)size; }
-        void set_average(const cv::Mat& average) {
-            if(average.type() != CV_8UC1) {
-                auto str = getImgType(average.type());
-                throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC1'.");
-            }
-            
-            if(!_header.resolution.width && !_header.resolution.height) {
-                _header.resolution.width = average.cols;
-                _header.resolution.height = average.rows;
-            }
-            else if(average.cols != _header.resolution.width || average.rows != _header.resolution.height) {
-                throw U_EXCEPTION("Average image is of size ",average.cols,"x",average.rows," but has to be ",_header.resolution.width,"x",_header.resolution.height,"");
-            }
-            
-            if(_header.average)
-                delete _header.average;
-            
-            _header.average = new Image(average);
-            this->_average = _header.average->get();
-            
-            if(_open_for_modifying) {
-                cmn::Data::write_data(header()._average_offset, header().average->size(), (char*)header().average->data());
-            }
-        }
-        const Header& header() const { return _header; }
-        Header& header() { return _header; }
-        const cv::Mat& average() const override { assert(_header.average); return _average; }
+        void set_average(const cv::Mat& average);
+        const Header& header() const; //{ return _header; }
+        Header& header(); //{ return _header; }
+        const cv::Mat& average() const override { _check_opened(); assert(_header.average); return _average; }
         
         void set_mask(const cv::Mat& mask) {
             if(_header.mask)
@@ -319,12 +361,12 @@ namespace pv {
          * ### GENERICVIDEO INTERFACE ###
          **/
         const cv::Size& size() const override { return _header.resolution; }
-        uint32_t length() const override { return _header.num_frames; }
-        void frame(uint64_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
+        Frame_t length() const override { return Frame_t(_header.num_frames); }
+        void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #ifdef USE_GPU_MAT
-        void frame(uint64_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
+        void frame(Frame_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #endif
-        void frame_optional_background(uint64_t frameIndex, cv::Mat& output, bool with_background);
+        void frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background);
         bool supports_multithreads() const override { return false; }
         
         void try_compress();
@@ -334,7 +376,7 @@ namespace pv {
         virtual bool has_timestamps() const override {
             return true;
         }
-        virtual timestamp_t timestamp(uint64_t, cmn::source_location loc = cmn::source_location::current()) const override;
+        virtual timestamp_t timestamp(Frame_t, cmn::source_location loc = cmn::source_location::current()) const override;
         virtual timestamp_t start_timestamp() const override;
         virtual short framerate() const override;
         double generate_average_tdelta();

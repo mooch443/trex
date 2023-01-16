@@ -9,6 +9,10 @@ namespace default_config {
     using namespace cmn;
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn);
+
+    void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level);
+    bool execute_settings_file(const file::Path& source, AccessLevelType::Class level);
+
     void warn_deprecated(const file::Path& source, sprite::Map& map);
     void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
     bool is_deprecated(const std::string& key);
@@ -48,7 +52,7 @@ namespace default_config {
     ENUM_CLASS(peak_mode_t, pointy, broad)
     ENUM_CLASS_HAS_DOCS(peak_mode_t)
 
-    ENUM_CLASS(matching_mode_t, tree, approximate, hungarian, benchmark, automatic)
+    ENUM_CLASS(matching_mode_t, tree, approximate, hungarian, benchmark, automatic, none)
     ENUM_CLASS_HAS_DOCS(matching_mode_t)
 
     ENUM_CLASS(output_format_t, csv, npz)
@@ -60,7 +64,7 @@ namespace default_config {
     ENUM_CLASS(app_update_check_t, none, manually, automatically)
     ENUM_CLASS_HAS_DOCS(app_update_check_t)
 
-    ENUM_CLASS(blob_split_algorithm_t, threshold, fill)
+    ENUM_CLASS(blob_split_algorithm_t, threshold, threshold_approximate, fill)
     ENUM_CLASS_HAS_DOCS(blob_split_algorithm_t)
 
     ENUM_CLASS(visual_identification_version_t, current, v118_3, v110, v100)

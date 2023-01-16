@@ -189,9 +189,10 @@ void draw(Frame_t frame, DrawStructure& graph) {
     Loc offset(5);
     
     PPFrame pp;
+    pv::Frame vframe;
     pp.set_index(frame);
-    GUI::video_source()->read_frame(pp.frame(), frame.get());
-    Tracker::preprocess_frame(pp, {}, nullptr);
+    GUI::video_source()->read_frame(vframe, frame);
+    Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, nullptr, PPFrame::NeedGrid::NoNeed);
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {
@@ -230,21 +231,22 @@ void draw(Frame_t frame, DrawStructure& graph) {
                 continue;
             
             auto blob = fish->compressed_blob(frame);
-            auto pixels = pp.find_bdx(blob->blob_id());
+            auto pixels = pp.bdx_to_ptr(blob->blob_id());
             if(!pixels) {
                 FormatWarning("Cannot find ", blob->blob_id(), " in frame ", frame, ".");
                 continue;
             }
             
-            auto midline = fish->midline(frame)->transform(normalize);
+            auto midline = fish->midline(frame);
+            auto transform = midline ? midline->transform(normalize) : gui::Transform();
             auto segment = fish->segment_for(frame);
             if(!segment)
                 U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", fish->identity(), " despite finding a blob ", *blob);
             
             auto filters = constraints::local_midline_length(fish, segment->range);
-            auto &&[image, pos] = constraints::diff_image(normalize, pixels, midline, filters ? filters->median_midline_length_px : 0, output_shape, &Tracker::average());
+            auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &Tracker::average());
             
-            if(image->empty())
+            if(!image || image->empty())
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);

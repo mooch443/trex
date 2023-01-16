@@ -136,7 +136,7 @@ public:
     
     struct TrainingAndValidation {
         std::vector<Image::Ptr> training_images, validation_images;
-        std::vector<long_t> training_ids, validation_ids;
+        std::vector<Idx_t> training_ids, validation_ids;
     };
     //std::map<long_t, FilterCache> custom_midline_lengths_no_std;
     //std::map<long_t, FilterCache> custom_midline_lengths_std;
@@ -175,9 +175,9 @@ public:
     class TrainingImageData : public Image::CustomData {
     public:
         ImageClass type;
-        const int64_t original_id;
+        const Idx_t original_id;
         const std::string source;
-        TrainingImageData(std::string source, int64_t oid, ImageClass type) : type(type), original_id(oid), source(source) {}
+        TrainingImageData(std::string source, Idx_t oid, ImageClass type) : type(type), original_id(oid), source(source) {}
         ~TrainingImageData() {}
     };
     
@@ -219,7 +219,7 @@ public:
     
     std::shared_ptr<DataRange> add_salt(const std::shared_ptr<TrainingData>& source, const std::string& purpose);
     
-    void add_frame(std::shared_ptr<DataRange> ptr, Frame_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2& pos, size_t px, const FrameRange& from_range);
+    void add_frame(std::shared_ptr<DataRange> ptr, Frame_t frame_index, Idx_t id, Idx_t original_id, Image::Ptr image, const Vec2& pos, size_t px, const FrameRange& from_range);
     void apply_mapping(const std::map<Idx_t, Idx_t>&);
     std::string toStr() const;
     static std::string class_name() {

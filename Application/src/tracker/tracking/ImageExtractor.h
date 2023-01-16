@@ -61,7 +61,7 @@ struct Settings {
     uint8_t num_threads{5u};
     default_config::individual_image_normalization_t::Class normalization{default_config::individual_image_normalization_t::none};
     uint64_t item_step{1u};
-    uint64_t segment_min_samples{0u};
+    Frame_t segment_min_samples{0u};
     std::function<std::unique_ptr<std::shared_lock<std::shared_mutex>>()> query_lock = nullptr;
     
     std::string toStr() const {

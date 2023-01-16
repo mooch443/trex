@@ -118,7 +118,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         Identity(Idx_t myID = Idx_t());
         Idx_t ID() const { return _myID; }
         void set_ID(Idx_t val) {
-            _color = ColorWheel(val).next();
+            _color = ColorWheel(val.get()).next();
             _myID = val;
             _name = Meta::toStr(_myID);
         }
@@ -295,7 +295,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        int64_t add(const TrackingHelper&, const pv::BlobPtr& blob, Match::prob_t current_prob);
+        int64_t add(const AssignInfo&, const pv::Blob& blob, Match::prob_t current_prob);
+        
         void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -337,14 +338,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Raw blobs
         pv::BlobPtr blob(Frame_t frameIndex) const;
         pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
-        bool empty() const { return !_startFrame.valid(); }
+        [[nodiscard]] bool empty() const noexcept;
         
-        //const decltype(_training_data)& training_data() const { return _training_data; }
-        //decltype(_training_data)& training_data() { return _training_data; }
-        //void clear_training_data();
-        
-        //void save_posture(Frame_t frameIndex, Image::Ptr greyscale, Vec2 previous_direction);
-        void save_posture(const BasicStuff& ptr, Frame_t frameIndex);
+        void save_posture(const BasicStuff& ptr, Frame_t frameIndex, pv::BlobPtr&& pixels);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
         long_t thresholded_size(Frame_t frameIndex) const;
@@ -367,14 +363,14 @@ constexpr std::array<const char*, 8> ReasonsNames {
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::BlobPtr& blob) const;
+        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
         Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
-        const std::unique_ptr<BasicStuff>& find_frame(Frame_t frameIndex) const;
+        const BasicStuff* find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);
@@ -398,7 +394,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Estimates the position in the given frame. Uses the previous position, returns
         //  position in the first frame if no previous position was available.
         //  Also pre-caches a few other properties of the individual.
-        IndividualCache cache_for_frame(Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
+        tl::expected<IndividualCache, const char*> cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
         
         void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true);
         //size_t memory_size() const;

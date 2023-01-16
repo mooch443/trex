@@ -6,24 +6,30 @@
 #include <tracking/Categorize.h>
 #include <gui/Timeline.h>
 #include <gui/DrawBase.h>
+#include <tracking/IndividualManager.h>
 
 namespace gui {
     static std::unique_ptr<std::thread> percentile_ptr = nullptr;
     static std::mutex percentile_mutex;
-    static GUICache* _cache{ nullptr };
+
+    GUICache*& cache() {
+        static GUICache* _cache{ nullptr };
+        return _cache;
+    }
+
     static GenericThreadPool _pool(cmn::hardware_concurrency(), "GUICache::_pool");
 
     GUICache& GUICache::instance() {
-        if (!_cache)
+        if (!cache())
             throw U_EXCEPTION("No cache created yet.");
-        return *_cache;
+        return *cache();
     }
 
     bool GUICache::exists() {
-        return _cache != nullptr;
+        return cache() != nullptr;
     }
 
-    SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
+    SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
     {
         assert(ptr);
@@ -35,7 +41,7 @@ namespace gui {
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
         : _video(video), _graph(graph)
     {
-        _cache = this;
+        cache() = this;
         globals::Cache::init();
     }
 
@@ -48,11 +54,12 @@ namespace gui {
             percentile_ptr = nullptr;
         }
 
-        _cache = nullptr;
+        cache() = nullptr;
     }
     
     void SimpleBlob::convert() {
         Vec2 image_pos;
+        assert(blob != nullptr);
         
         auto &percentiles = GUICache::instance().pixel_value_percentiles;
         if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
@@ -74,7 +81,9 @@ namespace gui {
     }
     
     Individual * GUICache::primary_selection() const {
-        return has_selection() && individuals.count(selected.front()) ? individuals.at(selected.front()) : NULL;
+        return has_selection() && individuals.count(selected.front())
+                ? individuals.at(selected.front())
+                : nullptr;
     }
     
     bool GUICache::is_animating(Drawable* obj) const {
@@ -106,7 +115,7 @@ namespace gui {
         if(!selected.empty()) {
             selected.clear();
             SETTING(gui_focus_group) = selected;
-            SETTING(heatmap_ids) = std::vector<uint32_t>();
+            SETTING(heatmap_ids) = std::vector<Idx_t>();
         }
     }
     
@@ -118,7 +127,7 @@ namespace gui {
         if(!is_selected(id)) {
             selected.push_back(id);
             SETTING(gui_focus_group) = selected;
-            SETTING(heatmap_ids) = std::vector<uint32_t>(selected.begin(), selected.end());
+            SETTING(heatmap_ids) = std::vector<Idx_t>(selected.begin(), selected.end());
         }
     }
     
@@ -127,7 +136,7 @@ namespace gui {
         if(it != selected.end()) {
             selected.erase(it);
             SETTING(gui_focus_group) = selected;
-            SETTING(heatmap_ids) = std::vector<uint32_t>(selected.begin(), selected.end());
+            SETTING(heatmap_ids) = std::vector<Idx_t>(selected.begin(), selected.end());
         }
     }
     
@@ -136,7 +145,7 @@ namespace gui {
         selected.push_back(id);
         
         SETTING(gui_focus_group) = selected;
-        SETTING(heatmap_ids) = std::vector<uint32_t>(selected.begin(), selected.end());
+        SETTING(heatmap_ids) = std::vector<Idx_t>(selected.begin(), selected.end());
     }
     
     void GUICache::set_tracking_dirty() {
@@ -183,26 +192,27 @@ namespace gui {
         
         frame_idx = frameIndex;
         
-        static std::atomic_bool done_calculating = false;
-        {
-            std::lock_guard guard(percentile_mutex);
-            if(!done_calculating && !percentile_ptr) {
-                percentile_ptr = std::make_unique<std::thread>([this](){
-                    cmn::set_thread_name("percentile_thread");
-                    auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
-                    
-                    if(_graph) {
-                        std::lock_guard<std::recursive_mutex> guard(_graph->lock());
-                        pixel_value_percentiles = percentiles;
-                    }
-                    
-                    done_calculating = true;
-                });
-            }
+        if(!GUI_SETTINGS(nowindow)) {
+            //! Calculate average pixel values. This is not a high-priority action, especially if the GUI is disabled. Only used for `gui_equalize_blob_histograms`.
+            static std::atomic<bool> done_calculating{false};
+            static auto percentile_ptr = std::make_unique<std::thread>([this](){
+                cmn::set_thread_name("percentile_thread");
+                auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
+                
+                if(_graph) {
+                    std::lock_guard guard(_graph->lock());
+                    pixel_value_percentiles = percentiles;
+                }
+                
+                done_calculating = true;
+            });
             
-            if(percentile_ptr && done_calculating) {
-                percentile_ptr->join();
-                percentile_ptr = nullptr;
+            {
+                std::lock_guard guard(percentile_mutex);
+                if(percentile_ptr && done_calculating) {
+                    percentile_ptr->join();
+                    percentile_ptr = nullptr;
+                }
             }
         }
         
@@ -222,7 +232,7 @@ namespace gui {
         auto properties = _tracker.properties(frameIndex);
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
-            individuals = _tracker.individuals();
+            individuals = IndividualManager::copy();
             selected = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
             active_blobs.clear();
             selected_blobs.clear();
@@ -233,7 +243,7 @@ namespace gui {
             tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
-                if(!_graph)
+                if(!cache() || !_graph)
                     return;
                 
                 std::lock_guard<std::recursive_mutex> guard(_graph->lock());
@@ -262,18 +272,12 @@ namespace gui {
                     _registered_callback.erase(cit);
             };
             
-            if(FAST_SETTING(track_max_individuals) == 0) {
-                for(auto fish : active) {
-                    if(!contains(_registered_callback,fish)) {
-                        fish->register_delete_callback((void*)12341337, delete_callback);
-                        _registered_callback.insert(fish);
-                    }
-                }
-            } else {
-                for(auto &[id, fish] : Tracker::individuals()) {
+            IndividualManager::transform_all([&](auto, auto fish){
+                if(!contains(_registered_callback, fish)) {
                     fish->register_delete_callback((void*)12341337, delete_callback);
+                    _registered_callback.insert(fish);
                 }
-            }
+            });
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
             if(connectivity_map.count(frameIndex.get()))
@@ -291,27 +295,21 @@ namespace gui {
                 } else {
                     inactive_ids.insert(fish->identity().ID());
                 }
-                
-                fish->register_delete_callback((void*)133742, [this](auto){
-                    std::lock_guard<std::recursive_mutex> guard(_graph->lock());
-                    active.clear();
-                    individuals.clear();
-                    active_blobs.clear();
-                    active_ids.clear();
-                    inactive_ids.clear();
-                    last_frame.invalidate();
-                    selected.clear();
-                });
             }
             
             if(has_selection()) {
+                auto previous = Tracker::properties(frameIndex - 1_f);
                 for(auto id : selected) {
                     if(individuals.count(id)) {
                         auto fish = individuals.at(id);
                         if(!fish->has(frameIndex) && !fish->empty() && frameIndex >= fish->start_frame()) {
-                            auto c = fish->cache_for_frame(frameIndex, time);
-                            inactive_estimates.push_back(c.estimated_px);
-                            inactive_ids.insert(fish->identity().ID());
+                            auto c = fish->cache_for_frame(previous, frameIndex, time);
+                            if(c) {
+                                inactive_estimates.push_back(c.value().estimated_px);
+                                inactive_ids.insert(fish->identity().ID());
+                            } else {
+                                FormatError("Cannot create cache_for_frame of ", fish->identity(), " in frame ", frameIndex," because: ", c.error());
+                            }
                         }
                     }
                 }
@@ -344,7 +342,7 @@ namespace gui {
             selected_blobs.clear();
         }
         
-        bool something_important_changed = frameIndex != last_frame || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position;
+        bool something_important_changed = (not last_frame.valid() or frameIndex != last_frame) || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position;
         if(something_important_changed || (is_tracking_dirty() && mode() == mode_t::tracking)) {
             previous_active_fish = selected;
             previous_active_blobs = active_blobs;
@@ -355,19 +353,15 @@ namespace gui {
             if(something_important_changed && mode() == mode_t::tracking)
                 set_tracking_dirty();
             
-            bool reload_blobs = frameIndex != last_frame || last_threshold != threshold;
+            bool reload_blobs = (not last_frame.valid() || frameIndex != last_frame) || last_threshold != threshold;
             if(reload_blobs) {
-                processed_frame.frame().clear();
                 processed_frame.clear();
                 
                 if(frameIndex.valid()) {
-                    set_of_individuals_t prev_active;
-                    if(_tracker.properties(frameIndex - 1_f))
-                        prev_active = _tracker.active_individuals(frameIndex - 1_f);
-                    
                     try {
-                        _video->read_frame(processed_frame.frame(), frameIndex.get());
-                        Tracker::instance()->preprocess_frame(processed_frame, prev_active, &_pool);
+                        pv::Frame frame;
+                        _video->read_frame(frame, frameIndex);
+                        Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, &_pool, PPFrame::NeedGrid::Need);
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Frame ", frameIndex," cannot be loaded from file.");
@@ -397,7 +391,7 @@ namespace gui {
             const bool nothing_to_zoom_on = !has_selection() || (inactive_estimates.empty() && selected_blobs.empty());
             
             _num_pixels = 0;
-            auto L = processed_frame.blobs().size() + processed_frame.noise().size();
+            auto L = processed_frame.number_objects();
             
             if(reload_blobs) {
                 display_blobs.clear();
@@ -410,54 +404,22 @@ namespace gui {
                 }
             }
             
+            //! count the actual number of objects
             size_t i = 0;
-            for (; i<processed_frame.blobs().size(); i++) {
-                auto& blob = processed_frame.blobs().at(i);
-                
-                if(nothing_to_zoom_on || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
-                {
-                    min_vec = min(min_vec, blob->bounds().pos());
-                    max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
-                }
-                
-                _num_pixels += size_t(blob->bounds().width * blob->bounds().height);
-                
-                if(reload_blobs) {
-                    if(i < raw_blobs.size()) {
-                        auto &obj = raw_blobs[i];
-                        obj->blob = blob;
-                        obj->threshold = threshold;
-                        
-                    } else {
-                        std::unique_ptr<SimpleBlob> ptr;
-                        if(!available_blobs_list.empty()) {
-                            ptr = std::move(available_blobs_list.back());
-                            available_blobs_list.pop_back();
-                            
-                            ptr->blob = blob;
-                            ptr->threshold = threshold;
-                        } else
-                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
-                        
-                        raw_blobs.emplace_back(std::move(ptr));
-                    }
-                }
-            }
             
-            for(auto &blob : processed_frame.noise()) {
-                blob->calculate_moments();
-                
-                if((nothing_to_zoom_on && blob->recount(-1) >= FAST_SETTING(blob_size_ranges).max_range().start)
-                   || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
+            processed_frame.transform_blobs([&](pv::Blob& blob) {
+                if(nothing_to_zoom_on || selected_blobs.find(blob.blob_id()) != selected_blobs.end())
                 {
-                    min_vec = min(min_vec, blob->bounds().pos());
-                    max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
+                    min_vec = min(min_vec, blob.bounds().pos());
+                    max_vec = max(max_vec, blob.bounds().pos() + blob.bounds().size());
                 }
+                
+                _num_pixels += size_t(blob.bounds().width * blob.bounds().height);
                 
                 if(reload_blobs) {
                     if(i < raw_blobs.size()) {
                         auto &obj = raw_blobs[i];
-                        obj->blob = blob;
+                        obj->blob = &blob;
                         obj->threshold = threshold;
                         
                     } else {
@@ -466,24 +428,63 @@ namespace gui {
                             ptr = std::move(available_blobs_list.back());
                             available_blobs_list.pop_back();
                             
-                            ptr->blob = blob;
+                            ptr->blob = &blob;
                             ptr->threshold = threshold;
                         } else
-                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), &blob, threshold);
                         
                         raw_blobs.emplace_back(std::move(ptr));
                     }
                 }
                 
                 ++i;
-            }
+            });
+            
+            processed_frame.transform_noise([&](pv::Blob& blob) {
+                blob.calculate_moments();
+                
+                if((nothing_to_zoom_on && blob.recount(-1) >= FAST_SETTING(blob_size_ranges).max_range().start)
+                   || selected_blobs.find(blob.blob_id()) != selected_blobs.end())
+                {
+                    min_vec = min(min_vec, blob.bounds().pos());
+                    max_vec = max(max_vec, blob.bounds().pos() + blob.bounds().size());
+                }
+                
+                if(reload_blobs) {
+                    if(i < raw_blobs.size()) {
+                        auto &obj = raw_blobs[i];
+                        obj->blob = &blob;
+                        obj->threshold = threshold;
+                        
+                    } else {
+                        std::unique_ptr<SimpleBlob> ptr;
+                        if(!available_blobs_list.empty()) {
+                            ptr = std::move(available_blobs_list.back());
+                            available_blobs_list.pop_back();
+                            
+                            ptr->blob = &blob;
+                            ptr->threshold = threshold;
+                        } else
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), &blob, threshold);
+                        
+                        raw_blobs.emplace_back(std::move(ptr));
+                    }
+                }
+                
+                ++i;
+            });
+            
+            //! raw_blobs can be exaggerated because nullptrs within the
+            //! blob and noise arrays are also counted (but not provided
+            //! within the above loop). shrink:
+            raw_blobs.resize(i);
             
             if(reload_blobs) {
                 /**
                  * Delete what we know about cliques and replace it
                  * with current information.
                  */
-                if(Tracker::instance()->_cliques.count(frameIndex)) {
+                if(frameIndex.valid() && Tracker::instance()->_cliques.count(frameIndex)) {
                     _cliques = Tracker::instance()->_cliques.at(frameIndex);
                 } else
                     _cliques.clear();
@@ -495,13 +496,13 @@ namespace gui {
                 
 #if !COMMONS_NO_PYTHON
                 std::shared_lock guard(Categorize::DataStore::range_mutex());
-                if(!Categorize::DataStore::_ranges_empty_unsafe()) {
+                if(frameIndex.valid() && !Categorize::DataStore::_ranges_empty_unsafe()) {
                     Frame_t f(frameIndex);
                     
                     if(raw_blobs.size() > 50) {
                         std::vector<int> labels(raw_blobs.size());
                         
-                        distribute_vector([&](auto i, auto start, auto end, auto){
+                        distribute_indexes([&](auto i, auto start, auto end, auto){
                             for(auto it = start; it != end; ++it, ++i) {
                                 labels[i] = Categorize::DataStore::_ranged_label_unsafe(f, (*it)->blob->blob_id());
                             }
@@ -586,15 +587,15 @@ namespace gui {
             LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame.cached(fdx);
             if(c) {
-                for(auto& blob : processed_frame.blobs()) {
+                processed_frame.transform_blobs([&](const pv::Blob& blob) {
                     auto it = individuals.find(fdx);
                     if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
-                        continue;
+                        return;
                     
-                    auto p = individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob);
+                    auto p = individuals.at(fdx)->probability(processed_frame.label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
-                        probabilities[c->_idx][blob->blob_id()] = p;
-                }
+                        probabilities[c->_idx][blob.blob_id()] = p;
+                });
             }
         }
         

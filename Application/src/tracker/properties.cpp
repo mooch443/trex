@@ -63,7 +63,7 @@ void async_main(void*) {
 	pv::File file("group_1.pv");
 #else
 	//VideoSource source({ file::Path("C:\\Users\\tristan\\trex\\Application\\build_js\\guppy_8_t36_d15_20191212_085800.avi") });
-	pv::File file("C:/Users/tristan/Videos/group_1.pv");
+	pv::File file("C:/Users/tristan/Videos/group_1.pv", pv::FileMode::READ);
 	//pv::File file("C:/Users/tristan/trex/videos/test.pv");
 #endif
 	//cv::Mat mat;
@@ -73,7 +73,6 @@ void async_main(void*) {
 	//cv::waitKey(0);
 	print("Will open... group_1...");
 
-	file.start_reading();
 	file.print_info();
 
 	SETTING(gui_frame) = Frame_t(0);
@@ -107,32 +106,30 @@ void async_main(void*) {
 				}
 
 				Frame_t index = tracker.end_frame();
-				if(!index.valid())
+				if(not index.valid())
 					index = 0_f;
-				else if(index.get() < file.length() - 1)
+				else if(index + 1_f < file.length())
 					index += 1_f;
 				else {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					continue;
 				}
 
-				file.read_frame(single, index.get());
-
-				frame.clear();
-				frame.set_index(index);
-				frame.frame() = single;
-				frame.frame().set_index(index.get());
-				frame.frame().set_timestamp(single.timestamp());
-				frame.set_index(index);
+				file.read_frame(single, index);
+                
+				//frame = std::move(single);
+				//frame.set_index(index);
+				//frame.set_timestamp(single.timestamp());
 
                 track::LockGuard guard(track::w_t{}, "update_tracker_queue");
-				if(frame.index() != Tracker::end_frame() + 1_f && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
+				if(frame.index() != Tracker::end_frame() + 1_f
+                   && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
 				{
 					print("Reanalyse event ", frame.index(), " -> ", Tracker::end_frame());
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(frame, {}, NULL, NULL, false);
+				track::Tracker::preprocess_frame(file, std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, false);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();
@@ -167,8 +164,8 @@ void async_main(void*) {
 			graph.draw_log_messages();//Bounds(Vec2(0), dim));
 
 			static Timer frame_timer;
-			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<int>()
-				&& index.get() + 1 < file.length())
+			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<uint32_t>()
+				&& index + 1_f < file.length())
 			{
 				if (SETTING(gui_run)) {
 					index += 1_f;
@@ -207,7 +204,7 @@ void async_main(void*) {
 				graph.image(Vec2(0), std::make_unique<Image>(tracker.average().get()), Vec2(1), White.alpha(150));
 				//graph.image(Vec2(0), std::make_unique<Image>(mat), Vec2(1), White.alpha(150));
 				frameinfo.analysis_range = tracker.analysis_range();
-				frameinfo.video_length = file.length();
+				frameinfo.video_length = file.length().get();
 				frameinfo.consecutive = tracker.consecutive();
 				frameinfo.current_fps = fps;
 
@@ -378,12 +375,12 @@ int main(int argc, char**argv) {
 
 	for (int i = 1; i <= 10; ++i) {
 		SETTING(cm_per_pixel) = float(i);
-		SETTING(frame_rate) = int(60);
+		SETTING(frame_rate) = uint32_t(60);
 
 		Frame_t f0 = 0_f, f1 = 1_f;
 
 		double t0 = 0;
-		double t1 = double(f1.get()) / double(SETTING(frame_rate).value<int>());
+		double t1 = double(f1.get()) / double(SETTING(frame_rate).value<uint32_t>());
 
 		Vec2 p0(i, sqrtf(i)), 
 			p1((i - 1) / float(i) + 1, i - 1);
@@ -404,7 +401,7 @@ int main(int argc, char**argv) {
 
 
 	SETTING(cm_per_pixel) = float(2);
-	SETTING(frame_rate) = int(60);
+	SETTING(frame_rate) = uint32_t(60);
 
 	const MotionRecord* previous = nullptr;
 	std::vector<MotionRecord> vector;
@@ -413,7 +410,7 @@ int main(int argc, char**argv) {
 	auto speed = v.length();
 
 	for (Frame_t frame = 0_f; frame <= 10_f; ++frame) {
-		double time = (double)frame.get() / (double)SETTING(frame_rate).value<int>();
+		double time = (double)frame.get() / (double)SETTING(frame_rate).value<uint32_t>();
 		double dt = time - (previous ? previous->time() : 0);
 		
 		pos = pos + v * dt;

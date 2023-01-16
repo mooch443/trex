@@ -23,7 +23,7 @@ namespace gui {
         };
         
     protected:
-        track::Individual* _fish;
+        const track::Individual* _fish;
         long_t _frameNr;
         
         const track::Tracker& _tracker;
@@ -35,7 +35,7 @@ namespace gui {
     public:
         PropertiesGraph(const track::Tracker& tracker, const Vec2& mouse_position);
         void draw(DrawStructure& d);
-        void setup_graph(long_t frameNr, const Rangel& range, track::Individual* fish, Output::LibraryCache::Ptr cache);
+        void setup_graph(long_t frameNr, const Rangel& range, const track::Individual* fish, Output::LibraryCache::Ptr cache);
         void reset() { _graph.set_dirty(); _fish = NULL; }
     };
 }

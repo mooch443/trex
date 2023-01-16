@@ -188,9 +188,6 @@ uint64_t MemoryStats::get_memory_size(const std::shared_ptr<BasicStuff>& obj, co
     //_ADD_DETAIL(weighted_centroid)
     _ADD_DETAIL(blob)
     
-    if(obj->pixels)
-        _ADD_DETAIL(pixels)
-    
     return bytes;
 }
 
@@ -253,10 +250,10 @@ TrackerMemoryStats::TrackerMemoryStats() {
     IND_BYTE_SIZE(_statistics);
     IND_BYTE_SIZE(_added_frames);
     IND_BYTE_SIZE(_consecutive);
-    IND_BYTE_SIZE(_active_individuals_frame);
-    IND_BYTE_SIZE(_individuals);
-    IND_BYTE_SIZE(_active_individuals);
-    IND_BYTE_SIZE(_inactive_individuals);
+    //IND_BYTE_SIZE(_active_individuals_frame);
+    //IND_BYTE_SIZE(_individuals);
+    //IND_BYTE_SIZE(_active_individuals);
+    //IND_BYTE_SIZE(_inactive_individuals);
     
     auto fois = FOI::all_fois();
     uint64_t foi_bytes = sizeof(decltype(fois));

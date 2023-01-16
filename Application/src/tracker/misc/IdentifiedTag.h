@@ -38,7 +38,7 @@ struct Assignment {
     {}
     
     bool valid() const {
-        return bid.valid();
+        return bid.valid() && id.valid();
     }
 
     auto operator<=>(const Assignment&) const = default;

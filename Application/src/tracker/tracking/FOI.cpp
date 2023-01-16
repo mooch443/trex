@@ -153,8 +153,12 @@ namespace track {
             if(type == id) {
                 auto before = set.size();
                 auto name = _id_to_string.at(type);
-                while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
+                while(!set.empty()
+                      && (not frameIndex.valid()
+                          || set.rbegin()->frames().end >= frameIndex))
+                {
                     set.erase(--set.end());
+                }
                 print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
             }
         }

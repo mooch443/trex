@@ -37,9 +37,9 @@ void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
 struct Outer {
     Image::UPtr image;
     Vec2 off;
-    pv::BlobPtr blob;
+    pv::BlobWeakPtr blob;
     
-    Outer(Image::UPtr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobPtr blob = nullptr)
+    Outer(Image::UPtr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobWeakPtr blob = nullptr)
     : image(std::move(image)), off(off), blob(blob)
     {}
 };
@@ -113,8 +113,8 @@ void draw_blob_view(const DisplayParameters& parm)
     //static std::vector<Outer> outers;
     //static std::vector<std::unique_ptr<ExternalImage>> outer_images;
     
-    
-    static std::unordered_set<pv::bid> shown_ids;
+    //! TODO: original_blobs
+    /*static std::unordered_set<pv::bid> shown_ids;
     std::unordered_set<pv::bid> to_show_ids;
     
     for(auto &blob : parm.cache.processed_frame.original_blobs()) {
@@ -138,7 +138,7 @@ void draw_blob_view(const DisplayParameters& parm)
         std::atomic<size_t> added_items = 0;
         auto copy = shown_ids;
         
-        distribute_vector([&](auto, auto start, auto end, auto) {
+        distribute_indexes([&](auto, auto start, auto end, auto) {
             std::unordered_set<pv::bid> added_ids;
             
             for(auto it = start; it != end; ++it) {
@@ -163,7 +163,7 @@ void draw_blob_view(const DisplayParameters& parm)
                         outer_images.erase(it);
                         break;
                     }
-                }*/
+                }*
             }
         }
         
@@ -173,10 +173,10 @@ void draw_blob_view(const DisplayParameters& parm)
         /*std::vector<std::shared_ptr<OuterBlobs>> outer_simple;
         for(auto &o : outers) {
             outer_simple.push_back(std::make_shared<OuterBlobs>(std::move(o.image), o.off, o.blob->blob_id()));
-        }*/
+        }*
         
         //update_vector_elements(outer_images, outer_simple);
-    }
+    }*/
     
     parm.graph.section("blob_outers", [&, parm=parm](DrawStructure &base, Section* s) {
         if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
@@ -199,9 +199,9 @@ void draw_blob_view(const DisplayParameters& parm)
             auto screen_bounds = Bounds(Vec2(-50), parm.screen + 100);
             
             constexpr size_t maximum_number_texts = 1000;
-            if(parm.cache.processed_frame.blobs().size() >= maximum_number_texts) {
+            if(parm.cache.processed_frame.N_blobs() >= maximum_number_texts) {
                 Loc pos(10, GUI::timeline().bar()->global_bounds().height + GUI::timeline().bar()->global_bounds().y + 10);
-                auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(parm.cache.processed_frame.blobs().size())+").";
+                auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(parm.cache.processed_frame.N_blobs())+").";
                 
                 Scale scale = base.scale().reciprocal();
                 base.rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), FillClr{Black.alpha(125)}, LineClr{Transparent}, scale);
@@ -214,31 +214,28 @@ void draw_blob_view(const DisplayParameters& parm)
             for(auto & [id, tup] : _blob_labels)
                 std::get<0>(tup) = false;
             
-            std::set<std::tuple<float, pv::BlobPtr, bool>, std::greater<>> draw_order;
+            std::set<std::tuple<float, pv::BlobWeakPtr, bool>, std::greater<>> draw_order;
             Transform section_transform = s->global_transform();
             auto mp = section_transform.transformPoint(base.mouse_position());
             
-            for (size_t i=0; i<parm.cache.processed_frame.noise().size(); i++) {
-                //if(parm.cache.processed_frame.noise().at(i)->recount(FAST_SETTING(track_threshold), *Tracker::instance()->background()) < FAST_SETTING(blob_size_ranges).max_range().start * 0.01)
-                   // continue;
-                
-                auto id = parm.cache.processed_frame.noise().at(i)->blob_id();
-                auto d = sqdistance(mp, parm.cache.processed_frame.noise().at(i)->bounds().pos());
-                draw_order.insert({d, parm.cache.processed_frame.noise().at(i), false});
+            parm.cache.processed_frame.transform_noise([&](pv::Blob& blob){
+                auto id = blob.blob_id();
+                auto d = sqdistance(mp, blob.bounds().pos());
+                draw_order.insert({d, &blob, false});
                 
                 if(_blob_labels.count(id))
                     std::get<0>(_blob_labels.at(id)) = true;
-            }
+            });
             
             if(!SETTING(gui_draw_only_filtered_out)) {
-                for (size_t i=0; i<parm.cache.processed_frame.blobs().size(); i++) {
-                    auto id = parm.cache.processed_frame.blobs().at(i)->blob_id();
-                    auto d = sqdistance(mp, parm.cache.processed_frame.blobs().at(i)->bounds().pos());
-                    draw_order.insert({d, parm.cache.processed_frame.blobs().at(i), true});
+                parm.cache.processed_frame.transform_blobs([&](pv::Blob& blob){
+                    auto id = blob.blob_id();
+                    auto d = sqdistance(mp, blob.bounds().pos());
+                    draw_order.insert({d, &blob, true});
                     
                     if(_blob_labels.count(id))
                         std::get<0>(_blob_labels.at(id)) = true;
-                }
+                });
             }
             
             auto &_average_image = GUI::average();
@@ -258,7 +255,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             auto cats = FAST_SETTING(categories_ordered);
             
-            auto draw_blob = [&, &parm=parm](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
+            auto draw_blob = [&, &parm=parm](Entangled&e, const pv::BlobWeakPtr& blob, float real_size, bool active){
                 if(displayed >= maximum_number_texts && !active)
                     return;
                 
@@ -455,7 +452,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     if(GUI::frame() > Tracker::start_frame() && c) {
                         d = (c->estimated_px - blob_pos).length();
                     }
-                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), id + 1, parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
+                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
                 }
             }
             
@@ -507,9 +504,10 @@ void draw_blob_view(const DisplayParameters& parm)
             
             std::unordered_map<pv::bid, Color> colors;
             ColorWheel wheel;
-            for(auto &b : parm.cache.processed_frame.original_blobs()) {
+            //! TODO: original_blobs
+            /*for(auto &b : parm.cache.processed_frame.original_blobs()) {
                 colors[b->blob_id()] = wheel.next().alpha(200);
-            }
+            }*/
             
             auto &grid = parm.cache.processed_frame.blob_grid().get_grid();
             for(auto &set : grid) {

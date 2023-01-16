@@ -1,6 +1,9 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/GlobalSettings.h>
+#include <file/Path.h>
+#include <tracker/misc/default_config.h>
 #include <misc/idx_t.h>
 #include <misc/bid.h>
 #include <misc/frame_t.h>
@@ -8,6 +11,7 @@
 #include <misc/BlobSizeRange.h>
 
 namespace track {
+using namespace cmn;
 class Individual;
 
 using mmatches_t = std::map<Frame_t, std::map<Idx_t, pv::bid>>;
@@ -20,9 +24,14 @@ using analrange_t = std::pair<long_t,long_t>;
 //! here is negligible.
 using set_of_individuals_t = robin_hood::unordered_node_set<Individual*>;
 
+using inactive_individuals_t = robin_hood::unordered_node_map<Idx_t, Individual*>;
+
 //! A std::unordered_map turns out to be the fastest container for this
 //! purpose (sparse container for frame to individuals association).
-using active_individuals_map_t = std::unordered_map<Frame_t, set_of_individuals_t>;
+using active_individuals_map_t = std::unordered_map<Frame_t, std::unique_ptr<set_of_individuals_t>>;
+
+//! The global map of individual ids -> Individual*
+using individuals_map_t = robin_hood::unordered_flat_map<Idx_t, std::unique_ptr<Individual>>;
 
 //! Where is the external identity information sourced from?
 //! 1. Visual identification
@@ -32,12 +41,23 @@ enum IdentitySource {
     QRCodes
 };
 
+//! Information needed to assign an individual to a blob
+class PPFrame;
+struct FrameProperties;
+
+struct AssignInfo {
+    PPFrame* frame;
+    const FrameProperties* f_prop;
+    const FrameProperties* f_prev_prop;
+    default_config::matching_mode_t::Class match_mode;
+};
+
 //! A global settings cache used across the application by
 //! calling FAST_SETTING(name).
 CREATE_STRUCT(Settings,
   (uint32_t, smooth_window),
   (float, cm_per_pixel),
-  (int, frame_rate),
+  (uint32_t, frame_rate),
   (float, track_max_reassign_time),
   (float, speed_extrapolation),
   (bool, calculate_posture),
@@ -113,6 +133,8 @@ struct slow {
     DEF_SLOW_SETTINGS(analysis_range);
     DEF_SLOW_SETTINGS(track_threshold);
     DEF_SLOW_SETTINGS(track_max_reassign_time);
+    DEF_SLOW_SETTINGS(calculate_posture);
+    DEF_SLOW_SETTINGS(enable_absolute_difference);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);

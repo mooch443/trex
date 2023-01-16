@@ -8,7 +8,7 @@
 
 #include <python/GPURecognition.h>
 #include <misc/default_settings.h>
-#include <tracking/StaticBackground.h>
+#include <processing/Background.h>
 
 #include <tracking/FilterCache.h>
 #include <tracking/PythonWrapper.h>
@@ -17,6 +17,7 @@
 #include <tracking/ImageExtractor.h>
 
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 namespace Categorize {
@@ -256,41 +257,34 @@ Label::Ptr DataStore::label(int ID) {
 Sample::Ptr DataStore::random_sample(Idx_t fid) {
     static std::mt19937 mt(rd());
     std::shared_ptr<SegmentInformation> segment;
-    Individual *fish;
     
-    {
-        LockGuard guard(ro_t{}, "Categorize::random_sample");
-        auto iit = Tracker::instance()->individuals().find(fid);
-        if (iit != Tracker::instance()->individuals().end()) {
-            fish = iit->second;
-            auto& basic_stuff = fish->basic_stuff();
-            if (basic_stuff.empty())
-                return Sample::Invalid();
+    return IndividualManager::transform_if_exists(fid, [&](auto fish) {
+        auto& basic_stuff = fish->basic_stuff();
+        if (basic_stuff.empty())
+            return Sample::Invalid();
 
-            std::uniform_int_distribution<remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
-            auto it = fish->frame_segments().begin();
-            std::advance(it, sample_dist(mt));
-            segment = *it;
-        }
-    }
-    
-    if(!segment)
+        std::uniform_int_distribution<typename remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
+        
+        auto it = fish->frame_segments().begin();
+        std::advance(it, sample_dist(mt));
+        segment = *it;
+        
+        if(!segment)
+            return Sample::Invalid();
+        
+        const auto max_len = FAST_SETTING(track_segment_max_length);
+        const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
+        return sample(segment, fish, 150u, min_len);
+        
+    }).or_else([](auto) -> tl::expected<Sample::Ptr, const char*> {
         return Sample::Invalid();
-    
-    const auto max_len = FAST_SETTING(track_segment_max_length);
-    const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
-    return sample(segment, fish, 150u, min_len);
+    }).value();
 }
 
 Sample::Ptr DataStore::get_random() {
     static std::mt19937 mt(rd());
     
-    std::set<Idx_t> individuals;
-    {
-        LockGuard guard(ro_t{}, "Categorize::random_sample");
-        individuals = extract_keys(Tracker::instance()->individuals());
-    }
-    
+    std::set<Idx_t> individuals = IndividualManager::all_ids();
     if(individuals.empty())
         return {};
     
@@ -343,7 +337,8 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static Frame_t start_frame = FAST_SETTING(analysis_range).first == -1 ? Frame_t(0) : Frame_t(FAST_SETTING(analysis_range).first);
+    static Frame_t start_frame = Tracker::analysis_range().start();
+    assert(start_frame == (FAST_SETTING(analysis_range).first == -1 ? Frame_t(Frame_t::number_t(0)) : Frame_t(FAST_SETTING(analysis_range).first)));
     return start_frame;
 }
 
@@ -388,7 +383,7 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
     assert(r._label != -1);
-    assert(size_t(r._range.length()) == r._blobs.size());
+    assert(size_t(r._range.length().get()) == r._blobs.size());
     Frame_t m; // initialize with start of inserted range
     auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
     assert(!_ranged_labels.empty());
@@ -501,13 +496,14 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
 }
 
 Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
-    auto it = Tracker::individuals().find(fish);
-    if(it == Tracker::individuals().end()) {
-        //print("Individual ",fish._identity," not found.");
+    return IndividualManager::transform_if_exists(fish, [frame](auto fish){
+        return label_averaged(fish, frame);
+        
+    }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
+        //print("Individual ",fish._identity," not found: ", error);
         return nullptr;
-    }
-    
-    return label_averaged(it->second, frame);
+        
+    }).value();
 }
 
 bool DataStore::empty() {
@@ -658,13 +654,14 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
 }
 
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
-    auto it = Tracker::individuals().find(fish);
-    if(it == Tracker::individuals().end()) {
-        print("Individual ",fish._identity," not found.");
+    return IndividualManager::transform_if_exists(fish, [frame](auto fish){
+        return label_interpolated(fish, frame);
+        
+    }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
+        //print("Individual ",fish._identity," not found: ", error);
         return nullptr;
-    }
-    
-    return label_interpolated(it->second, frame);;
+        
+    }).value();
 }
 
 void DataStore::reanalysed_from(Frame_t /* keeping for future purposes */) {
@@ -903,7 +900,7 @@ void start_applying() {
         .num_threads = max_threads,
         .normalization = normalize,
         .item_step = 1u,
-        .segment_min_samples = FAST_SETTING(categories_min_sample_images),
+        .segment_min_samples = Frame_t(FAST_SETTING(categories_min_sample_images)),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
         }
@@ -1022,7 +1019,7 @@ void start_applying() {
                 std::vector<float> sums(Work::_number_labels);
                 std::fill(sums.begin(), sums.end(), 0);
                 
-                for(auto &[fdx, fish] : Tracker::individuals()) {
+                IndividualManager::transform_all([&](auto, auto fish) {
                     for(auto& seg : fish->frame_segments()) {
                         RangedLabel ranged;
                         ranged._range = *seg;
@@ -1063,7 +1060,7 @@ void start_applying() {
                         } //else
                             //FormatWarning("!No data for ", ranged._range);
                     }
-                }
+                });
             }
             
             if(SETTING(auto_categorize) && SETTING(auto_quit)) {
@@ -1430,7 +1427,7 @@ Work::Task Work::_pick_front_thread() {
         static Timing timing("SortTaskQueue", 0.1);
         TakeTiming take(timing);
 
-        int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+        Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
         double mean = 0;
         std::vector<int64_t> vector;
         {
@@ -1455,7 +1452,7 @@ Work::Task Work::_pick_front_thread() {
         if(!vector.empty())
             mean /= double(vector.size());
 
-        center = Frame_t(mean);//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+        center = Frame_t(sign_cast<Frame_t::number_t>(mean));//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
         
         sorted.clear();
         sorted.reserve(Work::task_queue().size());
@@ -1666,7 +1663,7 @@ void paint_distributions(int64_t frame) {
 #ifndef __linux__
     static std::mutex distri_mutex;
     static Timer distri_timer;
-    int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+    Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
     std::vector<int64_t> v;
     std::vector<int64_t> current;
     static std::vector<int64_t> recent_frames;
@@ -1856,21 +1853,15 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        set_of_individuals_t active;
-        {
-            LockGuard guard(ro_t{}, "Categorize::sample");
-            active = frame == Tracker::start_frame()
-                ? decltype(active)()
-                : Tracker::active_individuals(frame - 1_f);
-        }
-
         if(GUI::instance()) {
+            pv::Frame video_frame;
             auto& video_file = *GUI::instance()->video_source();
-            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame.get()));
+            video_file.read_frame(video_frame, frame);
 
-            Tracker::instance()->preprocess_frame(*ptr, active, NULL);
-            for (auto& b : ptr->blobs())
-                b->calculate_moments();
+            Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), *ptr, NULL, PPFrame::NeedGrid::NoNeed);
+            ptr->transform_blobs([](pv::Blob& b){
+                b.calculate_moments();
+            });
         }
 
 #ifndef NDEBUG
@@ -1885,7 +1876,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
     std::vector<int64_t> v;
     std::vector<Range<Frame_t>> ranges, secondary;
-    int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+    Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
     
     {
         std::lock_guard g(Work::_mutex);
@@ -2201,7 +2192,7 @@ Sample::Ptr DataStore::temporary(
             
             auto [image, pos] =
                 constraints::diff_image(normalize,
-                                        blob,
+                                        blob.get(),
                                         midline ? midline->transform(normalize) : gui::Transform(),
                                         custom_len.median_midline_length_px,
                                         dims,
@@ -2433,7 +2424,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             assert(ranged._label);
             data.write<int>(ranged._label);
 
-            assert(size_t(ranged._range.length()) == ranged._blobs.size());
+            assert(size_t(ranged._range.length().get()) == ranged._blobs.size());
             for (auto& bdx : ranged._blobs)
                 data.write<uint32_t>((uint32_t)bdx);
         }

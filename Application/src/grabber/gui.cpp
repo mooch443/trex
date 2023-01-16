@@ -6,6 +6,7 @@
 #include <tracking/Tracker.h>
 #include <tracker/gui/DrawFish.h>
 #include <gui/IMGUIBase.h>
+#include <tracking/IndividualManager.h>
 
 namespace grab {
 
@@ -327,7 +328,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 gui::DrawStructure::SectionGuard guard(base, "blobs");
                 ColorWheel wheel;
                 static cv::Mat output;
-                static StaticBackground bg(Image::Make(_grabber.average()), nullptr);
+                static Background bg(Image::Make(_grabber.average()), nullptr);
                 for (size_t i = 0; i < _frame->mask().size(); i++) {
                     auto& m = _frame->mask().at(i);
                     if (m->empty())
@@ -459,7 +460,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 timer.reset();
 
                 offset.x += (shadowed_text(offset, "/", text_color)) + 5;
-                offset.x += (shadowed_text(offset, std::to_string(_grabber.video()->length()), text_color)) + 5;
+                offset.x += (shadowed_text(offset, _grabber.video()->length().toStr(), text_color)) + 5;
                 //offset.x = offset.x + 5 - int(offset.x) % 5;
             }
 
@@ -531,13 +532,20 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
         static const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
         
         auto tracker = _grabber.tracker_instance();
-        auto individuals = tracker->active_individuals();
+        auto result = IndividualManager::active_individuals(Tracker::end_frame());
+        set_of_individuals_t individuals;
+        if(result) {
+            individuals = *result.value();
+        }
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-        const auto displayed_range = FAST_SETTING(frame_rate) * 5;
+        const auto displayed_range = Frame_t(FAST_SETTING(frame_rate) * 5u);
 
-        const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
+        const Frame_t min_display_frame = max(0_f, (Tracker::end_frame().valid()
+                                                    ? Tracker::end_frame()
+                                                    : 0_f)
+                                              .try_sub(displayed_range));
 #endif
         static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
         static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
@@ -557,7 +565,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                     continue;
                 
                 positions.clear();
-                positions.reserve(min((size_t)displayed_range, seg->basic_index.size()));
+                positions.reserve(min((size_t)displayed_range.get(), seg->basic_index.size()));
                 
                 const auto code =
                     tags_recognize
@@ -656,7 +664,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                     continue;
                 
                 const auto is_end = seg->contains(Frame_t(_frame->index()));
-                float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
+                float percent = saturate((float(_frame->index().get()) - float(seg->end().get())) / float(displayed_range.get()), 0.f, 1.f);
                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
                 
                 base.line(positions, 1, color.alpha(alpha));
@@ -749,7 +757,7 @@ std::string GUI::info_text() const {
     if(frame)
         ss << "frame "+std::to_string(frame);
     if(_grabber.video()) {
-        ss << "/" << _grabber.video()->length();
+        ss << "/" << _grabber.video()->length().toStr();
     }
     ss << " " << std::fixed << std::setprecision(1) << _grabber.fps() << "fps";
     //ss << " compratio:" << std::fixed << std::setprecision(2) << _grabber.processed().compression_ratio()*100 << "%";

@@ -6,6 +6,7 @@
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
 #include <tracking/MotionRecord.h>
+#include <misc/idx_t.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -99,13 +100,15 @@ struct hash<track::Match::fish_index_t>
 namespace track {
 namespace Match {
     using prob_t = double;
-    using Blob_t = const pv::BlobPtr*;
+    using Blob_t = pv::bid;
+    using Fish_t = Idx_t;
+
     template<typename K, typename V>
-    using pairing_map_t = std::unordered_map<K, V>;
+    using pairing_map_t = robin_hood::unordered_flat_map<K, V>;
 
     class PairedProbabilities {
     public:
-        using row_t = std::vector<Individual*>;
+        using row_t = std::vector<Fish_t>;
         using col_t = std::vector<Blob_t>;
         
         struct Edge {
@@ -152,7 +155,8 @@ namespace Match {
     public:
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
         
-        fish_index_t add(row_t::value_type, const pairing_map_t<col_t::value_type, prob_t>&);
+        using ordered_assign_map_t = robin_hood::unordered_node_map<col_t::value_type, prob_t>;
+        fish_index_t add(row_t::value_type, const ordered_assign_map_t&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
         
@@ -185,12 +189,22 @@ namespace Match {
         size_t degree(fish_index_t) const;
         
         bool empty() const; // no elements in the graph
+        std::string toStr() const;
+        static std::string class_name() { return "PairedProbabilities"; }
+        
+        PairedProbabilities() noexcept = default;
+        PairedProbabilities(const PairedProbabilities&) = delete;
+        PairedProbabilities(PairedProbabilities&&) noexcept = default;
+        PairedProbabilities& operator=(const PairedProbabilities&) noexcept = delete;
+        PairedProbabilities& operator=(PairedProbabilities&&) noexcept = default;
+        
     private:
         blob_index_t add(col_t::value_type);
     };
 
     class PairingGraph {
     public:
+        using ordered_map_t = robin_hood::unordered_node_map<Blob_t, Fish_t>;
         //! this is the "queue" for permutations from this node on
         typedef PairedProbabilities::Edge _value_t;
         //typedef std::multiset<_value_t, std::function<bool(const _value_t&, const _value_t&)>> pset;
@@ -200,7 +214,7 @@ namespace Match {
         typedef psets_t::const_iterator pset_ptr_t;
         
         struct Node {
-            Individual* fish;
+            Fish_t fish;
             size_t degree;
             prob_t max_prob;
             
@@ -211,7 +225,7 @@ namespace Match {
         };
         
         struct Combination {
-            Individual* fish;
+            Fish_t fish;
             Blob_t blob;
         };
         
@@ -227,7 +241,7 @@ namespace Match {
             //! Individuals and Blobs paired in the optimal way.
             //  Does not necessarily contain all Individuals/Blobs
             //  (as some might have improved the result by not being used)
-            std::vector<std::pair<Individual*, Blob_t>> pairings;
+            ordered_map_t pairings;
             
             //! Optimal path down the tree (indicies of nodes)
             std::vector<Combination> path;
@@ -252,7 +266,7 @@ namespace Match {
     protected:
         GETTER(Frame_t, frame)
         GETTER(float, time)
-        PairedProbabilities _paired;
+        GETTER(PairedProbabilities, paired)
         
         std::vector<prob_t> _ordered_max_probs;
         GETTER_PTR(Result*, optimal_pairing)
@@ -260,7 +274,7 @@ namespace Match {
         //GETTER(EdgeMap, edges)
         
     public:
-        PairingGraph(const FrameProperties& props, Frame_t frame, const decltype(_paired)& paired);
+        PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired);
         ~PairingGraph();
         
         static void prepare_shutdown();
@@ -311,8 +325,8 @@ namespace Match {
         
         typedef std::priority_queue<Stack*, std::vector<Stack*>, std::function<bool(const Stack*, const Stack*)>> gq_t_;
         
-        prob_t prob(Individual*, Blob_t) const;
-        bool connected_to(Individual *o, Blob_t b) const;
+        prob_t prob(Fish_t, Blob_t) const;
+        bool connected_to(Fish_t, Blob_t b) const;
         
     public:
         std::queue<Stack*> unused;

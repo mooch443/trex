@@ -102,7 +102,7 @@ bool InteractiveCamera::next(cmn::Image &image) {
     img = cv::Scalar(0);
     
     static Timer timer;
-    if(timer.elapsed() < 1 / float(SETTING(frame_rate).value<int>()))
+    if(timer.elapsed() < 1 / float(SETTING(frame_rate).value<uint32_t>()))
         return false;
     
     Vec2 target;

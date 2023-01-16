@@ -43,6 +43,7 @@
 #include <pv.h>
 #include <file/DataLocation.h>
 #include <gui/types/SettingsTooltip.h>
+#include <tracking/IndividualManager.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -252,24 +253,6 @@ void drawOptFlowMap (const cv::Mat& flow, cv::Mat& map) {
     }
 }
 
-bool GUI::execute_settings(file::Path settings_file, AccessLevelType::Class accessLevel) {
-    if(settings_file.exists()) {
-        DebugHeader("LOADING ", settings_file);
-        try {
-            auto content = utils::read_file(settings_file.str());
-            default_config::load_string_with_deprecations(settings_file, content, GlobalSettings::map(), accessLevel);
-            
-        } catch(const cmn::illegal_syntax& e) {
-            FormatError("Illegal syntax in settings file.");
-            return false;
-        }
-        DebugHeader("LOADED ", settings_file);
-        return true;
-    }
-    
-    return false;
-}
-
 GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
   :
     _average_image(average),
@@ -355,7 +338,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 _setting_animation.display = nullptr;
             }*/
             
-            if(name == "app_name" || name == "output_prefix") {
+            if(is_in(name, "app_name", "output_prefix")) {
                 if(_base)
                     _base->set_title(window_title());
             } //else if(name == "gui_run")
@@ -363,7 +346,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             //else if(name == "nowindow")
                 //globals::_settings.nowindow = value.value<bool>();
                 
-            if(name == "output_graphs" || name == "limit" || name == "event_min_peak_offset" || name == "output_normalize_midline_data") {//name != "gui_frame" && name != "analysis_paused") {
+            if(is_in(name, "output_graphs", "limit", "event_min_peak_offset", "output_normalize_midline_data"))
+            {
                 Output::Library::clear_cache();
                 for(auto &graph : PD(fish_graphs))
                     graph->reset();
@@ -373,7 +357,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             if(name == "exec") {
                 if(!SETTING(exec).value<file::Path>().empty()) {
                     file::Path settings_file = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
-                    execute_settings(settings_file, AccessLevelType::PUBLIC);
+                    default_config::execute_settings_file(settings_file, AccessLevelType::PUBLIC);
                     SETTING(exec) = file::Path();
                 }
             }
@@ -385,10 +369,11 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 GUI::set_redraw();
             }
         
-            if((name == "track_threshold" || name == "grid_points" || name == "recognition_shapes" || name == "grid_points_scaling" || name == "recognition_border_shrink_percent" || name == "recognition_border" || name == "recognition_coeff" || name == "recognition_border_size_rescale") && Tracker::instance())
+            if(is_in(name, "track_threshold", "grid_points", "recognition_shapes", "grid_points_scaling", "recognition_border_shrink_percent", "recognition_border", "recognition_coeff", "recognition_border_size_rescale") && Tracker::instance())
             {
                 WorkProgress::add_queue("updating border", [this, name](){
-                    if(name == "recognition_coeff" || name == "recognition_border_shrink_percent" || name == "recognition_border_size_rescale" || name == "recognition_border") {
+                    if(is_in(name, "recognition_coeff", "recognition_border_shrink_percent", "recognition_border_size_rescale", "recognition_border"))
+                    {
                         PD(tracker).border().clear();
                     }
                     PD(tracker).border().update(PD(video_source));
@@ -546,8 +531,9 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
 #endif
     
     { // do this in order to trigger calculating pixel percentages
+        auto range = Tracker::analysis_range();
         LockGuard guard(ro_t{}, "GUI::update_data(-1)");
-        PD(cache).update_data(Frame_t(FAST_SETTING(analysis_range).first));
+        PD(cache).update_data(range.start());
     }
     
     while(!PD(timeline)->update_thread_updated_once()) {
@@ -652,11 +638,11 @@ void GUI::load_connectivity_matrix() {
     std::vector<float> array;
     
     float maximum = 0;
-    long_t min_frame = std::numeric_limits<long_t>::max(), max_frame = -1;
+    Frame_t::number_t min_frame = std::numeric_limits<Frame_t::number_t>::max(), max_frame = 0;
     for(size_t index = 0; index < rows.size(); ++index) {
         auto values = utils::split(rows[index], ',');
         if(values.size() == expected_number) {
-            auto frame = Meta::fromStr<long_t>(values[0]);
+            auto frame = Meta::fromStr<Frame_t::number_t>(values[0]);
             array.resize(values.size()-1);
             
             for(size_t i=1; i<values.size(); ++i) {
@@ -724,13 +710,13 @@ void GUI::run_loop(gui::LoopStatus status) {
         
     } else if (image_index.valid() && !recording()) {
         const float frame_rate = 1.f / (float(GUI_SETTINGS(frame_rate)) * GUI_SETTINGS(gui_playback_speed));
-        Frame_t inc = Frame_t(t / frame_rate);
+        Frame_t inc = Frame_t(sign_cast<Frame_t::number_t>(t / frame_rate));
         bool is_required = false;
         
         if(inc >= 1_f) {
             auto before = image_index;
             if (PD(tracker).start_frame().valid()) {
-                image_index = max(0_f, PD(tracker).start_frame(), min(PD(tracker).end_frame(), image_index + inc));
+                image_index = cmn::max(0_f, PD(tracker).start_frame(), min(PD(tracker).end_frame(), image_index + inc));
             }
             
             t = 0;
@@ -758,7 +744,13 @@ void GUI::run_loop(gui::LoopStatus status) {
     
     if(recording()) {
         //! playback_speed can only make it faster
-        const float frames_per_second = max(1, GUI_SETTINGS(gui_playback_speed));
+        if(GUI_SETTINGS(gui_playback_speed) != uint32_t(GUI_SETTINGS(gui_playback_speed))) {
+            static std::once_flag flag{};
+            std::call_once(flag, [](){
+                FormatWarning("Recording only supports integer gui_playback_speed values. Given: ", GUI_SETTINGS(gui_playback_speed));
+            });
+        }
+        const uint32_t frames_per_second = max(1u, (uint32_t)GUI_SETTINGS(gui_playback_speed));
         image_index += Frame_t(frames_per_second);
         
         if (image_index > PD(tracker).end_frame()) {
@@ -936,8 +928,14 @@ void GUI::redraw() {
 void GUI::draw(DrawStructure &base) {
     const auto mode = GUI_SETTINGS(gui_mode);
     
-    if(PD(gui_last_frame) != frame()) {
-        PD(tdelta_gui) = PD(gui_last_frame_timer).elapsed() / (frame() - PD(gui_last_frame)).get();
+    if(not PD(gui_last_frame).valid()
+       || PD(gui_last_frame) != frame())
+    {
+        if(PD(gui_last_frame).valid()
+           && PD(gui_last_frame) < frame())
+            PD(tdelta_gui) = PD(gui_last_frame_timer).elapsed() / (frame() - PD(gui_last_frame)).get();
+        else
+            PD(tdelta_gui) = 0u;
         PD(gui_last_frame) = frame();
         PD(gui_last_frame_timer).reset();
     }
@@ -1076,6 +1074,9 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
     if(!instance() || !GUI::analysis())
         return;
     
+    if(not frame.valid())
+        frame = 0_f;
+    
     auto fn = [gui = instance(), frame](){
         auto before = GUI::analysis()->is_paused();
         if(!before)
@@ -1085,7 +1086,9 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
             std::lock_guard<std::recursive_mutex> gguard(GUI::gui().lock());
             LockGuard guard(w_t{}, "reanalyse_from");
             
-            if(frame <= Tracker::end_frame()) {
+            if(Tracker::end_frame().valid()
+               && frame <= Tracker::end_frame())
+            {
                 Tracker::instance()->_remove_frames(frame);
                 gui->removed_frames(frame);
                 
@@ -1181,11 +1184,12 @@ void GUI::draw_grid(gui::DrawStructure &base) {
 }
 
 void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
-    if(size_t(frameIndex.get()) >= PD(video_source).length())
+    if(frameIndex >= PD(video_source).length())
         return;
     
     auto gen_ov = [this](Frame_t frameIndex, cv::Mat& image) -> std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>>{
-        if(size_t(frameIndex.get()) >= PD(video_source).length() || !frameIndex.valid())
+        if(not frameIndex.valid()
+           || frameIndex >= PD(video_source).length())
             return {};
         
         //image = cv::Mat::zeros(_average_image.rows, _average_image.cols, CV_8UC1);
@@ -1194,7 +1198,7 @@ void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
         pv::File *file = PDP(video_source);
         
         pv::Frame frame;
-        file->read_frame(frame, frameIndex.get());
+        file->read_frame(frame, frameIndex);
         
         std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>> lines;
         
@@ -1565,7 +1569,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             
             PD(cache).updated_tracking();
             
-            std::map<long_t, Color> colors;
+            std::map<Idx_t, Color> colors;
             for(auto fish : PD(cache).active)
                 colors[fish->identity().ID()] = fish->identity().color();
             
@@ -1641,13 +1645,14 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 {
                     PD(tracking._bowl).update([&](auto& e) {
                         for (auto& fish : (source.empty() ? PD(cache).active : source)) {
-                            if (fish->start_frame() > frameNr || fish->empty())
+                            if (fish->empty()
+                                || fish->start_frame() > frameNr)
                                 continue;
 
                             auto segment = fish->segment_for(frameNr);
                             if (!GUI_SETTINGS(gui_show_inactive_individuals)
                                 && (!segment || (segment->end() != Tracker::end_frame()
-                                    && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
+                                    && segment->length().get() < (long_t)GUI_SETTINGS(output_min_frames))))
                             {
                                 continue;
                             }
@@ -1693,7 +1698,10 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {
                     static Frame_t end_frame;
-                    if(FAST_SETTING(calculate_posture) && end_frame != PD(cache).tracked_frames.end) {
+                    if(FAST_SETTING(calculate_posture)
+                       && (not end_frame.valid()
+                           || end_frame != PD(cache).tracked_frames.end))
+                    {
                         end_frame = PD(cache).tracked_frames.end;
                         
                         LockGuard guard(ro_t{}, "gui_show_midline_histogram");
@@ -1816,7 +1824,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
         if(SETTING(gui_show_graph) && draw_graph) {
             if (PD(cache).has_selection()) {
                 size_t i = 0;
-                auto window = Frame_t(SETTING(output_frame_window).value<long_t>());
+                auto window = Frame_t(SETTING(output_frame_window).value<uint32_t>());
                 
                 for(auto id : PD(cache).selected) {
                     PD(fish_graphs)[i]->setup_graph(frameNr.get(), Rangel((frameNr - window).get(), (frameNr + window).get()), PD(cache).individuals.at(id), nullptr);
@@ -1835,7 +1843,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 individuals_graph.set_ranges(Rangef(PD(cache).tracked_frames.start.get(), PD(cache).tracked_frames.end.get()), Rangef(0, PD(cache).individuals.size()));
                 if(individuals_graph.empty()) {
                     individuals_graph.add_function(Graph::Function("", Graph::Type::DISCRETE, [&](float x) -> float {
-                        auto it = PD(cache)._statistics.find(Frame_t(x));
+                        auto it = PD(cache)._statistics.find(Frame_t(uint32_t(x)));
                         if(it != PD(cache)._statistics.end()) {
                             return it->second.number_fish;
                         }
@@ -1857,7 +1865,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 individuals_graph.set_ranges(Rangef(PD(cache).tracked_frames.start.get(), PD(cache).tracked_frames.end.get()), Rangef(0, ymax));
                 if(individuals_graph.empty()) {
                     individuals_graph.add_function(Graph::Function("ms/frame", Graph::Type::DISCRETE, [&](float x) -> float {
-                        auto it = PD(cache)._statistics.find(Frame_t(x));
+                        auto it = PD(cache)._statistics.find(Frame_t(uint32_t(x)));
                         if(it != PD(cache)._statistics.end()) {
                             return it->second.adding_seconds * 1000;
                         }
@@ -1936,7 +1944,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                     if(graph.empty()) {
                         graph.add_function(Graph::Function("raw", Graph::Type::DISCRETE, [uq = &estimated_uniqueness](float x) -> float {
                             std::lock_guard<std::mutex> guard(mutex);
-                            auto it = uq->upper_bound(Frame_t(narrow_cast<long_t>(x)));
+                            auto it = uq->upper_bound(Frame_t(sign_cast<uint32_t>(x)));
                             if(!uq->empty() && it != uq->begin())
                                 --it;
                             if(it != uq->end() && it->second <= x) {
@@ -2129,9 +2137,11 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 FormatExcept("File ",filename.str()," does not exist.");
         }
         else if(settings_dropdown.text() == "free_fish") {
-            std::set<long_t> free_fish, inactive;
+            std::set<Idx_t> free_fish, inactive;
             for(auto && [fdx, fish] : PD(cache).individuals) {
-                if(PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end() || !PD(cache).fish_selected_blobs.at(fdx).valid()) {
+                if(!PD(cache).fish_selected_blobs.at(fdx).valid()
+                   || PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end())
+                {
                     free_fish.insert(fdx);
                 }
                 if(PD(cache).active_ids.find(fdx) == PD(cache).active_ids.end())
@@ -2187,7 +2197,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                               ceil(PD(video_source).header().resolution.height / float(width)));
                 
                 size_t count = 0;
-                for(auto && [id, fish] : Tracker::instance()->individuals()) {
+                IndividualManager::transform_all([&, N = IndividualManager::num_individuals()](auto, auto fish){
                     for(auto && stuff : fish->basic_stuff()) {
                         auto blob = stuff->blob.unpack();
                         for (auto &h : blob->hor_lines()) {
@@ -2199,8 +2209,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     }
                     
                     ++count;
-                    WorkProgress::set_percent(count / float(Tracker::instance()->individuals().size()));
-                }
+                    WorkProgress::set_percent(count / float(N));
+                });
                 
                 auto mval = *std::max_element(grid.begin(), grid.end());
                 
@@ -2224,34 +2234,33 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
             std::map<std::string, size_t> average_pixels;
             std::map<std::string, size_t> samples;
-            PPFrame frame;
+            PPFrame pp;
+            pv::Frame frame;
             
             for(auto idx = PD(tracker).start_frame() + 1_f; idx <= PD(tracker).end_frame() && idx <= PD(tracker).start_frame() + 10000_f; ++idx)
             {
                 if(!PD(tracker).properties(idx))
                     continue;
                 
-                PD(video_source).read_frame(frame.frame(), idx.get());
-                auto active = PD(tracker).active_individuals(idx - 1_f);
-                
+                PD(video_source).read_frame(frame, idx);
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
-                    Tracker::instance()->preprocess_frame(frame, active, &_blob_thread_pool);
+                    Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
                 }
                 
-                for(auto fish : active) {
+                IndividualManager::transform_ids(pp.previously_active_identities(), [&](Idx_t fdx, Individual* fish) -> void {
                     auto loaded_blob = fish->compressed_blob(idx);
-                    auto blob = frame.find_bdx(loaded_blob->blob_id());
+                    auto blob = pp.bdx_to_ptr(loaded_blob->blob_id());
                     if(loaded_blob && blob) {
                         if(blob->split())
-                            continue;
+                            return;
                         
                         auto thresholded = blob->threshold(FAST_SETTING(track_threshold), *PD(tracker).background());
                         
                         average_pixels[fish->identity().name()] += thresholded->pixels()->size();
                         samples[fish->identity().name()] ++;
                     }
-                }
+                });
             }
             
             float sum = 0;
@@ -2268,13 +2277,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
             float max_val = 0, min_val = FLT_MAX;
             pv::Frame frame;
-            PD(video_source).read_frame(frame, 0);
+            PD(video_source).read_frame(frame, 0_f);
             
             std::vector<double> values {
                 double(frame.timestamp()) / 1000.0 / 1000.0
             };
-            for(size_t i = 1; i<PD(video_source).length(); ++i) {
-                PD(video_source).read_frame(frame, i);
+            for(size_t i = 1; i<PD(video_source).length().get(); ++i) {
+                PD(video_source).read_frame(frame, Frame_t(i));
                 auto t = double(frame.timestamp()) / 1000.0 / 1000.0;
                 values[i - 1] = t - values[i - 1];
                 values.push_back(t);
@@ -2282,7 +2291,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 max_val = max(max_val, values[i-1]);
                 min_val = min(min_val, values[i-1]);
                 
-                if(i % int(PD(video_source).length() * 0.1) == 0) {
+                if(i % int(PD(video_source).length().get() * 0.1) == 0) {
                     print(i,"/",PD(video_source).length());
                 }
             }
@@ -2304,8 +2313,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
             print("Preprocessed frame ", PD(cache).frame_idx,":");
-            print("Filtered out: ", PD(cache).processed_frame.noise());
-            print("Blobs: ", PD(cache).processed_frame.blobs());
+            //print("Filtered out: ", PD(cache).processed_frame.noise());
+            //print("Blobs: ", PD(cache).processed_frame.blobs());
         }
         
         layout.remove_child(&textfield);
@@ -2662,8 +2671,8 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
         size_t gpixels = 0;
         double gaverage_pixels = 0, gsamples = 0;
         
-        distribute_vector([&](auto, auto start, auto end, auto){
-            std::unordered_map<pv::Blob*, SimpleBlob*> map;
+        distribute_indexes([&](auto, auto start, auto end, auto){
+            std::unordered_map<pv::bid, SimpleBlob*> map;
             //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
@@ -2682,11 +2691,11 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
                     //if(bds.overlaps(screen_bounds))
                     //{
                 if(!gui_show_only_unassigned ||
-                   (!PD(cache).display_blobs.contains((*it)->blob.get()) && !contains(PD(cache).active_blobs, (*it)->blob->blob_id())))
+                   (!PD(cache).display_blobs.contains((*it)->blob->blob_id()) && !contains(PD(cache).active_blobs, (*it)->blob->blob_id())))
                 {
                     (*it)->convert();
                     //vector.push_back((*it)->convert());
-                    map[(*it)->blob.get()] = it->get();
+                    map[(*it)->blob->blob_id()] = it->get();
                 }
                     //}
                 //}
@@ -2861,14 +2870,14 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             auto mat = PD(collection)->source()->get();
             //std::fill((int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows, 0);
             
-            distribute_vector([](auto, auto start, auto end, auto) {
+            distribute_indexes([](auto, auto start, auto end, auto) {
                 std::fill(start, end, 0);
                 
             }, _blob_thread_pool, (int*)PD(collection)->source()->data(), (int*)PD(collection)->source()->data() + PD(collection)->source()->cols * PD(collection)->source()->rows);
             
             const auto image = Bounds(Size2(mat));
             
-            distribute_vector([&mat, &image](auto, auto start, auto end, auto){
+            distribute_indexes([&mat, &image](auto, auto start, auto end, auto){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e.second->ptr->source()->get();
@@ -2911,7 +2920,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
 
 void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
     pv::File *file = PDP(video_source);
-    if(file && file->length() > size_t(frameIndex.get())) {
+    if(file && file->length() > frameIndex) {
         auto ptr = PD(gui).find("fishbowl");
         Vec2 ptr_scale(1), ptr_pos(0);
         auto dim = screen_dimensions();
@@ -3113,12 +3122,12 @@ void GUI::key_event(const gui::Event &event) {
                 float percent = min(1, PD(last_direction_change).elapsed() / 2.f);
                 percent *= percent;
                 
-                int inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2, FAST_SETTING(frame_rate) * 4) * percent) : 1;
+                uint32_t inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2u, FAST_SETTING(frame_rate) * 4u) * percent) : 1;
                 
                 
                 play_direction() = 1;
                 
-                Frame_t new_frame = min(Frame_t(PD(video_source).length()-1), frame() + Frame_t(inc));
+                Frame_t new_frame = min(PD(video_source).length()-1_f, frame() + Frame_t(inc));
                 SETTING(gui_frame) = new_frame;
                 
                 PD(last_increase_timer).reset();
@@ -3163,14 +3172,12 @@ void GUI::key_event(const gui::Event &event) {
                 float percent = min(1, PD(last_direction_change).elapsed() / 2.f);
                 percent *= percent;
                 
-                int inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2, FAST_SETTING(frame_rate) * 4) * percent) : 1;
+                uint32_t inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2u, FAST_SETTING(frame_rate) * 4u) * percent) : 1;
                 
                 
                 play_direction() = -1;
                 
-                auto new_frame = max(0_f, frame() - Frame_t(inc));
-                if(!frame().valid())
-                    new_frame = 0_f;
+                auto new_frame = frame().try_sub(Frame_t(inc));
                 SETTING(gui_frame) = new_frame;
                 
                 PD(last_increase_timer).reset();
@@ -3719,8 +3726,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 size_t N = 0;
                 
                 for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
-                    GUI::instance()->video_source()->read_frame(f, k.get());
-                    auto & blobs = f.blobs();
+                    GUI::instance()->video_source()->read_frame(f, k);
+                    auto blobs = f.get_blobs();
                     N += v.size();
                     
                     for(auto &[bid, ps] : v) {
@@ -3825,8 +3832,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                 
                             } else {
                                 const pv::CompressedBlob* found = nullptr;
-                                GUI::instance()->video_source()->read_frame(f, k.get());
-                                for(auto &b : f.blobs()) {
+                                GUI::instance()->video_source()->read_frame(f, k);
+                                for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {
                                         //print("Found blob close to ", center, " at ", c, ": ", *b);
@@ -3902,9 +3909,14 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 if(config.has("gui_focus_group"))
                     focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
                 
-                if(GUI::instance()) {
-                    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame), focus_group](){
+                if(GUI::instance() && !gui_frame_on_startup().frame.valid()) {
+                    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame)](){
                         SETTING(gui_frame) = f;
+                    });
+                }
+                
+                if(GUI::instance() && !gui_frame_on_startup().focus_group.has_value()) {
+                    WorkProgress::add_queue("", [focus_group](){
                         SETTING(gui_focus_group) = focus_group;
                     });
                 }
@@ -3943,7 +3955,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         Output::Library::clear_cache();
         
         auto range = PD(tracker).analysis_range();
-        bool finished = PD(tracker).end_frame() >= range.end;
+        bool finished = PD(tracker).end_frame() >= range.end();
 #if !COMMONS_NO_PYTHON
         if(finished && SETTING(auto_categorize)) {
             auto_categorize();
@@ -4016,24 +4028,18 @@ void GUI::save_visual_fields() {
     } else {
         std::atomic_size_t counter = 0;
         WorkProgress::set_percent(0);
-        auto &individuals = Tracker::individuals();
-        
-        auto worker = [&counter, fishdata, filename, &individuals](Individual* fish){
+        static GenericThreadPool visual_field_thread_pool(cmn::hardware_concurrency(), "visual_fields");
+        IndividualManager::transform_parallel(visual_field_thread_pool, [&, N = float(IndividualManager::num_individuals())](auto, auto fish)
+        {
             auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
             WorkProgress::set_progress("generating visual fields", -1, path.str());
             
-            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){ WorkProgress::set_progress(title, (counter + 0) / float(individuals.size())); }, false);
+            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){
+                WorkProgress::set_progress(title, (counter + 0) / N);
+            }, false);
             
             ++counter;
-        };
-        
-        std::lock_guard<std::mutex> guard(blob_thread_pool_mutex());
-        for(auto && [id, fish] : Tracker::individuals()) {
-            while(blob_thread_pool().queue_length() >= cmn::hardware_concurrency())
-                blob_thread_pool().wait_one();
-            blob_thread_pool().enqueue(worker, fish);
-        }
-        blob_thread_pool().wait();
+        });
     }
     
     SETTING(analysis_paused) = before;
@@ -4079,7 +4085,7 @@ Vec2 GUI::pad_image(cv::Mat& padded, Size2 output_size) {
     return offset;
 }
 
-void GUI::export_tracks(const file::Path& , long_t fdx, Range<Frame_t> range) {
+void GUI::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
     bool before = GUI::analysis()->is_paused();
     GUI::analysis()->set_paused(true).get();
     
@@ -4117,7 +4123,7 @@ std::string GUI::info(bool escape) {
     
     auto consec = instance()->frameinfo().global_segment_order.empty() ? Range<Frame_t>({},{}) : instance()->frameinfo().global_segment_order.front();
     std::stringstream number;
-    number << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.end - consec.start).toStr() << ")";
+    number << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.start.valid() ? consec.end - consec.start : Frame_t{}).toStr() << ")";
     str.append("\n<b>consecutive frames:</b> "+number.str());
     
 #if WITH_SFML
@@ -4344,9 +4350,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
                         }
                     }
                         
-                    if(mode == TrainingMode::Continue
-                        || mode == TrainingMode::Restart
-                        || mode == TrainingMode::Apply)
+                    if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
                     {
                         print("Registering auto correct callback.");
                             
@@ -4419,7 +4423,8 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     DebugCallback("Generating training dataset ", range," in folder ", path, ".");
     
-    PPFrame frame;
+    PPFrame pp;
+    pv::Frame frame;
     
     std::vector<uchar> images;
     std::vector<float> heads;
@@ -4436,33 +4441,32 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     for(auto i = range.start; i <= range.end; ++i)
     {
-        if(!i.valid() || (size_t)i.get() >= PD(video_source).length()) {
+        if(not i.valid() || i >= PD(video_source).length()) {
             FormatExcept("Frame ", i," out of range.");
             continue;
         }
         
-        WorkProgress::set_percent((i - range.start).get() / (float)(range.end - range.start).get());
+        WorkProgress::set_percent(i.try_sub(range.start).get() / (float)(range.end - range.start).get());
         
-        auto active = i == PD(tracker).start_frame() ? set_of_individuals_t() : Tracker::active_individuals(i - 1_f);
-        PD(video_source).read_frame(frame.frame(), i.get());
-        Tracker::instance()->preprocess_frame(frame, active, NULL);
+        PD(video_source).read_frame(frame, i);
+        Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
         
         cv::Mat image, padded, mask;
-        for(auto &blob : frame.blobs()) {
-            if(!PD(tracker).border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
-                print("Skipping ", blob->blob_id(),"@",i," because its out of bounds.");
-                continue;
+        pp.transform_blobs([&](pv::Blob& blob){
+            if(!PD(tracker).border().in_recognition_bounds(blob.center() * 0.5)) {
+                print("Skipping ", blob.blob_id(),"@",i," because its out of bounds.");
+                return;
             }
             
-            auto recount = blob->recount(FAST_SETTING(track_threshold), *PD(tracker).background());
+            auto recount = blob.recount(FAST_SETTING(track_threshold), *PD(tracker).background());
             if(recount < FAST_SETTING(blob_size_ranges).max_range().start) 
             {
-                continue;
+                return;
             }
             
-            imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
+            imageFromLines(blob.hor_lines(), &mask, NULL, &image, blob.pixels().get(), 0, &Tracker::average(), 0);
             
-            auto b = blob->bounds();
+            auto b = blob.bounds();
             b << output_size;
             
             Vec2 offset = (Size2(padded) - Size2(image)) * 0.5;
@@ -4476,11 +4480,11 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             b.restrict_to(_average_image.bounds());
             
             //_average_image(b).copyTo(padded);//image(dims), mask(dims));
-            b = blob->bounds();
+            b = blob.bounds();
             
             b.restrict_to(_average_image.bounds());
             
-            Bounds p(blob->bounds());
+            Bounds p(blob.bounds());
             p << Size2(mask);
             p << Vec2(offset);
             
@@ -4511,15 +4515,17 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 
                 MotionRecord *found_head = NULL;
                 
-                for(auto fish : active) {
+                IndividualManager::transform_ids(pp.previously_active_identities(), [&](auto, auto fish) {
                     auto fish_blob = fish->blob(i);
                     auto head = fish->head(i);
                     
-                    if(fish_blob && fish_blob->blob_id() == blob->blob_id() && head) {
+                    if(fish_blob && fish_blob->blob_id() == blob.blob_id() && head) {
                         found_head = head;
-                        break;
+                        return false;
                     }
-                }
+                    
+                    return true;
+                });
                 
                 if(found_head) {
                     images.insert(images.end(), padded.data, padded.data + padded.cols * padded.rows);
@@ -4541,7 +4547,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 tf::imshow("too big", image);
                 FormatWarning(prefix.c_str()," image too big (",image.cols,"x",image.rows,")");
             }
-        }
+        });
     }
     
     /*-------------------------/
@@ -4550,7 +4556,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     try {
         file::Path npz_path = path / "data.npz";
-        cmn::npz_save(npz_path.str(), "range", std::vector<long_t>{ range.start.get(), range.end.get() });
+        cmn::npz_save(npz_path.str(), "range", std::vector<long_t>{ (long_t)range.start.get(), (long_t)range.end.get() });
         print("Saving ", num_images," positions...");
         cmn::npz_save(npz_path.str(), "positions", heads.data(), {num_images, 2}, "a");
         cmn::npz_save(npz_path.str(), "images", images.data(), {num_images, (size_t)output_size.height, (size_t)output_size.width}, "a");

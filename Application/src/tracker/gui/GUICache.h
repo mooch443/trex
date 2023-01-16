@@ -45,7 +45,7 @@ namespace gui {
         (gui::Color, gui_background_color),
         (bool, gui_equalize_blob_histograms),
         (float, gui_playback_speed),
-        (int, frame_rate),
+        (uint32_t, frame_rate),
         (float, gui_interface_scale),
         (default_config::output_format_t::Class, output_format),
         (uchar, gui_timeline_alpha),
@@ -58,11 +58,11 @@ namespace gui {
 #define GUI_SETTINGS(NAME) gui::globals::Cache::copy< gui::globals::Cache:: NAME >()
 
     struct SimpleBlob {
-        pv::BlobPtr blob;
+        pv::BlobWeakPtr blob;
         int threshold;
         std::unique_ptr<ExternalImage> ptr;
         
-        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t);
+        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
         void convert();
     };
     
@@ -111,7 +111,7 @@ namespace gui {
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
-        ska::bytell_hash_map<Idx_t, Individual*> individuals;
+        std::unordered_map<Idx_t, Individual*> individuals;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;
@@ -124,13 +124,13 @@ namespace gui {
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
-        std::unordered_map<pv::Blob*, SimpleBlob*> display_blobs;
+        std::unordered_map<pv::bid, SimpleBlob*> display_blobs;
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
     protected:
         ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
-        std::set<uint32_t> checked_probs;
+        std::set<Idx_t> checked_probs;
         
     public:
         std::unordered_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;

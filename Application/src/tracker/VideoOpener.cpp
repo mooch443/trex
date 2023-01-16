@@ -223,7 +223,7 @@ VideoOpener::VideoOpener()
             if(_buffer)
                 _buffer->_threshold = value.template value<int>();
             
-        } else if(key == "average_samples" || key == "averaging_method") {
+        } else if(is_in(key, "average_samples", "averaging_method")) {
             if(_buffer)
                 _buffer->restart_background();
         }
@@ -508,7 +508,7 @@ VideoOpener::VideoOpener()
                             std::string info_text = "";//<h3>Info</h3>\n";
                             info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
                             
-                            DurationUS us{ uint64_t( _buffer->_video->length() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
+                            DurationUS us{ uint64_t( _buffer->_video->length().get() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
                             auto len = us.to_html();
                             info_text += "<key>length</key>: <ref>"+len+"</ref>";
                             
@@ -645,7 +645,7 @@ void VideoOpener::BufferedVideo::restart_background() {
         }
         
         std::unique_ptr<VideoSource> background_video;
-        uint64_t background_video_index = 0;
+        Frame_t background_video_index{0_f};
         std::unique_ptr<AveragingAccumulator> accumulator;
         
         { // open video and load first frame
@@ -653,22 +653,22 @@ void VideoOpener::BufferedVideo::restart_background() {
             
             std::lock_guard guard(_frame_mutex);
             cv::Mat img;
-            background_video->frame(0, img);
+            background_video->frame(0_f, img);
             if(max(img.cols, img.rows) > video_chooser_column_width)
                 resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
             
-            background_video_index = 0;
+            background_video_index = 0_f;
             accumulator = std::make_unique<AveragingAccumulator>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
             accumulator->add(img);
         }
         
         _terminated_background_task = false;
         
-        uint step = max(1u, uint(background_video->length() / max(2u, uint(TEMP_SETTING(average_samples).value<uint32_t>()))));
+        auto step = Frame_t(max(1u, uint(background_video->length().get() / max(2u, uint(TEMP_SETTING(average_samples).value<uint32_t>())))));
         cv::Mat flt, img;
         _number_samples = 0;
         
-        while(!_terminate_background && background_video_index+1+step < background_video->length())
+        while(!_terminate_background && background_video_index+1_f+step < background_video->length())
         {
             background_video_index += step;
             
@@ -711,7 +711,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
     _update_thread = std::make_unique<std::thread>([this, cb = std::move(callback)]() mutable {
         set_thread_name("BufferedVideo::update_thread");
         
-        int64_t playback_index = 0;
+        Frame_t playback_index;
         Timer video_timer;
         double seconds_between_frames = 0;
         static std::mutex _gpu_mutex; // in case multiple videos are still "open"
@@ -724,7 +724,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
             {
                 std::lock_guard guard(_video_mutex);
                 _video = std::make_unique<VideoSource>(_path.str());
-                _video->frame(0, local);
+                _video->frame(0_f, local);
                 
                 {
                     std::lock_guard gpu_guard(_gpu_mutex);
@@ -733,7 +733,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     flush_ocl_queue();
                 }
                 
-                playback_index = 0;
+                playback_index = 0_f;
                 video_timer.reset();
                 
                 restart_background();
@@ -758,11 +758,11 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                 ++playback_index;
                 video_timer.reset();
                 
-                if((uint64_t)playback_index+1 >= _video->length())
-                    playback_index = 0;
+                if(playback_index+1_f >= _video->length())
+                    playback_index = 0_f;
                 
                 try {
-                    _video->frame((size_t)playback_index, local);
+                    _video->frame(playback_index, local);
                     
                     if(_number_samples.load() > 1) {
                         std::lock_guard gpu_guard(_gpu_mutex);
@@ -1033,8 +1033,7 @@ void VideoOpener::select_file(const file::Path &p) {
     _extra->update_layout();
     
     try {
-        auto video = std::make_unique<pv::File>(SETTING(filename).value<file::Path>());
-        video->start_reading();
+        auto video = std::make_unique<pv::File>(SETTING(filename).value<file::Path>(), pv::FileMode::READ);
         auto text = video->get_info(false);
         
         _mini_bowl = std::make_shared<Entangled>();
@@ -1106,13 +1105,13 @@ void VideoOpener::select_file(const file::Path &p) {
         {
             cmn::set_thread_name("_accumulate_video_frames_thread");
             
-            track::StaticBackground bg(Image::Make(video->average()), nullptr);
+            Background bg(Image::Make(video->average()), nullptr);
             
-            size_t step = max(1ul, min(video->length() / 100ul, (ushort)video->framerate()));
+            auto step = Frame_t(max(1ul, min(video->length().get() / 100ul, (ushort)video->framerate())));
             pv::Frame frame;
             std::vector<Drawable*> children;
             
-            for(size_t i = 0; !_end_frames_thread && i<video->length() && i < step * 10ul; i += step) {
+            for(Frame_t i = 0_f; not _end_frames_thread && i<video->length() && i < step * 10_f; i += step) {
                 video->read_frame(frame, i);
                 
                 std::vector<std::unique_ptr<ExternalImage>> images;

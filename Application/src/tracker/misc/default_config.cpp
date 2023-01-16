@@ -78,7 +78,8 @@ namespace default_config {
         "Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.",
         "The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).",
         "Runs all algorithms and pits them against each other, outputting statistics every few frames.",
-        "Uses automatic selection based on density."
+        "Uses automatic selection based on density.",
+        "No algorithm, direct assignment."
     )
 
     ENUM_CLASS_DOCS(output_format_t,
@@ -105,6 +106,7 @@ namespace default_config {
 
     ENUM_CLASS_DOCS(blob_split_algorithm_t,
         "Adaptively increase the threshold of closeby objects, until separation.",
+        "Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.",
         "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
     )
 
@@ -182,7 +184,7 @@ file::Path conda_environment_path() {
         home = file::Path(home).remove_filename().str();
 #endif
 
-    if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
+    if(is_in(home, "CONDA_PREFIX", "", compiled_path)) {
 #ifndef NDEBUG
         if(!SETTING(quiet))
             print("Reset conda prefix ",home," / ",compiled_path);
@@ -266,14 +268,33 @@ file::Path conda_environment_path() {
 #define PYTHON_TIPPS " (containing pythonXX.exe)"
 #endif
 
-
-    constexpr std::string_view is_ndebug_enabled() {
-#ifndef NDEBUG
-        return std::string_view("debug");
-#else
-        return std::string_view("release");
-#endif
+void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level) {
+    try {
+        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level);
+        
+    } catch(const cmn::illegal_syntax& e) {
+        FormatError("Illegal syntax in settings file.");
+        return;
     }
+}
+
+bool execute_settings_file(const file::Path& source, AccessLevelType::Class level) {
+    if(source.exists()) {
+        DebugHeader("LOADING ", source);
+        try {
+            auto content = utils::read_file(source.str());
+            execute_settings_string(content, source, level);
+            
+        } catch(const cmn::illegal_syntax& e) {
+            FormatError("Illegal syntax in settings file.");
+            return false;
+        }
+        DebugHeader("LOADED ", source);
+        return true;
+    }
+    
+    return false;
+}
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn)
     {
@@ -293,7 +314,7 @@ file::Path conda_environment_path() {
         CONFIG("version", std::string(g_GIT_DESCRIBE_TAG), "Current application version.", SYSTEM);
         CONFIG("build_architecture", std::string(g_TREX_BUILD_ARCHITECTURE), "The architecture this executable was built for.", SYSTEM);
         CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
-        CONFIG("build_is_debug", std::string(is_ndebug_enabled()), "If built in debug mode, this will show 'debug'.", SYSTEM);
+        CONFIG("build_is_debug", std::string(compile_mode_name()), "If built in debug mode, this will show 'debug'.", SYSTEM);
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);
@@ -308,7 +329,7 @@ file::Path conda_environment_path() {
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
 
-        CONFIG("frame_rate", int(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
+        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
         
         CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
@@ -348,7 +369,7 @@ file::Path conda_environment_path() {
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG<std::pair<pv::bid, Frame_t>>("gui_show_fish", {pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
-        CONFIG("gui_frame", Frame_t(0), "The currently visible frame.");
+        CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
 //#endif
@@ -357,7 +378,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
         CONFIG("gui_show_individual_preview", false, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
         CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_blur_enabled` is set to true).");
-        CONFIG("heatmap_ids", std::vector<uint32_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
+        CONFIG("heatmap_ids", std::vector<track::Idx_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");
         CONFIG("heatmap_normalization", heatmap_normalization_t::cell, "Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.");
@@ -581,7 +602,7 @@ file::Path conda_environment_path() {
         CONFIG("output_centered", false, "If set to true, the origin of all X and Y coordinates is going to be set to the center of the video.");
         CONFIG("output_default_options", output_default_options, "Default scaling and smoothing options for output functions, which are applied to functions in `output_graphs` during export.");
         CONFIG("output_annotations", output_annotations, "Units (as a string) of output functions to be annotated in various places like graphs.");
-        CONFIG("output_frame_window", long_t(100), "If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).");
+        CONFIG("output_frame_window", uint32_t(100), "If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).");
         CONFIG("smooth_window", uint32_t(2), "Smoothing window used for exported data with the #smooth tag.");
         
         CONFIG("tags_path", file::Path(""), "If this path is set, the program will try to find tags and save them at the specified location.");
@@ -884,7 +905,8 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                 } else {
                     if(!quiet)
                         print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
-                    if(key == "whitelist_rect" || key == "exclude_rect" || key == "recognition_rect") {
+                    if(is_in(key, "whitelist_rect", "exclude_rect", "recognition_rect"))
+                    {
                         auto values = Meta::fromStr<std::vector<float>>(val);
                         if(values.size() == 4) {
                             map[r] = std::vector<std::vector<Vec2>>{
@@ -894,7 +916,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         } else if(!quiet)
                             FormatExcept("Invalid number of values while trying to correct ",val," deprecated parameter from ",key," to ",r,".");
                         
-                    } else if(key == "whitelist_rects" || key == "exclude_rects") {
+                    } else if(is_in(key, "whitelist_rects", "exclude_rects")) {
                         auto values = Meta::fromStr<std::vector<Bounds>>(val);
                         std::vector<std::vector<Vec2>> value;
                         

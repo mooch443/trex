@@ -98,6 +98,25 @@ bool LockGuard::locked() const {
         //|| std::this_thread::get_id() == _writing_thread_id;
 }
 
+bool LockGuard::owns_write() noexcept {
+    auto my_id = std::this_thread::get_id();
+    
+    std::unique_lock tswitch(thread_switch_mutex);
+    return my_id == _writing_thread_id;
+}
+
+bool LockGuard::owns_read() noexcept {
+    auto my_id = std::this_thread::get_id();
+    {
+        std::unique_lock rm(read_mutex);
+        if(read_locks.contains(my_id)) {
+            return true;
+        }
+    }
+    
+    return owns_write();
+}
+
 bool LockGuard::init(uint32_t timeout_ms)
 {
     assert(!_purpose.empty());

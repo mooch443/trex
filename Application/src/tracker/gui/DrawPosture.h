@@ -9,6 +9,7 @@
 #include <tracking/Tracker.h>
 #include <gui/Graph.h>
 #include <misc/OutputLibrary.h>
+#include <misc/idx_t.h>
 
 namespace gui {
     class Posture : public Entangled {
@@ -18,7 +19,7 @@ namespace gui {
         //gui::Rect _background;
         
         bool _average_active;
-        std::map<uint32_t, std::deque<float>> _scale;
+        std::map<track::Idx_t, std::deque<float>> _scale;
         
     public:
         Posture(const Bounds& size = Bounds());

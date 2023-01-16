@@ -2,6 +2,7 @@
 #include <tracking/VisualIdentification.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
+#include <tracking/IndividualManager.h>
 
 using namespace cmn;
 using namespace track;
@@ -59,16 +60,14 @@ void ImageExtractor::collect(selector_t&& selector) {
     Query q;
     Task task;
     
-    for (auto &[fdx, fish] : Tracker::individuals()) {
-        //print("Individual ", fdx, " has ", fish->frame_count(), " frames.");
-        
+    IndividualManager::transform_all([&](auto fdx, auto fish){
         size_t i{0};
         fish->iterate_frames(Range<Frame_t>(fish->start_frame(), fish->end_frame()),
-         [&, fdx=fdx](Frame_t frame,
-                      auto& seg,
-                      const BasicStuff* basic,
-                      auto posture)
-             -> bool
+         [&](Frame_t frame,
+             auto& seg,
+             const BasicStuff* basic,
+             auto posture)
+           -> bool
          {
             if(seg->length() < _settings.segment_min_samples)
                 return true;
@@ -92,7 +91,8 @@ void ImageExtractor::collect(selector_t&& selector) {
             
             return true;
          });
-    }
+    });
+    
     
     //! finished
     size_t counter = 0;
@@ -162,12 +162,13 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
 //#endif
     
     // distribute the tasks across threads
-    distribute_vector([&](auto i, auto start, auto end, auto) {
+    distribute_indexes([&](auto, auto start, auto end, auto) {
         size_t N = 0;
 #ifndef NDEBUG
         size_t pushed = 0;
 #endif
         PPFrame pp;
+        pv::Frame frame;
         std::vector<Result> results;
         
         for(auto it = start; it != end; ++it) {
@@ -176,7 +177,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
         }
         
 #ifndef NDEBUG
-        print("[IE] Thread ", i, " going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
+        print("[IE] Thread going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
 #endif
             
         auto commit_results = [&](std::vector<Result>&& results) {
@@ -187,14 +188,14 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             }
 #ifndef NDEBUG
             pushed += results.size();
-            print("[IE] Taking a break in thread ", i, " after ", pushed, "/",N," items (",results.size()," being pushed at once).");
+            print("[IE] Taking a break in thread after ", pushed, "/",N," items (",results.size()," being pushed at once).");
 #endif
             apply(std::move(results));
             results.clear();
             
             std::unique_lock guard(mutex);
 #ifndef NDEBUG
-            print("[IE] Thread ", i, " callback ", pushed_items, " / ", total_items);
+            print("[IE] Thread callback ", pushed_items, " / ", total_items);
 #endif
             callback(this, double(pushed_items) / double(total_items), false);
         };
@@ -203,8 +204,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             auto &[index, samples] = *it;
             pp.set_index(index);
             try {
-                _video.read_frame(pp.frame(), index.get());
-                Tracker::preprocess_frame(pp, Tracker::active_individuals(index), NULL, NULL);
+                _video.read_frame(frame, index);
+                Tracker::preprocess_frame(_video, std::move(frame), pp, NULL, PPFrame::NeedGrid::NoNeed);
             } catch(const UtilsException& e) {
                 FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());
                 {
@@ -216,9 +217,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             }
             
             for(const auto &[fdx, bdx, range] : samples) {
-                auto blob = pp.find_bdx(bdx);
+                auto blob = pp.bdx_to_ptr(bdx);
                 if(!blob) {
-                    blob = pp.find_original_bdx(bdx);
+                    //! TODO: original_blobs
+                    /*blob = pp.find_original_bdx(bdx);
                     if(!blob) {
                         //print("Cannot find ", bdx, " in frame ", index);
                         {
@@ -226,16 +228,17 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                             --total_items;
                         }
                         continue;
-                    }
+                    }*/
+                    continue;
                 }
                 
                 float median_midline_length_px = 0;
                 gui::Transform midline_transform;
                 
                 if(individual_image_normalization == default_config::individual_image_normalization_t::posture) {
-                    LockGuard guard(ro_t{}, "normalization");
-                    auto fish = Tracker::individuals().at(fdx);
-                    if(fish) {
+                    IndividualManager::transform_if_exists(fdx, [&, index=index, range=range](auto fish)
+                    {
+                        LockGuard guard(ro_t{}, "normalization");
                         auto filter = constraints::local_midline_length(fish, range, false);
                         median_midline_length_px = filter->median_midline_length_px;
                         
@@ -250,10 +253,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                                     std::unique_lock guard(mutex);
                                     --total_items;
                                 }
-                                continue;
+                                return;
                             }
                         }
-                    }
+                    });
                 }
                 
                 auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
@@ -284,7 +287,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             commit_results(std::move(results));
         
 #ifndef NDEBUG
-        print("[IE] Thread ", i, " ended. Pushed ", pushed, " items (of ", N,").");
+        print("[IE] Thread ended. Pushed ", pushed, " items (of ", N,").");
 #endif
         
     }, pool, _tasks.begin(), _tasks.end());

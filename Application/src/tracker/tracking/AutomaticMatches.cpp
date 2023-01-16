@@ -26,17 +26,17 @@ void add_assigned_range(std::vector<RangesForID>& assigned, Idx_t fdx, const Ran
     }
 }
 
-std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame) {
+std::map<pv::bid, Idx_t> automatically_assigned(Frame_t frame) {
     //LockGuard guard;
-    std::map<Idx_t, pv::bid> blob_for_fish;
+    std::map<pv::bid, Idx_t> blob_for_fish;
     
     for(auto && [fdx, bff] : _automatically_assigned_ranges) {
-        blob_for_fish[fdx] = pv::bid::invalid;
+        //blob_for_fish[fdx] = pv::bid::invalid;
         
         for(auto & assign : bff) {
             if(assign.range.contains(frame)) {
                 assert(frame >= assign.range.start && assign.range.end >= frame);
-                blob_for_fish[fdx] = assign.bids.at(sign_cast<size_t>((frame - assign.range.start).get()));
+                blob_for_fish[assign.bids.at(sign_cast<size_t>((frame - assign.range.start).get()))] = fdx;
                 break;
             }
         }

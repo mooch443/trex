@@ -92,21 +92,25 @@ void ImageThreads::processing() {
     ocl::init_ocl();
     cmn::set_thread_name("ImageThreads::processing");
     
-    while(!_loading_terminated || !_used.empty()) {
-        // process images and write to file
-        _condition.wait_for(lock, std::chrono::milliseconds(1));
-        
-        while(!_used.empty()) {
-            auto current = std::move(_used.back());
-            _used.pop_back();
-            lock.unlock();
-            //print("[proc] processing ", current->index());
-            _fn_process(*current);
+    try {
+        while(!_loading_terminated || !_used.empty()) {
+            // process images and write to file
+            _condition.wait_for(lock, std::chrono::milliseconds(1));
             
-            lock.lock();
-            assert(!contains(_unused, current));
-            _unused.push_back(std::move(current));
+            while(!_used.empty()) {
+                auto current = std::move(_used.back());
+                _used.pop_back();
+                lock.unlock();
+                //print("[proc] processing ", current->index());
+                _fn_process(*current);
+                
+                lock.lock();
+                assert(!contains(_unused, current));
+                _unused.push_back(std::move(current));
+            }
         }
+    } catch(...) {
+        print("Ended.");
     }
     
     print("[proc] processing terminated.");

@@ -27,6 +27,9 @@ struct LockGuard {
     LockGuard(w_t, std::string purpose, uint32_t timeout_ms = 0);
     //LockGuard(std::string purpose, uint32_t timeout_ms = 0);
     
+    [[nodiscard]] static bool owns_write() noexcept;
+    [[nodiscard]] static bool owns_read() noexcept;
+    
 private:
     bool init(uint32_t timeout_ms);
 };

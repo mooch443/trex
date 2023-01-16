@@ -8,6 +8,7 @@
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace Python {
 
@@ -383,7 +384,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 using py = PythonIntegration;
                 //check_learning_module();
                 
-                std::vector<long_t> classes(data->all_classes().begin(), data->all_classes().end());
+                std::vector<Idx_t> classes(data->all_classes().begin(), data->all_classes().end());
                 auto joined_data = data->join_split_data();
                 
                 if(number_classes() > classes.size()) {
@@ -398,8 +399,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 }
                 
                 //! decide whether to reload the network
-                if(load_results == TrainingMode::LoadWeights
-                   || load_results == TrainingMode::Apply)
+                if(is_in(load_results, TrainingMode::LoadWeights, TrainingMode::Apply))
                     load_weights_internal();
                 else if(load_results == TrainingMode::Restart)
                     reinitialize_internal();
@@ -418,7 +418,9 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     throw U_EXCEPTION("Validation image array size ",joined_data.validation_images.size()," != ids array size ",joined_data.validation_ids.size(),"");
                 }
                 
-                py::set_variable("global_segment", std::vector<long_t>{ global_range.start().get(), global_range.end().get() }, "learn_static");
+                py::set_variable("global_segment", std::vector<long_t>{
+                    global_range.empty() ? -1 : (long_t)global_range.start().get(),
+                    global_range.empty() ? -1 : (long_t)global_range.end().get() }, "learn_static");
                 py::set_variable("accumulation_step", (long_t)accumulation_step, "learn_static");
                 py::set_variable("classes", classes, "learn_static");
                 py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");
@@ -471,8 +473,9 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     
                     {
                         LockGuard guard(w_t{}, "train_internally");
-                        for(auto && [fdx, fish] : Tracker::individuals())
+                        IndividualManager::transform_all([](auto, auto fish) {
                             fish->clear_recognition();
+                        });
                     }
                     
                     //! TODO: MISSING probability clearing
@@ -517,7 +520,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                                     }
                                     
                                     images.insert(images.end(), fish.images.at(i)->data(), fish.images.at(i)->data() + size_t(resolution.width * resolution.height));
-                                    ids.insert(ids.end(), id);
+                                    ids.insert(ids.end(), id.get());
                                     positions.insert(positions.end(), fish.positions.at(i).x);
                                     positions.insert(positions.end(), fish.positions.at(i).y);
                                     frames.insert(frames.end(), fish.frame_indexes.at(i).get());
@@ -526,7 +529,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                         //}
                     }
                     
-                    if((load_results == TrainingMode::Continue || load_results == TrainingMode::Restart) && !dont_save)
+                    if(is_in(load_results, TrainingMode::Continue, TrainingMode::Restart)
+                       && !dont_save)
                     {
                         FileSize size(images.size());
                         auto ss = size.to_string();
@@ -603,9 +607,7 @@ std::vector<float> VINetwork::transform_results(
 }
 
 std::set<Idx_t> VINetwork::classes() {
-    std::set<Idx_t> identities;
-    for(auto &[id, fish] : Tracker::individuals())
-        identities.insert(id);
+    auto identities = IndividualManager::all_ids();
     assert(FAST_SETTING(track_max_individuals) == identities.size());
     return identities;
 }

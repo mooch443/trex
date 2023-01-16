@@ -4,9 +4,29 @@
 #include <misc/GlobalSettings.h>
 #include <misc/PVBlob.h>
 
-//#define DEBUG_ME true
-
 namespace track { class SplitBlob; }
+
+namespace cmn { namespace CPULabeling { struct ListCache_t; }}
+
+namespace track {
+
+namespace split {
+
+ENUM_CLASS(Action,
+    KEEP,
+    KEEP_ABORT,
+    REMOVE,
+    ABORT,
+    TOO_FEW,
+           SKIP,
+    NO_CHANCE
+)
+
+using Action_t = Action::Class;
+
+}
+
+}
 
 //! This class tries to find multiple blobs within a big blob.
 //  One blob represents one individual.
@@ -14,7 +34,7 @@ class track::SplitBlob {
     struct ResultProp {
         float fitness;
         float ratio;
-        int threshold;
+        int threshold{-1};
         std::vector<pv::BlobPtr> blobs;
         //std::vector<std::vector<uchar>> pixels;
         
@@ -26,23 +46,20 @@ class track::SplitBlob {
         }
     };
     
-    enum Action {
-        KEEP,
-        KEEP_ABORT,
-        REMOVE,
-        ABORT
-    };
-    
 private:
     cv::Mat _original, _original_grey;
-    size_t max_objects;
+    std::atomic<size_t> max_objects;
+    std::mutex mutex;
+    
+    uint8_t min_pixel, max_pixel;
     
     // parameters
-    pv::BlobPtr _blob;
+    pv::BlobWeakPtr _blob;
     std::vector<uchar> _diff_px;
+    CPULabeling::ListCache_t* _cache{nullptr};
     
 public:
-    SplitBlob(const Background& average, pv::BlobPtr blob);
+    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobWeakPtr blob);
     
     /**
      * @param presumed_nr number of individuals to find
@@ -56,13 +73,8 @@ public:
     std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<Vec2>& centers);
     
 private:
-    size_t apply_threshold(int threshold, std::vector<pv::BlobPtr> &output);
-    Action evaluate_result_single(std::vector<pv::BlobPtr>&);
-    Action evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&, ResultProp&);
-    
-#if DEBUG_ME
-    void display_match(const std::pair<const int, std::vector<pv::BlobPtr>>&, const std::vector<Vec2>& centers);
-#endif
+    size_t apply_threshold(CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output);
+    split::Action_t evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&);
 };
 
 #endif

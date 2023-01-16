@@ -30,7 +30,7 @@ struct RangesForID {
 
 void clear_automatic_ranges();
 void set_automatic_ranges(std::vector<RangesForID>&&);
-std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame);
+std::map<pv::bid,Idx_t> automatically_assigned(Frame_t frame);
 void delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range);
 void add_assigned_range(std::vector<RangesForID>& assigned, Idx_t fdx, const Range<Frame_t>& range, std::vector<pv::bid>&& bids);
 }

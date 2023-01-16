@@ -51,7 +51,7 @@ protected:
     
 public:
     ItemIndividual(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid)
-        : gui::List::Item(fish),
+        : gui::List::Item(fish.valid() ? fish.get() : -1),
         _ptr(fish),
         _selected_blob_id(blob)
     {
@@ -197,7 +197,7 @@ public:
                             status = CheckUpdates::perform(false).get();
                         } catch(...) { }
                         
-                        if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
+                        if(is_in(status, CheckUpdates::VersionStatus::OLD, CheckUpdates::VersionStatus::ALREADY_ASKED))
                             CheckUpdates::display_update_dialog();
                         else if(GUI::instance() && status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");
@@ -228,11 +228,11 @@ public:
                             } else if(result == Dialog::OKAY) {
                                 // load from settings file
                                 auto settings_file = file::DataLocation::parse("settings");
-                                GUI::execute_settings(settings_file, AccessLevelType::PUBLIC);
+                                default_config::execute_settings_file(settings_file, AccessLevelType::PUBLIC);
                                 
                                 auto output_settings = file::DataLocation::parse("output_settings");
                                 if(output_settings.exists() && output_settings != settings_file)
-                                    GUI::execute_settings(output_settings, AccessLevelType::STARTUP);
+                                    default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP);
                             }
                         }, "Loading settings will replace values of currently loaded settings. Where do you want to source from?", "load settings", "from .settings", "cancel", "from results");
                     });
@@ -353,8 +353,8 @@ public:
                     auto obj = static_cast<ItemIndividual*>(ptr.get());
                     auto name = id.name();
                     
-                    if(fish != obj->ID() || blob != obj->selected_blob_id() || name != obj->name()) {
-                        obj->set_ID(fish);
+                    if(fish.get() != obj->ID() || blob != obj->selected_blob_id() || name != obj->name()) {
+                        obj->set_ID(fish.get());
                         obj->set_name(name);
                         obj->set_ptr(fish);
                         obj->set_selected_blob_id(blob);

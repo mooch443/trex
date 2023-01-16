@@ -13,6 +13,7 @@
 #include <gui/IdentityHeatmap.h>
 #include <tracking/FilterCache.h>
 #include <tracking/VisualIdentification.h>
+#include <tracking/IndividualManager.h>
 
 #if WIN32
 #include <io.h>
@@ -166,7 +167,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
     return cmn::abs(area / 2.0f);
 }
 
-void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
+void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
     using namespace gui;
     using namespace track::image;
     
@@ -179,7 +180,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     
     Output::Library::remove_calculation_options();
     
-    auto previous_output_frame_window = SETTING(output_frame_window).value<long_t>();
+    auto previous_output_frame_window = SETTING(output_frame_window).value<uint32_t>();
     auto output_image_per_tracklet = GUI::instance() ? SETTING(output_image_per_tracklet).value<bool>() : false;
     auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();
@@ -222,10 +223,11 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     print("[exporting] Writing recognition data to ",recognition_path);
     
     try {
-        std::map<long_t, float> all_percents;
+        std::map<Idx_t, float> all_percents;
         std::mutex percent_mutex;
-        for(auto && [id, fish] : Tracker::individuals())
-            all_percents[id] = 0;
+        IndividualManager::transform_all([&all_percents](auto fdx, auto) {
+            all_percents[fdx] = 0;
+        });
         
         struct ImageData {
             pv::BlobPtr blob;
@@ -234,15 +236,15 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             float median_midline_length_px{0.f};
             Range<Frame_t> range;
         };
-        std::map<Frame_t, std::map<long_t, ImageData>> waiting_pixels;
+        std::map<Frame_t, std::map<Idx_t, ImageData>> waiting_pixels;
         std::mutex sync;
         
         std::vector<std::shared_ptr<PropertiesGraph>> fish_graphs;
         std::vector<Output::LibraryCache::Ptr> library_cache;
         float last_percent = -1;
         
-        auto work_item = [&](size_t thread_index, long_t id, Individual* fish){
-            if(fdx != -1 && fdx != id)
+        auto work_item = [&](size_t thread_index, Idx_t id, const Individual* fish){
+            if(fdx.valid() && fdx != id)
                 return;
             
             if(SETTING(terminate))
@@ -360,7 +362,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         std::vector<uchar> image_data;
                         Size2 shape;
                         
-                        printf("tags for %u: ", (uint32_t)fish->identity().ID());
+                        print("tags for ", fish->identity().ID(),":");
                         for(auto && [var, bid, ptr, frame] : *set) {
                             shape = Size2(ptr->cols, ptr->rows);
                             // had previous frame, lost in this frame (finalize segment)
@@ -368,12 +370,12 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             auto before = arrays.size();
                             arrays.resize(arrays.size() + ptr->size());
                             
-                            printf("%d ", frame.get());
+                            print(frame);
                             frame_indices.push_back(frame.get());
                             blob_ids.push_back(bid);
                             std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
                         }
-                        printf("\n");
+                        print();
                         
                         if(arrays.size() > 0) {
                             auto range = fish->get_segment(seg->end());
@@ -409,7 +411,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
-                        if(range->length() >= (long_t)output_min_frames) {
+                        if(range->length().get() >= (long_t)output_min_frames) {
                             auto filters = constraints::local_midline_length(fish, range->range);
                             // Init data strutctures
                             size_t image_count = 0;
@@ -457,7 +459,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         
                                         std::lock_guard<std::mutex> guard(sync);
                                         waiting_pixels[frame][id] = ImageData{
-                                            .blob = blob,
+                                            .blob = std::move(blob),
                                             .fdx = fish->identity().ID(),
                                             .midline_transform = trans,
                                             .median_midline_length_px = filters ? filters->median_midline_length_px : 0,
@@ -620,17 +622,17 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             std::vector<std::thread*> threads;
             threads.resize(max_threads);
             
-            std::vector<std::queue<std::tuple<long_t, Individual*>>> packages;
+            std::vector<std::queue<std::tuple<Idx_t, Individual*>>> packages;
             packages.resize(max_threads);
             
-            for (auto&& [id, fish] : tracker.individuals()) {
+            IndividualManager::transform_all([&](auto id, auto fish) {
                 packages.at(current_thread_id).push({ id, fish });
                 
                 ++current_thread_id;
                 if(current_thread_id >= max_threads) {
                     current_thread_id = 0;
                 }
-            }
+            });
             
             std::mutex lock;
             for (size_t i=0; i<threads.size(); ++i) {
@@ -669,8 +671,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             }
             
         } else {
-            for (auto&& [id, fish] : tracker.individuals())
-                work_item(0, id, fish);
+            IndividualManager::transform_all([&](auto fdx, const auto fish){
+                work_item(0, fdx, fish);
+            });
         }
         
         if(SETTING(output_heatmaps)) {
@@ -704,18 +707,18 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         print("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
                         std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
-                        for(auto && [fdx, fish] : tracker.individuals()) {
+                        IndividualManager::transform_all([&](auto fdx, auto fish) {
                             mem::IndividualMemoryStats stats(fish);
                             indstats[fdx] = stats;
                             overall += stats;
-                        }
+                        });
                         
                         overall.print();
                         
-                        std::vector<long_t> ids;
+                        std::vector<Idx_t> ids;
                         std::map<std::string, std::vector<uint64_t>> sizes;
                         
-                        ids.push_back(-1);
+                        ids.push_back(Idx_t());
                         for (auto && [key, size] : overall.sizes) {
                             sizes[key].push_back(size);
                         }
@@ -771,7 +774,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             const bool tracklet_export_difference_images = SETTING(tracklet_export_difference_images).value<bool>();
             
-            std::map<long_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, long_t, Image::UPtr>>>> queues;
+            std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, Idx_t, Image::UPtr>>>> queues;
             PPFrame obj;
             
             size_t index = 0;
@@ -782,9 +785,10 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 {
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
-                    auto active = frame == Tracker::start_frame() ? set_of_individuals_t() : Tracker::active_individuals(frame - 1_f);
-                    GUI::instance()->video_source()->read_frame(obj.frame(), sign_cast<uint64_t>(frame.get()));
-                    Tracker::instance()->preprocess_frame(obj, active, &_blob_thread_pool);
+                    
+                    pv::Frame vframe;
+                    GUI::instance()->video_source()->read_frame(vframe, frame);
+                    Tracker::instance()->preprocess_frame(*GUI::instance()->video_source(), std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
                 }
                 
                 for(auto && [id, data] : vec) {
@@ -794,15 +798,15 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         pv::BlobPtr blob;
                     } reduced, full;
                     
-                    reduced.blob = obj.find_bdx(data.blob->blob_id());
+                    reduced.blob = obj.create_copy(data.blob->blob_id());
                     if(!reduced.blob) {
                         auto small = Tracker::find_blob_noisy(obj, data.blob->blob_id(), data.blob->parent_id(), Bounds());
                         if(small)
-                            reduced.blob = small;
+                            reduced.blob = std::move(small);
                         
                         if(data.blob->parent_id().valid()) {
                             if(!full.blob)
-                                full.blob = obj.find_bdx(data.blob->parent_id());
+                                full.blob = obj.create_copy(data.blob->parent_id());
                         }
                     }
                     
@@ -823,7 +827,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         if(tracklet_export_difference_images) {
                             reduced.image = std::get<0>(
                                 constraints::diff_image(normalize,
-                                                        data.blob,
+                                                        data.blob.get(),
                                                         data.midline_transform,
                                                         data.median_midline_length_px,
                                                         output_size,
@@ -831,7 +835,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
 
                             //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy)));
                         } else
-                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average())));
+                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average())));
                         
                     } else {
                         if(tracklet_export_difference_images) {
@@ -879,9 +883,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         
                         if(do_normalize_tracklets) {
                             if(tracklet_export_difference_images)
-                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
+                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
                             else
-                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
+                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
                             
                         } else {
                             if(tracklet_export_difference_images) {
@@ -973,7 +977,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             
                             assert(full.image->cols == output_size.width && full.image->rows == output_size.height);
                             
-                            split_ids.push_back(data.fdx);
+                            split_ids.push_back(data.fdx.get());
                             split_frames.push_back(frame.get());
                             split_masks.insert(split_masks.end(), full.image->data(), full.image->data() + full.image->size());
                         }
@@ -1079,7 +1083,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         if(tracklet_max_images == 0) {
                             single_images.insert(single_images.end(), image->data(), image->data() + image->size());
                             single_frames.push_back(frame.get());
-                            single_ids.push_back(fid);
+                            single_ids.push_back(fid.get());
                             byte_counter += image->size();
                         }
                         ++image_count;
@@ -1094,14 +1098,14 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         med.copyTo(tmp);
                         assert(tmp.isContinuous() && tmp.channels() == 1);
                         all_images.insert(all_images.end(), tmp.data, tmp.data + tmp.cols * tmp.rows);
-                        all_ranges.push_back(id);
+                        all_ranges.push_back(id.get());
                         all_ranges.push_back(range.start.get());
                         all_ranges.push_back(range.end.get());
                         //tf::imshow("median"+fish->identity().name()+" - "+Meta::toStr(range.range), tmp);
                     }
                 }
                 
-                if(id % max(1, int(ceil(queues.size() * 0.01))) == 0)
+                if(id.get() % max(1, int(ceil(queues.size() * 0.01))) == 0)
                     print("[tracklet_images] Fish ", id,"...");
             }
             

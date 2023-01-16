@@ -58,6 +58,15 @@ public:
     static GUI* instance();
     static Vec2 pad_image(cv::Mat& padded, Size2 output_size);
     static std::vector<gui::Drawable*>& static_pointers();
+    
+    struct StartupSettings {
+        Frame_t frame;
+        std::optional<std::vector<Idx_t>> focus_group;
+    };
+    static StartupSettings& gui_frame_on_startup() {
+        static StartupSettings frame;
+        return frame;
+    }
 
 private:
     //! Saved reference to the average image.
@@ -117,9 +126,6 @@ public:
     void set_base(gui::Base* base);
     
     static Frame_t frame();
-    //static inline sprite::Property<long_t>& frame_ref() { return GUI::current_frame; }
-    
-    static bool execute_settings(file::Path, AccessLevelType::Class);
     static void reanalyse_from(Frame_t frame, bool in_thread = true);
     
     static void trigger_redraw();
@@ -137,7 +143,7 @@ public:
     
     static void write_config(bool overwrite, GUIType type = GUIType::GRAPHICAL, const std::string& suffix = "");
     
-    void export_tracks(const file::Path& prefix = "", long_t fdx = -1, Range<Frame_t> range = Range<Frame_t>({}, {}));
+    void export_tracks(const file::Path& prefix = "", Idx_t fdx = Idx_t(), Range<Frame_t> range = Range<Frame_t>({}, {}));
     void save_visual_fields();
     void load_connectivity_matrix();
     

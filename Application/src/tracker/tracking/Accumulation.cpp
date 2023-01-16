@@ -23,6 +23,7 @@
 #include <tracking/ImageExtractor.h>
 #include <python/GPURecognition.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace py = Python;
 
@@ -284,10 +285,10 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTING(calculate_posture);
     
-    for(auto &[id, fish] : Tracker::individuals()) {
+    IndividualManager::transform_all([&](auto id, auto fish) {
         if(!Tracker::identities().count(id)) {
             print("Individual ",id," not part of the training dataset.");
-            continue;
+            return;
         }
         
         Range<Frame_t> overall_range(range);
@@ -332,7 +333,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         if(coverage)
             (*coverage)[Idx_t(id)].insert(used_segments.begin(), used_segments.end());
-    }
+    });
     
     /*std::map<long_t, long_t> lengths;
     for(auto && [frame, ids] : individuals_per_frame) {
@@ -454,7 +455,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
                 break;
             }
             
-            missing_predicted_id = Idx_t((uint32_t)missing_predicted_id + 1u);
+            missing_predicted_id = missing_predicted_id + Idx_t(1);
         }
         
         // find out which one is double
@@ -576,27 +577,22 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         
         print("Generating discrimination data.");
         
-        Range<Frame_t> analysis_range = Range<Frame_t>{
-            Tracker::analysis_range().start,
-            Tracker::analysis_range().end
-        };
-        
-        auto &individuals = Tracker::individuals();
+        auto analysis_range = Tracker::analysis_range();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
-        for(Frame_t frame = analysis_range.start;
-            frame <= analysis_range.end;
-            frame += Frame_t(max(1, analysis_range.length().get() / 333)))
+        for(Frame_t frame = analysis_range.start();
+            frame <= analysis_range.end();
+            frame += max(1_f, analysis_range.length() / 333_f))
         {
             if(frame < Tracker::start_frame())
                 continue;
             if(frame > Tracker::end_frame())
                 break;
             
-            for(auto &[id, fish] : individuals) {
+            IndividualManager::transform_all([&](auto id, auto fish) {
                 auto blob = fish->compressed_blob(frame);
                 if(!blob || blob->split())
-                    continue;
+                    return;
                 
                 auto bounds = blob->calculate_bounds();
                 if(Tracker::instance()->border().in_recognition_bounds(bounds.center()))
@@ -609,7 +605,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
                         disc_individuals_per_frame[frame].insert(Idx_t(id));
                     }
                 }
-            }
+            });
         }
         
         if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *GUI::instance()->video_source(), disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
@@ -709,8 +705,8 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
             _this->_uniqueness_per_class.resize(0);
             _this->_uniqueness_per_class.resize(FAST_SETTING(track_max_individuals));
             for(auto && [id, ps] : unique_percent_per_identity) {
-                assert(id < FAST_SETTING(track_max_individuals));
-                _this->_uniqueness_per_class[id] = per_identity_samples[id] > 0 ? ps / per_identity_samples[id] : 0;
+                assert(id.get() < FAST_SETTING(track_max_individuals));
+                _this->_uniqueness_per_class[id.get()] = per_identity_samples[id] > 0 ? ps / per_identity_samples[id] : 0;
             }
         }
     }
@@ -801,7 +797,7 @@ bool Accumulation::start() {
         LockGuard guard(ro_t{}, "GUI::generate_training_data");
         gui::WorkProgress::set_progress("generating images", 0);
         
-        DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
+        DebugCallback("Generating initial training dataset ", _initial_range," (",_initial_range.length(),") in memory.");
         
         /**
          * also generate an anonymous dataset that can be used for validation
@@ -879,7 +875,7 @@ bool Accumulation::start() {
         unique_map = map;
     }
     
-    if(_mode == TrainingMode::Restart || _mode == TrainingMode::Continue) {
+    if(is_in(_mode, TrainingMode::Restart, TrainingMode::Continue)) {
         // save validation data
         if(_mode == TrainingMode::Restart
            && SETTING(recognition_save_training_images))
@@ -899,7 +895,8 @@ bool Accumulation::start() {
                     it += image->size();
                 }
                 std::vector<long_t> ids;
-                ids.insert(ids.end(), data.validation_ids.begin(), data.validation_ids.end());
+                for(auto& id : data.validation_ids)
+                    ids.emplace_back(id.get());
                 
                 cmn::npz_save(ranges_path.str(), "validation_ids", ids, "w");
                 cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -909,7 +906,9 @@ bool Accumulation::start() {
                     it += image->size();
                 }
                 
-                ids.insert(ids.end(), data.training_ids.begin(), data.training_ids.end());
+                ids.clear();
+                for(auto& id : data.training_ids)
+                    ids.emplace_back(id.get());
                 
                 auto ss = size.to_string();
                 print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
@@ -970,7 +969,10 @@ bool Accumulation::start() {
     const float good_uniqueness = SETTING(gpu_accepted_uniqueness).value<float>();//this->good_uniqueness();
     auto analysis_range = Tracker::analysis_range();
     
-    if(!ranges.empty() && (_mode == TrainingMode::Continue || _mode == TrainingMode::Restart) && SETTING(gpu_enable_accumulation) && best_uniqueness() < good_uniqueness)
+    if(!ranges.empty()
+       && is_in(_mode, TrainingMode::Continue, TrainingMode::Restart)
+       && SETTING(gpu_enable_accumulation)
+       && best_uniqueness() < good_uniqueness)
     {
         DebugHeader("Beginning accumulation from %d ranges in training mode '%s'.", ranges.size(), _mode.name());
         
@@ -1010,8 +1012,8 @@ bool Accumulation::start() {
                     
                     auto center = range.length() / 2_f + range.start;
                     FrameRange extended_range(Range<Frame_t>(
-                        max(analysis_range.start, center - frames_around_center),
-                        min(analysis_range.end, center + frames_around_center))
+                        max(analysis_range.start(), center.try_sub(frames_around_center)),
+                        min(analysis_range.end(), center + frames_around_center))
                     );
                     
                     float average = 0, samples = 0;
@@ -1031,7 +1033,7 @@ bool Accumulation::start() {
                     if(distance < min_distance) min_distance = distance;
                     //distance = roundf((1 - SQR(average)) * 10) * 10;
                     
-                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2<uint64_t>(sign_cast<uint64_t>(range_distance.get()))));
+                    range_distance = Frame_t(narrow_cast<Frame_t::number_t>(next_pow2<uint64_t>(sign_cast<uint64_t>(range_distance.get()))));
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {
@@ -1296,9 +1298,9 @@ bool Accumulation::start() {
                 return gui::WorkProgress::item_custom_triggered(); // otherwise, stop iterating
             }
             
-            std::map<Idx_t, int64_t> sizes;
+            std::map<Idx_t, Frame_t> sizes;
             for(auto id : Tracker::identities()) {
-                sizes[id] = 0;
+                sizes[id] = 0_f;
             }
             
             std::map<Idx_t, std::set<FrameRange>> assigned_ranges;
@@ -1318,29 +1320,29 @@ bool Accumulation::start() {
             }
             
             std::map<Idx_t, std::set<FrameRange>> gaps;
-            std::map<Idx_t, Frame_t::number_t> frame_gaps;
+            std::map<Idx_t, Frame_t> frame_gaps;
             for(auto && [id, ranges] : assigned_ranges)
             {
-                auto previous_frame = analysis_range.start;
+                auto previous_frame = analysis_range.start();
                 for(auto& range : ranges) {
-                    if(previous_frame < range.start() - 1_f) {
+                    if(previous_frame < range.start().try_sub(1_f)) {
                         gaps[id].insert(FrameRange(Range<Frame_t>(previous_frame, range.start())));
-                        frame_gaps[id] += (range.start() - previous_frame).get();
+                        frame_gaps[id] += range.start().try_sub(previous_frame);
                     }
                     
                     sizes[id] += range.length();
                     previous_frame = range.end();
                 }
                 
-                if(previous_frame < analysis_range.end) {
-                    auto r = FrameRange(Range<Frame_t>(previous_frame, analysis_range.end));
+                if(previous_frame < analysis_range.end()) {
+                    auto r = FrameRange(Range<Frame_t>(previous_frame, analysis_range.end()));
                     gaps[id].insert(r);
-                    frame_gaps[id] += r.length() - 1;
+                    frame_gaps[id] += r.length().try_sub(1_f);
                 }
             }
             
             print("\tIndividuals frame gaps: ", frame_gaps);
-            Frame_t::number_t maximal_gaps(0);
+            Frame_t maximal_gaps(0u);
             for(auto && [id, L] : frame_gaps) {
                 if(L > maximal_gaps)
                     maximal_gaps = L;
@@ -1370,10 +1372,10 @@ bool Accumulation::start() {
                 return false;
             }
             
-            if(maximal_gaps < analysis_range.length().get() * 0.25) {
+            if(maximal_gaps < analysis_range.length() / 4_f) {
                 print("---");
                 print("Added enough frames for all individuals - stopping accumulation.");
-                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps / float(analysis_range.length().get()) * 100)+"%).";
+                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps.get() / float(analysis_range.length().get()) * 100)+"%).";
                 tried_ranges.clear(); // dont retry stuff
                 
                 //end_a_step(Result("Added enough frames. Maximal gaps are "+Meta::toStr(maximal_gaps)+"/"+Meta::toStr(analysis_range.length() * 0.25)));
@@ -1464,7 +1466,8 @@ bool Accumulation::start() {
             it += image->size();
         }
         std::vector<long_t> ids;
-        ids.insert(ids.end(), data.validation_ids.begin(), data.validation_ids.end());
+        for(auto& id : data.validation_ids)
+            ids.emplace_back(id.get());
         
         cmn::npz_save(ranges_path.str(), "validation_ids", ids, "w");
         cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -1474,7 +1477,9 @@ bool Accumulation::start() {
             it += image->size();
         }
         
-        ids.insert(ids.end(), data.training_ids.begin(), data.training_ids.end());
+        ids.clear();
+        for(auto& id : data.training_ids)
+            ids.emplace_back(id.get());
         
         auto ss = size.to_string();
         print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
@@ -1591,35 +1596,29 @@ bool Accumulation::start() {
             for(auto method : default_config::individual_image_normalization_t::values)
             {
                 std::map<Idx_t, std::vector<Image::Ptr>> images;
-                PPFrame video_frame;
+                PPFrame pp;
+                pv::Frame video_frame;
                 auto &video_file = *GUI::instance()->video_source();
                 
                 size_t failed_blobs = 0, found_blobs = 0;
                 
                 for(auto && [frame, ids] : frames_collected) {
-                    auto active =
-                        frame == Tracker::start_frame()
-                            ? set_of_individuals_t()
-                            : Tracker::active_individuals(frame - 1_f);
+                    video_file.read_frame(video_frame, frame);
+                    Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
                     
-                    video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));
-                    Tracker::instance()->preprocess_frame(video_frame, active, NULL);
-                    
-                    for(auto id : ids) {
+                    IndividualManager::transform_ids(ids, [&, frame=frame](auto id, auto fish) {
                         auto filters = _collected_data->filters().has(id)
                             ? _collected_data->filters().get(id, frame)
                             : FilterCache();
                         
-                        auto fish = Tracker::individuals().at(id);
-                        
                         auto it = fish->iterator_for(frame);
                         if(it == fish->frame_segments().end())
-                            continue;
+                            return;
                         
                         auto bidx = (*it)->basic_stuff(frame);
                         auto pidx = (*it)->posture_stuff(frame);
                         if(bidx == -1 || pidx == -1)
-                            continue;
+                            return;
                         
                         auto &basic = fish->basic_stuff()[size_t(bidx)];
                         auto posture = pidx > -1 ? fish->posture_stuff()[size_t(pidx)].get() : nullptr;
@@ -1627,14 +1626,14 @@ bool Accumulation::start() {
                         auto bid = basic->blob.blob_id();
                         auto pid = basic->blob.parent_id;
                         
-                        auto blob = Tracker::find_blob_noisy(video_frame, bid, pid, basic->blob.calculate_bounds());
+                        auto blob = Tracker::find_blob_noisy(pp, bid, pid, basic->blob.calculate_bounds());
                         if(!blob)
                             ++failed_blobs;
                         else
                             ++found_blobs;
                         
                         if(!blob || blob->split())
-                            continue;
+                            return;
                         
                         // try loading it all into a vector
                         Image::Ptr image;
@@ -1648,10 +1647,10 @@ bool Accumulation::start() {
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
                         
-                        image = std::get<0>(constraints::diff_image(method, blob, midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
+                        image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
-                    }
+                    });
                 }
                 
                 DebugHeader("Generated images for '%s'", method.name());

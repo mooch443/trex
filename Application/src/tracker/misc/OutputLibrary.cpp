@@ -9,6 +9,7 @@
 #include <tracker/misc/default_config.h>
 #include <tracking/Categorize.h>
 #include <misc/IdentifiedTag.h>
+#include <tracking/IndividualManager.h>
 
 namespace Output {
     using namespace gui;
@@ -140,7 +141,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
                 clear_cache();
                 
-            } else if (name == "output_graphs" || name == "output_default_options" || name == "midline_resolution")
+            } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
             {
                 auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                 std::lock_guard<std::mutex> lock(_output_variables_lock);
@@ -806,7 +807,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto segment = fish->segment_for(frame);
             
             if (segment) {
-                return segment->length();
+                return segment->length().get();
             }
             
             return gui::Graph::invalid();
@@ -971,7 +972,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto tag = tags::find(frame, blob->blob_id());
             if(!tag.valid())
                 return gui::Graph::invalid();
-            return tag.id;
+            return tag.id.get();
         });
         
         _cache_func["qr_p"] = LIBGLFNC({
@@ -1088,7 +1089,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func[name] = func;
     }
     
-    void Library::init_graph(Graph &graph, Individual *fish, LibraryCache::Ptr cache) {
+    void Library::init_graph(Graph &graph, const Individual *fish, LibraryCache::Ptr cache) {
         if(!cache)
             cache = _default_cache;
         
@@ -1120,7 +1121,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
                 auto func = Graph::Function(mod_name,
                     info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                    [fname, mod_name, info, e](int x) {
+                    [fname, mod_name, info, e](Frame_t::number_t x) {
                         return e.second.apply(Library::get(fname, info, Frame_t(x)));
                         
                     }, gui::Color(), units);
@@ -1130,7 +1131,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 if(info.modifiers.is(Modifiers::PLUSMINUS)) {
                     graph.add_function(Graph::Function(mod_name,
                        info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                       [fname, mod_name, info, e](int x) {
+                       [fname, mod_name, info, e](Frame_t::number_t x) {
                            return -e.second.apply(Library::get(fname, info, Frame_t(x)));
                            
                        }, func._color, units));
@@ -1344,8 +1345,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         std::vector<Individual*> neighbors;
         
         LockGuard guard(ro_t{}, "save_focussed_on");
-        
-        for (auto && [id, neighbor] : Tracker::individuals()) {
+        IndividualManager::transform_all([&](auto, auto neighbor){
             if(neighbor != fish) {
                 neighbors.push_back(neighbor);
                 
@@ -1353,7 +1353,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 for(size_t i=header.size()-nheader.size(); i<header.size(); i++)
                     header[i] += std::to_string(neighbors.size());
             }
-        }
+        });
         
         Table table(header);
         Row row;

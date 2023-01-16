@@ -32,6 +32,7 @@
 #include <misc/Output.h>
 #include <gui/WorkProgress.h>
 #include <gui/CheckUpdates.h>
+#include <tracking/IndividualManager.h>
 
 #include <tracking/SplitBlob.h>
 
@@ -554,7 +555,7 @@ int main(int argc, char** argv)
 #if !COMMONS_NO_PYTHON
                 case Arguments::update: {
                     auto status = CheckUpdates::perform(false).get();
-                    if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
+                    if(is_in(status, CheckUpdates::VersionStatus::OLD, CheckUpdates::VersionStatus::ALREADY_ASKED))
                     {
                         CheckUpdates::display_update_dialog();
                     } else if(status == CheckUpdates::VersionStatus::NEWEST) {
@@ -662,24 +663,22 @@ int main(int argc, char** argv)
     
     DebugHeader("LOADING FILE");
     
-    pv::File video(SETTING(filename).value<Path>());
-    video.start_reading();
+    pv::File video(SETTING(filename).value<Path>(), pv::FileMode::READ);
     
     if(video.header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
         
         Path settings_file = file::DataLocation::parse("settings");
-        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
+            if(default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
         }
         
         video.close();
-        video.start_reading();
     }
     
     try {
@@ -698,35 +697,26 @@ int main(int argc, char** argv)
     
     SETTING(video_size) = Size2(average.cols, average.rows);
     SETTING(video_mask) = video.has_mask();
-    SETTING(video_length) = uint64_t(video.length());
+    SETTING(video_length) = uint64_t(video.length().get());
     SETTING(video_info) = std::string(video.get_info());
     
-    if(SETTING(frame_rate).value<int>() <= 0) {
+    if(SETTING(frame_rate).value<uint32_t>() <= 0) {
         FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
         video.generate_average_tdelta();
-        SETTING(frame_rate) = max(1, int(video.framerate()));
+        SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
     }
     
     Library::InitVariables();
     
     Path settings_file = file::DataLocation::parse("settings");
     if(SETTING(settings_file).value<file::Path>().empty()) {
-        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         else {
             SETTING(settings_file) = file::Path();
             FormatWarning("Settings file ",settings_file," does not exist.");
         }
     }
-    
-    if(SETTING(meta_real_width).value<float>() == 0) {
-        FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
-        SETTING(meta_real_width) = float(30.0);
-    }
-    
-    // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-        SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(average.cols);
     
     /**
      * Try to load Settings from the command-line that have been
@@ -737,14 +727,14 @@ int main(int argc, char** argv)
     if(SETTING(settings_file).value<file::Path>().empty()) {
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
+            if(default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
             else if(!executed_a_settings)
                 FormatWarning("Output settings ",output_settings," does not exist.");
         }
         
     } else {
-        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         else
             FormatWarning("Settings file ",settings_file," does not exist.");
@@ -828,7 +818,7 @@ int main(int argc, char** argv)
     
     if(!SETTING(exec).value<file::Path>().empty()) {
         Path exec_settings = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
-        if(!GUI::execute_settings(exec_settings, AccessLevelType::STARTUP))
+        if(!default_config::execute_settings_file(exec_settings, AccessLevelType::STARTUP))
             FormatExcept("Settings file ",exec_settings.str()," cannot be found or execution failed.");
         else
             executed_a_settings = true;
@@ -871,11 +861,15 @@ int main(int argc, char** argv)
         
         size_t added_frames = 0, processed_frames = 0;
         
-        auto range = arange<size_t>(0, video.length()-1, size_t(float(video.length()) / 1000.f));
-        distribute_vector([&](auto, auto start, auto end, auto){
+        auto range = arange<Frame_t>{
+            0_f, video.length(),
+            max(1_f, Frame_t(Frame_t::number_t(float(video.length().get()) / 1000.f)))
+        };
+        distribute_indexes([&](auto, auto start, auto end, auto){
             pv::Frame frame;
+            CPULabeling::ListCache_t cache;
+            
             for(auto it = start; it != end; ++it) {
-                frame.clear();
                 video.read_frame(frame, *it);
             //video.read_frame(next_frame, i+1);
             
@@ -891,8 +885,8 @@ int main(int argc, char** argv)
                             // consider blob
                             auto &l = frame.mask().at(k);
                             auto &p = frame.pixels().at(k);
-                            auto blob = std::make_shared<pv::Blob>(std::make_unique<std::vector<HorizontalLine>>(*l), std::make_unique<std::vector<uchar>>(*p), frame.flags().at(k));
-                            auto blobs = pixel::threshold_blob(blob, narrow_cast<int>(threshold), Tracker::instance()->background());
+                            auto blob = pv::Blob::Make(std::make_unique<std::vector<HorizontalLine>>(*l), std::make_unique<std::vector<uchar>>(*p), frame.flags().at(k));
+                            auto blobs = pixel::threshold_blob(cache, blob.get(), narrow_cast<int>(threshold), Tracker::instance()->background());
                             float pixels = 0, samps = 0;
                             
                             for(auto &b : blobs) {
@@ -927,7 +921,7 @@ int main(int argc, char** argv)
             }
             
             std::lock_guard<std::mutex> guard(sync);
-            processed_frames += *end - *start + 1;
+            processed_frames += (*end).get() - (*start).get() + 1;
             if(processed_frames % 10000 == 0) {
                 print(processed_frames,"/",added_frames," (",processed_frames / float(added_frames) * 100,"%)");
             }
@@ -1055,18 +1049,18 @@ int main(int argc, char** argv)
     
     pv::Blob blob;
     auto copy = blob.properties();
-    print("BasicStuff<",sizeof(track::BasicStuff),"> ",
-          "PostureStuff<",sizeof(track::PostureStuff),"> ",
-          "Individual<",sizeof(track::Individual),"> ",
-          "Blob<",sizeof(pv::Blob),"> ",
-          "MotionRecord<",sizeof(MotionRecord),"> ",
-          "Image<",sizeof(Image::Ptr),"> ",
+    print("BasicStuff<",sizeof(track::BasicStuff),"> "
+          "PostureStuff<",sizeof(track::PostureStuff),"> "
+          "Individual<",sizeof(track::Individual),"> "
+          "Blob<",sizeof(pv::Blob),"> "
+          "MotionRecord<",sizeof(MotionRecord),"> "
+          "Image<",sizeof(Image::Ptr),"> "
           "std::shared_ptr<std::vector<HorizontalLine>><",sizeof(std::shared_ptr<std::vector<HorizontalLine>>),"> "
-          "Bounds<",sizeof(Bounds),"> ",
+          "Bounds<",sizeof(Bounds),"> "
           "bool<",sizeof(bool),"> "
           "cmn::Blob::properties<",sizeof(decltype(copy)),">");
     print("localcache:",sizeof(Individual::LocalCache)," identity:",sizeof(Identity)," std::map<long_t, Vec2>:", sizeof(std::map<long_t, Vec2>));
-    print("BasicStuff:",sizeof(BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob));
+    print("BasicStuff:",sizeof(BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob), " pv::bid:", sizeof(pv::bid));
     print("Midline:",sizeof(Midline)," MinimalOutline:",sizeof(MinimalOutline));
     
     GUI *gui_instance = new GUI(video, tracker.average(), tracker);
@@ -1074,7 +1068,7 @@ int main(int argc, char** argv)
     
     //try {
     GUI &gui = *gui_instance;
-    gui.frameinfo().video_length = video.length() > 0 ? (video.length() - 1) : 0;
+    gui.frameinfo().video_length = video.length() > 0_f ? (video.length().get() - 1) : 0;
     
     if(!SETTING(gui_connectivity_matrix_file).value<file::Path>().empty()) {
         try {
@@ -1082,43 +1076,49 @@ int main(int argc, char** argv)
         } catch(const UtilsException&) { }
     }
     
-    bool please_stop_analysis = false;
+    static bool please_stop_analysis = false;
     
-    std::atomic<Frame_t> currentID(Frame_t{});
-    std::queue<std::shared_ptr<PPFrame>> unused;
-    std::mutex mutex;
-    const Frame_t cache_size{10};
+    static std::atomic<Frame_t> currentID(Frame_t{});
+    static std::queue<std::unique_ptr<PPFrame>> unused;
+    static std::mutex mutex;
+    static constexpr Frame_t cache_size{Frame_t::number_t(10)};
     
     for (auto i=0_f; i<cache_size; ++i)
-        unused.push(std::make_shared<PPFrame>());
+        unused.emplace(std::make_unique<PPFrame>());
         
     //std::mutex stage1_mutex;
     //double time_stage1 = 0, time_stage2 = 0, stage1_samples = 0, stage2_samples = 0;
-    GenericThreadPool pool(cmn::hardware_concurrency(), "preprocess_main");
+    static GenericThreadPool pool(cmn::hardware_concurrency(), "preprocess_main");
     
     //! Stages
-    std::vector<std::function<bool(ConnectedTasks::Type, const ConnectedTasks::Stage&)>> tasks =
+    std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks =
     {
-        [&](std::shared_ptr<PPFrame> ptr, auto&) -> bool {
+        [&video](std::unique_ptr<PPFrame>&& ptr, auto&) -> bool {
             auto idx = ptr->index();
             auto range = Tracker::analysis_range();
-            if(!range.contains(idx) && idx != range.end && idx > Tracker::end_frame()) {
+            if(!range.contains(idx) && idx != range.end() && (not Tracker::end_frame().valid() || idx > Tracker::end_frame())) {
                 std::unique_lock<std::mutex> lock(mutex);
-                unused.push(ptr);
+                unused.emplace(std::move(ptr));
                 return false;
             }
 
+            if(not range.contains(idx))
+                throw U_EXCEPTION("Outside of analysis range: ", idx, " vs. ", range);
+
             Timer timer;
-            video.read_frame(ptr->frame(), (size_t)idx.get());
-            ptr->frame().set_index(idx.get());
-            Tracker::preprocess_frame(*ptr, {}, pool.num_threads() > 1 ? &pool : NULL, NULL, false);
+            pv::Frame frame;
+            video.read_frame(frame, idx);
+            Tracker::preprocess_frame(video, std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, false);
 
-            ptr->frame().set_loading_time(narrow_cast<float>(timer.elapsed()));
+            ptr->set_loading_time(narrow_cast<float>(timer.elapsed()));
 
+            // clear stored blob data, so that the destructor is called
+            // in a different thread (balancing) if they arent needed.
+            IndividualManager::clear_pixels();
             return true;
         },
 
-        [&](std::shared_ptr<PPFrame> ptr, auto&) -> bool {
+        [&tracker, &video, gui_instance, &gui](std::unique_ptr<PPFrame>&& ptr, auto&) -> bool {
             static Timer fps_timer;
             static Image empty(0, 0, 0);
 
@@ -1134,22 +1134,22 @@ int main(int argc, char** argv)
             auto range = Tracker::analysis_range();
 
             auto idx = ptr->index();
-            if (idx >= range.start
-                && max(range.start, tracker.end_frame() + 1_f) == idx
-                && !tracker.properties(idx)
-                && idx <= Tracker::analysis_range().end)
+            if (idx >= range.start()
+                && max(range.start(), tracker.end_frame().valid() ? (tracker.end_frame() + 1_f) : 0_f) == idx
+                && tracker.properties(idx) == nullptr
+                && idx <= Tracker::analysis_range().end())
             {
                 tracker.add(*ptr);
 
                 static Timing after_track("Analysis::after_track", 10);
                 TakeTiming after_trackt(after_track);
                 
-                if(size_t(idx.get() + 1) == video.length())
+                if(idx + 1_f == video.length())
                     please_stop_analysis = true;
 
                 {
                     std::lock_guard<std::mutex> lock(data_mutex);
-                    data_kbytes += ptr->frame().size() / 1024.0;
+                    data_kbytes += ptr->N_blobs() / 1024.0;
                 }
 
                 double elapsed = fps_timer.elapsed();
@@ -1171,14 +1171,26 @@ int main(int argc, char** argv)
                         frames_sec_average += frames_sec;
                         ++frames_sec_samples;
 
-                        float percent = min(1, (ptr->index() - range.start).get() / float(range.length().get() + 1)) * 100;
-                        DurationUS us{ uint64_t(max(0, (double)(range.end - ptr->index()).get() / double(/*frames_sec*/ frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
+                        float percent = min(1, (ptr->index() - range.start()).get() / float(range.length().get() + 1)) * 100;
+                        DurationUS us{ uint64_t(max(0, (double)(range.end() - ptr->index()).get() / double( frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
                         std::string str;
                         
                         if(FAST_SETTING(analysis_range).first != -1 || FAST_SETTING(analysis_range).second != -1)
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end(), "(", video.length(), ") (", dec<2>(data_sec / 1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
+#if defined(__APPLE__)
+                                                              "µs/individual"
+#else
+                                                              "mus/individual"
+#endif
+                                                              );
                         else
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end(), " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
+#if defined(__APPLE__)
+                                                              "µs/individual"
+#else
+                                                              "mus/individual"
+#endif
+                                                              );
 
                         {
                             // synchronize with debug messages
@@ -1212,57 +1224,64 @@ int main(int argc, char** argv)
             static Timing procpush("Analysis::process::unused.push", 10);
             TakeTiming ppush(procpush);
             std::unique_lock<std::mutex> lock(mutex);
-            unused.push(ptr);
+            unused.emplace(std::move(ptr));
 
             return true;
         }
     };
     
-    std::shared_ptr<ConnectedTasks> analysis;
-    analysis = std::make_shared<ConnectedTasks>(tasks);
-    analysis->start(// main thread
-        [&]() {
+    ConnectedTasks analysis(std::move(tasks));
+    analysis.start(// main thread
+        [&tracker, &analysis, &video]() {
             auto endframe = tracker.end_frame();
-            auto current = currentID.load();
-            if(current > endframe + cache_size
-               || !current.valid()
-               || (analysis->stage_empty(0) && analysis->stage_empty(1))
-               || current < endframe)
+            if(not currentID.load().valid()
+               || not endframe.valid()
+               || currentID.load() > endframe + cache_size
+               || (analysis.stage_empty(0) && analysis.stage_empty(1))
+               || currentID.load() < endframe)
             {
-                current = currentID = endframe; // update current as well
+                currentID = endframe; // update current as well
             }
         
             auto range = Tracker::analysis_range();
-            if(current < range.start)
-                currentID = range.start - 1_f;
+            if(not currentID.load().valid()
+               or currentID.load() < range.start())
+                currentID = range.start() - 1_f;
+            
+            if(not endframe.valid())
+                endframe = range.start();
             
             if(FAST_SETTING(analysis_range).second != -1
-               && endframe >= Frame_t(FAST_SETTING(analysis_range).second)
+               && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).second))
                && !SETTING(terminate)
                && !please_stop_analysis)
             {
                 please_stop_analysis = true;
             }
             
-            while(currentID.load() < max(range.start, endframe) + cache_size
-                  && size_t((currentID.load() + 1_f).get()) < video.length())
+            while(not currentID.load().valid()
+                  || (currentID.load() < max(range.start(), endframe) + cache_size
+                      && currentID.load() + 1_f < video.length()))
             {
-                std::unique_lock<std::mutex> lock(mutex);
+                std::scoped_lock lock(mutex);
                 if(unused.empty())
                     break;
                 
-                auto ptr = unused.front();
+                auto ptr = std::move(unused.front());
                 unused.pop();
                 
-                currentID = currentID.load() + 1_f;
+                if(not currentID.load().valid())
+                    currentID = range.start();
+                else
+                    currentID = currentID.load() + 1_f;
                 ptr->set_index(currentID.load());
                 
-                analysis->add(ptr);
+                analysis.add(std::move(ptr));
             }
         }
     );
         
-    gui.set_analysis(analysis.get());
+    gui.set_analysis(&analysis);
     gui_lock.unlock();
     
 #if !COMMONS_NO_PYTHON
@@ -1278,15 +1297,15 @@ int main(int argc, char** argv)
         }
         
         if (key == "analysis_paused") {
-            analysis->bump();
+            analysis.bump();
             
             bool pause = value.value<bool>();
-            if(analysis->paused() != pause) {
+            if(analysis.paused() != pause) {
                 print("Adding to queue...");
                 
                 gui::WorkProgress::add_queue("pausing", [&analysis, pause](){
-                    if(analysis->paused() != pause) {
-                        analysis->set_paused(pause);
+                    if(analysis.paused() != pause) {
+                        analysis.set_paused(pause);
                         print("Paused.");
                     }
                 });
@@ -1309,7 +1328,7 @@ int main(int argc, char** argv)
     };
     
     if(FAST_SETTING(analysis_paused) || load_results) {
-        analysis->set_paused(true).get();
+        analysis.set_paused(true).get();
         
         if(load_results) {
             if(!executed_a_settings) {
@@ -1328,8 +1347,16 @@ int main(int argc, char** argv)
             
             // explicitly set gui_frame if present in command-line
             if(cmd.settings_keys().find("gui_frame") != cmd.settings_keys().end()) {
+                GUI::gui_frame_on_startup().frame = Meta::fromStr<Frame_t>(cmd.settings_keys().at("gui_frame"));
                 gui::WorkProgress::add_queue("", [&](){
-                    SETTING(gui_frame) = Meta::fromStr<Frame_t>(cmd.settings_keys().at("gui_frame"));
+                    SETTING(gui_frame) = GUI::gui_frame_on_startup().frame;
+                });
+            }
+            
+            if(cmd.settings_keys().find("gui_focus_group") != cmd.settings_keys().end()) {
+                GUI::gui_frame_on_startup().focus_group = Meta::fromStr<std::vector<Idx_t>>(cmd.settings_keys().at("gui_focus_group"));
+                gui::WorkProgress::add_queue("", [&](){
+                    SETTING(gui_focus_group) = GUI::gui_frame_on_startup().focus_group.value();
                 });
             }
         }
@@ -1442,8 +1469,8 @@ int main(int argc, char** argv)
             std::string cmd;
             bool before;
             {
-                before = analysis->is_paused();
-                analysis->set_paused(true).get();
+                before = analysis.is_paused();
+                analysis.set_paused(true).get();
                 
                 LockGuard guard(w_t{}, "pause_stuff");
             
@@ -1548,11 +1575,11 @@ int main(int argc, char** argv)
                     else if(utils::lowercase(command) == "print_memory") {
                         LockGuard guard(ro_t{}, "print_memory");
                         mem::IndividualMemoryStats overall;
-                        for(auto && [fdx, fish] : Tracker::individuals()) {
+                        IndividualManager::transform_all([&](auto, auto fish) {
                             mem::IndividualMemoryStats stats(fish);
                             stats.print();
                             overall += stats;
-                        }
+                        });
                     
                         overall.print();
                         
@@ -1612,7 +1639,7 @@ int main(int argc, char** argv)
                 
                 if(!before)
                     SETTING(analysis_paused) = false;
-                analysis->bump();
+                analysis.bump();
             });
         }
         
@@ -1621,7 +1648,7 @@ int main(int argc, char** argv)
             already_pausing = true;
             please_stop_analysis = false;
             gui::WorkProgress::add_queue("pausing", [&](){
-                analysis->set_paused(true).get();
+                analysis.set_paused(true).get();
                 already_pausing = false;
                 GUI::tracking_finished();
             });
@@ -1712,7 +1739,8 @@ int main(int argc, char** argv)
     }
     if(imgui_base)
         delete imgui_base;
-    analysis->terminate();
+    analysis.terminate();
+    analysis.~ConnectedTasks();
     
     tracker.prepare_shutdown();
     

@@ -1,71 +1,76 @@
 #include "ConnectedTasks.h"
 #include <misc/SpriteMap.h>
+#include <tracking/PPFrame.h>
 
-#define DEBUG_THREAD_STATE
+//#define DEBUG_THREAD_STATE
 
 namespace cmn {
-    ConnectedTasks::ConnectedTasks(const std::vector<std::function<bool(Type, const Stage&)>>& tasks)
-        : _stop(false), _tasks(tasks), _stages(tasks.size()), _paused(false)
+    ConnectedTasks::ConnectedTasks(std::vector<std::function<bool(Type&&, const Stage&)>>&& tasks)
+        : _stop(false), _tasks(std::move(tasks)), _stages(_tasks.size()), _paused(false)
     {
         for(uint32_t i=0; i<(uint32_t)_tasks.size(); i++) {
             _stages.at(i).id = i;
-            _stages.at(i).paused = false;
             _stages.at(i).timings = 0;
             _stages.at(i).samples = 0;
             
-            _threads.push_back(new std::thread([this](size_t i) {
-                auto name = "ConnectedTasks::stage_"+Meta::toStr(i);
-                set_thread_name(name);
-                
-                const auto &task = _tasks.at(i);
-                auto &stage = _stages.at(i);
-                auto *next_stage = i+1 < _stages.size() ? &_stages.at(i+1) : NULL;
-                
-                std::unique_lock<std::mutex> lock(stage.mutex);
-                
-                for(;;) {
-#ifdef DEBUG_THREAD_STATE
-                    set_thread_name(name+"::idle");
-#endif
-                    stage.condition.wait_for(lock, std::chrono::seconds(1), [&](){ return (!_paused && !stage.queue.empty()) || _stop || stage.paused != _paused; });
+            for(int j=0; j<(i == 0 ? 2 : 1); ++j) {
+                _thread_paused.emplace_back(false);
+                _threads.push_back(new std::thread([this](size_t i, size_t j) {
+                    auto name = "ConnectedTasks::stage_"+Meta::toStr(i)+"_"+Meta::toStr(j);
+                    set_thread_name(name);
                     
-                    if(stage.paused != _paused)
-                        stage.paused = _paused.load();
+                    const auto &task = _tasks.at(i);
+                    auto &stage = _stages.at(i);
+                    auto *next_stage = i+1 < _stages.size() ? &_stages.at(i+1) : NULL;
                     
-                    if(!_paused && !stage.queue.empty()) {
+                    std::unique_lock<std::mutex> lock(stage.mutex);
+                    
+                    for(;;) {
 #ifdef DEBUG_THREAD_STATE
-                        set_thread_name(name);
+                        set_thread_name(name+"::idle");
 #endif
-                        stage.timer.reset();
+                        stage.condition.wait_for(lock, std::chrono::seconds(1), [&](){ return (!_paused && !stage.queue.empty()) || _stop || _thread_paused[j] != _paused; });
                         
-                        auto obj = stage.queue.front();
-                        stage.queue.pop();
-                        
-                        // free mutex, perform task, regain mutex
-                        lock.unlock();
-                        auto result = task(obj, stage);
-                        lock.lock();
-                        
-                        if(next_stage && result) {
-                            std::unique_lock<std::mutex> lock(next_stage->mutex);
-                            next_stage->queue.push(obj);
+                        if(_thread_paused[j] != _paused) {
+                            _thread_paused[j] = _paused.load();
                         }
                         
-                        if(next_stage && result)
-                            next_stage->condition.notify_one();
-                        _finish_condition.notify_one();
-                        
-                        if(result) {
-                            stage.timings += (float)stage.timer.elapsed();
-                            stage.samples ++;
-                            stage.average_time = stage.timings / stage.samples;
-                        }
-                        
-                    } else if(_stop)
-                        break;
-                }
-                
-            }, i));
+                        if(!_paused && !stage.queue.empty()) {
+#ifdef DEBUG_THREAD_STATE
+                            set_thread_name(name);
+#endif
+                            stage.timer.reset();
+                            
+                            auto obj = std::move(stage.queue.front());
+                            stage.queue.pop();
+                            
+                            // free mutex, perform task, regain mutex
+                            lock.unlock();
+                            auto result = task(std::move(obj), stage);
+                            lock.lock();
+                            
+                            if(next_stage && result) {
+                                std::unique_lock<std::mutex> lock(next_stage->mutex);
+                                next_stage->queue.emplace(std::move(obj));
+                            }
+                            
+                            if(next_stage && result)
+                                next_stage->condition.notify_one();
+                            if (!next_stage)
+                                _finish_condition.notify_one();
+                            
+                            if(result) {
+                                stage.timings += (float)stage.timer.elapsed();
+                                stage.samples ++;
+                                stage.average_time = stage.timings / stage.samples;
+                            }
+                            
+                        } else if(_stop)
+                            break;
+                    }
+                    
+                }, i, _thread_paused.size() - 1));
+            }
         }
     }
 
@@ -156,8 +161,8 @@ namespace cmn {
     
     bool ConnectedTasks::is_paused() const {
         bool paused = true;
-        for(auto &s : _stages)
-            if(!s.paused) {
+        for(auto s : _thread_paused)
+            if(!s) {
                 paused = false;
                 break;
             }

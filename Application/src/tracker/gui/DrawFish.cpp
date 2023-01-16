@@ -53,7 +53,6 @@ Fish::~Fish() {
 
     Fish::Fish(Individual& obj)
         :   _obj(obj),
-            _frame(-1),
             _info(&_obj, Output::Options_t{}),
             _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
     {
@@ -95,11 +94,18 @@ Fish::~Fish() {
 
     void Fish::check_tags() {
         if (_blob) {
-
-            auto p = tags::prettify_blobs(
-                GUICache::instance().processed_frame.blobs(),
-                GUICache::instance().processed_frame.noise(),
-                GUICache::instance().processed_frame.original_blobs(),
+            std::vector<pv::BlobPtr> blobs;
+            std::vector<pv::BlobPtr> noise;
+            
+            GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob &blob) {
+                blobs.emplace_back(pv::Blob::Make(blob));
+            });
+            GUICache::instance().processed_frame.transform_noise([&](const pv::Blob &blob) {
+                noise.emplace_back(pv::Blob::Make(blob));
+            });
+            
+            auto p = tags::prettify_blobs(blobs, noise, {},
+                //GUICache::instance().processed_frame.original_blobs(),
                 Tracker::instance()->background()->image());
 
             for (auto& image : p) {
@@ -154,7 +160,7 @@ Fish::~Fish() {
                 _image.unsafe_get_source().set_index(-1);
             points.clear();
             
-            auto seg = _obj.segment_for(_frame);
+            auto seg = _frame.valid() ? _obj.segment_for(_frame) : nullptr;
             if(seg) {
                 _match_mode = (int)_obj.matched_using().at(seg->basic_stuff(_frame)).value();
             } else
@@ -221,7 +227,7 @@ Fish::~Fish() {
     }*/
     
     void Fish::update(Base* base, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
-        const int frame_rate = FAST_SETTING(frame_rate);
+        const auto frame_rate = FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
@@ -306,7 +312,7 @@ Fish::~Fish() {
         auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
         if (it != cache.fish_selected_blobs.end()) {
             for (auto& [b, ptr] : cache.display_blobs) {
-                if (b->blob_id() == it->second) {
+                if (b == it->second) {
                     //ptr->ptr->set_pos(Vec2());
                     if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value
                         && is_selected)
@@ -456,7 +462,7 @@ Fish::~Fish() {
         
         _view.update([&](Entangled&) {
             if (GUIOPTION(gui_show_paths))
-                paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame - 1000_f), base_color);
+                paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame.try_sub(1000_f)), base_color);
 
             if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
@@ -488,25 +494,22 @@ Fish::~Fish() {
             auto ML = _obj.midline_length();
             auto radius = (FAST_SETTING(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
-                // DISPLAY NEXT POSITION (estimated position in _idx + 1)
-                //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
-                if(!_next_frame_cache.valid)
-                    _next_frame_cache = _obj.cache_for_frame(_frame + 1_f, next_time);
-                auto estimated = _next_frame_cache.estimated_px + offset;
-            
-                _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(max_color)});
-                    //auto &fcache = cache.processed_frame.cached_individuals.at(_obj.identity().ID());
-                    //auto estimated = cache.estimated_px + offset;
-                    //float tdelta = next_time - current_time;
-                    //float tdelta = fcache.local_tdelta;
-                _view.add<Line>(c_pos, estimated, clr);
-                _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
+                if(!_next_frame_cache.valid) {
+                    auto result = _obj.cache_for_frame(Tracker::properties(_frame), _frame + 1_f, next_time);
+                    if(result) {
+                        _next_frame_cache = std::move(result.value());
+                    } else {
+                        FormatWarning("Cannot create cache_for_frame of ", _obj.identity(), " for frame ", _frame + 1_f, " because: ", result.error());
+                    }
+                }
                 
-                    //const float max_d = FAST_SETTING(track_max_speed) * tdelta / FAST_SETTING(cm_per_pixel);
-                    //window.circle(estimated, max_d * 0.5, Red.alpha(100));
-                //}
-            
-                //window.circle(estimated, FAST_SETTING(track_max_speed) * tdelta, clr);
+                if(_next_frame_cache.valid) {
+                    auto estimated = _next_frame_cache.estimated_px + offset;
+                    
+                    _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(max_color)});
+                    _view.add<Line>(c_pos, estimated, clr);
+                    _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
+                }
             }
         
             if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && _posture_stuff && _posture_stuff->head) {
@@ -591,67 +594,59 @@ Fish::~Fish() {
         
                 auto color_source = GUIOPTION(gui_fish_color);
                 if(color_source == "viridis") {
-                    for(auto &b : GUICache::instance().processed_frame.blobs()) {
-                        if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
-                            auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
-                            auto rgba = Image::Make(difference->rows, difference->cols, 4);
+                    GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob& b)
+                    {
+                        if(!is_in(b.blob_id(), _blob->blob_id(), _blob->parent_id))
+                            return true;
                         
-                            uchar maximum_grey = 255, minimum_grey = 0;//std::numeric_limits<uchar>::max();
-                            /*for(size_t i=0; i<difference->size(); ++i) {
-                                auto c = difference->data()[i];
-                                maximum_grey = max(maximum_grey, c);
-                            
-                                if(difference->data()[i] > 0)
-                                    minimum_grey = min(minimum_grey, c);
-                            }
-                            for(size_t i=0; i<difference->size(); ++i)
-                                difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum_grey * 255);
+                        auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                        auto rgba = Image::Make(difference->rows, difference->cols, 4);
+                    
+                        uchar maximum_grey = 255, minimum_grey = 0;
                         
-                            if(minimum_grey == maximum_grey)
-                                minimum_grey = maximum_grey - 1;*/
-                        
-                            auto ptr = rgba->data();
-                            auto m = difference->data();
-                            for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
-                                auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
-                                *(ptr) = c.r;
-                                *(ptr+1) = c.g;
-                                *(ptr+2) = c.b;
-                                *(ptr+3) = *m;
-                            }
-                        
-                            _view.add<ExternalImage>(std::move(rgba), dpos + offset);
-                        
-                            break;
+                        auto ptr = rgba->data();
+                        auto m = difference->data();
+                        for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
+                            auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
+                            *(ptr) = c.r;
+                            *(ptr+1) = c.g;
+                            *(ptr+2) = c.b;
+                            *(ptr+3) = *m;
                         }
-                    }
+                    
+                        _view.add<ExternalImage>(std::move(rgba), dpos + offset);
+                        
+                        return false;
+                    });
                 
                 } else if(!Graph::is_invalid(_library_y)) {
                     auto percent = min(1.f, cmn::abs(_library_y));
                     Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
-                    for(auto &b : GUICache::instance().processed_frame.blobs()) {
-                        if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
-                            auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
-                            auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
+                    GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob& b)
+                    {
+                        if(!is_in(b.blob_id(), _blob->blob_id(), _blob->parent_id))
+                            return true;
                         
-                            auto rgba = Image::Make(image->rows, image->cols, 4);
-                        
-                            uchar maximum = 0;
-                            for(size_t i=0; i<difference->size(); ++i) {
-                                maximum = max(maximum, difference->data()[i]);
-                            }
-                            for(size_t i=0; i<difference->size(); ++i)
-                                difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
-                        
-                            rgba->set_channels(image->data(), {0, 1, 2});
-                            rgba->set_channel(3, difference->data());
-                        
-                            _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
-                        
-                            break;
+                        auto && [image_pos, image] = b.binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
+                        auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                    
+                        auto rgba = Image::Make(image->rows, image->cols, 4);
+                    
+                        uchar maximum = 0;
+                        for(size_t i=0; i<difference->size(); ++i) {
+                            maximum = max(maximum, difference->data()[i]);
                         }
-                    }
+                        for(size_t i=0; i<difference->size(); ++i)
+                            difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
+                    
+                        rgba->set_channels(image->data(), {0, 1, 2});
+                        rgba->set_channel(3, difference->data());
+                    
+                        _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
+                    
+                        return false;
+                    });
                 }
         
             
@@ -881,9 +876,9 @@ Fish::~Fish() {
         to = min(_obj.end_frame(), _frame);
         
         float color_start = max(0, round(_frame.get() - FAST_SETTING(frame_rate) * GUIOPTION(gui_max_path_time)));
-        float color_end = max(color_start + 1, _frame.get());
+        float color_end = max(color_start + 1, (float)_frame.get());
         
-        from = max(Frame_t(color_start), from);
+        from = max(Frame_t(sign_cast<Frame_t::number_t>(color_start)), from);
         
         if(_prev_frame_range.start != _obj.start_frame() || _prev_frame_range.end > _obj.end_frame()) {
             frame_vertices.clear();
@@ -907,16 +902,19 @@ Fish::~Fish() {
             first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         }
         
-        if(first > from) {
+        if(not first.valid()
+           || first > from)
+        {
             auto i = (first.valid() ? first - 1_f : from);
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
             auto begin = _obj.frame_segments().begin();
             //auto seg = _obj.segment_for(i);
             
-            for (; i>=from; --i) {
+            for (; i.valid() && i>=from; --i) {
                 if(fit == end || (*fit)->start() > i) {
-                    while(fit != begin && (*fit)->start() > i) {
+                    while(fit != begin && (fit == end || (*fit)->start() > i))
+                    {
                         --fit;
                     }
                 }
@@ -948,8 +946,10 @@ Fish::~Fish() {
         
         last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
         
-        if(last < to) {
-            auto i = max(from, last);
+        if(not last.valid()
+           || last < to)
+        {
+            auto i = last.valid() ? max(from, last) : from;
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
             
@@ -1220,7 +1220,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
         auto&& [valid, segment] = _obj.has_processed_segment(_frame);
         if (valid) {
             auto [samples, map] = _obj.processed_recognition(segment.start());
-            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                 return a.second < b.second;
             });
 
@@ -1234,7 +1234,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
             auto pred = Tracker::instance()->find_prediction(_frame, blob->blob_id());
             if(pred) {
                 auto map = Tracker::prediction2map(*pred);
-                auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                         return a.second < b.second;
                     });
 

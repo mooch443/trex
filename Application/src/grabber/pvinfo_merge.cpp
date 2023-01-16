@@ -1,6 +1,6 @@
 #include "pvinfo_merge.h"
 #include <pv.h>
-#include <tracking/StaticBackground.h>
+#include <processing/Background.h>
 #include <misc/SpriteMap.h>
 #include <misc/GlobalSettings.h>
 #include <misc/default_config.h>
@@ -25,9 +25,9 @@ std::string date_time() {
 }
 
 void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, char**argv) {
-    uint64_t min_length = std::numeric_limits<uint64_t>::max();
+    Frame_t min_length;
     std::vector<std::shared_ptr<pv::File>> files;
-    std::vector<std::shared_ptr<track::StaticBackground>> backgrounds;
+    std::vector<std::shared_ptr<Background>> backgrounds;
     std::vector<std::shared_ptr<sprite::Map>> configs;
     
     std::map<pv::File*, float> cms_per_pixel;
@@ -60,15 +60,14 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(!name.has_extension() || name.extension() != "pv")
             name = name.add_extension("pv");
         
-        auto file = std::make_shared<pv::File>(name);
-        file->start_reading();
+        auto file = std::make_shared<pv::File>(name, pv::FileMode::READ);
         files.push_back(file);
         
-        if(min_length > file->length())
+        if(not min_length.valid() || min_length > file->length())
             min_length = file->length();
         
         resolution += Size2(file->header().resolution);
-        backgrounds.push_back(std::make_shared<track::StaticBackground>(Image::Make(file->average()), nullptr));
+        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), nullptr));
         //cv::imshow(name.str(), backgrounds.back()->image().get());
         //cv::waitKey(1);
         
@@ -118,9 +117,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         path = file::DataLocation::parse("input", path);
         
         if((!path.has_extension() && path.add_extension("pv").exists()) || (path.has_extension() && path.extension() == "pv")) {
-            pv::File file(path);
-            file.start_reading();
-            
+            pv::File file(path, pv::FileMode::READ);
             file.average().copyTo(average);
         } else {
             if(!path.exists()) {
@@ -142,9 +139,9 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution = Size2(average);
     }
     
-    track::StaticBackground new_background(Image::Make(average), nullptr);
+    Background new_background(Image::Make(average), nullptr);
     
-    if(SETTING(frame_rate).value<int>() == 0){
+    if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(!files.front()->header().metadata.empty())
             sprite::parse_values(GlobalSettings::map(), files.front()->header().metadata);
         
@@ -153,7 +150,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     struct Source {
         uint64_t video_index;
-        uint64_t frame_index;
+        Frame_t frame_index;
         pv::bid blob_id;
     };
     
@@ -177,18 +174,17 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     SETTING(meta_number_merged_videos) = size_t(files.size());
     
     // frame: {blob : source}
-    std::map<long_t, std::map<pv::bid, Source>> meta;
+    std::map<Frame_t, std::map<pv::bid, Source>> meta;
     if(SETTING(merge_output_path).value<file::Path>().empty())
         SETTING(merge_output_path) = file::Path("merged");
     
     file::Path out_path = file::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
-    pv::File output(out_path);
+    pv::File output(out_path, pv::FileMode::WRITE | pv::FileMode::OVERWRITE);
     
     output.set_resolution((cv::Size)resolution);
     output.set_average(average);
     
     output.set_start_time(std::chrono::system_clock::now());
-    output.start_writing(true);
     
     //auto start_time = output.header().timestamp;
     print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
@@ -216,7 +212,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
      
      for(size_t i=0; i<f.n(); ++i) {
-     auto b = std::make_shared<pv::Blob>(f.mask().at(i), f.pixels().at(i));
+     auto b = pv::Blob::Make(f.mask().at(i), f.pixels().at(i));
      auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
      
      if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
@@ -243,10 +239,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      }
      }*/
     
-    auto timestamp_offset = output.length() == 0 ? timestamp_t(0) : output.last_frame().timestamp();
+    auto timestamp_offset = output.length() == 0_f ? timestamp_t(0) : output.last_frame().timestamp();
     merge_mode_t::Class merge_mode = SETTING(merge_mode);
     
-    for (uint64_t frame=0; frame<min_length; ++frame) {
+    for (Frame_t frame=0_f; frame<min_length; ++frame) {
         pv::Frame f, o;
         if(SETTING(terminate))
             break;
@@ -267,7 +263,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {
-                auto b = std::make_shared<pv::Blob>(
+                auto b = pv::Blob::Make(
                     std::move(f.mask().at(i)),
                     std::move(f.pixels().at(i)),
                     f.flags().at(i));
@@ -290,14 +286,14 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 } else {
                     meta[frame][b->blob_id()] = Source{ vdx, frame, id };
                     
-                    ptrs.push_back(b);
+                    ptrs.push_back(std::move(b));
                     indexes.push_back(vdx);
                 }
             }
         }
         
         // collect cliques of potentially overlapping blobs
-        std::vector<std::set<pv::BlobPtr>> cliques;
+        std::vector<std::vector<pv::BlobPtr>> cliques;
         std::vector<bool> viewed;
         viewed.resize(ptrs.size());
         
@@ -305,20 +301,21 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             if (viewed[i])
                 continue;
             
-            std::set<pv::BlobPtr> clique{ ptrs.at(i) };
+            std::vector<pv::BlobPtr> clique;
+            clique.emplace_back(std::move(ptrs.at(i)));
             viewed[i] = true;
             
             for (size_t j=i+1; j<ptrs.size(); ++j) {
-                if(viewed.at(j) /*|| indexes.at(j) == indexes.at(i)*/)
+                if(!ptrs.at(i) || viewed.at(j) /*|| indexes.at(j) == indexes.at(i)*/)
                     continue;
                 
                 if(ptrs.at(i)->bounds().overlaps(ptrs.at(j)->bounds())) {
                     viewed.at(j) = true;
-                    clique.insert(ptrs.at(j));
+                    clique.emplace_back(std::move(ptrs.at(j)));
                 }
             }
             
-            cliques.push_back(clique);
+            cliques.emplace_back(std::move(clique));
         }
         
         for(auto &clique : cliques) {
@@ -381,7 +378,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                         line.y += bounds.pos().y;
                     }
                     o.add_object(std::move(pair));
-                    //std::make_shared<pv::Blob>(lines, pixels);
+                    //pv::Blob::Make(lines, pixels);
                 }
                 //cv::imshow("blended", mat);
                 //cv::waitKey(10);
@@ -396,15 +393,15 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         
         output.add_individual(std::move(o));
         
-        if(frame % size_t(min_length * 0.1) == 0) {
+        if(frame.get() % size_t(min_length.get() * 0.1) == 0) {
             print("merging ", frame,"/",min_length);
         }
     }
     
-    output.stop_writing();
     output.close();
     
-    output.start_reading();
-    output.print_info();
-    output.close();
+    {
+        pv::File video(output.filename(), pv::FileMode::READ);
+        video.print_info();
+    }
 }

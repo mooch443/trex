@@ -29,7 +29,7 @@ namespace Output {
     // , const std::function<float(float)>& options
 #define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
 #define _LIBFNC(CONTENT) LIBPARAM -> float \
-{ Individual* fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return gui::Graph::invalid(); CONTENT }
+{ auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return gui::Graph::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
     
 #define _LIBGLFNC(CONTENT) LIBPARAM -> double \
@@ -37,7 +37,7 @@ namespace Output {
 #define LIBGLFNC(CONTENT) [] _LIBGLFNC(CONTENT)
 
 #define _LIBNCFNC(CONTENT) LIBPARAM -> double \
-{ Individual* fish = info.fish; (void)props; (void)smooth; CONTENT }
+{ auto fish = info.fish; (void)props; (void)smooth; CONTENT }
 #define LIB_NO_CHECK_FNC(CONTENT) [] _LIBNCFNC(CONTENT)
     
 #define MODIFIED(FNC, MODIFIER) (_output_modifiers.count(FNC) != 0 ? _output_modifiers.at(FNC).is(MODIFIER) : false)
@@ -104,11 +104,11 @@ namespace Output {
         
         struct LibInfo {
             size_t rec_depth;
-            Individual* fish;
+            const Individual* fish;
             const Options_t modifiers;
             LibraryCache::Ptr _cache;
             
-            LibInfo(Individual* fish, const Options_t &modifiers, LibraryCache::Ptr cache = nullptr) : rec_depth(0), fish(fish), modifiers(modifiers), _cache(cache)
+            LibInfo(const Individual* fish, const Options_t &modifiers, LibraryCache::Ptr cache = nullptr) : rec_depth(0), fish(fish), modifiers(modifiers), _cache(cache)
             {}
         };
         
@@ -125,7 +125,7 @@ namespace Output {
         static double get(const std::string& name, LibInfo info, Frame_t frame);
         static double get_with_modifiers(const std::string& name, LibInfo info, Frame_t frame);
         static void add(const std::string& name, const FunctionType& func);
-        static void init_graph(gui::Graph &graph, Individual *fish, LibraryCache::Ptr cache = nullptr);
+        static void init_graph(gui::Graph &graph, const Individual *fish, LibraryCache::Ptr cache = nullptr);
         static bool has(const std::string& name);
         static std::vector<std::string> functions();
         

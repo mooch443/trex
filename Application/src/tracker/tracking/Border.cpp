@@ -112,19 +112,21 @@ namespace track {
             
             print("Reading video...");
             pv::Frame frame;
-            size_t step_size = max(1, video.length() * 0.0002);
-            const size_t count_steps = video.length() / step_size;
-            for (size_t i=0; i<video.length(); i+=step_size) {
+            Frame_t step_size = Frame_t(max(Frame_t::number_t(1), Frame_t::number_t(video.length().get() * 0.0002)));
+            const auto count_steps = video.length() / step_size;
+            CPULabeling::ListCache_t cache;
+            
+            for (Frame_t i=0_f; i<video.length(); i+=step_size) {
                 video.read_frame(frame, i);
                 auto blobs = frame.get_blobs();
                 
                 if(SETTING(terminate))
                     break;
                 
-                for(auto b : blobs) {
-                    auto pb = pixel::threshold_blob(b, FAST_SETTING(track_threshold), Tracker::instance()->background());
+                for(auto &b : blobs) {
+                    auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
                     
-                    for(auto b : pb) {
+                    for(auto &b : pb) {
                         auto size = b->num_pixels() * sqcm;
                         if(FAST_SETTING(blob_size_ranges).in_range_of_one(size, rescale)) {  //size >= min_size && size <= max_size) {
                             for(auto &line : b->hor_lines()) {
@@ -139,7 +141,7 @@ namespace track {
                     }
                 }
                 
-                if((i / step_size) % size_t(count_steps * 0.1) == 0)
+                if((i / step_size).get() % size_t(count_steps.get() * 0.1) == 0)
                     print("[border] ", i/step_size," / ",count_steps);
             }
             
@@ -207,20 +209,21 @@ namespace track {
                 y_range.resize(video.size().width);
                 
                 const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
+                CPULabeling::ListCache_t cache;
                 
                 std::vector<pv::BlobPtr> collection;
                 pv::Frame frame;
-                for (size_t i=0; i<video.length(); i+=max(1, video.length() * 0.0005)) {
+                for (Frame_t i=0_f; i<video.length(); i+=max(1_f, Frame_t(Frame_t::number_t(video.length().get() * 0.0005)))) {
                     video.read_frame(frame, i);
                     auto blobs = frame.get_blobs();
                     
-                    for(auto b : blobs) {
-                        auto pb = pixel::threshold_blob(b, FAST_SETTING(track_threshold), Tracker::instance()->background());
+                    for(auto &b : blobs) {
+                        auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
                         
-                        for(auto b : pb) {
+                        for(auto &&b : pb) {
                             auto size = b->num_pixels() * sqcm;
                             if(FAST_SETTING(blob_size_ranges) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
-                                collection.push_back(b);
+                                collection.push_back(std::move(b));
                         }
                     }
                 }

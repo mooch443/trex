@@ -46,18 +46,18 @@ namespace gui {
         //_pgraph.changed = false;
     }
     
-    void PropertiesGraph::setup_graph(long_t frameNr, const Rangel& range, Individual* fish, Output::LibraryCache::Ptr cache) {
+    void PropertiesGraph::setup_graph(long_t frameNr, const Rangel& range, const Individual* fish, Output::LibraryCache::Ptr cache) {
         if(_fish != fish || frameNr != _frameNr) {
             if(!range.empty()) {
-                _graph.set_ranges(Rangef(max(range.start, fish->start_frame().get()),
-                                         min(range.end, fish->end_frame().get())),
+                _graph.set_ranges(Rangef(max(range.start, (long_t)fish->start_frame().get()),
+                                         min(range.end, (long_t)fish->end_frame().get())),
                                   Rangef(RADIANS(-180), RADIANS(180)));
             } else {
                 _graph.set_ranges(Rangef(fish->start_frame().get(), fish->end_frame().get()),
                                   Rangef(RADIANS(-180), RADIANS(180)));
             }
             
-            _graph.set_title("Individual "+std::to_string(fish->identity().ID()));
+            _graph.set_title("Individual "+fish->identity().ID().toStr());
             _graph.set_zero(frameNr);
             _graph.clear();
             _graph.set_scroll_enabled(true);

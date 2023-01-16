@@ -163,7 +163,7 @@ namespace Output {
         static uint64_t estimate_individual_size(const Individual& val);
         void write_file(const std::vector<track::FrameProperties::Ptr>& frames,
                         const active_individuals_map_t& active_individuals_frame,
-                        const ska::bytell_hash_map<Idx_t, Individual*>& individuals);
+                        const individuals_map_t& individuals);
         
         Individual* read_individual(Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);

@@ -6,6 +6,7 @@
 #include <misc/checked_casts.h>
 #include <tracking/Export.h>
 #include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
 
 namespace gui {
 namespace heatmap {
@@ -253,7 +254,7 @@ void HeatmapController::sort_data_into_custom_grid() {
         });
         
     } else if(isPowerOfTwo(uniform_grid_cell_size)
-              && (_normalization == normalization_t::none || _normalization == normalization_t::value || _normalization == normalization_t::variance))
+              && is_in(_normalization, normalization_t::none, normalization_t::value, normalization_t::variance))
     {
         values.clear();
         
@@ -439,15 +440,24 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     static std::vector<heatmap::DataPoint> data;
     UpdatedStats updated;
     
-    {
-        auto d = abs(current_frame - _frame);
-        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
+    if(current_frame.valid()) {
+        auto d = _frame.valid()
+                ? ((current_frame >= _frame)
+                   ? (current_frame - _frame)
+                   : (_frame - current_frame))
+                : current_frame;
+        const auto frame_range = _frame_context.valid()
+            ? _frame_context
+            : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
         
-        if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
+        if(not _frame.valid()
+           || _grid.empty()
+           || (_frame_context.valid() && d >= _frame_context))
+        {
             // we cant use any frames from before
             updated.removed = _grid.size();
             _grid.clear();
-            updated.add_range = Range<Frame_t>(current_frame - frame_range,
+            updated.add_range = Range<Frame_t>(current_frame.try_sub(frame_range),
                                                current_frame + frame_range + 1_f);
             _iterators.clear();
             _capacities.clear();
@@ -461,11 +471,11 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             } else {
                 //removed = _grid.erase(Range<long_t>(current_frame + frame_range + 1, std::numeric_limits<long_t>::max()));
                 //remove_range = Range<long_t>(current_frame + frame_range + 1, std::numeric_limits<long_t>::max());
-                updated.add_range = Range<Frame_t>(current_frame - frame_range,
-                                                  min(max(0_f, _frame - frame_range), current_frame + frame_range + 1_f));
+                updated.add_range = Range<Frame_t>(current_frame.try_sub(frame_range),
+                                                  min((_frame.valid() ? _frame.try_sub(frame_range) : 0_f), current_frame + frame_range + 1_f));
             }
             
-            updated.remove_range = Range<Frame_t>(current_frame - frame_range,
+            updated.remove_range = Range<Frame_t>(current_frame.try_sub(frame_range),
                                                   current_frame + frame_range + 1_f);
         }
         
@@ -482,18 +492,18 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             Individual::segment_map::const_iterator kit;
             
             auto &range = updated.add_range;
-            for(auto [id, fish] : Tracker::individuals()) {
+            IndividualManager::transform_all([&](auto id, auto fish) {
                 if(!_ids.empty()) {
-                    if(!contains(_ids, id._identity)) {
-                        continue;
+                    if(!contains(_ids, id)) {
+                        return;
                     }
                 }
                 
                 auto frame = max(Tracker::start_frame(), range.start);
                 if(fish->end_frame() < frame)
-                    continue;
+                    return;
                 if(fish->start_frame() > range.end)
-                    continue;
+                    return;
                 
                 auto it = _iterators.find(fish);
                 if(it == _iterators.end()) {
@@ -555,7 +565,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                     auto bid = (*kit)->basic_stuff(frame);
                     if(bid != -1) {
                         auto &basic = fish->basic_stuff()[(uint32_t)bid];
-                        auto pos = basic->centroid.pos<Units::PX_AND_SECONDS>();
+                        auto pos = basic->centroid.template pos<Units::PX_AND_SECONDS>();
                         //auto speed = basic->centroid->speed(Units::PX_AND_SECONDS);
                         
                         double v = 1;
@@ -566,7 +576,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                                 .frame   = frame,
                                 .x       = uint32_t(pos.x),
                                 .y       = uint32_t(pos.y),
-                                .ID      = uint32_t(fish->identity().ID()),
+                                .ID      = uint32_t(fish->identity().ID().get()),
                                 .IDindex = uint32_t(0),
                                 .value   = v
                             });
@@ -575,7 +585,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 }
                 
                 _iterators[fish] = kit;
-            }
+            });
             
             updated.added = data.size();
             _grid.fill(data);
@@ -660,7 +670,7 @@ bool HeatmapController::update_variables() {
     }
     
     //SETTING(heatmap_resolution) = uniform_grid_cell_size + 1;
-    auto ids = SETTING(heatmap_ids).value<std::vector<uint32_t>>();
+    auto ids = SETTING(heatmap_ids).value<std::vector<Idx_t>>();
     if(ids != _ids) {
         has_to_paint = true;
         
@@ -1674,9 +1684,9 @@ void Region::update_ranges() {
         }*/
         
         auto &range = r->frame_range();
-        if(range.start < _frame_range.start || !_frame_range.start.valid())
+        if(not _frame_range.start.valid() || range.start < _frame_range.start)
             _frame_range.start = range.start;
-        if(range.end > _frame_range.end)
+        if(not _frame_range.end.valid() || range.end > _frame_range.end)
             _frame_range.end = range.end;
     }
     

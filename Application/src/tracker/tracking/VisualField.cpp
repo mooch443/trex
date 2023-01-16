@@ -3,6 +3,7 @@
 #include <gui/DrawCVBase.h>
 #include <misc/Timer.h>
 #include <tracking/Individual.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 static constexpr double right_angle = RADIANS(90);
@@ -102,8 +103,8 @@ void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, d
         //  but only remember each fish once per angle.
         //  (layers are only there in order to account for missing Z components)
         if(e._depth[i] > d) {
-            if(e._visible_ids[i] != (long_t)_fish_id
-               && e._visible_ids[i] != (long_t)id
+            if(e._visible_ids[i] != (long_t)_fish_id.get()
+               && e._visible_ids[i] != (long_t)id.get()
                && e._depth[i + field_resolution] > e._depth[i])
             {
                 e._depth[i + field_resolution] = e._depth[i];
@@ -114,23 +115,23 @@ void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, d
             }
             
             e._depth[i] = d;
-            e._visible_ids[i] = (long_t)id;
+            e._visible_ids[i] = (long_t)id.get();
             e._visible_points[i] = point;
             e._fov[i] = uchar(SQR(1.0 - min(1.0, max(0.0, d / max_d))) * 255);
             e._visible_head_distance[i] = hd;
             
             /* remove 2. stage after self occlusions */
-            if(id == (int64_t)_fish_id) {
+            if(id == _fish_id) {
                 if(e._depth[i + field_resolution] != FLT_MAX)
                     e._depth[i + field_resolution] = FLT_MAX;
             }
             
-        } else if(e._visible_ids[i] != (long_t)_fish_id /* remove 2. stage after self occlusions */
-                  && (long_t)id != e._visible_ids[i]
+        } else if(e._visible_ids[i] != (long_t)_fish_id.get() /* remove 2. stage after self occlusions */
+                  && (long_t)id.get() != e._visible_ids[i]
                   && e._depth[i + field_resolution] > d)
         {
             e._depth[i + field_resolution] = d;
-            e._visible_ids[i + field_resolution] = (long_t)id;
+            e._visible_ids[i + field_resolution] = (long_t)id.get();
             e._visible_points[i + field_resolution] = point;
             e._fov[i + field_resolution] = uchar(SQR(1.0 - min(1.0, max(0.0, d / max_d))) * 255);
             e._visible_head_distance[i + field_resolution] = hd;
@@ -389,13 +390,15 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     
     using namespace gui;
     
-    auto fish = tracker->_individuals.at(_fish_id);
-    auto &active = tracker->_active_individuals_frame.at(_frame);
+    Midline::Ptr midline{nullptr};
+    IndividualManager::transform_if_exists(_fish_id, [&](auto fish) {
+        midline = fish->calculate_midline_for(basic, *posture);
+    });
+    auto &active = tracker->active_individuals(_frame);
     
     assert(posture);
     
     auto angle = posture->head->angle();
-    auto midline = fish->calculate_midline_for(basic, *posture);
     auto &outline = posture->outline;
     auto opts = outline->uncompress();
     _fish_angle = angle;
@@ -410,7 +413,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     std::tuple<float, float> p0;
     
     //! allow for a couple of frames look-back, in case individuals arent present in the current frame but have been previously
-    const Frame_t max_back_view = Frame_t(max(1, FAST_SETTING(track_max_reassign_time) * FAST_SETTING(frame_rate)));
+    const Frame_t max_back_view = Frame_t(max(1u, uint32_t(FAST_SETTING(track_max_reassign_time) * FAST_SETTING(frame_rate))));
     
     //! iterate over all currently visible individuals
     //  for all individuals with outline...
@@ -418,11 +421,14 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         auto virtual_frame = _frame;
         MinimalOutline::Ptr outline = nullptr;
         
-        for (; virtual_frame>=a->start_frame() && virtual_frame >= _frame - max_back_view; --virtual_frame) {
+        for (; virtual_frame>=a->start_frame() && virtual_frame + max_back_view >= _frame; --virtual_frame) {
             outline = a->outline(virtual_frame);
             if(outline)
                 break;
         }
+
+        if(not virtual_frame.valid())
+            continue;
         
         auto midline = a->midline(virtual_frame);
         
@@ -494,10 +500,10 @@ void VisualField::show(gui::DrawStructure &base) {
     if(!tracker->properties(_frame))
         throw U_EXCEPTION("Does not have frame ",_frame,"");
     
-    auto fish = tracker->individuals().at(_fish_id);
+    //auto fish = tracker->individuals().at(_fish_id);
     auto active = tracker->active_individuals(_frame);
     
-    assert(fish->head(_frame));
+    //assert(fish->head(_frame));
     
     using namespace gui;
     
@@ -523,7 +529,7 @@ void VisualField::show(gui::DrawStructure &base) {
                 //    base.line(eye.pos, eye.pos + Vec2(cos(percent), sin(percent)) * max_d, Red.alpha(100));
             }
             
-            if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)fish->identity().ID())
+            if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)_fish_id.get())
             {
                 auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
                 //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
@@ -619,10 +625,9 @@ void VisualField::show_ts(gui::DrawStructure &base, Frame_t frameNr, Individual*
                         if(id == selected->identity().ID())
                             clr = White;
                         else {
-                            auto it = Tracker::individuals().find(id);
-                            if(it != Tracker::individuals().end()) {
-                                clr = it->second->identity().color().alpha(e._fov.data()[i]);
-                            }
+                            IndividualManager::transform_if_exists(id, [&](auto fish){
+                                clr = fish->identity().color().alpha(e._fov.data()[i]);
+                            });
                         }
                     }
                     
