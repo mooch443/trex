@@ -123,6 +123,9 @@ if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
 endif()
 
 # add actual executable
+add_executable(alter alter.cpp "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+target_link_libraries(alter PUBLIC tracker_tracking tracker_misc pv commons Commons::OpenCV)
+
 add_executable(${TREX_EXEC_NAME} ${SRCS})
 add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
     Commons::OpenCV
@@ -141,6 +144,7 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
     target_link_libraries(${TREX_EXEC_NAME} 
         PUBLIC tracker_python)
+    target_link_libraries(alter PUBLIC tracker_python)
     message(STATUS "Linking tracker_python")
 endif()
 
@@ -150,10 +154,12 @@ endif()
 
 if(WIN32 AND NOT COMMONS_NO_PYTHON)
 	set_target_properties(${TREX_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    set_target_properties(alter PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
 
 if(NOT WIN32)
     target_link_libraries(${TREX_EXEC_NAME} PUBLIC pthread m)
+    target_link_libraries(alter PUBLIC pthread m)
     if(TREX_WITH_TESTS)
         target_link_libraries(test_imgui PUBLIC pthread m)
     endif()
@@ -163,6 +169,14 @@ set_target_properties(${TREX_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
   MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.run"
   MACOSX_BUNDLE_BUNDLE_NAME TRex
+  MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
+  MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
+)
+
+set_target_properties(alter PROPERTIES
+  MACOSX_BUNDLE TRUE
+  MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.run.a"
+  MACOSX_BUNDLE_BUNDLE_NAME TRexA
   MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
 )
@@ -194,6 +208,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py
     )
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")
@@ -205,6 +220,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
             message(STATUS ${CMAKE_COMMAND} -E create_symlink
                 "${comp}"
                 "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
@@ -217,6 +236,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
         endforeach()
     elseif(WIN32)
         message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
@@ -229,6 +252,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
         endforeach()
 
         message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
@@ -239,6 +266,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
         endforeach()
         
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -249,6 +280,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                     COMMAND ${CMAKE_COMMAND} -E copy
                             "${comp}"
                             "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
             install(FILES ${comp} DESTINATION bin)
         endforeach()
 
@@ -258,6 +293,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
         endforeach()
     endif()
 else()
@@ -274,6 +313,10 @@ else()
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
         endforeach()
     endif()
 endif()
@@ -318,3 +361,5 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/fonts DESTINATION ${CMAKE_INSTALL_PREF
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/html DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py 
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

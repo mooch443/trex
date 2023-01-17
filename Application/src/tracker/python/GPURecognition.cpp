@@ -622,6 +622,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
     set_function_internal(name_, f, m);
 }
 
+void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<int>)> f, const std::string &m)
+{
+    set_function_internal(name_, f, m);
+}
+
 void PythonIntegration::set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m)
 {
     set_function_internal(name_, [f = std::move(f)](std::vector<std::vector<float>>&& a,std::vector<float>&& b) mutable {

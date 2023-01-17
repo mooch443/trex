@@ -63,6 +63,7 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::string)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m = "");
+        static void set_function(const char* name_, std::function<void(std::vector<int>)> f, const std::string &m = "");
         static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");
         
         //! Setting a lambda function for a vector of T.

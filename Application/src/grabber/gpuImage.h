@@ -54,8 +54,11 @@ public:
     }
 };*/
 
-class ImagePair : public Image {
-    GETTER_PTR(Image*, mask)
+class ImagePair {
+    GETTER_NCONST(Image, image)
+    GETTER_PTR_I(Image*, mask, nullptr)
+    GETTER_I(long_t, index, -1)
+    GETTER_I(timestamp_t, timestamp, 0)
     
 public:
     void set_mask(Image* mask) {
@@ -63,19 +66,35 @@ public:
             delete _mask;
         _mask = mask;
     }
-    ImagePair(const ImagePair& other) : Image(other) {
+    /*ImagePair(const ImagePair& other) : Image(other) {
         if(other._mask)
             _mask = new Image(*other._mask);
+    }*/
+    ImagePair(ImagePair&&) = delete;
+    ImagePair(const ImagePair&) = delete;
+    ImagePair() = default;
+    ImagePair(uint rows, uint cols, uint dims = 1)
+        : _image(rows, cols, dims)
+    {
+        set_timestamp(_image.timestamp());
     }
-    ImagePair() : Image(), _mask(nullptr) {
-        
-    }
-    ImagePair(uint rows, uint cols, uint dims = 1) : Image(rows, cols, dims), _mask(nullptr) {
-        
-    }
+    ImagePair& operator=(const ImagePair&) = delete;
     ImagePair& operator=(ImagePair&& other) {
         set(std::move(other));
         return *this;
+    }
+    
+    void set_index(long_t index) {
+        _index = index;
+        _image.set_index(index);
+    }
+    
+    cv::Mat get() const {
+        return _image.get();
+    }
+    void set_timestamp(timestamp_t t) {
+        _timestamp = t;
+        _image.set_timestamp(t);
     }
     
     ~ImagePair() {
@@ -84,9 +103,11 @@ public:
     }
 private:
     void set(ImagePair&& pair) {
-        //Image::operator=((Image&&)pair);
-        Image::set(std::move(pair));
-        std::swap(pair._mask, _mask);
+        _image.set(std::move(pair.image()));
+        _mask = pair._mask;
+        _timestamp = pair.timestamp();
+        _index = pair.index();
+        pair._mask = nullptr;
     }
 };
 

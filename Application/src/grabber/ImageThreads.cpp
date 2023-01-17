@@ -104,6 +104,10 @@ void ImageThreads::processing() {
                 //print("[proc] processing ", current->index());
                 _fn_process(*current);
                 
+                if(current->image().empty()) {
+                    current = _fn_create();
+                }
+                
                 lock.lock();
                 assert(!contains(_unused, current));
                 _unused.push_back(std::move(current));

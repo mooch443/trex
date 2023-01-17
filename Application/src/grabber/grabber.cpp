@@ -965,8 +965,8 @@ bool FrameGrabber::load_image(Image_t& current) {
             return false;
         }
         
-        assert(!current.empty());
-        cv::Mat c = current.get();
+        assert(!current.image().empty());
+        cv::Mat c = current.image().get();
         
         try {
             if(does_change_size)
@@ -1000,7 +1000,7 @@ bool FrameGrabber::load_image(Image_t& current) {
         std::lock_guard<std::mutex> guard(_camera_lock);
         if(_camera) {
             //static Image_t image(_camera->size().height, _camera->size().width, 1);
-            if(!_camera->next(does_change_size ? image : current)) {
+            if(!_camera->next(does_change_size ? image : current.image())) {
                 //print("_camera ", _frame_processing_ratio.load(), " by ", current.index());
                 --_frame_processing_ratio;
                 return false;
@@ -2100,9 +2100,9 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     task->index = global_index++;
 
     if (task->current) {
-        task->current->set(std::move(current));
+        task->current->set(std::move(current.image()));
     } else {
-        task->current = Image::Make(current, current.index());
+        task->current = Image::Make(std::move(current.image()), current.index());
     }
 
     if(current.mask()) {
