@@ -1065,7 +1065,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, std::vector<pv::Blo
     }
     
     ptr->pp.clear();
-    ptr->frame = frame;
+    ptr->frame = pv::Frame(frame);
     ptr->frame.set_index(index);
     ptr->pp.set_tags(std::move(tags));
     tags.clear();
