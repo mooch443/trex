@@ -166,6 +166,11 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
         if(props == nullptr) {
             //! initial frame
             assert(previous_frame.valid());
+            if(Tracker::start_frame().valid()
+               && FrameRange(Range<Frame_t>(Tracker::start_frame(), Tracker::end_frame())).contains(previous_frame))
+            {
+                FormatWarning("Previous frame has already been processed: ", Range(Tracker::start_frame(), Tracker::end_frame()), " and previous:", previous_frame);
+            }
             assert(not Tracker::start_frame().valid()
                    or previous_frame < Tracker::start_frame()
                    or previous_frame > Tracker::end_frame());

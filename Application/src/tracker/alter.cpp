@@ -12,6 +12,7 @@
 #include <file/DataLocation.h>
 #include <misc/default_config.h>
 #include <tracking/Tracker.h>
+#include <tracking/IndividualManager.h>
 
 using namespace cmn;
 
@@ -72,13 +73,16 @@ struct OverlayedVideo {
                 source.frame(i, buffer);
                 
                 cv::Mat resized;
-                cv::resize(buffer, download_buffer, Size2(640, 640));
+                cv::resize(buffer, download_buffer, Size2(1280, 1280));
                 cv::cvtColor(download_buffer, download_buffer, cv::COLOR_BGR2RGBA);
                 
                 
-                ++i;
                 //print("Loaded frame ", i);
-                return Image::Make(download_buffer);
+                auto ptr = Image::Make(download_buffer);
+                auto fake = double(i.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+                ptr->set_timestamp(uint64_t(fake));
+                ++i;
+                return ptr;
             } catch(...) {
                 FormatExcept("Error loading frame ", i, " from video ", source, ".");
                 return tl::unexpected("Error loading frame.");
@@ -107,6 +111,9 @@ struct OverlayedVideo {
         
         Timer timer;
         auto overlay = this->overlay(*ptr);
+        overlay.set_timestamp((uint64_t)ptr->timestamp());
+        //overlay.set_index(Frame_t(ptr->index()));
+        
         if(_samples.load() > 100) {
             _samples = _fps = 0;
             print("Reset indexes: ", timer.elapsed());
@@ -162,15 +169,13 @@ int main(int argc, char**argv) {
     
     py::schedule([](){
         using py = track::PythonIntegration;
-        print("Scheduled");
-        
         py::ModuleProxy proxy{"bbx_saved_model"};
         py::check_module("bbx_saved_model");
         //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model_octopus/best_saved_model").str(), "bbx_saved_model");
         //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model/best_saved_model/best_saved_model").str(), "bbx_saved_model");
         proxy.set_variable("model_type", "yolo7");
-        proxy.set_variable("model_path", "/Users/tristan/Downloads/tfmodel");
-        proxy.set_variable("image_size", 640);
+        proxy.set_variable("model_path", "/Users/tristan/Downloads/tfmodel_goats1280");
+        proxy.set_variable("image_size", 1280);
         
         //py::set_variable("image_size", 1280, "bbx_saved_model");
         py::run("bbx_saved_model", "load_model");
@@ -299,11 +304,11 @@ int main(int argc, char**argv) {
                             lines.emplace_back(std::move(line));
                         }
                         
-                        //pv::Blob blob(lines, pixels, 0);
-                        //if(blob.bounds().size().min() > 1) {
-                            //auto[p, img] = blob.image();
-                            //tf::imshow("blob", img->get());
-                        //}
+                        pv::Blob blob(lines, pixels, 0);
+                        if(blob.bounds().size().min() > 1) {
+                            auto[p, img] = blob.image();
+                            tf::imshow("blob", img->get());
+                        }
                         //print(blob);
                         frame.add_object(lines, pixels, 0);
                     }
@@ -319,36 +324,56 @@ int main(int argc, char**argv) {
             frame.set_index(running_id++);
             return frame;//Image::Make(ret);
         },
-        VideoSource("/Users/tristan/Downloads/MOV_0008.mp4")
-        //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
+        //VideoSource("/Users/tristan/Downloads/MOV_0008.mp4")
+        VideoSource("/Users/tristan/goats/DJI_0160.MOV")
         //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
     };
     
     video.source.set_colors(VideoSource::ImageMode::RGB);
     
     std::mutex mutex;
+    std::condition_variable messages;
     bool _terminate{false};
-    decltype(video)::Overlay next;
+    decltype(video)::Overlay next, dbuffer;
     
     auto f = std::async(std::launch::async, [&](){
-        Timer timer;
+        std::unique_lock guard(mutex);
         while(not _terminate) {
-            if(timer.elapsed() > 1.0 / double(video.source.framerate())) {
-                timer.reset();
-                
-                auto result = video.generate();
-                if(not result) {
-                    // end of video
-                    video.reset();
+            if(dbuffer.image)
+                messages.wait(guard);
+            
+            if(dbuffer.image) {
+                if(next.image) {
                     continue;
                 }
                 
+                next = std::move(dbuffer);
+            }
+            
+            guard.unlock();
+            
+            tl::expected<decltype(next), const char*> result;
+            try {
+                result = video.generate();
+                guard.lock();
                 
-                std::unique_lock guard(mutex);
+            } catch(...) {
+                guard.lock();
+            }
+            
+            if(not result) {
+                // end of video
+                video.reset();
+                continue;
+            }
+            
+            if(not next.image) {
+                auto ts = result.value().overlay.timestamp();
                 next = std::move(result.value());
-                
-            } else
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                assert(next.overlay.timestamp() == ts);
+            } else {
+                dbuffer = std::move(result.value());
+            }
         }
     });
     
@@ -398,8 +423,22 @@ int main(int argc, char**argv) {
     
     pv::Frame current;
     using namespace track;
+    
+    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(1);
+    SETTING(meta_real_width) = float(5120);
+    SETTING(track_max_speed) = Settings::track_max_speed_t(300);
+    SETTING(track_threshold) = Settings::track_threshold_t(0);
+    SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
+        Rangef(100,500)
+    });
+    SETTING(frame_rate) = Settings::frame_rate_t(video.source.framerate());
+    SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
+    SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(2);
+    
     Tracker tracker;
-    tracker.set_average(Image::Make(cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1)));
+    cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
+    bg.setTo(255);
+    tracker.set_average(Image::Make(bg));
     
     DrawStructure graph(1024, 768);
     IMGUIBase base("TRexA", graph, [&]()->bool {
@@ -408,21 +447,48 @@ int main(int argc, char**argv) {
         
     });
     
+    auto start_time = std::chrono::system_clock::now();
     PPFrame pp;
-    pv::File file("tmp.pv", pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+    pv::File file(file::DataLocation::parse("output", "tmp.pv"), pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+    std::vector<pv::BlobPtr> objects;
+    file.set_average(bg);
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         
             {
                 std::unique_lock guard(mutex);
                 if(next.image) {
+                    objects.clear();
                     
                     current = std::move(next.overlay);
+                    
+                    for(size_t i=0; i<current.n(); ++i) {
+                        auto blob = current.blob_at(i);
+                        //print(blob->bounds());
+                        auto bds = blob->bounds();
+                        objects.emplace_back(std::move(blob));
+                        
+                        //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
+                        //print(blob->bounds(), " -> ", bds);
+                        //graph.rect(bds, attr::FillClr(Red.alpha(25)), attr::LineClr(Red));
+                        //auto [pos, img] = blob->image();
+                        //graph.image(pos.mul(scale), std::move(img), scale, White.alpha(25));
+                    }
+                    
                     menu.background->set_source(std::move(next.image));
                     //menu.overlay.set_source(std::move(next.overlay));
+                    if(not file.is_open()) {
+                        file.set_start_time(start_time);
+                        file.set_resolution(video.source.size());
+                    }
+                    file.add_individual(pv::Frame(current));
                     
-                    //Tracker::preprocess_frame(file, std::move(current), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
-                    //tracker.add(pp);
+                    Tracker::preprocess_frame(file, std::move(current), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
+                    tracker.add(pp);
+                    if(pp.index().get() % 100 == 0) {
+                        print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+                    }
+                    messages.notify_one();
                 }
             }
             
@@ -430,25 +496,54 @@ int main(int argc, char**argv) {
             menu.buttons->set_scale(graph.scale().reciprocal());
             menu.draw(graph);
         auto scale = Size2(graph.width(), graph.height()).div( menu.background->source()->dimensions());
-            for(size_t i=0; i<current.n(); ++i) {
-                auto blob = current.blob_at(i);
-                //print(blob->bounds());
-                auto bds = blob->bounds();
-                bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
-                //print(blob->bounds(), " -> ", bds);
-                graph.rect(bds, attr::FillClr(Red.alpha(25)), attr::LineClr(Red));
-                auto [pos, img] = blob->image();
-                graph.image(pos.mul(scale), std::move(img), scale, White.alpha(25));
-            }
+            
+        for(auto& blob : objects) {
+            const auto bds = blob->bounds().mul(scale);
+            //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
+            graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+            graph.text(Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.25));
+        }
+        
+        using namespace track;
+        IndividualManager::transform_all([&](Idx_t fdx, Individual* fish)
+        {
+            if(not fish->has(tracker.end_frame()))
+                return;
+            auto p = fish->iterator_for(tracker.end_frame());
+            auto segment = p->get();
+            
+            auto basic = fish->compressed_blob(tracker.end_frame());
+            auto bds = basic->calculate_bounds().mul(scale);
+            std::vector<Vertex> line;
+            const SegmentInformation* previous{nullptr};
+            fish->iterate_frames(Range(tracker.end_frame().try_sub(15_f), tracker.end_frame()), [&](Frame_t i, const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
+            {
+                //if(previous != segment)
+                //    return true;
+                auto p = basic->centroid.pos<Units::PX_AND_SECONDS>().mul(scale);
+                line.push_back(Vertex(p.x, p.y, fish->identity().color()));
+                previous = ptr.get();
+                return true;
+            });
+            graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
+            graph.vertices(line);
+        });
         
     });
     
     {
         std::unique_lock guard(mutex);
         _terminate = true;
+        messages.notify_all();
     }
     f.get();
     graph.root().set_stage(nullptr);
     py::deinit();
+    file.close();
+    
+    {
+        pv::File test(file.filename(), pv::FileMode::READ);
+        test.print_info();
+    }
     return 0;
 }

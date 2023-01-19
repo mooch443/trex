@@ -157,8 +157,8 @@ def predict_yolov7(img, image_shape=(640,640)):
 
         topk_per_class=100
         topk_all=100
-        iou_thres=0.45
-        conf_thres=0.45
+        iou_thres=0.045
+        conf_thres=0.025
         b, ch, h, w = im.shape
         results = []
 
