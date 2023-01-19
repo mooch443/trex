@@ -11,6 +11,7 @@
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
 #include <misc/default_config.h>
+#include <tracking/Tracker.h>
 
 using namespace cmn;
 
@@ -43,7 +44,7 @@ struct OverlayedVideo {
     }
     
     OverlayedVideo(F&& fn, VideoSource&& source)
-        : overlay(std::move(fn)), source(std::move(source))
+        : source(std::move(source)), overlay(std::move(fn))
     {
         
     }
@@ -69,7 +70,12 @@ struct OverlayedVideo {
             std::scoped_lock guard(index_mutex);
             try {
                 source.frame(i, buffer);
-                cv::cvtColor(buffer, download_buffer, cv::COLOR_BGR2RGBA);
+                
+                cv::Mat resized;
+                cv::resize(buffer, download_buffer, Size2(640, 640));
+                cv::cvtColor(download_buffer, download_buffer, cv::COLOR_BGR2RGBA);
+                
+                
                 ++i;
                 //print("Loaded frame ", i);
                 return Image::Make(download_buffer);
@@ -101,6 +107,10 @@ struct OverlayedVideo {
         
         Timer timer;
         auto overlay = this->overlay(*ptr);
+        if(_samples.load() > 100) {
+            _samples = _fps = 0;
+            print("Reset indexes: ", timer.elapsed());
+        }
         _fps = _fps.load() + 1.0 / timer.elapsed();
         _samples = _samples.load() + 1;
         return Overlay{
@@ -142,6 +152,7 @@ int main(int argc, char**argv) {
     using namespace gui;
     
     default_config::register_default_locations();
+    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     file::cd(file::DataLocation::parse("app"));
     
     using namespace cmn;
@@ -152,11 +163,16 @@ int main(int argc, char**argv) {
     py::schedule([](){
         using py = track::PythonIntegration;
         print("Scheduled");
+        
+        py::ModuleProxy proxy{"bbx_saved_model"};
         py::check_module("bbx_saved_model");
         //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model_octopus/best_saved_model").str(), "bbx_saved_model");
-        py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model/best_saved_model/best_saved_model").str(), "bbx_saved_model");
+        //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model/best_saved_model/best_saved_model").str(), "bbx_saved_model");
+        proxy.set_variable("model_type", "yolo7");
+        proxy.set_variable("model_path", "/Users/tristan/Downloads/tfmodel");
+        proxy.set_variable("image_size", 640);
         
-        py::set_variable("image_size", 1280, "bbx_saved_model");
+        //py::set_variable("image_size", 1280, "bbx_saved_model");
         py::run("bbx_saved_model", "load_model");
         
     }).get();
@@ -250,10 +266,11 @@ int main(int argc, char**argv) {
                 frame.add_object(lines, pixels, 0);
             }*/
             
-            py::schedule([&ref = image, image = Image::Make(image), &frame]() mutable {
+            py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame]() mutable {
                 using py = track::PythonIntegration;
                 py::check_module("bbx_saved_model");
                 std::vector<Image::UPtr> images;
+                
                 images.emplace_back(std::move(image));
                 py::set_variable("image", std::move(images), "bbx_saved_model");
                 py::set_function("receive", [&](std::vector<int> vector){
@@ -275,7 +292,7 @@ int main(int argc, char**argv) {
                                 (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
                             };
                             for(int x = line.x0; x <= line.x1; ++x) {
-                                pixels.emplace_back(ref.get().at<cv::Vec4b>(y, x)[0]);
+                                pixels.emplace_back(ref->get().at<cv::Vec4b>(y, x)[0]);
                             }
                             //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
                             //              (uchar*)mat.ptr(y, line.x1));
@@ -298,10 +315,12 @@ int main(int argc, char**argv) {
             }).get();
             
             //tf::imshow("test", ret);
+            static Frame_t running_id = 0_f;
+            frame.set_index(running_id++);
             return frame;//Image::Make(ret);
         },
-        //VideoSource("/Users/tristan/Downloads/MOV_0008.mp4")
-        VideoSource("/Users/tristan/goats/DJI_0160.MOV")
+        VideoSource("/Users/tristan/Downloads/MOV_0008.mp4")
+        //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
         //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
     };
     
@@ -378,6 +397,9 @@ int main(int argc, char**argv) {
     } menu;
     
     pv::Frame current;
+    using namespace track;
+    Tracker tracker;
+    tracker.set_average(Image::Make(cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1)));
     
     DrawStructure graph(1024, 768);
     IMGUIBase base("TRexA", graph, [&]()->bool {
@@ -385,6 +407,9 @@ int main(int argc, char**argv) {
     }, [](Event) {
         
     });
+    
+    PPFrame pp;
+    pv::File file("tmp.pv", pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         
@@ -395,6 +420,9 @@ int main(int argc, char**argv) {
                     current = std::move(next.overlay);
                     menu.background->set_source(std::move(next.image));
                     //menu.overlay.set_source(std::move(next.overlay));
+                    
+                    //Tracker::preprocess_frame(file, std::move(current), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
+                    //tracker.add(pp);
                 }
             }
             

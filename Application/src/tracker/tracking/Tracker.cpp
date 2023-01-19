@@ -550,10 +550,11 @@ void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame
     pp.clear();
     
     pp.time = time;
+    assert(frame.index().valid());
     pp.set_index(frame.index());
     pp.timestamp = frame.timestamp();
     pp.set_loading_time(frame.loading_time());
-    pp.init_from_blobs(frame.steal_blobs());
+    pp.init_from_blobs(std::move(frame).steal_blobs());
     frame.clear();
     
     filter_blobs(pp, pool);

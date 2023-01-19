@@ -61,37 +61,17 @@ namespace pv {
         
         close();
     }
-
-
-    //! Initialize copy
-    /*Frame::Frame(const Frame& other) {
-        operator=(other);
-    }*/
-
-    void Frame::operator=(Frame && other) {
-        _timestamp = other._timestamp;
-        _n = other._n;
-        _loading_time = other._loading_time;
-    
-        _mask = std::move(other._mask);
-        _pixels = std::move(other._pixels);
-        _flags = std::move(other._flags);
-    }
-
-    void Frame::operator=(const Frame &other) {
-        _timestamp = other._timestamp;
-        _n = other._n;
-        _loading_time = other._loading_time;
-        
-        //_blobs.clear();
-        
-        _mask.clear();
-        _pixels.clear();
-        _flags = other._flags;
-        
+    Frame::Frame(const Frame &other)
+        : _index(other._index),
+          _timestamp(other._timestamp),
+          _n(other._n),
+          _loading_time(other._loading_time),
+          _flags(other._flags)
+    {
         _mask.reserve(other.n());
         _pixels.reserve(other.n());
         
+        //! perform deep-copy
         for (size_t i=0; i<other.n(); ++i) {
             _mask.emplace_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
             _pixels.emplace_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
@@ -99,8 +79,7 @@ namespace pv {
     }
 
     Frame::Frame(const uint64_t& timestamp, decltype(_n) n)
-        : _timestamp(timestamp),//std::chrono::duration_cast<std::chrono::microseconds>(timestamp).count()),
-          _n(0), _loading_time(0)
+        : _timestamp(timestamp)
     {
         _mask.reserve(n);
         _pixels.reserve(n);
@@ -119,7 +98,7 @@ namespace pv {
         return std::make_unique<pv::Blob>(std::move(_mask[i]), std::move(_pixels[i]), _flags[i]);
     }
 
-    std::vector<pv::BlobPtr> Frame::steal_blobs() {
+    std::vector<pv::BlobPtr> Frame::steal_blobs() && {
         //if(_blobs.empty())
         std::vector<pv::BlobPtr> _blobs;
         {
@@ -387,7 +366,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //free(pixels);
     }
     
-    uint64_t Frame::size() const {
+    uint64_t Frame::size() const noexcept {
         uint64_t bytes = sizeof(_timestamp) + sizeof(_n) + _mask.size() * sizeof(uint16_t);
         uint64_t elem_size = sizeof(Header::line_type);
         
@@ -770,7 +749,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     const Header& File::header() const {
-        _check_opened();
+        if(not bool(_mode & FileMode::WRITE))
+            _check_opened();
         return _header;
     }
 
@@ -913,7 +893,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         _header.index_table.push_back(index);
         
         // cache last_frame
-        _last_frame = frame;
+        _last_frame = Frame(frame);
     }
 
     void File::_check_opened() const {

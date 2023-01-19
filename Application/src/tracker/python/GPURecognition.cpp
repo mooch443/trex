@@ -731,6 +731,7 @@ IMPL_VARIABLE_SHAPE(float)
 IMPL_VARIABLE(float)
 IMPL_VARIABLE(long_t)
 IMPL_VARIABLE(const std::string&)
+IMPL_VARIABLE(const char*)
 IMPL_VARIABLE(bool)
 IMPL_VARIABLE(uint64_t)
 

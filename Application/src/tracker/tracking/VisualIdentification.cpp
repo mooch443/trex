@@ -428,7 +428,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 
                 uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
-                py::set_variable("max_epochs", gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
+                py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), "learn_static");
                 py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<uchar>()), "learn_static");
                 py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), "learn_static");
                 

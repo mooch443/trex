@@ -44,6 +44,8 @@ namespace track {
         static void set_variable(const std::string&, const std::string&, const std::string& m = "");
         static void set_variable(const std::string&, bool, const std::string& m = "");
         static void set_variable(const std::string&, uint64_t, const std::string& m = "");
+        static void set_variable(const std::string&, const char*, const std::string& m = "");
+        static void set_variable(const std::string&, auto, const std::string& m = "") = delete;
 
         static void execute(const std::string&);
         static void import_module(const std::string&);
@@ -72,11 +74,20 @@ namespace track {
         //! @param m Module name
         template<typename T>
         static void set_function(const char*,
-                                 cmn::package::F<void(std::vector<T>)>&&, const std::string & = "") {
-            throw std::invalid_argument("Cannot use this type.");
-        }
+                                 cmn::package::F<void(std::vector<T>)>&&, const std::string & = "") = delete;
         
         static void unset_function(const char* name_, const std::string &m = "");
+        
+        struct ModuleProxy {
+            std::string m;
+            ModuleProxy(std::string name) : m(name) {}
+            void set_function(const char* name, auto &&fn) {
+                PythonIntegration::set_function(name, std::forward<decltype(fn)>(fn), m);
+            }
+            void set_variable(const char* name, auto&& value) {
+                PythonIntegration::set_variable(name, std::forward<decltype(value)>(value), m);
+            }
+        };
         
     public:
         static void check_correct_thread_id();

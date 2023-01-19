@@ -90,22 +90,23 @@ namespace pv {
         GETTER_SETTER(Frame_t, index)
         
         //! time since movie start in microseconds
-        GETTER_SETTER(uint64_t, timestamp)
+        GETTER_SETTER_I(uint64_t, timestamp, 0u)
         //! number of mask/pixel arrays
-        GETTER(uint16_t, n)
-        GETTER_SETTER(float, loading_time)
+        GETTER_I(uint16_t, n, 0u)
+        GETTER_SETTER_I(float, loading_time, 0.f)
         
         GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
         GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
         GETTER_NCONST(std::vector<uint8_t>, flags)
         
     public:
-        void operator=(const Frame& other);
-        void operator=(Frame&& other);
+        Frame& operator=(const Frame& other) = delete;
+        Frame& operator=(Frame&& other) = default;
         
         //! initialize empty object
-        Frame() : Frame(0, 0) {}
+        Frame() = default;
         Frame(Frame&&) noexcept = default;
+        explicit Frame(const Frame&);
         
         //! create a new one from scratch
         Frame(const uint64_t& timestamp, decltype(_n) n);
@@ -113,20 +114,13 @@ namespace pv {
         //! read from a file
         Frame(File& ref, Frame_t idx);
         
-        ~Frame() {
-            //for(auto m: _mask)
-            //    delete m;
-            //for(auto p: _pixels)
-            //    delete p;
-        }
-        
         void read_from(File& ref, Frame_t idx);
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
         std::unique_ptr<pv::Blob> steal_blob(size_t i);
         std::vector<pv::BlobPtr> get_blobs() const;
-        std::vector<pv::BlobPtr> steal_blobs();
+        std::vector<pv::BlobPtr> steal_blobs() &&;
         
         /**
          * Adds a new object to this frame.
@@ -135,7 +129,7 @@ namespace pv {
         void add_object(blob::Pair&& pair);
         void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags);
 
-        uint64_t size() const;
+        uint64_t size() const noexcept;
         void clear();
         void serialize(DataPackage&, bool& compressed) const;
         
