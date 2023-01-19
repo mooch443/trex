@@ -329,11 +329,11 @@ int main(int argc, char**argv) {
                             lines.emplace_back(std::move(line));
                         }
                         
-                        pv::Blob blob(lines, pixels, 0);
+                        /*pv::Blob blob(lines, pixels, 0);
                         if(blob.bounds().size().min() > 1) {
                             auto[p, img] = blob.image();
                             tf::imshow("blob", img->get());
-                        }
+                        }*/
                         //print(blob);
                         frame.add_object(lines, pixels, 0);
                     }
