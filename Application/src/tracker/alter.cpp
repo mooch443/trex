@@ -22,6 +22,8 @@ concept overlay_function = requires {
     //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::UPtr>;
 };
 
+static Size2 expected_size(1024, 1024);
+
 template<typename F>
     requires overlay_function<F>
 struct OverlayedVideo {
@@ -73,7 +75,7 @@ struct OverlayedVideo {
                 source.frame(i, buffer);
                 
                 cv::Mat resized;
-                cv::resize(buffer, download_buffer, Size2(1280, 1280));
+                cv::resize(buffer, download_buffer, expected_size);
                 cv::cvtColor(download_buffer, download_buffer, cv::COLOR_BGR2RGBA);
                 
                 
@@ -162,9 +164,32 @@ int main(int argc, char**argv) {
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     file::cd(file::DataLocation::parse("app"));
     
+    SETTING(source) = std::string("/Users/tristan/goats/DJI_0160.MOV");
+    SETTING(model) = file::Path("/Users/tristan/Downloads/tfmodel_goats1024");
+    SETTING(image_width) = int(1024);
+    
     using namespace cmn;
     namespace py = Python;
     CommandLine cmd(argc, argv);
+    for(auto a : cmd) {
+        if(a.name == "i") {
+            SETTING(source) = std::string(a.value);
+        }
+        if(a.name == "m") {
+            SETTING(model) = file::Path(a.value);
+        }
+        if(a.name == "dim") {
+            SETTING(image_width) = Meta::fromStr<int>(a.value);
+        }
+    }
+    
+    DebugHeader("Starting tracking of");
+    print("model: ",SETTING(model).value<file::Path>());
+    print("video: ", SETTING(source).value<std::string>());
+    print("model resolution: ", SETTING(image_width).value<int>());
+    
+    expected_size = Size2(SETTING(image_width).value<int>(), SETTING(image_width).value<int>());
+    
     py::init();
     
     py::schedule([](){
@@ -174,8 +199,8 @@ int main(int argc, char**argv) {
         //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model_octopus/best_saved_model").str(), "bbx_saved_model");
         //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model/best_saved_model/best_saved_model").str(), "bbx_saved_model");
         proxy.set_variable("model_type", "yolo7");
-        proxy.set_variable("model_path", "/Users/tristan/Downloads/tfmodel_goats1280");
-        proxy.set_variable("image_size", 1280);
+        proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+        proxy.set_variable("image_size", int(expected_size.width));
         
         //py::set_variable("image_size", 1280, "bbx_saved_model");
         py::run("bbx_saved_model", "load_model");
@@ -324,8 +349,8 @@ int main(int argc, char**argv) {
             frame.set_index(running_id++);
             return frame;//Image::Make(ret);
         },
-        //VideoSource("/Users/tristan/Downloads/MOV_0008.mp4")
-        VideoSource("/Users/tristan/goats/DJI_0160.MOV")
+        VideoSource(SETTING(source).value<std::string>())
+        //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
         //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
     };
     
