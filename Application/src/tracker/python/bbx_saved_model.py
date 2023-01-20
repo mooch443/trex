@@ -332,7 +332,7 @@ def apply():
         #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
         im = np.array(image, copy=False)[..., :3]
         results = predict_yolo7_seg(im)
-        print("sending: ", results[1])
+        #print("sending: ", results[0].shape, results[1])
 
         receive_seg(results[0], results[1].flatten())
         #results = predict_yolov7(im, image_shape=(image_size,image_size))
@@ -519,7 +519,7 @@ def predict_yolo7_seg(image):
     pooler_scale = t_model.pooler_scale
     pooler = ROIPooler(output_size=hyp['mask_resolution'], scales=(pooler_scale,), sampling_ratio=1, pooler_type='ROIAlignV2', canonical_level=2)
 
-    output, output_mask, output_mask_score, output_ac, output_ab = non_max_suppression_mask_conf(inf_out, attn, bases, pooler, hyp, conf_thres=0.35, iou_thres=0.65, merge=False, mask_iou=None)
+    output, output_mask, output_mask_score, output_ac, output_ab = non_max_suppression_mask_conf(inf_out, attn, bases, pooler, hyp, conf_thres=0.15, iou_thres=0.55, merge=False, mask_iou=None)
     pred, pred_masks = output[0], output_mask[0]
     if pred is None:
         return (np.array([], dtype=np.uint8).flatten(), np.array([], dtype=np.float32))
@@ -535,7 +535,14 @@ def predict_yolo7_seg(image):
 
     results = []
     shapes = []
-    for i, (conf, clid, (x0,y0,x1,y1), mask) in enumerate(zip(pred_conf, pred_cls, bboxes.tensor.detach().cpu().numpy().astype(int), original_pred_masks.cpu().numpy())):
+    bboxes = bboxes.tensor.detach().cpu().numpy().astype(int)
+    #print(image.shape)
+    bboxes[:, [0,2]] = np.clip(bboxes[:, [0,2]], 0, image.shape[3]-1);
+    bboxes[:, [1,3]] = np.clip(bboxes[:, [1,3]], 0, image.shape[2]-1);
+
+    #bboxes = np.clip(bboxes, 0, np.max(image.shape)) #[[0, 0, 0, 0]], [[image.shape[1], image.shape[0], image.shape[1], image.shape[0]]])
+
+    for i, (conf, clid, (x0,y0,x1,y1), mask) in enumerate(zip(pred_conf, pred_cls, bboxes, original_pred_masks.cpu().numpy())):
         #mask = (original_pred_masks[i].cpu().numpy() * 255).astype(np.uint8)
         #if i == 0:
         #    print(i, mask.shape, " -> ", (x1 - x0, y1 - y0))

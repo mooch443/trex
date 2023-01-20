@@ -362,7 +362,9 @@ int main(int argc, char**argv) {
                         Vec2 pos(vector.at(i * 6 + 2), vector.at(i * 6 + 3));
                         Size2 dim(vector.at(i * 6 + 4) - pos.x, vector.at(i * 6 + 5) - pos.y);
  
-                        if (SETTING(filter_class).value<bool>() && cls != 0)
+                        if (SETTING(filter_class).value<bool>() && cls != 14)
+                            continue;
+                        if (dim.min() < 1)
                             continue;
 
                         /*std::vector<uchar> vec(masks.data() + i * 54 * 54, masks.data() + (i + 1) * 54 * 54);
@@ -372,9 +374,11 @@ int main(int argc, char**argv) {
                         //std::span<uchar, 54 * 54> view(masks.data() + i * 54 * 54, masks.data() + (i+1) * 54 * 54);
                         //Image image(54, 54, 1, view.data());
                         Image image(56, 56, 1, masks.data() + i * 56 * 56);
-                        cv::Mat tmp;
+                        cv::Mat tmp, t;
                         cv::resize(image.get(), tmp, dim);
-                        cv::threshold(tmp, tmp, 150, 255, cv::THRESH_BINARY);
+                        cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
+                        cv::bitwise_and(tmp, t, tmp);
+                        //cv::subtract(255, tmp, tmp);
                         
                         auto blobs = CPULabeling::run(tmp);
                         if (not blobs.empty()) {
@@ -405,52 +409,28 @@ int main(int argc, char**argv) {
                             //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
                             //auto [pos, img] = big->image();
                             
-                            /*if (i == 0) {
+                            if (i == 0 && frame.index().get() % 10 == 0) {
                                 auto [pos, img] = blob.image();
-                                cv::Mat tmp;
-                                cv::resize(img->get(), tmp, dim);
-                                tf::imshow("big", tmp);
-                            }*/
-                        }
-                        
-
-                        /*if (i == 0) {
-                            print("Image bounds: ", image.dimensions(), " resizing to ", dim);
-                            cv::Mat tmp;
-                            cv::resize(image.get(), tmp, dim);
-                            print(tmp.cols, " x ", tmp.rows);
-                            tf::imshow("in trex", tmp);
-                        }*/
-
-                        /*std::vector<HorizontalLine> lines;
-                        std::vector<uchar> pixels;
-                        for (int y = pos.y; y < pos.y + dim.height; ++y) {
-                            if (y < 0)
-                                continue;
-
-                            HorizontalLine line{
-                                (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
-                                (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
-                                (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
-                            };
-                            for (int x = line.x0; x <= line.x1; ++x) {
-                                pixels.emplace_back(0);
-                                //pixels.emplace_back(ref->get().at<cv::Vec4b>(y, x)[0]);
+                                cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
+                                auto vit = vir.ptr<cv::Vec3b>();
+                                for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
+                                    *vit = Viridis::value(*it / 255.0);
+                                //tf::imshow("big", img->get());
+                                tf::imshow("big", vir);
                             }
-                            //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
-                            //              (uchar*)mat.ptr(y, line.x1));
-                            lines.emplace_back(std::move(line));
                         }
-
-                        pv::Blob blob(lines, 0);
-                        predictions[frame.index()][blob.blob_id()] = { float(conf), int(cls) };
-                        frame.add_object(lines, pixels, 0);*/
                     }
                     
                 }, "bbx_saved_model");
 
-                py::run("bbx_saved_model", "apply");
+                try {
+                    py::run("bbx_saved_model", "apply");
+                }
+                catch (...) {
+                    FormatWarning("Continue after exception...");
+                }
                 py::unset_function("receive", "bbx_saved_model");
+                py::unset_function("receive_seg", "bbx_saved_model");
                 
             }).get();
             
@@ -512,8 +492,8 @@ int main(int argc, char**argv) {
     
     struct Menu {
         Button::Ptr
-            hi = Button::MakePtr("Hi", attr::Size(50, 35)),
-            bro = Button::MakePtr("bro", attr::Size(50, 35));
+            hi = Button::MakePtr("Quit", attr::Size(50, 35)),
+            bro = Button::MakePtr("Filter", attr::Size(50, 35));
         std::shared_ptr<Text> text = std::make_shared<Text>();
         std::shared_ptr<ExternalImage>
             background = std::make_shared<ExternalImage>(),
@@ -522,15 +502,22 @@ int main(int argc, char**argv) {
         
         std::shared_ptr<HorizontalLayout> buttons = std::make_shared<HorizontalLayout>(
             std::vector<Layout::Ptr>{
-                Layout::Ptr(text),
                 Layout::Ptr(hi),
-                Layout::Ptr(bro)
+                Layout::Ptr(bro),
+                Layout::Ptr(text)
             }
         );
         
         Menu() {
             buttons->set_policy(HorizontalLayout::Policy::TOP);
             buttons->set_pos(Vec2(10, 10));
+            bro->set_toggleable(true);
+            bro->on_click([this](Event e) {
+                SETTING(filter_class) = bro->toggled();
+            });
+            hi->on_click([](auto e) {
+                SETTING(terminate) = true;
+            });
         }
         
         ~Menu() {
@@ -557,20 +544,25 @@ int main(int argc, char**argv) {
     pv::Frame current;
     using namespace track;
     
-    SETTING(do_history_split) = false;
+    SETTING(track_do_history_split) = false;
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
     SETTING(meta_real_width) = float(expected_size.width * 10);
     SETTING(track_max_speed) = Settings::track_max_speed_t(300);
     SETTING(track_threshold) = Settings::track_threshold_t(0);
     SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
-        Rangef(100,50000)
+        Rangef(10,300)
     });
     SETTING(frame_rate) = Settings::frame_rate_t(video.source.framerate());
     SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
     SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
+    SETTING(terminate) = false;
+    SETTING(calculate_posture) = false;
+
+    cmd.load_settings();
     
     Tracker tracker;
-    cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
+    //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
+    cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
     bg.setTo(255);
     tracker.set_average(Image::Make(bg));
     
@@ -638,7 +630,7 @@ int main(int argc, char**argv) {
                 //menu.overlay.set_source(std::move(next.overlay));
                 if (not file.is_open()) {
                     file.set_start_time(start_time);
-                    file.set_resolution(video.source.size());
+                    file.set_resolution(expected_size);
                 }
                 file.add_individual(pv::Frame(current));
 
@@ -694,7 +686,7 @@ int main(int argc, char**argv) {
                 ColorWheel wheel;
                 for (const auto& v : tmp_outline) {
                     auto clr = wheel.next();
-                    graph.line(v, 1, clr);
+                    graph.line(v, 1, White);
                 }
             });
             
@@ -714,8 +706,8 @@ int main(int argc, char**argv) {
             const SegmentInformation* previous{nullptr};
             fish->iterate_frames(Range(tracker.end_frame().try_sub(15_f), tracker.end_frame()), [&](Frame_t i, const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
             {
-                //if(previous != segment)
-                //    return true;
+                if(ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
+                    return true;
                 auto p = basic->centroid.pos<Units::PX_AND_SECONDS>().mul(scale);
                 line.push_back(Vertex(p.x, p.y, fish->identity().color()));
                 previous = ptr.get();
