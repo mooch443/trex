@@ -156,9 +156,9 @@ def predict_yolov7(img, image_shape=(640,640)):
             return tf.concat([x - w / 2, y - h / 2, x + w / 2, y + h / 2], axis=-1)
 
         topk_per_class=100
-        topk_all=100
-        iou_thres=0.045
-        conf_thres=0.025
+        topk_all=200
+        iou_thres=0.45
+        conf_thres=0.25
         b, ch, h, w = im.shape
         results = []
 
@@ -181,10 +181,39 @@ def predict_yolov7(img, image_shape=(640,640)):
                                                     conf_thres,
                                                     clip_boxes=False)
 
-        for i, det in enumerate(nms):
+        #print(nms)
+        #print("nmsed_boxes: ",nms.nmsed_boxes)
+
+        nms_valid = nms.valid_detections[0]
+        nms_boxes = nms.nmsed_boxes.numpy()[0, :nms_valid]
+        nms_scores = nms.nmsed_scores.numpy()[0, :nms_valid]
+        nms_classes = nms.nmsed_classes.numpy()[0, :nms_valid]
+
+        if len(nms_boxes) > 0:
+            print("nms_boxes: ", nms_boxes)
+            print("nms_scores: ", nms_scores)
+            print("nms_classes: ", nms_classes)
+            print("nms_valid: ", nms_valid)
+
+        ratio = (im0[1] / im.shape[-1], im0[0] / im.shape[-2])
+
+        for xy, score, clid in zip(nms_boxes, nms_scores, nms_classes):
+            pt0 = np.array((xy[0] * ratio[0], xy[1] * ratio[1])).astype(int)
+            pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
+            print(score, clid, pt0, pt1)
+            results.append(np.array((score, clid, pt0[0], pt0[1], pt1[0], pt1[1])))
+
+
+        '''for i, det in enumerate(nms):
             if len(det.shape) > 1:
                 det = det.numpy()
                 boxes = np.round(scale_boxes(im.shape[2:4], det[:, :4], im.shape[2:4]))
+
+                for *xyxy, conf, cls in reversed(det):
+                    line = (i, cls, *xyxy, np.array([conf]))
+                    #print(line)
+                    print(i, "=>", len(xyxy), xyxy[i], np.shape(xyxy), np.shape(conf), conf)
+
                 for *xyxy, conf, cls in reversed(det):
                     for i in range(len(xyxy)):
                         xy = xyxy[i]
@@ -194,8 +223,10 @@ def predict_yolov7(img, image_shape=(640,640)):
                         pt0 = np.array((xy[0] * ratio[0], xy[1] * ratio[1])).astype(int)
                         pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
                         if xy[2] > 0:
-                            results.append(np.array((pt0, pt1)))
-        return np.array(results, dtype=int)
+                            #print(classes[i], probs[i], scores[i], conf, cls, clid, pt0[0], pt0[1], pt1[0], pt1[1])
+                            print(conf[i], cls[i])
+                            results.append(np.array((conf[i], cls[i], pt0[0], pt0[1], pt1[0], pt1[1])))'''
+        return np.array(results, dtype=np.float32)
     
     def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleup=True, stride=32):
         # Resize and pad image while meeting stride-multiple constraints
@@ -269,6 +300,6 @@ def apply():
 		#im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
 		im = np.array(image, copy=False)[..., :3]
 		results = predict_yolov7(im, image_shape=(image_size,image_size))
-		receive(np.array(results, dtype=int).flatten())
+		receive(np.array(results, dtype=np.float32).flatten())
 	else:
 		raise Exception("model_type was not set before running inference")

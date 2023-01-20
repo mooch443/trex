@@ -209,12 +209,15 @@ int main(int argc, char**argv) {
     
     //auto model = cv::dnn::readNetFromONNX("/Users/tristan/Downloads/best_octopus.onnx");
     //model.setPreferableTarget(CV_DNN_INFERENCE_ENGINE_CPU_TYPE_ARM_COMPUTE);
-    
-    
+    std::mutex pred_mutex;
+    std::map<Frame_t, std::map<pv::bid, std::tuple<float, int>>> predictions;
     //cv::dnn::blobFromImage(mat, blob, 1 / 255.0f, cv::Size(img.cols, img.rows), cv::Scalar(0, 0, 0), true, false);
     OverlayedVideo video{
         [&](const Image& image) -> pv::Frame {
             pv::Frame frame;
+            
+            static Frame_t running_id = 0_f;
+            frame.set_index(running_id++);
             
             /*cv::Mat mat;
             auto INPUT_WIDTH = 640;
@@ -296,19 +299,22 @@ int main(int argc, char**argv) {
                 frame.add_object(lines, pixels, 0);
             }*/
             
-            py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame]() mutable {
+            py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame, &predictions, &pred_mutex]() mutable {
                 using py = track::PythonIntegration;
                 py::check_module("bbx_saved_model");
                 std::vector<Image::UPtr> images;
                 
                 images.emplace_back(std::move(image));
                 py::set_variable("image", std::move(images), "bbx_saved_model");
-                py::set_function("receive", [&](std::vector<int> vector){
+                py::set_function("receive", [&](std::vector<float> vector){
                     //print(vector);
+                    std::unique_lock guard(pred_mutex);
                     
-                    for(size_t i=0; i<vector.size(); i+=4) {
-                        Vec2 pos(vector.at(i), vector.at(i+1));
-                        Size2 dim(vector.at(i+2) - pos.x, vector.at(i+3) - pos.y);
+                    for(size_t i=0; i<vector.size(); i+=4+2) {
+                        float conf = vector.at(i);
+                        float cls = vector.at(i+1);
+                        Vec2 pos(vector.at(i+2), vector.at(i+3));
+                        Size2 dim(vector.at(i+4) - pos.x, vector.at(i+5) - pos.y);
                         
                         std::vector<HorizontalLine> lines;
                         std::vector<uchar> pixels;
@@ -329,8 +335,9 @@ int main(int argc, char**argv) {
                             lines.emplace_back(std::move(line));
                         }
                         
-                        /*pv::Blob blob(lines, pixels, 0);
-                        if(blob.bounds().size().min() > 1) {
+                        pv::Blob blob(lines, 0);
+                        predictions[frame.index()][blob.blob_id()] = { float(conf), int(cls) };
+                        /*if(blob.bounds().size().min() > 1) {
                             auto[p, img] = blob.image();
                             tf::imshow("blob", img->get());
                         }*/
@@ -345,8 +352,6 @@ int main(int argc, char**argv) {
             }).get();
             
             //tf::imshow("test", ret);
-            static Frame_t running_id = 0_f;
-            frame.set_index(running_id++);
             return frame;//Image::Make(ret);
         },
         VideoSource(SETTING(source).value<std::string>())
@@ -485,12 +490,29 @@ int main(int argc, char**argv) {
                 if(next.image) {
                     objects.clear();
                     
+                    {
+                        std::unique_lock g(pred_mutex);
+                        if(current.index().valid()
+                           && predictions.contains(current.index()))
+                        {
+                            predictions.erase(current.index());
+                        }
+                    }
+                    
                     current = std::move(next.overlay);
                     
                     for(size_t i=0; i<current.n(); ++i) {
                         auto blob = current.blob_at(i);
                         //print(blob->bounds());
-                        auto bds = blob->bounds();
+                        //auto bds = blob->bounds();
+                        {
+                            std::unique_lock g(pred_mutex);
+                            if(predictions.contains(current.index())) {
+                                print(blob->blob_id(), " in ", current.index(), ": ", predictions.at(current.index()).contains(blob->blob_id()));
+                            } else
+                                print("no current frame ", current.index());
+                        }
+                        
                         objects.emplace_back(std::move(blob));
                         
                         //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
@@ -526,7 +548,26 @@ int main(int argc, char**argv) {
             const auto bds = blob->bounds().mul(scale);
             //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
             graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
-            graph.text(Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.25));
+            
+            float p{-1};
+            int clid{-1};
+            {
+                std::unique_lock guard(pred_mutex);
+                if(Tracker::end_frame().valid()
+                   && predictions.contains(Tracker::end_frame()))
+                {
+                    auto &m = predictions.at(Tracker::end_frame());
+                    if(m.contains(blob->blob_id())) {
+                        auto r = m.at(blob->blob_id());
+                        p = std::get<0>(r);
+                        clid = std::get<1>(r);
+                    } else {
+                        print("[draw] blob ", blob->blob_id(), " not found...");
+                    }
+                }
+            }
+            
+            graph.text(Meta::toStr(clid)+":"+Meta::toStr(p) + " - " /*+ Meta::toStr(blob->num_pixels()) + " "*/ + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.25));
         }
         
         using namespace track;
