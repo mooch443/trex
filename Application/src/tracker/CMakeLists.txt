@@ -321,7 +321,7 @@ else()
     endif()
 endif()
 
-set(targets ${TREX_EXEC_NAME})
+set(targets ${TREX_EXEC_NAME} alter)
 if(WIN32 AND NOT COMMONS_NO_PYTHON)
 set(targets ${targets} tracker_python)
 endif()

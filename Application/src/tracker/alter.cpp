@@ -13,6 +13,7 @@
 #include <misc/default_config.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
+#include <misc/PixelTree.h>
 
 using namespace cmn;
 
@@ -81,8 +82,6 @@ struct OverlayedVideo {
                 
                 //print("Loaded frame ", i);
                 auto ptr = Image::Make(download_buffer);
-                auto fake = double(i.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-                ptr->set_timestamp(uint64_t(fake));
                 ++i;
                 return ptr;
             } catch(...) {
@@ -211,14 +210,18 @@ int main(int argc, char**argv) {
     //model.setPreferableTarget(CV_DNN_INFERENCE_ENGINE_CPU_TYPE_ARM_COMPUTE);
     std::mutex pred_mutex;
     std::map<Frame_t, std::map<pv::bid, std::tuple<float, int>>> predictions;
+    std::vector<std::vector<Vec2>> outline_points;
+
     //cv::dnn::blobFromImage(mat, blob, 1 / 255.0f, cv::Size(img.cols, img.rows), cv::Scalar(0, 0, 0), true, false);
     OverlayedVideo video{
         [&](const Image& image) -> pv::Frame {
             pv::Frame frame;
             
             static Frame_t running_id = 0_f;
+            auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+            frame.set_timestamp(uint64_t(fake));
             frame.set_index(running_id++);
-            
+
             /*cv::Mat mat;
             auto INPUT_WIDTH = 640;
             auto INPUT_HEIGHT = 640;
@@ -299,7 +302,7 @@ int main(int argc, char**argv) {
                 frame.add_object(lines, pixels, 0);
             }*/
             
-            py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame, &predictions, &pred_mutex]() mutable {
+            py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame, &predictions, &pred_mutex, &outline_points]() mutable {
                 using py = track::PythonIntegration;
                 py::check_module("bbx_saved_model");
                 std::vector<Image::UPtr> images;
@@ -346,6 +349,106 @@ int main(int argc, char**argv) {
                     }
                     
                 }, "bbx_saved_model");
+                
+                py::set_function("receive_seg", [&](std::vector<uchar> masks, std::vector<float> vector){
+                    //print(vector);
+                    std::unique_lock guard(pred_mutex);
+                    size_t N = vector.size() / 6u;
+                    outline_points.clear();
+
+                    for (size_t i = 0; i < N; ++i) {
+                        float conf = vector.at(i * 6);
+                        float cls = vector.at(i * 6 + 1);
+                        Vec2 pos(vector.at(i * 6 + 2), vector.at(i * 6 + 3));
+                        Size2 dim(vector.at(i * 6 + 4) - pos.x, vector.at(i * 6 + 5) - pos.y);
+ 
+                        if (SETTING(filter_class).value<bool>() && cls != 0)
+                            continue;
+
+                        /*std::vector<uchar> vec(masks.data() + i * 54 * 54, masks.data() + (i + 1) * 54 * 54);
+                        for (auto v : vec)
+                            printf("%03u ", v);
+                        printf("\n");*/
+                        //std::span<uchar, 54 * 54> view(masks.data() + i * 54 * 54, masks.data() + (i+1) * 54 * 54);
+                        //Image image(54, 54, 1, view.data());
+                        Image image(56, 56, 1, masks.data() + i * 56 * 56);
+                        cv::Mat tmp;
+                        cv::resize(image.get(), tmp, dim);
+                        cv::threshold(tmp, tmp, 150, 255, cv::THRESH_BINARY);
+                        
+                        auto blobs = CPULabeling::run(tmp);
+                        if (not blobs.empty()) {
+                            size_t msize = 0, midx = 0;
+                            for (size_t j = 0; j < blobs.size(); ++j) {
+                                if (blobs.at(j).pixels->size() > msize) {
+                                    msize = blobs.at(j).pixels->size();
+                                    midx = j;
+                                }
+                            }
+
+                            auto&& pair = blobs.at(midx);
+                            for (auto& line : *pair.lines) {
+                                line.x1 += pos.x;
+                                line.x0 += pos.x;
+                                line.y += pos.y;
+                            }
+
+                            pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags);
+                            auto points = pixel::find_outer_points(&blob, 0);
+                            if (not points.empty()) {
+                                outline_points.emplace_back(std::move(*points.front()));
+                                //for (auto& pt : outline_points.back())
+                                //    pt = (pt + blob.bounds().pos())/*.mul(dim.div(image.dimensions())) + pos*/;
+                            }
+                            predictions[frame.index()][blob.blob_id()] = { float(conf), int(cls) };
+                            frame.add_object(std::move(pair));
+                            //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
+                            //auto [pos, img] = big->image();
+                            
+                            /*if (i == 0) {
+                                auto [pos, img] = blob.image();
+                                cv::Mat tmp;
+                                cv::resize(img->get(), tmp, dim);
+                                tf::imshow("big", tmp);
+                            }*/
+                        }
+                        
+
+                        /*if (i == 0) {
+                            print("Image bounds: ", image.dimensions(), " resizing to ", dim);
+                            cv::Mat tmp;
+                            cv::resize(image.get(), tmp, dim);
+                            print(tmp.cols, " x ", tmp.rows);
+                            tf::imshow("in trex", tmp);
+                        }*/
+
+                        /*std::vector<HorizontalLine> lines;
+                        std::vector<uchar> pixels;
+                        for (int y = pos.y; y < pos.y + dim.height; ++y) {
+                            if (y < 0)
+                                continue;
+
+                            HorizontalLine line{
+                                (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
+                                (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
+                                (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
+                            };
+                            for (int x = line.x0; x <= line.x1; ++x) {
+                                pixels.emplace_back(0);
+                                //pixels.emplace_back(ref->get().at<cv::Vec4b>(y, x)[0]);
+                            }
+                            //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
+                            //              (uchar*)mat.ptr(y, line.x1));
+                            lines.emplace_back(std::move(line));
+                        }
+
+                        pv::Blob blob(lines, 0);
+                        predictions[frame.index()][blob.blob_id()] = { float(conf), int(cls) };
+                        frame.add_object(lines, pixels, 0);*/
+                    }
+                    
+                }, "bbx_saved_model");
+
                 py::run("bbx_saved_model", "apply");
                 py::unset_function("receive", "bbx_saved_model");
                 
@@ -454,16 +557,17 @@ int main(int argc, char**argv) {
     pv::Frame current;
     using namespace track;
     
-    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(1);
-    SETTING(meta_real_width) = float(5120);
+    SETTING(do_history_split) = false;
+    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
+    SETTING(meta_real_width) = float(expected_size.width * 10);
     SETTING(track_max_speed) = Settings::track_max_speed_t(300);
     SETTING(track_threshold) = Settings::track_threshold_t(0);
     SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
-        Rangef(100,500)
+        Rangef(100,50000)
     });
     SETTING(frame_rate) = Settings::frame_rate_t(video.source.framerate());
     SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
-    SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(2);
+    SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
     
     Tracker tracker;
     cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
@@ -476,69 +580,81 @@ int main(int argc, char**argv) {
     }, [](Event) {
         
     });
-    
+
     auto start_time = std::chrono::system_clock::now();
     PPFrame pp;
     pv::File file(file::DataLocation::parse("output", "tmp.pv"), pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     std::vector<pv::BlobPtr> objects;
     file.set_average(bg);
     
-    gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
-        
-            {
-                std::unique_lock guard(mutex);
-                if(next.image) {
-                    objects.clear();
-                    
+    std::vector<std::vector<Vec2>> tmp_outline;
+    SETTING(filter_class) = false;
+
+    auto fetch_files = [&](){
+        //while(not _terminate) 
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+            std::unique_lock guard(mutex);
+            if (next.image) {
+                objects.clear();
+
+                {
+                    std::unique_lock g(pred_mutex);
+                    tmp_outline = std::move(outline_points);
+
+                    if (current.index().valid()
+                        && predictions.contains(current.index()))
+                    {
+                        predictions.erase(current.index());
+                    }
+                }
+
+                current = std::move(next.overlay);
+                
+                for (size_t i = 0; i < current.n(); ++i) {
+                    auto blob = current.blob_at(i);
+                    //print(blob->bounds());
+                    //auto bds = blob->bounds();
                     {
                         std::unique_lock g(pred_mutex);
-                        if(current.index().valid()
-                           && predictions.contains(current.index()))
-                        {
-                            predictions.erase(current.index());
+                        if (predictions.contains(current.index())) {
+                            //print(blob->blob_id(), " in ", current.index(), ": ", predictions.at(current.index()).contains(blob->blob_id()));
                         }
+                        else
+                            print("no current frame ", current.index());
                     }
-                    
-                    current = std::move(next.overlay);
-                    
-                    for(size_t i=0; i<current.n(); ++i) {
-                        auto blob = current.blob_at(i);
-                        //print(blob->bounds());
-                        //auto bds = blob->bounds();
-                        {
-                            std::unique_lock g(pred_mutex);
-                            if(predictions.contains(current.index())) {
-                                print(blob->blob_id(), " in ", current.index(), ": ", predictions.at(current.index()).contains(blob->blob_id()));
-                            } else
-                                print("no current frame ", current.index());
-                        }
-                        
-                        objects.emplace_back(std::move(blob));
-                        
-                        //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
-                        //print(blob->bounds(), " -> ", bds);
-                        //graph.rect(bds, attr::FillClr(Red.alpha(25)), attr::LineClr(Red));
-                        //auto [pos, img] = blob->image();
-                        //graph.image(pos.mul(scale), std::move(img), scale, White.alpha(25));
-                    }
-                    
-                    menu.background->set_source(std::move(next.image));
-                    //menu.overlay.set_source(std::move(next.overlay));
-                    if(not file.is_open()) {
-                        file.set_start_time(start_time);
-                        file.set_resolution(video.source.size());
-                    }
-                    file.add_individual(pv::Frame(current));
-                    
-                    Tracker::preprocess_frame(file, std::move(current), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
-                    tracker.add(pp);
-                    if(pp.index().get() % 100 == 0) {
-                        print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-                    }
-                    messages.notify_one();
+
+                    objects.emplace_back(std::move(blob));
+
+                    //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
+                    //print(blob->bounds(), " -> ", bds);
+                    //graph.rect(bds, attr::FillClr(Red.alpha(25)), attr::LineClr(Red));
+                    //auto [pos, img] = blob->image();
+                    //graph.image(pos.mul(scale), std::move(img), scale, White.alpha(25));
                 }
+
+                menu.background->set_source(std::move(next.image));
+                //menu.overlay.set_source(std::move(next.overlay));
+                if (not file.is_open()) {
+                    file.set_start_time(start_time);
+                    file.set_resolution(video.source.size());
+                }
+                file.add_individual(pv::Frame(current));
+
+                Tracker::preprocess_frame(file, std::move(current), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
+                tracker.add(pp);
+                if (pp.index().get() % 100 == 0) {
+                    print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+                }
+                messages.notify_one();
             }
-            
+        }
+    };
+    
+    gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
+        fetch_files();
+
             graph.set_scale(1. / base.dpi_scale());
             menu.buttons->set_scale(graph.scale().reciprocal());
             menu.draw(graph);
@@ -567,7 +683,21 @@ int main(int argc, char**argv) {
                 }
             }
             
-            graph.text(Meta::toStr(clid)+":"+Meta::toStr(p) + " - " /*+ Meta::toStr(blob->num_pixels()) + " "*/ + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.25));
+            graph.text(Meta::toStr(clid)+":"+Meta::toStr(p) + " - " + Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.75));
+        }
+
+        if (not tmp_outline.empty()) {
+
+            graph.section("track", [&](auto& , Section* s) {
+                s->set_scale(scale);
+
+                ColorWheel wheel;
+                for (const auto& v : tmp_outline) {
+                    auto clr = wheel.next();
+                    graph.line(v, 1, clr);
+                }
+            });
+            
         }
         
         using namespace track;
@@ -594,7 +724,14 @@ int main(int argc, char**argv) {
             graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
             graph.vertices(line);
         });
-        
+
+        graph.set_dirty(nullptr);
+
+        if (graph.is_key_pressed(Keyboard::Right)) {
+            SETTING(filter_class) = true;
+        } else if (graph.is_key_pressed(Keyboard::Left)) {
+            SETTING(filter_class) = false;
+        }
     });
     
     {

@@ -1,8 +1,39 @@
+import torch
+from torchvision import transforms
+from torch.nn import functional as F
+import torchvision
+
+from detectron2.modeling.poolers import ROIPooler
+from detectron2.structures import Boxes
+from detectron2.utils.memory import retry_if_cuda_oom
+from detectron2.layers import paste_masks_in_image
+
 import tensorflow as tf
 import TRex
 import numpy as np
 from tensorflow import keras
 from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+import time
+import cv2
+
+
+print("UPDATED SCRIPT ---------------------------------------------")
+
+WEIGHTS_PATH = "C:/Users/tristan/Downloads/yolov7-mask.pt"
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+weigths = torch.load(WEIGHTS_PATH)
+t_model = weigths['model']
+t_model = t_model.half().to(device)
+_ = t_model.eval()
+
+hyp = {
+    "mask_resolution": 56,
+    "attn_resolution": 14,
+    "num_base": 5
+}
+
 
 model = None
 image_size = 640
@@ -11,15 +42,16 @@ image = None
 model_type = None
 
 def load_model():
-	global model, model_path, image_size
-	model = tf.saved_model.load(model_path)
-	full_model = tf.function(lambda x: model(images=x))
-	full_model = full_model.get_concrete_function(
-	    tf.TensorSpec((1, 3, image_size, image_size), tf.float32))
-	# Get frozen ConcreteFunction
-	frozen_func = convert_variables_to_constants_v2(full_model)
-	frozen_func.graph.as_graph_def()
-	model = frozen_func
+    global model, model_path, image_size
+    '''model = tf.saved_model.load(model_path)
+    full_model = tf.function(lambda x: model(images=x))
+    full_model = full_model.get_concrete_function(
+        tf.TensorSpec((1, 3, image_size, image_size), tf.float32))
+    # Get frozen ConcreteFunction
+    frozen_func = convert_variables_to_constants_v2(full_model)
+    frozen_func.graph.as_graph_def()
+    model = frozen_func'''
+    pass
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     # Rescale boxes (xyxy) from img1_shape to img0_shape
@@ -289,17 +321,272 @@ def predict_yolov7(img, image_shape=(640,640)):
     return perform_filtering(img.shape, im, output_data)
 
 def apply():
-	global model, image_size, receive, image, model_type
-	if model_type == "yolo5":
-		image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
-		#print(image)
-		results = inference(model, image, size=(image_size, image_size))
-		#print(np.array(results, dtype=int).flatten())
-		receive(np.array(results, dtype=int).flatten())
-	elif model_type == "yolo7":
-		#im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
-		im = np.array(image, copy=False)[..., :3]
-		results = predict_yolov7(im, image_shape=(image_size,image_size))
-		receive(np.array(results, dtype=np.float32).flatten())
-	else:
-		raise Exception("model_type was not set before running inference")
+    global model, image_size, receive, image, model_type
+    if model_type == "yolo5":
+        image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
+        #print(image)
+        results = inference(model, image, size=(image_size, image_size))
+        #print(np.array(results, dtype=int).flatten())
+        receive(np.array(results, dtype=int).flatten())
+    elif model_type == "yolo7":
+        #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
+        im = np.array(image, copy=False)[..., :3]
+        results = predict_yolo7_seg(im)
+        print("sending: ", results[1])
+
+        receive_seg(results[0], results[1].flatten())
+        #results = predict_yolov7(im, image_shape=(image_size,image_size))
+        #receive(np.array(results[1], dtype=np.float32).flatten())
+    else:
+        raise Exception("model_type was not set before running inference")
+
+def predict_yolo7_seg(image):
+    global t_model
+    def xywh2xyxy(x):
+        # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+        y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+        y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
+        y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
+        y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
+        y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
+        return y
+
+    def merge_bases(rois, coeffs, attn_r, num_b, location_to_inds=None):
+        # merge predictions
+        # N = coeffs.size(0)
+        if location_to_inds is not None:
+            rois = rois[location_to_inds]
+        N, B, H, W = rois.size()
+        if coeffs.dim() != 4:
+            coeffs = coeffs.view(N, num_b, attn_r, attn_r)
+        # NA = coeffs.shape[1] //  B
+        coeffs = F.interpolate(coeffs, (H, W),
+                               mode="bilinear").softmax(dim=1)
+        # coeffs = coeffs.view(N, -1, B, H, W)
+        # rois = rois[:, None, ...].repeat(1, NA, 1, 1, 1)
+        # masks_preds, _ = (rois * coeffs).sum(dim=2) # c.max(dim=1)
+        masks_preds = (rois * coeffs).sum(dim=1)
+        return masks_preds
+
+    def non_max_suppression_mask_conf(prediction, attn, bases, pooler, hyp, conf_thres=0.1, iou_thres=0.6, merge=False, classes=None, agnostic=False, mask_iou=None, vote=False):
+
+        if prediction.dtype is torch.float16:
+            prediction = prediction.float()  # to FP32
+        nc = prediction[0].shape[1] - 5  # number of classes
+        xc = prediction[..., 4] > conf_thres  # candidates
+        # Settings
+        min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
+        max_det = 300  # maximum number of detections per image
+        time_limit = 10.0  # seconds to quit after
+        redundant = True  # require redundant detections
+        multi_label = nc > 1  # multiple labels per box (adds 0.5ms/img)
+
+        t = time.time()
+        output = [None] * prediction.shape[0]
+        output_mask = [None] * prediction.shape[0]
+        output_mask_score = [None] * prediction.shape[0]
+        output_ac = [None] * prediction.shape[0]
+        output_ab = [None] * prediction.shape[0]
+
+        def RMS_contrast(masks):
+            mu = torch.mean(masks, dim=-1, keepdim=True)
+            return torch.sqrt(torch.mean((masks - mu)**2, dim=-1, keepdim=True))
+
+
+        for xi, x in enumerate(prediction):  # image index, image inference
+            # Apply constraints
+            # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
+            x = x[xc[xi]]  # confidence
+            # Box (center x, center y, width, height) to (x1, y1, x2, y2)
+            box = xywh2xyxy(x[:, :4])
+
+            # If none remain process next image
+            if not x.shape[0]:
+                continue
+
+            a = attn[xi][xc[xi]]
+            base = bases[xi]
+
+            bboxes = Boxes(box)
+            pooled_bases = pooler([base[None]], [bboxes])
+
+            pred_masks = merge_bases(pooled_bases, a, hyp["attn_resolution"], hyp["num_base"]).view(a.shape[0], -1).sigmoid()
+
+            if mask_iou is not None:
+                mask_score = mask_iou[xi][xc[xi]][..., None]
+            else:
+                temp = pred_masks.clone()
+                temp[temp < 0.5] = 1 - temp[temp < 0.5]
+                mask_score = torch.exp(torch.log(temp).mean(dim=-1, keepdims=True))#torch.mean(temp, dim=-1, keepdims=True)
+
+            x[:, 5:] *= x[:, 4:5] * mask_score # x[:, 4:5] *   * mask_conf * non_mask_conf  # conf = obj_conf * cls_conf
+
+            if multi_label:
+                i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
+                x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
+                mask_score = mask_score[i]
+                if attn is not None:    
+                    pred_masks = pred_masks[i]
+            else:  # best class only
+                conf, j = x[:, 5:].max(1, keepdim=True)
+                x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+
+            # Filter by class
+            if classes:
+                x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
+
+
+            # If none remain process next image
+            n = x.shape[0]  # number of boxes
+            if not n:
+                continue
+
+            # Batched NMS
+            c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+            boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+            # scores *= mask_score
+            i = torchvision.ops.boxes.nms(boxes, scores, iou_thres)
+            if i.shape[0] > max_det:  # limit detections
+                i = i[:max_det]
+
+
+            all_candidates = []
+            all_boxes = []
+            if vote:
+                ious = box_iou(boxes[i], boxes) > iou_thres
+                for iou in ious: 
+                    selected_masks = pred_masks[iou]
+                    k = min(10, selected_masks.shape[0])
+                    _, tfive = torch.topk(scores[iou], k)
+                    all_candidates.append(pred_masks[iou][tfive])
+                    all_boxes.append(x[iou, :4][tfive])
+            #exit()
+
+            if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
+                try:  # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
+                    iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
+                    weights = iou * scores[None]  # box weights
+                    x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
+                    if redundant:
+                        i = i[iou.sum(1) > 1]  # require redundancy
+                except:  # possible CUDA error https://github.com/ultralytics/yolov3/issues/1139
+                    print(x, i, x.shape, i.shape)
+                    pass
+
+            output[xi] = x[i]
+            output_mask_score[xi] = mask_score[i]
+            output_ac[xi] = all_candidates
+            output_ab[xi] = all_boxes
+            if attn is not None:
+                output_mask[xi] = pred_masks[i]
+            if (time.time() - t) > time_limit:
+                break  # time limit exceeded
+
+        return output, output_mask, output_mask_score, output_ac, output_ab
+    
+    #image = letterbox(image, 640, stride=64, auto=True)[0]
+    #print(image.shape, image.dtype)
+    if len(image.shape) > 3:
+        image = image[0]
+    #image = cv2.resize(image, (640, 640))#.astype(np.float32) / 255.0
+    #assert image.shape == (480, 480, 3)
+    #print(image.shape)
+    #print(image.shape)
+    image = transforms.ToTensor()(image)
+    image = torch.tensor(np.array([image.numpy()]))
+    image = image.to(device)
+    image = image.half()
+    #print(image.shape, image.dtype)
+
+    output = t_model(image)
+    #print(output)
+    '''print([key for key in output])
+    for key in output:
+        if output[key] is None:
+            continue
+        print(key)
+        if type(output[key]) is list:
+            print(len(output[key]), [k[0].shape for k in output[key]])
+        else:
+            print(output[key].shape)'''
+    inf_out, train_out, attn, mask_iou, bases, sem_output = output['test'], output['bbox_and_cls'], output['attn'], output['mask_iou'], output['bases'], output['sem']
+    #print(bases.shape, sem_output.shape, sem_output.cpu().numpy().shape)
+    #plt.imshow(sem_output.cpu().numpy())
+    #plt.show()
+    bases = torch.cat([bases, sem_output], dim=1)
+    nb, _, height, width = image.shape
+    names = t_model.names
+    pooler_scale = t_model.pooler_scale
+    pooler = ROIPooler(output_size=hyp['mask_resolution'], scales=(pooler_scale,), sampling_ratio=1, pooler_type='ROIAlignV2', canonical_level=2)
+
+    output, output_mask, output_mask_score, output_ac, output_ab = non_max_suppression_mask_conf(inf_out, attn, bases, pooler, hyp, conf_thres=0.35, iou_thres=0.65, merge=False, mask_iou=None)
+    pred, pred_masks = output[0], output_mask[0]
+    if pred is None:
+        return (np.array([], dtype=np.uint8).flatten(), np.array([], dtype=np.float32))
+
+    base = bases[0]
+    bboxes = Boxes(pred[:, :4])
+    original_pred_masks = pred_masks.view(-1, hyp['mask_resolution'], hyp['mask_resolution'])
+    #print(original_pred_masks.cpu().numpy().shape)
+    #print(original_pred_masks.cpu().numpy())
+    #print(bboxes.tensor.detach().cpu().numpy().astype(int))
+    pred_cls = pred[:, 5].detach().cpu().numpy()
+    pred_conf = pred[:, 4].detach().cpu().numpy()
+
+    results = []
+    shapes = []
+    for i, (conf, clid, (x0,y0,x1,y1), mask) in enumerate(zip(pred_conf, pred_cls, bboxes.tensor.detach().cpu().numpy().astype(int), original_pred_masks.cpu().numpy())):
+        #mask = (original_pred_masks[i].cpu().numpy() * 255).astype(np.uint8)
+        #if i == 0:
+        #    print(i, mask.shape, " -> ", (x1 - x0, y1 - y0))
+
+        results.append((conf, clid, x0, y0, x1, y1))
+        mask = (mask * 255).astype(np.uint8)
+        #mask[mask < 150] = 0
+        #mimg[mimg > 0] = 255
+        shapes.append(mask)
+
+        '''if i == 0:
+            print(i, " -> ", (x1 - x0, y1 - y0), mask)
+            mimg = cv2.resize(mask, (x1 - x0, y1 - y0))
+            mimg[mimg < 200] = 0
+            mimg[mimg > 0] = 255
+            cv2.imshow("blob"+str(i), mimg)
+            cv2.waitKey(1)'''
+        
+
+
+    return np.ascontiguousarray(np.array(shapes, dtype=np.uint8).flatten()), np.array(results, dtype=np.float32)
+
+
+    pred_masks = retry_if_cuda_oom(paste_masks_in_image)( original_pred_masks, bboxes, (height, width), threshold=0.5)
+    pred_masks_np = pred_masks.detach().cpu().numpy()
+    pred_cls = pred[:, 5].detach().cpu().numpy()
+    pred_conf = pred[:, 4].detach().cpu().numpy()
+    nimg = image[0].permute(1, 2, 0) * 255
+    nimg = nimg.cpu().numpy().astype(np.uint8)
+    #nimg = cv2.cvtColor(nimg, cv2.COLOR_RGB2BGR)
+    nbboxes = bboxes.tensor.detach().cpu().numpy().astype(int)
+    pnimg = nimg.copy()
+    for one_mask, bbox, cls, conf in zip(pred_masks_np, nbboxes, pred_cls, pred_conf):
+        if conf < 0.25:
+            continue
+        color = [np.random.randint(255), np.random.randint(255), np.random.randint(255)]
+
+        #print(one_mask.shape)
+        #print(one_mask)
+        ##pnimg[one_mask] = pnimg[one_mask] * 0.5 + np.array(color, dtype=np.uint8) * 0.5
+        ##pnimg = cv2.rectangle(pnimg, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
+        #label = '%s %.3f' % (names[int(cls)], conf)
+        #t_size = cv2.getTextSize(label, 0, fontScale=0.5, thickness=1)[0]
+        #c2 = bbox[0] + t_size[0], bbox[1] - t_size[1] - 3
+        #pnimg = cv2.rectangle(pnimg, (bbox[0], bbox[1]), c2, color, -1, cv2.LINE_AA)  # filled
+        #pnimg = cv2.putText(pnimg, label, (bbox[0], bbox[1] - 2), 0, 0.5, [255, 255, 255], thickness=1, lineType=cv2.LINE_AA)  
+    
+    #print(pnimg.shape)
+    #cv2.imshow("webcam", pnimg)
+    #cv2.waitKey(1)
+    #plt.figure(figsize=(8,8), dpi=300)
+    #plt.axis('off')
+    #plt.imshow(pnimg)
+    #plt.show()
