@@ -112,7 +112,7 @@ struct OverlayedVideo {
         
         Timer timer;
         auto overlay = this->overlay(*ptr);
-        overlay.set_timestamp((uint64_t)ptr->timestamp());
+        //overlay.set_timestamp((uint64_t)ptr->timestamp());
         //overlay.set_index(Frame_t(ptr->index()));
         
         if(_samples.load() > 100) {
@@ -155,6 +155,69 @@ cv::Mat letterbox(cv::Mat &img, cv::Size new_shape, cv::Scalar color, bool _auto
     cv::copyMakeBorder(dst, dst, top, bottom, left, right, cv::BORDER_CONSTANT, color);
     return dst;
 }
+
+using namespace gui;
+template<typename OverlayT>
+struct Menu {
+    Button::Ptr
+        hi = Button::MakePtr("Quit", attr::Size(50, 35)),
+        bro = Button::MakePtr("Filter", attr::Size(50, 35)),
+        reset = Button::MakePtr("Reset", attr::Size(50, 35));
+    std::shared_ptr<Text> text = std::make_shared<Text>();
+    std::shared_ptr<ExternalImage>
+        background = std::make_shared<ExternalImage>(),
+        overlay = std::make_shared<ExternalImage>();
+    Image::UPtr next;
+    
+    std::shared_ptr<HorizontalLayout> buttons = std::make_shared<HorizontalLayout>(
+        std::vector<Layout::Ptr>{
+            Layout::Ptr(hi),
+            Layout::Ptr(bro),
+            Layout::Ptr(reset),
+            Layout::Ptr(text)
+        }
+    );
+    
+    Menu() = delete;
+    Menu(Menu&&) = delete;
+    Menu(const Menu&) = delete;
+    
+    template<typename F>
+    Menu(F&& reset_func) {
+        buttons->set_policy(HorizontalLayout::Policy::TOP);
+        buttons->set_pos(Vec2(10, 10));
+        bro->set_toggleable(true);
+        bro->on_click([this](Event e) {
+            SETTING(filter_class) = bro->toggled();
+        });
+        hi->on_click([](Event e) {
+            SETTING(terminate) = true;
+        });
+        reset->on_click([fn = std::move(reset_func)](Event e){
+            fn();
+        });
+    }
+    
+    ~Menu() {
+        hi = bro = nullptr;
+        background = overlay = nullptr;
+        buttons = nullptr;
+    }
+    
+    void draw(DrawStructure& g) {
+        g.wrap_object(*background);
+        //g.wrap_object(overlay);
+        text->set_txt(Meta::toStr(OverlayT::_fps.load() / OverlayT::_samples.load())+"fps");
+        
+        if(background->source()) {
+            //overlay.set_color(Red.alpha(125));
+            background->set_scale(Size2(g.width(), g.height()).div( background->source()->dimensions()));
+            overlay->set_scale(background->scale());
+        }
+        
+        g.wrap_object(*buttons);
+    }
+};
 
 int main(int argc, char**argv) {
     using namespace gui;
@@ -316,6 +379,10 @@ int main(int argc, char**argv) {
                     for(size_t i=0; i<vector.size(); i+=4+2) {
                         float conf = vector.at(i);
                         float cls = vector.at(i+1);
+                        
+                        if (SETTING(filter_class).value<bool>() && cls != 1 && cls != 0)
+                            continue;
+                        
                         Vec2 pos(vector.at(i+2), vector.at(i+3));
                         Size2 dim(vector.at(i+4) - pos.x, vector.at(i+5) - pos.y);
                         
@@ -357,10 +424,13 @@ int main(int argc, char**argv) {
                     outline_points.clear();
 
                     for (size_t i = 0; i < N; ++i) {
-                        float conf = vector.at(i * 6);
-                        float cls = vector.at(i * 6 + 1);
-                        Vec2 pos(vector.at(i * 6 + 2), vector.at(i * 6 + 3));
-                        Size2 dim(vector.at(i * 6 + 4) - pos.x, vector.at(i * 6 + 5) - pos.y);
+                        Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
+                        Size2 dim(vector.at(i * 6 + 2) - pos.x, vector.at(i * 6 + 3) - pos.y);
+                        
+                        float conf = vector.at(i * 6 + 4);
+                        float cls = vector.at(i * 6 + 5);
+                        
+                        print(conf, " ", cls, " ",pos, " ", dim);
  
                         if (SETTING(filter_class).value<bool>() && cls != 14)
                             continue;
@@ -379,6 +449,7 @@ int main(int argc, char**argv) {
                         cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
                         cv::bitwise_and(tmp, t, tmp);
                         //cv::subtract(255, tmp, tmp);
+                        //tf::imshow("image"+Meta::toStr(i), image.get());
                         
                         auto blobs = CPULabeling::run(tmp);
                         if (not blobs.empty()) {
@@ -409,13 +480,12 @@ int main(int argc, char**argv) {
                             //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
                             //auto [pos, img] = big->image();
                             
-                            if (i == 0 && frame.index().get() % 10 == 0) {
+                            if (i % 2 && frame.index().get() % 10 == 0) {
                                 auto [pos, img] = blob.image();
                                 cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
                                 auto vit = vir.ptr<cv::Vec3b>();
                                 for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
                                     *vit = Viridis::value(*it / 255.0);
-                                //tf::imshow("big", img->get());
                                 tf::imshow("big", vir);
                             }
                         }
@@ -490,65 +560,20 @@ int main(int argc, char**argv) {
         }
     });
     
-    struct Menu {
-        Button::Ptr
-            hi = Button::MakePtr("Quit", attr::Size(50, 35)),
-            bro = Button::MakePtr("Filter", attr::Size(50, 35));
-        std::shared_ptr<Text> text = std::make_shared<Text>();
-        std::shared_ptr<ExternalImage>
-            background = std::make_shared<ExternalImage>(),
-            overlay = std::make_shared<ExternalImage>();
-        Image::UPtr next;
-        
-        std::shared_ptr<HorizontalLayout> buttons = std::make_shared<HorizontalLayout>(
-            std::vector<Layout::Ptr>{
-                Layout::Ptr(hi),
-                Layout::Ptr(bro),
-                Layout::Ptr(text)
-            }
-        );
-        
-        Menu() {
-            buttons->set_policy(HorizontalLayout::Policy::TOP);
-            buttons->set_pos(Vec2(10, 10));
-            bro->set_toggleable(true);
-            bro->on_click([this](Event e) {
-                SETTING(filter_class) = bro->toggled();
-            });
-            hi->on_click([](auto e) {
-                SETTING(terminate) = true;
-            });
-        }
-        
-        ~Menu() {
-            hi = bro = nullptr;
-            background = overlay = nullptr;
-            buttons = nullptr;
-        }
-        
-        void draw(DrawStructure& g) {
-            g.wrap_object(*background);
-            //g.wrap_object(overlay);
-            text->set_txt(Meta::toStr(decltype(video)::_fps.load() / decltype(video)::_samples.load())+"fps");
-            
-            if(background->source()) {
-                //overlay.set_color(Red.alpha(125));
-                background->set_scale(Size2(g.width(), g.height()).div( background->source()->dimensions()));
-                overlay->set_scale(background->scale());
-            }
-            
-            g.wrap_object(*buttons);
-        }
-    } menu;
+    ::Menu<decltype(video)> menu([&](){
+        video.i = 0_f;
+    });
     
     pv::Frame current;
     using namespace track;
     
+    GlobalSettings::map().set_do_print(true);
     SETTING(track_do_history_split) = false;
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
     SETTING(meta_real_width) = float(expected_size.width * 10);
     SETTING(track_max_speed) = Settings::track_max_speed_t(300);
     SETTING(track_threshold) = Settings::track_threshold_t(0);
+    SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);
     SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
         Rangef(10,300)
     });
@@ -675,25 +700,25 @@ int main(int argc, char**argv) {
                 }
             }
             
-            graph.text(Meta::toStr(clid)+":"+Meta::toStr(p) + " - " + Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.75));
+            graph.text(Meta::toStr(clid)+":"+Meta::toStr(p) + " - " + Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.35));
         }
 
         if (not tmp_outline.empty()) {
-
+            graph.text(Meta::toStr(tmp_outline.size())+" lines", attr::Loc(10,50), attr::Font(0.35));
             graph.section("track", [&](auto& , Section* s) {
                 s->set_scale(scale);
 
                 ColorWheel wheel;
                 for (const auto& v : tmp_outline) {
                     auto clr = wheel.next();
-                    graph.line(v, 1, White);
+                    graph.line(v, 1, clr.alpha(150));
                 }
             });
             
         }
         
         using namespace track;
-        IndividualManager::transform_all([&](Idx_t fdx, Individual* fish)
+        IndividualManager::transform_all([&](Idx_t , Individual* fish)
         {
             if(not fish->has(tracker.end_frame()))
                 return;
@@ -704,7 +729,7 @@ int main(int argc, char**argv) {
             auto bds = basic->calculate_bounds().mul(scale);
             std::vector<Vertex> line;
             const SegmentInformation* previous{nullptr};
-            fish->iterate_frames(Range(tracker.end_frame().try_sub(15_f), tracker.end_frame()), [&](Frame_t i, const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
+            fish->iterate_frames(Range(tracker.end_frame().try_sub(50_f), tracker.end_frame()), [&](Frame_t , const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
             {
                 if(ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
                     return true;
@@ -742,3 +767,4 @@ int main(int argc, char**argv) {
     }
     return 0;
 }
+

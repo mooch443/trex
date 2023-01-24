@@ -19,14 +19,22 @@ import cv2
 
 print("UPDATED SCRIPT ---------------------------------------------")
 
-WEIGHTS_PATH = "C:/Users/tristan/Downloads/yolov7-mask.pt"
+#WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-mask.pt"
+WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-seg.pt"
+#WEIGHTS_PATH = "/Users/tristan/Downloads/best-4.pt"
+'''if torch.backends.mps.is_available():
+    device = torch.device("mps")
+    #x = torch.ones(1, device=mps_device)
+    #print (x)
+else:
+    print ("MPS device not found.")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-weigths = torch.load(WEIGHTS_PATH)
+weigths = torch.load(WEIGHTS_PATH, map_location=device)
 t_model = weigths['model']
 t_model = t_model.half().to(device)
-_ = t_model.eval()
+_ = t_model.eval()'''
+t_model = None
 
 hyp = {
     "mask_resolution": 56,
@@ -40,9 +48,21 @@ image_size = 640
 model_path = None
 image = None
 model_type = None
+imgsz = None
+device = None
 
 def load_model():
-    global model, model_path, image_size
+    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device
+
+    from models.common import DetectMultiBackend
+    device = torch.device("cpu")
+    t_model = DetectMultiBackend(WEIGHTS_PATH, device=device, dnn=False, fp16=False)
+    imgsz = (image_size,image_size)
+    stride, names, pt = t_model.stride, t_model.names, t_model.pt
+    imgsz = check_img_size(imgsz, s=stride)
+    t_model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))
+    print("Loaded and warmed up")
+
     '''model = tf.saved_model.load(model_path)
     full_model = tf.function(lambda x: model(images=x))
     full_model = full_model.get_concrete_function(
@@ -331,14 +351,150 @@ def apply():
     elif model_type == "yolo7":
         #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
         im = np.array(image, copy=False)[..., :3]
-        results = predict_yolo7_seg(im)
+        results = predict_custom_yolo7_seg(im)
         #print("sending: ", results[0].shape, results[1])
 
-        receive_seg(results[0], results[1].flatten())
+        receive_seg(results[0], results[1])
         #results = predict_yolov7(im, image_shape=(image_size,image_size))
-        #receive(np.array(results[1], dtype=np.float32).flatten())
+        #receive(np.array(results, dtype=np.float32).flatten())
     else:
         raise Exception("model_type was not set before running inference")
+
+
+import argparse
+import os
+import platform
+import sys
+from pathlib import Path
+
+import torch
+import torch.backends.cudnn as cudnn    
+
+from models.common import DetectMultiBackend
+from utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
+from utils.general import (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
+                           increment_path, non_max_suppression,scale_segments, print_args, strip_optimizer, xyxy2xywh)
+from utils.plots import Annotator, colors, save_one_box
+from utils.segment.general import process_mask, scale_masks, masks2segments
+from utils.segment.plots import plot_masks
+from utils.torch_utils import select_device, smart_inference_mode
+
+from utils.augmentations import augment_hsv, copy_paste, letterbox
+
+import torch.nn.functional as F
+import torchvision.transforms as T
+
+def predict_custom_yolo7_seg(image):
+    global t_model, device
+
+    def crop(masks, boxes):
+        """
+        "Crop" predicted masks by zeroing out everything not in the predicted bbox.
+        Vectorized by Chong (thanks Chong).
+
+        Args:
+            - masks should be a size [h, w, n] tensor of masks
+            - boxes should be a size [n, 4] tensor of bbox coords in relative point form
+        """
+
+        n, h, w = masks.shape
+        print(n,h,w)
+        x1, y1, x2, y2 = torch.chunk(boxes[:, :, None], 4, 1)  # x1 shape(1,1,n)
+        #print(x1,y1,x2,y2)
+        r = torch.arange(w, device=masks.device, dtype=x1.dtype)[None, None, :]  # rows shape(1,w,1)
+        #print(r)
+        c = torch.arange(h, device=masks.device, dtype=x1.dtype)[None, :, None]  # cols shape(h,1,1)
+        #print(c)
+        return masks * ((r >= x1) * (r < x2) * (c >= y1) * (c < y2))
+
+    if len(image.shape) > 3:
+        image = image[0]
+    im = image
+    print(im.shape)
+    assert im.shape == (image_size,image_size,3)
+    im0 = image.shape#image.copy()
+    #im, ratio, pad = letterbox(im, (image_size, image_size))
+    im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+    im = np.ascontiguousarray(im)
+
+    dt = (Profile(), Profile(), Profile())
+    conf_thres = 0.25
+    iou_thres = 0.45
+
+    with dt[0]:
+        im = torch.from_numpy(im).to(device)
+        im = im.half() if t_model.fp16 else im.float()  # uint8 to fp16/32
+        im /= 255  # 0 - 255 to 0.0 - 1.0
+        if len(im.shape) == 3:
+            im = im[None]  # expand for batch dim
+
+    # Inference
+    with dt[1]:
+        pred, out = t_model(im, augment=None, visualize=None)
+        proto = out[1]
+
+    # NMS
+    with dt[2]:
+        pred = non_max_suppression(pred, conf_thres, iou_thres, None, False, max_det=1000, nm=32)
+
+    def clip_coords(boxes, shape):
+        # Clip bounding xyxy bounding boxes to image shape (height, width)
+        if isinstance(boxes, torch.Tensor):  # faster individually
+            boxes[:, 0].clamp_(0, shape[1])  # x1
+            boxes[:, 1].clamp_(0, shape[0])  # y1
+            boxes[:, 2].clamp_(0, shape[1])  # x2
+            boxes[:, 3].clamp_(0, shape[0])  # y2
+        else:  # np.array (faster grouped)
+            boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, shape[1])  # x1, x2
+            boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
+
+    def scale_coords(img1_shape, coords, img0_shape):
+        # Rescale coords (xyxy) from img1_shape to img0_shape
+        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
+        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+
+        coords[:, [0, 2]] -= pad[0]  # x padding
+        coords[:, [1, 3]] -= pad[1]  # y padding
+        coords[:, :4] /= gain
+        clip_coords(coords, img0_shape)
+        return coords
+
+    results = []
+    shapes = []
+    for i, det in enumerate(pred):
+        c, mh, mw = proto[i].shape  # CHW
+        ih, iw = im.shape[2:]
+
+        downsampled_bboxes = det[:, :4].clone()
+        downsampled_bboxes[:, 0] *= mw / iw
+        downsampled_bboxes[:, 2] *= mw / iw
+        downsampled_bboxes[:, 3] *= mh / ih
+        downsampled_bboxes[:, 1] *= mh / ih
+
+        masks = (det[:, 6:] @ proto[i].float().view(c, -1)).sigmoid().view(-1, mh, mw)  # CHW
+        masks = crop(masks, downsampled_bboxes)
+        det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0).round()
+
+        confs = det[:, 4]
+        clids = det[:, 5]
+
+        
+        for i in range(len(masks)):
+            x = masks[i]
+            box = downsampled_bboxes[i]
+            x0,y0,x1,y1 = box.cpu().numpy().astype(int)
+
+            if x1-x0 > 0 and y1-y0 > 0:
+                x = x[y0:y1+1, x0:x1+1]
+                x = (T.Resize((56,56))(x[None])[0] * 255).to(torch.uint8)
+                shapes.append(x.cpu().numpy())
+
+                #if not x.shape[0] == 0 and not x.shape[1] == 0:
+                #    shapes.append(cv2.resize(x, (56,56)))
+            else:
+                print("image empty :(")
+
+    return np.array(shapes, dtype=np.uint8).flatten(), torch.flatten(det[:, :6].to(torch.float32)).cpu().numpy()
 
 def predict_yolo7_seg(image):
     global t_model
@@ -469,8 +625,9 @@ def predict_yolo7_seg(image):
                     x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
                     if redundant:
                         i = i[iou.sum(1) > 1]  # require redundancy
-                except:  # possible CUDA error https://github.com/ultralytics/yolov3/issues/1139
+                except Exception as e:  # possible CUDA error https://github.com/ultralytics/yolov3/issues/1139
                     print(x, i, x.shape, i.shape)
+                    print(e)
                     pass
 
             output[xi] = x[i]
@@ -519,7 +676,7 @@ def predict_yolo7_seg(image):
     pooler_scale = t_model.pooler_scale
     pooler = ROIPooler(output_size=hyp['mask_resolution'], scales=(pooler_scale,), sampling_ratio=1, pooler_type='ROIAlignV2', canonical_level=2)
 
-    output, output_mask, output_mask_score, output_ac, output_ab = non_max_suppression_mask_conf(inf_out, attn, bases, pooler, hyp, conf_thres=0.15, iou_thres=0.55, merge=False, mask_iou=None)
+    output, output_mask, output_mask_score, output_ac, output_ab = non_max_suppression_mask_conf(inf_out, attn, bases, pooler, hyp, conf_thres=0.15, iou_thres=1.0, merge=False, vote=False, mask_iou=None)
     pred, pred_masks = output[0], output_mask[0]
     if pred is None:
         return (np.array([], dtype=np.uint8).flatten(), np.array([], dtype=np.float32))
@@ -539,6 +696,7 @@ def predict_yolo7_seg(image):
     #print(image.shape)
     bboxes[:, [0,2]] = np.clip(bboxes[:, [0,2]], 0, image.shape[3]-1);
     bboxes[:, [1,3]] = np.clip(bboxes[:, [1,3]], 0, image.shape[2]-1);
+    print(bboxes)
 
     #bboxes = np.clip(bboxes, 0, np.max(image.shape)) #[[0, 0, 0, 0]], [[image.shape[1], image.shape[0], image.shape[1], image.shape[0]]])
 
