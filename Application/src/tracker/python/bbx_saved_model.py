@@ -486,7 +486,7 @@ def predict_custom_yolo7_seg(image):
 
             if x1-x0 > 0 and y1-y0 > 0:
                 x = x[y0:y1+1, x0:x1+1]
-                x = (T.Resize((56,56))(x[None])[0] * 255).to(torch.uint8)
+                x = (T.Resize((56,56))(x[None])[0])# * 255).to(torch.uint8)
                 shapes.append(x.cpu().numpy())
 
                 #if not x.shape[0] == 0 and not x.shape[1] == 0:
@@ -494,7 +494,8 @@ def predict_custom_yolo7_seg(image):
             else:
                 print("image empty :(")
 
-    return np.array(shapes, dtype=np.uint8).flatten(), torch.flatten(det[:, :6].to(torch.float32)).cpu().numpy()
+    return np.array(shapes, dtype=np.float32).flatten(), torch.flatten(det[:, :6].to(torch.float32)).cpu().numpy()
+    #return np.array(shapes, dtype=np.uint8).flatten(), torch.flatten(det[:, :6].to(torch.float32)).cpu().numpy()
 
 def predict_yolo7_seg(image):
     global t_model

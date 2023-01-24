@@ -284,86 +284,6 @@ int main(int argc, char**argv) {
             auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
             frame.set_timestamp(uint64_t(fake));
             frame.set_index(running_id++);
-
-            /*cv::Mat mat;
-            auto INPUT_WIDTH = 640;
-            auto INPUT_HEIGHT = 640;
-            cv::cvtColor(image.get(), mat, cv::COLOR_BGRA2BGR);
-            cv::resize(mat, mat, cv::Size(INPUT_WIDTH, INPUT_HEIGHT));
-            //cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
-            auto blob = cv::dnn::blobFromImage(mat, 1.0/255.0, cv::Size(INPUT_WIDTH, INPUT_HEIGHT), cv::Scalar(0, 0, 0),    true, false);
-            model.setInput(blob);
-            std::vector<std::string> outLayerNames = model.getUnconnectedOutLayersNames();
-            std::vector<cv::Mat> detections;
-            model.forward(detections, outLayerNames);
-            
-            std::vector<cv::Rect> boxes;
-            std::vector<int> classIDs;
-            std::vector<float> confidences;
-            
-            cv::Mat out = cv::Mat(detections[0].size[1], detections[0].size[2], CV_32F, detections[0].ptr<float>());
-            
-            for (int r = 0; r < out.rows; r++)
-            {
-                float cx = out.at<float>(r, 0);
-                float cy = out.at<float>(r, 1);
-                float w = out.at<float>(r, 2);
-                float h = out.at<float>(r, 3);
-                float sc = out.at<float>(r, 4);
-                cv::Mat confs = out.row(r).colRange(5,out.cols);
-                confs*=sc;
-                double minV=0,maxV=0;
-                double *minI=&minV;
-                double *maxI=&maxV;
-                cv::minMaxIdx(confs,minI,maxI);
-                confidences.push_back(maxV);
-                boxes.push_back(cv::Rect(cx - w / 2, cy - h / 2, w, h));
-                classIDs.push_back(r);
-            }
-            cv::dnn::NMSBoxes(boxes, confidences, 0.25f, 0.45f, classIDs);
-            
-            cv::Mat ret = cv::Mat::zeros(INPUT_WIDTH, INPUT_HEIGHT, CV_8UC4);//image.rows, image.cols, CV_8UC4);
-            cv::cvtColor(mat, ret, cv::COLOR_RGB2RGBA);
-            cv::resize(ret, ret, image.dimensions());
-            
-            Vec2 scale(image.cols / double(INPUT_WIDTH),
-                       image.rows / double(INPUT_HEIGHT));
-            //Vec2 scale(1, 1);
-            for (auto &ind : classIDs)
-            {
-                std::cout << Vec2((double)boxes[ind].x - (double)boxes[ind].width * 0.5, (double)boxes[ind].y - boxes[ind].height * 0.5).mul(scale).toStr() << " " <<
-                Vec2(boxes[ind].width, boxes[ind].height).mul(scale).toStr() << ":" << confidences[ind] << std::endl;
-                Size2 dim = Vec2(boxes[ind].width, boxes[ind].height);
-                Vec2 pos = Vec2{
-                    (float)boxes[ind].x, //- dim.width * 0.5f,
-                    (float)boxes[ind].y, //- dim.height * 0.5f
-                }.mul(scale);
-                
-                cv::rectangle(ret, pos, pos + dim.mul(scale), Blue, 1);
-                
-                std::vector<HorizontalLine> lines;
-                std::vector<uchar> pixels;
-                for(int y = pos.y; y < pos.y + dim.height; ++y) {
-                    HorizontalLine line{
-                        (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
-                        (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
-                        (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
-                    };
-                    for(int x = line.x0; x <= line.x1; ++x) {
-                        pixels.emplace_back(image.get().at<cv::Vec4b>(y, x)[0]);
-                    }
-                    //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
-                    //              (uchar*)mat.ptr(y, line.x1));
-                    lines.emplace_back(std::move(line));
-                }
-                
-                pv::Blob blob(lines, pixels, 0);
-                if(blob.bounds().size().min() > 1) {
-                    //auto[p, img] = blob.image();
-                    //tf::imshow("blob", img->get());
-                }
-                frame.add_object(lines, pixels, 0);
-            }*/
             
             py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame, &predictions, &pred_mutex, &outline_points]() mutable {
                 using py = track::PythonIntegration;
@@ -417,11 +337,13 @@ int main(int argc, char**argv) {
                     
                 }, "bbx_saved_model");
                 
-                py::set_function("receive_seg", [&](std::vector<uchar> masks, std::vector<float> vector){
+                py::set_function("receive_seg", [&](std::vector<float> masks, std::vector<float> vector){
                     //print(vector);
                     std::unique_lock guard(pred_mutex);
                     size_t N = vector.size() / 6u;
                     outline_points.clear();
+                    cv::Mat full_image;
+                    cv::cvtColor(ref->get(), full_image, cv::COLOR_RGBA2GRAY);
 
                     for (size_t i = 0; i < N; ++i) {
                         Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
@@ -443,12 +365,33 @@ int main(int argc, char**argv) {
                         printf("\n");*/
                         //std::span<uchar, 54 * 54> view(masks.data() + i * 54 * 54, masks.data() + (i+1) * 54 * 54);
                         //Image image(54, 54, 1, view.data());
-                        Image image(56, 56, 1, masks.data() + i * 56 * 56);
-                        cv::Mat tmp, t;
-                        cv::resize(image.get(), tmp, dim);
-                        cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
-                        cv::bitwise_and(tmp, t, tmp);
+                        //Image image(56, 56, 1, masks.data() + i * 56 * 56);
+                        cv::Mat m = cv::Mat(56, 56, CV_32FC1, masks.data() + i * 56 * 56);
+
+                        cv::Mat tmp;
+                        cv::resize(m, tmp, dim);
+
+                        cv::Mat dani;
+                        tmp.convertTo(dani, CV_8UC1, 255.0);
+                        tf::imshow("dani", dani);
+
+                        cv::threshold(tmp, tmp, 0.6, 1.0, cv::THRESH_BINARY);
+                        //cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
+                        //print(Bounds(pos, dim), " and image ", Size2(full_image), " and t ", Size2(t));
+                        //print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
+                        //print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
+                        cv::Mat d;// = full_image(Bounds(pos, dim));
+                        full_image(Bounds(pos, dim)).convertTo(d, CV_32FC1);
+
+                        //tf::imshow("ref", d);
+                        //tf::imshow("tmp", tmp);
+                        //tf::imshow("t", t);
+                        cv::multiply(d, tmp, d);
+                        d.convertTo(tmp, CV_8UC1);
+                        //cv::bitwise_and(d, t, tmp);
+                        
                         //cv::subtract(255, tmp, tmp);
+                        tf::imshow("tmp", tmp);
                         //tf::imshow("image"+Meta::toStr(i), image.get());
                         
                         auto blobs = CPULabeling::run(tmp);
@@ -600,7 +543,7 @@ int main(int argc, char**argv) {
 
     auto start_time = std::chrono::system_clock::now();
     PPFrame pp;
-    pv::File file(file::DataLocation::parse("output", "tmp.pv"), pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+    pv::File file(file::DataLocation::parse("output", "pigeons.pv"), pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     std::vector<pv::BlobPtr> objects;
     file.set_average(bg);
     
