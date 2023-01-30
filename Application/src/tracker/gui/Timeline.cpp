@@ -716,7 +716,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                                     if (fish->has(_frame_info->frameIndex))
                                         ++_frame_info->current_count;
 
-                                    if (fish->start_frame() <= _frame_info->frameIndex) {
+                                    if (not fish->empty() && fish->start_frame() <= _frame_info->frameIndex) {
                                         _frame_info->up_to_this_frame++;
                                     }
                                 }

@@ -360,6 +360,9 @@ bool Individual::has(Frame_t frame) const {
 }
 
 decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(Frame_t frameIndex) const {
+    if(empty())
+        return _frame_segments.end();
+    
     if(not frameIndex.valid()
        || frameIndex < _startFrame
        || frameIndex > _endFrame)
@@ -396,6 +399,8 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
 }
 
 std::shared_ptr<SegmentInformation> Individual::segment_for(Frame_t frameIndex) const {
+    if(empty())
+        return nullptr;
     if(frameIndex < _startFrame || frameIndex > _endFrame)
         return nullptr;
     

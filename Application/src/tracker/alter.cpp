@@ -17,30 +17,329 @@
 
 using namespace cmn;
 
+struct TileImage;
+
 template<typename T>
 concept overlay_function = requires {
-    requires std::invocable<T, const Image&>;
+    requires std::invocable<T, TileImage&&>;
     //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::UPtr>;
 };
 
 static Size2 expected_size(1024, 1024);
+using namespace gui;
+
+struct SegmentationData {
+    Image::UPtr image;
+    pv::Frame frame;
+    
+    struct Assignment {
+        size_t clid;
+        float p;
+    };
+    
+    std::map<pv::bid, Assignment> predictions;
+    std::vector<std::vector<Vec2>> outlines;
+    
+    operator bool() const {
+        return image != nullptr;
+    }
+    
+    void receive(Vec2 scale_factor, const std::vector<float>& vector) {
+        for(size_t i=0; i<vector.size(); i+=4+2) {
+            float conf = vector.at(i);
+            float cls = vector.at(i+1);
+            
+            if (SETTING(filter_class).value<bool>() && cls != 1 && cls != 0)
+                continue;
+            
+            Vec2 pos = Vec2(vector.at(i+2), vector.at(i+3));
+            Size2 dim = Size2(vector.at(i+4) - pos.x, vector.at(i+5) - pos.y).mul(scale_factor);
+            pos = pos.mul(scale_factor);
+            
+            std::vector<HorizontalLine> lines;
+            std::vector<uchar> pixels;
+            for(int y = pos.y; y < pos.y + dim.height; ++y) {
+                if(y < 0 || y >= image->rows)
+                    continue;
+                
+                HorizontalLine line{
+                    (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
+                    (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
+                    (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
+                };
+                for(int x = line.x0; x <= line.x1; ++x) {
+                    pixels.emplace_back(image->get().at<cv::Vec4b>(y, x)[0]);
+                }
+                //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
+                //              (uchar*)mat.ptr(y, line.x1));
+                lines.emplace_back(std::move(line));
+            }
+            
+            if(not lines.empty()) {
+                pv::Blob blob(lines, 0);
+                predictions[blob.blob_id()] = { .clid = size_t(cls), .p = float(conf) };
+                frame.add_object(lines, pixels, 0);
+            }
+        }
+    }
+    
+    void receive_seg(std::vector<float>& masks, const std::vector<float>& vector) {
+        //print(vector);
+        size_t N = vector.size() / 6u;
+        
+        cv::Mat full_image;
+        cv::cvtColor(image->get(), full_image, cv::COLOR_RGBA2GRAY);
+        
+        for (size_t i = 0; i < N; ++i) {
+            Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
+            Size2 dim(vector.at(i * 6 + 2) - pos.x, vector.at(i * 6 + 3) - pos.y);
+            
+            float conf = vector.at(i * 6 + 4);
+            float cls = vector.at(i * 6 + 5);
+            
+            print(conf, " ", cls, " ",pos, " ", dim);
+            
+            if (SETTING(filter_class).value<bool>() && cls != 14)
+                continue;
+            if (dim.min() < 1)
+                continue;
+            
+            cv::Mat m(56, 56, CV_32FC1, masks.data() + i * 56 * 56);
+            
+            cv::Mat tmp;
+            cv::resize(m, tmp, dim);
+            
+            cv::Mat dani;
+            tmp.convertTo(dani, CV_8UC1, 255.0);
+            tf::imshow("dani", dani);
+            
+            cv::threshold(tmp, tmp, 0.6, 1.0, cv::THRESH_BINARY);
+            //cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
+            //print(Bounds(pos, dim), " and image ", Size2(full_image), " and t ", Size2(t));
+            //print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
+            //print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
+            cv::Mat d;// = full_image(Bounds(pos, dim));
+            full_image(Bounds(pos, dim)).convertTo(d, CV_32FC1);
+            
+            //tf::imshow("ref", d);
+            //tf::imshow("tmp", tmp);
+            //tf::imshow("t", t);
+            cv::multiply(d, tmp, d);
+            d.convertTo(tmp, CV_8UC1);
+            //cv::bitwise_and(d, t, tmp);
+            
+            //cv::subtract(255, tmp, tmp);
+            tf::imshow("tmp", tmp);
+            //tf::imshow("image"+Meta::toStr(i), image.get());
+            
+            auto blobs = CPULabeling::run(tmp);
+            if (not blobs.empty()) {
+                size_t msize = 0, midx = 0;
+                for (size_t j = 0; j < blobs.size(); ++j) {
+                    if (blobs.at(j).pixels->size() > msize) {
+                        msize = blobs.at(j).pixels->size();
+                        midx = j;
+                    }
+                }
+                
+                auto&& pair = blobs.at(midx);
+                for (auto& line : *pair.lines) {
+                    line.x1 += pos.x;
+                    line.x0 += pos.x;
+                    line.y += pos.y;
+                }
+                
+                pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags);
+                auto points = pixel::find_outer_points(&blob, 0);
+                if (not points.empty()) {
+                    outlines.emplace_back(std::move(*points.front()));
+                    //for (auto& pt : outline_points.back())
+                    //    pt = (pt + blob.bounds().pos())/*.mul(dim.div(image.dimensions())) + pos*/;
+                }
+                predictions[blob.blob_id()] = { .clid = size_t(cls), .p = float(conf) };
+                frame.add_object(std::move(pair));
+                //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
+                //auto [pos, img] = big->image();
+                
+                if (i % 2 && frame.index().get() % 10 == 0) {
+                    auto [pos, img] = blob.image();
+                    cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
+                    auto vit = vir.ptr<cv::Vec3b>();
+                    for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
+                        *vit = Viridis::value(*it / 255.0);
+                    tf::imshow("big", vir);
+                }
+            }
+        }
+    }
+};
+
+
+struct TileImage {
+    Size2 tile_size;
+    Image::UPtr original;
+    std::vector<Image::UPtr> images;
+    inline static gpuMat resized, converted, thresholded;
+    inline static cv::Mat download_buffer;
+    Size2 source_size, original_size;
+    
+    TileImage() = default;
+    TileImage(TileImage&&) = default;
+    TileImage(const TileImage&) = delete;
+    
+    TileImage& operator=(TileImage&&) = default;
+    TileImage& operator=(const TileImage&) = delete;
+    
+    TileImage(const gpuMat& source, Size2 tile_size, Size2 original_size)
+        : tile_size(tile_size),
+          source_size(source.cols, source.rows),
+          original_size(original_size)
+    {
+        cv::Mat local;
+        cv::cvtColor(source, local, cv::COLOR_BGR2RGBA);
+        original = Image::Make(local);
+        
+        if(tile_size.width >= source.cols
+           || tile_size.height >= source.rows)
+        {
+            cv::resize(source, resized, expected_size);
+            cv::cvtColor(resized, converted, cv::COLOR_BGR2RGBA);
+            converted.copyTo(download_buffer);
+            source_size = expected_size;
+            //print("Loaded frame ", i);
+            images.emplace_back(Image::Make(download_buffer));
+            
+        } else {
+            cv::Mat local;
+            
+            for(int y = 0; y < source.rows; y += tile_size.height) {
+                for(int x = 0; x < source.cols; x += tile_size.width) {
+                    gpuMat tile = gpuMat::zeros(tile_size.height, tile_size.width, CV_8UC3);
+                    Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);
+                    bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
+                    source(bds).copyTo(tile(Bounds(0, 0, bds.width, bds.height)));
+                    
+                    
+                    //cv::threshold(tile, thresholded, 150, 255, cv::THRESH_BINARY_INV);
+                    //thresholded.copyTo(local);
+                    //tf::imshow("offset"+Meta::toStr(x)+","+Meta::toStr(y), local);
+                    cv::cvtColor(tile, local, cv::COLOR_BGR2RGBA);
+                    tile.copyTo(local);
+                    images.emplace_back(Image::Make(local));
+                    //tf::imshow("offset"+Meta::toStr(x)+","+Meta::toStr(y), local);
+                }
+            }
+        }
+    }
+    
+    operator bool() const {
+        return not images.empty();
+    }
+    
+    std::vector<Vec2> offsets() const {
+        std::vector<Vec2> o;
+        for(int y = 0; y < source_size.height; y += tile_size.height) {
+            for(int x = 0; x < source_size.width; x += tile_size.width) {
+                o.emplace_back(x, y);
+            }
+        }
+        return o;
+    }
+};
+
+template<typename T>
+concept Segmentation = requires (T t, TileImage tiled) {
+    { t.apply(std::move(tiled)) } -> std::convertible_to<tl::expected<SegmentationData, const char*>>;
+};
+
+struct MLSegmentation {
+    MLSegmentation() {
+        Python::schedule([](){
+            using py = track::PythonIntegration;
+            py::ModuleProxy proxy{"bbx_saved_model"};
+            py::check_module("bbx_saved_model");
+            //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model_octopus/best_saved_model").str(), "bbx_saved_model");
+            //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model/best_saved_model/best_saved_model").str(), "bbx_saved_model");
+            proxy.set_variable("model_type", "yolo7");
+            proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+            proxy.set_variable("image_size", int(expected_size.width));
+            
+            //py::set_variable("image_size", 1280, "bbx_saved_model");
+            py::run("bbx_saved_model", "load_model");
+            
+        }).get();
+    }
+    
+    tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
+        namespace py = Python;
+        
+        SegmentationData data{
+            .image = std::move(tiled.original)
+        };
+        
+        static Frame_t running_id = 0_f;
+        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+        data.frame.set_timestamp(uint64_t(fake));
+        data.frame.set_index(running_id++);
+        
+        //Vec2 scale = Vec2(SETTING(video_scale).value<float>()).reciprocal();//
+        Vec2 scale = SETTING(output_size).value<Size2>().div(data.image->dimensions());
+        print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        if(scale.x != 1 or scale.y != 1) {
+            cv::Mat buffer;
+            cv::resize(data.image->get(), buffer, data.image->dimensions().mul(scale) + 0.5);
+            data.image = Image::Make(buffer);
+            print("Resized image to ", data.image->dimensions(), " using scale ", scale);
+        }
+        
+        else if(tiled.source_size != SETTING(output_size).value<Size2>()) {
+            scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
+        }
+        
+        py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
+            using py = track::PythonIntegration;
+            py::ModuleProxy bbx("bbx_saved_model");
+            py::check_module("bbx_saved_model");
+            
+            bbx.set_variable("offsets", std::move(offsets));
+            bbx.set_variable("image", std::move(images));
+            
+            bbx.set_function("receive", [&](std::vector<float> vector) {
+                data.receive(scale, vector);
+            });
+            
+            bbx.set_function("receive_seg", [&](std::vector<float> masks, std::vector<float> meta) {
+                data.receive_seg(masks, meta);
+            });
+
+            try {
+                py::run("bbx_saved_model", "apply");
+            }
+            catch (...) {
+                FormatWarning("Continue after exception...");
+            }
+            py::unset_function("receive", "bbx_saved_model");
+            py::unset_function("receive_seg", "bbx_saved_model");
+            
+        }).get();
+        
+        //tf::imshow("test", ret);
+        return data;//Image::Make(ret);
+    }
+};
+
+static_assert(Segmentation<MLSegmentation>);
 
 template<typename F>
-    requires overlay_function<F>
+    requires Segmentation<F>
 struct OverlayedVideo {
     VideoSource source;
     F overlay;
     
-    struct Overlay {
-        Image::UPtr image;
-        pv::Frame overlay;
-    };
-    
     mutable std::mutex index_mutex;
     Frame_t i{0};
-    gpuMat buffer;
-    cv::Mat download_buffer;
-    std::future<tl::expected<Image::UPtr, const char*>> next_image;
+    gpuMat buffer, resized, converted;
+    std::future<tl::expected<TileImage, const char*>> next_image;
     static inline std::atomic<float> _fps{0}, _samples{0};
     bool eof() const noexcept {
         std::scoped_lock guard(index_mutex);
@@ -64,40 +363,53 @@ struct OverlayedVideo {
     }
     
     //! generates the next frame
-    tl::expected<Overlay, const char*> generate() noexcept {
+    tl::expected<SegmentationData, const char*> generate() noexcept {
         if(eof())
             return tl::unexpected("End of file.");
         
         auto retrieve_next = [this]()
-            -> tl::expected<Image::UPtr, const char*>
+            -> tl::expected<TileImage, const char*>
         {
             std::scoped_lock guard(index_mutex);
+            TileImage tiled;
+            
             try {
                 source.frame(i, buffer);
                 
-                cv::Mat resized;
-                cv::resize(buffer, download_buffer, expected_size);
-                cv::cvtColor(download_buffer, download_buffer, cv::COLOR_BGR2RGBA);
+                if(SETTING(video_scale).value<float>() != 1) {
+                    Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(video_scale).value<float>();
+                    cv::resize(buffer, buffer, new_size);
+                }
                 
+                Size2 original_size(buffer.cols, buffer.rows);
                 
-                //print("Loaded frame ", i);
-                auto ptr = Image::Make(download_buffer);
+                /*if(Size2(buffer.cols, buffer.rows).max() > expected_size.width * 4) {
+                    Size2 new_size = Size2(expected_size.width * 4, expected_size.width * 4 * buffer.rows / float(buffer.cols));
+                    print("image resize ", Size2(buffer.cols, buffer.rows), " to ", new_size);
+                    cv::resize(buffer, buffer, new_size);
+                }*/
+                
+                size_t tiles = 2;
+                Size2 new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * buffer.rows / float(buffer.cols));
+                cv::resize(buffer, buffer, new_size);
+                
                 ++i;
-                return ptr;
+                return TileImage(buffer, expected_size, original_size);
+                
             } catch(...) {
                 FormatExcept("Error loading frame ", i, " from video ", source, ".");
                 return tl::unexpected("Error loading frame.");
             }
         };
         
-        Image::UPtr ptr;
+        TileImage tiled;
         if(next_image.valid()) {
             auto result = next_image.get();
             if(not result) {
                 return tl::unexpected(result.error());
             }
             
-            ptr = std::move(result.value());
+            tiled = std::move(result.value());
             
         } else {
             auto result = retrieve_next();
@@ -105,58 +417,23 @@ struct OverlayedVideo {
                 return tl::unexpected(result.error());
             }
             
-            ptr = std::move(result.value());
+            tiled = std::move(result.value());
         }
         
         next_image = std::async(std::launch::async | std::launch::deferred, retrieve_next);
         
         Timer timer;
-        auto overlay = this->overlay(*ptr);
-        //overlay.set_timestamp((uint64_t)ptr->timestamp());
-        //overlay.set_index(Frame_t(ptr->index()));
-        
+        auto result = this->overlay.apply(std::move(tiled));
         if(_samples.load() > 100) {
             _samples = _fps = 0;
             print("Reset indexes: ", timer.elapsed());
         }
         _fps = _fps.load() + 1.0 / timer.elapsed();
         _samples = _samples.load() + 1;
-        return Overlay{
-            .image = std::move(ptr),
-            .overlay = std::move(overlay)
-        };
+        return result;
     }
-    
 };
 
-cv::Mat letterbox(cv::Mat &img, cv::Size new_shape, cv::Scalar color, bool _auto, bool scaleFill, bool scaleup, int stride)
-{
-    float width = img.cols;
-    float height = img.rows;
-    float r = min(new_shape.width / width, new_shape.height / height);
-    if (!scaleup)
-        r = min(r, 1.0f);
-    int new_unpadW = int(round(width * r));
-    int new_unpadH = int(round(height * r));
-    int dw = new_shape.width - new_unpadW;
-    int dh = new_shape.height - new_unpadH;
-    if (_auto)
-    {
-        dw %= stride;
-        dh %= stride;
-    }
-    dw /= 2, dh /= 2;
-    cv::Mat dst;
-    cv::resize(img, dst, Size2(new_unpadW, new_unpadH), 0, 0, cv::INTER_LINEAR);
-    int top = int(round(dh - 0.1));
-    int bottom = int(round(dh + 0.1));
-    int left = int(round(dw - 0.1));
-    int right = int(round(dw + 0.1));
-    cv::copyMakeBorder(dst, dst, top, bottom, left, right, cv::BORDER_CONSTANT, color);
-    return dst;
-}
-
-using namespace gui;
 template<typename OverlayT>
 struct Menu {
     Button::Ptr
@@ -187,13 +464,13 @@ struct Menu {
         buttons->set_policy(HorizontalLayout::Policy::TOP);
         buttons->set_pos(Vec2(10, 10));
         bro->set_toggleable(true);
-        bro->on_click([this](Event e) {
+        bro->on_click([this](Event) {
             SETTING(filter_class) = bro->toggled();
         });
-        hi->on_click([](Event e) {
+        hi->on_click([](Event) {
             SETTING(terminate) = true;
         });
-        reset->on_click([fn = std::move(reset_func)](Event e){
+        reset->on_click([fn = std::move(reset_func)](Event){
             fn();
         });
     }
@@ -226,9 +503,14 @@ int main(int argc, char**argv) {
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     file::cd(file::DataLocation::parse("app"));
     
+    SETTING(video_scale) = float(1);
     SETTING(source) = std::string("/Users/tristan/goats/DJI_0160.MOV");
     SETTING(model) = file::Path("/Users/tristan/Downloads/tfmodel_goats1024");
     SETTING(image_width) = int(1024);
+    SETTING(filename) = file::Path("");
+    SETTING(classes) = std::vector<std::string>{
+        "goat", "sheep", "human"
+    };
     
     using namespace cmn;
     namespace py = Python;
@@ -243,213 +525,23 @@ int main(int argc, char**argv) {
         if(a.name == "dim") {
             SETTING(image_width) = Meta::fromStr<int>(a.value);
         }
+        if(a.name == "o") {
+            SETTING(filename) = file::Path(a.value);
+        }
     }
     
     DebugHeader("Starting tracking of");
     print("model: ",SETTING(model).value<file::Path>());
     print("video: ", SETTING(source).value<std::string>());
     print("model resolution: ", SETTING(image_width).value<int>());
+    print("output size: ", SETTING(video_source).value<Size2>());
     
     expected_size = Size2(SETTING(image_width).value<int>(), SETTING(image_width).value<int>());
     
     py::init();
-    
-    py::schedule([](){
-        using py = track::PythonIntegration;
-        py::ModuleProxy proxy{"bbx_saved_model"};
-        py::check_module("bbx_saved_model");
-        //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model_octopus/best_saved_model").str(), "bbx_saved_model");
-        //py::set_variable("model_path", file::Path("/Users/tristan/Downloads/best_saved_model/best_saved_model/best_saved_model").str(), "bbx_saved_model");
-        proxy.set_variable("model_type", "yolo7");
-        proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
-        proxy.set_variable("image_size", int(expected_size.width));
-        
-        //py::set_variable("image_size", 1280, "bbx_saved_model");
-        py::run("bbx_saved_model", "load_model");
-        
-    }).get();
-    
-    //auto model = cv::dnn::readNetFromONNX("/Users/tristan/Downloads/best_octopus.onnx");
-    //model.setPreferableTarget(CV_DNN_INFERENCE_ENGINE_CPU_TYPE_ARM_COMPUTE);
-    std::mutex pred_mutex;
-    std::map<Frame_t, std::map<pv::bid, std::tuple<float, int>>> predictions;
-    std::vector<std::vector<Vec2>> outline_points;
 
-    //cv::dnn::blobFromImage(mat, blob, 1 / 255.0f, cv::Size(img.cols, img.rows), cv::Scalar(0, 0, 0), true, false);
     OverlayedVideo video{
-        [&](const Image& image) -> pv::Frame {
-            pv::Frame frame;
-            
-            static Frame_t running_id = 0_f;
-            auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-            frame.set_timestamp(uint64_t(fake));
-            frame.set_index(running_id++);
-            
-            py::schedule([ref = Image::Make(image), image = Image::Make(image), &frame, &predictions, &pred_mutex, &outline_points]() mutable {
-                using py = track::PythonIntegration;
-                py::check_module("bbx_saved_model");
-                std::vector<Image::UPtr> images;
-                
-                images.emplace_back(std::move(image));
-                py::set_variable("image", std::move(images), "bbx_saved_model");
-                py::set_function("receive", [&](std::vector<float> vector){
-                    //print(vector);
-                    std::unique_lock guard(pred_mutex);
-                    
-                    for(size_t i=0; i<vector.size(); i+=4+2) {
-                        float conf = vector.at(i);
-                        float cls = vector.at(i+1);
-                        
-                        if (SETTING(filter_class).value<bool>() && cls != 1 && cls != 0)
-                            continue;
-                        
-                        Vec2 pos(vector.at(i+2), vector.at(i+3));
-                        Size2 dim(vector.at(i+4) - pos.x, vector.at(i+5) - pos.y);
-                        
-                        std::vector<HorizontalLine> lines;
-                        std::vector<uchar> pixels;
-                        for(int y = pos.y; y < pos.y + dim.height; ++y) {
-                            if(y < 0)
-                                continue;
-                            
-                            HorizontalLine line{
-                                (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
-                                (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
-                                (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
-                            };
-                            for(int x = line.x0; x <= line.x1; ++x) {
-                                pixels.emplace_back(ref->get().at<cv::Vec4b>(y, x)[0]);
-                            }
-                            //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
-                            //              (uchar*)mat.ptr(y, line.x1));
-                            lines.emplace_back(std::move(line));
-                        }
-                        
-                        pv::Blob blob(lines, 0);
-                        predictions[frame.index()][blob.blob_id()] = { float(conf), int(cls) };
-                        /*if(blob.bounds().size().min() > 1) {
-                            auto[p, img] = blob.image();
-                            tf::imshow("blob", img->get());
-                        }*/
-                        //print(blob);
-                        frame.add_object(lines, pixels, 0);
-                    }
-                    
-                }, "bbx_saved_model");
-                
-                py::set_function("receive_seg", [&](std::vector<float> masks, std::vector<float> vector){
-                    //print(vector);
-                    std::unique_lock guard(pred_mutex);
-                    size_t N = vector.size() / 6u;
-                    outline_points.clear();
-                    cv::Mat full_image;
-                    cv::cvtColor(ref->get(), full_image, cv::COLOR_RGBA2GRAY);
-
-                    for (size_t i = 0; i < N; ++i) {
-                        Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
-                        Size2 dim(vector.at(i * 6 + 2) - pos.x, vector.at(i * 6 + 3) - pos.y);
-                        
-                        float conf = vector.at(i * 6 + 4);
-                        float cls = vector.at(i * 6 + 5);
-                        
-                        print(conf, " ", cls, " ",pos, " ", dim);
- 
-                        if (SETTING(filter_class).value<bool>() && cls != 14)
-                            continue;
-                        if (dim.min() < 1)
-                            continue;
-
-                        /*std::vector<uchar> vec(masks.data() + i * 54 * 54, masks.data() + (i + 1) * 54 * 54);
-                        for (auto v : vec)
-                            printf("%03u ", v);
-                        printf("\n");*/
-                        //std::span<uchar, 54 * 54> view(masks.data() + i * 54 * 54, masks.data() + (i+1) * 54 * 54);
-                        //Image image(54, 54, 1, view.data());
-                        //Image image(56, 56, 1, masks.data() + i * 56 * 56);
-                        cv::Mat m = cv::Mat(56, 56, CV_32FC1, masks.data() + i * 56 * 56);
-
-                        cv::Mat tmp;
-                        cv::resize(m, tmp, dim);
-
-                        cv::Mat dani;
-                        tmp.convertTo(dani, CV_8UC1, 255.0);
-                        tf::imshow("dani", dani);
-
-                        cv::threshold(tmp, tmp, 0.6, 1.0, cv::THRESH_BINARY);
-                        //cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
-                        //print(Bounds(pos, dim), " and image ", Size2(full_image), " and t ", Size2(t));
-                        //print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
-                        //print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
-                        cv::Mat d;// = full_image(Bounds(pos, dim));
-                        full_image(Bounds(pos, dim)).convertTo(d, CV_32FC1);
-
-                        //tf::imshow("ref", d);
-                        //tf::imshow("tmp", tmp);
-                        //tf::imshow("t", t);
-                        cv::multiply(d, tmp, d);
-                        d.convertTo(tmp, CV_8UC1);
-                        //cv::bitwise_and(d, t, tmp);
-                        
-                        //cv::subtract(255, tmp, tmp);
-                        tf::imshow("tmp", tmp);
-                        //tf::imshow("image"+Meta::toStr(i), image.get());
-                        
-                        auto blobs = CPULabeling::run(tmp);
-                        if (not blobs.empty()) {
-                            size_t msize = 0, midx = 0;
-                            for (size_t j = 0; j < blobs.size(); ++j) {
-                                if (blobs.at(j).pixels->size() > msize) {
-                                    msize = blobs.at(j).pixels->size();
-                                    midx = j;
-                                }
-                            }
-
-                            auto&& pair = blobs.at(midx);
-                            for (auto& line : *pair.lines) {
-                                line.x1 += pos.x;
-                                line.x0 += pos.x;
-                                line.y += pos.y;
-                            }
-
-                            pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags);
-                            auto points = pixel::find_outer_points(&blob, 0);
-                            if (not points.empty()) {
-                                outline_points.emplace_back(std::move(*points.front()));
-                                //for (auto& pt : outline_points.back())
-                                //    pt = (pt + blob.bounds().pos())/*.mul(dim.div(image.dimensions())) + pos*/;
-                            }
-                            predictions[frame.index()][blob.blob_id()] = { float(conf), int(cls) };
-                            frame.add_object(std::move(pair));
-                            //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
-                            //auto [pos, img] = big->image();
-                            
-                            if (i % 2 && frame.index().get() % 10 == 0) {
-                                auto [pos, img] = blob.image();
-                                cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
-                                auto vit = vir.ptr<cv::Vec3b>();
-                                for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
-                                    *vit = Viridis::value(*it / 255.0);
-                                tf::imshow("big", vir);
-                            }
-                        }
-                    }
-                    
-                }, "bbx_saved_model");
-
-                try {
-                    py::run("bbx_saved_model", "apply");
-                }
-                catch (...) {
-                    FormatWarning("Continue after exception...");
-                }
-                py::unset_function("receive", "bbx_saved_model");
-                py::unset_function("receive_seg", "bbx_saved_model");
-                
-            }).get();
-            
-            //tf::imshow("test", ret);
-            return frame;//Image::Make(ret);
-        },
+        MLSegmentation{},
         VideoSource(SETTING(source).value<std::string>())
         //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
         //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
@@ -460,16 +552,16 @@ int main(int argc, char**argv) {
     std::mutex mutex;
     std::condition_variable messages;
     bool _terminate{false};
-    decltype(video)::Overlay next, dbuffer;
+    SegmentationData next, dbuffer;
     
     auto f = std::async(std::launch::async, [&](){
         std::unique_lock guard(mutex);
         while(not _terminate) {
-            if(dbuffer.image)
+            if(dbuffer)
                 messages.wait(guard);
             
-            if(dbuffer.image) {
-                if(next.image) {
+            if(dbuffer) {
+                if(next) {
                     continue;
                 }
                 
@@ -493,10 +585,10 @@ int main(int argc, char**argv) {
                 continue;
             }
             
-            if(not next.image) {
-                auto ts = result.value().overlay.timestamp();
+            if(not next) {
+                auto ts = result.value().frame.timestamp();
                 next = std::move(result.value());
-                assert(next.overlay.timestamp() == ts);
+                assert(next.frame.timestamp() == ts);
             } else {
                 dbuffer = std::move(result.value());
             }
@@ -504,10 +596,9 @@ int main(int argc, char**argv) {
     });
     
     ::Menu<decltype(video)> menu([&](){
-        video.i = 0_f;
+        video.i = 1500_f;
     });
     
-    pv::Frame current;
     using namespace track;
     
     GlobalSettings::map().set_do_print(true);
@@ -528,9 +619,18 @@ int main(int argc, char**argv) {
 
     cmd.load_settings();
     
+    if(SETTING(filename).value<file::Path>().empty()) {
+        SETTING(filename) = file::Path((std::string)file::Path(video.source.base()).filename());
+    }
+    
+    SETTING(filter_class) = false;
+    Size2 output_size = Size2(video.source.size()) * SETTING(video_scale).value<float>();
+    SETTING(output_size) = output_size;
+    
     Tracker tracker;
     //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
-    cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
+    //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
+    cv::Mat bg = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
     bg.setTo(255);
     tracker.set_average(Image::Make(bg));
     
@@ -543,116 +643,90 @@ int main(int argc, char**argv) {
 
     auto start_time = std::chrono::system_clock::now();
     PPFrame pp;
-    pv::File file(file::DataLocation::parse("output", "pigeons.pv"), pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+    auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    DebugHeader("Output: ", filename);
+    pv::File file(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     std::vector<pv::BlobPtr> objects;
     file.set_average(bg);
     
-    std::vector<std::vector<Vec2>> tmp_outline;
-    SETTING(filter_class) = false;
+    SegmentationData current;
 
     auto fetch_files = [&](){
-        //while(not _terminate) 
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
-            std::unique_lock guard(mutex);
-            if (next.image) {
-                objects.clear();
+        std::unique_lock guard(mutex);
+        if (next.image) {
+            objects.clear();
 
-                {
-                    std::unique_lock g(pred_mutex);
-                    tmp_outline = std::move(outline_points);
-
-                    if (current.index().valid()
-                        && predictions.contains(current.index()))
-                    {
-                        predictions.erase(current.index());
-                    }
-                }
-
-                current = std::move(next.overlay);
-                
-                for (size_t i = 0; i < current.n(); ++i) {
-                    auto blob = current.blob_at(i);
-                    //print(blob->bounds());
-                    //auto bds = blob->bounds();
-                    {
-                        std::unique_lock g(pred_mutex);
-                        if (predictions.contains(current.index())) {
-                            //print(blob->blob_id(), " in ", current.index(), ": ", predictions.at(current.index()).contains(blob->blob_id()));
-                        }
-                        else
-                            print("no current frame ", current.index());
-                    }
-
-                    objects.emplace_back(std::move(blob));
-
-                    //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
-                    //print(blob->bounds(), " -> ", bds);
-                    //graph.rect(bds, attr::FillClr(Red.alpha(25)), attr::LineClr(Red));
-                    //auto [pos, img] = blob->image();
-                    //graph.image(pos.mul(scale), std::move(img), scale, White.alpha(25));
-                }
-
-                menu.background->set_source(std::move(next.image));
-                //menu.overlay.set_source(std::move(next.overlay));
-                if (not file.is_open()) {
-                    file.set_start_time(start_time);
-                    file.set_resolution(expected_size);
-                }
-                file.add_individual(pv::Frame(current));
-
-                Tracker::preprocess_frame(file, std::move(current), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
-                tracker.add(pp);
-                if (pp.index().get() % 100 == 0) {
-                    print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-                }
-                messages.notify_one();
+            {
+                current = std::move(next);
             }
+
+            for (size_t i = 0; i < current.frame.n(); ++i) {
+                auto blob = current.frame.blob_at(i);
+
+                objects.emplace_back(std::move(blob));
+
+                //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
+                //print(blob->bounds(), " -> ", bds);
+                //graph.rect(bds, attr::FillClr(Red.alpha(25)), attr::LineClr(Red));
+                //auto [pos, img] = blob->image();
+                //graph.image(pos.mul(scale), std::move(img), scale, White.alpha(25));
+            }
+
+            menu.background->set_source(Image::Make(*current.image));
+            //menu.overlay.set_source(std::move(next.overlay));
+            if (not file.is_open()) {
+                file.set_start_time(start_time);
+                file.set_resolution(output_size);
+            }
+            file.add_individual(pv::Frame(current.frame));
+
+            Tracker::preprocess_frame(file, pv::Frame(current.frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
+            tracker.add(pp);
+            if (pp.index().get() % 100 == 0) {
+                print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+            }
+            messages.notify_one();
         }
     };
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         fetch_files();
 
-            graph.set_scale(1. / base.dpi_scale());
-            menu.buttons->set_scale(graph.scale().reciprocal());
-            menu.draw(graph);
+        graph.set_scale(1. / base.dpi_scale());
+        menu.buttons->set_scale(graph.scale().reciprocal());
+        menu.draw(graph);
+        
         auto scale = Size2(graph.width(), graph.height()).div( menu.background->source()->dimensions());
             
+        auto classes = SETTING(classes).value<std::vector<std::string>>();
         for(auto& blob : objects) {
             const auto bds = blob->bounds().mul(scale);
             //bds = Bounds(bds.pos().mul(scale), bds.size().mul(scale));
             graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
             
-            float p{-1};
-            int clid{-1};
-            {
-                std::unique_lock guard(pred_mutex);
-                if(Tracker::end_frame().valid()
-                   && predictions.contains(Tracker::end_frame()))
-                {
-                    auto &m = predictions.at(Tracker::end_frame());
-                    if(m.contains(blob->blob_id())) {
-                        auto r = m.at(blob->blob_id());
-                        p = std::get<0>(r);
-                        clid = std::get<1>(r);
-                    } else {
-                        print("[draw] blob ", blob->blob_id(), " not found...");
-                    }
+            SegmentationData::Assignment assign;
+            if(Tracker::end_frame().valid()) {
+                auto it = current.predictions.find(blob->blob_id());
+                if(it != current.predictions.end()) {
+                    assign = it->second;
+                } else {
+                    print("[draw] blob ", blob->blob_id(), " not found...");
                 }
             }
             
-            graph.text(Meta::toStr(clid)+":"+Meta::toStr(p) + " - " + Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.35));
+            auto cname = classes.size() > assign.clid ? classes.at(assign.clid) : "<unknown:"+Meta::toStr(assign.clid)+">";
+            graph.text(cname+":"+Meta::toStr(assign.p) + " - " + Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), attr::Loc(bds.pos() - Vec2(0, 10)), attr::FillClr(White.alpha(100)), attr::Font(0.35));
         }
 
-        if (not tmp_outline.empty()) {
-            graph.text(Meta::toStr(tmp_outline.size())+" lines", attr::Loc(10,50), attr::Font(0.35));
+        if (not current.outlines.empty()) {
+            graph.text(Meta::toStr(current.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35));
             graph.section("track", [&](auto& , Section* s) {
                 s->set_scale(scale);
 
                 ColorWheel wheel;
-                for (const auto& v : tmp_outline) {
+                for (const auto& v : current.outlines) {
                     auto clr = wheel.next();
                     graph.line(v, 1, clr.alpha(150));
                 }

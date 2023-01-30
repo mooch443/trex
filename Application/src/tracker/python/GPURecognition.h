@@ -38,6 +38,7 @@ namespace track {
         static void set_variable(const std::string&, const std::vector<uint32_t>&, const std::string& m = "", const std::vector<size_t>& shape = {}, const std::vector<size_t>& strides = {});
         static void set_variable(const std::string&, const std::vector<float>&, const std::string& m = "", const std::vector<size_t>& shape = {}, const std::vector<size_t>& strides = {});
         static void set_variable(const std::string&, const std::vector<std::string>&, const std::string& m = "");
+        static void set_variable(const std::string&, const std::vector<Vec2>&, const std::string& m = "");
         static void set_variable(const std::string&, const std::vector<Idx_t>&, const std::string& m = "");
         static void set_variable(const std::string&, float, const std::string& m = "");
         static void set_variable(const std::string&, long_t, const std::string& m = "");

@@ -963,7 +963,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     continue;
                 
                 auto cache = s.frame.cached(fish->identity().ID());
-                if(!cache && fish->empty()) {
+                if(!cache || fish->empty()) {
                     cache = &empty;
                 } else {
                     assert(cache != nullptr);

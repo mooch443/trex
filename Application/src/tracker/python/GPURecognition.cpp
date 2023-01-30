@@ -762,6 +762,26 @@ void PythonIntegration::set_variable(const std::string & name, const std::vector
     }
 }
 
+void PythonIntegration::set_variable(const std::string & name, const std::vector<Vec2> & v, const std::string& m) {
+    check_correct_thread_id();
+    
+    std::vector<float> copy(v.size() * 2);
+    for(size_t i=0; i<v.size(); ++i) {
+        copy[i * 2u] = v[i].x;
+        copy[i * 2u + 1u] = v[i].y;
+    }
+    py::array_t<float> a(std::vector<size_t>{v.size(), 2}, copy.data());
+    
+    
+    if(m.empty())
+        (*_locals)[name.c_str()] = copy;
+    else if(_modules.count(m)) {
+        auto &mod = _modules[m];
+        if(mod.ptr() != nullptr)
+            mod.attr(name.c_str()) = copy;
+    }
+}
+
 void PythonIntegration::set_variable(const std::string & name, const std::vector<std::string> & v, const std::string& m) {
     check_correct_thread_id();
     
