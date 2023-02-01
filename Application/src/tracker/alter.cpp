@@ -36,6 +36,7 @@ using namespace gui;
 struct SegmentationData {
     Image::UPtr image;
     pv::Frame frame;
+    std::vector<Bounds> tiles;
     
     struct Assignment {
         size_t clid;
@@ -48,10 +49,7 @@ struct SegmentationData {
     operator bool() const {
         return image != nullptr;
     }
-    
-    
 };
-
 
 struct TileImage {
     Size2 tile_size;
@@ -59,6 +57,7 @@ struct TileImage {
     std::vector<Image::UPtr> images;
     inline static gpuMat resized, converted, thresholded;
     inline static cv::Mat download_buffer;
+    std::vector<Vec2> _offsets;
     Size2 source_size, original_size;
     
     TileImage() = default;
@@ -74,37 +73,38 @@ struct TileImage {
           source_size(source.cols, source.rows),
           original_size(original_size)
     {
-        if(tile_size.width >= source.cols
-           || tile_size.height >= source.rows)
+        
+        if(tile_size.width == source.cols
+           && tile_size.height == source.rows)
         {
-            cv::resize(source, resized, expected_size);
-            //cv::cvtColor(resized, converted, cv::COLOR_BGR2RGBA);
-            resized.copyTo(download_buffer);
-            source_size = expected_size;
-            //print("Loaded frame ", i);
-            images.emplace_back(Image::Make(download_buffer));
+            source_size = tile_size;
+            images.emplace_back(Image::Make(source));
+            _offsets = {Vec2()};
+        }
+        else if(tile_size.width > source.cols
+             || tile_size.height > source.rows)
+        {
+            source_size = tile_size;
+            cv::resize(source, resized, tile_size);
+            images.emplace_back(Image::Make(resized));
+            _offsets = {Vec2()};
             
         } else {
-            cv::Mat local;
-            
+            gpuMat tile = gpuMat::zeros(tile_size.height, tile_size.width, CV_8UC4);
             for(int y = 0; y < source.rows; y += tile_size.height) {
                 for(int x = 0; x < source.cols; x += tile_size.width) {
-                    gpuMat tile = gpuMat::zeros(tile_size.height, tile_size.width, CV_8UC4);
                     Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);
+                    _offsets.push_back(Vec2(x, y));
                     bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
-                    source(bds).copyTo(tile(Bounds(0, 0, bds.width, bds.height)));
                     
-                    
-                    //cv::threshold(tile, thresholded, 150, 255, cv::THRESH_BINARY_INV);
-                    //thresholded.copyTo(local);
-                    //tf::imshow("offset"+Meta::toStr(x)+","+Meta::toStr(y), local);
-                    //cv::cvtColor(tile, local, cv::COLOR_BGR2RGBA);
-                    tile.copyTo(local);
-                    images.emplace_back(Image::Make(local));
-                    //tf::imshow("offset"+Meta::toStr(x)+","+Meta::toStr(y), local);
+                    source(bds).copyTo(tile(Bounds{bds.size()}));
+                    images.emplace_back(Image::Make(tile));
+                    tile.setTo(0);
                 }
             }
         }
+        
+        print("Tiling image originally ", this->original->dimensions(), " to ", tile_size, " producing: ", offsets(), " (original_size=", original_size,")");
     }
     
     operator bool() const {
@@ -112,23 +112,22 @@ struct TileImage {
     }
     
     std::vector<Vec2> offsets() const {
-        std::vector<Vec2> o;
-        for(int y = 0; y < source_size.height; y += tile_size.height) {
-            for(int x = 0; x < source_size.width; x += tile_size.width) {
-                o.emplace_back(x, y);
-            }
-        }
-        return o;
+        return _offsets;
     }
 };
 
+ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg);
+
 template<typename T>
-concept Segmentation = requires (T t, TileImage tiled) {
-    { t.apply(std::move(tiled)) } -> std::convertible_to<tl::expected<SegmentationData, const char*>>;
+concept ObjectDetection = requires (TileImage tiled, SegmentationData data) {
+    { T::apply(std::move(tiled)) } -> std::convertible_to<tl::expected<SegmentationData, const char*>>;
+    //{ T::receive(data, Vec2{}, {}) };
 };
 
-struct MLSegmentation {
-    MLSegmentation() {
+struct Yolo7ObjectDetection {
+    Yolo7ObjectDetection() = delete;
+    
+    static void init() {
         Python::schedule([](){
             using py = track::PythonIntegration;
             py::ModuleProxy proxy{"bbx_saved_model"};
@@ -140,7 +139,7 @@ struct MLSegmentation {
         }).get();
     }
     
-    void receive(SegmentationData& data, Vec2 scale_factor, const std::vector<float>& vector) {
+    static void receive(SegmentationData& data, Vec2 scale_factor, const std::vector<float>& vector) {
         for(size_t i=0; i<vector.size(); i+=4+2) {
             float conf = vector.at(i);
             float cls = vector.at(i+1);
@@ -179,35 +178,108 @@ struct MLSegmentation {
         }
     }
     
-    void receive_seg(SegmentationData& data, std::vector<float>& masks, const std::vector<float>& vector) {
+    static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
+        namespace py = Python;
+        
+        SegmentationData data{
+            .image = std::move(tiled.original)
+        };
+        
+        static Frame_t running_id = 0_f;
+        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+        data.frame.set_timestamp(uint64_t(fake));
+        data.frame.set_index(running_id++);
+        
+        Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
+        print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        
+        py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
+            using py = track::PythonIntegration;
+            py::ModuleProxy bbx("bbx_saved_model");
+            bbx.set_variable("offsets", std::move(offsets));
+            bbx.set_variable("image", std::move(images));
+            
+            bbx.set_function("receive", [&](std::vector<float> vector) {
+                receive(data, scale, vector);
+            });
+
+            try {
+                bbx.run("apply");
+            }
+            catch (...) {
+                FormatWarning("Continue after exception...");
+                throw;
+            }
+            
+            bbx.unset_function("receive");
+            
+        }).get();
+        
+        //tf::imshow("test", ret);
+        return data;//Image::Make(ret);
+    }
+};
+
+struct Yolo7InstanceSegmentation {
+    Yolo7InstanceSegmentation() = delete;
+    
+    static void init() {
+        Python::schedule([](){
+            using py = track::PythonIntegration;
+            py::ModuleProxy proxy{"bbx_saved_model"};
+            proxy.set_variable("model_type", "yolo7-seg");
+            proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+            proxy.set_variable("image_size", int(expected_size.width));
+            proxy.run("load_model");
+            
+        }).get();
+    }
+    
+    static void receive(std::vector<Vec2> offsets, SegmentationData& data, Vec2 scale_factor, std::vector<float>& masks, const std::vector<float>& vector, const std::vector<int>& meta) {
         //print(vector);
         size_t N = vector.size() / 6u;
         
         cv::Mat full_image;
         cv::cvtColor(data.image->get(), full_image, cv::COLOR_RGBA2GRAY);
+        print("full_image = ", Size2(full_image));
+        print(vector);
         
         for (size_t i = 0; i < N; ++i) {
             Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
             Size2 dim(vector.at(i * 6 + 2) - pos.x, vector.at(i * 6 + 3) - pos.y);
             
+            
             float conf = vector.at(i * 6 + 4);
             float cls = vector.at(i * 6 + 5);
             
-            print(conf, " ", cls, " ",pos, " ", dim);
+            pos += offsets.at(meta.at(i));
+            
+            pos = pos.mul(scale_factor);
+            dim = dim.mul(scale_factor);
+            
+            print(i, vector.at(i*6 + 0), " ", vector.at(i*6 + 1), " ",vector.at(i*6 + 2), " ", vector.at(i*6 + 3));
+            print("\t->", conf, " ", cls, " ",pos, " ", dim);
+            print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
+            cls = meta.at(i);
+            
             
             if (SETTING(filter_class).value<bool>() && cls != 14)
                 continue;
             if (dim.min() < 1)
                 continue;
             
+            //if(dim.height + pos.y > full_image.rows
+            //   || dim.width + pos.x > full_image.cols)
+            //    continue;
+            
             cv::Mat m(56, 56, CV_32FC1, masks.data() + i * 56 * 56);
             
             cv::Mat tmp;
             cv::resize(m, tmp, dim);
             
-            cv::Mat dani;
-            tmp.convertTo(dani, CV_8UC1, 255.0);
-            tf::imshow("dani", dani);
+            //cv::Mat dani;
+            //tmp.convertTo(dani, CV_8UC1, 255.0);
+            //tf::imshow("dani", dani);
             
             cv::threshold(tmp, tmp, 0.6, 1.0, cv::THRESH_BINARY);
             //cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
@@ -215,17 +287,22 @@ struct MLSegmentation {
             //print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
             //print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
             cv::Mat d;// = full_image(Bounds(pos, dim));
-            full_image(Bounds(pos, dim)).convertTo(d, CV_32FC1);
+            auto restricted = Bounds(pos, dim);
+            restricted.restrict_to(Bounds(full_image));
+            if(restricted.width <= 0 || restricted.height <= 0)
+                continue;
+            
+            full_image(restricted).convertTo(d, CV_32FC1);
             
             //tf::imshow("ref", d);
             //tf::imshow("tmp", tmp);
             //tf::imshow("t", t);
-            cv::multiply(d, tmp, d);
+            cv::multiply(d, tmp(Bounds(restricted.size())), d);
             d.convertTo(tmp, CV_8UC1);
             //cv::bitwise_and(d, t, tmp);
             
             //cv::subtract(255, tmp, tmp);
-            tf::imshow("tmp", tmp);
+            //tf::imshow("tmp", tmp);
             //tf::imshow("image"+Meta::toStr(i), image.get());
             
             auto blobs = CPULabeling::run(tmp);
@@ -269,11 +346,11 @@ struct MLSegmentation {
         }
     }
     
-    tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
+    static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
         namespace py = Python;
         
         SegmentationData data{
-            .image = std::move(tiled.original)
+            .image = std::move(tiled.original),
         };
         
         static Frame_t running_id = 0_f;
@@ -282,20 +359,25 @@ struct MLSegmentation {
         data.frame.set_index(running_id++);
         
         Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
-        //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
         
-        py::schedule([this, &data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
+        
+        /*for(size_t i=0; i<tiled.images.size(); ++i) {
+            tf::imshow(Meta::toStr(i)+ " " +Meta::toStr(tiled.offsets().at(i)), tiled.images.at(i)->get());
+        }*/
+        
+        for(auto p : tiled.offsets()) {
+            data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));
+        }
+        
+        py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
             using py = track::PythonIntegration;
             py::ModuleProxy bbx("bbx_saved_model");
             bbx.set_variable("offsets", std::move(offsets));
             bbx.set_variable("image", std::move(images));
             
-            bbx.set_function("receive", [&](std::vector<float> vector) {
-                receive(data, scale, vector);
-            });
-            
-            bbx.set_function("receive_seg", [&](std::vector<float> masks, std::vector<float> meta) {
-                receive_seg(data, masks, meta);
+            bbx.set_function("receive", [&](std::vector<float> masks, std::vector<float> meta, std::vector<int> indexes) {
+                receive(offsets, data, scale, masks, meta, indexes);
             });
 
             try {
@@ -303,10 +385,10 @@ struct MLSegmentation {
             }
             catch (...) {
                 FormatWarning("Continue after exception...");
+                throw;
             }
             
             bbx.unset_function("receive");
-            bbx.unset_function("receive_seg");
             
         }).get();
         
@@ -315,10 +397,11 @@ struct MLSegmentation {
     }
 };
 
-static_assert(Segmentation<MLSegmentation>);
+static_assert(ObjectDetection<Yolo7ObjectDetection>);
+static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 
 template<typename F>
-    requires Segmentation<F>
+    requires ObjectDetection<F>
 struct OverlayedVideo {
     VideoSource source;
     F overlay;
@@ -383,19 +466,21 @@ struct OverlayedVideo {
                     cv::resize(buffer, buffer, new_size);
                 }*/
                 
-                size_t tiles = 2;
-                float ratio = buffer.rows / float(buffer.cols);
-                Size2 new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
-                while(buffer.cols < new_size.width
-                      && buffer.rows < new_size.height
-                      && tiles > 0)
-                {
+                Size2 new_size(expected_size);
+                if(SETTING(tile_image).value<size_t>() > 1) {
+                    size_t tiles = SETTING(tile_image).value<size_t>();
+                    float ratio = buffer.rows / float(buffer.cols);
                     new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
-                    //print("tiles=",tiles," new_size = ", new_size);
-                    tiles--;
+                    while(buffer.cols < new_size.width
+                          && buffer.rows < new_size.height
+                          && tiles > 0)
+                    {
+                        new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
+                        //print("tiles=",tiles," new_size = ", new_size);
+                        tiles--;
+                    }
                 }
                 
-                //print("new_size = ", new_size);
                 cv::resize(buffer, buffer, new_size);
                 ++i;
                 return TileImage(buffer, std::move(original_image), expected_size, original_size);
@@ -613,6 +698,54 @@ struct SettingsDropdown {
     }
 };
 
+struct Detection {
+    Detection() {
+        if(type() == ObjectDetectionType::yolo7) {
+            Yolo7ObjectDetection::init();
+            
+        } else if(type() == ObjectDetectionType::yolo7seg) {
+            Yolo7InstanceSegmentation::init();
+            
+        } else
+            throw U_EXCEPTION("Unknown detection type: ", type());
+    }
+    
+    static ObjectDetectionType::Class type() {
+        return SETTING(detection_type).value<ObjectDetectionType::Class>();
+    }
+    
+    static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
+        if(type() == ObjectDetectionType::yolo7) {
+            return Yolo7ObjectDetection::apply(std::move(tiled));
+            
+        } else if(type() == ObjectDetectionType::yolo7seg) {
+            return Yolo7InstanceSegmentation::apply(std::move(tiled));
+        }
+        
+        throw U_EXCEPTION("Unknown detection type: ", type());
+    }
+    
+    static void receive(std::vector<Vec2> offsets, SegmentationData& data, Vec2 scale, std::vector<float>& masks, const std::vector<float>& vector, const std::vector<int>& indexes)
+    {
+        if(type() == ObjectDetectionType::yolo7seg) {
+            Yolo7InstanceSegmentation::receive(offsets, data, scale, masks, vector, indexes);
+            return;
+        }
+        
+        throw U_EXCEPTION("Unknown detection type: ", type());
+    }
+    
+    static void receive(SegmentationData& data, Vec2 scale, const std::vector<float>& vector) {
+        if(type() == ObjectDetectionType::yolo7) {
+            Yolo7ObjectDetection::receive(data, scale, vector);
+            return;
+        }
+        
+        throw U_EXCEPTION("Unknown detection type: ", type());
+    }
+};
+
+
 int main(int argc, char**argv) {
     using namespace gui;
     
@@ -628,6 +761,8 @@ int main(int argc, char**argv) {
     SETTING(classes) = std::vector<std::string>{
         "goat", "sheep", "human"
     };
+    SETTING(detection_type) = ObjectDetectionType::yolo7;
+    SETTING(tile_image) = size_t(2);
     
     using namespace cmn;
     namespace py = Python;
@@ -656,9 +791,14 @@ int main(int argc, char**argv) {
     expected_size = Size2(SETTING(image_width).value<int>(), SETTING(image_width).value<int>());
     
     py::init();
-
+    py::schedule([](){
+        track::PythonIntegration::set_settings(GlobalSettings::instance());
+        track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+    });
+    
+    static_assert(ObjectDetection<Detection>);
     OverlayedVideo video{
-        MLSegmentation{},
+        Detection{},
         VideoSource(SETTING(source).value<std::string>())
         //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
         //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
@@ -700,6 +840,7 @@ int main(int argc, char**argv) {
                 
             } catch(...) {
                 guard.lock();
+                throw;
             }
             
             if(not result) {
@@ -748,7 +889,7 @@ int main(int argc, char**argv) {
     }
     
     SETTING(filter_class) = false;
-    Size2 output_size = Size2(video.source.size()) * SETTING(video_scale).value<float>();
+    Size2 output_size = (Size2(video.source.size()) * SETTING(video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
     
     Tracker tracker;
@@ -892,6 +1033,9 @@ int main(int argc, char**argv) {
                 graph.wrap_object(*background);
             }
             
+            for(auto box : current.tiles)
+                graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
+            
             auto classes = SETTING(classes).value<std::vector<std::string>>();
             for(auto& blob : objects) {
                 const auto bds = blob->bounds();
@@ -907,7 +1051,8 @@ int main(int argc, char**argv) {
                     }
                 }
                 
-                auto cname = classes.size() > assign.clid ? classes.at(assign.clid) : "<unknown:"+Meta::toStr(assign.clid)+">";
+                auto cname = classes.size() > assign.clid ? classes.at(assign.clid) :
+                "<unknown:"+Meta::toStr(assign.clid)+">";
                 
                 auto loc = attr::Loc(bds.pos());
                 auto text = graph.text(cname, loc, attr::FillClr(Cyan.alpha(100)), attr::Font(0.75, Style::Bold), attr::Scale(scale.mul(graph.scale()).reciprocal()),

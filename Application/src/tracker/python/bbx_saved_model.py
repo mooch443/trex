@@ -20,7 +20,7 @@ import cv2
 print("UPDATED SCRIPT ---------------------------------------------")
 
 #WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-mask.pt"
-WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-seg.pt"
+#WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-seg.pt"
 #WEIGHTS_PATH = "/Users/tristan/Downloads/best-4.pt"
 '''if torch.backends.mps.is_available():
     device = torch.device("mps")
@@ -53,26 +53,32 @@ device = None
 offsets = None
 
 def load_model():
-    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device
+    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type
+    print("loading model type", model_type)
+    if model_type == "yolo7-seg":
+        from models.common import DetectMultiBackend
+        if torch.backends.mps.is_available():
+            device = torch.device("cpu")
+        else:
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    '''from models.common import DetectMultiBackend
-    device = torch.device("cpu")
-    t_model = DetectMultiBackend(WEIGHTS_PATH, device=device, dnn=False, fp16=False)
-    imgsz = (image_size,image_size)
-    stride, names, pt = t_model.stride, t_model.names, t_model.pt
-    imgsz = check_img_size(imgsz, s=stride)
-    t_model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))
-    print("Loaded and warmed up")'''
+        t_model = DetectMultiBackend(model_path, device=device, dnn=False, fp16=False)
+        imgsz = (image_size,image_size)
+        stride, names, pt = t_model.stride, t_model.names, t_model.pt
+        imgsz = check_img_size(imgsz, s=stride)
+        t_model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))
+        print("Loaded and warmed up")
 
-    model = tf.saved_model.load(model_path)
-    full_model = tf.function(lambda x: model(images=x))
-    full_model = full_model.get_concrete_function(
-        tf.TensorSpec((None, 3, image_size, image_size), tf.float32))
-    # Get frozen ConcreteFunction
-    frozen_func = convert_variables_to_constants_v2(full_model)
-    frozen_func.graph.as_graph_def()
-    model = frozen_func
-    pass
+    else:
+        print("loading tensorflow model")
+        model = tf.saved_model.load(model_path)
+        full_model = tf.function(lambda x: model(images=x))
+        full_model = full_model.get_concrete_function(
+            tf.TensorSpec((None, 3, image_size, image_size), tf.float32))
+        # Get frozen ConcreteFunction
+        frozen_func = convert_variables_to_constants_v2(full_model)
+        frozen_func.graph.as_graph_def()
+        model = frozen_func
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     # Rescale boxes (xyxy) from img1_shape to img0_shape
@@ -210,10 +216,11 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
             return tf.concat([x - w / 2, y - h / 2, x + w / 2, y + h / 2], axis=-1)
 
         topk_per_class=100
-        topk_all=200
-        iou_thres=0.45
-        conf_thres=0.25
+        topk_all=1000
+        iou_thres=0.25
+        conf_thres=0.15
         b, ch, h, w = im.shape
+        #print("im.shape:",b, ch, h, w)
         results = []
 
         boxes = y[..., :4]
@@ -344,6 +351,13 @@ def apply():
         results = inference(model, image, size=(image_size, image_size))
         #print(np.array(results, dtype=int).flatten())
         receive(np.array(results, dtype=int).flatten())
+
+    elif model_type == "yolo7-seg":
+        im = np.array(image, copy=False)[..., :3]
+        results = predict_custom_yolo7_seg(offsets, im)
+        print("sending: ", results[0].shape, results[1])
+        receive(results[0], results[1], results[2])
+
     elif model_type == "yolo7":
         #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
         im = np.array(image, copy=False)[..., :3]
@@ -354,7 +368,7 @@ def apply():
         results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
         receive(np.array(results, dtype=np.float32).flatten())
     else:
-        raise Exception("model_type was not set before running inference")
+        raise Exception("model_type was not set before running inference:")
 
 
 import argparse
@@ -380,7 +394,7 @@ from utils.augmentations import augment_hsv, copy_paste, letterbox
 import torch.nn.functional as F
 import torchvision.transforms as T
 
-def predict_custom_yolo7_seg(image):
+def predict_custom_yolo7_seg(offsets, image):
     global t_model, device
 
     def crop(masks, boxes):
@@ -403,19 +417,18 @@ def predict_custom_yolo7_seg(image):
         #print(c)
         return masks * ((r >= x1) * (r < x2) * (c >= y1) * (c < y2))
 
-    if len(image.shape) > 3:
-        image = image[0]
+    if len(image.shape) < 4:
+        image = image[np.newaxis, ...]
     im = image
     print(im.shape)
-    assert im.shape == (image_size,image_size,3)
-    im0 = image.shape#image.copy()
-    #im, ratio, pad = letterbox(im, (image_size, image_size))
-    im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+    assert im.shape[1:] == (image_size,image_size,3)
+    im0 = image.shape[1:]
+    im = im.transpose((0, 3, 1, 2))[::-1]  # HWC to CHW, BGR to RGB
     im = np.ascontiguousarray(im)
 
+    assert len(im.shape) == 4
+
     dt = (Profile(), Profile(), Profile())
-    conf_thres = 0.25
-    iou_thres = 0.45
 
     with dt[0]:
         im = torch.from_numpy(im).to(device)
@@ -424,14 +437,7 @@ def predict_custom_yolo7_seg(image):
         if len(im.shape) == 3:
             im = im[None]  # expand for batch dim
 
-    # Inference
-    with dt[1]:
-        pred, out = t_model(im, augment=None, visualize=None)
-        proto = out[1]
 
-    # NMS
-    with dt[2]:
-        pred = non_max_suppression(pred, conf_thres, iou_thres, None, False, max_det=1000, nm=32)
 
     def clip_coords(boxes, shape):
         # Clip bounding xyxy bounding boxes to image shape (height, width)
@@ -455,42 +461,112 @@ def predict_custom_yolo7_seg(image):
         clip_coords(coords, img0_shape)
         return coords
 
-    results = []
-    shapes = []
-    for i, det in enumerate(pred):
-        c, mh, mw = proto[i].shape  # CHW
+    def apply(pred, index, im, prot):
+        meta = []
+        indexes = []
+        shapes = []
         ih, iw = im.shape[2:]
 
-        downsampled_bboxes = det[:, :4].clone()
+        print(prot.shape)
+        c, mh, mw = prot.shape  # CHW
+
+        downsampled_bboxes = pred[:, :4].clone()
         downsampled_bboxes[:, 0] *= mw / iw
         downsampled_bboxes[:, 2] *= mw / iw
         downsampled_bboxes[:, 3] *= mh / ih
         downsampled_bboxes[:, 1] *= mh / ih
 
-        masks = (det[:, 6:] @ proto[i].float().view(c, -1)).sigmoid().view(-1, mh, mw)  # CHW
+        masks = (pred[:, 6:] @ prot.float().view(c, -1)).sigmoid().view(-1, mh, mw)  # CHW
         masks = crop(masks, downsampled_bboxes)
-        det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0).round()
 
-        confs = det[:, 4]
-        clids = det[:, 5]
+        #print("offsets=",offsets[i])
+        #print("det.shape=",det.cpu().numpy().shape)
+        #print("det[:,2:4]=",det[:, 2:4].cpu().numpy())
+        #print("sclaing to ", im.shape[2:])
 
-        
-        for i in range(len(masks)):
-            x = masks[i]
-            box = downsampled_bboxes[i]
+        pred[:, :4] = scale_coords(im.shape[2:], pred[:, :4], im0).round()
+
+        #print(i,"processing shape", im.shape, pred.cpu().numpy().shape, pred[i].cpu().numpy().astype(int))
+
+        #print("det[:,2:4]*scale=",det[:, 2:4].cpu().numpy())
+        #det[:, 0] += offsets[index, 0]
+        #det[:, 1] += offsets[index, 1]
+        #det[:, 2] += offsets[index, 0]
+        #det[:, 3] += offsets[index, 1]
+        #print("det[:,2:4]+offset=",det[:, 2:4].cpu().numpy())
+
+        confs = pred[:, 4]
+        clids = pred[:, 5]
+
+        #for i, (det, proto) in enumerate(zip(pred, prot)):
+            
+
+        for j in range(len(masks)):
+            x = masks[j]
+            
+            box = downsampled_bboxes[j]
             x0,y0,x1,y1 = box.cpu().numpy().astype(int)
 
             if x1-x0 > 0 and y1-y0 > 0:
                 x = x[y0:y1+1, x0:x1+1]
                 x = (T.Resize((56,56))(x[None])[0])# * 255).to(torch.uint8)
                 shapes.append(x.cpu().numpy())
-
+                indexes.append(index)
                 #if not x.shape[0] == 0 and not x.shape[1] == 0:
                 #    shapes.append(cv2.resize(x, (56,56)))
+                meta.append(pred[j, :6].to(torch.float32).cpu().numpy())
             else:
                 print("image empty :(")
 
-    return np.array(shapes, dtype=np.float32).flatten(), torch.flatten(det[:, :6].to(torch.float32)).cpu().numpy()
+            #meta.append(det[:, :6].to(torch.float32).cpu().numpy())
+        assert len(meta) == len(indexes)
+        return meta, indexes, shapes
+
+    results = []
+    shapes = []
+    meta = []
+    indexes = []
+
+    print("processing im.shape", im.shape)
+    print(offsets)
+    offsets = np.reshape(offsets, (-1, 2)).astype(int)
+    #print(len(pred))
+    #assert len(offsets) == len(pred)
+    pred = None
+    prediction = None
+    proto = None
+
+    for i in range(len(im)):
+        # Inference
+        #local = (im[i:i+1].cpu().numpy() * 255).astype(np.uint8)[0, 0, ...]
+        #print("local = ",local.shape, " ", local.dtype)
+        #TRex.imshow("im"+str(len(im) - 1 - i), local)
+
+        with dt[1]:
+            pred, out = t_model(im[i][None], augment=None, visualize=None)
+            proto = out[1]
+
+            # NMS
+            #with dt[2]:
+            conf_thres = 0.25
+            iou_thres = 0.45
+            
+            pred = non_max_suppression(pred, conf_thres, iou_thres, None, False, max_det=1000, nm=32)
+            print("proc", pred[0].shape)
+            _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
+            print("RESULT FOR ",i,"=",_meta)
+        meta += _meta
+        shapes += _shapes
+        indexes += np.repeat(len(im) - 1 - i, len(_meta)).tolist()
+
+    print("meta: ", meta)
+    #print("meta: ", np.concatenate(meta, axis=0))
+    if len(meta) > 0:
+        meta = np.concatenate(meta, axis=0, dtype=np.float32)
+    else:
+        meta = np.array([], dtype=np.float32)
+
+    return np.array(shapes, dtype=np.float32).flatten(), meta.flatten(), np.array(indexes, dtype=int)
     #return np.array(shapes, dtype=np.uint8).flatten(), torch.flatten(det[:, :6].to(torch.float32)).cpu().numpy()
 
 def predict_yolo7_seg(image):
