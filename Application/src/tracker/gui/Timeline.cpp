@@ -131,7 +131,7 @@ namespace gui {
                 else
                     number << " (analysis paused)";
 
-                DurationUS duration{ uint64_t((double(_frame_info->frameIndex.load().get()) / double(FAST_SETTING(frame_rate)))) * 1000u * 1000u };
+                DurationUS duration{ uint64_t((double(_frame_info->frameIndex.load().valid() ? _frame_info->frameIndex.load().get() : 0) / double(FAST_SETTING(frame_rate)))) * 1000u * 1000u };
                 number << " " << Meta::toStr(duration);
 
                 _status_text.set_txt(number.str());
@@ -148,7 +148,7 @@ namespace gui {
                 number << "consec: " << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.start.valid() ? consec.end - consec.start : Frame_t()).toStr() << ")";
 
                 Color consec_color = White;
-                if (consec.contains(_frame_info->frameIndex))
+                if (_frame_info->frameIndex.load().valid() && consec.contains(_frame_info->frameIndex))
                     consec_color = Green;
 
                 if (_status_text2.hovered())
@@ -266,19 +266,23 @@ namespace gui {
                 }
             }
 
-            if (_frame_info->analysis_range.start() != 0_f) {
-                auto start_pos = pos;
-                auto end_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.start().get(), bar_height);
-                base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
-            }
-            if (uint64_t(_frame_info->analysis_range.end().get()) <= _frame_info->video_length) {
-                auto start_pos = pos + Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.end().get(), 0);
-                auto end_pos = Vec2(max_w, bar_height);
-                base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
+            if(_frame_info->analysis_range.start().valid()) {
+                if (_frame_info->analysis_range.start() != 0_f) {
+                    auto start_pos = pos;
+                    auto end_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.start().get(), bar_height);
+                    base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
+                }
+                if (uint64_t(_frame_info->analysis_range.end().get()) <= _frame_info->video_length) {
+                    auto start_pos = pos + Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.end().get(), 0);
+                    auto end_pos = Vec2(max_w, bar_height);
+                    base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
+                }
             }
 
             // current position indicator
-            auto current_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->frameIndex.load().get(), y) - offset;
+            auto frame = _frame_info->frameIndex.load();
+            
+            auto current_pos = Vec2(max_w / float(_frame_info->video_length) * (frame.valid() ? frame.get() : 0), y) - offset;
             base.rect(Bounds(current_pos - Vec2(2),
                              Size2(5, bar_height + 4)),
                       FillClr{Black.alpha(255)},
@@ -705,7 +709,10 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             _frame_info->consecutive = _tracker->consecutive();
                             _frame_info->global_segment_order = track::Tracker::global_segment_order();
 
-                            if (props) {
+                            if (props
+                                && tracker_startframe.load().valid()
+                                && _frame_info->frameIndex.load().valid())
+                            {
                                 for (auto& fish : index >= tracker_startframe.load() && index < tracker_endframe.load() ? Tracker::active_individuals(index) : set_of_individuals_t{}) {
                                     if (fish->frame_count() < FAST_SETTING(frame_rate) * 3u) {
                                         _frame_info->small_count++;

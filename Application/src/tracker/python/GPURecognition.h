@@ -83,12 +83,22 @@ namespace track {
         
         struct ModuleProxy {
             std::string m;
-            ModuleProxy(std::string name) : m(name) {}
+            ModuleProxy(const std::string& name)
+                : m(name)
+            {
+                PythonIntegration::check_module("bbx_saved_model");
+            }
             void set_function(const char* name, auto &&fn) {
                 PythonIntegration::set_function(name, std::forward<decltype(fn)>(fn), m);
             }
             void set_variable(const char* name, auto&& value) {
                 PythonIntegration::set_variable(name, std::forward<decltype(value)>(value), m);
+            }
+            void run(const char* name) {
+                PythonIntegration::run(m, name);
+            }
+            void unset_function(const char*name) {
+                PythonIntegration::unset_function(name, m);
             }
         };
         

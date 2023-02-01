@@ -141,6 +141,8 @@ namespace pv {
         //    delete m;
         //for(auto p: _pixels)
         //   delete p;
+        if(ref.is_write_mode())
+            throw U_EXCEPTION("Cannot read from writing file ", ref);
         
         clear();
         set_index(idx);
@@ -1112,6 +1114,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(_header.average_tdelta == 0)
             return -1;
         return short(1000. * 1000. / _header.average_tdelta);
+    }
+
+    bool File::is_read_mode() const {
+        return bool(_mode & FileMode::READ);
+    }
+
+    bool File::is_write_mode() const {
+        return bool(_mode & FileMode::WRITE);
     }
 
     std::vector<float> File::calculate_percentiles(const std::initializer_list<float> &percent) {

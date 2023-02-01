@@ -197,11 +197,14 @@ namespace gui {
             static std::atomic<bool> done_calculating{false};
             static auto percentile_ptr = std::make_unique<std::thread>([this](){
                 cmn::set_thread_name("percentile_thread");
-                auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
-                
-                if(_graph) {
-                    std::lock_guard guard(_graph->lock());
-                    pixel_value_percentiles = percentiles;
+                print("open for writing: ", _video->is_write_mode());
+                if(_video->is_read_mode()) {
+                    auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
+                    
+                    if(_graph) {
+                        std::lock_guard guard(_graph->lock());
+                        pixel_value_percentiles = percentiles;
+                    }
                 }
                 
                 done_calculating = true;
@@ -357,7 +360,9 @@ namespace gui {
             if(reload_blobs) {
                 processed_frame.clear();
                 
-                if(frameIndex.valid()) {
+                if(frameIndex.valid()
+                   && _video->is_read_mode())
+                {
                     try {
                         pv::Frame frame;
                         _video->read_frame(frame, frameIndex);

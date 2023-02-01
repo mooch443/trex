@@ -296,6 +296,10 @@ namespace pv {
         using DataFormat::start_writing;
         using DataFormat::start_reading;
         using DataFormat::start_modifying;
+        
+    public:
+        bool is_read_mode() const override;
+        bool is_write_mode() const override;
         //void start_writing(bool overwrite) override;
         //void start_reading() override;
         

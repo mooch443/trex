@@ -243,24 +243,24 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         nms_scores = nms.nmsed_scores.numpy()[0, :nms_valid]
         nms_classes = nms.nmsed_classes.numpy()[0, :nms_valid]
 
-        print(offsets)
-        if len(nms_boxes) > 0:
+        #print(offsets)
+        '''if len(nms_boxes) > 0:
             print("nms_boxes: ", nms_boxes)
             print("nms_scores: ", nms_scores)
             print("nms_classes: ", nms_classes)
             print("nms_valid: ", nms_valid)
         elif len(boxes) > 0:
-            print("filtered out: ", len(boxes), boxes)
+            print("filtered out: ", len(boxes), boxes)'''
 
         ratio = (im0[1] / im.shape[-1], im0[0] / im.shape[-2])
-        print("ratio:",ratio)
-        print(im0, im.shape)
+        #print("ratio:",ratio)
+        #print(im0, im.shape)
         #test
 
         for xy, score, clid in zip(nms_boxes, nms_scores, nms_classes):
             pt0 = np.array((xy[0] * ratio[0], xy[1] * ratio[1])).astype(int)
             pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
-            print(xy, score, clid, pt0, pt1)
+            #print(xy, score, clid, pt0, pt1)
             results.append((score, clid, pt0[0], pt0[1], pt1[0], pt1[1]))
 
         return np.array(results, dtype=np.float32)
@@ -309,30 +309,30 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         dh /= 2
 
         img = img.transpose(0, 3, 1, 2)#[np.newaxis, ...]
-        img = img.astype(np.float32) / 255.0
+        #img = img.astype(np.float32) / 255.0
         
-        return tf.convert_to_tensor(img), ratio, (dw, dh)
+        return tf.convert_to_tensor(img, dtype=tf.float32) / 255.0, ratio, (dw, dh)
     
     if len(img.shape) < 4:
         img = img[np.newaxis, ...]
     im, ratio, dwdh = transform_image(img, image_shape=image_shape)
-    print("final shape", im.shape)
+    #print("final shape", im.shape)
     output_data = model(im)[0]
     offsets = np.reshape(offsets, (-1, 2))
-    print(offsets)
+    #print(offsets)
     rs = []
     for i in range(len(output_data)):
         r = perform_filtering(img[i].shape, im[i:i+1, ...], output_data[i:i+1, ...])
         if len(np.shape(r)) == 2:
-            print(r)
+            #print(r)
             r[:, 2:4] += offsets[i]
             r[:, 4:6] += offsets[i]
-            print("->",r)
+            #print("->",r)
             rs.append(r)
-        else:
-            print("empty:",r)
+        #else:
+            #print("empty:",r)
     if len(rs) > 0:
-        print("RS:",np.concatenate(rs, axis=0).shape)
+        #print("RS:",np.concatenate(rs, axis=0).shape)
         return np.concatenate(rs, axis=0)
     return np.array([], dtype=np.float32)
 
