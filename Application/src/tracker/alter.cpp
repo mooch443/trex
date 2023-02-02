@@ -30,7 +30,7 @@ concept overlay_function = requires {
     //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::UPtr>;
 };
 
-static Size2 expected_size(1024, 1024);
+static Size2 expected_size(640, 640);
 using namespace gui;
 
 struct SegmentationData {
@@ -90,7 +90,7 @@ struct TileImage {
             _offsets = {Vec2()};
             
         } else {
-            gpuMat tile = gpuMat::zeros(tile_size.height, tile_size.width, CV_8UC4);
+            gpuMat tile = gpuMat::zeros(tile_size.height, tile_size.width, CV_8UC3);
             for(int y = 0; y < source.rows; y += tile_size.height) {
                 for(int x = 0; x < source.cols; x += tile_size.width) {
                     Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);
@@ -192,6 +192,10 @@ struct Yolo7ObjectDetection {
         
         Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
         //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        
+        for(auto p : tiled.offsets()) {
+            data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));
+        }
         
         py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
             using py = track::PythonIntegration;
