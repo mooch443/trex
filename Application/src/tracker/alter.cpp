@@ -785,7 +785,7 @@ struct SettingsDropdown {
         else
             _value_input.set_size(Size2(300, _value_input.height()));
         
-        _settings_dropdown.set_pos(Vec2(10, g.height() - 10).div(base.dpi_scale() * g.scale().y));
+        _settings_dropdown.set_pos(Vec2(10, g.height() - 10).div(g.scale().y));
         _value_input.set_pos(_settings_dropdown.pos() + Vec2(_settings_dropdown.width(), 0));
         g.wrap_object(_settings_dropdown);
         
