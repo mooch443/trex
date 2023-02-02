@@ -1013,8 +1013,7 @@ int main(int argc, char**argv) {
                 wdim = Size2(window_size.height * ratio, window_size.height);
             }
             
-            auto scale = graph.scale().reciprocal();
-            scale = wdim.div(output_size).div(scale);
+            auto scale = wdim.div(output_size);
             
             
             //ratio = ratio.T();
