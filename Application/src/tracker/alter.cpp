@@ -104,7 +104,7 @@ struct TileImage {
             }
         }
         
-        print("Tiling image originally ", this->original->dimensions(), " to ", tile_size, " producing: ", offsets(), " (original_size=", original_size,")");
+        //print("Tiling image originally ", this->original->dimensions(), " to ", tile_size, " producing: ", offsets(), " (original_size=", original_size,")");
     }
     
     operator bool() const {
@@ -163,7 +163,7 @@ struct Yolo7ObjectDetection {
                     (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
                 };
                 for(int x = line.x0; x <= line.x1; ++x) {
-                    pixels.emplace_back(data.image->get().at<cv::Vec4b>(y, x)[0]);
+                    pixels.emplace_back(data.image->get().at<cv::Vec3b>(y, x)[0]);
                 }
                 //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
                 //              (uchar*)mat.ptr(y, line.x1));
@@ -191,7 +191,7 @@ struct Yolo7ObjectDetection {
         data.frame.set_index(running_id++);
         
         Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
-        print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
         
         py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
             using py = track::PythonIntegration;
@@ -240,7 +240,7 @@ struct Yolo7InstanceSegmentation {
         size_t N = vector.size() / 6u;
         
         cv::Mat full_image;
-        cv::cvtColor(data.image->get(), full_image, cv::COLOR_RGBA2GRAY);
+        cv::cvtColor(data.image->get(), full_image, cv::COLOR_RGB2GRAY);
         
         for (size_t i = 0; i < N; ++i) {
             Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
@@ -408,7 +408,8 @@ struct OverlayedVideo {
     gpuMat buffer, resized, converted;
     cv::Mat downloader;
     
-    std::future<tl::expected<TileImage, const char*>> next_image;
+    std::future<tl::expected<SegmentationData, const char*>> next_image;
+
     static inline std::atomic<float> _fps{0}, _samples{0};
     bool eof() const noexcept {
         std::scoped_lock guard(index_mutex);
@@ -437,7 +438,7 @@ struct OverlayedVideo {
             return tl::unexpected("End of file.");
         
         auto retrieve_next = [this]()
-            -> tl::expected<TileImage, const char*>
+            -> tl::expected<SegmentationData, const char*>
         {
             std::scoped_lock guard(index_mutex);
             TileImage tiled;
@@ -447,20 +448,14 @@ struct OverlayedVideo {
                 
                 if(SETTING(video_scale).value<float>() != 1) {
                     Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(video_scale).value<float>();
+                    FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                     cv::resize(buffer, buffer, new_size);
                 }
-                
-                cv::cvtColor(buffer, buffer, cv::COLOR_BGR2RGBA);
-                
+
+                cv::cvtColor(buffer, buffer, cv::COLOR_BGR2RGB);
                 original_image = Image::Make(buffer);
                 
                 Size2 original_size(buffer.cols, buffer.rows);
-                
-                /*if(Size2(buffer.cols, buffer.rows).max() > expected_size.width * 4) {
-                    Size2 new_size = Size2(expected_size.width * 4, expected_size.width * 4 * buffer.rows / float(buffer.cols));
-                    print("image resize ", Size2(buffer.cols, buffer.rows), " to ", new_size);
-                    cv::resize(buffer, buffer, new_size);
-                }*/
                 
                 Size2 new_size(expected_size);
                 if(SETTING(tile_image).value<size_t>() > 1) {
@@ -477,9 +472,24 @@ struct OverlayedVideo {
                     }
                 }
                 
-                cv::resize(buffer, buffer, new_size);
+                if (buffer.cols != new_size.width || buffer.rows != new_size.height) {
+                    FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                    cv::resize(buffer, buffer, new_size);
+                }
+                
                 ++i;
-                return TileImage(buffer, std::move(original_image), expected_size, original_size);
+
+                TileImage tiled(buffer, std::move(original_image), expected_size, original_size);
+
+                Timer timer;
+                auto result = this->overlay.apply(std::move(tiled));
+                if (_samples.load() > 100) {
+                    _samples = _fps = 0;
+                    print("Reset indexes: ", timer.elapsed());
+                }
+                _fps = _fps.load() + 1.0 / timer.elapsed();
+                _samples = _samples.load() + 1;
+                return result;
                 
             } catch(const std::exception& e) {
                 FormatExcept("Error loading frame ", i, " from video ", source, ": ", e.what());
@@ -487,34 +497,19 @@ struct OverlayedVideo {
             }
         };
         
-        TileImage tiled;
+        tl::expected<SegmentationData, const char*> result;
         if(next_image.valid()) {
-            auto result = next_image.get();
-            if(not result) {
-                return tl::unexpected(result.error());
-            }
-            
-            tiled = std::move(result.value());
+            result = next_image.get();
             
         } else {
-            auto result = retrieve_next();
-            if(not result) {
-                return tl::unexpected(result.error());
-            }
-            
-            tiled = std::move(result.value());
+            result = retrieve_next();
         }
         
+        if (not result) {
+            return tl::unexpected(result.error());
+        }
+
         next_image = std::async(std::launch::async | std::launch::deferred, retrieve_next);
-        
-        Timer timer;
-        auto result = this->overlay.apply(std::move(tiled));
-        if(_samples.load() > 100) {
-            _samples = _fps = 0;
-            print("Reset indexes: ", timer.elapsed());
-        }
-        _fps = _fps.load() + 1.0 / timer.elapsed();
-        _samples = _samples.load() + 1;
         return result;
     }
 };
@@ -1015,7 +1010,7 @@ int main(int argc, char**argv) {
                 wdim = Size2(window_size.height * ratio, window_size.height);
             }
             
-            auto scale = Vec2(base.dpi_scale()).div(graph.scale());
+            auto scale = Vec2(base.dpi_scale()).mul(graph.scale());
             scale = wdim.div(output_size).div(scale);
             
             

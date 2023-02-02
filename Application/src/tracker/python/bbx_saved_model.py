@@ -15,7 +15,7 @@ from tensorflow import keras
 from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 import time
 import cv2
-
+from pyinstrument import Profiler
 
 print("UPDATED SCRIPT ---------------------------------------------")
 
@@ -130,12 +130,8 @@ def inference(model, im, size=(640,640)):
     #  # xywh normalized to pixels
     
     results = []
-    
-    boxes = y[..., :4]
     boxes = _xywh2xyxy(y[..., :4])
-
     boxes *= [w, h, w, h]
-    #print(w, h)
 
     probs = y[:, :, 4:5]
     classes = y[:, :, 5:]
@@ -149,15 +145,6 @@ def inference(model, im, size=(640,640)):
                                                 iou_thres,
                                                 conf_thres,
                                                 clip_boxes=False)
-
-    #y = y[0]  # [x(1,6300,85), ...] to x(6300,85)
-    #xywh = y[..., :4]  # x(6300,4) boxes
-    #conf = y[..., 4:5]  # x(6300,1) confidences
-    #cls = tf.reshape(tf.cast(tf.argmax(y[..., 5:], axis=1), tf.float32), (-1, 1))  # x(6300,1)  classes
-    #y = tf.concat([conf, cls, xywh], 1)
-
-    #cx, cy, w, h, conf = y[0][0, :, 0:5].T#.shape
-    #clid = tf.reshape(tf.cast(tf.argmax(y[0][..., 5:], axis=1), tf.float32), (-1, 1)) 
 
     for i, det in enumerate(nms):
         #print(det.shape)
@@ -177,8 +164,6 @@ def inference(model, im, size=(640,640)):
                         results.append((pt0, pt1))
 
     return np.array(results, dtype=int)
-
-
 
 def predict_yolov7(offsets, img, image_shape=(640,640)):
     from utils.augmentations import augment_hsv, copy_paste, letterbox
@@ -209,31 +194,25 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
             #boxes[..., 1] = tf.clip_by_value(boxes[..., 1], 0, shape[0])
             #boxes[..., 2] = tf.clip_by_value(boxes[..., 2], 0, shape[1])
             #boxes[..., 3] = tf.clip_by_value(boxes[..., 3], 0, shape[0])
-
         def _xywh2xyxy(xywh):
             # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
             x, y, w, h = tf.split(xywh, num_or_size_splits=4, axis=-1)
             return tf.concat([x - w / 2, y - h / 2, x + w / 2, y + h / 2], axis=-1)
 
-        topk_per_class=100
-        topk_all=1000
+        topk_per_class=200
+        topk_all=500
         iou_thres=0.25
         conf_thres=0.15
-        b, ch, h, w = im.shape
-        #print("im.shape:",b, ch, h, w)
-        results = []
 
-        boxes = y[..., :4]
+        b, ch, h, w = im.shape
         boxes = _xywh2xyxy(y[..., :4])
 
-        #boxes *= [w, h, w, h]
-        #print(w, h)
-
-        probs = y[:, :, 4:5]
-        classes = y[:, :, 5:]
+        probs = y[..., 4:5]
+        classes = y[..., 5:]
         scores = probs * classes
 
         boxes = tf.expand_dims(boxes, 2)
+        #print(type(boxes), type(scores))
         nms = tf.image.combined_non_max_suppression(boxes,
                                                     scores,
                                                     topk_per_class,
@@ -242,64 +221,33 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
                                                     conf_thres,
                                                     clip_boxes=False)
 
-        #print(nms)
-        #print("nmsed_boxes: ",nms.nmsed_boxes)
+        nms_valid = nms.valid_detections.numpy()
+        ratio = (im0[2] / im.shape[-1], im0[1] / im.shape[-2]) * 2
+        ratio = tf.constant(ratio, dtype=tf.float32)
+        #print(ratio, nms.nmsed_boxes.shape)
 
-        nms_valid = nms.valid_detections[0]
-        nms_boxes = nms.nmsed_boxes.numpy()[0, :nms_valid]
-        nms_scores = nms.nmsed_scores.numpy()[0, :nms_valid]
-        nms_classes = nms.nmsed_classes.numpy()[0, :nms_valid]
+        all_results = []
+        nmsed_boxes = tf.math.multiply(nms.nmsed_boxes, ratio)
+        nboxes = nmsed_boxes.numpy()
+        nscores = nms.nmsed_scores.numpy()
+        nclasses = nms.nmsed_classes.numpy()
 
-        #print(offsets)
-        '''if len(nms_boxes) > 0:
-            print("nms_boxes: ", nms_boxes)
-            print("nms_scores: ", nms_scores)
-            print("nms_classes: ", nms_classes)
-            print("nms_valid: ", nms_valid)
-        elif len(boxes) > 0:
-            print("filtered out: ", len(boxes), boxes)'''
 
-        ratio = (im0[1] / im.shape[-1], im0[0] / im.shape[-2])
-        #print("ratio:",ratio)
-        #print(im0, im.shape)
-        #test
+        for i in range(len(nms_valid)):
+            nms_boxes = nboxes[i, :nms_valid[i]]
+            nms_scores = nscores[i, :nms_valid[i]]
+            nms_classes = nclasses[i, :nms_valid[i]]
 
-        for xy, score, clid in zip(nms_boxes, nms_scores, nms_classes):
-            pt0 = np.array((xy[0] * ratio[0], xy[1] * ratio[1])).astype(int)
-            pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
-            #print(xy, score, clid, pt0, pt1)
-            results.append((score, clid, pt0[0], pt0[1], pt1[0], pt1[1]))
+            results = []
+            for xy, score, clid in zip(nms_boxes, nms_scores, nms_classes):
+                #pt0 = np.array((xy[0] * ratio[0], xy[1] * ratio[1])).astype(int)
+                #pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
+                pt0 = np.array((xy[0] , xy[1] )).astype(int)
+                pt1 = np.array((np.array((xy[2], xy[3] )))).astype(int)
+                results.append((score, clid, pt0[0], pt0[1], pt1[0], pt1[1]))
 
-        return np.array(results, dtype=np.float32)
-    
-    '''def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleup=True, stride=32):
-        # Resize and pad image while meeting stride-multiple constraints
-        shape = im.shape[:2]  # current shape [height, width]
-        if isinstance(new_shape, int):
-            new_shape = (new_shape, new_shape)
-
-        # Scale ratio (new / old)
-        r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-        if not scaleup:  # only scale down, do not scale up (for better val mAP)
-            r = min(r, 1.0)
-
-        # Compute padding
-        new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
-        dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
-
-        if auto:  # minimum rectangle
-            dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
-
-        dw /= 2  # divide padding into 2 sides
-        dh /= 2
-
-        if shape[::-1] != new_unpad:  # resize
-            im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
-        top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
-        left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-        print(top, bottom, left, right)
-        im = cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
-        return im, r, (dw, dh)'''
+            all_results += [np.array(results, dtype=np.float32)]
+        return all_results
 
     #img = (images[0].copy() * 255).astype(np.uint8)
     def transform_image(img, image_shape):
@@ -320,6 +268,7 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         
         return tf.convert_to_tensor(img, dtype=tf.float32) / 255.0, ratio, (dw, dh)
     
+    #print("prelim shape", img.shape)
     if len(img.shape) < 4:
         img = img[np.newaxis, ...]
     im, ratio, dwdh = transform_image(img, image_shape=image_shape)
@@ -327,9 +276,12 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
     output_data = model(im)[0]
     offsets = np.reshape(offsets, (-1, 2))
     #print(offsets)
+
+    R = perform_filtering(img.shape, im, output_data)
+
     rs = []
     for i in range(len(output_data)):
-        r = perform_filtering(img[i].shape, im[i:i+1, ...], output_data[i:i+1, ...])
+        r = R[i]
         if len(np.shape(r)) == 2:
             #print(r)
             r[:, 2:4] += offsets[i]
@@ -359,14 +311,22 @@ def apply():
         receive(results[0], results[1], results[2])
 
     elif model_type == "yolo7":
+        #profiler = Profiler(interval=0.0001)
+        #profiler.start()
+        #try:
         #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
         im = np.array(image, copy=False)[..., :3]
+        #print("shape: ", im.shape, " image_size=",image_size)
         #results = predict_custom_yolo7_seg(im)
         #print("sending: ", results[0].shape, results[1])
 
         #receive_seg(results[0], results[1])
         results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
         receive(np.array(results, dtype=np.float32).flatten())
+        #finally:
+        #    profiler.stop()
+
+        #profiler.print(show_all=True)
     else:
         raise Exception("model_type was not set before running inference:")
 
