@@ -1001,7 +1001,7 @@ int main(int argc, char**argv) {
         
         graph.section("video", [&](auto&, Section* section){
             auto output_size = SETTING(output_size).value<Size2>();
-            auto window_size = base.window_dimensions();
+            auto window_size = base.real_dimensions();
             
             auto ratio = output_size.width / output_size.height;
             Size2 wdim;
@@ -1013,12 +1013,12 @@ int main(int argc, char**argv) {
                 wdim = Size2(window_size.height * ratio, window_size.height);
             }
             
-            auto scale = wdim.div(output_size);
+            auto scale = wdim.div(output_size).mul(graph.scale());
             
             
             //ratio = ratio.T();
             //scale = scale.mul(ratio);
-            if(current.frame.index().valid() && current.frame.index().get()%10 == 0)
+            if(not current.frame.index().valid() || current.frame.index().get()%10 == 0)
                 print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
             section->set_scale(scale);
             SETTING(gui_frame) = current.frame.index();
