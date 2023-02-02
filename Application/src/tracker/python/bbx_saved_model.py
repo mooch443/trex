@@ -15,7 +15,6 @@ from tensorflow import keras
 from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 import time
 import cv2
-from pyinstrument import Profiler
 
 print("UPDATED SCRIPT ---------------------------------------------")
 

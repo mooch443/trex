@@ -966,7 +966,10 @@ int main(int argc, char**argv) {
                 objects.emplace_back(current.frame.blob_at(i));
             }
 
-            background->set_source(Image::Make(*current.image));
+            auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
+            cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+            background->set_source(std::move(rgba));
+            
             if (not file.is_open()) {
                 file.set_start_time(start_time);
                 file.set_resolution(output_size);
@@ -982,7 +985,7 @@ int main(int argc, char**argv) {
         }
     };
     
-    graph.set_scale(1. / base.dpi_scale());
+    //graph.set_scale(1. / base.dpi_scale());
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         fetch_files();
@@ -1010,13 +1013,14 @@ int main(int argc, char**argv) {
                 wdim = Size2(window_size.height * ratio, window_size.height);
             }
             
-            auto scale = Vec2(base.dpi_scale()).mul(graph.scale());
+            auto scale = graph.scale().reciprocal();
             scale = wdim.div(output_size).div(scale);
             
             
             //ratio = ratio.T();
             //scale = scale.mul(ratio);
-            //print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
+            if(current.frame.index().valid() && current.frame.index().get()%10 == 0)
+                print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
             section->set_scale(scale);
             SETTING(gui_frame) = current.frame.index();
             
