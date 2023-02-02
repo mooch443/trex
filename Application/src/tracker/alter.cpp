@@ -396,10 +396,106 @@ struct Yolo7InstanceSegmentation {
 static_assert(ObjectDetection<Yolo7ObjectDetection>);
 static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 
+namespace cmn {
+namespace package {
+
+template<typename R, typename... Args>
+struct packaged_func {
+    using signature = R(Args...);
+    package::F<signature> package;
+    
+    template<typename K>
+    packaged_func(K&& fn) : package(package::F<signature>{std::move(fn)}) { }
+    
+    packaged_func& operator=(packaged_func&& other) = default;
+    packaged_func& operator=(const packaged_func& other) = delete;
+    
+    packaged_func(packaged_func&& other) = default;
+    packaged_func(const packaged_func& other) = delete;
+    
+    template<typename... _Args>
+    R operator()(_Args&&... args) {
+        return package(std::forward<_Args>(args)...);
+    }
+};
+
+}
+}
+
+template<typename SourceType>
+class AbstractVideoSource {
+    mutable std::mutex mutex;
+    Frame_t i{0_f};
+    gpuMat buffer;
+    
+    VideoSource source;
+    mutable package::packaged_func<bool, gpuMat*> retrieve;
+    mutable package::packaged_func<Size2> _size_func;
+    
+public:
+    AbstractVideoSource(SourceType&& source)
+        :   retrieve([this](gpuMat* buffer) -> bool{
+                std::unique_lock guard(mutex);
+                try {
+                    if(i >= this->source.length())
+                        i = 0_f;
+                    this->source.frame(i++, *buffer);
+                } catch(const std::exception& e) {
+                    FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
+                    return false;
+                }
+                return true;
+            }),
+            _size_func([this]() -> Size2 {
+                return this->source.size();
+            }),
+            source(std::move(source))
+    {
+        this->source.set_colors(VideoSource::ImageMode::RGB);
+    }
+
+    AbstractVideoSource(AbstractVideoSource&& other) = default;
+    AbstractVideoSource(const AbstractVideoSource& other) = delete;
+    AbstractVideoSource() = default;
+    
+    AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
+    AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
+    
+    bool next(gpuMat& output) {
+        return retrieve(&output);
+    }
+    
+    bool is_finite() const {
+        return true;
+    }
+    
+    Frame_t length() const {
+        return 0_f;
+    }
+    
+    short framerate() const {
+        return 25;
+    }
+    
+    Size2 size() const {
+        return _size_func();
+    }
+    
+    file::Path base() const {
+        return file::Path();
+    }
+    
+    std::string toStr() const {
+        return "AbstractVideoSource<"+Meta::toStr(source)+">";
+    }
+};
+
+
 template<typename F>
     requires ObjectDetection<F>
 struct OverlayedVideo {
-    VideoSource source;
+    AbstractVideoSource<VideoSource> source;
+    //VideoSource source;
     F overlay;
     
     mutable std::mutex index_mutex;
@@ -412,12 +508,20 @@ struct OverlayedVideo {
 
     static inline std::atomic<float> _fps{0}, _samples{0};
     bool eof() const noexcept {
-        std::scoped_lock guard(index_mutex);
-        return i >= source.length();
+        if(not source.is_finite())
+            return false;
+        return i <= source.length();
     }
     
-    OverlayedVideo(F&& fn, VideoSource&& source)
-        : source(std::move(source)), overlay(std::move(fn))
+    OverlayedVideo() = delete;
+    OverlayedVideo(const OverlayedVideo&) = delete;
+    OverlayedVideo& operator=(const OverlayedVideo&) = delete;
+    OverlayedVideo(OverlayedVideo&&) = delete;
+    OverlayedVideo& operator=(OverlayedVideo&&) = delete;
+    
+    template<typename SourceType>
+    OverlayedVideo(F&& fn, SourceType&& s)
+        : source(AbstractVideoSource<SourceType>(std::move(s))), overlay(std::move(fn))
     {
         
     }
@@ -444,7 +548,8 @@ struct OverlayedVideo {
             TileImage tiled;
             
             try {
-                source.frame(i, buffer);
+                if(not source.next(buffer))
+                    return tl::unexpected("Cannot retrieve frame from video source.");
                 
                 if(SETTING(video_scale).value<float>() != 1) {
                     Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(video_scale).value<float>();
@@ -788,14 +893,13 @@ int main(int argc, char**argv) {
     });
     
     static_assert(ObjectDetection<Detection>);
-    OverlayedVideo video{
+    OverlayedVideo video(
         Detection{},
         VideoSource(SETTING(source).value<std::string>())
         //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
         //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
-    };
+    );
     
-    video.source.set_colors(VideoSource::ImageMode::RGB);
     
     /*GlobalSettings::map().register_callback("global", [](auto, auto&, auto& name, auto& value) {
         if(name == "gui_frame") {
