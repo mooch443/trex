@@ -872,6 +872,7 @@ int main(int argc, char**argv) {
     SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
     SETTING(terminate) = false;
     SETTING(calculate_posture) = false;
+    SETTING(gui_interface_scale) = float(1);
 
     cmd.load_settings();
     
@@ -1013,8 +1014,7 @@ int main(int argc, char**argv) {
                 wdim = Size2(window_size.height * ratio, window_size.height);
             }
             
-            auto scale = wdim.div(output_size).mul(graph.scale());
-            
+            auto scale = wdim.div(output_size).mul(base.dpi_scale());
             
             //ratio = ratio.T();
             //scale = scale.mul(ratio);
