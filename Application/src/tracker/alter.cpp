@@ -428,13 +428,25 @@ class AbstractVideoSource {
     Frame_t i{0_f};
     gpuMat buffer;
     
-    VideoSource source;
-    mutable package::packaged_func<bool, gpuMat*> retrieve;
-    mutable package::packaged_func<Size2> _size_func;
+    SourceType source;
+    GETTER(file::Path, base)
+    GETTER(Size2, size)
+    GETTER(short, framerate)
+    
+    const bool _finite;
+    const Frame_t _length;
+    
+    mutable package::packaged_func<bool, gpuMat*> _retrieve;
+    mutable package::packaged_func<void, Frame_t> _set_frame;
     
 public:
+    template<typename T = SourceType>
+        requires _clean_same<SourceType, VideoSource>
     AbstractVideoSource(SourceType&& source)
-        :   retrieve([this](gpuMat* buffer) -> bool{
+        :
+            source(std::move(source)),
+            _base(this->source.base()),
+            _retrieve([this](gpuMat* buffer) -> bool{
                 std::unique_lock guard(mutex);
                 try {
                     if(i >= this->source.length())
@@ -446,43 +458,43 @@ public:
                 }
                 return true;
             }),
-            _size_func([this]() -> Size2 {
-                return this->source.size();
+            _set_frame([this](Frame_t frame){
+                std::unique_lock guard(mutex);
+                i = frame;
             }),
-            source(std::move(source))
+            _size(this->source.size()),
+            _framerate(this->source.framerate()),
+            _finite(true),
+            _length(this->source.length())
     {
         this->source.set_colors(VideoSource::ImageMode::RGB);
     }
 
     AbstractVideoSource(AbstractVideoSource&& other) = default;
     AbstractVideoSource(const AbstractVideoSource& other) = delete;
-    AbstractVideoSource() = default;
+    AbstractVideoSource() = delete;
     
     AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
     AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
     
     bool next(gpuMat& output) {
-        return retrieve(&output);
+        return _retrieve(&output);
     }
     
     bool is_finite() const {
         return true;
     }
     
+    void set_frame(Frame_t frame) {
+        if(not is_finite())
+            throw std::invalid_argument("Cannot skip on infinite source.");
+        _set_frame(frame);
+    }
+    
     Frame_t length() const {
-        return 0_f;
-    }
-    
-    short framerate() const {
-        return 25;
-    }
-    
-    Size2 size() const {
-        return _size_func();
-    }
-    
-    file::Path base() const {
-        return file::Path();
+        if(not is_finite())
+            throw std::invalid_argument("Cannot return length of infinite source.");
+        return _length;
     }
     
     std::string toStr() const {
@@ -510,7 +522,7 @@ struct OverlayedVideo {
     bool eof() const noexcept {
         if(not source.is_finite())
             return false;
-        return i <= source.length();
+        return i >= source.length();
     }
     
     OverlayedVideo() = delete;
@@ -534,6 +546,8 @@ struct OverlayedVideo {
     void reset(Frame_t frame) {
         std::scoped_lock guard(index_mutex);
         i = frame;
+        if(source.is_finite())
+            source.set_frame(i);
     }
     
     //! generates the next frame
