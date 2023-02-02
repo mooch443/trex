@@ -241,13 +241,10 @@ struct Yolo7InstanceSegmentation {
         
         cv::Mat full_image;
         cv::cvtColor(data.image->get(), full_image, cv::COLOR_RGBA2GRAY);
-        print("full_image = ", Size2(full_image));
-        print(vector);
         
         for (size_t i = 0; i < N; ++i) {
             Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
             Size2 dim(vector.at(i * 6 + 2) - pos.x, vector.at(i * 6 + 3) - pos.y);
-            
             
             float conf = vector.at(i * 6 + 4);
             float cls = vector.at(i * 6 + 5);
@@ -261,7 +258,6 @@ struct Yolo7InstanceSegmentation {
             print("\t->", conf, " ", cls, " ",pos, " ", dim);
             print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
             cls = meta.at(i);
-            
             
             if (SETTING(filter_class).value<bool>() && cls != 14)
                 continue;
@@ -334,14 +330,14 @@ struct Yolo7InstanceSegmentation {
                 //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
                 //auto [pos, img] = big->image();
                 
-                if (i % 2 && data.frame.index().get() % 10 == 0) {
+                /*if (i % 2 && data.frame.index().get() % 10 == 0) {
                     auto [pos, img] = blob.image();
                     cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
                     auto vit = vir.ptr<cv::Vec3b>();
                     for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
                         *vit = Viridis::value(*it / 255.0);
                     tf::imshow("big", vir);
-                }
+                }*/
             }
         }
     }

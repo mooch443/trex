@@ -394,7 +394,7 @@ from utils.augmentations import augment_hsv, copy_paste, letterbox
 import torch.nn.functional as F
 import torchvision.transforms as T
 
-def predict_custom_yolo7_seg(offsets, image):
+def predict_custom_yolo7_seg(offsets, im):
     global t_model, device
 
     def crop(masks, boxes):
@@ -417,12 +417,11 @@ def predict_custom_yolo7_seg(offsets, image):
         #print(c)
         return masks * ((r >= x1) * (r < x2) * (c >= y1) * (c < y2))
 
-    if len(image.shape) < 4:
-        image = image[np.newaxis, ...]
-    im = image
-    print(im.shape)
+    if len(im.shape) < 4:
+        im = im[np.newaxis, ...]
+
     assert im.shape[1:] == (image_size,image_size,3)
-    im0 = image.shape[1:]
+    im0 = im.shape[1:]
     im = im.transpose((0, 3, 1, 2))[::-1]  # HWC to CHW, BGR to RGB
     im = np.ascontiguousarray(im)
 
@@ -505,9 +504,10 @@ def predict_custom_yolo7_seg(offsets, image):
             x = masks[j]
             
             box = downsampled_bboxes[j]
+            print(box.cpu().numpy().astype(int))
             x0,y0,x1,y1 = box.cpu().numpy().astype(int)
 
-            if x1-x0 > 0 and y1-y0 > 0:
+            if x1-x0 > 0 and y1-y0 > 0 and x1+1 <= x.shape[1] and y1+1 <= x.shape[0] and x0 >= 0 and y0 >= 0:
                 x = x[y0:y1+1, x0:x1+1]
                 x = (T.Resize((56,56))(x[None])[0])# * 255).to(torch.uint8)
                 shapes.append(x.cpu().numpy())
@@ -527,8 +527,8 @@ def predict_custom_yolo7_seg(offsets, image):
     meta = []
     indexes = []
 
-    print("processing im.shape", im.shape)
-    print(offsets)
+    #print("processing im.shape", im.shape)
+    #print(offsets)
     offsets = np.reshape(offsets, (-1, 2)).astype(int)
     #print(len(pred))
     #assert len(offsets) == len(pred)
@@ -543,23 +543,26 @@ def predict_custom_yolo7_seg(offsets, image):
         #TRex.imshow("im"+str(len(im) - 1 - i), local)
 
         with dt[1]:
-            pred, out = t_model(im[i][None], augment=None, visualize=None)
-            proto = out[1]
+            with torch.no_grad():
+                pred, out = t_model(im[i][None], augment=None, visualize=None)
+                proto = out[1]
 
-            # NMS
-            #with dt[2]:
-            conf_thres = 0.25
-            iou_thres = 0.45
-            
-            pred = non_max_suppression(pred, conf_thres, iou_thres, None, False, max_det=1000, nm=32)
-            print("proc", pred[0].shape)
-            _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
-            print("RESULT FOR ",i,"=",_meta)
+                #print(proto.shape)
+
+                # NMS
+                #with dt[2]:
+                conf_thres = 0.25
+                iou_thres = 0.45
+                
+                pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_thres, iou_thres, None, False, max_det=1000, nm=32)]
+                #print("nonmaxsupp proc", (pred[0]).int().cpu().numpy())
+                _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
+                #print("RESULT FOR ",i,"=",_meta)
         meta += _meta
         shapes += _shapes
         indexes += np.repeat(len(im) - 1 - i, len(_meta)).tolist()
 
-    print("meta: ", meta)
+    #print("meta: ", meta)
     #print("meta: ", np.concatenate(meta, axis=0))
     if len(meta) > 0:
         meta = np.concatenate(meta, axis=0, dtype=np.float32)
