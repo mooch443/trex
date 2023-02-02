@@ -679,8 +679,8 @@ struct Menu {
     void draw(DrawStructure& g) {
         //g.wrap_object(overlay);
         text->set_txt(Meta::toStr(OverlayT::_fps.load() / OverlayT::_samples.load())+"fps");
-        
         g.wrap_object(*buttons);
+        buttons->set_scale(g.scale().reciprocal());
     }
 };
 
@@ -785,7 +785,7 @@ struct SettingsDropdown {
         else
             _value_input.set_size(Size2(300, _value_input.height()));
         
-        _settings_dropdown.set_pos(Vec2(10, g.height() - 10).div(g.scale().y));
+        _settings_dropdown.set_pos(Vec2(10, base.window_dimensions().height - 10));
         _value_input.set_pos(_settings_dropdown.pos() + Vec2(_settings_dropdown.width(), 0));
         g.wrap_object(_settings_dropdown);
         
@@ -1120,7 +1120,7 @@ int main(int argc, char**argv) {
         
         graph.section("video", [&](auto&, Section* section){
             auto output_size = SETTING(output_size).value<Size2>();
-            auto window_size = base.real_dimensions();
+            auto window_size = base.window_dimensions();
             
             auto ratio = output_size.width / output_size.height;
             Size2 wdim;
@@ -1132,7 +1132,7 @@ int main(int argc, char**argv) {
                 wdim = Size2(window_size.height * ratio, window_size.height);
             }
             
-            auto scale = wdim.div(output_size).mul(base.dpi_scale());
+            auto scale = wdim.div(output_size);
             
             //ratio = ratio.T();
             //scale = scale.mul(ratio);
@@ -1214,9 +1214,6 @@ int main(int argc, char**argv) {
             menu.draw(graph);
             settings.draw(base, graph);
         });
-        
-        
-        //timeline.draw(graph);
         
         graph.set_dirty(nullptr);
 
