@@ -39,6 +39,7 @@
 #include <gui/ScreenRecorder.h>
 #include <misc/IdentifiedTag.h>
 #include <gui/DrawPreviewImage.h>
+#include <gui/AnimatedBackground.h>
 
 #include <pv.h>
 #include <file/DataLocation.h>
@@ -119,7 +120,8 @@ struct PrivateData {
     std::unique_ptr<ExternalImage> _collection;
     
     //! contains the background image-image and potentially a mask
-    std::unique_ptr<ExternalImage> _gui_background, _gui_mask;
+    std::unique_ptr<ExternalImage> _gui_mask;
+    std::unique_ptr<AnimatedBackground> _background;
     
     //! info card shown when an individual is selected
     InfoCard _info_card;
@@ -877,16 +879,13 @@ void GUI::redraw() {
         cv::Mat original;
         bg.copyTo(original);
         
-        PD(gui_background) = std::make_unique<ExternalImage>(Image::Make(original), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
+        PD(background) = std::make_unique<AnimatedBackground>(Image::Make(original));
         
-        PD(gui_background)->add_event_handler(EventType::MBUTTON, [](Event e){
+        PD(background)->add_event_handler(EventType::MBUTTON, [](Event e){
             if(e.mbutton.pressed) {
                 PD(clicked_background)(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
             }
         });
-        
-        PD(gui_background)->set_clickable(true);
-        PD(gui_background)->set_name("gui_background");
         
         if(PD(video_source).has_mask()) {
             cv::Mat mask = PD(video_source).mask().mul(cv::Scalar(255));
@@ -897,12 +896,12 @@ void GUI::redraw() {
     });
     
     auto alpha = SETTING(gui_background_color).value<Color>().a;
-    PD(gui_background)->set_color(Color(255, 255, 255, alpha ? alpha : 1));
+    PD(background)->set_color(Color(255, 255, 255, alpha ? alpha : 1));
     
     if(alpha > 0) {
-        PD(gui).wrap_object(*PD(gui_background));
+        PD(gui).wrap_object(*PD(background));
         if(PD(gui_mask)) {
-            PD(gui_mask)->set_color(PD(gui_background)->color().alpha(PD(gui_background)->color().a * 0.5));
+            PD(gui_mask)->set_color(PD(background)->color().alpha(PD(background)->color().a * 0.5));
             PD(gui).wrap_object(*PD(gui_mask));
         }
     }
@@ -913,12 +912,12 @@ void GUI::redraw() {
         assert(dynamic_cast<Section*>(ptr));
         
         auto pos = static_cast<Section*>(ptr)->pos();
-        PD(gui_background)->set_scale(static_cast<Section*>(ptr)->scale());
-        PD(gui_background)->set_pos(pos);
+        PD(background)->set_scale(static_cast<Section*>(ptr)->scale());
+        PD(background)->set_pos(pos);
         
         if(PD(gui_mask)) {
-            PD(gui_mask)->set_scale(PD(gui_background)->scale());
-            PD(gui_mask)->set_pos(PD(gui_background)->pos());
+            PD(gui_mask)->set_scale(PD(background)->scale());
+            PD(gui_mask)->set_pos(PD(background)->pos());
         }
     }
     

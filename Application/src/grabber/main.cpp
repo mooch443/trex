@@ -522,7 +522,7 @@ int main(int argc, char** argv)
             SETTING(enable_live_tracking) = true;
         }
 
-        SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());
+        SETTING(meta_source_path) = SETTING(video_source).value<std::string>();
         std::vector<file::Path> filenames;
         
         // recognize keywords in video_source
@@ -597,7 +597,7 @@ int main(int argc, char** argv)
         
         std::stringstream ss;
         for(int i=0; i<argc; ++i) {
-            ss << " " << argv[i];
+            ss << " '" << argv[i] << "'";
         }
         SETTING(meta_cmd) = ss.str();
 #if WITH_GITSHA1

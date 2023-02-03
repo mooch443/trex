@@ -19,10 +19,25 @@
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/List.h>
+#include <grabber/default_config.h>
+#include <GitSHA1.h>
 
 using namespace cmn;
 
 struct TileImage;
+
+std::string date_time() {
+    time_t rawtime;
+    struct tm * timeinfo;
+    char buffer[80];
+    
+    time (&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    strftime(buffer,sizeof(buffer),"%d-%m-%Y %H:%M:%S",timeinfo);
+    std::string str(buffer);
+    return str;
+}
 
 template<typename T>
 concept overlay_function = requires {
@@ -864,7 +879,12 @@ int main(int argc, char**argv) {
     using namespace gui;
     
     default_config::register_default_locations();
-    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
+    ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
+    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
     file::cd(file::DataLocation::parse("app"));
     
     SETTING(video_scale) = float(1);
@@ -995,6 +1015,19 @@ int main(int argc, char**argv) {
     SETTING(terminate) = false;
     SETTING(calculate_posture) = false;
     SETTING(gui_interface_scale) = float(1);
+    SETTING(meta_source_path) = SETTING(source).value<std::string>();
+    
+    std::stringstream ss;
+    for(int i=0; i<argc; ++i) {
+        ss << " '" << argv[i] << "'";
+    }
+    SETTING(meta_cmd) = ss.str();
+#if WITH_GITSHA1
+    SETTING(meta_build) = std::string(g_GIT_SHA1);
+#else
+    SETTING(meta_build) = std::string("<undefined>");
+#endif
+    SETTING(meta_conversion_time) = std::string(date_time());
 
     cmd.load_settings();
     

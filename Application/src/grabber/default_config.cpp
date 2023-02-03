@@ -159,7 +159,7 @@ namespace default_config {
         CONFIG("meta_conditions", std::string(""), "Treatment name.");
         CONFIG("meta_misc", std::string(""), "Other information.");
         CONFIG("meta_real_width", float(30), "Width of whatever is visible in the camera frame from left to right. Used to calculate `cm_per_pixel` ratio.", STARTUP);
-        CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
+        CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", STARTUP);
         CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", STARTUP);
         CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", STARTUP);

@@ -167,10 +167,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     SETTING(meta_conversion_time) = std::string(date_time());
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
-        ss << " " << argv[i];
+        ss << " '" << argv[i] << "'";
     }
     SETTING(meta_cmd) = ss.str();
-    SETTING(meta_source_path) = file::Path();
+    SETTING(meta_source_path) = std::string();
     SETTING(meta_number_merged_videos) = size_t(files.size());
     
     // frame: {blob : source}
