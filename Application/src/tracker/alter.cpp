@@ -19,7 +19,7 @@
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/List.h>
-#include <grabber/default_config.h>
+#include <grabber/misc/default_config.h>
 #include <GitSHA1.h>
 
 using namespace cmn;

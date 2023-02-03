@@ -70,8 +70,6 @@ file(GLOB SRCS
     main.cpp
     VideoOpener.cpp
     VideoOpener.h
-    ../grabber/default_config.cpp
-    ../grabber/default_config.h
     gfx/TRexIcon16.png
     gfx/TRexIcon32.png
     gfx/TRexIcon64.png
@@ -124,7 +122,7 @@ endif()
 
 # add actual executable
 add_executable(alter alter.cpp "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-target_link_libraries(alter PUBLIC tracker_tracking tracker_misc pv commons Commons::OpenCV)
+target_link_libraries(alter PUBLIC tracker_tracking tracker_misc framegrabber_misc pv commons Commons::OpenCV)
 
 add_executable(${TREX_EXEC_NAME} ${SRCS})
 add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
@@ -137,6 +135,7 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	tracker_tracking
 	tracker_gui
     tracker_misc
+    framegrabber_misc
 	pv
 	commons
 )

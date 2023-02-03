@@ -16,8 +16,6 @@ file(GLOB SRCS
      gpuImage.cpp
 	gui.h
 	gui.cpp
-	default_config.cpp
-	default_config.h
     CropWindow.h
     CropWindow.cpp
     ImageThreads.h

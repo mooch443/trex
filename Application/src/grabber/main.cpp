@@ -37,7 +37,7 @@
 #include <video/Video.h>
 #include "CropWindow.h"
 
-#include "default_config.h"
+#include "misc/default_config.h"
 #include <tracker/misc/default_config.h>
 #include <misc/default_settings.h>
 

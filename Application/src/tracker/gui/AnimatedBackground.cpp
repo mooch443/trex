@@ -109,6 +109,7 @@ void AnimatedBackground::before_draw() {
             {
                 print("PRELOAD: loaded correct image ", _next_image->index()," for frame ", frame);
                 _next_image = _static_image.exchange_with(std::move(_next_image));
+                _static_image.set_color(_tint);
             } else {
                 // discard
                 print("PRELOAD: loaded incorrect image ", _next_image->index()," for frame ", frame);
@@ -116,6 +117,7 @@ void AnimatedBackground::before_draw() {
                 {
                     // image but wrong index
                     _next_image = _static_image.exchange_with(std::move(_next_image));
+                    _static_image.set_color(_tint.alpha(_tint.a * 0.5));
                     _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame);
                     Entangled::before_draw();
                     return;
@@ -126,6 +128,7 @@ void AnimatedBackground::before_draw() {
                 {
                     print("PRELOAD: reloaded image ", _next_image->index()," for frame ", frame);
                     _next_image = _static_image.exchange_with(std::move(_next_image));
+                    _static_image.set_color(_tint);
                 }
             }
             
@@ -155,7 +158,7 @@ void AnimatedBackground::before_draw() {
 
 void AnimatedBackground::set_color(const Color & color) {
     _tint = color;
-    _static_image.set_color(color);
+    //_static_image.set_color(color);
 }
 
 const Color& AnimatedBackground::color() const {

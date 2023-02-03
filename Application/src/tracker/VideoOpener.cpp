@@ -8,7 +8,7 @@
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
 #include <processing/RawProcessing.h>
-#include <grabber/default_config.h>
+#include <grabber/misc/default_config.h>
 #include <opencv2/core/ocl.hpp>
 #include <video/AveragingAccumulator.h>
 

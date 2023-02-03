@@ -16,7 +16,7 @@
 #include <tracking/Export.h>
 #include <tracker/misc/Output.h>
 #include <tracking/VisualField.h>
-#include <grabber/default_config.h>
+#include <grabber/misc/default_config.h>
 #if !COMMONS_NO_PYTHON
 #include <pybind11/numpy.h>
 #include <python/GPURecognition.h>
