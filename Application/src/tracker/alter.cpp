@@ -983,7 +983,9 @@ int main(int argc, char**argv) {
             }
             
             if(not next) {
+#ifndef NDEBUG
                 auto ts = result.value().frame.timestamp();
+#endif
                 next = std::move(result.value());
                 assert(next.frame.timestamp() == ts);
             } else {
@@ -1059,6 +1061,7 @@ int main(int argc, char**argv) {
     DrawStructure graph(1024, output_size.height / output_size.width * 1024);
     
     IMGUIBase base("TRexA", graph, [&, ptr = &base]()->bool {
+        UNUSED(ptr);
         
         //timeline.set_base(ptr);
         
@@ -1066,13 +1069,13 @@ int main(int argc, char**argv) {
         ///cache.set_dt(dt);
         //timer.reset();
 
-        Frame_t index = SETTING(gui_frame).value<Frame_t>();
+        //Frame_t index = SETTING(gui_frame).value<Frame_t>();
 
         //image.set_pos(last_mouse_pos);
         //graph.wrap_object(image);
 
-        auto scale = graph.scale().reciprocal();
-        auto dim = ptr->window_dimensions().mul(scale * gui::interface_scale());
+        //auto scale = graph.scale().reciprocal();
+        //auto dim = ptr->window_dimensions().mul(scale * gui::interface_scale());
         graph.draw_log_messages();//Bounds(Vec2(0), dim));
         
         /*static Timer frame_timer;
