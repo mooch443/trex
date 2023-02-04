@@ -81,8 +81,11 @@ namespace pv {
         /** Added flags per object */
         V_8,
         
+        /** Added source frame index */
+        V_9,
+        
         //! current
-        current = V_8
+        current = V_9
     };
     
     class Frame {
@@ -94,6 +97,7 @@ namespace pv {
         //! number of mask/pixel arrays
         GETTER_I(uint16_t, n, 0u)
         GETTER_SETTER_I(float, loading_time, 0.f)
+        GETTER_SETTER(Frame_t, source_index)
         
         GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
         GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)

@@ -366,6 +366,8 @@ namespace gui {
                     try {
                         pv::Frame frame;
                         _video->read_frame(frame, frameIndex);
+                        SETTING(gui_source_video_frame) = frame.source_index().valid() ? frame.source_index() : frameIndex;
+                        
                         Tracker::instance()->preprocess_frame(*_video, std::move(frame), processed_frame, &_pool, PPFrame::NeedGrid::Need);
                         
                     } catch(const UtilsException&) {

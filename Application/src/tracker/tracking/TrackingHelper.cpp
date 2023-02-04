@@ -234,7 +234,7 @@ void TrackingHelper::apply_manual_matches()
                     print("frame ", frame.index(),": All missing manual matches perfectly matched.");
 #endif
                 } else {
-                    FormatError("frame ",frame.index(),": Missing some matches (",found_perfect,"/",clique.size(),") for blob ",bdx," (identities ", clique,").");
+                    FormatError("frame ",frame.index(),": Missing some matches (",found_perfect,"/",clique.size(),") for blob ",bdx," (identities ", clique,"). big_filtered=", big_filtered);
                 }
             }
         }

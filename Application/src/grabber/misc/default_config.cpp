@@ -162,6 +162,8 @@ namespace default_config {
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", STARTUP);
         CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", STARTUP);
+        CONFIG("meta_video_scale", float(1), "Scale applied to the original video / footage.", STARTUP);
+        CONFIG("meta_classes", std::vector<std::string>{}, "Class names for object classification in video during conversion.");
         CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", STARTUP);
         
         CONFIG("mask_path", Path(""), "Path to a video file containing a mask to be applied to the video while recording. Only works for conversions.");
@@ -181,7 +183,9 @@ namespace default_config {
             "frame_rate",
             //"cam_undistort",
             "cam_undistort_vector",
-            "cam_matrix"
+            "cam_matrix",
+            "meta_video_scale",
+            "meta_classes"
         }, "The given settings values will be written to the video file.");
 
         CONFIG("nowindow", false, "Start without a window enabled (for terminal-only use).");

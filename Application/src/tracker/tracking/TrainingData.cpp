@@ -168,9 +168,9 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Fram
     data->images.push_back(image);
     data->ids.push_back(id);
     
-    if(frame_index > data->frames.end)
+    if(not data->frames.end.valid() || frame_index > data->frames.end)
         data->frames.end = frame_index;
-    if(!data->frames.start.valid() || frame_index < data->frames.start)
+    if(not data->frames.start.valid() || frame_index < data->frames.start)
         data->frames.start = frame_index;
     
     if(_all_classes.find(id) == _all_classes.end())
@@ -1025,9 +1025,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 filtered_ids.insert(id);
         }
         
-        if(frame < inserted_start)
+        if(frame.valid() and (not inserted_start.valid() or frame < inserted_start))
             inserted_start = frame;
-        if(frame > inserted_end)
+        if(frame.valid() and (not inserted_end.valid() or frame > inserted_end))
             inserted_end = frame;
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish) {

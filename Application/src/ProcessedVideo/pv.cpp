@@ -66,6 +66,7 @@ namespace pv {
           _timestamp(other._timestamp),
           _n(other._n),
           _loading_time(other._loading_time),
+          _source_index(other._source_index),
           _flags(other._flags)
     {
         _mask.reserve(other.n());
@@ -208,6 +209,15 @@ namespace pv {
         }
         
         ptr->read(_n);
+        
+        if(ref.header().version >= V_9) {
+            int32_t original;
+            ptr->read(original);
+            if(original >= 0)
+                _source_index = Frame_t(original);
+            else
+                _source_index.invalidate();
+        }
         
         _mask.reserve(_n);
         _pixels.reserve(_n);
@@ -394,8 +404,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         pack.reset_offset();
         
         assert(_timestamp < UINT64_MAX);
-        pack.write(_timestamp); // force uint32_t because it should have been turned
-        pack.write(_n);         // into a relative timestamp by now // V_4 use uint64_t anyway
+        pack.write<uint64_t>(_timestamp); // force uint32_t because it should have been turned
+        pack.write<uint16_t>(_n);         // into a relative timestamp by now // V_4 use uint64_t anyway
+        static_assert(std::same_as<int32_t, Frame_t::number_t>, "Assuming int32_t here. Please fix.");
+        pack.write<int32_t>(_source_index.valid() ? _source_index.get() : -1);
         
         for(uint16_t i=0; i<_n; i++) {
             auto &mask = _mask.at(i);

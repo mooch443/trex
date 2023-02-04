@@ -79,7 +79,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             config->set_do_print(false);
             
             GlobalSettings::docs_map_t docs;
-            default_config::get(*config, docs, NULL);
+            grab::default_config::get(*config, docs, NULL);
             
             GlobalSettings::load_from_string({}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
             if(!file->header().metadata.empty())
@@ -161,13 +161,20 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         "meta_build",
         "meta_conversion_time",
         "meta_number_merged_videos",
-        "frame_rate"
+        "frame_rate",
+        "meta_video_scale",
+        "meta_classes"
     };
     
     SETTING(meta_conversion_time) = std::string(date_time());
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
-        ss << " '" << argv[i] << "'";
+        if(i > 0)
+            ss << " ";
+        if(argv[i][0] == '-')
+            ss << argv[i];
+        else
+            ss << "'" << argv[i] << "'";
     }
     SETTING(meta_cmd) = ss.str();
     SETTING(meta_source_path) = std::string();

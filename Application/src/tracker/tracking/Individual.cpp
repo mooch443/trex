@@ -2665,7 +2665,7 @@ void Individual::calculate_average_recognition() {
             
             auto prev_end = segment->start() - 1_f;
             for(auto && [start, range] : split_up) {
-                assert(start == range.start() && prev_end + 1_f == start);
+                assert(start == range.start() && ((not prev_end.valid() && start == start_frame()) || (prev_end.valid() && prev_end + 1_f == start)));
                 prev_end = range.end();
                 processed_segments[start] = range;
                 

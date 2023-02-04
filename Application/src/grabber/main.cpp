@@ -597,7 +597,12 @@ int main(int argc, char** argv)
         
         std::stringstream ss;
         for(int i=0; i<argc; ++i) {
-            ss << " '" << argv[i] << "'";
+            if(i > 0)
+                ss << " ";
+            if(argv[i][0] == '-')
+                ss << argv[i];
+            else
+                ss << "'" << argv[i] << "'";
         }
         SETTING(meta_cmd) = ss.str();
 #if WITH_GITSHA1

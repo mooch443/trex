@@ -2403,7 +2403,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
 
             for (auto& [bdx, label] : v) {
-                assert(label);
+                assert(label >= 0);
                 data.write<uint32_t>((uint32_t)bdx); // blob id
                 data.write<int32_t>(label); // label id
             }
@@ -2421,7 +2421,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             data.write<uint32_t>(ranged._range.start().get());
             data.write<uint32_t>(ranged._range.end().get());
 
-            assert(ranged._label);
+            assert(ranged._label >= 0);
             data.write<int>(ranged._label);
 
             assert(size_t(ranged._range.length().get()) == ranged._blobs.size());

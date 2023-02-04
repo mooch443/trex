@@ -375,6 +375,12 @@ std::ostream& operator<<(std::ostream& os, const Frame_t& dt)
     os << dt.get();
     return os;
 }
+
+std::ostream& operator<<(std::ostream& os, const FrameRange& dt)
+{
+    os << dt.toStr();
+    return os;
+}
 }
 
 using RangeTypes = ::testing::Types<Frame_t, int>;
@@ -405,4 +411,16 @@ TYPED_TEST(TestRanges, Ranges) {
     ASSERT_EQ(Number_t(used.size()), range.end) << _format(used);
     ASSERT_EQ(used.size(), range.iterable().size()) << _format(used);
     ASSERT_EQ(Number_t(used.size()), range.length()) << _format(used);
+    
+    if constexpr(std::same_as<Frame_t, Number_t>) {
+        FrameRange default_init{};
+        FrameRange other_default_init{};
+        FrameRange actual_number{Range<Frame_t>(0_f, 100_f)};
+        FrameRange other_actual_number{Range<Frame_t>(50_f, 1000_f)};
+        
+        ASSERT_LT(default_init, actual_number) << _format("default_init ", default_init, " < actual ", actual_number);
+        ASSERT_EQ(default_init, other_default_init) << _format("default_init ",default_init," == ", other_default_init);
+        ASSERT_LT(actual_number, other_actual_number) << _format("actual ", actual_number," < other ", other_actual_number);
+        //ASSERT_GT(actual_number, other_default_init);
+    }
 }

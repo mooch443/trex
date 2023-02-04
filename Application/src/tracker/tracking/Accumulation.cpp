@@ -622,7 +622,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
+std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
 {
     auto predictions = _network->probabilities(images);
     if(predictions.empty()) {
@@ -634,17 +634,18 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
     size_t good_frames = 0;
     size_t bad_frames = 0;
     double percentages = 0, rpercentages = 0;
-    ska::bytell_hash_map<Frame_t, float> unique_percent;
-    ska::bytell_hash_map<Frame_t, float> unique_percent_raw;
     
-    ska::bytell_hash_map<Idx_t, float> unique_percent_per_identity;
-    ska::bytell_hash_map<Idx_t, float> per_identity_samples;
+    hash_map<Frame_t, float> unique_percent;
+    hash_map<Frame_t, float> unique_percent_raw;
+    
+    hash_map<Idx_t, float> unique_percent_per_identity;
+    hash_map<Idx_t, float> per_identity_samples;
     
     const size_t N = FAST_SETTING(track_max_individuals);
     
     for(auto && [frame, range] : map_indexes) {
-        ska::bytell_hash_set<Idx_t> unique_ids;
-        ska::bytell_hash_map<Idx_t, float> probs;
+        hash_set<Idx_t> unique_ids;
+        hash_map<Idx_t, float> probs;
         
         for (auto i = range.start; i < range.end; ++i) {
             Idx_t max_id;
@@ -665,9 +666,13 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
             }
         }
         
-        double p = range.length() - 1 <= 0 ? 0 : (unique_ids.size() / float(range.length() - 1));
+        double p = range.length() <= 0
+                ? 0
+                : (unique_ids.size() / float(range.length()));
+        assert(p <= 1 && p >= 0);
         float accum_p = 0;
         for(auto && [id, p] : probs) {
+            assert(p <= 1 && p >= 0);
             accum_p += p;
             unique_percent_per_identity[id] += p;
             ++per_identity_samples[id];
@@ -682,14 +687,16 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
         unique_percent_raw[frame] = float(p);
         rpercentages += p;
         
-        if(!probs.empty())
+        if(!probs.empty()) {
+            assert(accum_p <= probs.size());
             p = logic_regression(accum_p / float(probs.size())) * p;
             //p = (accum_p / float(probs.size()) + p) * 0.5;
-        
+        }
+        assert(p <= 1 && p >= 0);
         unique_percent[frame] = float(p);
         percentages += p;
         
-        if(unique_ids.size() == range.length() - 1) {
+        if(unique_ids.size() == range.length()) {
             // all ids are unique
             ++good_frames;
         } else {
@@ -974,7 +981,7 @@ bool Accumulation::start() {
        && SETTING(gpu_enable_accumulation)
        && best_uniqueness() < good_uniqueness)
     {
-        DebugHeader("Beginning accumulation from %d ranges in training mode '%s'.", ranges.size(), _mode.name());
+        DebugHeader("Beginning accumulation from ",ranges.size()," ranges in training mode ", _mode.name(),".");
         
         std::set<Range<Frame_t>> overall_ranges{_initial_range};
         std::set<std::tuple<double, Frame_t, DatasetQuality::Quality, std::shared_ptr<TrainingData>, Range<Frame_t>>, std::greater<>> sorted;

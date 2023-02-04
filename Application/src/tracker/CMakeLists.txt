@@ -304,7 +304,7 @@ else()
     )
 
     if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-        message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
+        message(STATUS "Copying files ${RESOURCE_COPY_FILES}")
 
         foreach(comp ${RESOURCE_COPY_FILES})
             get_filename_component(comp_s ${comp} NAME)

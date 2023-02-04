@@ -455,7 +455,7 @@ class AbstractVideoSource {
     const bool _finite;
     const Frame_t _length;
     
-    mutable package::packaged_func<bool, gpuMat*> _retrieve;
+    mutable package::packaged_func<Frame_t, gpuMat*> _retrieve;
     mutable package::packaged_func<void, Frame_t> _set_frame;
     
 public:
@@ -465,7 +465,7 @@ public:
         :
             source(std::move(source)),
             _base(this->source.base()),
-            _retrieve([this](gpuMat* buffer) -> bool{
+            _retrieve([this](gpuMat* buffer) -> Frame_t {
                 std::unique_lock guard(mutex);
                 try {
                     if(i >= this->source.length())
@@ -473,9 +473,9 @@ public:
                     this->source.frame(i++, *buffer);
                 } catch(const std::exception& e) {
                     FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
-                    return false;
+                    return Frame_t{};
                 }
-                return true;
+                return i - 1_f;
             }),
             _set_frame([this](Frame_t frame){
                 std::unique_lock guard(mutex);
@@ -496,7 +496,7 @@ public:
     AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
     AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
     
-    bool next(gpuMat& output) {
+    Frame_t next(gpuMat& output) {
         return _retrieve(&output);
     }
     
@@ -581,17 +581,19 @@ struct OverlayedVideo {
             TileImage tiled;
             
             try {
-                if(not source.next(buffer))
+                Frame_t nix = source.next(buffer);
+                if(not nix.valid())
                     return tl::unexpected("Cannot retrieve frame from video source.");
                 
-                if(SETTING(video_scale).value<float>() != 1) {
-                    Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(video_scale).value<float>();
+                if(SETTING(meta_video_scale).value<float>() != 1) {
+                    Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(meta_video_scale).value<float>();
                     FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                     cv::resize(buffer, buffer, new_size);
                 }
 
                 cv::cvtColor(buffer, buffer, cv::COLOR_BGR2RGB);
                 original_image = Image::Make(buffer);
+                original_image->set_index(nix.get());
                 
                 Size2 original_size(buffer.cols, buffer.rows);
                 
@@ -887,12 +889,12 @@ int main(int argc, char**argv) {
     
     file::cd(file::DataLocation::parse("app"));
     
-    SETTING(video_scale) = float(1);
+    SETTING(meta_video_scale) = float(1);
     SETTING(source) = std::string("/Users/tristan/goats/DJI_0160.MOV");
     SETTING(model) = file::Path("/Users/tristan/Downloads/tfmodel_goats1024");
     SETTING(image_width) = int(1024);
     SETTING(filename) = file::Path("");
-    SETTING(classes) = std::vector<std::string>{
+    SETTING(meta_classes) = std::vector<std::string>{
         "goat", "sheep", "human"
     };
     SETTING(detection_type) = ObjectDetectionType::yolo7;
@@ -1021,7 +1023,12 @@ int main(int argc, char**argv) {
     
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
-        ss << " '" << argv[i] << "'";
+        if(i > 0)
+            ss << " ";
+        if(argv[i][0] == '-')
+            ss << argv[i];
+        else
+            ss << "'" << argv[i] << "'";
     }
     SETTING(meta_cmd) = ss.str();
 #if WITH_GITSHA1
@@ -1038,7 +1045,7 @@ int main(int argc, char**argv) {
     }
     
     SETTING(filter_class) = false;
-    Size2 output_size = (Size2(video.source.size()) * SETTING(video_scale).value<float>()).map(roundf);
+    Size2 output_size = (Size2(video.source.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
     
     Tracker tracker;
@@ -1120,14 +1127,24 @@ int main(int argc, char**argv) {
         if (next.image) {
             objects.clear();
             current = std::move(next);
+            current.frame.set_source_index(Frame_t(current.image->index()));
 
             for (size_t i = 0; i < current.frame.n(); ++i) {
                 objects.emplace_back(current.frame.blob_at(i));
             }
 
-            auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
-            cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
-            background->set_source(std::move(rgba));
+            if(background->source()
+               && background->source()->rows == current.image->rows
+               && background->source()->cols == current.image->cols
+               && background->source()->dims == 4)
+            {
+                cv::cvtColor(current.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+                background->updated_source();
+            } else {
+                auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
+                cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+                background->set_source(std::move(rgba));
+            }
             
             if (not file.is_open()) {
                 file.set_start_time(start_time);
@@ -1176,8 +1193,8 @@ int main(int argc, char**argv) {
             
             //ratio = ratio.T();
             //scale = scale.mul(ratio);
-            if(not current.frame.index().valid() || current.frame.index().get()%10 == 0)
-                print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
+            //if(not current.frame.index().valid() || current.frame.index().get()%10 == 0)
+            //    print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
             section->set_scale(scale);
             SETTING(gui_frame) = current.frame.index();
             
@@ -1188,7 +1205,7 @@ int main(int argc, char**argv) {
             for(auto box : current.tiles)
                 graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
             
-            auto classes = SETTING(classes).value<std::vector<std::string>>();
+            auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
             for(auto& blob : objects) {
                 const auto bds = blob->bounds();
                 graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
@@ -1203,7 +1220,7 @@ int main(int argc, char**argv) {
                     }
                 }
                 
-                auto cname = classes.size() > assign.clid ? classes.at(assign.clid) :
+                auto cname = meta_classes.size() > assign.clid ? meta_classes.at(assign.clid) :
                 "<unknown:"+Meta::toStr(assign.clid)+">";
                 
                 auto loc = attr::Loc(bds.pos());
@@ -1214,9 +1231,11 @@ int main(int argc, char**argv) {
                            attr::Origin(0, 1));
                 
             }
+            
+            graph.text(Meta::toStr(current.frame.source_index())+" | "+current.frame.index().toStr(), attr::Loc(10,30), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
             if (not current.outlines.empty()) {
-                graph.text(Meta::toStr(current.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35));
+                graph.text(Meta::toStr(current.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
                 
                 ColorWheel wheel;
                 for (const auto& v : current.outlines) {

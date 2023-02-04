@@ -432,6 +432,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
         SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
     
+    SETTING(meta_video_scale) = SETTING(cam_scale).value<float>();
+    
     _average.copyTo(_original_average);
     //callback_before_starting(*this);
     
@@ -1930,6 +1932,8 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         task->frame->clear();
         task->frame->set_timestamp(task->current->timestamp().get());
     }
+    
+    task->frame->set_source_index(Frame_t(task->current->index()));
     
     {
         static Timing timing("adding frame");

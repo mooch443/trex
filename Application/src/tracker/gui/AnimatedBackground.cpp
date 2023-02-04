@@ -10,8 +10,10 @@ AnimatedBackground::AnimatedBackground(Image::UPtr&& image)
 {
     auto metadata = GUI::video_source()->header().metadata;
     sprite::Map config;
+    GlobalSettings::docs_map_t docs;
     
     try {
+        default_config::get(config, docs, nullptr);
         sprite::parse_values(config, metadata);
         
     } catch(...) {
@@ -27,6 +29,10 @@ AnimatedBackground::AnimatedBackground(Image::UPtr&& image)
         } catch(const UtilsException& e) {
             FormatError("Cannot load animated gui background: ", e.what());
         }
+    }
+    
+    if(config.has("meta_video_scale")) {
+        _source_scale = config.get<float>("meta_video_scale");
     }
     
     update([this](auto&) {
@@ -56,7 +62,7 @@ void AnimatedBackground::before_draw() {
         return;
     }
     
-    auto frame = SETTING(gui_frame).value<Frame_t>();
+    auto frame = SETTING(gui_source_video_frame).value<Frame_t>();
     if(frame.valid()
        && frame != _current_frame
        && _source)
@@ -68,19 +74,29 @@ void AnimatedBackground::before_draw() {
             try {
                 _source->frame(index, _buffer);
                 
-                if(not _next_image
-                   || _next_image->cols != (uint)_buffer.cols
-                   || _next_image->rows != (uint)_buffer.rows
-                   || _next_image->dims != (uint)_buffer.channels())
+                const gpuMat *output = &_buffer;
+                if(_source_scale > 0 && _source_scale != 1)
                 {
-                    _next_image = Image::Make(_buffer.rows, _buffer.cols, 4);
+                    cv::resize(_buffer, _resized, Size2(_buffer.cols, _buffer.rows).mul(_source_scale).map(roundf));
+                    output = &_resized;
                 }
                 
-                if(_buffer.channels() == 3) {
-                    cv::cvtColor(_buffer, _next_image->get(), cv::COLOR_BGR2RGBA);
+                const uint channels = is_in(output->channels(), 3, 4)
+                                        ? 4 : 1;
+                
+                if(not _next_image
+                   || _next_image->cols != (uint)output->cols
+                   || _next_image->rows != (uint)output->rows
+                   || _next_image->dims != channels)
+                {
+                    _next_image = Image::Make(output->rows, output->cols, channels);
+                }
+                
+                if(output->channels() == 3) {
+                    cv::cvtColor(*output, _next_image->get(), cv::COLOR_BGR2RGBA);
                 } else {
-                    assert(_buffer.channels() == _static_image.source()->dims);
-                    _buffer.copyTo(_next_image->get());
+                    assert(_buffer.channels() == _next_image->dims);
+                    output->copyTo(_next_image->get());
                 }
                 
                 _next_image->set_index(index.get());

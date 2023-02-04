@@ -369,6 +369,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG<std::pair<pv::bid, Frame_t>>("gui_show_fish", {pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
+        CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
+        config.dont_print("gui_source_video_frame");
         CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
@@ -716,6 +718,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_foi_types",
             "gui_mode",
             "gui_frame",
+            "gui_source_video_frame",
             "gui_run",
             "settings_file",
             "nowindow",

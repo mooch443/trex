@@ -737,6 +737,7 @@ void PPFrame::clear() {
     blob_mappings.clear();
     paired.clear();
     last_positions.clear();
+    fixed_matches.clear();
     
     _check_owners();
 }
