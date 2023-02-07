@@ -187,6 +187,9 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     //std::scoped_lock scoped(global_mutex, individual_mutex);
     for(auto it = all_frames.begin(); it != all_frames.end(); ) {
         if(not from.valid() || it->first >= from) {
+            if(track::last_active == it->second.get())
+                track::last_active = nullptr;
+            
             it = all_frames.erase(it);
         } else {
             if(not largest.valid() || largest < it->first) {
@@ -205,8 +208,22 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
             if(delete_callback)
                 delete_callback(it->second.get());
             
-            print("Deleting individual ", it->second.get(), " aka ", it->second->identity());
+            auto fish = it->second.get();
+            print("Deleting individual ", fish, " aka ", fish->identity());
             //assert(not track::last_active or not track::last_active->contains(it->second.get()));
+            
+            for(auto &[frame, fishes] : all_frames) {
+                auto it = fishes->find(fish);
+                if(it != fishes->end())
+                    fishes->erase(it);
+            }
+            
+            if(track::last_active) {
+                auto it = track::last_active->find(fish);
+                if(it != track::last_active->end())
+                    track::last_active->erase(it);
+            }
+            
             it = _individuals.erase(it);
         } else {
             if(not largest_valid.valid() || it->second->identity().ID() > largest_valid)

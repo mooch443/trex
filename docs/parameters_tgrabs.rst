@@ -180,15 +180,6 @@ TGrabs parameters
 
 
 
-.. function:: ffmpeg_crf(uint)
-
-	**default value:** 20
-
-
-	Quality for crf (see ffmpeg documentation) used when encoding as libx264.
-
-
-
 .. function:: grabber_force_settings(bool)
 
 	**default value:** false
@@ -265,6 +256,15 @@ TGrabs parameters
 
 
 
+.. function:: meta_classes(array<string>)
+
+	**default value:** []
+
+
+	Class names for object classification in video during conversion.
+
+
+
 .. function:: meta_cmd(string)
 
 	**default value:** ""
@@ -310,9 +310,18 @@ TGrabs parameters
 
 
 
+.. function:: meta_video_scale(float)
+
+	**default value:** 1
+
+
+	Scale applied to the original video / footage.
+
+
+
 .. function:: meta_write_these(array<string>)
 
-	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix"]
+	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix","meta_video_scale","meta_classes"]
 
 
 	The given settings values will be written to the video file.

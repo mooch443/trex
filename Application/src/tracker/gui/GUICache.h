@@ -51,7 +51,7 @@ namespace gui {
         (uchar, gui_timeline_alpha),
         (bool, gui_happy_mode),
         (bool, auto_categorize),
-        (bool, gui_blur_enabled)
+        (bool, gui_macos_blur)
     )
     }
 

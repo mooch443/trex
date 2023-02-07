@@ -2727,8 +2727,8 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
     //const double coverage = double(PD(cache)._num_pixels) / double(PD(collection)->source()->rows * PD(collection)->source()->cols);
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-    const bool draw_blobs_separately = SETTING(gui_draw_blobs_separately) || GUI_SETTINGS(gui_blur_enabled);//(GUI_SETTINGS(gui_blur_enabled) || coverage < 0.002);
-    //(!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
+    const bool draw_blobs_separately = SETTING(gui_draw_blobs_separately) || GUI_SETTINGS(gui_macos_blur);//(GUI_SETTINGS(gui_macos_blur) || coverage < 0.002);
+    //(!GUI_SETTINGS(gui_macos_blur) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
 #else
     const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
 #endif
@@ -2827,7 +2827,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                     {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-                        if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                        if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
                         {
                             ptr->ptr->tag(Effects::blur);
                         }
@@ -2841,7 +2841,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 for(auto &[b, ptr] : PD(cache).display_blobs) {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-                    if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                    if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
                     {
                         ptr->ptr->untag(Effects::blur);
                     }

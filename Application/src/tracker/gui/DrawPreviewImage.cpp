@@ -189,10 +189,17 @@ void draw(Frame_t frame, DrawStructure& graph) {
     Loc offset(5);
     
     PPFrame pp;
-    pv::Frame vframe;
-    pp.set_index(frame);
-    GUI::video_source()->read_frame(vframe, frame);
-    Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+    try {
+        pv::Frame vframe;
+        pp.set_index(frame);
+        GUI::video_source()->read_frame(vframe, frame);
+        Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+    } catch(const UtilsException& e) {
+        UNUSED(e);
+#ifndef NDEBUG
+        FormatError("DrawPreviewImage failed for frame ", frame, ": ", e.what());
+#endif
+    }
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {

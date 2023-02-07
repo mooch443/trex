@@ -923,6 +923,7 @@ int main(int argc, char**argv) {
     print("video: ", SETTING(source).value<std::string>());
     print("model resolution: ", SETTING(image_width).value<int>());
     print("output size: ", SETTING(video_source).value<Size2>());
+    print("output path: ", SETTING(filename).value<file::Path>());
     
     expected_size = Size2(SETTING(image_width).value<int>(), SETTING(image_width).value<int>());
     

@@ -318,6 +318,9 @@ FrameRange Individual::get_recognition_segment_safe(Frame_t frameIndex) const {
 }
 
 const std::multiset<tags::Tag>* Individual::has_tag_images_for(Frame_t frameIndex) const {
+    if(not frameIndex.valid())
+        return nullptr;
+    
     auto range = get_segment(frameIndex);
     
     auto min_frame = Frame_t(std::numeric_limits<Frame_t::number_t>::max());
@@ -399,6 +402,9 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
 }
 
 std::shared_ptr<SegmentInformation> Individual::segment_for(Frame_t frameIndex) const {
+    if(not frameIndex.valid())
+        return nullptr;
+    
     if(empty())
         return nullptr;
     if(frameIndex < _startFrame || frameIndex > _endFrame)
@@ -2691,7 +2697,7 @@ void Individual::calculate_average_recognition() {
 }
 
 std::tuple<bool, FrameRange> Individual::frame_has_segment_recognition(Frame_t frameIndex) const {
-    if(frameIndex > _endFrame || frameIndex < _startFrame)
+    if(not frameIndex.valid() || empty() || frameIndex > _endFrame || frameIndex < _startFrame)
         return {false, FrameRange()};
     
     auto range = get_segment(frameIndex);
@@ -2700,7 +2706,7 @@ std::tuple<bool, FrameRange> Individual::frame_has_segment_recognition(Frame_t f
 }
 
 std::tuple<bool, FrameRange> Individual::has_processed_segment(Frame_t frameIndex) const {
-    if(frameIndex > _endFrame || frameIndex < _startFrame)
+    if(not frameIndex.valid() || empty() || frameIndex > _endFrame || frameIndex < _startFrame)
         return {false, FrameRange()};
     
     auto range = get_recognition_segment(frameIndex);

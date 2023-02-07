@@ -50,6 +50,8 @@ model_type = None
 imgsz = None
 device = None
 offsets = None
+iou_threshold = 0.1
+conf_threshold = 0.1
 
 def load_model():
     global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type
@@ -166,7 +168,10 @@ def inference(model, im, size=(640,640)):
 
 def predict_yolov7(offsets, img, image_shape=(640,640)):
     from utils.augmentations import augment_hsv, copy_paste, letterbox
+
     def perform_filtering(im0, im, y):
+        global iou_threshold, conf_threshold
+
         def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
             # Rescale boxes (xyxy) from img1_shape to img0_shape
             if ratio_pad is None:  # calculate from img0_shape
@@ -199,9 +204,7 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
             return tf.concat([x - w / 2, y - h / 2, x + w / 2, y + h / 2], axis=-1)
 
         topk_per_class=200
-        topk_all=500
-        iou_thres=0.25
-        conf_thres=0.15
+        topk_all=200
 
         b, ch, h, w = im.shape
         boxes = _xywh2xyxy(y[..., :4])
@@ -216,8 +219,8 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
                                                     scores,
                                                     topk_per_class,
                                                     topk_all,
-                                                    iou_thres,
-                                                    conf_thres,
+                                                    iou_threshold,
+                                                    conf_threshold,
                                                     clip_boxes=False)
 
         nms_valid = nms.valid_detections.numpy()

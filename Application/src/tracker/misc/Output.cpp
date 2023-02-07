@@ -1372,7 +1372,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         // update tracker with the numbers
         //assert(it->first == props.frame);
         auto &active = *IndividualManager::active_individuals(props->frame).value();
-        if(prev_props && prev_frame - props->frame > 1_f)
+        assert(props->frame.valid());
+        if(prev_props && prev_frame > props->frame + 1_f)
             prev_props = nullptr;
         
         _tracker.update_consecutive(active, props->frame, false);

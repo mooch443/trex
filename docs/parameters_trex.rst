@@ -480,7 +480,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).
+	Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.
 
 
 
@@ -635,15 +635,6 @@ TRex parameters
 
 
 
-.. function:: gui_blur_enabled(bool)
-
-	**default value:** false
-
-
-	MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.
-
-
-
 .. function:: gui_connectivity_matrix(map<int,array<float>>)
 
 	**default value:** {}
@@ -667,9 +658,9 @@ TRex parameters
 	**default value:** false
 
 
-	Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if ``gui_blur_enabled`` is set to true).
+	Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if ``gui_macos_blur`` is set to true).
 
-	.. seealso:: :func:`gui_blur_enabled`
+	.. seealso:: :func:`gui_macos_blur`
 
 
 .. function:: gui_draw_only_filtered_out(bool)
@@ -769,6 +760,15 @@ TRex parameters
 
 
 	Scales the whole interface. A value greater than 1 will make it smaller.
+
+
+
+.. function:: gui_macos_blur(bool)
+
+	**default value:** false
+
+
+	MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.
 
 
 
@@ -1132,6 +1132,16 @@ TRex parameters
 
 
 
+.. function:: gui_source_video_frame(frame)
+
+	**default value:** 0
+
+
+	Best information the system has on which frame index in the original video the given ``gui_frame`` corresponds to (integrated into the pv file starting from V_9).
+
+	.. seealso:: :func:`gui_frame`
+
+
 .. function:: gui_timeline_alpha(uchar)
 
 	**default value:** 200
@@ -1444,7 +1454,7 @@ TRex parameters
 	.. seealso:: :func:`cm_per_pixel`, :func:`track_max_speed`
 
 
-.. function:: meta_source_path(path)
+.. function:: meta_source_path(string)
 
 	**default value:** ""
 
@@ -1817,7 +1827,7 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.10"
+	**default value:** "/Users/tristan/miniforge3/envs/trex_yolo/bin/python3.10"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -2197,7 +2207,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-170-gc99c1d9"
+	**default value:** "v1.1.9-222-g78033a5"
 
 
 	Current application version.

@@ -12,6 +12,8 @@ AnimatedBackground::AnimatedBackground(Image::UPtr&& image)
     sprite::Map config;
     GlobalSettings::docs_map_t docs;
     
+    _static_image.set_clickable(true);
+    
     try {
         default_config::get(config, docs, nullptr);
         sprite::parse_values(config, metadata);

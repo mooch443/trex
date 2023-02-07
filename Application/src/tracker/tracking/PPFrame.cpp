@@ -243,8 +243,8 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                 continue;
             }
             
-            if(!history_split)
-                continue;
+            //if(!history_split)
+             //   continue;
             
             
             const auto time_limit = cache->previous_frame.get() - frame_limit; // dont allow too far to the past

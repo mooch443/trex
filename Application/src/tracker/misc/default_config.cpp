@@ -329,7 +329,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
 
-        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
+        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.", SYSTEM);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
         
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
@@ -373,13 +373,13 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         config.dont_print("gui_source_video_frame");
         CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-        CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
+        CONFIG("gui_macos_blur", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
 //#endif
         CONFIG("gui_faded_brightness", uchar(255), "The alpha value of tracking-related elements when timeline is hidden (0-255).");
         CONFIG("gui_equalize_blob_histograms", true, "Equalize histograms of blobs wihtin videos (makes them more visible).");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
         CONFIG("gui_show_individual_preview", false, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
-        CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_blur_enabled` is set to true).");
+        CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_macos_blur` is set to true).");
         CONFIG("heatmap_ids", std::vector<track::Idx_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");

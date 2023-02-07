@@ -265,7 +265,7 @@ Fish::~Fish() {
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-        if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+        if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
         {
             if (!is_selected) _view.tag(Effects::blur);
             else _view.untag(Effects::blur);
@@ -297,7 +297,7 @@ Fish::~Fish() {
 
     #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
     #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-                if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
                 {
                     if(is_selected)_polygon->tag(Effects::blur);
                     else _polygon->untag(Effects::blur);
@@ -314,7 +314,7 @@ Fish::~Fish() {
             for (auto& [b, ptr] : cache.display_blobs) {
                 if (b == it->second) {
                     //ptr->ptr->set_pos(Vec2());
-                    if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value
+                    if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value
                         && is_selected)
                     {
                         ptr->ptr->untag(Effects::blur);
@@ -1305,7 +1305,7 @@ void Fish::shadow(DrawStructure &window) {
         
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-        if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+        if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
         {
             auto is_selected = GUICache::instance().is_selected(_obj.identity().ID());
             if (!is_selected) _polygon->tag(Effects::blur);
