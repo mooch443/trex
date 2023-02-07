@@ -109,6 +109,7 @@ target_link_libraries(pvinfo PRIVATE
 	tracker_tracking
     tracker_gui
     tracker_misc
+    framegrabber_misc
 	commons
 	pv
 )
