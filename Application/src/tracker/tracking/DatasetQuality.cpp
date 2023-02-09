@@ -125,8 +125,12 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     if(not success)
         return false;
     
-    for(auto fish : found)
-        Tracker::instance()->thread_pool().enqueue(work, fish);
+    try {
+        for(auto fish : found)
+            Tracker::instance()->thread_pool().enqueue(work, fish);
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads: ", e.what());
+    }
     
     Tracker::instance()->thread_pool().wait();
     

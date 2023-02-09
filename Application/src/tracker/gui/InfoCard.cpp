@@ -544,10 +544,13 @@ void InfoCard::update() {
 }
     
     void InfoCard::update(gui::DrawStructure &base, Frame_t frameNr) {
-        auto fish = GUICache::instance().primary_selection();
+        //auto fish = GUICache::instance().primary_selection();
+        auto fdx = GUICache::instance().selected.empty()
+                 ? Idx_t()
+                 : GUICache::instance().selected.front();
         
-        if(fish) {
-            if(_shadow->fdx != fish->identity().ID()) {
+        if(fdx.valid()) {
+            if(_shadow->fdx != fdx) {
                 segment_texts.clear();
                 previous = nullptr;
                 
@@ -564,12 +567,12 @@ void InfoCard::update() {
                 });*/
             }
             
-            if(_shadow->frame != frameNr || _shadow->fdx != fish->identity().ID())
+            if(_shadow->frame != frameNr || _shadow->fdx != fdx)
             {
                 set_content_changed(true);
                 
                 _shadow->frame = frameNr;
-                _shadow->fdx = fish->identity().ID();
+                _shadow->fdx = fdx;
             }
             
         } else {

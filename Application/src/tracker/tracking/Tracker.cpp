@@ -1682,11 +1682,15 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     if(s.save_tags()) {
         tags_saver = promise.get_future();
         
-       _thread_pool.enqueue([&]() {
-           std::shared_lock guard(s.blob_fish_mutex);
-           this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTING(tags_path));
-           promise.set_value();
-        });
+        try {
+            _thread_pool.enqueue([&]() {
+                std::shared_lock guard(s.blob_fish_mutex);
+                this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTING(tags_path));
+                promise.set_value();
+            });
+        } catch(const UtilsException& e) {
+            FormatExcept("Exception when starting check_save_tags threads on _thread_pool: ", e.what());
+        }
     }
     
     Timer posture_timer;

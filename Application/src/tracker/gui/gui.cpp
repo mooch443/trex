@@ -1826,7 +1826,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 auto window = Frame_t(SETTING(output_frame_window).value<uint32_t>());
                 
                 for(auto id : PD(cache).selected) {
-                    PD(fish_graphs)[i]->setup_graph(frameNr.get(), Rangel((frameNr - window).get(), (frameNr + window).get()), PD(cache).individuals.at(id), nullptr);
+                    PD(fish_graphs)[i]->setup_graph(frameNr.get(), Rangel((frameNr.try_sub( window)).get(), (frameNr + window).get()), PD(cache).individuals.at(id), nullptr);
                     PD(fish_graphs)[i]->graph().set_scale(base.scale().reciprocal());
                     PD(fish_graphs)[i]->draw(base);
                     
@@ -2567,8 +2567,12 @@ void GUI::update_recognition_rect() {
             print("Calculating border...");
             
             std::lock_guard<std::mutex> guard(blob_thread_pool_mutex());
-            for(ushort x = 0; x < max_w; ++x) {
-                blob_thread_pool().enqueue(worker, x);
+            try {
+                for(ushort x = 0; x < max_w; ++x) {
+                    blob_thread_pool().enqueue(worker, x);
+                }
+            } catch(...) {
+                FormatExcept("blob_thread_pool error when enqueuing worker to calculate border.");
             }
             blob_thread_pool().wait();
         }

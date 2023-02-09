@@ -111,15 +111,16 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     }
     
     void Library::clear_cache() {
-        //std::lock_guard<std::recursive_mutex> lock(_cache_mutex);
         //_cache.clear();
         _default_cache->clear();
     }
     
     void Library::Init() {
         // add the standard functions
-        _cache_func.clear();
         _default_cache->clear();
+        
+        std::lock_guard<std::mutex> lock(_output_variables_lock);
+        _cache_func.clear();
         
         const float cm_per_px = FAST_SETTING(cm_per_pixel);
         static const float CENTER_X = SETTING(output_centered) ? SETTING(video_size).value<Size2>().width * 0.5f * cm_per_px : 0;
@@ -144,7 +145,6 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
             {
                 auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-                std::lock_guard<std::mutex> lock(_output_variables_lock);
                 _output_defaults = SETTING(output_default_options).value<Output::Library::default_options_type>();
                 _options_map.clear();
                 
@@ -271,6 +271,26 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration<Units::DEFAULT>(smooth); );
         
         _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
+            if(smooth) {
+                Options_t options = info.modifiers;
+                options.remove(Modifiers::SMOOTH);
+                
+                float _samples = 0;
+                float _average = 0;
+                for(Frame_t i = frame.try_sub(Frame_t(FAST_SETTING(smooth_window))); i <= frame + Frame_t(FAST_SETTING(smooth_window)); ++i) {
+                    auto v = get(Functions::SPEED.name(), LibInfo(info.fish, options, info._cache), i);
+                    if(v != Graph::invalid()) {
+                        _average += v;
+                        ++_samples;
+                    }
+                }
+                
+                print("smooth ", _average, " ", _samples);
+                return _average / _samples;
+            }
+            
+            print("Unsmoothed");
+            
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
                     return gui::Graph::invalid();

@@ -1245,9 +1245,13 @@ void Work::start_learning() {
                             
                         case LearningTask::Type::Apply: {
                             hide();
-                            GUI::instance()->blob_thread_pool().enqueue([](){
-                                start_applying();
-                            });
+                            try {
+                                GUI::instance()->blob_thread_pool().enqueue([](){
+                                    start_applying();
+                                });
+                            } catch(const UtilsException&) {
+                                // pass
+                            }
                             Work::_variable.notify_one();
                             break;
                         }
@@ -1599,8 +1603,12 @@ void Work::loop() {
     static std::mutex timer_mutex;
     
     pool = std::make_unique<GenericThreadPool>(cmn::hardware_concurrency(), "Work::LoopPool");
-    for (size_t i = 0; i < pool->num_threads(); ++i) {
-        pool->enqueue(Work::work_thread);
+    try {
+        for (size_t i = 0; i < pool->num_threads(); ++i) {
+            pool->enqueue(Work::work_thread);
+        }
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads: ", e.what());
     }
 }
 
@@ -2330,11 +2338,7 @@ void Work::set_state(State state) {
             Work::_learning_variable.notify_one();
             state = State::APPLY;
             Work::visible() = false;
-            //Work::state() = State::APPLY;
-            /*hide();
-            GUI::instance()->blob_thread_pool().enqueue([](){
-                start_applying();
-            });*/
+
             Work::_variable.notify_one();
             break;
         }

@@ -468,6 +468,7 @@ void Interface::clear_probabilities() {
         for(auto &cell : row._cells) {
             if(cell._sample) {
                 cell._sample->_probabilities.clear();
+                cell._max_id = -1;
                 cell._sample->_requested = false;
             }
         }

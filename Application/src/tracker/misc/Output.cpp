@@ -440,7 +440,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         if(fish->empty())
             fish->_startFrame = frameIndex;
-        assert(fish->_endFrame < frameIndex);
+        assert(not fish->_endFrame.valid() || fish->_endFrame < frameIndex);
         fish->_endFrame = frameIndex;
         
         auto segment = fish->update_add_segment(
@@ -457,10 +457,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     //! determine when the worker thread has ended
     std::condition_variable finished;
-    std::atomic_bool ended{false};
+    std::promise<void> promise;
+    auto ended = promise.get_future();
     
     //! looping through all data points
-    auto worker = [&]() {
+    auto worker = [&, promise = std::move(promise)]() mutable {
         auto thread_name = get_thread_name();
         set_thread_name("read_individual_"+fish->identity().name()+"_worker");
         
@@ -474,15 +475,18 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuffs.pop_front();
                 
                 guard.unlock();
-                {
+                auto frame = data.index;
+                try {
                     process_frame(fish, std::move(data));
+                } catch(...) {
+                    FormatExcept("Exception when processing frame ",frame," for fish ", fish);
                 }
                 guard.lock();
             }
         }
         
         set_thread_name(thread_name);
-        ended = true;
+        promise.set_value();
         finished.notify_all();
     };
     
@@ -501,10 +505,16 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     const MotionRecord* prev = nullptr;
     
-    //! start worker that iterates the frames / fills in
-    //! additional info that was not read directly from the file
-    //! per frame.
-    _load_pool.enqueue(worker);
+    try {
+        //! start worker that iterates the frames / fills in
+        //! additional info that was not read directly from the file
+        //! per frame.
+        _load_pool.enqueue(std::move(worker));
+        
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads on _load_pool: ", e.what());
+        throw;
+    }
     
     //! read the actual frame data, pushing to worker thread each time
     for (uint64_t i=0; i<N; i++) {
@@ -569,11 +579,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     stop = true;
     variable.notify_all();
-    
-    std::unique_lock guard(mutex);
-    finished.wait(guard, [&ended](){
-        return ended.load();
-    });
+    ended.get();
     
     //!TODO: resize back to intended size
     if(index != fish->_basic_stuff.size()) {
@@ -792,7 +798,12 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     }
     
     //delta = this->tell() - pos_before;
-    _post_pool.enqueue(fish);
+    try {
+        _post_pool.enqueue(fish);
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads on _post_pool: ", e.what());
+        throw;
+    }
     
     //if(N > 1000)
     set_thread_name(thread_name);
