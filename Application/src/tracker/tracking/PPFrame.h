@@ -120,6 +120,7 @@ private:
     std::vector<pv::BlobPtr> _noise_owner;
     robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _blob_map;
     robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _noise_map;
+    robin_hood::unordered_flat_set<pv::bid> _big_ids;
     
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
@@ -375,7 +376,7 @@ public:
     std::vector<pv::BlobPtr> extract_from_noise(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range<compress, remove>(std::forward<T>(vector), objects,  std::move(_noise_owner));
+        extract_from_range<compress, remove>(std::forward<T>(vector), objects,  _noise_owner);
         _check_owners();
         return objects;
     }
@@ -433,6 +434,7 @@ public:
     //! Adds both from blobs and noise, assuming that pixels and samples are already known.
     void add_blobs(std::vector<pv::BlobPtr>&& blobs,
                    std::vector<pv::BlobPtr>&& noise,
+                   robin_hood::unordered_flat_set<pv::bid>&& big_ids,
                    size_t pixels, size_t samples);
     
     void fill_proximity_grid();
@@ -515,6 +517,29 @@ public:
                 F(i++, blob->blob_id());
             } else {
                 static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+            }
+        }
+    }
+    
+    template<typename K, typename T, typename Target = pv::Blob>
+        requires Transformer<T, Target> && set_type<K>
+    void transform_noise_ids(const K& ids, T&& F) const {
+        size_t i = 0;
+        for(auto &id : ids) {
+            auto it = _noise_map.find(id);
+            if(it != _noise_map.end()) {
+                auto &blob = *it->second;
+                
+                if constexpr(VoidTransformer<T, Target>) {
+                    F(blob);
+                } else if constexpr(Predicate<T, Target>) {
+                    if(!F(blob))
+                        break;
+                } else if constexpr(IndexedTransformer<T, Target>) {
+                    F(i++, blob);
+                } else {
+                    static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+                }
             }
         }
     }

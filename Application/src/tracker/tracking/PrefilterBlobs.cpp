@@ -4,6 +4,7 @@
 #include <tracking/TrackingSettings.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
+#include <tracking/PPFrame.h>
 
 //#define TREX_BLOB_DEBUG
 
@@ -29,7 +30,7 @@ void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 #endif
     overall_pixels += b->num_pixels();
     ++samples;
-    filtered.emplace_back(std::move(b));
+    _filtered.emplace_back(std::move(b));
 }
 
 void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
@@ -42,21 +43,41 @@ void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
     }
     samples += v.size();
     
-    filtered.insert(filtered.end(),
+    _filtered.insert(_filtered.end(),
                     std::make_move_iterator(v.begin()),
                     std::make_move_iterator(v.end()));
 }
 
-void PrefilterBlobs::filter_out(pv::BlobPtr&& b) {
+void PrefilterBlobs::filter_out(pv::BlobPtr&& b, FilterReason reason) {
     overall_pixels += b->num_pixels();
     ++samples;
 #ifdef TREX_BLOB_DEBUG
     print(frame_index, " Filter out ", b);
 #endif
-    filtered_out.emplace_back(std::move(b));
+    _filtered_out.emplace_back(std::move(b));
+    filtered_out_reasons.emplace_back(reason);
 }
 
-void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v) {
+void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v, std::vector<FilterReason>&& reasons)
+{
+    filter_out_head(std::move(v));
+    
+    filtered_out_reasons.insert(filtered_out_reasons.end(),
+                                std::make_move_iterator(reasons.begin()),
+                                std::make_move_iterator(reasons.end()));
+    assert(_filtered_out.size() == filtered_out_reasons.size());
+}
+
+void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v,
+                                FilterReason reason)
+{
+    filter_out_head(std::move(v));
+    
+    filtered_out_reasons.insert(filtered_out_reasons.end(), v.size(), reason);
+    assert(_filtered_out.size() == filtered_out_reasons.size());
+}
+
+void PrefilterBlobs::filter_out_head(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
     print(frame_index, " Filter out ", v);
 #endif
@@ -65,8 +86,34 @@ void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v) {
         overall_pixels += b->num_pixels();
     }
     samples += v.size();
+    _filtered_out.insert(_filtered_out.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
+}
+
+void PrefilterBlobs::to(PPFrame &frame) && {
+    robin_hood::unordered_flat_set<pv::bid> big_ids;
+    for(auto &b : big_blobs)
+        big_ids.insert(b->blob_id());
     
-    filtered_out.insert(filtered_out.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
+    filter_out(std::move(big_blobs), FilterReason::OutsideRange);
+    big_blobs.clear();
+    
+    for(size_t i=0; i<_filtered_out.size(); ++i) {
+        if(filtered_out_reasons[i] != FilterReason::Unknown)
+            _filtered_out[i]->set_reason(filtered_out_reasons[i]);
+    }
+    
+    frame.add_blobs(std::move(_filtered),
+                    std::move(_filtered_out),
+                    std::move(big_ids),
+                    overall_pixels, samples);
+}
+
+void PrefilterBlobs::to(PrefilterBlobs &other) && {
+    other.commit(std::move(_filtered));
+    other.filter_out(std::move(_filtered_out), std::move(filtered_out_reasons));
+    other.big_blobs = std::move(big_blobs);
+    other.overall_pixels += overall_pixels;
+    other.samples += samples;
 }
 
 void PrefilterBlobs::split_big(

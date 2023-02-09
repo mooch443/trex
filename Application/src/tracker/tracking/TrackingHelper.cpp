@@ -201,7 +201,7 @@ void TrackingHelper::apply_manual_matches()
             
             PrefilterBlobs::split_big(
                       std::move(single),
-                      BlobReceiver(frame,  BlobReceiver::noise),
+                      BlobReceiver(frame,  BlobReceiver::noise, FilterReason::SplitFailed),
                       BlobReceiver(big_filtered),
                       expect);
             //split_objects++;

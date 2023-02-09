@@ -18,10 +18,11 @@ struct BlobReceiver {
     PPFrame* _frame = nullptr;
     PrefilterBlobs *_prefilter = nullptr;
     std::function<bool(pv::BlobPtr&)> _map;
+    FilterReason _reason;
     
 public:
-    BlobReceiver(PrefilterBlobs& prefilter, PPFrameType type, std::function<bool(pv::BlobPtr&)>&& map = nullptr);
-    BlobReceiver(PPFrame& frame, PPFrameType type);
+    BlobReceiver(PrefilterBlobs& prefilter, PPFrameType type, std::function<bool(pv::BlobPtr&)>&& map = nullptr, FilterReason = FilterReason::Unknown);
+    BlobReceiver(PPFrame& frame, PPFrameType type, FilterReason = FilterReason::Unknown);
     BlobReceiver(std::vector<pv::BlobPtr>& base);
     
     void operator()(std::vector<pv::BlobPtr>&& v) const;

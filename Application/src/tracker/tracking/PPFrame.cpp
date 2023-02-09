@@ -612,8 +612,9 @@ void PPFrame::_check_owners() {
 
 void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
                         std::vector<pv::BlobPtr>&& noise,
-                        size_t pixels,
-                        size_t samples)
+                        robin_hood::unordered_flat_set<pv::bid>&& big_ids,
+                        size_t /*pixels*/,
+                        size_t /*samples*/)
 {
     ASSUME_NOT_FINALIZED;
     
@@ -621,6 +622,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     //_num_pixels += pixels;
     //_pixel_samples += samples;
     
+    _big_ids = std::move(big_ids);
     _blob_owner.reserve(_blob_owner.size() + blobs.size());
     _noise_owner.reserve(_noise_owner.size() + noise.size());
     
@@ -755,7 +757,7 @@ void PPFrame::fill_proximity_grid() {
         return;
     }*/
     
-    transform_blobs([this](pv::Blob& b) {
+    auto add_blob = [this](const pv::Blob& b) {
         auto N = b.hor_lines().size();
         auto ptr = b.hor_lines().data();
         const auto end = ptr + N;
@@ -781,7 +783,10 @@ void PPFrame::fill_proximity_grid() {
             for(; ptr != end; ++ptr)
                 insert_line(_blob_grid, ptr, bdx, step_size_x);
         }
-    });
+    };
+    
+    transform_blobs(add_blob);
+    transform_noise_ids(_big_ids, add_blob);
 }
 
 }

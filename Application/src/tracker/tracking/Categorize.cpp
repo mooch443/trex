@@ -2432,7 +2432,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
 }
 
 void DataStore::read(file::DataFormat& data, int /*version*/) {
-    clear();
+    //clear();
 
     const auto start_frame = tracker_start_frame();
     // assume wants_to_read has been called first...

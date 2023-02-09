@@ -107,6 +107,60 @@ public:
     return gimage;
 }*/
 
+std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d)
+{
+    
+    std::stringstream ss;
+    if(not active)
+        ss << "<ref>";
+    ss << blob.name() << " ";
+    if (active)
+        ss << "<a>";
+    ss << "size: " << real_size << (blob.split() ? " split" : "");
+    if(blob.tried_to_split())
+        ss << " tried";
+    if (not active)
+        ss << "</ref>";
+    else
+        ss << "</a>";
+    
+    if(blob.reason() != FilterReason::Unknown) {
+        static const std::unordered_map<FilterReason, const char*> reasons {
+            { FilterReason::Unknown, "unkown" },
+            { FilterReason::Category, "Category" },
+            { FilterReason::OutsideRange, "Inacceptable size" },
+            { FilterReason::SecondThreshold, "Outside range after track_threshold_2" },
+            { FilterReason::OutsideInclude, "Outside track_include shape" },
+            { FilterReason::InsideIgnore, "Inside ignored shape (track_ignore)" },
+            { FilterReason::DontTrackTags, "Tags are not tracked" },
+            { FilterReason::SplitFailed, "Split failed" }
+        };
+        
+        const char * text;
+        if(not contains(reasons, blob.reason()))
+            text = reasons.at(FilterReason::Unknown);
+        else
+            text = reasons.at(blob.reason());
+        
+        ss << " [<ref>" << text << "</ref>]";
+    }
+    
+    {
+        //auto label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->blob_id());
+        auto it = parm.cache._ranged_blob_labels.find(blob.blob_id());
+        if(it != parm.cache._ranged_blob_labels.end()
+           && it->second != -1)
+        {
+            auto cats = FAST_SETTING(categories_ordered);
+            if(size_t(it->second) < cats.size()) // also excludes < 0
+                ss << " <nr>" << cats.at(it->second) << "</nr>";
+            else
+                ss << " unknown(" << it->second << ")";
+        }
+    }
+    
+    return ss.str();
+}
 
 void draw_blob_view(const DisplayParameters& parm)
 {
@@ -253,8 +307,6 @@ void draw_blob_view(const DisplayParameters& parm)
                     ++it;
             }
             
-            auto cats = FAST_SETTING(categories_ordered);
-            
             auto draw_blob = [&, &parm=parm](Entangled&e, const pv::BlobWeakPtr& blob, float real_size, bool active){
                 if(displayed >= maximum_number_texts && !active)
                     return;
@@ -277,36 +329,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     d = 0;
                 else d = 1;
                 
-                std::stringstream ss;
-                if(!active)
-                    ss << "<ref>";
-                ss << blob->name() << " ";
-                if (active)
-                    ss << "<a>";
-                ss << "size: " << real_size << (blob->split() ? " split" : "");
-                if(blob->tried_to_split())
-                    ss << " tried";
-                if (!active)
-                    ss << "</ref>";
-                else
-                    ss << "</a>";
-                
-                {
-                    //auto label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->blob_id());
-                    auto it = parm.cache._ranged_blob_labels.find(blob->blob_id());
-                    if(it != parm.cache._ranged_blob_labels.end()
-                       && it->second != -1)
-                    {
-                        if(size_t(it->second) < cats.size())
-                            ss << " <nr>" << cats.at(it->second) << "</nr>";
-                        else
-                            ss << " unknown(" << it->second << ")";
-                    }
-                    /*if(blob->parent_id().valid() && (label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->parent_id()))) {
-                        ss << " parent:<str>" << label->name << "</str>";
-                    }
-                     */
-                }
+                auto text = label_for_blob(parm, *blob, real_size, active, d);
                 
                 decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
                 if(it == _blob_labels.end()) {
@@ -315,10 +338,10 @@ void draw_blob_view(const DisplayParameters& parm)
                         _unused_labels.resize(_unused_labels.size()-1);
                         
                         it = k;
-                        std::get<2>(it->second)->set_data(ss.str(), blob->bounds(), blob->center());
+                        std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
-                        auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(ss.str(), blob->bounds(), blob->center()) });
+                        auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()) });
                         it = k;
                     }
                     
@@ -351,6 +374,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 e.advance_wrap(*circ);
                 
                 if(d > 0 && real_size > 0) {
+                    label->set_data(text, blob->bounds(), blob->center());
                     label->update(parm.base, parm.ptr, e, d, !active);
                     ++displayed;
                 }

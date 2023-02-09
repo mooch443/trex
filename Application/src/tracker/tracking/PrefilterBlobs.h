@@ -13,6 +13,9 @@ class GenericThreadPool;
 
 namespace track {
 struct BlobReceiver;
+class PPFrame;
+
+using FilterReason = pv::FilterReason;
 
 struct split_expectation {
     size_t number;
@@ -32,10 +35,16 @@ struct split_expectation {
 };
 
 struct PrefilterBlobs {
-    std::vector<pv::BlobPtr> filtered;
-    std::vector<pv::BlobPtr> filtered_out;
+private:
+    GETTER(std::vector<pv::BlobPtr>, filtered)
+    GETTER(std::vector<pv::BlobPtr>, filtered_out)
+public:
     std::vector<pv::BlobPtr> big_blobs;
     
+private:
+    std::vector<FilterReason> filtered_out_reasons;
+    
+public:
     CPULabeling::ListCache_t cache;
     
     Frame_t frame_index;
@@ -58,8 +67,15 @@ struct PrefilterBlobs {
     void commit(pv::BlobPtr&& b);
     void commit(std::vector<pv::BlobPtr>&& v);
     
-    void filter_out(pv::BlobPtr&& b);
-    void filter_out(std::vector<pv::BlobPtr>&& v);
+    void filter_out(pv::BlobPtr&& b, FilterReason reason);
+    void filter_out(std::vector<pv::BlobPtr>&& v, FilterReason reason);
+    void filter_out(std::vector<pv::BlobPtr>&& v, std::vector<FilterReason>&& reason);
+private:
+    void filter_out_head(std::vector<pv::BlobPtr>&& v);
+    
+public:
+    void to(PPFrame&) &&;
+    void to(PrefilterBlobs&) &&;
     
     void big_blob(pv::BlobPtr&& b);
     

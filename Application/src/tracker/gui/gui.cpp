@@ -3705,6 +3705,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
+        Categorize::DataStore::clear();
+        
         LockGuard guard(w_t{}, "GUI::load_state");
         Output::TrackingResults results(PD(tracker));
         

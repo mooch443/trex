@@ -594,20 +594,20 @@ void Tracker::prefilter(
             b->recount(result.threshold, *result.background);
         
         if(b->is_tag() && tags_dont_track) {
-            result.filter_out(std::move(b));
+            result.filter_out(std::move(b), FilterReason::DontTrackTags);
             return false;
         }
         
         if (!track_ignore.empty()) {
             if (PrefilterBlobs::blob_matches_shapes(*b, track_ignore)) {
-                result.filter_out(std::move(b));
+                result.filter_out(std::move(b), FilterReason::InsideIgnore);
                 return false;
             }
         }
 
         if (!track_include.empty()) {
             if (!PrefilterBlobs::blob_matches_shapes(*b, track_include)) {
-                result.filter_out(std::move(b));
+                result.filter_out(std::move(b), FilterReason::OutsideInclude);
                 return false;
             }
         }
@@ -667,7 +667,7 @@ void Tracker::prefilter(
                     ptr->force_set_recount(result.threshold, recount / cm_sqr);
                     
                     if(!(FAST_SETTING(threshold_ratio_range) * recount).contains(second_count)) {
-                        result.filter_out(std::move(ptr));
+                        result.filter_out(std::move(ptr), FilterReason::SecondThreshold);
                         continue;
                     }
                 }
@@ -676,7 +676,7 @@ void Tracker::prefilter(
                 if(!only_allowed.empty()) {
                     auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), ptr->blob_id());
                     if(ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
-                        result.filter_out(std::move(ptr));
+                        result.filter_out(std::move(ptr), FilterReason::Category);
                         continue;
                     }
                 }
@@ -687,19 +687,21 @@ void Tracker::prefilter(
                 result.commit(std::move(ptr));
                 
             } else if(recount < result.fish_size.max_range().start) {
-                result.filter_out(std::move(ptr));
+                result.filter_out(std::move(ptr), FilterReason::OutsideRange);
             } else
                 result.big_blob(std::move(ptr));
         }
         
         //! all pointers have been moved, so clear to be safe
+#ifndef NDEBUG
         for(auto &b : ptrs) {
             assert(b == nullptr);
         }
+#endif
         ptrs.clear();
     }
     
-    for(auto &blob : result.filtered)
+    for(auto &blob : result.filtered())
         blob->calculate_moments();
     
     if (not Tracker::start_frame().valid()
@@ -710,7 +712,7 @@ void Tracker::prefilter(
 #endif
         PrefilterBlobs::split_big(
               std::move(result.big_blobs),
-              BlobReceiver(result, BlobReceiver::noise),
+              BlobReceiver(result, BlobReceiver::noise, nullptr, FilterReason::SplitFailed),
               BlobReceiver(result, BlobReceiver::regular,
 #if !COMMONS_NO_PYTHON
                   [&](auto& blob) {
@@ -731,13 +733,11 @@ void Tracker::prefilter(
         
         result.big_blobs.clear();
 #if !COMMONS_NO_PYTHON
-        result.filter_out(std::move(noises));
+        result.filter_out(std::move(noises), FilterReason::Category);
 #endif
     }
     
     if(!result.big_blobs.empty()) {
-        result.commit(std::move(result.big_blobs));
-        result.big_blobs.clear();
     }
 }
 
@@ -759,7 +759,6 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         && available_threads > 1
         && pool)
     {
-        std::atomic<int> current{0};
         std::vector<PrefilterBlobs> prefilters;
         std::mutex lock;
         
@@ -767,9 +766,6 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         for(size_t i=0; i<needed_threads + 1; ++i) {
             prefilters.emplace_back(frame.index(), threshold, fish_size, *Tracker::background());
         }
-        
-        std::latch latch(needed_threads);
-        std::atomic<bool> cleared{false};
         
         PrefilterBlobs global(frame.index(), threshold, fish_size, *Tracker::background());
         
@@ -786,26 +782,19 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
             prefilter(prefilters.at(j), start, end);
             
             std::unique_lock guard(lock);
-            global.commit(std::move(prefilters.at(j).filtered));
-            global.filter_out(std::move(prefilters.at(j).filtered_out));
-            global.overall_pixels += prefilters.at(j).overall_pixels;
-            global.samples += prefilters.at(j).samples;
+            std::move(prefilters.at(j)).to(global);
             
         }, *pool, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()), (uint32_t)needed_threads);
         
         frame.clear_blobs();
-        frame.add_blobs(std::move(global.filtered),
-                        std::move(global.filtered_out),
-                        global.overall_pixels, global.samples);
+        std::move(global).to(frame);
         
     } else {
         PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
         prefilter(pref, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
         
         frame.clear_blobs();
-        frame.add_blobs(std::move(pref.filtered),
-                        std::move(pref.filtered_out),
-                        pref.overall_pixels, pref.samples);
+        std::move(pref).to(frame);
     }
 }
 

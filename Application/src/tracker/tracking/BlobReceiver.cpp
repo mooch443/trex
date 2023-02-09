@@ -2,12 +2,12 @@
 
 namespace track {
 
-BlobReceiver::BlobReceiver(PrefilterBlobs& prefilter, PPFrameType type, std::function<bool(pv::BlobPtr&)>&& map)
-    : _type(type), _prefilter(&prefilter), _map(map)
+BlobReceiver::BlobReceiver(PrefilterBlobs& prefilter, PPFrameType type, std::function<bool(pv::BlobPtr&)>&& map, FilterReason reason)
+    : _type(type), _prefilter(&prefilter), _map(map), _reason(reason)
 { }
 
-BlobReceiver::BlobReceiver(PPFrame& frame, PPFrameType type)
-    : _type(type), _frame(&frame)
+BlobReceiver::BlobReceiver(PPFrame& frame, PPFrameType type, FilterReason reason)
+    : _type(type), _frame(&frame), _reason(reason)
 { }
 
 BlobReceiver::BlobReceiver(std::vector<pv::BlobPtr>& base)
@@ -35,7 +35,7 @@ void BlobReceiver::operator()(std::vector<pv::BlobPtr>&& v) const {
     } else if(_prefilter) {
         switch(_type) {
             case noise:
-                _prefilter->filter_out(std::move(v));
+                _prefilter->filter_out(std::move(v), _reason);
                 break;
             case regular:
                 _prefilter->commit(std::move(v));
@@ -67,7 +67,7 @@ void BlobReceiver::operator()(pv::BlobPtr&& b) const {
     } else if(_prefilter) {
         switch(_type) {
             case noise:
-                _prefilter->filter_out(std::move(b));
+                _prefilter->filter_out(std::move(b), _reason);
                 break;
             case regular:
                 _prefilter->commit(std::move(b));
