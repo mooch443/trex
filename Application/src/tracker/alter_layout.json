@@ -10,14 +10,12 @@
 					{ "type":"button", "text":"Quit", "action":"QUIT" },
 					{ "type":"button", "text":"Filter", "action":"FILTER" },
 					{ "type":"button", "text":"Reset", "action":"RESET" },
-					{ "type":"text", "text":"{fps:2d}fps", "font":{"size":0.5,"style":"regular"}, "color":[255,125,0] }
+					{ "type":"text", "text":"{fps:2d}fps", "font":{"size":0.5,"style":"regular"}, "color":[255,255,255] }
 				]
 			},
 
-			{ "type":"text", "text":"{actual_frame} | {video_frame}" }
+			{ "type":"text", "text":"  actual: {actual_frame} | video: {video_frame}", "font":{"size":0.5}, "color":[100,230,255] }
 		]
-	},
-	{ "type":"rect", "pos":[150,150], "size":[500,500], "color":[0,0,125,125] },
-	{ "type":"text", "text":"hi dani", "pos":[150,150], "color":[0,200,255] }
+	}
 
 ]}

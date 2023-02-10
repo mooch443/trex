@@ -20,6 +20,7 @@
 #include <gui/types/Textfield.h>
 #include <gui/types/List.h>
 #include <grabber/misc/default_config.h>
+#include <gui/DynamicGUI.h>
 #include <GitSHA1.h>
 
 using namespace cmn;
@@ -661,52 +662,91 @@ struct OverlayedVideo {
 
 template<typename OverlayT>
 struct Menu {
-    Button::Ptr
-        hi = Button::MakePtr("Quit", attr::Size(50, 35)),
+    //Button::Ptr
+    /*    hi = Button::MakePtr("Quit", attr::Size(50, 35)),
         bro = Button::MakePtr("Filter", attr::Size(50, 35)),
-        reset = Button::MakePtr("Reset", attr::Size(50, 35));
-    std::shared_ptr<Text> text = std::make_shared<Text>();
+        reset = Button::MakePtr("Reset", attr::Size(50, 35));*/
+    //std::shared_ptr<Text> text = std::make_shared<Text>();
     Image::UPtr next;
+    dyn::Context context;
+    dyn::State state;
+    std::vector<Layout::Ptr> objects;
+    Frame_t _actual_frame, _video_frame;
     
-    std::shared_ptr<HorizontalLayout> buttons = std::make_shared<HorizontalLayout>(
+    /*std::shared_ptr<HorizontalLayout> buttons = std::make_shared<HorizontalLayout>(
         std::vector<Layout::Ptr>{
             Layout::Ptr(hi),
             Layout::Ptr(bro),
             Layout::Ptr(reset),
             Layout::Ptr(text)
         }
-    );
+    );*/
     
     Menu() = delete;
     Menu(Menu&&) = delete;
     Menu(const Menu&) = delete;
     
     template<typename F>
-    Menu(F&& reset_func) {
-        buttons->set_policy(HorizontalLayout::Policy::TOP);
-        buttons->set_pos(Vec2(10, 10));
-        bro->set_toggleable(true);
-        bro->on_click([this](Event) {
-            SETTING(filter_class) = bro->toggled();
-        });
-        hi->on_click([](Event) {
-            SETTING(terminate) = true;
-        });
-        reset->on_click([fn = std::move(reset_func)](Event){
-            fn();
-        });
-    }
+    Menu(F&& reset_func) : context(dyn::Context{
+        .actions = {
+            {
+                "QUIT", [](auto) {
+                    SETTING(terminate) = true;
+                }
+            },
+            {
+                "FILTER", [](auto) {
+                    static bool filter { false };
+                    filter = not filter;
+                    SETTING(filter_class) = filter;
+                }
+            },
+            {
+                "RESET", [reset_func = std::move(reset_func)](auto) {
+                    reset_func();
+                }
+            }
+        },
+        
+        .variables = {
+            {
+                "fps", [](auto&) -> std::string {
+                    return Meta::toStr(OverlayT::_fps.load() / OverlayT::_samples.load());
+                }
+            },
+            {
+                "actual_frame", [this](auto&) -> std::string {
+                    return Meta::toStr(_actual_frame);
+                }
+            },
+            {
+                "video_frame", [this](auto&) -> std::string {
+                    return Meta::toStr(_video_frame);
+                }
+            }
+        }
+    }) { }
     
     ~Menu() {
-        hi = bro = nullptr;
-        buttons = nullptr;
+        context = {};
+        state = {};
+        
+        objects.clear();
     }
     
-    void draw(DrawStructure& g) {
-        //g.wrap_object(overlay);
-        text->set_txt(Meta::toStr(OverlayT::_fps.load() / OverlayT::_samples.load())+"fps");
-        g.wrap_object(*buttons);
-        buttons->set_scale(g.scale().reciprocal());
+    void draw(DrawStructure& g, Frame_t actual_frame, Frame_t video_frame) {
+        _actual_frame = actual_frame;
+        _video_frame = video_frame;
+        
+        dyn::update_layout("/Users/tristan/trex/Application/src/tracker/alter_layout.json", context, state, objects);
+        
+        g.section("buttons", [&](auto&, Section* section) {
+            section->set_scale(g.scale().reciprocal());
+            for(auto &obj : objects) {
+                dyn::update_objects(obj, context, state);
+                g.wrap_object(*obj);
+            }
+        });
     }
 };
 
@@ -1003,7 +1043,7 @@ int main(int argc, char**argv) {
     });
     
     ::Menu<decltype(video)> menu([&](){
-        video.i = 1500_f;
+        video.reset(1500_f);
     });
     
     using namespace track;
@@ -1274,9 +1314,7 @@ int main(int argc, char**argv) {
         
         graph.section("menus", [&](auto&, Section* section){
             section->set_scale(graph.scale().reciprocal());
-            menu.draw(graph);
-            
-            graph.text(Meta::toStr(current.frame.source_index())+" | "+current.frame.index().toStr(), attr::Loc(10,80), attr::Font(0.35), attr::Scale(graph.scale().reciprocal()));
+            menu.draw(graph, current.frame.source_index(), current.frame.index());
             
             settings.draw(base, graph);
         });
