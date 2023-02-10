@@ -674,7 +674,7 @@ TRex parameters
 
 .. function:: gui_equalize_blob_histograms(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Equalize histograms of blobs wihtin videos (makes them more visible).
@@ -1433,6 +1433,15 @@ TRex parameters
 	The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like ``track_max_speed``.
 
 	.. seealso:: :func:`track_max_speed`
+
+
+.. function:: meta_classes(array<string>)
+
+	**default value:** []
+
+
+	Class names for object classification in video during conversion.
+
 
 
 .. function:: meta_mass_mg(float)

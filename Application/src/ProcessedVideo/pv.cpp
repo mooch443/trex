@@ -17,6 +17,25 @@
 
 using namespace file;
 
+namespace cmn {
+template<> void Data::read(blob::Prediction& pred) {
+    read<uint8_t>(pred.clid);
+    read<uint8_t>(pred.p);
+    read<uint8_t>(pred._reserved0);
+    read<uint8_t>(pred._reserved1);
+}
+
+template<> uint64_t Data::write(const blob::Prediction& val) {
+    uint64_t pos =
+    write<uint8_t>(val.clid);
+    write<uint8_t>(val.p);
+    write<uint8_t>(val._reserved0);
+    write<uint8_t>(val._reserved1);
+    return pos;
+}
+
+}
+
 namespace pv {
     // used to register for global settings updates
     static std::mutex settings_mutex;
@@ -67,7 +86,8 @@ namespace pv {
           _n(other._n),
           _loading_time(other._loading_time),
           _source_index(other._source_index),
-          _flags(other._flags)
+          _flags(other._flags),
+          _predictions(other._predictions)
     {
         _mask.reserve(other.n());
         _pixels.reserve(other.n());
@@ -92,11 +112,11 @@ namespace pv {
     }
 
     std::unique_ptr<pv::Blob> Frame::blob_at(size_t i) const {
-        return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i]);
+        return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i], _predictions.empty() ? blob::Prediction{} : _predictions[i]);
     }
 
     std::unique_ptr<pv::Blob> Frame::steal_blob(size_t i) {
-        return std::make_unique<pv::Blob>(std::move(_mask[i]), std::move(_pixels[i]), _flags[i]);
+        return std::make_unique<pv::Blob>(std::move(_mask[i]), std::move(_pixels[i]), _flags[i], _predictions.empty() ? blob::Prediction{} : std::move(_predictions[i]));
     }
 
     std::vector<pv::BlobPtr> Frame::steal_blobs() && {
@@ -129,6 +149,7 @@ namespace pv {
         _mask.clear();
         _pixels.clear();
         _flags.clear();
+        _predictions.clear();
         _n = 0;
         _timestamp = 0;
         _loading_time = 0;
@@ -287,6 +308,19 @@ namespace pv {
         _mask.shrink_to_fit();
         _pixels.shrink_to_fit();
         
+        if(ref.header().version >= V_9) {
+            uint16_t n_predictions;
+            ptr->read<uint16_t>(n_predictions);
+            assert(n_predictions <= _n);
+            
+            if(n_predictions > 0) {
+                _predictions.resize(_n);
+                for(int i=0; i<_n; ++i)
+                    ptr->read<blob::Prediction>(_predictions[i]);
+            }
+            print(_predictions);
+        }
+        
         if(compressed)
             delete compressed;
     }
@@ -309,15 +343,23 @@ namespace pv {
         _mask.push_back(std::move(pair.lines));
         _pixels.push_back(std::move(pair.pixels));
         _flags.push_back(pair.extra_flags);
+        if(pair.pred.valid()) {
+            _predictions.resize(_flags.size());
+            _predictions.back() = std::move(pair.pred);
+        }
         
         _n++;
     }
 
-void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags) {
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred) {
     assert(mask.size() < UINT16_MAX);
     _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
     _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _flags.push_back(flags);
+    if(pred.valid()) {
+        _predictions.resize(_flags.size());
+        _predictions.back() = pred;
+    }
     _n++;
 }
     
@@ -420,6 +462,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             pack.write(uint16_t(compressed.size()));
             pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
             pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
+        }
+        
+        //! prediction information (if available)
+        pack.write<uint16_t>(narrow_cast<uint16_t>(_predictions.size()));
+        if(not _predictions.empty()) {
+            assert(_predictions.size() == _mask.size());
+
+            for(uint16_t i=0; i<_n; ++i) {
+                pack.write<cmn::blob::Prediction>(_predictions.at(i));
+            }
         }
 
         // see whether this frame is worth compressing (size-threshold)

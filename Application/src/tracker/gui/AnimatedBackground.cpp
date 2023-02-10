@@ -125,12 +125,13 @@ void AnimatedBackground::before_draw() {
             if(_next_image
                && _next_image->index() == frame.get())
             {
-                print("PRELOAD: loaded correct image ", _next_image->index()," for frame ", frame);
+                //print("PRELOAD: loaded correct image ", _next_image->index()," for frame ", frame);
                 _next_image = _static_image.exchange_with(std::move(_next_image));
                 _static_image.set_color(_tint);
+                
             } else {
                 // discard
-                print("PRELOAD: loaded incorrect image ", _next_image->index()," for frame ", frame);
+                //print("PRELOAD: loaded incorrect image ", _next_image->index()," for frame ", frame);
                 if(_next_image && not GUI::instance()->is_recording())
                 {
                     // image but wrong index
@@ -144,7 +145,7 @@ void AnimatedBackground::before_draw() {
                 if(retrieve_next(frame)
                    && _next_image)
                 {
-                    print("PRELOAD: reloaded image ", _next_image->index()," for frame ", frame);
+                    //print("PRELOAD: reloaded image ", _next_image->index()," for frame ", frame);
                     _next_image = _static_image.exchange_with(std::move(_next_image));
                     _static_image.set_color(_tint);
                 }
@@ -155,19 +156,21 @@ void AnimatedBackground::before_draw() {
             Entangled::before_draw();
             return;
             
-        } else if(retrieve_next(frame) && _next_image && _next_image->index() == frame.get())
+        } else if(retrieve_next(frame)
+                  && _next_image
+                  && _next_image->index() == frame.get())
         {
-            print("PRELOAD: reloaded image directly ", _next_image->index()," for frame ", frame);
+            //print("PRELOAD: reloaded image directly ", _next_image->index()," for frame ", frame);
             _next_image = _static_image.exchange_with(std::move(_next_image));
         } else {
             FormatWarning("Failed to retrieve picture for ", frame);
         }
         
         if(_current_frame.valid() && frame == _current_frame + 1_f) {
-            print("Queueing retrieve for ", frame, " == ", _current_frame, " + 1_f");
+            //print("Queueing retrieve for ", frame, " == ", _current_frame, " + 1_f");
             _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame + 1_f);
-        } else
-            print("Not queueing for ", frame, " after ", _current_frame);
+        } //else
+            //print("Not queueing for ", frame, " after ", _current_frame);
         _current_frame = frame;
     }
     

@@ -256,15 +256,6 @@ TGrabs parameters
 
 
 
-.. function:: meta_classes(array<string>)
-
-	**default value:** []
-
-
-	Class names for object classification in video during conversion.
-
-
-
 .. function:: meta_cmd(string)
 
 	**default value:** ""

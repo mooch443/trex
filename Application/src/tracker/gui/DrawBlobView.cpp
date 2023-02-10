@@ -113,18 +113,22 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
     std::stringstream ss;
     if(not active)
         ss << "<ref>";
-    ss << blob.name() << " ";
+    if(d == 1)
+        ss << blob.name() << " ";
     if (active)
         ss << "<a>";
-    ss << "size: " << real_size << (blob.split() ? " split" : "");
+    
+    ss << real_size << (blob.split() ? " split" : "");
     if(blob.tried_to_split())
         ss << " tried";
-    if (not active)
-        ss << "</ref>";
-    else
-        ss << "</a>";
     
-    if(blob.reason() != FilterReason::Unknown) {
+    if(//d == 1 &&
+       blob.prediction().valid())
+    {
+        ss << " " << blob.prediction().toStr();
+    }
+    
+    if(d == 1 && blob.reason() != FilterReason::Unknown) {
         static const std::unordered_map<FilterReason, const char*> reasons {
             { FilterReason::Unknown, "unkown" },
             { FilterReason::Category, "Category" },
@@ -142,8 +146,13 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
         else
             text = reasons.at(blob.reason());
         
-        ss << " [<ref>" << text << "</ref>]";
+        ss << " [" << text << "]";
     }
+    
+    if (not active)
+        ss << "</ref>";
+    else
+        ss << "</a>";
     
     {
         //auto label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->blob_id());

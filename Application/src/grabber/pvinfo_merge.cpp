@@ -270,10 +270,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {
-                auto b = pv::Blob::Make(
-                    std::move(f.mask().at(i)),
-                    std::move(f.pixels().at(i)),
-                    f.flags().at(i));
+                auto b = f.steal_blob(i);
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
                 
                 if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)

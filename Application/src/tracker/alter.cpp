@@ -188,7 +188,7 @@ struct Yolo7ObjectDetection {
             if(not lines.empty()) {
                 pv::Blob blob(lines, 0);
                 data.predictions[blob.blob_id()] = { .clid = size_t(cls), .p = float(conf) };
-                data.frame.add_object(lines, pixels, 0);
+                data.frame.add_object(lines, pixels, 0, blob::Prediction{ .clid = uint8_t(cls), .p = uint8_t(float(conf) * 255.f) });
             }
         }
     }
@@ -337,7 +337,12 @@ struct Yolo7InstanceSegmentation {
                     line.y += pos.y;
                 }
                 
-                pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags);
+                pair.pred = blob::Prediction{
+                    .clid = static_cast<uint8_t>(cls),
+                    .p = uint8_t(float(conf) * 255.f)
+                };
+                
+                pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
                 auto points = pixel::find_outer_points(&blob, 0);
                 if (not points.empty()) {
                     data.outlines.emplace_back(std::move(*points.front()));
@@ -587,7 +592,7 @@ struct OverlayedVideo {
                 
                 if(SETTING(meta_video_scale).value<float>() != 1) {
                     Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(meta_video_scale).value<float>();
-                    FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                     cv::resize(buffer, buffer, new_size);
                 }
 
@@ -613,7 +618,7 @@ struct OverlayedVideo {
                 }
                 
                 if (buffer.cols != new_size.width || buffer.rows != new_size.height) {
-                    FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                     cv::resize(buffer, buffer, new_size);
                 }
                 
@@ -1232,8 +1237,6 @@ int main(int argc, char**argv) {
                            attr::Origin(0, 1));
                 
             }
-            
-            graph.text(Meta::toStr(current.frame.source_index())+" | "+current.frame.index().toStr(), attr::Loc(10,30), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
             if (not current.outlines.empty()) {
                 graph.text(Meta::toStr(current.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
@@ -1272,6 +1275,9 @@ int main(int argc, char**argv) {
         graph.section("menus", [&](auto&, Section* section){
             section->set_scale(graph.scale().reciprocal());
             menu.draw(graph);
+            
+            graph.text(Meta::toStr(current.frame.source_index())+" | "+current.frame.index().toStr(), attr::Loc(10,80), attr::Font(0.35), attr::Scale(graph.scale().reciprocal()));
+            
             settings.draw(base, graph);
         });
         

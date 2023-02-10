@@ -417,8 +417,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             //print("Detections: ", detections.size());
 
             output.clear();
-            for(auto&& [lines, pixels, flags] : detections) {
-                output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags));
+            for(auto&& [lines, pixels, flags, pred] : detections) {
+                output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags, std::move(pred)));
                 //output.back()->add_offset(-_blob->bounds().pos());
             }
         }

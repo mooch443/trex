@@ -154,7 +154,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                     task._fdx = identity().ID();
                             }
 
-                            task._callback = [this, range = segment->range, N = it->second.size()](Predictions&& prediction) {
+                            task._callback = [this, range = segment->range, N = it->second.size(), segment = segment](Predictions&& prediction) {
                                 //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
                                 
                                 //print("\t",range, " individual ", identity().ID(), " has ", N, " images. ended=", segment_ended, " got callback with pred=", prediction.best_id);
@@ -163,6 +163,16 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                 _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
                                 _last_predicted_id = prediction.best_id;
                                 _last_predicted_frame = prediction._segment_start;
+                                for(size_t i=0; i<prediction._frames.size(); ++i) {
+                                    auto bix = segment->basic_stuff( prediction._frames[i]);
+                                    if(bix != -1) {
+                                        auto &basic = basic_stuff().at(bix);
+                                        basic->blob.pred = blob::Prediction{
+                                            .clid = uint8_t(prediction._ids[i]),
+                                            .p = uint8_t(float(prediction.p) * 255.f)
+                                        };
+                                    }
+                                }
                             };
 
                             auto fill = [it, ID = identity(), segment](RecTask& task)

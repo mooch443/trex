@@ -1,0 +1,23 @@
+{"objects":[
+	{ 
+		"type":"vlayout",
+		"pos":[20,0],
+		"scale":[1.0,1.0],
+		"children": [
+			{ 
+				"type":"hlayout", 
+				"children": [
+					{ "type":"button", "text":"Quit", "action":"QUIT" },
+					{ "type":"button", "text":"Filter", "action":"FILTER" },
+					{ "type":"button", "text":"Reset", "action":"RESET" },
+					{ "type":"text", "text":"{fps:2d}fps", "font":{"size":0.5,"style":"regular"}, "color":[255,125,0] }
+				]
+			},
+
+			{ "type":"text", "text":"{actual_frame} | {video_frame}" }
+		]
+	},
+	{ "type":"rect", "pos":[150,150], "size":[500,500], "color":[0,0,125,125] },
+	{ "type":"text", "text":"hi dani", "pos":[150,150], "color":[0,200,255] }
+
+]}

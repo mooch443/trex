@@ -103,6 +103,9 @@ namespace pv {
         GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
         GETTER_NCONST(std::vector<uint8_t>, flags)
         
+        //! predictions either empty or same size as _mask
+        GETTER_NCONST(std::vector<blob::Prediction>, predictions)
+        
     public:
         Frame& operator=(const Frame& other) = delete;
         Frame& operator=(Frame&& other) = default;
@@ -131,7 +134,7 @@ namespace pv {
          * ! takes ownership of both arrays
          **/
         void add_object(blob::Pair&& pair);
-        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags);
+        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const cmn::blob::Prediction&);
 
         uint64_t size() const noexcept;
         void clear();

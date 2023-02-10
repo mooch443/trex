@@ -883,9 +883,7 @@ int main(int argc, char** argv)
                         if(frame.pixels().at(k)->size() > 30)
                         {
                             // consider blob
-                            auto &l = frame.mask().at(k);
-                            auto &p = frame.pixels().at(k);
-                            auto blob = pv::Blob::Make(std::make_unique<std::vector<HorizontalLine>>(*l), std::make_unique<std::vector<uchar>>(*p), frame.flags().at(k));
+                            auto blob = frame.blob_at(k);
                             auto blobs = pixel::threshold_blob(cache, blob.get(), narrow_cast<int>(threshold), Tracker::instance()->background());
                             float pixels = 0, samps = 0;
                             

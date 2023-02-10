@@ -334,7 +334,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     if (m->empty())
                         continue;
 
-                    pv::Blob blob(*m, *_frame->pixels().at(i), _frame->flags().at(i));
+                    pv::Blob blob(*m, *_frame->pixels().at(i), _frame->flags().at(i), _frame->predictions().empty() ? blob::Prediction{} : blob::Prediction{_frame->predictions().at(i)});
                     auto pos = blob.bounds().pos();
                     auto clr = wheel.next();
                     base.rect(Bounds(pos + offset, blob.bounds().size()), FillClr{Transparent}, LineClr{clr.alpha(150)});
