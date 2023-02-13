@@ -1,7 +1,7 @@
 {"objects":[
 	{ 
 		"type":"vlayout",
-		"pos":[20,0],
+		"pos":[20,50],
 		"scale":[1.0,1.0],
 		"children": [
 			{ 
@@ -10,12 +10,52 @@
 					{ "type":"button", "text":"Quit", "action":"QUIT" },
 					{ "type":"button", "text":"Filter", "action":"FILTER" },
 					{ "type":"button", "text":"Reset", "action":"RESET" },
-					{ "type":"text", "text":"{fps:2d}fps", "font":{"size":0.5,"style":"regular"}, "color":[255,255,255] }
+					{ "type":"text", "text":"{fps:2d}fps", "font":{"size":0.75,"style":"regular"}, "color":[255,255,255] }
 				]
 			},
 
 			{ "type":"text", "text":"  actual: {actual_frame} | video: {video_frame}", "font":{"size":0.5}, "color":[100,230,255] }
 		]
+	},
+
+	{   "type":"vlayout", "pos":[50,200], "fill":[200,0,0,150], "line":[255,255,255],
+		"margins": [0,1,7,3],
+		"children":[
+			{ "type":"text", "text":"  actual: {actual_frame} | video: {video_frame}", "font":{"size":0.5}, "color":[200,230,255] },
+			{ "type":"text", "text":"  actual: {fps}fps", "font":{"size":0.5}, "color":[200,230,255] }
+		]
+	},
+
+	
+
+	{
+		"type": "collection",
+		"pos":[50,300],
+		"fill": [100,0,0],
+		"modules": ["draggable"],
+		"children": [
+			{"type":"text", "text":"fish: {fish:name}"},
+			{"type":"text", "text":"text2", "pos":[0,20]}
+		]
+	},
+
+	{
+		"type": "collection",
+		"pos":"{fish:pos}",
+		
+		"fill": [100,0,0],
+		"children": [
+			{"type":"text", "text":"{.fish:id} - {fish:name}"}
+		]
+	},
+
+	{ 
+		"type":"stext", 
+		"text":"hi <b>was geht {fish:name}</b>\nich bin ein text über mehrere zeilen\nund kann auch <i>html</i> code enthalten.\n\nunter anderem auch <key>highlights</key> in\n<ref>mehreren farben</ref>.", 
+		"pos":[200,200], 
+		"font":{"size":0.5},
+		"fill":[50,50,50,150],
+		"modules": ["draggable"]
 	}
 
 ]}

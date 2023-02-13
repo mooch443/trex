@@ -660,8 +660,20 @@ struct OverlayedVideo {
     }
 };
 
+using namespace dyn;
+inline static sprite::Map fish =  [](){
+    sprite::Map fish;
+    fish["name"] = std::string("fish0");
+    fish["color"] = Red;
+    fish["pos"] = Vec2(100, 150);
+    return fish;
+}();
+
+auto &fish_pos = fish["pos"].get().value<Vec2>();
+
 template<typename OverlayT>
 struct Menu {
+    
     //Button::Ptr
     /*    hi = Button::MakePtr("Quit", attr::Size(50, 35)),
         bro = Button::MakePtr("Filter", attr::Size(50, 35)),
@@ -710,19 +722,28 @@ struct Menu {
         
         .variables = {
             {
-                "fps", [](auto&) -> std::string {
-                    return Meta::toStr(OverlayT::_fps.load() / OverlayT::_samples.load());
-                }
+                "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                    return OverlayT::_fps.load() / OverlayT::_samples.load();
+                }))
             },
             {
-                "actual_frame", [this](auto&) -> std::string {
-                    return Meta::toStr(_actual_frame);
-                }
+                "fish",
+                std::unique_ptr<VarBase_t>(new Variable([](std::string parm) {
+                    if(fish.has(parm)) {
+                        return fish[parm];
+                    }
+                    return VarReturn_t(fish, sprite::Property<bool>::InvalidProp);
+                }))
             },
             {
-                "video_frame", [this](auto&) -> std::string {
-                    return Meta::toStr(_video_frame);
-                }
+                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
+                    return _actual_frame;
+                }))
+            },
+            {
+                "video_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
+                    return _video_frame;
+                }))
             }
         }
     }) { }
@@ -743,7 +764,7 @@ struct Menu {
         g.section("buttons", [&](auto&, Section* section) {
             section->set_scale(g.scale().reciprocal());
             for(auto &obj : objects) {
-                dyn::update_objects(obj, context, state);
+                dyn::update_objects(g, obj, context, state);
                 g.wrap_object(*obj);
             }
         });
@@ -1289,7 +1310,7 @@ int main(int argc, char**argv) {
             }
             
             using namespace track;
-            IndividualManager::transform_all([&](Idx_t , Individual* fish)
+            IndividualManager::transform_all([&](Idx_t fdx, Individual* fish)
             {
                 if(not fish->has(tracker.end_frame()))
                     return;
@@ -1307,6 +1328,15 @@ int main(int argc, char**argv) {
                     line.push_back(Vertex(p.x, p.y, fish->identity().color()));
                     return true;
                 });
+                
+                
+                if(fdx == Idx_t(0)) {
+                    auto s = section->scale().reciprocal();
+                    print("bds.pos = ", bds.pos(), " + ", s, " = ", bds.pos().div(s));
+                    ::fish["pos"] = bds.pos().div(s);
+                    ::fish["size"] = Size2(bds.size().div(s));
+                }
+                
                 graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
                 graph.vertices(line);
             });
