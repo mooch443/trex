@@ -669,7 +669,12 @@ inline static sprite::Map fish =  [](){
     return fish;
 }();
 
-auto &fish_pos = fish["pos"].get().value<Vec2>();
+inline static sprite::Map _video_info = [](){
+    sprite::Map fish;
+    fish["frame"] = Frame_t();
+    fish["resolution"] = Size2();
+    return fish;
+}();
 
 template<typename OverlayT>
 struct Menu {
@@ -728,11 +733,8 @@ struct Menu {
             },
             {
                 "fish",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string parm) {
-                    if(fish.has(parm)) {
-                        return fish[parm];
-                    }
-                    return VarReturn_t(fish, sprite::Property<bool>::InvalidProp);
+                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return fish;
                 }))
             },
             {
@@ -741,8 +743,8 @@ struct Menu {
                 }))
             },
             {
-                "video_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
-                    return _video_frame;
+                "video", std::unique_ptr<VarBase_t>(new Variable([this](std::string) -> sprite::Map& {
+                    return _video_info;
                 }))
             }
         }
@@ -991,6 +993,9 @@ int main(int argc, char**argv) {
     print("output size: ", SETTING(video_source).value<Size2>());
     print("output path: ", SETTING(filename).value<file::Path>());
     
+    _video_info.set_do_print(false);
+    fish.set_do_print(false);
+    
     expected_size = Size2(SETTING(image_width).value<int>(), SETTING(image_width).value<int>());
     
     py::init();
@@ -1115,6 +1120,8 @@ int main(int argc, char**argv) {
     Size2 output_size = (Size2(video.source.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
     
+    _video_info["resolution"] = output_size;
+    
     Tracker tracker;
     //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
     //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
@@ -1181,6 +1188,12 @@ int main(int argc, char**argv) {
     file.set_average(bg);
     
     //GUICache cache(&graph, &file);
+    static std::vector<std::shared_ptr<VarBase_t>> gui_objects;
+    static std::vector<sprite::Map> individual_properties;
+    
+    menu.context.variables.emplace("fishes", new Variable([](std::string)->std::vector<std::shared_ptr<VarBase_t>>& {
+        return gui_objects;
+    }));
     
     SegmentationData current;
     std::shared_ptr<ExternalImage>
@@ -1273,6 +1286,15 @@ int main(int argc, char**argv) {
                 graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
             
             auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
+            static Frame_t last_frame;
+            bool dirty{false};
+            if(last_frame != current.frame.index()) {
+                last_frame = current.frame.index();
+                gui_objects.clear();
+                individual_properties.clear();
+                dirty = true;
+            }
+            
             for(auto& blob : objects) {
                 const auto bds = blob->bounds();
                 graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
@@ -1287,13 +1309,27 @@ int main(int argc, char**argv) {
                     }
                 }
                 
-                auto cname = meta_classes.size() > assign.clid ? meta_classes.at(assign.clid) :
-                "<unknown:"+Meta::toStr(assign.clid)+">";
+                auto cname = meta_classes.size() > assign.clid
+                            ? meta_classes.at(assign.clid)
+                            : "<unknown:"+Meta::toStr(assign.clid)+">";
                 
                 auto loc = attr::Loc(bds.pos());
                 auto text = graph.text(cname, loc, attr::FillClr(Cyan.alpha(100)), attr::Font(0.75, Style::Bold), attr::Scale(scale.mul(graph.scale()).reciprocal()),
                                        attr::Origin(0, 1));
                 loc.x += text->local_bounds().width;
+                
+                if(dirty) {
+                    sprite::Map tmp;
+                    tmp["pos"] = bds.pos().mul(scale);
+                    tmp["size"] = Size2(bds.size().mul(scale));
+                    tmp["type"] = std::string(cname);
+                    tmp["p"] = Meta::toStr(assign.p);
+                    individual_properties.push_back(std::move(tmp));
+                    gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
+                        return individual_properties.at(i);
+                    }));
+                }
+                
                 graph.text(": "+Meta::toStr(assign.p) + " - "+ Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), loc, attr::FillClr(White.alpha(100)), attr::Font(0.75), attr::Scale(scale.mul(graph.scale()).reciprocal()),
                            attr::Origin(0, 1));
                 
@@ -1329,14 +1365,6 @@ int main(int argc, char**argv) {
                     return true;
                 });
                 
-                
-                if(fdx == Idx_t(0)) {
-                    auto s = section->scale().reciprocal();
-                    print("bds.pos = ", bds.pos(), " + ", s, " = ", bds.pos().div(s));
-                    ::fish["pos"] = bds.pos().div(s);
-                    ::fish["size"] = Size2(bds.size().div(s));
-                }
-                
                 graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
                 graph.vertices(line);
             });
@@ -1344,6 +1372,7 @@ int main(int argc, char**argv) {
         
         graph.section("menus", [&](auto&, Section* section){
             section->set_scale(graph.scale().reciprocal());
+            _video_info["frame"] = current.frame.index();
             menu.draw(graph, current.frame.source_index(), current.frame.index());
             
             settings.draw(base, graph);

@@ -1,7 +1,7 @@
 {"objects":[
 	{ 
 		"type":"vlayout",
-		"pos":[20,50],
+		"pos":[20,0],
 		"scale":[1.0,1.0],
 		"children": [
 			{ 
@@ -14,7 +14,7 @@
 				]
 			},
 
-			{ "type":"text", "text":"  actual: {actual_frame} | video: {video_frame}", "font":{"size":0.5}, "color":[100,230,255] }
+			{ "type":"text", "text":"  resolution: {video:resolution} actual: {actual_frame} | written: {video:frame}", "font":{"size":0.5}, "color":[100,230,255] }
 		]
 	},
 
@@ -40,13 +40,16 @@
 	},
 
 	{
-		"type": "collection",
-		"pos":"{fish:pos}",
-		
-		"fill": [100,0,0],
-		"children": [
-			{"type":"text", "text":"{.fish:id} - {fish:name}"}
-		]
+		"type":"each",
+		"var":"fishes",
+		"do": {
+			"type": "collection",
+			"pos":"{i:pos}",
+			"origin":[0,1],
+			"children": [
+				{"type":"stext","text":"<b>{i:type}{.i:id}</b>: {i:p}","font":{"size":0.5}}
+			]
+		}
 	},
 
 	{ 
