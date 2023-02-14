@@ -1199,6 +1199,8 @@ int main(int argc, char**argv) {
     static std::vector<std::shared_ptr<VarBase_t>> gui_objects;
     static std::vector<sprite::Map> individual_properties;
     
+    const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
+    
     menu.context.variables.emplace("fishes", new Variable([](std::string) -> std::vector<std::shared_ptr<VarBase_t>>& {
         return gui_objects;
     }));
@@ -1293,7 +1295,6 @@ int main(int argc, char**argv) {
             for(auto box : current.tiles)
                 graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
             
-            auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
             static Frame_t last_frame;
             bool dirty{false};
             if(last_frame != current.frame.index()) {
@@ -1303,47 +1304,6 @@ int main(int argc, char**argv) {
                 dirty = true;
             }
             
-            for(auto& blob : objects) {
-                const auto bds = blob->bounds();
-                //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
-                
-                SegmentationData::Assignment assign;
-                if(Tracker::end_frame().valid()) {
-                    auto it = current.predictions.find(blob->blob_id());
-                    if(it != current.predictions.end()) {
-                        assign = it->second;
-                    } else {
-                        print("[draw] blob ", blob->blob_id(), " not found...");
-                    }
-                }
-                
-                auto cname = meta_classes.size() > assign.clid
-                            ? meta_classes.at(assign.clid)
-                            : "<unknown:"+Meta::toStr(assign.clid)+">";
-                
-                auto loc = attr::Loc(bds.pos());
-                //auto text = graph.text(cname, loc, attr::FillClr(Cyan.alpha(100)), attr::Font(0.75, Style::Bold), attr::Scale(scale.mul(graph.scale()).reciprocal()),
-                //                       attr::Origin(0, 1));
-                //loc.x += text->local_bounds().width;
-                
-                if(dirty) {
-                    sprite::Map tmp;
-                    tmp.set_do_print(false);
-                    tmp["pos"] = bds.pos().mul(scale);
-                    tmp["size"] = Size2(bds.size().mul(scale));
-                    tmp["type"] = std::string(cname);
-                    tmp["p"] = Meta::toStr(assign.p);
-                    individual_properties.push_back(std::move(tmp));
-                    gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
-                        return individual_properties.at(i);
-                    }));
-                }
-                
-                //graph.text(": "+Meta::toStr(assign.p) + " - "+ Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), loc, attr::FillClr(White.alpha(100)), attr::Font(0.75), attr::Scale(scale.mul(graph.scale()).reciprocal()),
-                   //        attr::Origin(0, 1));
-                
-            }
-
             if (not current.outlines.empty()) {
                 graph.text(Meta::toStr(current.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
                 
@@ -1355,6 +1315,8 @@ int main(int argc, char**argv) {
             }
             
             using namespace track;
+            std::unordered_set<pv::bid> visible_bdx;
+            
             IndividualManager::transform_all([&](Idx_t fdx, Individual* fish)
             {
                 if(not fish->has(tracker.end_frame()))
@@ -1364,6 +1326,52 @@ int main(int argc, char**argv) {
                 
                 auto basic = fish->compressed_blob(tracker.end_frame());
                 auto bds = basic->calculate_bounds();//.mul(scale);
+                
+                if(dirty) {
+                    SegmentationData::Assignment assign;
+                    if(Tracker::end_frame().valid()) {
+                        if(basic->parent_id.valid()) {
+                            if(auto it = current.predictions.find(basic->parent_id);
+                               it != current.predictions.end())
+                            {
+                                assign = it->second;
+                                
+                            } else if((it = current.predictions.find(basic->blob_id())) != current.predictions.end())
+                            {
+                                assign = it->second;
+                                
+                            } else
+                                print("[draw]1 blob ", basic->blob_id(), " not found...");
+                            
+                        } else if(auto it = current.predictions.find(basic->blob_id()); it != current.predictions.end())
+                        {
+                            assign = it->second;
+                            
+                        } else
+                            print("[draw]2 blob ", basic->blob_id(), " not found...");
+                    }
+                    
+                    auto cname = meta_classes.size() > assign.clid
+                                ? meta_classes.at(assign.clid)
+                                : "<unknown:"+Meta::toStr(assign.clid)+">";
+                    
+                    sprite::Map tmp;
+                    tmp.set_do_print(false);
+                    tmp["pos"] = bds.pos().mul(scale);
+                    tmp["size"] = Size2(bds.size().mul(scale));
+                    tmp["type"] = std::string(cname);
+                    tmp["tracked"] = true;
+                    tmp["color"] = fish->identity().color();
+                    tmp["id"] = fish->identity().ID();
+                    tmp["p"] = Meta::toStr(assign.p);
+                    individual_properties.push_back(std::move(tmp));
+                    gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
+                        return individual_properties.at(i);
+                    }));
+                    
+                    visible_bdx.insert(basic->blob_id());
+                }
+                
                 std::vector<Vertex> line;
                 fish->iterate_frames(Range(tracker.end_frame().try_sub(50_f), tracker.end_frame()), [&](Frame_t , const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
                 {
@@ -1377,6 +1385,57 @@ int main(int argc, char**argv) {
                 //graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
                 graph.vertices(line);
             });
+            
+            if(dirty && objects.size() != visible_bdx.size()) {
+                for(auto &blob : objects) {
+                    if(contains(visible_bdx, blob->blob_id()))
+                        continue;
+                    
+                    const auto bds = blob->bounds();
+                    //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+                    
+                    SegmentationData::Assignment assign;
+                    if(Tracker::end_frame().valid()) {
+                        if(blob->parent_id().valid()) {
+                            if(auto it = current.predictions.find(blob->parent_id());
+                               it != current.predictions.end())
+                            {
+                                assign = it->second;
+                                
+                            } else if((it = current.predictions.find(blob->blob_id())) != current.predictions.end())
+                            {
+                                assign = it->second;
+                                
+                            } else
+                                print("[draw]3 blob ", blob->blob_id(), " not found...");
+                            
+                        } else if(auto it = current.predictions.find(blob->blob_id()); it != current.predictions.end())
+                        {
+                            assign = it->second;
+                            
+                        } else
+                            print("[draw]4 blob ", blob->blob_id(), " not found...");
+                    }
+                    
+                    auto cname = meta_classes.size() > assign.clid
+                                ? meta_classes.at(assign.clid)
+                                : "<unknown:"+Meta::toStr(assign.clid)+">";
+                    
+                    sprite::Map tmp;
+                    tmp.set_do_print(false);
+                    tmp["pos"] = bds.pos().mul(scale);
+                    tmp["size"] = Size2(bds.size().mul(scale));
+                    tmp["type"] = std::string(cname);
+                    tmp["tracked"] = false;
+                    tmp["color"] = Gray;
+                    tmp["id"] = Idx_t();
+                    tmp["p"] = Meta::toStr(assign.p);
+                    individual_properties.push_back(std::move(tmp));
+                    gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
+                        return individual_properties.at(i);
+                    }));
+                }
+            }
         });
         
         graph.section("menus", [&](auto&, Section* section){

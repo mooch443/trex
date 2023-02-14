@@ -30,14 +30,23 @@
 	{
 		"type": "condition",
 		"var": "valid",
-		"then":
-		{
+		"then": {
 			"type": "collection",
 			"pos":[50,300],
 			"fill": [100,0,0],
 			"modules": ["draggable"],
 			"children": [
 				{"type":"text", "text":"fish: {fish:name} {global:blob_size_ranges}"},
+				{"type":"text", "text":"text2", "pos":[0,20]}
+			]
+		},
+		"else": {
+			"type": "collection",
+			"pos":[50,300],
+			"fill": [100,0,0],
+			"modules": ["draggable"],
+			"children": [
+				{"type":"text", "text":"FALSE: {fish:name} {global:blob_size_ranges}"},
 				{"type":"text", "text":"text2", "pos":[0,20]}
 			]
 		}
@@ -51,8 +60,13 @@
 			"pos":"{i:pos}",
 			"origin":[0,0],
 			"children": [
-				{"type":"stext","text":"<b>{i:type}{.i:id}</b>: {i:p}","font":{"size":0.5},"origin":[0,1]},
-				{"type":"rect","pos":[0,0],"size":"{i:size}","fill":[255,0,0,50]}
+				{"type":"stext","text":"<b><nr>{i:id}</nr></b>: {i:type} (<i>{i:p}</i>)","font":{"size":0.5},"origin":[0,1]},
+				{
+					"type":"condition",
+					"var":"{i:tracked}",
+					"then": {"type":"rect","pos":[0,0],"size":"{i:size}","fill":[0,255,0,30],"line":"{i:color}","origin":[0,0]},
+					"else": {"type":"rect","pos":[0,0],"size":"{i:size}","fill":[255,0,0,30],"line":[100,100,100,150],"origin":[0,0]}
+				}
 			]
 		}
 	},
@@ -63,6 +77,7 @@
 		"pos":[200,200], 
 		"font":{"size":0.5},
 		"fill":[50,50,50,150],
+		"line":[255,255,255,255],
 		"modules": ["draggable"]
 	}
 
