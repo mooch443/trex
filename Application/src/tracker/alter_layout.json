@@ -27,16 +27,20 @@
 	},
 
 	
-
 	{
-		"type": "collection",
-		"pos":[50,300],
-		"fill": [100,0,0],
-		"modules": ["draggable"],
-		"children": [
-			{"type":"text", "text":"fish: {fish:name}"},
-			{"type":"text", "text":"text2", "pos":[0,20]}
-		]
+		"type": "condition",
+		"var": "valid",
+		"then":
+		{
+			"type": "collection",
+			"pos":[50,300],
+			"fill": [100,0,0],
+			"modules": ["draggable"],
+			"children": [
+				{"type":"text", "text":"fish: {fish:name} {global:blob_size_ranges}"},
+				{"type":"text", "text":"text2", "pos":[0,20]}
+			]
+		}
 	},
 
 	{
@@ -45,9 +49,10 @@
 		"do": {
 			"type": "collection",
 			"pos":"{i:pos}",
-			"origin":[0,1],
+			"origin":[0,0],
 			"children": [
-				{"type":"stext","text":"<b>{i:type}{.i:id}</b>: {i:p}","font":{"size":0.5}}
+				{"type":"stext","text":"<b>{i:type}{.i:id}</b>: {i:p}","font":{"size":0.5},"origin":[0,1]},
+				{"type":"rect","pos":[0,0],"size":"{i:size}","fill":[255,0,0,50]}
 			]
 		}
 	},

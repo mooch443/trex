@@ -789,7 +789,7 @@ void GUI::run_loop(gui::LoopStatus status) {
                 if(obj->type() == Type::SINGLETON) {
                     obj = static_cast<SingletonObject*>(obj)->ptr();
                 }
-                if(base && obj->cached(base) && obj->cached(base)->changed() && obj->visible()) {
+                if(base && obj->cached(base) && obj->cached(base)->changed() && obj->was_visible()) {
                     ++changed_objects;
                     //changed_objects_str.push_back(Meta::toStr(obj->type()) + " / " + obj->name() + " " + Meta::toStr((size_t)obj));
                 }
@@ -817,7 +817,7 @@ void GUI::run_loop(gui::LoopStatus status) {
                 if(obj->type() == Type::SINGLETON) {
                     obj = static_cast<SingletonObject*>(obj)->ptr();
                 }
-                if(base && obj->cached(base) && obj->cached(base)->changed() && obj->visible()) {
+                if(base && obj->cached(base) && obj->cached(base)->changed() && obj->was_visible()) {
                     ++changed_objects;
                     //changed_objects_str.push_back(Meta::toStr(obj->type()) + " / " + obj->name() + " " + Meta::toStr((size_t)obj));
                 }

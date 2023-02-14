@@ -663,6 +663,7 @@ struct OverlayedVideo {
 using namespace dyn;
 inline static sprite::Map fish =  [](){
     sprite::Map fish;
+    fish.set_do_print(false);
     fish["name"] = std::string("fish0");
     fish["color"] = Red;
     fish["pos"] = Vec2(100, 150);
@@ -671,6 +672,7 @@ inline static sprite::Map fish =  [](){
 
 inline static sprite::Map _video_info = [](){
     sprite::Map fish;
+    fish.set_do_print(false);
     fish["frame"] = Frame_t();
     fish["resolution"] = Size2();
     return fish;
@@ -735,6 +737,12 @@ struct Menu {
                 "fish",
                 std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
                     return fish;
+                }))
+            },
+            {
+                "global",
+                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return GlobalSettings::map();
                 }))
             },
             {
@@ -1191,7 +1199,7 @@ int main(int argc, char**argv) {
     static std::vector<std::shared_ptr<VarBase_t>> gui_objects;
     static std::vector<sprite::Map> individual_properties;
     
-    menu.context.variables.emplace("fishes", new Variable([](std::string)->std::vector<std::shared_ptr<VarBase_t>>& {
+    menu.context.variables.emplace("fishes", new Variable([](std::string) -> std::vector<std::shared_ptr<VarBase_t>>& {
         return gui_objects;
     }));
     
@@ -1297,7 +1305,7 @@ int main(int argc, char**argv) {
             
             for(auto& blob : objects) {
                 const auto bds = blob->bounds();
-                graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+                //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
                 
                 SegmentationData::Assignment assign;
                 if(Tracker::end_frame().valid()) {
@@ -1314,12 +1322,13 @@ int main(int argc, char**argv) {
                             : "<unknown:"+Meta::toStr(assign.clid)+">";
                 
                 auto loc = attr::Loc(bds.pos());
-                auto text = graph.text(cname, loc, attr::FillClr(Cyan.alpha(100)), attr::Font(0.75, Style::Bold), attr::Scale(scale.mul(graph.scale()).reciprocal()),
-                                       attr::Origin(0, 1));
-                loc.x += text->local_bounds().width;
+                //auto text = graph.text(cname, loc, attr::FillClr(Cyan.alpha(100)), attr::Font(0.75, Style::Bold), attr::Scale(scale.mul(graph.scale()).reciprocal()),
+                //                       attr::Origin(0, 1));
+                //loc.x += text->local_bounds().width;
                 
                 if(dirty) {
                     sprite::Map tmp;
+                    tmp.set_do_print(false);
                     tmp["pos"] = bds.pos().mul(scale);
                     tmp["size"] = Size2(bds.size().mul(scale));
                     tmp["type"] = std::string(cname);
@@ -1330,8 +1339,8 @@ int main(int argc, char**argv) {
                     }));
                 }
                 
-                graph.text(": "+Meta::toStr(assign.p) + " - "+ Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), loc, attr::FillClr(White.alpha(100)), attr::Font(0.75), attr::Scale(scale.mul(graph.scale()).reciprocal()),
-                           attr::Origin(0, 1));
+                //graph.text(": "+Meta::toStr(assign.p) + " - "+ Meta::toStr(blob->num_pixels()) + " " + Meta::toStr(blob->recount(FAST_SETTING(track_threshold), *tracker.background())), loc, attr::FillClr(White.alpha(100)), attr::Font(0.75), attr::Scale(scale.mul(graph.scale()).reciprocal()),
+                   //        attr::Origin(0, 1));
                 
             }
 
@@ -1365,7 +1374,7 @@ int main(int argc, char**argv) {
                     return true;
                 });
                 
-                graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
+                //graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
                 graph.vertices(line);
             });
         });
