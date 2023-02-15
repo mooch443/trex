@@ -14,22 +14,14 @@
 				]
 			},
 
-			{ "type":"text", "text":"  resolution: {video:resolution} actual: {actual_frame} | written: {video:frame}", "font":{"size":0.5}, "color":[100,230,255] }
-		]
-	},
-
-	{   "type":"vlayout", "pos":[50,200], "fill":[200,0,0,150], "line":[255,255,255],
-		"margins": [0,1,7,3],
-		"children":[
-			{ "type":"text", "text":"  actual: {actual_frame} | video: {video_frame}", "font":{"size":0.5}, "color":[200,230,255] },
-			{ "type":"text", "text":"  actual: {fps}fps", "font":{"size":0.5}, "color":[200,230,255] }
+			{ "type":"text", "text":"  resolution: {video:resolution} | processed resolution: {global:image_width} | actual: {actual_frame} | written: {video:frame}", "font":{"size":0.5}, "color":[100,230,255] }
 		]
 	},
 
 	
 	{
 		"type": "condition",
-		"var": "valid",
+		"var": "{valid}",
 		"then": {
 			"type": "collection",
 			"pos":[50,300],
@@ -60,12 +52,17 @@
 			"pos":"{i:pos}",
 			"origin":[0,0],
 			"children": [
-				{"type":"stext","text":"<b><nr>{i:id}</nr></b>: {i:type} (<i>{i:p}</i>)","font":{"size":0.5},"origin":[0,1]},
+				{
+					"type":"condition",
+					"var":"{i:tracked}",
+					"then": {"type":"stext","text":"<b><nr>{i:id}</nr></b>: {i:type} (<i>{i:p}</i>)","font":{"size":0.5},"origin":[0,1]},
+					"else": {"type":"stext","text":"<ref><b>{i:id}</b>: {i:type} (<i>{i:p}</i>)</ref>","font":{"size":0.5},"origin":[0,1]}
+				},
 				{
 					"type":"condition",
 					"var":"{i:tracked}",
 					"then": {"type":"rect","pos":[0,0],"size":"{i:size}","fill":[0,255,0,30],"line":"{i:color}","origin":[0,0]},
-					"else": {"type":"rect","pos":[0,0],"size":"{i:size}","fill":[255,0,0,30],"line":[100,100,100,150],"origin":[0,0]}
+					"else": {"type":"rect","pos":[0,0],"size":"{i:size}","fill":[50,50,50,30],"line":[200,200,200,150],"origin":[0,0]}
 				}
 			]
 		}

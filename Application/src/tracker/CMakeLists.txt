@@ -208,6 +208,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json
     )
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")

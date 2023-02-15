@@ -631,7 +631,6 @@ struct OverlayedVideo {
                 auto result = this->overlay.apply(std::move(tiled));
                 if (_samples.load() > 100) {
                     _samples = _fps = 0;
-                    print("Reset indexes: ", timer.elapsed());
                 }
                 _fps = _fps.load() + 1.0 / timer.elapsed();
                 _samples = _samples.load() + 1;
@@ -769,7 +768,7 @@ struct Menu {
         _actual_frame = actual_frame;
         _video_frame = video_frame;
         
-        dyn::update_layout("/Users/tristan/trex/Application/src/tracker/alter_layout.json", context, state, objects);
+        dyn::update_layout("alter_layout.json", context, state, objects);
         
         g.section("buttons", [&](auto&, Section* section) {
             section->set_scale(g.scale().reciprocal());

@@ -671,12 +671,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             
             try {
                 sprite::Map map;
+                map.set_do_print(false);
                 map["quiet"] = true;
                 map["meta_real_width"] = float();
                 sprite::parse_values(map, metadata);
-                for(auto key : map.keys()) {
+                /*for(auto key : map.keys()) {
                     print("Key: ", key, " Value: ", map[key].get().valueString());
-                }
+                }*/
                 if(map.has("meta_real_width"))
                     meta_real_width = map.get<float>("meta_real_width");
             } catch(...) {
