@@ -65,6 +65,12 @@ struct SegmentationData {
     operator bool() const {
         return image != nullptr;
     }
+
+    SegmentationData() = default;
+    SegmentationData(SegmentationData&& other) = default;
+    SegmentationData(Image::UPtr&& original) : image(std::move(original)) {}
+    SegmentationData& operator=(SegmentationData&&);
+    ~SegmentationData();
 };
 
 struct TileImage {
@@ -198,7 +204,7 @@ struct Yolo7ObjectDetection {
         namespace py = Python;
         
         SegmentationData data{
-            .image = std::move(tiled.original)
+            std::move(tiled.original)
         };
         
         static Frame_t running_id = 0_f;
@@ -371,7 +377,7 @@ struct Yolo7InstanceSegmentation {
         namespace py = Python;
         
         SegmentationData data{
-            .image = std::move(tiled.original),
+            std::move(tiled.original),
         };
         
         static Frame_t running_id = 0_f;
@@ -603,12 +609,40 @@ public:
     }
 };
 
+namespace OverlayBuffers {
+
+inline static std::mutex buffer_mutex;
+inline static std::vector<Image::UPtr> buffers;
+
+
+Image::UPtr get_buffer() {
+    if (std::unique_lock guard(OverlayBuffers::buffer_mutex);
+        not OverlayBuffers::buffers.empty())
+    {
+        auto ptr = std::move(OverlayBuffers::buffers.back());
+        OverlayBuffers::buffers.pop_back();
+        //print("Received from buffers ", ptr->bounds());
+        return ptr;
+    }
+
+    return Image::Make();
+}
+
+void put_back(Image::UPtr&& ptr) {
+    if (not ptr)
+        return;
+    std::unique_lock guard(OverlayBuffers::buffer_mutex);
+    //print("Pushed back buffer ", ptr->bounds());
+    OverlayBuffers::buffers.push_back(std::move(ptr));
+}
+
+}
 
 template<typename F>
     requires ObjectDetection<F>
 struct OverlayedVideo {
     AbstractVideoSource<VideoSource> source;
-    //VideoSource source;
+
     F overlay;
     
     mutable std::mutex index_mutex;
@@ -678,7 +712,8 @@ struct OverlayedVideo {
                     use = &resized;
                 }
 
-                original_image = Image::Make(*use);
+                original_image = OverlayBuffers::get_buffer();//Image::Make(*use);
+                original_image->create(*use);
                 original_image->set_index(nix.get());
                 
                 Size2 original_size(use->cols, use->rows);
@@ -1034,6 +1069,25 @@ struct Detection {
     }
 };
 
+SegmentationData::~SegmentationData() {
+    if (image) {
+        OverlayBuffers::put_back(std::move(image));
+    }
+}
+
+SegmentationData& SegmentationData::operator=(SegmentationData&& other)
+{
+    frame = std::move(other.frame);
+    tiles = std::move(other.tiles);
+    predictions = std::move(other.predictions);
+    outlines = std::move(other.outlines);
+
+    if (image) {
+        OverlayBuffers::put_back(std::move(image));
+    }
+    image = std::move(other.image);
+    return *this;
+}
 
 int main(int argc, char**argv) {
     using namespace gui;
@@ -1294,9 +1348,7 @@ int main(int argc, char**argv) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
             }
             messages.notify_one();
-            //print("New image.");
-        } //else
-            //print("No new image.");
+        }
     };
     
     //graph.set_scale(1. / base.dpi_scale());
