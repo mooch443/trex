@@ -439,7 +439,7 @@ struct packaged_func {
     packaged_func(const packaged_func& other) = delete;
     
     template<typename... _Args>
-    R operator()(_Args&&... args) {
+    R operator()(_Args... args) const {
         return package(std::forward<_Args>(args)...);
     }
 };
@@ -447,11 +447,48 @@ struct packaged_func {
 }
 }
 
+template<typename F, typename R = typename cmn::detail::return_type<F>::type>
+struct RepeatedDeferral {
+    std::future<R> _next_image;
+    F _fn;
+    
+    RepeatedDeferral(F fn) : _fn(std::forward<F>(fn)) {
+        
+    }
+    
+    ~RepeatedDeferral() {
+        if(_next_image.valid())
+            _next_image.get();
+    }
+    
+    template<typename... Args>
+    R next(Args... args) {
+        R f;
+        
+        if(_next_image.valid()) {
+            f = _next_image.get();
+            
+        } else {
+            f = _fn(std::forward<Args>(args)...);
+        }
+        
+        _next_image = std::async(std::launch::async, [this](Args... args) {
+            return _fn(std::forward<Args>(args)...);
+        }, std::forward<Args>(args)...);
+        
+        return f;
+    }
+};
+
+
 template<typename SourceType>
 class AbstractVideoSource {
     mutable std::mutex mutex;
     Frame_t i{0_f};
-    gpuMat buffer;
+    
+    using gpuMatPtr = std::unique_ptr<gpuMat>;
+    std::mutex buffer_mutex;
+    std::vector<gpuMatPtr> buffers;
     
     SourceType source;
     GETTER(file::Path, base)
@@ -461,7 +498,7 @@ class AbstractVideoSource {
     const bool _finite;
     const Frame_t _length;
     
-    mutable package::packaged_func<Frame_t, gpuMat*> _retrieve;
+    mutable package::packaged_func<std::tuple<Frame_t, gpuMatPtr>> _retrieve;
     mutable package::packaged_func<void, Frame_t> _set_frame;
     
 public:
@@ -471,17 +508,41 @@ public:
         :
             source(std::move(source)),
             _base(this->source.base()),
-            _retrieve([this](gpuMat* buffer) -> Frame_t {
+            _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr> {
                 std::unique_lock guard(mutex);
                 try {
-                    if(i >= this->source.length())
-                        i = 0_f;
-                    this->source.frame(i++, *buffer);
+                    static RepeatedDeferral def{
+                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>  {
+                            if(i >= this->source.length())
+                                i = 0_f;
+                            
+                            gpuMatPtr buffer;
+                            
+                            if(std::unique_lock guard{buffer_mutex};
+                               not buffers.empty())
+                            {
+                                buffer = std::move(buffers.back());
+                                buffers.pop_back();
+                            } else
+                                buffer = std::make_unique<gpuMat>();
+                            
+                            this->source.frame(i++, *buffer);
+                            return std::make_tuple(i - 1_f, std::move(buffer));
+                        }
+                    };
+                    auto result = def.next();
+                    if(result) {
+                        auto& [index, buffer] = result.value();
+                        cv::cvtColor(*buffer, *buffer, cv::COLOR_BGR2RGB);
+                        return std::move(result.value());
+                        
+                    } else
+                        throw U_EXCEPTION("Unable to load frame: ", result.error());
+                    
                 } catch(const std::exception& e) {
                     FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
-                    return Frame_t{};
+                    return {Frame_t{}, nullptr};
                 }
-                return i - 1_f;
             }),
             _set_frame([this](Frame_t frame){
                 std::unique_lock guard(mutex);
@@ -502,8 +563,23 @@ public:
     AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
     AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
     
-    Frame_t next(gpuMat& output) {
-        return _retrieve(&output);
+    void move_back(gpuMatPtr&& ptr) {
+        std::unique_lock guard(buffer_mutex);
+        buffers.push_back(std::move(ptr));
+    }
+    
+    std::tuple<Frame_t, gpuMatPtr> next() {
+        static RepeatedDeferral _def{
+            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> {
+                return _retrieve();
+            }
+        };
+        
+        auto result = _def.next();
+        if(not result)
+            return std::make_tuple(Frame_t{}, nullptr);
+        
+        return std::move(result.value());
     }
     
     bool is_finite() const {
@@ -538,8 +614,8 @@ struct OverlayedVideo {
     mutable std::mutex index_mutex;
     Frame_t i{0};
     Image::UPtr original_image;
-    gpuMat buffer, resized, converted;
     cv::Mat downloader;
+    gpuMat resized;
     
     std::future<tl::expected<SegmentationData, const char*>> next_image;
 
@@ -587,46 +663,51 @@ struct OverlayedVideo {
             TileImage tiled;
             
             try {
-                Frame_t nix = source.next(buffer);
+                auto&& [nix, buffer] = source.next();
                 if(not nix.valid())
                     return tl::unexpected("Cannot retrieve frame from video source.");
                 
+                gpuMat *use { buffer.get() };
+                
+                //! resize according to settings
+                //! (e.g. multiple tiled image size)
                 if(SETTING(meta_video_scale).value<float>() != 1) {
-                    Size2 new_size = Size2(buffer.cols, buffer.rows) * SETTING(meta_video_scale).value<float>();
+                    Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
                     //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                    cv::resize(buffer, buffer, new_size);
+                    cv::resize(*buffer, resized, new_size);
+                    use = &resized;
                 }
 
-                cv::cvtColor(buffer, buffer, cv::COLOR_BGR2RGB);
-                original_image = Image::Make(buffer);
+                original_image = Image::Make(*use);
                 original_image->set_index(nix.get());
                 
-                Size2 original_size(buffer.cols, buffer.rows);
+                Size2 original_size(use->cols, use->rows);
                 
                 Size2 new_size(expected_size);
                 if(SETTING(tile_image).value<size_t>() > 1) {
                     size_t tiles = SETTING(tile_image).value<size_t>();
-                    float ratio = buffer.rows / float(buffer.cols);
+                    float ratio = use->rows / float(use->cols);
                     new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
-                    while(buffer.cols < new_size.width
-                          && buffer.rows < new_size.height
+                    while(use->cols < new_size.width
+                          && use->rows < new_size.height
                           && tiles > 0)
                     {
                         new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
-                        //print("tiles=",tiles," new_size = ", new_size);
                         tiles--;
                     }
                 }
                 
-                if (buffer.cols != new_size.width || buffer.rows != new_size.height) {
-                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                    cv::resize(buffer, buffer, new_size);
+                if (use->cols != new_size.width || use->rows != new_size.height) {
+                    cv::resize(*use, resized, new_size);
+                    use = &resized;
                 }
                 
                 ++i;
 
-                TileImage tiled(buffer, std::move(original_image), expected_size, original_size);
+                //! tile image to make it ready for processing in the network
+                TileImage tiled(*use, std::move(original_image), expected_size, original_size);
 
+                //! network processing, and record network fps
                 Timer timer;
                 auto result = this->overlay.apply(std::move(tiled));
                 if (_samples.load() > 100) {
@@ -634,6 +715,8 @@ struct OverlayedVideo {
                 }
                 _fps = _fps.load() + 1.0 / timer.elapsed();
                 _samples = _samples.load() + 1;
+                
+                source.move_back(std::move(buffer));
                 return result;
                 
             } catch(const std::exception& e) {
@@ -1015,65 +1098,27 @@ int main(int argc, char**argv) {
     OverlayedVideo video(
         Detection{},
         VideoSource(SETTING(source).value<std::string>())
-        //VideoSource("/Users/tristan/goats/DJI_0160.MOV")
-        //VideoSource("/Users/tristan/trex/videos/test_frames/frame_%3d.jpg")
     );
-    
-    
-    /*GlobalSettings::map().register_callback("global", [](auto, auto&, auto& name, auto& value) {
-        if(name == "gui_frame") {
-            
-        }
-    });*/
     
     std::mutex mutex;
     std::condition_variable messages;
     bool _terminate{false};
-    SegmentationData next, dbuffer;
+    SegmentationData next;
     
-    auto f = std::async(std::launch::async, [&](){
-        std::unique_lock guard(mutex);
-        while(not _terminate) {
-            if(dbuffer)
-                messages.wait(guard);
-            
-            if(dbuffer) {
-                if(next) {
-                    continue;
-                }
-                
-                next = std::move(dbuffer);
-            }
-            
-            guard.unlock();
-            
-            tl::expected<decltype(next), const char*> result;
-            try {
-                result = video.generate();
-                guard.lock();
-                
-            } catch(...) {
-                guard.lock();
-                throw;
-            }
-            
+    RepeatedDeferral f{
+        [&]() -> tl::expected<SegmentationData, const char*> {
+            auto result = video.generate();
             if(not result) {
-                // end of video
                 video.reset(0_f);
-                continue;
-            }
-            
-            if(not next) {
-#ifndef NDEBUG
-                auto ts = result.value().frame.timestamp();
-#endif
-                next = std::move(result.value());
-                assert(next.frame.timestamp() == ts);
             } else {
-                dbuffer = std::move(result.value());
+                std::unique_lock guard(mutex);
+                while(next)
+                    messages.wait(guard);
+                next = std::move(result.value());
             }
+            return result;
         }
-    });
+    };
     
     ::Menu<decltype(video)> menu([&](){
         video.reset(1500_f);
@@ -1212,6 +1257,8 @@ int main(int argc, char**argv) {
     auto fetch_files = [&](){
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
+        f.next();
+        
         std::unique_lock guard(mutex);
         if (next.image) {
             objects.clear();
@@ -1247,7 +1294,9 @@ int main(int argc, char**argv) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
             }
             messages.notify_one();
-        }
+            //print("New image.");
+        } //else
+            //print("No new image.");
     };
     
     //graph.set_scale(1. / base.dpi_scale());
@@ -1316,7 +1365,7 @@ int main(int argc, char**argv) {
             using namespace track;
             std::unordered_set<pv::bid> visible_bdx;
             
-            IndividualManager::transform_all([&](Idx_t fdx, Individual* fish)
+            IndividualManager::transform_all([&](Idx_t , Individual* fish)
             {
                 if(not fish->has(tracker.end_frame()))
                     return;
@@ -1445,7 +1494,7 @@ int main(int argc, char**argv) {
             settings.draw(base, graph);
         });
         
-        graph.set_dirty(nullptr);
+        //graph.set_dirty(nullptr);
 
         if (graph.is_key_pressed(Keyboard::Right)) {
             SETTING(filter_class) = true;
@@ -1459,7 +1508,7 @@ int main(int argc, char**argv) {
         _terminate = true;
         messages.notify_all();
     }
-    f.get();
+    
     graph.root().set_stage(nullptr);
     py::deinit();
     file.close();
