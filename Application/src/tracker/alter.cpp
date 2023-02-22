@@ -139,6 +139,8 @@ struct TileImage {
 };
 
 ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg);
+static inline std::atomic<float> _fps{0}, _samples{0};
+static inline std::atomic<float> _network_fps{0}, _network_samples{0};
 
 template<typename T>
 concept ObjectDetection = requires (TileImage tiled, SegmentationData data) {
@@ -229,6 +231,7 @@ struct Yolo7ObjectDetection {
                 receive(data, scale, vector);
             });
 
+            Timer timer;
             try {
                 bbx.run("apply");
             }
@@ -238,6 +241,11 @@ struct Yolo7ObjectDetection {
             }
             
             bbx.unset_function("receive");
+            if (_network_samples.load() > 100) {
+                _network_samples = _network_fps = 0;
+            }
+            _network_fps = _network_fps.load() + 1.0 / timer.elapsed();
+            _network_samples = _network_samples.load() + 1;
             
         }).get();
         
@@ -407,6 +415,7 @@ struct Yolo7InstanceSegmentation {
                 receive(offsets, data, scale, masks, meta, indexes);
             });
 
+            Timer timer;
             try {
                 bbx.run("apply");
             }
@@ -416,6 +425,11 @@ struct Yolo7InstanceSegmentation {
             }
             
             bbx.unset_function("receive");
+            if (_network_samples.load() > 100) {
+                _network_samples = _network_fps = 0;
+            }
+            _network_fps = _network_fps.load() + 1.0 / timer.elapsed();
+            _network_samples = _network_samples.load() + 1;
             
         }).get();
         
@@ -453,12 +467,16 @@ struct packaged_func {
 }
 }
 
+GenericThreadPool pool(32, "all_pool");
+
 template<typename F, typename R = typename cmn::detail::return_type<F>::type>
 struct RepeatedDeferral {
     std::future<R> _next_image;
     F _fn;
+    std::string name;
+    size_t predicted{0}, unpredicted{0};
     
-    RepeatedDeferral(F fn) : _fn(std::forward<F>(fn)) {
+    RepeatedDeferral(std::string name, F fn) : _fn(std::forward<F>(fn)), name(name) {
         
     }
     
@@ -472,15 +490,23 @@ struct RepeatedDeferral {
         R f;
         
         if(_next_image.valid()) {
+            ++predicted;
             f = _next_image.get();
             
         } else {
+            ++unpredicted;
             f = _fn(std::forward<Args>(args)...);
         }
         
-        _next_image = std::async(std::launch::async, [this](Args... args) {
+        if(predicted % 50 == 0 || unpredicted % 50 == 0)
+            print(name," Predicted: ", predicted, " unpredicted: ", unpredicted);
+        
+        _next_image = pool.enqueue([this](Args... args) {
             return _fn(std::forward<Args>(args)...);
         }, std::forward<Args>(args)...);
+        /*_next_image = std::async(std::launch::async, [this](Args... args) {
+            return _fn(std::forward<Args>(args)...);
+        }, std::forward<Args>(args)...);*/
         
         return f;
     }
@@ -518,6 +544,7 @@ public:
                 std::unique_lock guard(mutex);
                 try {
                     static RepeatedDeferral def{
+                        std::string("source.frame"),
                         [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>  {
                             if(i >= this->source.length())
                                 i = 0_f;
@@ -576,6 +603,7 @@ public:
     
     std::tuple<Frame_t, gpuMatPtr> next() {
         static RepeatedDeferral _def{
+            std::string(".next()"),
             [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> {
                 return _retrieve();
             }
@@ -652,8 +680,7 @@ struct OverlayedVideo {
     gpuMat resized;
     
     std::future<tl::expected<SegmentationData, const char*>> next_image;
-
-    static inline std::atomic<float> _fps{0}, _samples{0};
+    
     bool eof() const noexcept {
         if(not source.is_finite())
             return false;
@@ -693,6 +720,9 @@ struct OverlayedVideo {
         auto retrieve_next = [this]()
             -> tl::expected<SegmentationData, const char*>
         {
+            static Timing timing("retrieve_next");
+            TakeTiming take(timing);
+            
             std::scoped_lock guard(index_mutex);
             TileImage tiled;
             
@@ -743,15 +773,9 @@ struct OverlayedVideo {
                 TileImage tiled(*use, std::move(original_image), expected_size, original_size);
 
                 //! network processing, and record network fps
-                Timer timer;
                 auto result = this->overlay.apply(std::move(tiled));
-                if (_samples.load() > 100) {
-                    _samples = _fps = 0;
-                }
-                _fps = _fps.load() + 1.0 / timer.elapsed();
-                _samples = _samples.load() + 1;
-                
                 source.move_back(std::move(buffer));
+                
                 return result;
                 
             } catch(const std::exception& e) {
@@ -760,20 +784,12 @@ struct OverlayedVideo {
             }
         };
         
-        tl::expected<SegmentationData, const char*> result;
-        if(next_image.valid()) {
-            result = next_image.get();
-            
-        } else {
-            result = retrieve_next();
-        }
+        static RepeatedDeferral def{
+            "generate",
+            retrieve_next
+        };
         
-        if (not result) {
-            return tl::unexpected(result.error());
-        }
-
-        next_image = std::async(std::launch::async | std::launch::deferred, retrieve_next);
-        return result;
+        return def.next();
     }
 };
 
@@ -847,7 +863,12 @@ struct Menu {
         .variables = {
             {
                 "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return OverlayT::_fps.load() / OverlayT::_samples.load();
+                    return ::_fps.load() / ::_samples.load();
+                }))
+            },
+            {
+                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                    return ::_network_fps.load() / ::_network_samples.load();
                 }))
             },
             {
@@ -1160,7 +1181,12 @@ int main(int argc, char**argv) {
     SegmentationData next;
     
     RepeatedDeferral f{
+        std::string("video.generate()"),
         [&]() -> tl::expected<SegmentationData, const char*> {
+            static Timing timing("video.generate()");
+            TakeTiming take(timing);
+            Timer timer;
+            
             auto result = video.generate();
             if(not result) {
                 video.reset(0_f);
@@ -1170,6 +1196,13 @@ int main(int argc, char**argv) {
                     messages.wait(guard);
                 next = std::move(result.value());
             }
+            
+            if (_samples.load() > 100) {
+                _samples = _fps = 0;
+            }
+            _fps = _fps.load() + 1.0 / timer.elapsed();
+            _samples = _samples.load() + 1;
+            
             return result;
         }
     };
@@ -1309,10 +1342,14 @@ int main(int argc, char**argv) {
         overlay = std::make_shared<ExternalImage>();
 
     auto fetch_files = [&](){
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
-
+        //std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        static Timing timing("fetch_files");
+        TakeTiming take(timing);
+        
         f.next();
         
+        static Timing timing2("fetch_files#2");
+        TakeTiming take2(timing2);
         std::unique_lock guard(mutex);
         if (next.image) {
             objects.clear();
