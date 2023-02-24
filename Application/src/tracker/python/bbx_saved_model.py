@@ -3,11 +3,6 @@ from torchvision import transforms
 from torch.nn import functional as F
 import torchvision
 
-from detectron2.modeling.poolers import ROIPooler
-from detectron2.structures import Boxes
-from detectron2.utils.memory import retry_if_cuda_oom
-from detectron2.layers import paste_masks_in_image
-
 import tensorflow as tf
 import TRex
 import numpy as np
@@ -16,24 +11,15 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 import time
 import cv2
 
-print("UPDATED SCRIPT ---------------------------------------------")
-
-#WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-mask.pt"
-#WEIGHTS_PATH = "/Users/tristan/Downloads/yolov7-seg.pt"
-#WEIGHTS_PATH = "/Users/tristan/Downloads/best-4.pt"
 '''if torch.backends.mps.is_available():
     device = torch.device("mps")
     #x = torch.ones(1, device=mps_device)
     #print (x)
 else:
     print ("MPS device not found.")
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-weigths = torch.load(WEIGHTS_PATH, map_location=device)
-t_model = weigths['model']
-t_model = t_model.half().to(device)
-_ = t_model.eval()'''
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")'''
 t_model = None
+print("------------ TEST --------------------")
 
 hyp = {
     "mask_resolution": 56,
@@ -167,7 +153,7 @@ def inference(model, im, size=(640,640)):
     return np.array(results, dtype=int)
 
 def predict_yolov7(offsets, img, image_shape=(640,640)):
-    from utils.augmentations import augment_hsv, copy_paste, letterbox
+    #from utils.augmentations import augment_hsv, copy_paste, letterbox
 
     def perform_filtering(im0, im, y):
         global iou_threshold, conf_threshold
@@ -340,24 +326,18 @@ import sys
 from pathlib import Path
 
 import torch
-import torch.backends.cudnn as cudnn    
-
-from models.common import DetectMultiBackend
-from utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
-from utils.general import (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
-                           increment_path, non_max_suppression,scale_segments, print_args, strip_optimizer, xyxy2xywh)
-from utils.plots import Annotator, colors, save_one_box
-from utils.segment.general import process_mask, scale_masks, masks2segments
-from utils.segment.plots import plot_masks
-from utils.torch_utils import select_device, smart_inference_mode
-
-from utils.augmentations import augment_hsv, copy_paste, letterbox
+import torch.backends.cudnn as cudnn
 
 import torch.nn.functional as F
 import torchvision.transforms as T
 
 def predict_custom_yolo7_seg(offsets, im):
     global t_model, device
+
+    from detectron2.modeling.poolers import ROIPooler
+    from detectron2.structures import Boxes
+    from detectron2.utils.memory import retry_if_cuda_oom
+    from detectron2.layers import paste_masks_in_image
 
     def crop(masks, boxes):
         """
@@ -536,6 +516,10 @@ def predict_custom_yolo7_seg(offsets, im):
 
 def predict_yolo7_seg(image):
     global t_model
+
+    from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
+                               #increment_path, non_max_suppression,scale_segments, print_args, strip_optimizer, xyxy2xywh)
+
     def xywh2xyxy(x):
         # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
         y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
