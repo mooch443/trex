@@ -619,7 +619,11 @@ public:
                     auto result = def.next();
                     if(result) {
                         auto& [index, buffer, image] = result.value();
-                        cv::cvtColor(*buffer, *buffer, cv::COLOR_BGR2RGB);
+                        static gpuMatPtr tmp = std::make_unique<gpuMat>();
+                        
+                        cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+                        std::swap(buffer, tmp);
+                        
                         return std::make_tuple(index, std::move(buffer), std::move(image));
                         
                     } else
