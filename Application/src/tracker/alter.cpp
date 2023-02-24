@@ -222,6 +222,7 @@ struct Yolo7ObjectDetection {
         }
         
         py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
+            Timer timer;
             using py = track::PythonIntegration;
             py::ModuleProxy bbx("bbx_saved_model");
             bbx.set_variable("offsets", std::move(offsets));
@@ -231,7 +232,6 @@ struct Yolo7ObjectDetection {
                 receive(data, scale, vector);
             });
 
-            Timer timer;
             try {
                 bbx.run("apply");
             }
@@ -1214,9 +1214,6 @@ int main(int argc, char**argv) {
             if(not result) {
                 video.reset(0_f);
             } else {
-                std::unique_lock guard(mutex);
-                while(next)
-                    messages.wait(guard);
                 next = std::move(result.value());
             }
             
@@ -1365,8 +1362,15 @@ int main(int argc, char**argv) {
         overlay = std::make_shared<ExternalImage>();
     
     std::thread thread([&](){
-        while(not _terminate)
-            f.next();
+        set_thread_name("f.next() thread");
+        
+        std::unique_lock guard(mutex);
+        while(not _terminate) {
+            if(not next)
+                f.next();
+            messages.wait(guard);
+        }
+        print("thread ended.");
     });
 
     auto fetch_files = [&](){
