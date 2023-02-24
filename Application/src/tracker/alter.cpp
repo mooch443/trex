@@ -475,6 +475,8 @@ struct RepeatedDeferral {
     F _fn;
     std::string name;
     size_t predicted{0}, unpredicted{0};
+    double _waiting{0}, _samples{0};
+    Timer timer;
     
     RepeatedDeferral(std::string name, F fn) : _fn(std::forward<F>(fn)), name(name) {
         
@@ -491,7 +493,15 @@ struct RepeatedDeferral {
         
         if(_next_image.valid()) {
             ++predicted;
+            timer.reset();
             f = _next_image.get();
+            _waiting += timer.elapsed();
+            _samples += 1;
+            
+            if(_samples > 1000) {
+                _waiting /= _samples;
+                _samples = 1;
+            }
             
         } else {
             ++unpredicted;
@@ -499,7 +509,7 @@ struct RepeatedDeferral {
         }
         
         if(predicted % 50 == 0 || unpredicted % 50 == 0)
-            print(name," Predicted: ", predicted, " unpredicted: ", unpredicted);
+            print(name," Predicted: ", predicted, " unpredicted: ", unpredicted, " timer: ", (_waiting / _samples) * 1000, "ms");
         
         _next_image = pool.enqueue([this](Args... args) {
             return _fn(std::forward<Args>(args)...);
@@ -509,131 +519,6 @@ struct RepeatedDeferral {
         }, std::forward<Args>(args)...);*/
         
         return f;
-    }
-};
-
-
-template<typename SourceType>
-class AbstractVideoSource {
-    mutable std::mutex mutex;
-    Frame_t i{0_f};
-    
-    using gpuMatPtr = std::unique_ptr<gpuMat>;
-    std::mutex buffer_mutex;
-    std::vector<gpuMatPtr> buffers;
-    
-    SourceType source;
-    GETTER(file::Path, base)
-    GETTER(Size2, size)
-    GETTER(short, framerate)
-    
-    const bool _finite;
-    const Frame_t _length;
-    
-    mutable package::packaged_func<std::tuple<Frame_t, gpuMatPtr>> _retrieve;
-    mutable package::packaged_func<void, Frame_t> _set_frame;
-    
-public:
-    template<typename T = SourceType>
-        requires _clean_same<SourceType, VideoSource>
-    AbstractVideoSource(SourceType&& source)
-        :
-            source(std::move(source)),
-            _base(this->source.base()),
-            _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr> {
-                std::unique_lock guard(mutex);
-                try {
-                    static RepeatedDeferral def{
-                        std::string("source.frame"),
-                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>  {
-                            if(i >= this->source.length())
-                                i = 0_f;
-                            
-                            gpuMatPtr buffer;
-                            
-                            if(std::unique_lock guard{buffer_mutex};
-                               not buffers.empty())
-                            {
-                                buffer = std::move(buffers.back());
-                                buffers.pop_back();
-                            } else
-                                buffer = std::make_unique<gpuMat>();
-                            
-                            this->source.frame(i++, *buffer);
-                            return std::make_tuple(i - 1_f, std::move(buffer));
-                        }
-                    };
-                    auto result = def.next();
-                    if(result) {
-                        auto& [index, buffer] = result.value();
-                        cv::cvtColor(*buffer, *buffer, cv::COLOR_BGR2RGB);
-                        return std::move(result.value());
-                        
-                    } else
-                        throw U_EXCEPTION("Unable to load frame: ", result.error());
-                    
-                } catch(const std::exception& e) {
-                    FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
-                    return {Frame_t{}, nullptr};
-                }
-            }),
-            _set_frame([this](Frame_t frame){
-                std::unique_lock guard(mutex);
-                i = frame;
-            }),
-            _size(this->source.size()),
-            _framerate(this->source.framerate()),
-            _finite(true),
-            _length(this->source.length())
-    {
-        this->source.set_colors(VideoSource::ImageMode::RGB);
-    }
-
-    AbstractVideoSource(AbstractVideoSource&& other) = default;
-    AbstractVideoSource(const AbstractVideoSource& other) = delete;
-    AbstractVideoSource() = delete;
-    
-    AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
-    AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
-    
-    void move_back(gpuMatPtr&& ptr) {
-        std::unique_lock guard(buffer_mutex);
-        buffers.push_back(std::move(ptr));
-    }
-    
-    std::tuple<Frame_t, gpuMatPtr> next() {
-        static RepeatedDeferral _def{
-            std::string(".next()"),
-            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> {
-                return _retrieve();
-            }
-        };
-        
-        auto result = _def.next();
-        if(not result)
-            return std::make_tuple(Frame_t{}, nullptr);
-        
-        return std::move(result.value());
-    }
-    
-    bool is_finite() const {
-        return true;
-    }
-    
-    void set_frame(Frame_t frame) {
-        if(not is_finite())
-            throw std::invalid_argument("Cannot skip on infinite source.");
-        _set_frame(frame);
-    }
-    
-    Frame_t length() const {
-        if(not is_finite())
-            throw std::invalid_argument("Cannot return length of infinite source.");
-        return _length;
-    }
-    
-    std::string toStr() const {
-        return "AbstractVideoSource<"+Meta::toStr(source)+">";
     }
 };
 
@@ -666,6 +551,145 @@ void put_back(Image::UPtr&& ptr) {
 
 }
 
+template<typename SourceType>
+class AbstractVideoSource {
+    mutable std::mutex mutex;
+    Frame_t i{0_f};
+    
+    using gpuMatPtr = std::unique_ptr<gpuMat>;
+    std::mutex buffer_mutex;
+    std::vector<std::tuple<gpuMatPtr, Image::UPtr>> buffers;
+    
+    SourceType source;
+    GETTER(file::Path, base)
+    GETTER(Size2, size)
+    GETTER(short, framerate)
+    
+    const bool _finite;
+    const Frame_t _length;
+    
+    mutable package::packaged_func<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>> _retrieve;
+    mutable package::packaged_func<void, Frame_t> _set_frame;
+    
+public:
+    template<typename T = SourceType>
+        requires _clean_same<SourceType, VideoSource>
+    AbstractVideoSource(SourceType&& source)
+        :
+            source(std::move(source)),
+            _base(this->source.base()),
+            _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::UPtr> {
+                std::unique_lock guard(mutex);
+                try {
+                    static RepeatedDeferral def{
+                        std::string("source.frame"),
+                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>, const char*>  {
+                            if(i >= this->source.length())
+                                i = 0_f;
+                            
+                            gpuMatPtr buffer;
+                            Image::UPtr image;
+                            
+                            if(std::unique_lock guard{buffer_mutex};
+                               not buffers.empty())
+                            {
+                                auto&&[buf, img] = std::move(buffers.back());
+                                buffer = std::move(buf);
+                                image = std::move(img);
+                                buffers.pop_back();
+                            } else {
+                                buffer = std::make_unique<gpuMat>();
+                                image = Image::Make();
+                            }
+                            
+                            this->source.frame(i++, *buffer);
+                            
+                            //! resize according to settings
+                            //! (e.g. multiple tiled image size)
+                            if(SETTING(meta_video_scale).value<float>() != 1) {
+                                Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
+                                //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                                cv::resize(*buffer, *buffer, new_size);
+                            }
+                            
+                            image->create(*buffer, (i - 1_f).get());
+                            return std::make_tuple(i - 1_f, std::move(buffer), std::move(image));
+                        }
+                    };
+                    auto result = def.next();
+                    if(result) {
+                        auto& [index, buffer, image] = result.value();
+                        cv::cvtColor(*buffer, *buffer, cv::COLOR_BGR2RGB);
+                        return std::make_tuple(index, std::move(buffer), std::move(image));
+                        
+                    } else
+                        throw U_EXCEPTION("Unable to load frame: ", result.error());
+                    
+                } catch(const std::exception& e) {
+                    FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
+                    return {Frame_t{}, nullptr, nullptr};
+                }
+            }),
+            _set_frame([this](Frame_t frame){
+                std::unique_lock guard(mutex);
+                i = frame;
+            }),
+            _size(this->source.size()),
+            _framerate(this->source.framerate()),
+            _finite(true),
+            _length(this->source.length())
+    {
+        this->source.set_colors(VideoSource::ImageMode::RGB);
+    }
+
+    AbstractVideoSource(AbstractVideoSource&& other) = default;
+    AbstractVideoSource(const AbstractVideoSource& other) = delete;
+    AbstractVideoSource() = delete;
+    
+    AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
+    AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
+    
+    void move_back(gpuMatPtr&& ptr) {
+        std::unique_lock guard(buffer_mutex);
+        buffers.push_back(std::make_tuple(std::move(ptr), OverlayBuffers::get_buffer()));
+    }
+    
+    std::tuple<Frame_t, gpuMatPtr, Image::UPtr> next() {
+        static RepeatedDeferral _def{
+            std::string(".next()"),
+            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>, const char*> {
+                return _retrieve();
+            }
+        };
+        
+        auto result = _def.next();
+        if(not result)
+            return std::make_tuple(Frame_t{}, nullptr, nullptr);
+        
+        return std::move(result.value());
+    }
+    
+    bool is_finite() const {
+        return true;
+    }
+    
+    void set_frame(Frame_t frame) {
+        if(not is_finite())
+            throw std::invalid_argument("Cannot skip on infinite source.");
+        _set_frame(frame);
+    }
+    
+    Frame_t length() const {
+        if(not is_finite())
+            throw std::invalid_argument("Cannot return length of infinite source.");
+        return _length;
+    }
+    
+    std::string toStr() const {
+        return "AbstractVideoSource<"+Meta::toStr(source)+">";
+    }
+};
+
 template<typename F>
     requires ObjectDetection<F>
 struct OverlayedVideo {
@@ -675,8 +699,8 @@ struct OverlayedVideo {
     
     mutable std::mutex index_mutex;
     Frame_t i{0};
-    Image::UPtr original_image;
-    cv::Mat downloader;
+    //Image::UPtr original_image;
+    //cv::Mat downloader;
     gpuMat resized;
     
     std::future<tl::expected<SegmentationData, const char*>> next_image;
@@ -725,26 +749,15 @@ struct OverlayedVideo {
             
             std::scoped_lock guard(index_mutex);
             TileImage tiled;
+            auto loaded = i;
             
             try {
-                auto&& [nix, buffer] = source.next();
+                auto&& [nix, buffer, image] = source.next();
                 if(not nix.valid())
                     return tl::unexpected("Cannot retrieve frame from video source.");
                 
                 gpuMat *use { buffer.get() };
-                
-                //! resize according to settings
-                //! (e.g. multiple tiled image size)
-                if(SETTING(meta_video_scale).value<float>() != 1) {
-                    Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
-                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                    cv::resize(*buffer, resized, new_size);
-                    use = &resized;
-                }
-
-                original_image = OverlayBuffers::get_buffer();//Image::Make(*use);
-                original_image->create(*use);
-                original_image->set_index(nix.get());
+                image->set_index(nix.get());
                 
                 Size2 original_size(use->cols, use->rows);
                 
@@ -767,10 +780,10 @@ struct OverlayedVideo {
                     use = &resized;
                 }
                 
-                ++i;
+                i = nix + 1_f;
 
                 //! tile image to make it ready for processing in the network
-                TileImage tiled(*use, std::move(original_image), expected_size, original_size);
+                TileImage tiled(*use, std::move(image), expected_size, original_size);
 
                 //! network processing, and record network fps
                 auto result = this->overlay.apply(std::move(tiled));
@@ -779,7 +792,7 @@ struct OverlayedVideo {
                 return result;
                 
             } catch(const std::exception& e) {
-                FormatExcept("Error loading frame ", i, " from video ", source, ": ", e.what());
+                FormatExcept("Error loading frame ", loaded, " from video ", source, ": ", e.what());
                 return tl::unexpected("Error loading frame.");
             }
         };
