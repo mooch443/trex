@@ -808,7 +808,7 @@ struct OverlayedVideo {
         };
         
         static RepeatedDeferral def{
-            "generate",
+            "Tile+ApplyNet",
             retrieve_next
         };
         
@@ -1215,8 +1215,8 @@ int main(int argc, char**argv) {
                 video.reset(0_f);
             } else {
                 std::unique_lock guard(mutex);
-                //while(next)
-                //    messages.wait(guard);
+                while(next)
+                    messages.wait(guard);
                 next = std::move(result.value());
             }
             
