@@ -476,7 +476,10 @@ struct RepeatedDeferral {
     std::string name;
     size_t predicted{0}, unpredicted{0};
     double _waiting{0}, _samples{0};
-    Timer timer;
+    double _since_last{0}, _ssamples{0};
+    
+    std::atomic<double> _runtime{0}, _rsamples{0};
+    Timer timer, since_last;
     
     RepeatedDeferral(std::string name, F fn) : _fn(std::forward<F>(fn)), name(name) {
         
@@ -489,6 +492,9 @@ struct RepeatedDeferral {
     
     template<typename... Args>
     R next(Args... args) {
+        _since_last += since_last.elapsed();
+        _ssamples++;
+        
         R f;
         
         if(_next_image.valid()) {
@@ -509,15 +515,17 @@ struct RepeatedDeferral {
         }
         
         if(predicted % 50 == 0 || unpredicted % 50 == 0)
-            print(name," Predicted: ", predicted, " unpredicted: ", unpredicted, " timer: ", (_waiting / _samples) * 1000, "ms");
+            print(name," Predicted: ", predicted, " unpredicted: ", unpredicted, " timer: ", (_waiting / _samples) * 1000, "ms runtime:", (_runtime.load() / _rsamples.load()) * 1000,"ms since_last:",(_since_last/_ssamples)*1000,"ms");
         
         _next_image = pool.enqueue([this](Args... args) {
-            return _fn(std::forward<Args>(args)...);
+            Timer runtime;
+            auto r = _fn(std::forward<Args>(args)...);
+            _runtime = _runtime.load() + runtime.elapsed();
+            _rsamples = _rsamples.load() + 1;
+            return r;
         }, std::forward<Args>(args)...);
-        /*_next_image = std::async(std::launch::async, [this](Args... args) {
-            return _fn(std::forward<Args>(args)...);
-        }, std::forward<Args>(args)...);*/
         
+        since_last.reset();
         return f;
     }
 };
@@ -788,12 +796,10 @@ struct OverlayedVideo {
 
                 //! tile image to make it ready for processing in the network
                 TileImage tiled(*use, std::move(image), expected_size, original_size);
-
-                //! network processing, and record network fps
-                auto result = this->overlay.apply(std::move(tiled));
                 source.move_back(std::move(buffer));
                 
-                return result;
+                //! network processing, and record network fps
+                return this->overlay.apply(std::move(tiled));
                 
             } catch(const std::exception& e) {
                 FormatExcept("Error loading frame ", loaded, " from video ", source, ": ", e.what());
@@ -1209,8 +1215,8 @@ int main(int argc, char**argv) {
                 video.reset(0_f);
             } else {
                 std::unique_lock guard(mutex);
-                while(next)
-                    messages.wait(guard);
+                //while(next)
+                //    messages.wait(guard);
                 next = std::move(result.value());
             }
             
@@ -1357,13 +1363,16 @@ int main(int argc, char**argv) {
     std::shared_ptr<ExternalImage>
         background = std::make_shared<ExternalImage>(),
         overlay = std::make_shared<ExternalImage>();
+    
+    std::thread thread([&](){
+        while(not _terminate)
+            f.next();
+    });
 
     auto fetch_files = [&](){
         //std::this_thread::sleep_for(std::chrono::milliseconds(30));
         static Timing timing("fetch_files");
         TakeTiming take(timing);
-        
-        f.next();
         
         static Timing timing2("fetch_files#2");
         TakeTiming take2(timing2);
@@ -1402,6 +1411,20 @@ int main(int argc, char**argv) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
             }
             messages.notify_one();
+            
+            static Timer last_add;
+            static double average{0}, samples{0};
+            auto current = last_add.elapsed();
+            average += current;
+            ++samples;
+            
+            if(samples > 100) {
+                print("Average time since last frame: ", average / samples * 1000.0,"ms (",current * 1000,"ms)");
+                
+                average /= samples;
+                samples = 1;
+            }
+            last_add.reset();
         }
     };
     
@@ -1615,6 +1638,7 @@ int main(int argc, char**argv) {
         messages.notify_all();
     }
     
+    thread.join();
     graph.root().set_stage(nullptr);
     py::deinit();
     file.close();
