@@ -561,7 +561,7 @@ void put_back(Image::UPtr&& ptr) {
 
 template<typename SourceType>
 class AbstractVideoSource {
-    mutable std::mutex mutex;
+    //mutable std::mutex mutex;
     Frame_t i{0_f};
     
     using gpuMatPtr = std::unique_ptr<gpuMat>;
@@ -587,11 +587,11 @@ public:
             source(std::move(source)),
             _base(this->source.base()),
             _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::UPtr> {
-                std::unique_lock guard(mutex);
                 try {
                     static RepeatedDeferral def{
                         std::string("source.frame"),
                         [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>, const char*>  {
+                            //std::unique_lock guard(mutex);
                             if(i >= this->source.length())
                                 i = 0_f;
                             
@@ -628,7 +628,7 @@ public:
                             cv::resize(*buffer, *buffer, new_size);
                         }
 
-                        image->create(*buffer, (i - 1_f).get());
+                        image->create(*buffer, index.get());
 
                         cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
                         std::swap(buffer, tmp);
@@ -644,7 +644,7 @@ public:
                 }
             }),
             _set_frame([this](Frame_t frame){
-                std::unique_lock guard(mutex);
+                //std::unique_lock guard(mutex);
                 i = frame;
             }),
             _size(this->source.size()),
@@ -1204,30 +1204,6 @@ int main(int argc, char**argv) {
     bool _terminate{false};
     SegmentationData next;
     
-    RepeatedDeferral f{
-        std::string("video.generate()"),
-        [&]() -> tl::expected<SegmentationData, const char*> {
-            static Timing timing("video.generate()");
-            TakeTiming take(timing);
-            Timer timer;
-            
-            auto result = video.generate();
-            if(not result) {
-                video.reset(0_f);
-            } else {
-                next = std::move(result.value());
-            }
-            
-            if (_samples.load() > 100) {
-                _samples = _fps = 0;
-            }
-            _fps = _fps.load() + 1.0 / timer.elapsed();
-            _samples = _samples.load() + 1;
-            
-            return result;
-        }
-    };
-    
     ::Menu<decltype(video)> menu([&](){
         video.reset(1500_f);
     });
@@ -1363,14 +1339,43 @@ int main(int argc, char**argv) {
         overlay = std::make_shared<ExternalImage>();
     
     std::thread thread([&](){
-        set_thread_name("f.next() thread");
+        set_thread_name("video.generate() thread");
+        
+        RepeatedDeferral f{
+            std::string("video.generate()"),
+            [&]() -> tl::expected<SegmentationData, const char*> {
+                static Timing timing("video.generate()");
+                TakeTiming take(timing);
+                Timer timer;
+                
+                auto result = video.generate();
+                if(not result) {
+                    video.reset(0_f);
+                } else {
+                    next = std::move(result.value());
+                }
+                
+                if (_samples.load() > 100) {
+                    _samples = _fps = 0;
+                }
+                _fps = _fps.load() + 1.0 / timer.elapsed();
+                _samples = _samples.load() + 1;
+                
+                return result;
+            }
+        };
         
         std::unique_lock guard(mutex);
         while(not _terminate) {
-            if(not next)
-                f.next();
+            try {
+                if(not next)
+                    f.next();
+            } catch(...) {
+                // pass
+            }
             messages.wait(guard);
         }
+        
         print("thread ended.");
     });
 

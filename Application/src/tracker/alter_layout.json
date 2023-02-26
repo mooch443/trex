@@ -40,16 +40,5 @@
 				}
 			]
 		}
-	},
-
-	{ 
-		"type":"stext", 
-		"text":"hi <b>was geht {fish:name}</b>\nich bin ein text über mehrere zeilen\nund kann auch <i>html</i> code enthalten.\n\nunter anderem auch <key>highlights</key> in\n<ref>mehreren farben</ref>.", 
-		"pos":[200,200], 
-		"font":{"size":0.5},
-		"fill":[50,50,50,150],
-		"line":[255,255,255,255],
-		"modules": ["draggable"]
 	}
-
 ]}
