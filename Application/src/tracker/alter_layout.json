@@ -18,32 +18,6 @@
 		]
 	},
 
-	
-	{
-		"type": "condition",
-		"var": "{valid}",
-		"then": {
-			"type": "collection",
-			"pos":[50,300],
-			"fill": [100,0,0],
-			"modules": ["draggable"],
-			"children": [
-				{"type":"text", "text":"fish: {fish:name} {global:blob_size_ranges}"},
-				{"type":"text", "text":"text2", "pos":[0,20]}
-			]
-		},
-		"else": {
-			"type": "collection",
-			"pos":[50,300],
-			"fill": [100,0,0],
-			"modules": ["draggable"],
-			"children": [
-				{"type":"text", "text":"FALSE: {fish:name} {global:blob_size_ranges}"},
-				{"type":"text", "text":"text2", "pos":[0,20]}
-			]
-		}
-	},
-
 	{
 		"type":"each",
 		"var":"fishes",

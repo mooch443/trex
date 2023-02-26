@@ -612,15 +612,6 @@ public:
                             
                             this->source.frame(i++, *buffer);
                             
-                            //! resize according to settings
-                            //! (e.g. multiple tiled image size)
-                            if(SETTING(meta_video_scale).value<float>() != 1) {
-                                Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
-                                //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                                cv::resize(*buffer, *buffer, new_size);
-                            }
-                            
-                            image->create(*buffer, (i - 1_f).get());
                             return std::make_tuple(i - 1_f, std::move(buffer), std::move(image));
                         }
                     };
@@ -628,7 +619,17 @@ public:
                     if(result) {
                         auto& [index, buffer, image] = result.value();
                         static gpuMatPtr tmp = std::make_unique<gpuMat>();
-                        
+
+                        //! resize according to settings
+                        //! (e.g. multiple tiled image size)
+                        if (SETTING(meta_video_scale).value<float>() != 1) {
+                            Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
+                            //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                            cv::resize(*buffer, *buffer, new_size);
+                        }
+
+                        image->create(*buffer, (i - 1_f).get());
+
                         cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
                         std::swap(buffer, tmp);
                         
@@ -1384,6 +1385,8 @@ int main(int argc, char**argv) {
         if (next.image) {
             objects.clear();
             current = std::move(next);
+            messages.notify_one();
+
             current.frame.set_source_index(Frame_t(current.image->index()));
 
             for (size_t i = 0; i < current.frame.n(); ++i) {
@@ -1414,7 +1417,6 @@ int main(int argc, char**argv) {
             if (pp.index().get() % 100 == 0) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
             }
-            messages.notify_one();
             
             static Timer last_add;
             static double average{0}, samples{0};

@@ -132,4 +132,7 @@ for MODE in ${MODES}; do
     rm -f ${PWD}/corrected/test.settings
 done
 
+rm -f ${PWD}/average_test.png
+rm -f ${PWD}/corrected/test.results.meta
+
 exit ${exit_code}
