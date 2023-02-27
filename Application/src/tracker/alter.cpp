@@ -475,10 +475,11 @@ struct RepeatedDeferral {
     F _fn;
     std::string name;
     size_t predicted{0}, unpredicted{0};
+    std::mutex mtiming;
     double _waiting{0}, _samples{0};
     double _since_last{0}, _ssamples{0};
     
-    std::atomic<double> _runtime{0}, _rsamples{0};
+    double _runtime{0}, _rsamples{0};
     Timer timer, since_last;
     
     RepeatedDeferral(std::string name, F fn) : _fn(std::forward<F>(fn)), name(name) {
@@ -492,8 +493,16 @@ struct RepeatedDeferral {
     
     template<typename... Args>
     R next(Args... args) {
-        _since_last += since_last.elapsed();
-        _ssamples++;
+        auto e = since_last.elapsed();
+        {
+            std::unique_lock guard(mtiming);
+            _since_last += e;
+            _ssamples++;
+            if(_ssamples > 1000) {
+                _since_last = _since_last / _ssamples;
+                _ssamples = 1;
+            }
+        }
         
         R f;
         
@@ -501,6 +510,8 @@ struct RepeatedDeferral {
             ++predicted;
             timer.reset();
             f = _next_image.get();
+            
+            std::unique_lock guard(mtiming);
             _waiting += timer.elapsed();
             _samples += 1;
             
@@ -514,15 +525,28 @@ struct RepeatedDeferral {
             f = _fn(std::forward<Args>(args)...);
         }
         
-        if(predicted % 50 == 0 || unpredicted % 50 == 0)
-            print(name," Predicted: ", predicted, " unpredicted: ", unpredicted, " timer: ", (_waiting / _samples) * 1000, "ms runtime:", (_runtime.load() / _rsamples.load()) * 1000,"ms since_last:",(_since_last/_ssamples)*1000,"ms");
+        if(predicted % 50 == 0 || unpredicted % 50 == 0) {
+            std::unique_lock guard(mtiming);
+            auto total = (_waiting / _samples) * 1000;
+            print(name.c_str(),": ", total,"ms with runtime ",(_runtime / _rsamples) * 1000,"ms (", (_since_last/_ssamples)*1000,"ms > ", (_waiting / _samples) * 1000, "ms)");
+        }
         
         _next_image = pool.enqueue([this](Args... args) {
             Timer runtime;
             auto r = _fn(std::forward<Args>(args)...);
-            _runtime = _runtime.load() + runtime.elapsed();
-            _rsamples = _rsamples.load() + 1;
+            auto e = runtime.elapsed();
+            
+            std::unique_lock guard(mtiming);
+            _runtime += e;
+            _rsamples++;
+            
+            if(_rsamples > 1000) {
+                _runtime = _runtime / _rsamples;
+                _rsamples = 1;
+            }
+            
             return r;
+            
         }, std::forward<Args>(args)...);
         
         since_last.reset();
@@ -1381,11 +1405,11 @@ int main(int argc, char**argv) {
 
     auto fetch_files = [&](){
         //std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        static Timing timing("fetch_files");
-        TakeTiming take(timing);
+        //static Timing timing("fetch_files");
+        //TakeTiming take(timing);
         
-        static Timing timing2("fetch_files#2");
-        TakeTiming take2(timing2);
+        //static Timing timing2("fetch_files#2");
+        //TakeTiming take2(timing2);
         std::unique_lock guard(mutex);
         if (next.image) {
             objects.clear();
@@ -1428,6 +1452,24 @@ int main(int argc, char**argv) {
             auto current = last_add.elapsed();
             average += current;
             ++samples;
+            
+            static Timer frame_counter;
+            static size_t num_frames{0};
+            static std::mutex mFPS;
+            static double FPS{0};
+            
+            {
+                std::unique_lock g(mFPS);
+                num_frames++;
+                
+                if(frame_counter.elapsed() > 1) {
+                    FPS = num_frames / frame_counter.elapsed();
+                    num_frames = 0;
+                    frame_counter.reset();
+                    print("FPS: ", FPS);
+                }
+                
+            }
             
             if(samples > 100) {
                 print("Average time since last frame: ", average / samples * 1000.0,"ms (",current * 1000,"ms)");
