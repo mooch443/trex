@@ -1223,7 +1223,7 @@ int main(int argc, char**argv) {
         VideoSource(SETTING(source).value<std::string>())
     );
     
-    std::mutex mutex;
+    std::mutex mutex, current_mutex;
     std::condition_variable messages;
     bool _terminate{false};
     SegmentationData next;
@@ -1357,7 +1357,7 @@ int main(int argc, char**argv) {
         return gui_objects;
     }));
     
-    SegmentationData current;
+    SegmentationData progress, current;
     std::shared_ptr<ExternalImage>
         background = std::make_shared<ExternalImage>(),
         overlay = std::make_shared<ExternalImage>();
@@ -1375,8 +1375,6 @@ int main(int argc, char**argv) {
                 auto result = video.generate();
                 if(not result) {
                     video.reset(0_f);
-                } else {
-                    next = std::move(result.value());
                 }
                 
                 if (_samples.load() > 100) {
@@ -1390,10 +1388,16 @@ int main(int argc, char**argv) {
         };
         
         std::unique_lock guard(mutex);
+        tl::expected<SegmentationData, const char*> result;
         while(not _terminate) {
             try {
-                if(not next)
-                    f.next();
+                if (not next) {
+                    guard.unlock();
+                    result = f.next();
+                    guard.lock();
+                    if (result)
+                        next = std::move(result.value());
+                }
             } catch(...) {
                 // pass
             }
@@ -1411,27 +1415,27 @@ int main(int argc, char**argv) {
         //static Timing timing2("fetch_files#2");
         //TakeTiming take2(timing2);
         std::unique_lock guard(mutex);
-        if (next.image) {
+        if (next) {
             objects.clear();
-            current = std::move(next);
+            progress = std::move(next);
             messages.notify_one();
 
-            current.frame.set_source_index(Frame_t(current.image->index()));
+            progress.frame.set_source_index(Frame_t(progress.image->index()));
 
-            for (size_t i = 0; i < current.frame.n(); ++i) {
-                objects.emplace_back(current.frame.blob_at(i));
+            for (size_t i = 0; i < progress.frame.n(); ++i) {
+                objects.emplace_back(progress.frame.blob_at(i));
             }
 
             if(background->source()
-               && background->source()->rows == current.image->rows
-               && background->source()->cols == current.image->cols
+               && background->source()->rows == progress.image->rows
+               && background->source()->cols == progress.image->cols
                && background->source()->dims == 4)
             {
-                cv::cvtColor(current.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+                cv::cvtColor(progress.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
                 background->updated_source();
             } else {
-                auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
-                cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+                auto rgba = Image::Make(progress.image->rows, progress.image->cols, 4);
+                cv::cvtColor(progress.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
                 background->set_source(std::move(rgba));
             }
             
@@ -1439,12 +1443,19 @@ int main(int argc, char**argv) {
                 file.set_start_time(start_time);
                 file.set_resolution(output_size);
             }
-            file.add_individual(pv::Frame(current.frame));
+            file.add_individual(pv::Frame(progress.frame));
 
-            Tracker::preprocess_frame(file, pv::Frame(current.frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
-            tracker.add(pp);
-            if (pp.index().get() % 100 == 0) {
-                print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+            {
+                Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
+                tracker.add(pp);
+                if (pp.index().get() % 100 == 0) {
+                    print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+                }
+            }
+
+            {
+                std::unique_lock guard(current_mutex);
+                current = std::move(progress);
             }
             
             static Timer last_add;
@@ -1480,11 +1491,16 @@ int main(int argc, char**argv) {
             last_add.reset();
         }
     };
+
+    std::thread testing([&]() {
+        while (not _terminate) {
+            fetch_files();
+        }
+    });
     
     //graph.set_scale(1. / base.dpi_scale());
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
-        fetch_files();
         
         {
             //track::LockGuard guard(track::ro_t{}, "update", 10);
@@ -1516,6 +1532,14 @@ int main(int argc, char**argv) {
             //if(not current.frame.index().valid() || current.frame.index().get()%10 == 0)
             //    print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
             section->set_scale(scale);
+
+            std::unique_lock guard(current_mutex);
+            LockGuard lguard(ro_t{}, "drawing", 10);
+            if (not lguard.locked()) {
+                section->reuse_objects();
+                return;
+            }
+
             SETTING(gui_frame) = current.frame.index();
             
             if(background->source()) {
@@ -1549,17 +1573,17 @@ int main(int argc, char**argv) {
             
             IndividualManager::transform_all([&](Idx_t , Individual* fish)
             {
-                if(not fish->has(tracker.end_frame()))
+                if(not fish->has(current.frame.index()))
                     return;
-                auto p = fish->iterator_for(tracker.end_frame());
+                auto p = fish->iterator_for(current.frame.index());
                 auto segment = p->get();
                 
-                auto basic = fish->compressed_blob(tracker.end_frame());
+                auto basic = fish->compressed_blob(current.frame.index());
                 auto bds = basic->calculate_bounds();//.mul(scale);
                 
                 if(dirty) {
                     SegmentationData::Assignment assign;
-                    if(Tracker::end_frame().valid()) {
+                    if(current.frame.index().valid()) {
                         if(basic->parent_id.valid()) {
                             if(auto it = current.predictions.find(basic->parent_id);
                                it != current.predictions.end())
@@ -1603,7 +1627,7 @@ int main(int argc, char**argv) {
                 }
                 
                 std::vector<Vertex> line;
-                fish->iterate_frames(Range(tracker.end_frame().try_sub(50_f), tracker.end_frame()), [&](Frame_t , const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
+                fish->iterate_frames(Range(current.frame.index().try_sub(50_f), current.frame.index()), [&](Frame_t , const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
                 {
                     if(ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
                         return true;
@@ -1625,7 +1649,7 @@ int main(int argc, char**argv) {
                     //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
                     
                     SegmentationData::Assignment assign;
-                    if(Tracker::end_frame().valid()) {
+                    if(current.frame.index().valid()) {
                         if(blob->parent_id().valid()) {
                             if(auto it = current.predictions.find(blob->parent_id());
                                it != current.predictions.end())
@@ -1683,6 +1707,8 @@ int main(int argc, char**argv) {
         } else if (graph.is_key_pressed(Keyboard::Left)) {
             SETTING(filter_class) = false;
         }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     });
     
     {
