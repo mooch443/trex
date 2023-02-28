@@ -1392,9 +1392,9 @@ int main(int argc, char**argv) {
         while(not _terminate) {
             try {
                 if (not next) {
-                    guard.unlock();
+                    //guard.unlock();
                     result = f.next();
-                    guard.lock();
+                    //guard.lock();
                     if (result)
                         next = std::move(result.value());
                 }
@@ -1418,6 +1418,8 @@ int main(int argc, char**argv) {
         if (next) {
             objects.clear();
             progress = std::move(next);
+            assert(not next);
+            guard.unlock();
             messages.notify_one();
 
             progress.frame.set_source_index(Frame_t(progress.image->index()));
@@ -1446,7 +1448,7 @@ int main(int argc, char**argv) {
             file.add_individual(pv::Frame(progress.frame));
 
             {
-                Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, false);
+                Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
                 tracker.add(pp);
                 if (pp.index().get() % 100 == 0) {
                     print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
@@ -1489,6 +1491,8 @@ int main(int argc, char**argv) {
                 samples = 1;
             }
             last_add.reset();
+            
+            guard.lock();
         }
     };
 
@@ -1496,6 +1500,7 @@ int main(int argc, char**argv) {
         while (not _terminate) {
             fetch_files();
         }
+        print("testing ended.");
     });
     
     //graph.set_scale(1. / base.dpi_scale());
@@ -1712,8 +1717,12 @@ int main(int argc, char**argv) {
     });
     
     {
-        std::unique_lock guard(mutex);
+        //
         _terminate = true;
+        
+        testing.join();
+        
+        std::unique_lock guard(mutex);
         messages.notify_all();
     }
     
