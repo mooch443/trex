@@ -441,32 +441,6 @@ struct Yolo7InstanceSegmentation {
 static_assert(ObjectDetection<Yolo7ObjectDetection>);
 static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 
-namespace cmn {
-namespace package {
-
-template<typename R, typename... Args>
-struct packaged_func {
-    using signature = R(Args...);
-    package::F<signature> package;
-    
-    template<typename K>
-    packaged_func(K&& fn) : package(package::F<signature>{std::move(fn)}) { }
-    
-    packaged_func& operator=(packaged_func&& other) = default;
-    packaged_func& operator=(const packaged_func& other) = delete;
-    
-    packaged_func(packaged_func&& other) = default;
-    packaged_func(const packaged_func& other) = delete;
-    
-    template<typename... _Args>
-    R operator()(_Args... args) const {
-        return package(std::forward<_Args>(args)...);
-    }
-};
-
-}
-}
-
 GenericThreadPool pool(32, "all_pool");
 
 template<typename F, typename R = typename cmn::detail::return_type<F>::type>
@@ -1344,7 +1318,7 @@ int main(int argc, char**argv) {
     auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", filename);
     pv::File file(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-    std::vector<pv::BlobPtr> objects;
+    std::vector<pv::BlobPtr> objects, progress_objects;
     file.set_average(bg);
     
     //GUICache cache(&graph, &file);
@@ -1357,6 +1331,7 @@ int main(int argc, char**argv) {
         return gui_objects;
     }));
     
+    std::condition_variable ready_for_tracking;
     SegmentationData progress, current;
     std::shared_ptr<ExternalImage>
         background = std::make_shared<ExternalImage>(),
@@ -1377,11 +1352,11 @@ int main(int argc, char**argv) {
                     video.reset(0_f);
                 }
                 
-                if (_samples.load() > 100) {
+                /*if (_samples.load() > 100) {
                     _samples = _fps = 0;
                 }
                 _fps = _fps.load() + 1.0 / timer.elapsed();
-                _samples = _samples.load() + 1;
+                _samples = _samples.load() + 1;*/
                 
                 return result;
             }
@@ -1389,22 +1364,113 @@ int main(int argc, char**argv) {
         
         std::unique_lock guard(mutex);
         tl::expected<SegmentationData, const char*> result;
+        if(result && result.value())
+            throw U_EXCEPTION("illegal");
         while(not _terminate) {
             try {
-                if (not next) {
-                    //guard.unlock();
-                    result = f.next();
-                    //guard.lock();
-                    if (result)
-                        next = std::move(result.value());
+                if (not result or not result.value()) {
+                    guard.unlock();
+                    try {
+                        result = f.next();
+                    } catch(...) {
+                        
+                    }
+                    guard.lock();
+                }
+                
+                if (result and result.value() and not next) {
+                    next = std::move(result.value());
+                    ready_for_tracking.notify_one();
                 }
             } catch(...) {
                 // pass
             }
-            messages.wait(guard);
+            if(next)
+                messages.wait(guard, [&](){
+                    return not next or _terminate;
+                });
         }
         
         print("thread ended.");
+    });
+    
+    auto perform_tracking = [&](){
+        progress.frame.set_source_index(Frame_t(progress.image->index()));
+        
+        progress_objects.clear();
+        for (size_t i = 0; i < progress.frame.n(); ++i) {
+            progress_objects.emplace_back(progress.frame.blob_at(i));
+        }
+        
+        if (not file.is_open()) {
+            file.set_start_time(start_time);
+            file.set_resolution(output_size);
+        }
+        file.add_individual(pv::Frame(progress.frame));
+        
+        {
+            Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
+            tracker.add(pp);
+            if (pp.index().get() % 100 == 0) {
+                print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+            }
+        }
+        
+        {
+            std::unique_lock guard(current_mutex);
+            current = std::move(progress);
+            objects = std::move(progress_objects);
+        }
+        
+        static Timer last_add;
+        static double average{0}, samples{0};
+        auto current = last_add.elapsed();
+        average += current;
+        ++samples;
+        
+        static Timer frame_counter;
+        static size_t num_frames{0};
+        static std::mutex mFPS;
+        static double FPS{0};
+        
+        {
+            std::unique_lock g(mFPS);
+            num_frames++;
+            
+            if(frame_counter.elapsed() > 1) {
+                FPS = num_frames / frame_counter.elapsed();
+                num_frames = 0;
+                frame_counter.reset();
+                print("FPS: ", FPS);
+            }
+            
+        }
+        
+        if(samples > 100) {
+            print("Average time since last frame: ", average / samples * 1000.0,"ms (",current * 1000,"ms)");
+            
+            average /= samples;
+            samples = 1;
+        }
+        last_add.reset();
+    };
+    
+    std::thread tracking([&](){
+        set_thread_name("Tracking thread");
+        std::unique_lock guard(mutex);
+        while(not _terminate) {
+            if(next) {
+                progress = std::move(next);
+                assert(not next);
+                
+                guard.unlock();
+                messages.notify_one();
+                perform_tracking();
+                guard.lock();
+            }
+            
+            ready_for_tracking.wait(guard);
+        }
     });
 
     auto fetch_files = [&](){
@@ -1414,98 +1480,34 @@ int main(int argc, char**argv) {
         
         //static Timing timing2("fetch_files#2");
         //TakeTiming take2(timing2);
-        std::unique_lock guard(mutex);
-        if (next) {
-            objects.clear();
-            progress = std::move(next);
-            assert(not next);
-            guard.unlock();
-            messages.notify_one();
-
-            progress.frame.set_source_index(Frame_t(progress.image->index()));
-
-            for (size_t i = 0; i < progress.frame.n(); ++i) {
-                objects.emplace_back(progress.frame.blob_at(i));
-            }
-
+        std::unique_lock guard(current_mutex);
+        if (current.image) {
             if(background->source()
-               && background->source()->rows == progress.image->rows
-               && background->source()->cols == progress.image->cols
+               && background->source()->rows == current.image->rows
+               && background->source()->cols == current.image->cols
                && background->source()->dims == 4)
             {
-                cv::cvtColor(progress.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+                cv::cvtColor(current.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
                 background->updated_source();
             } else {
-                auto rgba = Image::Make(progress.image->rows, progress.image->cols, 4);
-                cv::cvtColor(progress.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+                auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
+                cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
                 background->set_source(std::move(rgba));
             }
-            
-            if (not file.is_open()) {
-                file.set_start_time(start_time);
-                file.set_resolution(output_size);
-            }
-            file.add_individual(pv::Frame(progress.frame));
-
-            {
-                Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
-                tracker.add(pp);
-                if (pp.index().get() % 100 == 0) {
-                    print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-                }
-            }
-
-            {
-                std::unique_lock guard(current_mutex);
-                current = std::move(progress);
-            }
-            
-            static Timer last_add;
-            static double average{0}, samples{0};
-            auto current = last_add.elapsed();
-            average += current;
-            ++samples;
-            
-            static Timer frame_counter;
-            static size_t num_frames{0};
-            static std::mutex mFPS;
-            static double FPS{0};
-            
-            {
-                std::unique_lock g(mFPS);
-                num_frames++;
-                
-                if(frame_counter.elapsed() > 1) {
-                    FPS = num_frames / frame_counter.elapsed();
-                    num_frames = 0;
-                    frame_counter.reset();
-                    print("FPS: ", FPS);
-                }
-                
-            }
-            
-            if(samples > 100) {
-                print("Average time since last frame: ", average / samples * 1000.0,"ms (",current * 1000,"ms)");
-                
-                average /= samples;
-                samples = 1;
-            }
-            last_add.reset();
-            
-            guard.lock();
         }
     };
 
-    std::thread testing([&]() {
+    /*std::thread testing([&]() {
         while (not _terminate) {
             fetch_files();
         }
         print("testing ended.");
-    });
+    });*/
     
     //graph.set_scale(1. / base.dpi_scale());
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
+        fetch_files();
         
         {
             //track::LockGuard guard(track::ro_t{}, "update", 10);
@@ -1720,7 +1722,8 @@ int main(int argc, char**argv) {
         //
         _terminate = true;
         
-        testing.join();
+        ready_for_tracking.notify_all();
+        tracking.join();
         
         std::unique_lock guard(mutex);
         messages.notify_all();
