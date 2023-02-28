@@ -84,10 +84,11 @@ namespace track {
         
         struct ModuleProxy {
             std::string m;
-            ModuleProxy(const std::string& name)
+            ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit)
                 : m(name)
             {
-                PythonIntegration::check_module("bbx_saved_model");
+                if(PythonIntegration::check_module("bbx_saved_model"))
+                    reinit(*this);
             }
             void set_function(const char* name, auto &&fn) {
                 PythonIntegration::set_function(name, std::forward<decltype(fn)>(fn), m);

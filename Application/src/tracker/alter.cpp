@@ -151,15 +151,20 @@ concept ObjectDetection = requires (TileImage tiled, SegmentationData data) {
 struct Yolo7ObjectDetection {
     Yolo7ObjectDetection() = delete;
     
+    static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
+        proxy.set_variable("model_type", "yolo7");
+        proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+        proxy.set_variable("image_size", int(expected_size.width));
+        proxy.run("load_model");
+    }
+    
     static void init() {
         Python::schedule([](){
             using py = track::PythonIntegration;
-            py::ModuleProxy proxy{"bbx_saved_model"};
-            proxy.set_variable("model_type", "yolo7");
-            proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
-            proxy.set_variable("image_size", int(expected_size.width));
-            proxy.run("load_model");
-            
+            py::ModuleProxy proxy{
+                "bbx_saved_model",
+                Yolo7ObjectDetection::reinit
+            };
         }).get();
     }
     
@@ -224,7 +229,7 @@ struct Yolo7ObjectDetection {
         py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
             Timer timer;
             using py = track::PythonIntegration;
-            py::ModuleProxy bbx("bbx_saved_model");
+            py::ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
             bbx.set_variable("offsets", std::move(offsets));
             bbx.set_variable("image", std::move(images));
             
@@ -257,14 +262,17 @@ struct Yolo7ObjectDetection {
 struct Yolo7InstanceSegmentation {
     Yolo7InstanceSegmentation() = delete;
     
+    static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
+        proxy.set_variable("model_type", "yolo7-seg");
+        proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+        proxy.set_variable("image_size", int(expected_size.width));
+        proxy.run("load_model");
+    }
+    
     static void init() {
         Python::schedule([](){
             using py = track::PythonIntegration;
-            py::ModuleProxy proxy{"bbx_saved_model"};
-            proxy.set_variable("model_type", "yolo7-seg");
-            proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
-            proxy.set_variable("image_size", int(expected_size.width));
-            proxy.run("load_model");
+            py::ModuleProxy proxy{"bbx_saved_model", reinit};
             
         }).get();
     }
@@ -407,7 +415,7 @@ struct Yolo7InstanceSegmentation {
         
         py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
             using py = track::PythonIntegration;
-            py::ModuleProxy bbx("bbx_saved_model");
+            py::ModuleProxy bbx("bbx_saved_model", reinit);
             bbx.set_variable("offsets", std::move(offsets));
             bbx.set_variable("image", std::move(images));
             
