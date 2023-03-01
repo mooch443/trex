@@ -75,7 +75,7 @@ protected:
 public:
     const std::vector<FrameProperties::Ptr>& frames() const { return _added_frames; }
 protected:
-    Image::Ptr _average;
+    Image::SPtr _average;
     GETTER_SETTER(cv::Mat, mask)
     
     //! All the individuals that have been detected and are being maintained
@@ -170,9 +170,9 @@ private:
     void add(Frame_t frameIndex, PPFrame& frame);
     
 public:
-    void set_average(const Image::Ptr& average) {
+    void set_average(const Image::SPtr& average) {
         _average = average;
-        _background = new Background(_average, nullptr);
+        _background = new Background(Image::Make(*_average), nullptr);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
         if(!instance()->_average)

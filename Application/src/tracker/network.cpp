@@ -102,7 +102,7 @@ int main(int argc, char**argv) {
             },
             [&](std::vector<Result>&& results) {
                 // partial_apply
-                std::vector<Image::UPtr> images;
+                std::vector<Image::Ptr> images;
                 images.reserve(results.size());
                 
                 for(auto &&r : results)

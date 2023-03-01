@@ -114,7 +114,7 @@ void apply_network() {
         },
         [&](std::vector<Result>&& results) {
             // partial_apply
-            std::vector<Image::UPtr> images;
+            std::vector<Image::Ptr> images;
             images.reserve(results.size());
             
             for(auto &&r : results)
@@ -566,7 +566,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         });
 }
 
-std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(const std::shared_ptr<TrainingData>& source)
+std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(const std::shared_ptr<TrainingData>& source)
 {
     auto data = std::make_shared<TrainingData>();
     
@@ -622,7 +622,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
+std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::SPtr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
 {
     auto predictions = _network->probabilities(images);
     if(predictions.empty()) {
@@ -1602,7 +1602,7 @@ bool Accumulation::start() {
             
             for(auto method : default_config::individual_image_normalization_t::values)
             {
-                std::map<Idx_t, std::vector<Image::Ptr>> images;
+                std::map<Idx_t, std::vector<Image::SPtr>> images;
                 PPFrame pp;
                 pv::Frame video_frame;
                 auto &video_file = *GUI::instance()->video_source();
@@ -1643,7 +1643,7 @@ bool Accumulation::start() {
                             return;
                         
                         // try loading it all into a vector
-                        Image::Ptr image;
+                        Image::SPtr image;
                         
                         /*auto iit = did_image_already_exist.find({id, frame});
                         if(iit != did_image_already_exist.end()) {

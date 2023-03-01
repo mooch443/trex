@@ -72,7 +72,7 @@ namespace pybind11 {
                 return a.release();
             }
             
-            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy , py::handle )
+            static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy , py::handle )
             {
 
                 std::vector<size_t> shape{ src->rows, src->cols, src->dims };
@@ -87,34 +87,6 @@ namespace pybind11 {
             }
         };*/
     
-        template<> struct type_caster<cmn::Image::UPtr>
-        {
-        public:
-
-            PYBIND11_TYPE_CASTER(cmn::Image::UPtr, _("Image::UPtr"));
-
-            // Conversion part 1 (Python -> C++)
-            bool load(py::handle, bool)
-            {
-                return false;
-            }
-
-            //Conversion part 2 (C++ -> Python)
-            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy, py::handle)
-            {
-
-                std::vector<size_t> shape{ src->rows, src->cols, src->dims };
-                std::vector<size_t> strides{
-                    sizeof(uint8_t) * src->dims * src->cols,
-                    sizeof(uint8_t) * src->dims,
-                    sizeof(uint8_t)
-                };
-
-                py::array a(std::move(shape), std::move(strides), src->data());
-                return a.release();
-            }
-        };
-
         template<> struct type_caster<cmn::Image::Ptr>
         {
         public:
@@ -129,6 +101,34 @@ namespace pybind11 {
 
             //Conversion part 2 (C++ -> Python)
             static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy, py::handle)
+            {
+
+                std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+                std::vector<size_t> strides{
+                    sizeof(uint8_t) * src->dims * src->cols,
+                    sizeof(uint8_t) * src->dims,
+                    sizeof(uint8_t)
+                };
+
+                py::array a(std::move(shape), std::move(strides), src->data());
+                return a.release();
+            }
+        };
+
+        template<> struct type_caster<cmn::Image::SPtr>
+        {
+        public:
+
+            PYBIND11_TYPE_CASTER(cmn::Image::SPtr, _("Image::SPtr"));
+
+            // Conversion part 1 (Python -> C++)
+            bool load(py::handle, bool)
+            {
+                return false;
+            }
+
+            //Conversion part 2 (C++ -> Python)
+            static py::handle cast(const cmn::Image::SPtr& src, py::return_value_policy, py::handle)
             {
 
                 std::vector<size_t> shape{ src->rows, src->cols, src->dims };
@@ -622,6 +622,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
     set_function_internal(name_, f, m);
 }
 
+void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<size_t>, std::vector<float>)> f, const std::string &m)
+{
+    set_function_internal(name_, f, m);
+}
+
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<float>)> f, const std::string& m)
 {
     set_function_internal(name_, f, m);
@@ -738,8 +743,8 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
             mod.attr(name.c_str()) = input; \
     } \
 }
+IMPL_VARIABLE(const std::vector<Image::SPtr>&)
 IMPL_VARIABLE(const std::vector<Image::Ptr>&)
-IMPL_VARIABLE(const std::vector<Image::UPtr>&)
 IMPL_VARIABLE_SHAPE(long_t)
 IMPL_VARIABLE_SHAPE(uint32_t)
 IMPL_VARIABLE_SHAPE(float)

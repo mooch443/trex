@@ -138,7 +138,7 @@ bool FrameGrabber::is_recording() const {
     return GlobalSettings::map().has("recording") && SETTING(recording);
 }
 
-Image::UPtr FrameGrabber::latest_image() {
+Image::Ptr FrameGrabber::latest_image() {
     std::unique_lock guard(_current_image_lock);
     if(_current_image)
         return Image::Make(*_current_image);
@@ -1500,15 +1500,15 @@ struct ProcessingTask {
     TagCache tags;
     size_t index;
     CPULabeling::ListCache_t list_cache;
-    Image::UPtr mask;
-    Image::UPtr current, raw;
+    Image::Ptr mask;
+    Image::Ptr current, raw;
     std::unique_ptr<pv::Frame> frame;
     Timer timer;
     
     std::vector<blob::Pair> filtered, filtered_out;
     
     ProcessingTask() = default;
-    ProcessingTask(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
+    ProcessingTask(size_t index, Image::Ptr&& current, Image::Ptr&& raw, std::unique_ptr<pv::Frame>&& frame)
         : index(index), current(std::move(current)), raw(std::move(raw)), frame(std::move(frame))
     {
         

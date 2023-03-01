@@ -290,11 +290,11 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
     }
 }
 
-void VINetwork::set_variables(std::vector<cmn::Image::UPtr> && images, callback_t&& callback) {
+void VINetwork::set_variables(std::vector<cmn::Image::Ptr> && images, callback_t&& callback) {
     set_variables_internal(std::move(images), std::move(callback));
 }
 
-void VINetwork::set_variables(std::vector<cmn::Image::Ptr> && images, callback_t&& callback)
+void VINetwork::set_variables(std::vector<cmn::Image::SPtr> && images, callback_t&& callback)
 {
     set_variables_internal(std::move(images), std::move(callback));
 }
@@ -636,7 +636,7 @@ this->stop_running();
 }
 */
 
-/*auto VINetwork::probabilities(std::vector<Image::UPtr>&& images, auto&& callback)
+/*auto VINetwork::probabilities(std::vector<Image::Ptr>&& images, auto&& callback)
 {
     
     namespace py = pybind11;

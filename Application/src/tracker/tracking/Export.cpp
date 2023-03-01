@@ -774,7 +774,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             const bool tracklet_export_difference_images = SETTING(tracklet_export_difference_images).value<bool>();
             
-            std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, Idx_t, Image::UPtr>>>> queues;
+            std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, Idx_t, Image::Ptr>>>> queues;
             PPFrame obj;
             
             size_t index = 0;
@@ -793,7 +793,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                 
                 for(auto && [id, data] : vec) {
                     struct ImagePosition {
-                        Image::UPtr image;
+                        Image::Ptr image;
                         Vec2 pos;
                         pv::BlobPtr blob;
                     } reduced, full;

@@ -13,7 +13,7 @@ class Individual;
 
 namespace image {
 
-std::tuple<cmn::Image::UPtr, cmn::Vec2>
+std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_normalized_image(const gui::Transform &midline_transform,
                            const pv::BlobWeakPtr& blob,
                            float midline_length,
@@ -21,7 +21,7 @@ calculate_normalized_image(const gui::Transform &midline_transform,
                            bool use_legacy,
                            const cmn::Image* background);
 
-std::tuple<Image::UPtr, Vec2>
+std::tuple<Image::Ptr, Vec2>
 calculate_normalized_diff_image(const gui::Transform &midline_transform,
                                 const pv::BlobWeakPtr& blob,
                                 float midline_length,
@@ -29,7 +29,7 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
                                 bool use_legacy,
                                 const cmn::Image* background);
 
-std::tuple<cmn::Image::UPtr, cmn::Vec2>
+std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_diff_image(pv::BlobWeakPtr blob,
                      const Size2& output_size,
                      const cmn::Image* background);
@@ -55,7 +55,7 @@ struct FilterCache {
     static void clear();
 };
 
-std::tuple<Image::UPtr, Vec2> diff_image(const default_config::individual_image_normalization_t::Class &normalize,
+std::tuple<Image::Ptr, Vec2> diff_image(const default_config::individual_image_normalization_t::Class &normalize,
                                          pv::BlobWeakPtr blob,
                                          const gui::Transform& midline_transform,
                                          float median_midline_length_px,

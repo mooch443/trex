@@ -132,8 +132,8 @@ uint64_t MemoryStats::get_memory_size(const track::FrameProperties&, const std::
     return sizeof(track::FrameProperties);
 }
 template <>
-uint64_t MemoryStats::get_memory_size(const Image::Ptr& obj, const std::string&) {
-    return (obj ? obj->size() : 0) + sizeof(Image) + sizeof(Image::Ptr);
+uint64_t MemoryStats::get_memory_size(const Image::SPtr& obj, const std::string&) {
+    return (obj ? obj->size() : 0) + sizeof(Image) + sizeof(Image::SPtr);
 }
 
 template <>

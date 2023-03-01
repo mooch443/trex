@@ -20,11 +20,11 @@ class AnimatedBackground : public Entangled {
     
     Timer _next_timer;
     std::mutex _next_mutex;
-    Image::UPtr _next_image;
+    Image::Ptr _next_image;
     std::future<bool> _next_frame;
     
 public:
-    AnimatedBackground(Image::UPtr&&);
+    AnimatedBackground(Image::Ptr&&);
     AnimatedBackground(VideoSource&&);
     
     AnimatedBackground(const AnimatedBackground&) = delete;

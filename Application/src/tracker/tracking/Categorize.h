@@ -102,7 +102,7 @@ struct Sample {
     
     std::vector<Frame_t> _frames;
     std::vector<pv::bid> _blob_ids;
-    std::vector<Image::Ptr> _images;
+    std::vector<Image::SPtr> _images;
     std::vector<Vec2> _positions;
     
     Label::Ptr _assigned_label;
@@ -111,7 +111,7 @@ struct Sample {
     bool _requested = false;
     
     Sample(std::vector<Frame_t>&& frames,
-           const std::vector<Image::Ptr>& images,
+           const std::vector<Image::SPtr>& images,
            const std::vector<pv::bid>& blob_ids,
            std::vector<Vec2>&& positions);
     

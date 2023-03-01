@@ -315,7 +315,7 @@ protected:
     std::vector<track::Idx_t> _ids;
     double smooth_heatmap_factor;
     
-    Image::UPtr grid_image;
+    Image::Ptr grid_image;
     std::string _original_source, _source;
     Output::Options_t _mods;
     std::shared_ptr<ExternalImage> _image;

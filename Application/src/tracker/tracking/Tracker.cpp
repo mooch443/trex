@@ -2284,7 +2284,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     
     struct IndividualImages {
         std::vector<Frame_t> frames;
-        std::vector<Image::Ptr> images;
+        std::vector<Image::SPtr> images;
     };
     
     struct SplitData {
@@ -2297,14 +2297,14 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         
     public:
         SplitData();
-        void add_frame(Frame_t frame, long_t id, Image::Ptr image);
+        void add_frame(Frame_t frame, long_t id, Image::SPtr image);
     };
     
     SplitData::SplitData() : _normalized(SETTING(recognition_normalize_direction).value<default_config::individual_image_normalization_t::Class>()) {
         
     }
     
-    void SplitData::add_frame(Frame_t frame, long_t id, Image::Ptr image) {
+    void SplitData::add_frame(Frame_t frame, long_t id, Image::SPtr image) {
         assert(image);
         
         if(training.size() <= validation.size() * 1.25) {
@@ -3123,7 +3123,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
             if(ptr) {
                 auto it = blob_fish_map.find(r.bdx);
                 if(it != blob_fish_map.end())
-                    it->second->add_tag_image(tags::Tag{var, r.bdx, ptr, frameIndex} /* ptr? */);
+                    it->second->add_tag_image(tags::Tag{var, r.bdx, std::move(ptr), frameIndex} /* ptr? */);
                 else
                     FormatWarning("Blob ", r.bdx," in frame ",frameIndex," contains a tag, but is not associated with an individual.");
             }

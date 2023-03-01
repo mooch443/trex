@@ -47,7 +47,7 @@ protected:
     GETTER_NCONST(DrawStructure, gui)
     Base* _sf_base = nullptr;
     std::unique_ptr<pv::Frame> _frame, _noise;
-    Image::UPtr _image;
+    Image::Ptr _image;
     ExternalImage *background = nullptr, *noise_image = nullptr;
     
     HTMLBase _html_base;

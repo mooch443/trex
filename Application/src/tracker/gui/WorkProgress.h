@@ -59,7 +59,7 @@ public:
     static float percent();
     static void set_percent(float value);
     
-    static void set_image(const std::string& name, const Image::Ptr& image);
+    static void set_image(const std::string& name, Image::Ptr&& image);
     
     static std::string description();
     static void set_description(const std::string& value);

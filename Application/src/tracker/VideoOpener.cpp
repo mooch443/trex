@@ -829,7 +829,7 @@ Size2 VideoOpener::BufferedVideo::size() {
     return Size2(_video->size());
 }
 
-Image::UPtr VideoOpener::BufferedVideo::next() {
+Image::Ptr VideoOpener::BufferedVideo::next() {
     std::lock_guard guard(_frame_mutex);
     return std::move(_cached_frame);
 }

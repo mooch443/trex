@@ -21,7 +21,7 @@ struct RecTask {
     Frame_t _segment_start;
     Idx_t individual;
     std::vector<Frame_t> _frames;
-    std::vector<Image::UPtr> _images;
+    std::vector<Image::Ptr> _images;
 
     std::function<void(Predictions&&)> _callback;
     bool _optional;

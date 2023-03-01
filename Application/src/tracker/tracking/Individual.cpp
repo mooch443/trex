@@ -254,7 +254,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
 }
 #endif
 
-void Individual::add_tag_image(const tags::Tag& tag) {
+void Individual::add_tag_image(tags::Tag&& tag) {
     assert(tag.frame.valid());
     auto && [range, first] = get_segment(tag.frame);
     
@@ -272,7 +272,7 @@ void Individual::add_tag_image(const tags::Tag& tag) {
         } else
             return;
     }
-    set.insert(tag);
+    set.insert(std::move(tag));
 }
 
 Individual::segment_map::const_iterator Individual::find_segment_with_start(Frame_t frame) const {

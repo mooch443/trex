@@ -58,7 +58,7 @@ protected:
     std::vector<Range<Frame_t>> _trained;
     std::shared_ptr<TrainingData> _collected_data, _generated_data;
     std::shared_ptr<TrainingData> _discrimination_data;
-    std::vector<Image::Ptr> _disc_images;
+    std::vector<Image::SPtr> _disc_images;
     std::map<Frame_t, Range<size_t>> _disc_frame_map;
     std::vector<Frame_t> _checked_ranges_output;
     hash_map<Frame_t, float> unique_map, temp_unique;
@@ -91,7 +91,7 @@ protected:
     gui::derived_ptr<gui::Entangled> _dots;
     
     std::mutex _coverage_mutex;
-    Image::UPtr _raw_coverage;
+    Image::Ptr _raw_coverage;
     
 public:
     Accumulation(TrainingMode::Class);
@@ -117,8 +117,8 @@ public:
     void confirm_weights();
     void update_coverage(const TrainingData& data);
     
-    static std::tuple<float, hash_map<Frame_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::Ptr>&, const std::map<Frame_t, Range<size_t>>&);
-    static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(const std::shared_ptr<TrainingData>& source = nullptr);
+    static std::tuple<float, hash_map<Frame_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::SPtr>&, const std::map<Frame_t, Range<size_t>>&);
+    static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(const std::shared_ptr<TrainingData>& source = nullptr);
     static void setup();
     static void unsetup();
     static Accumulation* current();

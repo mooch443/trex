@@ -187,7 +187,7 @@ auto& task_queue() {
 };
 
 Sample::Sample(std::vector<Frame_t>&& frames,
-               const std::vector<Image::Ptr>& images,
+               const std::vector<Image::SPtr>& images,
                const std::vector<pv::bid>& blob_ids,
                std::vector<Vec2>&& positions)
     :   _frames(std::move(frames)),
@@ -928,7 +928,7 @@ void start_applying() {
             using py = PythonIntegration;
             
             // single out the images
-            std::vector<Image::UPtr> images;
+            std::vector<Image::Ptr> images;
             images.reserve(results.size());
             for(auto &&result : results) {
                 images.emplace_back(std::move(result.image));
@@ -1163,7 +1163,7 @@ void Work::start_learning() {
         
         std::vector<std::tuple<LearningTask, size_t>> prediction_tasks;
         std::vector<std::tuple<LearningTask, size_t, size_t>> training_tasks;
-        std::vector<Image::Ptr> prediction_images, training_images;
+        std::vector<Image::SPtr> prediction_images, training_images;
         std::vector<std::string> training_labels;
         Timer last_insert;
         Timer update;
@@ -2040,7 +2040,7 @@ Sample::Ptr DataStore::temporary(
     
     std::vector<IndexedFrame> stuff_indexes;
     
-    std::vector<Image::Ptr> images;
+    std::vector<Image::SPtr> images;
     std::vector<Frame_t> indexes;
     std::vector<Vec2> positions;
     std::vector<pv::bid> blob_ids;

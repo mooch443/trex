@@ -16,7 +16,7 @@ class TrainingData {
 public:
     struct DataRange {
         struct PerIndividual {
-            std::vector<Image::Ptr> images;
+            std::vector<Image::SPtr> images;
             std::vector<Vec2> positions;
             std::vector<size_t> num_pixels;
             std::vector<Frame_t> frame_indexes;
@@ -28,7 +28,7 @@ public:
         std::map<Idx_t, Idx_t> applied_mapping;
         std::set<Idx_t> classes;
         std::vector<Idx_t> ids;
-        std::vector<Image::Ptr> images;
+        std::vector<Image::SPtr> images;
         
         Range<Frame_t> frames;
         bool salty;
@@ -135,7 +135,7 @@ public:
     
     
     struct TrainingAndValidation {
-        std::vector<Image::Ptr> training_images, validation_images;
+        std::vector<Image::SPtr> training_images, validation_images;
         std::vector<Idx_t> training_ids, validation_ids;
     };
     //std::map<long_t, FilterCache> custom_midline_lengths_no_std;
@@ -181,15 +181,17 @@ public:
         ~TrainingImageData() {}
     };
     
-    static inline ImageClass image_class(const Image::Ptr& image) {
+    template<typename Ptr>
+    static inline ImageClass image_class(const Ptr& image) {
         return image && image->custom_data() ? static_cast<TrainingImageData*>(image->custom_data())->type : ImageClass::NONE;
         //return image && image->index() < 0 ? ImageClass::VALIDATION : (image->index() > 0 ? ImageClass::TRAINING : ImageClass::NONE);
         
     }
-    static inline bool image_is(const Image::Ptr& image, ImageClass c) {
+    static inline bool image_is(const Image::SPtr& image, ImageClass c) {
         return image_class(image) == c;
     }
-    static inline void set_image_class(Image::Ptr& image, ImageClass c) {
+    template<typename Ptr>
+    static inline void set_image_class(const Ptr& image, ImageClass c) {
         if(image->index() == 0)
             return;
         
@@ -210,8 +212,8 @@ public:
     }
     
     TrainingAndValidation join_split_data() const;
-    std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>> join_arrays() const;
-    std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<Frame_t>, std::map<Frame_t, Range<size_t>>> join_arrays_ordered() const;
+    std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>> join_arrays() const;
+    std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>, std::vector<Frame_t>, std::map<Frame_t, Range<size_t>>> join_arrays_ordered() const;
     
     bool generate(const std::string& step_description, pv::File& video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source);
     
@@ -219,7 +221,7 @@ public:
     
     std::shared_ptr<DataRange> add_salt(const std::shared_ptr<TrainingData>& source, const std::string& purpose);
     
-    void add_frame(std::shared_ptr<DataRange> ptr, Frame_t frame_index, Idx_t id, Idx_t original_id, Image::Ptr image, const Vec2& pos, size_t px, const FrameRange& from_range);
+    void add_frame(std::shared_ptr<DataRange> ptr, Frame_t frame_index, Idx_t id, Idx_t original_id, const Image::SPtr& image, const Vec2& pos, size_t px, const FrameRange& from_range);
     void apply_mapping(const std::map<Idx_t, Idx_t>&);
     std::string toStr() const;
     static std::string class_name() {
@@ -229,7 +231,7 @@ public:
     //! used as an override for when data is just used to initialize the network and nothing more.
     void set_classes(const std::set<Idx_t>& classes);
     
-    Image::UPtr draw_coverage(const std::map<Frame_t, float>& uniquenesses = {}, const std::vector<Range<Frame_t>>& = {}, const std::vector<Range<Frame_t>>& added_ranges = {}, const std::map<Frame_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Range<Frame_t>, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
+    Image::Ptr draw_coverage(const std::map<Frame_t, float>& uniquenesses = {}, const std::vector<Range<Frame_t>>& = {}, const std::vector<Range<Frame_t>>& added_ranges = {}, const std::map<Frame_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Range<Frame_t>, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
 };
 
 }

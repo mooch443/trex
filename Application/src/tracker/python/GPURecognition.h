@@ -32,8 +32,8 @@ namespace track {
         static bool exists(const std::string&, const std::string& m = "");
         static bool valid(const std::string&, const std::string& m = "");
         
+        static void set_variable(const std::string&, const std::vector<Image::SPtr>&, const std::string & m = "");
         static void set_variable(const std::string&, const std::vector<Image::Ptr>&, const std::string & m = "");
-        static void set_variable(const std::string&, const std::vector<Image::UPtr>&, const std::string & m = "");
         static void set_variable(const std::string&, const std::vector<long_t>&, const std::string& m = "", const std::vector<size_t>& shape = {}, const std::vector<size_t>& strides = {});
         static void set_variable(const std::string&, const std::vector<uint32_t>&, const std::string& m = "", const std::vector<size_t>& shape = {}, const std::vector<size_t>& strides = {});
         static void set_variable(const std::string&, const std::vector<float>&, const std::string& m = "", const std::vector<size_t>& shape = {}, const std::vector<size_t>& strides = {});
@@ -69,6 +69,7 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>, std::vector<int>)> f, const std::string& m = "");
+        static void set_function(const char* name_, std::function<void(std::vector<size_t>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<int>)> f, const std::string &m = "");
         static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");
         

@@ -22,8 +22,8 @@ ENUM_CLASS(TrainingMode,
 )
 
 template<typename T>
-concept image_ptr =    cmn::_clean_same<T, cmn::Image::Ptr>
-                    || cmn::_clean_same<T, cmn::Image::UPtr>;
+concept image_ptr =    cmn::_clean_same<T, cmn::Image::SPtr>
+                    || cmn::_clean_same<T, cmn::Image::Ptr>;
 
 class VINetwork {
 protected:
@@ -198,8 +198,8 @@ public:
     
 private:
     static void set_variables_internal(auto&&, callback_t&&);
-    static void set_variables(std::vector<cmn::Image::UPtr>&&, callback_t&&);
     static void set_variables(std::vector<cmn::Image::Ptr>&&, callback_t&&);
+    static void set_variables(std::vector<cmn::Image::SPtr>&&, callback_t&&);
     void setup(bool force);
     
     void set_work_variables(bool force);

@@ -302,10 +302,10 @@ void WorkProgress::set_description(const std::string& value) {
     });
 }
 
-void WorkProgress::set_image(const std::string& name, const Image::Ptr& image) {
+void WorkProgress::set_image(const std::string& name, Image::Ptr&& image) {
     work::check([&](){
         std::lock_guard<std::mutex> guard(_queue_lock);
-        _images[name] = image;
+        _images[name] = std::move(image);
     });
 }
 
@@ -506,7 +506,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
         
         Vec2 screen_offset;
         
-        auto work_images = _images;
+        auto &work_images = _images;
         if(!work_images.empty()) {
             static VerticalLayout layout;
             

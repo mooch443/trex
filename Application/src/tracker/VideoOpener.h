@@ -29,7 +29,7 @@ public:
     struct BufferedVideo {
         file::Path _path;
         std::unique_ptr<VideoSource> _video;
-        Image::UPtr _background_copy;
+        Image::Ptr _background_copy;
         
         std::atomic<bool> _terminated_background_task = true;
         std::atomic<size_t> _number_samples = 0;
@@ -39,7 +39,7 @@ public:
         
         std::mutex _background_mutex;
         std::unique_ptr<std::thread> _previous_background_thread;
-        Image::UPtr _cached_frame;
+        Image::Ptr _cached_frame;
         std::atomic<bool> _terminate = false, _terminate_background = false;
         
         std::atomic<int32_t> _threshold = 0;
@@ -51,7 +51,7 @@ public:
         BufferedVideo(const file::Path& path);
         ~BufferedVideo();
         
-        Image::UPtr next();
+        Image::Ptr next();
         void open(std::function<void(const bool)>&& callback);
         Size2 size();
         

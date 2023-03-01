@@ -276,7 +276,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         size_t midline_samples() const;
         float outline_size() const;
         
-        void add_tag_image(const tags::Tag& tag);
+        void add_tag_image(tags::Tag&& tag);
         const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
         std::set<Frame_t> added_postures;
         CacheHints _hints;

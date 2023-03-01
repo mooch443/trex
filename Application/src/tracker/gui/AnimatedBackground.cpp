@@ -4,7 +4,7 @@
 
 namespace gui {
 
-AnimatedBackground::AnimatedBackground(Image::UPtr&& image)
+AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
     :
       _static_image(std::move(image))
 {

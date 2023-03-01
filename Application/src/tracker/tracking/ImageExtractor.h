@@ -34,7 +34,7 @@ struct Result {
     Frame_t frame;
     Idx_t fdx;
     pv::bid bdx;
-    Image::UPtr image;
+    Image::Ptr image;
 };
 
 enum class Flag {

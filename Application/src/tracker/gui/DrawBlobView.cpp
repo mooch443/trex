@@ -35,23 +35,23 @@ void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
 void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
 
 struct Outer {
-    Image::UPtr image;
+    Image::Ptr image;
     Vec2 off;
     pv::BlobWeakPtr blob;
     
-    Outer(Image::UPtr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobWeakPtr blob = nullptr)
+    Outer(Image::Ptr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobWeakPtr blob = nullptr)
     : image(std::move(image)), off(off), blob(blob)
     {}
 };
 
 
 class OuterBlobs {
-    Image::UPtr image;
+    Image::Ptr image;
     Vec2 pos;
     std::unique_ptr<ExternalImage> ptr;
     
 public:
-    OuterBlobs(Image::UPtr&& image = nullptr, std::unique_ptr<ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
+    OuterBlobs(Image::Ptr&& image = nullptr, std::unique_ptr<ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
         
     }
     
@@ -68,7 +68,7 @@ public:
 
 /*std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     Vec2 offset;
-    Image::UPtr image, greyscale;
+    Image::Ptr image, greyscale;
     Vec2 image_pos;
     
     auto &percentiles = PD(cache).pixel_value_percentiles;
