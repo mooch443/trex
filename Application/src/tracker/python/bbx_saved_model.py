@@ -361,6 +361,9 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         _Ns.append(N)
         #else:
             #print("empty:",r)
+
+    _Ns = np.array(_Ns, dtype=np.uint64)
+    print("Returning ", _Ns)
     if len(rs) > 0:
         #print("RS:",np.concatenate(rs, axis=0).shape)
         return _Ns, np.concatenate(rs, axis=0)
@@ -417,7 +420,7 @@ def apply():
 
         #print("0:",(e0-s0)*1000," 1:", (e1-s1)/multi*1000, " shape=", d1.shape, " im.shape=", im.shape)
 
-        receive(np.array(Ns, dtype=np.uint64), np.array(results, dtype=np.float32).flatten())
+        receive(Ns, np.array(results, dtype=np.float32).flatten())
         #finally:
         #    profiler.stop()
 
