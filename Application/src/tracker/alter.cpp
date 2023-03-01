@@ -23,6 +23,8 @@
 #include <gui/DynamicGUI.h>
 #include <GitSHA1.h>
 
+#include <misc/TaskPipeline.h>
+
 using namespace cmn;
 
 struct TileImage;
@@ -43,44 +45,21 @@ std::string date_time() {
 template<typename T>
 concept overlay_function = requires {
     requires std::invocable<T, TileImage&&>;
-    //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::UPtr>;
+    //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::Ptr>;
 };
 
 static Size2 expected_size(640, 640);
 using namespace gui;
 
-struct SegmentationData {
-    Image::UPtr image;
-    pv::Frame frame;
-    std::vector<Bounds> tiles;
-    
-    struct Assignment {
-        size_t clid;
-        float p;
-    };
-    
-    std::map<pv::bid, Assignment> predictions;
-    std::vector<std::vector<Vec2>> outlines;
-    
-    operator bool() const {
-        return image != nullptr;
-    }
-
-    SegmentationData() = default;
-    SegmentationData(SegmentationData&& other) = default;
-    SegmentationData(Image::UPtr&& original) : image(std::move(original)) {}
-    SegmentationData& operator=(SegmentationData&&);
-    ~SegmentationData();
-};
-
 struct TileImage {
     Size2 tile_size;
-    Image::UPtr original;
-    std::vector<Image::UPtr> images;
+    Image::Ptr original;
+    std::vector<Image::Ptr> images;
     inline static gpuMat resized, converted, thresholded;
     inline static cv::Mat download_buffer;
     std::vector<Vec2> _offsets;
     Size2 source_size, original_size;
+    std::promise<SegmentationData> promise;
     
     TileImage() = default;
     TileImage(TileImage&&) = default;
@@ -89,7 +68,7 @@ struct TileImage {
     TileImage& operator=(TileImage&&) = default;
     TileImage& operator=(const TileImage&) = delete;
     
-    TileImage(const gpuMat& source, Image::UPtr&& original, Size2 tile_size, Size2 original_size)
+    TileImage(const gpuMat& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
         : tile_size(tile_size),
           original(std::move(original)),
           source_size(source.cols, source.rows),
@@ -143,10 +122,19 @@ static inline std::atomic<float> _fps{0}, _samples{0};
 static inline std::atomic<float> _network_fps{0}, _network_samples{0};
 
 template<typename T>
-concept ObjectDetection = requires (TileImage tiled, SegmentationData data) {
-    { T::apply(std::move(tiled)) } -> std::convertible_to<tl::expected<SegmentationData, const char*>>;
+concept MultiObjectDetection = requires (std::vector<TileImage> tiles) {
+    { T::apply(std::move(tiles)) };
     //{ T::receive(data, Vec2{}, {}) };
 };
+
+template<typename T>
+concept SingleObjectDetection = requires (TileImage tiles) {
+    { T::apply(std::move(tiles)) } -> std::convertible_to<tl::expected<SegmentationData, const char*>>;
+    //{ T::receive(data, Vec2{}, {}) };
+};
+
+template<typename T>
+concept ObjectDetection = MultiObjectDetection<T> || SingleObjectDetection<T>;
 
 struct Yolo7ObjectDetection {
     Yolo7ObjectDetection() = delete;
@@ -168,16 +156,17 @@ struct Yolo7ObjectDetection {
         }).get();
     }
     
-    static void receive(SegmentationData& data, Vec2 scale_factor, const std::vector<float>& vector) {
+    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector) {
+        print("Received seg-data for frame ", data.frame.index());
         for(size_t i=0; i<vector.size(); i+=4+2) {
-            float conf = vector.at(i);
-            float cls = vector.at(i+1);
+            float conf = vector[i];
+            float cls = vector[i+1];
             
             if (SETTING(filter_class).value<bool>() && cls != 1 && cls != 0)
                 continue;
             
-            Vec2 pos = Vec2(vector.at(i+2), vector.at(i+3));
-            Size2 dim = Size2(vector.at(i+4) - pos.x, vector.at(i+5) - pos.y).mul(scale_factor);
+            Vec2 pos = Vec2(vector[i+2], vector[i+3]);
+            Size2 dim = Size2(vector[i+4] - pos.x, vector[i+5] - pos.y).mul(scale_factor);
             pos = pos.mul(scale_factor);
             
             std::vector<HorizontalLine> lines;
@@ -207,34 +196,70 @@ struct Yolo7ObjectDetection {
         }
     }
     
-    static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
+    static void apply(std::vector<TileImage>&& tiles) {
         namespace py = Python;
+        std::vector<Image::Ptr> images;
+        std::vector<SegmentationData> datas;
+        std::vector<Vec2> scales;
+        std::vector<Vec2> offsets;
+        std::vector<std::promise<SegmentationData>> promises;
         
-        SegmentationData data{
-            std::move(tiled.original)
-        };
-        
-        static Frame_t running_id = 0_f;
-        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-        data.frame.set_timestamp(uint64_t(fake));
-        data.frame.set_index(running_id++);
-        
-        Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
-        //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
-        
-        for(auto p : tiled.offsets()) {
-            data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));
+        for(auto&& tiled : tiles) {
+            images.insert(images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
+            
+            SegmentationData data{
+                std::move(tiled.original)
+            };
+            
+            promises.push_back(std::move(tiled.promise));
+            
+            static Frame_t running_id = 0_f;
+            auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+            data.frame.set_timestamp(uint64_t(fake));
+            data.frame.set_index(running_id++);
+            
+            scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
+            //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+            
+            for(auto p : tiled.offsets()) {
+                data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scales.back()));
+            }
+            
+            auto o = tiled.offsets();
+            offsets.insert(offsets.end(), o.begin(), o.end());
+            datas.push_back(std::move(data));
         }
         
-        py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
+        py::schedule([datas = std::move(datas),
+                      images = std::move(images),
+                      scales = std::move(scales),
+                      offsets = std::move(offsets),
+                      promises = std::move(promises)]() mutable
+        {
             Timer timer;
             using py = track::PythonIntegration;
             py::ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
             bbx.set_variable("offsets", std::move(offsets));
             bbx.set_variable("image", std::move(images));
             
-            bbx.set_function("receive", [&](std::vector<float> vector) {
-                receive(data, scale, vector);
+            bbx.set_function("receive", [&](const std::vector<size_t>& Ns,
+                                            std::vector<float> vector)
+            {
+                size_t elements{0};
+                assert(Ns.size() == datas.size());
+                for(size_t i=0; i<datas.size(); ++i) {
+                    auto& data = datas.at(i);
+                    auto& scale = scales.at(i);
+                    
+                    std::span<float> span(vector.data() + elements * 6u,
+                                          vector.data() + (elements + Ns.at(i)) * 6u);
+                    try {
+                        receive(data, scale, span);
+                        promises.at(i).set_value(std::move(data));
+                    } catch(...) {
+                        promises.at(i).set_exception(std::current_exception());
+                    }
+                }
             });
 
             try {
@@ -253,9 +278,6 @@ struct Yolo7ObjectDetection {
             _network_samples = _network_samples.load() + 1;
             
         }).get();
-        
-        //tf::imshow("test", ret);
-        return data;//Image::Make(ret);
     }
 };
 
@@ -536,35 +558,6 @@ struct RepeatedDeferral {
     }
 };
 
-namespace OverlayBuffers {
-
-inline static std::mutex buffer_mutex;
-inline static std::vector<Image::UPtr> buffers;
-
-
-Image::UPtr get_buffer() {
-    if (std::unique_lock guard(OverlayBuffers::buffer_mutex);
-        not OverlayBuffers::buffers.empty())
-    {
-        auto ptr = std::move(OverlayBuffers::buffers.back());
-        OverlayBuffers::buffers.pop_back();
-        //print("Received from buffers ", ptr->bounds());
-        return ptr;
-    }
-
-    return Image::Make();
-}
-
-void put_back(Image::UPtr&& ptr) {
-    if (not ptr)
-        return;
-    std::unique_lock guard(OverlayBuffers::buffer_mutex);
-    //print("Pushed back buffer ", ptr->bounds());
-    OverlayBuffers::buffers.push_back(std::move(ptr));
-}
-
-}
-
 template<typename SourceType>
 class AbstractVideoSource {
     //mutable std::mutex mutex;
@@ -572,7 +565,7 @@ class AbstractVideoSource {
     
     using gpuMatPtr = std::unique_ptr<gpuMat>;
     std::mutex buffer_mutex;
-    std::vector<std::tuple<gpuMatPtr, Image::UPtr>> buffers;
+    std::vector<std::tuple<gpuMatPtr, Image::Ptr>> buffers;
     
     SourceType source;
     GETTER(file::Path, base)
@@ -582,7 +575,7 @@ class AbstractVideoSource {
     const bool _finite;
     const Frame_t _length;
     
-    mutable package::packaged_func<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>> _retrieve;
+    mutable package::packaged_func<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>> _retrieve;
     mutable package::packaged_func<void, Frame_t> _set_frame;
     
 public:
@@ -592,17 +585,17 @@ public:
         :
             source(std::move(source)),
             _base(this->source.base()),
-            _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::UPtr> {
+            _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::Ptr> {
                 try {
                     static RepeatedDeferral def{
                         std::string("source.frame"),
-                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>, const char*>  {
+                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>  {
                             //std::unique_lock guard(mutex);
                             if(i >= this->source.length())
                                 i = 0_f;
                             
                             gpuMatPtr buffer;
-                            Image::UPtr image;
+                            Image::Ptr image;
                             
                             if(std::unique_lock guard{buffer_mutex};
                                not buffers.empty())
@@ -673,10 +666,10 @@ public:
         buffers.push_back(std::make_tuple(std::move(ptr), OverlayBuffers::get_buffer()));
     }
     
-    std::tuple<Frame_t, gpuMatPtr, Image::UPtr> next() {
+    std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
         static RepeatedDeferral _def{
             std::string(".next()"),
-            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::UPtr>, const char*> {
+            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
                 return _retrieve();
             }
         };
@@ -718,7 +711,7 @@ struct OverlayedVideo {
     
     mutable std::mutex index_mutex;
     Frame_t i{0};
-    //Image::UPtr original_image;
+    //Image::Ptr original_image;
     //cv::Mat downloader;
     gpuMat resized;
     
@@ -756,12 +749,12 @@ struct OverlayedVideo {
     }
     
     //! generates the next frame
-    tl::expected<SegmentationData, const char*> generate() noexcept {
+    tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> generate() noexcept {
         if(eof())
             return tl::unexpected("End of file.");
         
         auto retrieve_next = [this]()
-            -> tl::expected<SegmentationData, const char*>
+            -> tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*>
         {
             static Timing timing("retrieve_next");
             TakeTiming take(timing);
@@ -805,8 +798,9 @@ struct OverlayedVideo {
                 TileImage tiled(*use, std::move(image), expected_size, original_size);
                 source.move_back(std::move(buffer));
                 
+                print("Queueing image ", nix);
                 //! network processing, and record network fps
-                return this->overlay.apply(std::move(tiled));
+                return std::make_tuple(nix, this->overlay.apply(std::move(tiled)));
                 
             } catch(const std::exception& e) {
                 FormatExcept("Error loading frame ", loaded, " from video ", source, ": ", e.what());
@@ -849,7 +843,7 @@ struct Menu {
         bro = Button::MakePtr("Filter", attr::Size(50, 35)),
         reset = Button::MakePtr("Reset", attr::Size(50, 35));*/
     //std::shared_ptr<Text> text = std::make_shared<Text>();
-    Image::UPtr next;
+    Image::Ptr next;
     dyn::Context context;
     dyn::State state;
     std::vector<Layout::Ptr> objects;
@@ -1074,6 +1068,7 @@ struct SettingsDropdown {
 };
 
 struct Detection {
+    
     Detection() {
         if(type() == ObjectDetectionType::yolo7) {
             Yolo7ObjectDetection::init();
@@ -1089,16 +1084,37 @@ struct Detection {
         return SETTING(detection_type).value<ObjectDetectionType::Class>();
     }
     
-    static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
+    static std::future<SegmentationData> apply(TileImage&& tiled) {
         if(type() == ObjectDetectionType::yolo7) {
-            return Yolo7ObjectDetection::apply(std::move(tiled));
-            
-        } else if(type() == ObjectDetectionType::yolo7seg) {
-            return Yolo7InstanceSegmentation::apply(std::move(tiled));
+            auto f = tiled.promise.get_future();
+            manager.enqueue(std::move(tiled));
+            return f;
         }
         
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
+    
+    static void apply(std::vector<TileImage>&& tiled) {
+        if(type() == ObjectDetectionType::yolo7) {
+            Yolo7ObjectDetection::apply(std::move(tiled));
+            tiled.clear();
+            return;
+            
+        } else if(type() == ObjectDetectionType::yolo7seg) {
+            //return Yolo7InstanceSegmentation::apply(std::move(tiled));
+        }
+        
+        throw U_EXCEPTION("Unknown detection type: ", type());
+    }
+    
+    inline static auto manager = PipelineManager<TileImage>(10.0, [](std::vector<TileImage>&& images) {
+        // do what has to be done when the queue is full
+        // i.e. py::execute()
+        printf("Executing with %lu images!\n", images.size());
+        for(auto &tile : images)
+            print("\t",tile.original->index());
+        Detection::apply(std::move(images));
+    });
     
     static void receive(std::vector<Vec2> offsets, SegmentationData& data, Vec2 scale, std::vector<float>& masks, const std::vector<float>& vector, const std::vector<int>& indexes)
     {
@@ -1110,7 +1126,7 @@ struct Detection {
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
     
-    static void receive(SegmentationData& data, Vec2 scale, const std::vector<float>& vector) {
+    static void receive(SegmentationData& data, Vec2 scale, const std::span<float>& vector) {
         if(type() == ObjectDetectionType::yolo7) {
             Yolo7ObjectDetection::receive(data, scale, vector);
             return;
@@ -1119,26 +1135,6 @@ struct Detection {
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
 };
-
-SegmentationData::~SegmentationData() {
-    if (image) {
-        OverlayBuffers::put_back(std::move(image));
-    }
-}
-
-SegmentationData& SegmentationData::operator=(SegmentationData&& other)
-{
-    frame = std::move(other.frame);
-    tiles = std::move(other.tiles);
-    predictions = std::move(other.predictions);
-    outlines = std::move(other.outlines);
-
-    if (image) {
-        OverlayBuffers::put_back(std::move(image));
-    }
-    image = std::move(other.image);
-    return *this;
-}
 
 int main(int argc, char**argv) {
     using namespace gui;
@@ -1350,7 +1346,7 @@ int main(int argc, char**argv) {
         
         RepeatedDeferral f{
             std::string("video.generate()"),
-            [&]() -> tl::expected<SegmentationData, const char*> {
+            [&]() -> tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> {
                 static Timing timing("video.generate()");
                 TakeTiming take(timing);
                 Timer timer;
@@ -1358,6 +1354,7 @@ int main(int argc, char**argv) {
                 auto result = video.generate();
                 if(not result) {
                     video.reset(0_f);
+                    return tl::unexpected("Index out of range.");
                 }
                 
                 /*if (_samples.load() > 100) {
@@ -1365,18 +1362,17 @@ int main(int argc, char**argv) {
                 }
                 _fps = _fps.load() + 1.0 / timer.elapsed();
                 _samples = _samples.load() + 1;*/
-                
                 return result;
             }
         };
         
         std::unique_lock guard(mutex);
-        tl::expected<SegmentationData, const char*> result;
-        if(result && result.value())
+        tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> result = tl::unexpected("empty");
+        if(result)
             throw U_EXCEPTION("illegal");
         while(not _terminate) {
             try {
-                if (not result or not result.value()) {
+                if (not result) {
                     guard.unlock();
                     try {
                         result = f.next();
@@ -1386,15 +1382,23 @@ int main(int argc, char**argv) {
                     guard.lock();
                 }
                 
-                if (result and result.value() and not next) {
-                    next = std::move(result.value());
+                if (result and not next) {
+                    try {
+                        auto [index, future] = std::move(result.value());
+                        print("Waiting for an image ",index,"...");
+                        next = future.get();
+                        print("Received image ", next.frame.index(), " (expected ",index,")");
+                    } catch(const SoftExceptionImpl& ex) {
+                        FormatExcept("Error executing prediction task (see above).");
+                    }
+                    result = tl::unexpected("empty");
                     ready_for_tracking.notify_one();
                 }
             } catch(...) {
                 // pass
             }
             if(next)
-                messages.wait(guard, [&](){
+                messages.wait_for(guard, std::chrono::milliseconds(0), [&](){
                     return not next or _terminate;
                 });
         }
@@ -1403,6 +1407,7 @@ int main(int argc, char**argv) {
     });
     
     auto perform_tracking = [&](){
+        print("Tracking image ", progress.frame.index());
         progress.frame.set_source_index(Frame_t(progress.image->index()));
         
         progress_objects.clear();
@@ -1477,7 +1482,7 @@ int main(int argc, char**argv) {
                 guard.lock();
             }
             
-            ready_for_tracking.wait(guard);
+            ready_for_tracking.wait_for(guard,std::chrono::milliseconds(0));
         }
     });
 

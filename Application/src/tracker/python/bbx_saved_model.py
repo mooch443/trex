@@ -27,6 +27,55 @@ hyp = {
     "num_base": 5
 }
 
+# import the necessary packages
+import numpy as np
+# Malisiewicz et al.
+def non_max_suppression_fast(boxes, overlapThresh):
+    # if there are no boxes, return an empty list
+    if len(boxes) == 0:
+        return [],[]
+    # if the bounding boxes integers, convert them to floats --
+    # this is important since we'll be doing a bunch of divisions
+    #if boxes.dtype.kind == "i":
+    #    boxes = boxes.astype("float")
+    # initialize the list of picked indexes 
+    pick = []
+    # grab the coordinates of the bounding boxes
+    x1 = boxes[:,0]
+    y1 = boxes[:,1]
+    x2 = boxes[:,2]
+    y2 = boxes[:,3]
+    # compute the area of the bounding boxes and sort the bounding
+    # boxes by the bottom-right y-coordinate of the bounding box
+    area = (x2 - x1 + 1) * (y2 - y1 + 1)
+    idxs = np.argsort(y2)
+    # keep looping while some indexes still remain in the indexes
+    # list
+    while len(idxs) > 0:
+        # grab the last index in the indexes list and add the
+        # index value to the list of picked indexes
+        last = len(idxs) - 1
+        i = idxs[last]
+        pick.append(i)
+        # find the largest (x, y) coordinates for the start of
+        # the bounding box and the smallest (x, y) coordinates
+        # for the end of the bounding box
+        xx1 = np.maximum(x1[i], x1[idxs[:last]])
+        yy1 = np.maximum(y1[i], y1[idxs[:last]])
+        xx2 = np.minimum(x2[i], x2[idxs[:last]])
+        yy2 = np.minimum(y2[i], y2[idxs[:last]])
+        # compute the width and height of the bounding box
+        w = np.maximum(0, xx2 - xx1 + 1)
+        h = np.maximum(0, yy2 - yy1 + 1)
+        # compute the ratio of overlap
+        overlap = (w * h) / area[idxs[:last]]
+        # delete all indexes from the index list that have
+        idxs = np.delete(idxs, np.concatenate(([last],
+            np.where(overlap > overlapThresh)[0])))
+    # return only the bounding boxes that were picked using the
+    # integer data type
+    return pick, boxes[pick].astype(int)
+
 
 model = None
 image_size = 640
@@ -124,22 +173,26 @@ def inference(model, im, size=(640,640)):
     classes = y[:, :, 5:]
     scores = probs * classes
 
-    boxes = tf.expand_dims(boxes, 2)
-    nms = tf.image.combined_non_max_suppression(boxes,
-                                                scores,
-                                                topk_per_class,
-                                                topk_all,
-                                                iou_thres,
-                                                conf_thres,
-                                                clip_boxes=False)
+    print(boxes)
+    #boxes = tf.expand_dims(boxes, 2)
+    #nms = tf.image.combined_non_max_suppression(boxes,
+    #                                            scores,
+    #                                            topk_per_class,
+    #                                            topk_all,
+    #                                            iou_thres,
+    #                                            conf_thres,
+    #                                            clip_boxes=False)
 
-    for i, det in enumerate(nms):
+    for i, det in enumerate(boxes):
         #print(det.shape)
-        if len(det.shape) > 1:
-            det = det.numpy()
+        print("in loop", i, " - ",det.shape)
+        nms = np.array(non_max_suppression_fast(det, iou_thres))
 
-            boxes = tf.round(scale_boxes(im.shape[1:3], det[:, :4], im.shape[1:3]))
-            for *xyxy, conf, cls in reversed(det):
+        #if len(nms.shape) > 1:
+        if len(nms) > 0:
+            #det = det.numpy()
+            b = tf.round(scale_boxes(im.shape[1:3], nms[:, :4], im.shape[1:3]))
+            for *xyxy, conf, cls in reversed(nms):
                 for i in range(len(xyxy)):
                     xy = xyxy[i]
                     if not type(xy) is np.ndarray:
@@ -193,14 +246,16 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         topk_all=200
 
         b, ch, h, w = im.shape
+        #y = np.concatenate((y, y), axis=0)
+        #y = y.numpy()
         boxes = _xywh2xyxy(y[..., :4])
+        boxes = tf.expand_dims(boxes, 2)
 
         probs = y[..., 4:5]
         classes = y[..., 5:]
         scores = probs * classes
-
-        boxes = tf.expand_dims(boxes, 2)
-        #print(type(boxes), type(scores))
+        #print("y=",y.shape)
+        
         nms = tf.image.combined_non_max_suppression(boxes,
                                                     scores,
                                                     topk_per_class,
@@ -215,16 +270,38 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         #print(ratio, nms.nmsed_boxes.shape)
 
         all_results = []
+
         nmsed_boxes = tf.math.multiply(nms.nmsed_boxes, ratio)
         nboxes = nmsed_boxes.numpy()
         nscores = nms.nmsed_scores.numpy()
         nclasses = nms.nmsed_classes.numpy()
 
+        for i in range(len(y)):        
+            #classes = y[i, ..., 4:5] * y[i, ..., 5:]
+            #max_probs = tf.reduce_max(classes, axis=-1)
+            #mask = max_probs >= conf_threshold
 
-        for i in range(len(nms_valid)):
+            #Y = y[i][mask].numpy()
+            #nms_boxes = boxes[i][mask].numpy()
+
+            #nms, nms_boxes = non_max_suppression_fast(nms_boxes, iou_threshold)
+            #if len(nms) == 0:
+            #    all_results += [np.array([], np.float32)]
+            #    continue;
+
+            #Y = Y[nms]
+
+            #nms_boxes = np.multiply(nms_boxes, ratio) #, :nms_valid[i]]
+            #nms_scores = np.max(Y[..., 5:], axis=-1)#, :nms_valid[i]]
+            #nms_classes = np.argmax(Y[..., 5:], axis=-1)#nclasses[i]#, :nms_valid[i]]
+
             nms_boxes = nboxes[i, :nms_valid[i]]
             nms_scores = nscores[i, :nms_valid[i]]
             nms_classes = nclasses[i, :nms_valid[i]]
+
+            #print("\tclasses:", nms_classes)
+            #print("\nms_scores:", nms_scores.shape)
+            #print(len(nms_boxes), len(nms_scores), len(nms_classes))
 
             results = []
             for xy, score, clid in zip(nms_boxes, nms_scores, nms_classes):
@@ -232,10 +309,13 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
                 #pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
                 pt0 = np.array((xy[0] , xy[1] )).astype(int)
                 pt1 = np.array((np.array((xy[2], xy[3] )))).astype(int)
+                #print(score, clid, pt0, pt1)
                 results.append((score, clid, pt0[0], pt0[1], pt1[0], pt1[1]))
 
             all_results += [np.array(results, dtype=np.float32)]
-        return all_results
+
+        #print("all_results:", np.shape(all_results))
+        return [len(i) for i in all_results], all_results
 
     #img = (images[0].copy() * 255).astype(np.uint8)
     def transform_image(img, image_shape):
@@ -254,7 +334,7 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         img = img.transpose(0, 3, 1, 2)#[np.newaxis, ...]
         #img = img.astype(np.float32) / 255.0
         
-        return tf.convert_to_tensor(img, dtype=tf.float32) / 255.0, ratio, (dw, dh)
+        return tf.constant(img.astype(np.float32) / 255.0, dtype=tf.float32), ratio, (dw, dh)
     
     #print("prelim shape", img.shape)
     if len(img.shape) < 4:
@@ -265,25 +345,38 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
     offsets = np.reshape(offsets, (-1, 2))
     #print(offsets)
 
-    R = perform_filtering(img.shape, im, output_data)
-
+    Ns, R = perform_filtering(img.shape, im, output_data)
+    _Ns = []
     rs = []
     for i in range(len(output_data)):
         r = R[i]
+        N = 0
         if len(np.shape(r)) == 2:
             #print(r)
             r[:, 2:4] += offsets[i]
             r[:, 4:6] += offsets[i]
             #print("->",r)
+            N += len(r)
             rs.append(r)
+        _Ns.append(N)
         #else:
             #print("empty:",r)
     if len(rs) > 0:
         #print("RS:",np.concatenate(rs, axis=0).shape)
-        return np.concatenate(rs, axis=0)
-    return np.array([], dtype=np.float32)
+        return _Ns, np.concatenate(rs, axis=0)
+    return [], np.array([], dtype=np.float32)
 
 def apply():
+    #from pyinstrument import Profiler
+
+    #profiler = Profiler()
+    #profiler.start()
+
+    import time
+    start = time.time()
+
+    #try:
+
     global model, image_size, receive, image, model_type, offsets
     if model_type == "yolo5":
         image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
@@ -304,19 +397,40 @@ def apply():
         #try:
         #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
         im = np.array(image, copy=False)[..., :3]
-        #print("shape: ", im.shape, " image_size=",image_size)
+        print("shape: ", im.shape, " image_size=",image_size)
+        print(np.shape(offsets))
         #results = predict_custom_yolo7_seg(im)
         #print("sending: ", results[0].shape, results[1])
 
         #receive_seg(results[0], results[1])
-        results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
-        receive(np.array(results, dtype=np.float32).flatten())
+        s0 = time.time()
+        Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
+        e0 = time.time()
+
+        #multi = 10
+        #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
+        #s1 = time.time()
+
+        #predict_yolov7(d0, d1, image_shape=(image_size,image_size))
+
+        #e1 = time.time()
+
+        #print("0:",(e0-s0)*1000," 1:", (e1-s1)/multi*1000, " shape=", d1.shape, " im.shape=", im.shape)
+
+        receive(np.array(Ns, dtype=np.uint64), np.array(results, dtype=np.float32).flatten())
         #finally:
         #    profiler.stop()
 
         #profiler.print(show_all=True)
     else:
         raise Exception("model_type was not set before running inference:")
+
+    #finally:
+    #    e = time.time()
+        #profiler.stop()
+        #profiler.print(show_all=True)
+
+        #print("Took ", (e - start)*1000, "ms")
 
 
 import argparse
