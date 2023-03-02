@@ -698,7 +698,9 @@ public:
                             static Timing timing("Source(frame)", 0.1);
                             TakeTiming take(timing);
 
-                            this->source.frame(index, *buffer);
+                            static cv::Mat tmp;
+                            this->source.frame(index, tmp);
+                            tmp.copyTo(*buffer);
                             
                             return std::make_tuple(index, std::move(buffer), std::move(image));
                         }
