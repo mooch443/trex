@@ -642,9 +642,11 @@ public:
                                 image = Image::Make();
                             }
                             
-                            this->source.frame(i++, *buffer);
+                            auto index = i++;
+                            image->set_index(index.get());
+                            this->source.frame(index, *buffer);
                             
-                            return std::make_tuple(i - 1_f, std::move(buffer), std::move(image));
+                            return std::make_tuple(index, std::move(buffer), std::move(image));
                         }
                     };
                     auto result = def.next();
@@ -660,6 +662,8 @@ public:
                             cv::resize(*buffer, *buffer, new_size);
                         }
 
+                        //! throws bad optional access if the returned frame is not valid
+                        assert(index.valid());
                         image->create(*buffer, index.get());
 
                         cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
@@ -1186,6 +1190,9 @@ int main(int argc, char**argv) {
         }
         if(a.name == "m") {
             SETTING(model) = file::Path(a.value);
+        }
+        if(a.name == "d") {
+            SETTING(output_dir) = file::Path(a.value);
         }
         if(a.name == "dim") {
             SETTING(image_width) = Meta::fromStr<int>(a.value);
