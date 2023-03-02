@@ -395,36 +395,37 @@ def apply():
         receive(results[0], results[1], results[2])
 
     elif model_type == "yolo7":
-        #profiler = Profiler(interval=0.0001)
+        #profiler = Profiler()
         #profiler.start()
-        #try:
-        #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
-        im = np.array(image, copy=False)[..., :3]
-        print("shape: ", im.shape, " image_size=",image_size)
-        print(np.shape(offsets))
-        #results = predict_custom_yolo7_seg(im)
-        #print("sending: ", results[0].shape, results[1])
+        try:
+            #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
+            im = np.array(image, copy=False)[..., :3]
+            print("shape: ", im.shape, " image_size=",image_size)
+            print(np.shape(offsets))
+            #results = predict_custom_yolo7_seg(im)
+            #print("sending: ", results[0].shape, results[1])
 
-        #receive_seg(results[0], results[1])
-        s0 = time.time()
-        Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
-        e0 = time.time()
+            #receive_seg(results[0], results[1])
+            s0 = time.time()
+            Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
+            e0 = time.time()
 
-        #multi = 10
-        #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
-        #s1 = time.time()
+            #multi = 10
+            #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
+            #s1 = time.time()
 
-        #predict_yolov7(d0, d1, image_shape=(image_size,image_size))
+            #predict_yolov7(d0, d1, image_shape=(image_size,image_size))
 
-        #e1 = time.time()
+            #e1 = time.time()
 
-        #print("0:",(e0-s0)*1000," 1:", (e1-s1)/multi*1000, " shape=", d1.shape, " im.shape=", im.shape)
+            print("******",(e0-s0)*1000,"ms im.shape=", im.shape)
 
-        receive(Ns, np.array(results, dtype=np.float32).flatten())
-        #finally:
-        #    profiler.stop()
+            receive(Ns, np.array(results, dtype=np.float32).flatten())
+        finally:
+            #profiler.stop()
+            #profiler.print(show_all=True)
+            pass
 
-        #profiler.print(show_all=True)
     else:
         raise Exception("model_type was not set before running inference:")
 

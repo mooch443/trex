@@ -242,6 +242,8 @@ struct Yolo7ObjectDetection {
         {
             Timer timer;
             using py = track::PythonIntegration;
+
+            const size_t _N = datas.size();
             py::ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
             bbx.set_variable("offsets", std::move(offsets));
             bbx.set_variable("image", std::move(images));
@@ -307,7 +309,7 @@ struct Yolo7ObjectDetection {
             if (_network_samples.load() > 100) {
                 _network_samples = _network_fps = 0;
             }
-            _network_fps = _network_fps.load() + 1.0 / timer.elapsed();
+            _network_fps = _network_fps.load() + (double(_N) / timer.elapsed());
             _network_samples = _network_samples.load() + 1;
             
         }).get();
@@ -1134,7 +1136,7 @@ struct Detection {
         // i.e. py::execute()
         thread_print("Executing with ",images.size()," images!");
         for(auto &tile : images)
-            thread_print("\t",tile.original->index());
+            thread_print("\t",tile.original ? tile.original->index() : -1);
         Detection::apply(std::move(images));
     });
     
