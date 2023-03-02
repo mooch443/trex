@@ -134,7 +134,6 @@ public:
     ImageArray(F fn)
       : BaseTask<Data>(0),
         task([this, fn = std::move(fn)]() mutable {
-            thread_print("Execute single instance");
             fn(std::move(_images));
             _images.clear();
             BaseTask<Data>::_weight = 0;
@@ -186,7 +185,6 @@ public:
     void enqueue(Data&& ptr) {
         std::unique_lock guard(_mutex);
         assert(_c != nullptr);
-        thread_print("Pushing image");
         _c->push(std::move(ptr));
         update();
     }
@@ -198,7 +196,6 @@ private:
             return;
         }
 
-        thread_print("Executing task at weight ", dec<2>(_c->weight()));
         (*_c)();
     }
 };

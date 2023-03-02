@@ -158,7 +158,7 @@ struct Yolo7ObjectDetection {
     }
     
     static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector) {
-        thread_print("Received seg-data for frame ", data.frame.index());
+        //thread_print("Received seg-data for frame ", data.frame.index());
         for(size_t i=0; i<vector.size(); i+=4+2) {
             float conf = vector[i];
             float cls = vector[i+1];
@@ -297,7 +297,6 @@ struct Yolo7ObjectDetection {
             });
 
             try {
-                thread_print("Apply()");
                 bbx.run("apply");
             }
             catch (...) {
@@ -510,7 +509,9 @@ GenericThreadPool pool(32, "all_pool");
 
 template<typename F, typename R = typename cmn::detail::return_type<F>::type>
 struct RepeatedDeferral {
-    std::future<R> _next_image;
+    size_t _threads{ 1 };
+    std::vector<R> _next;
+    //std::future<R> _next_image;
     F _fn;
     std::string name;
     size_t predicted{0}, unpredicted{0};
@@ -520,18 +521,87 @@ struct RepeatedDeferral {
     
     double _runtime{0}, _rsamples{0};
     Timer timer, since_last;
+
+    std::condition_variable _message, _new_item;
+    mutable std::mutex _mutex;
+    std::thread _updater;
+    std::atomic<bool> _terminate{ false };
     
-    RepeatedDeferral(std::string name, F fn) : _fn(std::forward<F>(fn)), name(name) {
-        
-    }
+    RepeatedDeferral(size_t threads, std::string name, F fn) : _threads(threads), _fn(std::forward<F>(fn)), name(name), 
+        _updater([this]() {
+            set_thread_name(this->name+"_update_thread");
+            std::unique_lock guard(_mutex);
+            Timer runtime;
+
+            while (not _terminate) {
+                if (_next.size() >= _threads and not _terminate) {
+                    _message.wait(guard);
+                }
+
+                if (not _terminate and _next.size() < _threads) {
+                    //_next.push_back(std::move(p.get_future()));
+
+                    R r;
+                    double e;
+
+                    guard.unlock();
+                    try {
+                        runtime.reset();
+                        r = _fn();
+                        e = runtime.elapsed();
+                        
+                    }
+                    catch (...) {
+                        //p.set_exception(std::current_exception());
+                    }
+                    guard.lock();
+
+                    {
+                        std::unique_lock guard(mtiming);
+                        _runtime += e;
+                        _rsamples++;
+
+                        if (_rsamples > 1000) {
+                            _runtime = _runtime / _rsamples;
+                            _rsamples = 1;
+                        }
+                    }
+
+                    _next.push_back(std::move(r));
+                    _new_item.notify_one();
+                }
+            }
+        }) 
+    { }
     
     ~RepeatedDeferral() {
-        if(_next_image.valid())
-            _next_image.get();
+        //if(_next_image.valid())
+        //    _next_image.get();
+        _terminate = true;
+        _message.notify_all();
+        _updater.join();
+    }
+
+    bool has_next() const {
+        std::unique_lock guard(_mutex);
+        return not _next.empty();
+    }
+
+    R get_next() {
+        assert(has_next());
+
+        std::unique_lock guard(_mutex);
+        if(_next.empty())
+            _new_item.wait(guard, [this]() {return not _next.empty(); });
+
+        auto f = std::move(_next.front());
+        _next.erase(_next.begin());
+
+        _message.notify_one();
+        return f;
     }
     
-    template<typename... Args>
-    R next(Args... args) {
+    R next() {
         auto e = since_last.elapsed();
         {
             std::unique_lock guard(mtiming);
@@ -543,50 +613,26 @@ struct RepeatedDeferral {
             }
         }
         
-        R f;
-        
-        if(_next_image.valid()) {
-            ++predicted;
-            timer.reset();
-            f = _next_image.get();
+        timer.reset();
+        auto f = get_next();
+        e = timer.elapsed();
             
+        {
             std::unique_lock guard(mtiming);
-            _waiting += timer.elapsed();
+            _waiting += e;
             _samples += 1;
-            
-            if(_samples > 1000) {
+            ++predicted;
+
+            if (_samples > 1000) {
                 _waiting /= _samples;
                 _samples = 1;
             }
-            
-        } else {
-            ++unpredicted;
-            f = _fn(std::forward<Args>(args)...);
-        }
-        
-        if(predicted % 50 == 0 || unpredicted % 50 == 0) {
-            std::unique_lock guard(mtiming);
-            auto total = (_waiting / _samples) * 1000;
-            thread_print(name.c_str(),": ", total,"ms with runtime ",(_runtime / _rsamples) * 1000,"ms (", (_since_last/_ssamples)*1000,"ms > ", (_waiting / _samples) * 1000, "ms)");
-        }
-        
-        _next_image = pool.enqueue([this](Args... args) {
-            Timer runtime;
-            auto r = _fn(std::forward<Args>(args)...);
-            auto e = runtime.elapsed();
-            
-            std::unique_lock guard(mtiming);
-            _runtime += e;
-            _rsamples++;
-            
-            if(_rsamples > 1000) {
-                _runtime = _runtime / _rsamples;
-                _rsamples = 1;
+
+            if (predicted % 50 == 0 || unpredicted % 50 == 0) {
+                auto total = (_waiting / _samples) * 1000;
+                thread_print(name.c_str(), ": ", total, "ms with runtime ", (_runtime / _rsamples) * 1000, "ms (", (_since_last / _ssamples) * 1000, "ms > ", (_waiting / _samples) * 1000, "ms)");
             }
-            
-            return r;
-            
-        }, std::forward<Args>(args)...);
+        }
         
         since_last.reset();
         return f;
@@ -623,11 +669,14 @@ public:
             _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::Ptr> {
                 try {
                     static RepeatedDeferral def{
+                        10u,
                         std::string("source.frame"),
                         [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>  {
-                            //std::unique_lock guard(mutex);
-                            if(i >= this->source.length())
+                            if (i >= this->source.length()) {
                                 i = 0_f;
+                            }
+
+                            auto index = i++;
                             
                             gpuMatPtr buffer;
                             Image::Ptr image;
@@ -644,8 +693,11 @@ public:
                                 image = Image::Make();
                             }
                             
-                            auto index = i++;
                             image->set_index(index.get());
+
+                            static Timing timing("Source(frame)", 0.1);
+                            TakeTiming take(timing);
+
                             this->source.frame(index, *buffer);
                             
                             return std::make_tuple(index, std::move(buffer), std::move(image));
@@ -654,6 +706,7 @@ public:
                     auto result = def.next();
                     if(result) {
                         auto& [index, buffer, image] = result.value();
+                        static std::mutex m;
                         static gpuMatPtr tmp = std::make_unique<gpuMat>();
 
                         //! resize according to settings
@@ -707,6 +760,7 @@ public:
     
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
         static RepeatedDeferral _def{
+            1u,
             std::string(".next()"),
             [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
                 return _retrieve();
@@ -838,7 +892,7 @@ struct OverlayedVideo {
                 tiled.callback = std::move(callback);
                 source.move_back(std::move(buffer));
                 
-                thread_print("Queueing image ", nix);
+                //thread_print("Queueing image ", nix);
                 //! network processing, and record network fps
                 return std::make_tuple(nix, this->overlay.apply(std::move(tiled)));
                 
@@ -849,6 +903,7 @@ struct OverlayedVideo {
         };
         
         static RepeatedDeferral def{
+            1u,
             "Tile+ApplyNet",
             retrieve_next
         };
@@ -1135,8 +1190,8 @@ struct Detection {
         // do what has to be done when the queue is full
         // i.e. py::execute()
         thread_print("Executing with ",images.size()," images!");
-        for(auto &tile : images)
-            thread_print("\t",tile.original ? tile.original->index() : -1);
+        //for(auto &tile : images)
+        //    thread_print("\t",tile.original ? tile.original->index() : -1);
         Detection::apply(std::move(images));
     });
     
@@ -1227,6 +1282,20 @@ int main(int argc, char**argv) {
         Detection{},
         VideoSource(SETTING(source).value<std::string>())
     );
+
+    {
+        VideoSource tmp(SETTING(source).value<std::string>());
+        Timer timer;
+        gpuMat m;
+        double average = 0, samples = 0;
+        for (int i = 0; i < 50; ++i) {
+            tmp.frame(Frame_t(i), m);
+            average += timer.elapsed() * 1000;
+            timer.reset();
+            samples++;
+        }
+        print("Average time / frame: ", average / samples, "ms");
+    }
     
     std::mutex mutex, current_mutex;
     std::condition_variable messages;
@@ -1406,7 +1475,7 @@ int main(int argc, char**argv) {
                 if(not next and not items.empty()) {
                     if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
                         auto data = std::get<1>(items.front()).get();
-                        thread_print("Got data for item ", data.frame.index());
+                        //thread_print("Got data for item ", data.frame.index());
                         
                         next = std::move(data);
                         ready_for_tracking.notify_one();
@@ -1430,11 +1499,11 @@ int main(int argc, char**argv) {
             }
             
             if(items.size() >= 10 && next) {
-                thread_print("Entering wait with ", items.size(), " items queued up.");
+                //thread_print("Entering wait with ", items.size(), " items queued up.");
                 messages.wait(guard, [&](){
                     return not next or _terminate;
                 });
-                thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
+                //thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
             }
         }
         
@@ -1442,7 +1511,7 @@ int main(int argc, char**argv) {
     });
     
     auto perform_tracking = [&](){
-        thread_print("Tracking image ", progress.frame.index());
+        //thread_print("Tracking image ", progress.frame.index());
         progress.frame.set_source_index(Frame_t(progress.image->index()));
         
         progress_objects.clear();
@@ -1463,20 +1532,15 @@ int main(int argc, char**argv) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
             }
         }
-        
-        {
-            std::unique_lock guard(current_mutex);
-            thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
-            current = std::move(progress);
-            objects = std::move(progress_objects);
-        }
+
         
         static Timer last_add;
         static double average{0}, samples{0};
-        auto current = last_add.elapsed();
-        average += current;
+        auto c = last_add.elapsed();
+        average += c;
         ++samples;
         
+
         static Timer frame_counter;
         static size_t num_frames{0};
         static std::mutex mFPS;
@@ -1496,14 +1560,23 @@ int main(int argc, char**argv) {
             }
             
         }
+
+        {
+            std::unique_lock guard(current_mutex);
+            //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
+            current = std::move(progress);
+            objects = std::move(progress_objects);
+        }
         
         if(samples > 100) {
-            print("Average time since last frame: ", average / samples * 1000.0,"ms (",current * 1000,"ms)");
+            print("Average time since last frame: ", average / samples * 1000.0,"ms (",c * 1000,"ms)");
             
             average /= samples;
             samples = 1;
         }
         last_add.reset();
+
+
     };
     
     std::thread tracking([&](){
@@ -1514,7 +1587,7 @@ int main(int argc, char**argv) {
                 try {
                     progress = std::move(next);
                     assert(not next);
-                    thread_print("Got next: ", progress.frame.index());
+                    //thread_print("Got next: ", progress.frame.index());
                 } catch(...) {
                     FormatExcept("Exception while moving to progress");
                     continue;
@@ -1529,10 +1602,10 @@ int main(int argc, char**argv) {
                 }
             }
             
-            thread_print("Waiting for next...");
+            //thread_print("Waiting for next...");
             messages.notify_one();
             ready_for_tracking.wait(guard);
-            thread_print("Received notification: next(", (bool)next,")");
+            //thread_print("Received notification: next(", (bool)next,")");
         }
         thread_print("Tracking ended.");
     });
@@ -1551,8 +1624,6 @@ int main(int argc, char**argv) {
         
         std::unique_lock guard(current_mutex);
         if (current.image) {
-            thread_print("Got image: ", current.frame.index());
-            
             if(background->source()
                && background->source()->rows == current.image->rows
                && background->source()->cols == current.image->cols
