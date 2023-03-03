@@ -305,7 +305,7 @@ struct Yolo7ObjectDetection {
             }
             
             bbx.unset_function("receive");
-            if (_network_samples.load() > 100) {
+            if (_network_samples.load() > 10) {
                 _network_samples = _network_fps = 0;
             }
             _network_fps = _network_fps.load() + (double(_N) / timer.elapsed());
@@ -505,8 +505,6 @@ struct Yolo7InstanceSegmentation {
 static_assert(ObjectDetection<Yolo7ObjectDetection>);
 static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 
-GenericThreadPool pool(32, "all_pool");
-
 template<typename F, typename R = typename cmn::detail::return_type<F>::type>
 struct RepeatedDeferral {
     size_t _threads{ 1 };
@@ -514,13 +512,13 @@ struct RepeatedDeferral {
     //std::future<R> _next_image;
     F _fn;
     std::string name;
-    size_t predicted{0}, unpredicted{0};
     std::mutex mtiming;
     double _waiting{0}, _samples{0};
     double _since_last{0}, _ssamples{0};
     
     double _runtime{0}, _rsamples{0};
-    Timer timer, since_last;
+    double _average_fill_state{ 0 }, _as{ 0 };
+    Timer since_last, since_print;
 
     std::condition_variable _message, _new_item;
     mutable std::mutex _mutex;
@@ -538,8 +536,13 @@ struct RepeatedDeferral {
                     _message.wait(guard);
                 }
 
+                _average_fill_state += _next.size();
+                ++_as;
+
+
                 if (not _terminate and _next.size() < _threads) {
-                    //_next.push_back(std::move(p.get_future()));
+                    _since_last += since_last.elapsed() * 1000;
+                    _ssamples++;
 
                     R r;
                     double e;
@@ -549,26 +552,40 @@ struct RepeatedDeferral {
                         runtime.reset();
                         r = _fn();
                         e = runtime.elapsed();
-                        
+
+                        _next.push_back(std::move(r));
+                        _new_item.notify_one();
                     }
                     catch (...) {
                         //p.set_exception(std::current_exception());
                     }
                     guard.lock();
 
-                    {
-                        std::unique_lock guard(mtiming);
-                        _runtime += e;
-                        _rsamples++;
+                    //std::unique_lock guard(mtiming);
+                    _runtime += e * 1000;
+                    _rsamples++;
 
-                        if (_rsamples > 1000) {
-                            _runtime = _runtime / _rsamples;
-                            _rsamples = 1;
+                    {
+                        //std::unique_lock guard(mtiming);
+                        //++predicted;
+
+                        if (since_print.elapsed() > 5) {
+                            std::unique_lock guard(mtiming);
+                            //auto total = (_waiting / _samples);
+                            thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ", 
+                                (_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
+
+                            if (_rsamples > 1000) {
+                                _waiting = _samples = 0;
+                                _runtime = _rsamples = 0;
+                                _since_last = _ssamples = 0;
+                                _average_fill_state = _as = 0;
+                            }
+                            since_print.reset();
                         }
                     }
 
-                    _next.push_back(std::move(r));
-                    _new_item.notify_one();
+                    since_last.reset();
                 }
             }
         }) 
@@ -590,9 +607,18 @@ struct RepeatedDeferral {
     R get_next() {
         assert(has_next());
 
+        Timer timer;
+
         std::unique_lock guard(_mutex);
         if(_next.empty())
             _new_item.wait(guard, [this]() {return not _next.empty(); });
+
+        auto e = timer.elapsed();
+        {
+            std::unique_lock guard(mtiming);
+            _waiting += e * 1000;
+            _samples++;
+        }
 
         auto f = std::move(_next.front());
         _next.erase(_next.begin());
@@ -602,40 +628,7 @@ struct RepeatedDeferral {
     }
     
     R next() {
-        auto e = since_last.elapsed();
-        {
-            std::unique_lock guard(mtiming);
-            _since_last += e;
-            _ssamples++;
-            if(_ssamples > 1000) {
-                _since_last = _since_last / _ssamples;
-                _ssamples = 1;
-            }
-        }
-        
-        timer.reset();
-        auto f = get_next();
-        e = timer.elapsed();
-            
-        {
-            std::unique_lock guard(mtiming);
-            _waiting += e;
-            _samples += 1;
-            ++predicted;
-
-            if (_samples > 1000) {
-                _waiting /= _samples;
-                _samples = 1;
-            }
-
-            if (predicted % 50 == 0 || unpredicted % 50 == 0) {
-                auto total = (_waiting / _samples) * 1000;
-                thread_print(name.c_str(), ": ", total, "ms with runtime ", (_runtime / _rsamples) * 1000, "ms (", (_since_last / _ssamples) * 1000, "ms > ", (_waiting / _samples) * 1000, "ms)");
-            }
-        }
-        
-        since_last.reset();
-        return f;
+        return get_next();
     }
 };
 
@@ -669,7 +662,7 @@ public:
             _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::Ptr> {
                 try {
                     static RepeatedDeferral def{
-                        10u,
+                        50u,
                         std::string("source.frame"),
                         [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>  {
                             if (i >= this->source.length()) {
@@ -692,16 +685,20 @@ public:
                                 buffer = std::make_unique<gpuMat>();
                                 image = Image::Make();
                             }
-                            
-                            image->set_index(index.get());
 
-                            static Timing timing("Source(frame)", 0.1);
+                            static Timing timing("Source(frame)", 1);
                             TakeTiming take(timing);
 
                             static cv::Mat tmp;
-                            this->source.frame(index, tmp);
-                            tmp.copyTo(*buffer);
-                            
+                            static auto source_size = this->size();
+                            if(image->rows != source_size.height || source_size.width != image->cols)
+                                image->create(source_size.height, source_size.width, 3);
+
+                            auto mat = image->get();
+                            this->source.frame(index, mat);
+                            image->set_index(index.get());
+
+                            cv::cvtColor(mat, *buffer, cv::COLOR_BGR2RGB);
                             return std::make_tuple(index, std::move(buffer), std::move(image));
                         }
                     };
@@ -723,9 +720,6 @@ public:
                         assert(index.valid());
                         image->create(*buffer, index.get());
 
-                        cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
-                        std::swap(buffer, tmp);
-                        
                         return std::make_tuple(index, std::move(buffer), std::move(image));
                         
                     } else
@@ -762,8 +756,8 @@ public:
     
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
         static RepeatedDeferral _def{
-            1u,
-            std::string(".next()"),
+            50u,
+            std::string("resize+cvtColor"),
             [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
                 return _retrieve();
             }
@@ -859,10 +853,20 @@ struct OverlayedVideo {
             auto loaded = i;
             
             try {
+                Timer _timer;
                 auto&& [nix, buffer, image] = source.next();
                 if(not nix.valid())
                     return tl::unexpected("Cannot retrieve frame from video source.");
                 
+                static double _average = 0, _samples = 0;
+                _average += _timer.elapsed() * 1000;
+                ++_samples;
+                if ((size_t)_samples % 100 == 0) {
+                    print("Waited for source frame for ", _average / _samples,"ms");
+                    _samples = 0;
+                    _average = 0;
+                }
+
                 gpuMat *use { buffer.get() };
                 image->set_index(nix.get());
                 
@@ -905,7 +909,7 @@ struct OverlayedVideo {
         };
         
         static RepeatedDeferral def{
-            1u,
+            50u,
             "Tile+ApplyNet",
             retrieve_next
         };
@@ -1188,7 +1192,7 @@ struct Detection {
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
     
-    inline static auto manager = PipelineManager<TileImage>(10.0, [](std::vector<TileImage>&& images) {
+    inline static auto manager = PipelineManager<TileImage>(150.0, [](std::vector<TileImage>&& images) {
         // do what has to be done when the queue is full
         // i.e. py::execute()
         thread_print("Executing with ",images.size()," images!");
@@ -1420,7 +1424,7 @@ int main(int argc, char**argv) {
     auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", filename);
     pv::File file(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-    std::vector<pv::BlobPtr> objects, progress_objects;
+    std::vector<pv::BlobPtr> objects, progress_objects, _trans_objects;
     file.set_average(bg);
     
     //GUICache cache(&graph, &file);
@@ -1434,7 +1438,7 @@ int main(int argc, char**argv) {
     }));
     
     std::condition_variable ready_for_tracking;
-    SegmentationData progress, current;
+    SegmentationData progress, current, _trans_current;
     std::shared_ptr<ExternalImage>
         background = std::make_shared<ExternalImage>(),
         overlay = std::make_shared<ExternalImage>();
@@ -1535,6 +1539,12 @@ int main(int argc, char**argv) {
             }
         }
 
+        {
+            std::unique_lock guard(current_mutex);
+            //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
+            _trans_current = std::move(progress);
+            _trans_objects = std::move(progress_objects);
+        }
         
         static Timer last_add;
         static double average{0}, samples{0};
@@ -1562,13 +1572,6 @@ int main(int argc, char**argv) {
             }
             
         }
-
-        {
-            std::unique_lock guard(current_mutex);
-            //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
-            current = std::move(progress);
-            objects = std::move(progress_objects);
-        }
         
         if(samples > 100) {
             print("Average time since last frame: ", average / samples * 1000.0,"ms (",c * 1000,"ms)");
@@ -1577,8 +1580,6 @@ int main(int argc, char**argv) {
             samples = 1;
         }
         last_add.reset();
-
-
     };
     
     std::thread tracking([&](){
@@ -1624,7 +1625,14 @@ int main(int argc, char**argv) {
             set_thread_name("GUI");
         });
         
-        std::unique_lock guard(current_mutex);
+        {
+            std::unique_lock guard(current_mutex);
+            if (_trans_current.image) {
+                current = std::move(_trans_current);
+                objects = std::move(_trans_objects);
+            }
+        }
+
         if (current.image) {
             if(background->source()
                && background->source()->rows == current.image->rows
@@ -1665,6 +1673,7 @@ int main(int argc, char**argv) {
         }
         
         graph.section("video", [&](auto&, Section* section){
+
             auto output_size = SETTING(output_size).value<Size2>();
             auto window_size = base.window_dimensions();
             
@@ -1686,7 +1695,6 @@ int main(int argc, char**argv) {
             //    print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
             section->set_scale(scale);
 
-            std::unique_lock guard(current_mutex);
             LockGuard lguard(ro_t{}, "drawing", 10);
             if (not lguard.locked()) {
                 section->reuse_objects();
@@ -1860,8 +1868,6 @@ int main(int argc, char**argv) {
         } else if (graph.is_key_pressed(Keyboard::Left)) {
             SETTING(filter_class) = false;
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     });
     
     {

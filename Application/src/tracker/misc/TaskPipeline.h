@@ -128,19 +128,29 @@ class ImageArray : public BaseTask<Data> {
     using Vector = std::vector<Data>;
     package::packaged_func<R> task;
     Vector _images;
+    std::mutex _mutex;
 
 public:
     template<typename F>
     ImageArray(F fn)
       : BaseTask<Data>(0),
         task([this, fn = std::move(fn)]() mutable {
-            fn(std::move(_images));
-            _images.clear();
-            BaseTask<Data>::_weight = 0;
+            static std::mutex _mu;
+            static decltype(_images) packet;
+            {
+                std::unique_lock guard(_mutex);
+                std::swap(_images, packet);
+                _images.clear();
+                BaseTask<Data>::_weight = 0;
+            }
+
+            std::lock_guard guard(_mu);
+            fn(std::move(packet));
         })
     { }
 
     void push(Data&& ptr) override {
+        std::unique_lock guard(_mutex);
         BaseTask<Data>::_weight++;
         _images.push_back(std::move(ptr));
     }
@@ -154,6 +164,7 @@ template<typename Data>
 class PipelineManager {
     typename BaseTask<Data>::Ptr _c;
     std::mutex _mutex;
+    std::future<void> _future;
     const double _weight_limit{0};
 
 public:
@@ -175,28 +186,42 @@ public:
     }
 
     void enqueue(std::vector<Data>&& v) {
-        std::unique_lock guard(_mutex);
-        for(auto &&ptr : v)
-            _c->push(std::move(ptr));
-        v.clear();
+        {
+            for (auto&& ptr : v)
+                _c->push(std::move(ptr));
+            v.clear();
+        }
         update();
     }
 
     void enqueue(Data&& ptr) {
-        std::unique_lock guard(_mutex);
-        assert(_c != nullptr);
-        _c->push(std::move(ptr));
+        {
+            assert(_c != nullptr);
+            _c->push(std::move(ptr));
+        }
         update();
     }
 
 private:
-    void update() {
+    bool update() {
         // wait for enough tasks
         if(not _c || _c->weight() < _weight_limit) {
-            return;
+            return true;
         }
 
-        (*_c)();
+        if (_future.valid())
+            _future.get();
+
+        //if (not _future.valid()) 
+        {
+            _future = std::async(std::launch::async, [this]() {
+                (*_c)();
+            });
+        }
+        //else {//if (_future.wait_for(std::chrono::microseconds(0)) == std::future_status::ready) {
+        //    _future.get();
+        //    assert(not _future.valid());
+        //}
     }
 };
 
