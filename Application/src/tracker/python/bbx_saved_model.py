@@ -6,8 +6,7 @@ import torchvision
 import tensorflow as tf
 import TRex
 import numpy as np
-from tensorflow import keras
-from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+#from tensorflow import keras
 import time
 import cv2
 
@@ -18,6 +17,7 @@ import cv2
 else:
     print ("MPS device not found.")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")'''
+
 t_model = None
 print("------------ TEST --------------------")
 
@@ -112,6 +112,8 @@ def load_model():
         full_model = full_model.get_concrete_function(
             tf.TensorSpec((None, 3, image_size, image_size), tf.float32))
         # Get frozen ConcreteFunction
+
+        from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
         frozen_func = convert_variables_to_constants_v2(full_model)
         frozen_func.graph.as_graph_def()
         model = frozen_func
@@ -247,6 +249,57 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
 
         b, ch, h, w = im.shape
         #y = np.concatenate((y, y), axis=0)
+
+        if False:
+            all_results = []
+            #y = y.numpy()
+            boxes = _xywh2xyxy(y[..., :4])
+            ratio = (im0[2] / im.shape[-1], im0[1] / im.shape[-2]) * 2
+
+            #nmsed_boxes = tf.math.multiply(nms.nmsed_boxes, ratio)
+            #nboxes = nmsed_boxes.numpy()
+            #nscores = nms.nmsed_scores.numpy()
+            #nclasses = nms.nmsed_classes.numpy()
+
+            for i in range(len(y)):        
+                classes = y[i, ..., 4:5] * y[i, ..., 5:]
+                max_probs = tf.reduce_max(classes, axis=-1)
+                mask = max_probs >= conf_threshold
+
+                Y = y[i][mask].numpy()
+                nms_boxes = boxes[i][mask].numpy()
+                nms, nms_boxes = non_max_suppression_fast(nms_boxes, iou_threshold)
+                if len(nms) == 0:
+                    all_results += [np.array([], np.float32)]
+                    continue;
+
+                Y = Y[nms]
+
+                nms_boxes = np.multiply(nms_boxes, ratio)
+                nms_scores = np.max(Y[..., 5:], axis=-1)
+                nms_classes = np.argmax(Y[..., 5:], axis=-1)
+
+                #nms_boxes = nboxes[i, :nms_valid[i]]
+                #nms_scores = nscores[i, :nms_valid[i]]
+                #nms_classes = nclasses[i, :nms_valid[i]]
+
+                #print("\tclasses:", nms_classes)
+                #print("\nms_scores:", nms_scores.shape)
+                #print(len(nms_boxes), len(nms_scores), len(nms_classes))
+
+                results = []
+                for xy, score, clid in zip(nms_boxes, nms_scores, nms_classes):
+                    #pt0 = np.array((xy[0] * ratio[0], xy[1] * ratio[1])).astype(int)
+                    #pt1 = np.array((np.array((xy[2] * ratio[0], xy[3] * ratio[1])))).astype(int)
+                    pt0 = np.array((xy[0] , xy[1] )).astype(int)
+                    pt1 = np.array((np.array((xy[2], xy[3] )))).astype(int)
+                    #print(score, clid, pt0, pt1)
+                    results.append((score, clid, pt0[0], pt0[1], pt1[0], pt1[1]))
+
+                all_results += [np.array(results, dtype=np.float32)]
+
+            return [len(i) for i in all_results], all_results
+
         #y = y.numpy()
         boxes = _xywh2xyxy(y[..., :4])
         boxes = tf.expand_dims(boxes, 2)

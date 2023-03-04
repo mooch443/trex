@@ -28,6 +28,7 @@
 using namespace cmn;
 
 struct TileImage;
+using useMat = gpuMat;
 
 std::string date_time() {
     time_t rawtime;
@@ -55,12 +56,23 @@ struct TileImage {
     Size2 tile_size;
     Image::Ptr original;
     std::vector<Image::Ptr> images;
-    inline static gpuMat resized, converted, thresholded;
+    inline static useMat resized, converted, thresholded;
     inline static cv::Mat download_buffer;
     std::vector<Vec2> _offsets;
     Size2 source_size, original_size;
     std::promise<SegmentationData> promise;
     std::function<void()> callback;
+
+    inline static std::vector<Image::Ptr> buffers;
+    inline static std::mutex buffer_mutex;
+
+    static void move_back(Image::Ptr&& ptr) {
+        if (std::unique_lock guard{ buffer_mutex }; 
+            ptr) 
+        {
+            buffers.emplace_back(std::move(ptr));
+        }
+    }
     
     TileImage() = default;
     TileImage(TileImage&&) = default;
@@ -69,18 +81,34 @@ struct TileImage {
     TileImage& operator=(TileImage&&) = default;
     TileImage& operator=(const TileImage&) = delete;
     
-    TileImage(const gpuMat& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
+    TileImage(const useMat& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
         : tile_size(tile_size),
           original(std::move(original)),
           source_size(source.cols, source.rows),
           original_size(original_size)
     {
+
+        static const auto get_buffer = []() {
+            if (std::unique_lock guard{ buffer_mutex };
+                not buffers.empty())
+            {
+                auto buffer = std::move(buffers.back());
+                buffers.pop_back();
+                return buffer;
+            }
+            else {
+                return Image::Make();
+            }
+        };
         
         if(tile_size.width == source.cols
            && tile_size.height == source.rows)
         {
             source_size = tile_size;
-            images.emplace_back(Image::Make(source));
+            auto buffer = get_buffer();
+            buffer->create(source);
+            images.emplace_back(std::move(buffer));
+            //images.emplace_back(Image::Make(source));
             _offsets = {Vec2()};
         }
         else if(tile_size.width > source.cols
@@ -88,11 +116,15 @@ struct TileImage {
         {
             source_size = tile_size;
             cv::resize(source, resized, tile_size);
-            images.emplace_back(Image::Make(resized));
+
+            auto buffer = get_buffer();
+            buffer->create(resized);
+            images.emplace_back(std::move(buffer));
+            //images.emplace_back(Image::Make(resized));
             _offsets = {Vec2()};
             
         } else {
-            gpuMat tile = gpuMat::zeros(tile_size.height, tile_size.width, CV_8UC3);
+            useMat tile = useMat::zeros(tile_size.height, tile_size.width, CV_8UC3);
             for(int y = 0; y < source.rows; y += tile_size.height) {
                 for(int x = 0; x < source.cols; x += tile_size.width) {
                     Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);
@@ -100,7 +132,11 @@ struct TileImage {
                     bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
                     
                     source(bds).copyTo(tile(Bounds{bds.size()}));
-                    images.emplace_back(Image::Make(tile));
+
+                    auto buffer = get_buffer();
+                    buffer->create(tile);
+                    images.emplace_back(std::move(buffer));
+                    //images.emplace_back(Image::Make(tile));
                     tile.setTo(0);
                 }
             }
@@ -121,6 +157,7 @@ struct TileImage {
 ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg);
 static inline std::atomic<float> _fps{0}, _samples{0};
 static inline std::atomic<float> _network_fps{0}, _network_samples{0};
+static inline std::atomic<float> _video_fps{ 0 }, _video_samples{ 0 };
 
 template<typename T>
 concept MultiObjectDetection = requires (std::vector<TileImage> tiles) {
@@ -305,6 +342,11 @@ struct Yolo7ObjectDetection {
             }
             
             bbx.unset_function("receive");
+
+            for (auto&& img : images) {
+                TileImage::move_back(std::move(img));
+            }
+
             if (_network_samples.load() > 10) {
                 _network_samples = _network_fps = 0;
             }
@@ -532,15 +574,13 @@ struct RepeatedDeferral {
             Timer runtime;
 
             while (not _terminate) {
-                if (_next.size() >= _threads and not _terminate) {
+                if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
                     _message.wait(guard);
                 }
 
-                _average_fill_state += _next.size();
-                ++_as;
 
-
-                if (not _terminate and _next.size() < _threads) {
+                if (not _terminate and _next.size() < _threads) 
+                {
                     _since_last += since_last.elapsed() * 1000;
                     _ssamples++;
 
@@ -618,12 +658,16 @@ struct RepeatedDeferral {
             std::unique_lock guard(mtiming);
             _waiting += e * 1000;
             _samples++;
+
+            _average_fill_state += _next.size();
+            ++_as;
         }
 
         auto f = std::move(_next.front());
         _next.erase(_next.begin());
+        if(_next.size() <= _threads / 2)
+            _message.notify_one();
 
-        _message.notify_one();
         return f;
     }
     
@@ -637,9 +681,9 @@ class AbstractVideoSource {
     //mutable std::mutex mutex;
     Frame_t i{0_f};
     
-    using gpuMatPtr = std::unique_ptr<gpuMat>;
+    using gpuMatPtr = std::unique_ptr<useMat>;
     std::mutex buffer_mutex;
-    std::vector<std::tuple<gpuMatPtr, Image::Ptr>> buffers;
+    std::vector<gpuMatPtr> buffers;
     
     SourceType source;
     GETTER(file::Path, base)
@@ -661,10 +705,11 @@ public:
             _base(this->source.base()),
             _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::Ptr> {
                 try {
-                    static RepeatedDeferral def{
-                        50u,
-                        std::string("source.frame"),
-                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>  {
+                    Timer timer;
+                    //static RepeatedDeferral def{
+                    //    50u,
+                    //    std::string("source.frame"),
+                   //     [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>  {
                             if (i >= this->source.length()) {
                                 i = 0_f;
                             }
@@ -672,58 +717,68 @@ public:
                             auto index = i++;
                             
                             gpuMatPtr buffer;
-                            Image::Ptr image;
                             
                             if(std::unique_lock guard{buffer_mutex};
                                not buffers.empty())
                             {
-                                auto&&[buf, img] = std::move(buffers.back());
-                                buffer = std::move(buf);
-                                image = std::move(img);
+                                buffer = std::move(buffers.back());
                                 buffers.pop_back();
                             } else {
-                                buffer = std::make_unique<gpuMat>();
-                                image = Image::Make();
+                                buffer = std::make_unique<useMat>();
                             }
+
+                            static std::mutex m;
+                            static gpuMatPtr tmp = std::make_unique<useMat>();
 
                             static Timing timing("Source(frame)", 1);
                             TakeTiming take(timing);
 
-                            static cv::Mat tmp;
-                            static auto source_size = this->size();
-                            if(image->rows != source_size.height || source_size.width != image->cols)
-                                image->create(source_size.height, source_size.width, 3);
+                            //static cv::Mat tmp;
+                            //static auto source_size = this->size();
+                            //if(image->rows != source_size.height || source_size.width != image->cols)
+                            //    image->create(source_size.height, source_size.width, 3);
 
-                            auto mat = image->get();
-                            this->source.frame(index, mat);
-                            image->set_index(index.get());
+                            //auto mat = image->get();
 
-                            cv::cvtColor(mat, *buffer, cv::COLOR_BGR2RGB);
-                            return std::make_tuple(index, std::move(buffer), std::move(image));
-                        }
-                    };
-                    auto result = def.next();
-                    if(result) {
-                        auto& [index, buffer, image] = result.value();
-                        static std::mutex m;
-                        static gpuMatPtr tmp = std::make_unique<gpuMat>();
+                            static cv::Mat cpuBuffer;
+                            this->source.frame(index, cpuBuffer);
+                            cpuBuffer.copyTo(*buffer);
+
+                            if (_video_samples.load() > 10) {
+                                _video_samples = _video_fps = 0;
+                            }
+                            _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
+                            _video_samples = _video_samples.load() + 1;
+
+                            cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+                            std::swap(buffer, tmp);
+                            //return std::make_tuple(index, std::move(buffer), std::move(image));
+                        //}
+                    //};
+                    //auto result = def.next();
+                    //if(result) {
+                        //auto& [index, buffer, image] = result.value();
 
                         //! resize according to settings
                         //! (e.g. multiple tiled image size)
                         if (SETTING(meta_video_scale).value<float>() != 1) {
                             Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
                             //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                            cv::resize(*buffer, *buffer, new_size);
+                            cv::resize(*buffer, *tmp, new_size);
+                            std::swap(buffer, tmp);
                         }
 
                         //! throws bad optional access if the returned frame is not valid
                         assert(index.valid());
+
+                        auto image = OverlayBuffers::get_buffer();
+                        //image->set_index(index.get()); 
                         image->create(*buffer, index.get());
 
                         return std::make_tuple(index, std::move(buffer), std::move(image));
                         
-                    } else
-                        throw U_EXCEPTION("Unable to load frame: ", result.error());
+                    //} else
+                    //    throw U_EXCEPTION("Unable to load frame: ", result.error());
                     
                 } catch(const std::exception& e) {
                     FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
@@ -751,12 +806,12 @@ public:
     
     void move_back(gpuMatPtr&& ptr) {
         std::unique_lock guard(buffer_mutex);
-        buffers.push_back(std::make_tuple(std::move(ptr), OverlayBuffers::get_buffer()));
+        buffers.push_back(std::move(ptr));
     }
     
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
         static RepeatedDeferral _def{
-            50u,
+            10u,
             std::string("resize+cvtColor"),
             [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
                 return _retrieve();
@@ -802,7 +857,7 @@ struct OverlayedVideo {
     Frame_t i{0};
     //Image::Ptr original_image;
     //cv::Mat downloader;
-    gpuMat resized;
+    useMat resized;
     
     std::future<tl::expected<SegmentationData, const char*>> next_image;
     
@@ -867,7 +922,7 @@ struct OverlayedVideo {
                     _average = 0;
                 }
 
-                gpuMat *use { buffer.get() };
+                useMat *use { buffer.get() };
                 image->set_index(nix.get());
                 
                 Size2 original_size(use->cols, use->rows);
@@ -909,7 +964,7 @@ struct OverlayedVideo {
         };
         
         static RepeatedDeferral def{
-            50u,
+            25u,
             "Tile+ApplyNet",
             retrieve_next
         };
@@ -978,6 +1033,11 @@ struct Menu {
             {
                 "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
                     return ::_network_fps.load() / ::_network_samples.load();
+                }))
+            },
+            {
+                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                    return ::_video_fps.load() / ::_video_samples.load();
                 }))
             },
             {
@@ -1192,7 +1252,7 @@ struct Detection {
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
     
-    inline static auto manager = PipelineManager<TileImage>(150.0, [](std::vector<TileImage>&& images) {
+    inline static auto manager = PipelineManager<TileImage>(25.0, [](std::vector<TileImage>&& images) {
         // do what has to be done when the queue is full
         // i.e. py::execute()
         thread_print("Executing with ",images.size()," images!");
@@ -1292,7 +1352,7 @@ int main(int argc, char**argv) {
     {
         VideoSource tmp(SETTING(source).value<std::string>());
         Timer timer;
-        gpuMat m;
+        useMat m;
         double average = 0, samples = 0;
         for (int i = 0; i < 50; ++i) {
             tmp.frame(Frame_t(i), m);
@@ -1640,10 +1700,12 @@ int main(int argc, char**argv) {
                && background->source()->dims == 4)
             {
                 cv::cvtColor(current.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+                OverlayBuffers::put_back(std::move(current.image));
                 background->updated_source();
             } else {
                 auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
                 cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+                OverlayBuffers::put_back(std::move(current.image));
                 background->set_source(std::move(rgba));
             }
             
@@ -1730,7 +1792,7 @@ int main(int argc, char**argv) {
             }
             
             using namespace track;
-            std::unordered_set<pv::bid> visible_bdx;
+            std::unordered_map<pv::bid, Identity> visible_bdx;
             
             IndividualManager::transform_all([&](Idx_t , Individual* fish)
             {
@@ -1743,7 +1805,7 @@ int main(int argc, char**argv) {
                 auto bds = basic->calculate_bounds();//.mul(scale);
                 
                 if(dirty) {
-                    SegmentationData::Assignment assign;
+                    /*SegmentationData::Assignment assign;
                     if(current.frame.index().valid()) {
                         if(basic->parent_id.valid()) {
                             if(auto it = current.predictions.find(basic->parent_id);
@@ -1766,7 +1828,8 @@ int main(int argc, char**argv) {
                             print("[draw]2 blob ", basic->blob_id(), " not found...");
                     }
                     
-                    auto cname = meta_classes.size() > assign.clid
+                    
+                        auto cname = meta_classes.size() > assign.clid
                                 ? meta_classes.at(assign.clid)
                                 : "<unknown:"+Meta::toStr(assign.clid)+">";
                     
@@ -1782,9 +1845,9 @@ int main(int argc, char**argv) {
                     individual_properties.push_back(std::move(tmp));
                     gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
                         return individual_properties.at(i);
-                    }));
+                    }));*/
                     
-                    visible_bdx.insert(basic->blob_id());
+                    visible_bdx[basic->blob_id()] = fish->identity();
                 }
                 
                 std::vector<Vertex> line;
@@ -1801,10 +1864,8 @@ int main(int argc, char**argv) {
                 graph.vertices(line);
             });
             
-            if(dirty && objects.size() != visible_bdx.size()) {
+            if(dirty) {
                 for(auto &blob : objects) {
-                    if(contains(visible_bdx, blob->blob_id()))
-                        continue;
                     
                     const auto bds = blob->bounds();
                     //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
@@ -1841,9 +1902,18 @@ int main(int argc, char**argv) {
                     tmp["pos"] = bds.pos().mul(scale);
                     tmp["size"] = Size2(bds.size().mul(scale));
                     tmp["type"] = std::string(cname);
-                    tmp["tracked"] = false;
-                    tmp["color"] = Gray;
-                    tmp["id"] = Idx_t();
+
+                    if (contains(visible_bdx, blob->blob_id())) {
+                        auto id = visible_bdx.at(blob->blob_id());
+                        tmp["color"] = id.color();
+                        tmp["id"] = id.ID();
+                        tmp["tracked"] = true;
+                    }
+                    else {
+                        tmp["tracked"] = false;
+                        tmp["color"] = Gray;
+                        tmp["id"] = Idx_t();
+                    }
                     tmp["p"] = Meta::toStr(assign.p);
                     individual_properties.push_back(std::move(tmp));
                     gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {

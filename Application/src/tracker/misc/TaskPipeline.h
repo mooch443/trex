@@ -222,6 +222,7 @@ private:
         //    _future.get();
         //    assert(not _future.valid());
         //}
+        return false;
     }
 };
 
