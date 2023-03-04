@@ -302,32 +302,34 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
 
         #y = y.numpy()
         boxes = _xywh2xyxy(y[..., :4])
-        boxes = tf.expand_dims(boxes, 2)
+        #boxes = tf.expand_dims(boxes, 2)
 
         probs = y[..., 4:5]
         classes = y[..., 5:]
         scores = probs * classes
         #print("y=",y.shape)
         
-        nms = tf.image.combined_non_max_suppression(boxes,
-                                                    scores,
-                                                    topk_per_class,
-                                                    topk_all,
-                                                    iou_threshold,
-                                                    conf_threshold,
-                                                    clip_boxes=False)
+        #nms = tf.image.combined_non_max_suppression(boxes,
+        #                                            scores,
+        #                                            topk_per_class,
+        #                                            topk_all,
+        #                                            iou_threshold,
+        #                                            conf_threshold,
+        #                                            clip_boxes=False)
 
-        nms_valid = nms.valid_detections.numpy()
+        #nms_valid = nms.valid_detections.numpy()
         ratio = (im0[2] / im.shape[-1], im0[1] / im.shape[-2]) * 2
         ratio = tf.constant(ratio, dtype=tf.float32)
         #print(ratio, nms.nmsed_boxes.shape)
 
         all_results = []
 
-        nmsed_boxes = tf.math.multiply(nms.nmsed_boxes, ratio)
-        nboxes = nmsed_boxes.numpy()
-        nscores = nms.nmsed_scores.numpy()
-        nclasses = nms.nmsed_classes.numpy()
+        nmsed_boxes = tf.math.multiply(boxes, ratio)
+        nboxes = nmsed_boxes#.numpy()
+        nscores = scores#.numpy()
+        nclasses = classes#.numpy()
+        #nscores = nms.nmsed_scores.numpy()
+        #nclasses = nms.nmsed_classes.numpy()
 
         for i in range(len(y)):        
             #classes = y[i, ..., 4:5] * y[i, ..., 5:]
@@ -348,12 +350,32 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
             #nms_scores = np.max(Y[..., 5:], axis=-1)#, :nms_valid[i]]
             #nms_classes = np.argmax(Y[..., 5:], axis=-1)#nclasses[i]#, :nms_valid[i]]
 
-            nms_boxes = nboxes[i, :nms_valid[i]]
-            nms_scores = nscores[i, :nms_valid[i]]
-            nms_classes = nclasses[i, :nms_valid[i]]
+            #nms_boxes = nboxes[i, :nms_valid[i]]
+            #nms_scores = nscores[i, :nms_valid[i]]
+            #nms_classes = nclasses[i, :nms_valid[i]]
 
-            #print("\tclasses:", nms_classes)
-            #print("\nms_scores:", nms_scores.shape)
+            #print(boxes[i:i+1].shape, scores[i:i+1].shape, probs[i].shape, scores[i].shape, np.max(scores[i], axis=-1).shape)
+            s = tf.reduce_max(scores[i], axis=-1)
+            nms = tf.image.non_max_suppression(
+                boxes[i],
+                s,
+                topk_all,
+                iou_threshold=iou_threshold,
+                score_threshold=conf_threshold)
+            #print("nms",nms.shape, nms.dtype)
+            #print("boxes",boxes[i].shape)
+            #print("nboxes",nboxes[i, nms].shape)
+            #print("classes",nclasses[i, nms].shape)
+
+            nms_scores = tf.gather(s,nms).numpy()
+            nms_boxes = tf.gather(boxes[i],nms).numpy()
+            nms_classes = np.argmax(tf.gather(scores[i], nms).numpy(), axis=-1)
+            #nms_scores = np.max(nms_scores, axis=-1)
+            #nms_classes = nclasses[i, nms]
+            #nms_scores = probs[i, ..., 0][nms]
+
+            #print("\tclasses:", nms_classes.shape, nms_classes)
+            #print("\nms_scores:", nms_scores.shape, nms_scores)
             #print(len(nms_boxes), len(nms_scores), len(nms_classes))
 
             results = []
