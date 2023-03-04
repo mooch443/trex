@@ -592,15 +592,15 @@ struct RepeatedDeferral {
                         runtime.reset();
                         r = _fn();
                         e = runtime.elapsed();
-
-                        _next.push_back(std::move(r));
-                        _new_item.notify_one();
                     }
                     catch (...) {
                         //p.set_exception(std::current_exception());
                     }
                     guard.lock();
 
+                    _next.push_back(std::move(r));
+                    _new_item.notify_one();
+                    
                     //std::unique_lock guard(mtiming);
                     _runtime += e * 1000;
                     _rsamples++;
@@ -744,12 +744,6 @@ public:
                             this->source.frame(index, cpuBuffer);
                             cpuBuffer.copyTo(*buffer);
 
-                            if (_video_samples.load() > 10) {
-                                _video_samples = _video_fps = 0;
-                            }
-                            _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
-                            _video_samples = _video_samples.load() + 1;
-
                             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
                             std::swap(buffer, tmp);
                             //return std::make_tuple(index, std::move(buffer), std::move(image));
@@ -774,6 +768,14 @@ public:
                         auto image = OverlayBuffers::get_buffer();
                         //image->set_index(index.get()); 
                         image->create(*buffer, index.get());
+                    
+                    
+
+                    if (_video_samples.load() > 1000) {
+                        _video_samples = _video_fps = 0;
+                    }
+                    _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
+                    _video_samples = _video_samples.load() + 1;
 
                         return std::make_tuple(index, std::move(buffer), std::move(image));
                         
