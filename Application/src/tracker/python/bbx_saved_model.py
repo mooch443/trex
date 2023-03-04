@@ -175,7 +175,6 @@ def inference(model, im, size=(640,640)):
     classes = y[:, :, 5:]
     scores = probs * classes
 
-    print(boxes)
     #boxes = tf.expand_dims(boxes, 2)
     #nms = tf.image.combined_non_max_suppression(boxes,
     #                                            scores,
@@ -438,7 +437,7 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
             #print("empty:",r)
 
     _Ns = np.array(_Ns, dtype=np.uint64)
-    print("Returning ", _Ns)
+    #print("Returning ", _Ns)
     if len(rs) > 0:
         #print("RS:",np.concatenate(rs, axis=0).shape)
         return _Ns, np.concatenate(rs, axis=0)
@@ -475,15 +474,15 @@ def apply():
         try:
             #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
             im = np.array(image, copy=False)[..., :3]
-            print("shape: ", im.shape, " image_size=",image_size)
-            print(np.shape(offsets))
+            #print("shape: ", im.shape, " image_size=",image_size)
+            #print(np.shape(offsets))
             #results = predict_custom_yolo7_seg(im)
             #print("sending: ", results[0].shape, results[1])
 
             #receive_seg(results[0], results[1])
-            s0 = time.time()
+            #s0 = time.time()
             Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
-            e0 = time.time()
+            #e0 = time.time()
 
             #multi = 10
             #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
@@ -493,7 +492,7 @@ def apply():
 
             #e1 = time.time()
 
-            print("******",(e0-s0)*1000,"ms im.shape=", im.shape)
+            #print("******",(e0-s0)*1000,"ms im.shape=", im.shape)
 
             receive(Ns, np.array(results, dtype=np.float32).flatten())
         finally:

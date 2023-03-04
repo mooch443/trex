@@ -289,8 +289,8 @@ struct Yolo7ObjectDetection {
                                             std::vector<float> vector)
             {
                 size_t elements{0};
-                thread_print("Received a number of results: ", Ns);
-                thread_print("For elements: ", datas);
+                //thread_print("Received a number of results: ", Ns);
+                //thread_print("For elements: ", datas);
                 
                 if(Ns.empty()) {
                     for(size_t i=0; i<datas.size(); ++i) {
@@ -549,7 +549,7 @@ static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 
 template<typename F, typename R = typename cmn::detail::return_type<F>::type>
 struct RepeatedDeferral {
-    size_t _threads{ 1 };
+    size_t _threads{ 1 }, _minimal_fill { 0 };
     std::vector<R> _next;
     //std::future<R> _next_image;
     F _fn;
@@ -567,7 +567,7 @@ struct RepeatedDeferral {
     std::thread _updater;
     std::atomic<bool> _terminate{ false };
     
-    RepeatedDeferral(size_t threads, std::string name, F fn) : _threads(threads), _fn(std::forward<F>(fn)), name(name), 
+    RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn) : _threads(threads), _minimal_fill(minimal_fill), _fn(std::forward<F>(fn)), name(name),
         _updater([this]() {
             set_thread_name(this->name+"_update_thread");
             std::unique_lock guard(_mutex);
@@ -575,7 +575,9 @@ struct RepeatedDeferral {
 
             while (not _terminate) {
                 if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
+                    thread_print(this->name.c_str(), " #NEXT Sleeping at ", _next.size());
                     _message.wait(guard);
+                    thread_print(this->name.c_str(), " #NEXT Wake at ", _next.size());
                 }
 
 
@@ -600,6 +602,8 @@ struct RepeatedDeferral {
 
                     _next.push_back(std::move(r));
                     _new_item.notify_one();
+                    
+                    thread_print(this->name.c_str(), " #NEXT Filled up to ", _next.size());
                     
                     //std::unique_lock guard(mtiming);
                     _runtime += e * 1000;
@@ -665,8 +669,11 @@ struct RepeatedDeferral {
 
         auto f = std::move(_next.front());
         _next.erase(_next.begin());
-        if(_next.size() <= _threads / 2)
+        if(_next.size() <= _minimal_fill) {
             _message.notify_one();
+            thread_print(this->name.c_str(), " #NEXT Need to update: ", _next.size(), " / ", _threads);
+        } else
+            thread_print(this->name.c_str(), " #NEXT No need to update: ", _next.size(), " / ", _threads);
 
         return f;
     }
@@ -706,10 +713,11 @@ public:
             _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::Ptr> {
                 try {
                     Timer timer;
-                    //static RepeatedDeferral def{
-                    //    50u,
-                    //    std::string("source.frame"),
-                   //     [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>  {
+                    static RepeatedDeferral def{
+                        75u,
+                        25u,
+                        std::string("source.frame"),
+                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>  {
                             if (i >= this->source.length()) {
                                 i = 0_f;
                             }
@@ -727,7 +735,6 @@ public:
                                 buffer = std::make_unique<useMat>();
                             }
 
-                            static std::mutex m;
                             static gpuMatPtr tmp = std::make_unique<useMat>();
 
                             static Timing timing("Source(frame)", 1);
@@ -746,13 +753,14 @@ public:
 
                             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
                             std::swap(buffer, tmp);
-                            //return std::make_tuple(index, std::move(buffer), std::move(image));
-                        //}
-                    //};
-                    //auto result = def.next();
-                    //if(result) {
-                        //auto& [index, buffer, image] = result.value();
-
+                            return std::make_tuple(index, std::move(buffer));
+                        }
+                    };
+                    auto result = def.next();
+                    if(result) {
+                        auto& [index, buffer] = result.value();
+                        static gpuMatPtr tmp = std::make_unique<useMat>();
+                        
                         //! resize according to settings
                         //! (e.g. multiple tiled image size)
                         if (SETTING(meta_video_scale).value<float>() != 1) {
@@ -769,18 +777,16 @@ public:
                         //image->set_index(index.get()); 
                         image->create(*buffer, index.get());
                     
-                    
-
-                    if (_video_samples.load() > 1000) {
-                        _video_samples = _video_fps = 0;
-                    }
-                    _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
-                    _video_samples = _video_samples.load() + 1;
+                        if (_video_samples.load() > 1000) {
+                            _video_samples = _video_fps = 0;
+                        }
+                        _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
+                        _video_samples = _video_samples.load() + 1;
 
                         return std::make_tuple(index, std::move(buffer), std::move(image));
                         
-                    //} else
-                    //    throw U_EXCEPTION("Unable to load frame: ", result.error());
+                    } else
+                        throw U_EXCEPTION("Unable to load frame: ", result.error());
                     
                 } catch(const std::exception& e) {
                     FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
@@ -813,6 +819,7 @@ public:
     
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
         static RepeatedDeferral _def{
+            50u,
             10u,
             std::string("resize+cvtColor"),
             [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
@@ -966,7 +973,8 @@ struct OverlayedVideo {
         };
         
         static RepeatedDeferral def{
-            25u,
+            50u,
+            10u,
             "Tile+ApplyNet",
             retrieve_next
         };
@@ -1254,10 +1262,10 @@ struct Detection {
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
     
-    inline static auto manager = PipelineManager<TileImage>(25.0, [](std::vector<TileImage>&& images) {
+    inline static auto manager = PipelineManager<TileImage>(10.0, [](std::vector<TileImage>&& images) {
         // do what has to be done when the queue is full
         // i.e. py::execute()
-        thread_print("Executing with ",images.size()," images!");
+        //thread_print("Executing with ",images.size()," images!");
         //for(auto &tile : images)
         //    thread_print("\t",tile.original ? tile.original->index() : -1);
         Detection::apply(std::move(images));
