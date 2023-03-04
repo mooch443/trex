@@ -1354,7 +1354,7 @@ int main(int argc, char**argv) {
         Timer timer;
         useMat m;
         double average = 0, samples = 0;
-        for (int i = 0; i < 50; ++i) {
+        for (int i = 0; i < 1000; ++i) {
             tmp.frame(Frame_t(i), m);
             average += timer.elapsed() * 1000;
             timer.reset();
@@ -1362,7 +1362,6 @@ int main(int argc, char**argv) {
         }
         print("Average time / frame: ", average / samples, "ms");
     }
-    
     std::mutex mutex, current_mutex;
     std::condition_variable messages;
     std::atomic<bool> _terminate{false};
