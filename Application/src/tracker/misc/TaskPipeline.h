@@ -163,7 +163,7 @@ public:
 template<typename Data>
 class PipelineManager {
     typename BaseTask<Data>::Ptr _c;
-    std::mutex _mutex;
+    std::shared_mutex _mutex;
     std::future<void> _future;
     const double _weight_limit{0};
 
@@ -184,27 +184,48 @@ public:
         } else
             printf("Not executing since object is nullptr\n");*/
     }
+    
+    void clean_up() {
+        std::unique_lock guard(_mutex);
+        if(_future.valid())
+            _future.get();
+        _c = nullptr;
+    }
 
     void enqueue(std::vector<Data>&& v) {
         {
-            for (auto&& ptr : v)
-                _c->push(std::move(ptr));
-            v.clear();
+            std::shared_lock guard(_mutex);
+            if(not _c)
+                return;
+            
+            {
+                for (auto&& ptr : v)
+                    _c->push(std::move(ptr));
+                v.clear();
+            }
         }
         update();
     }
 
     void enqueue(Data&& ptr) {
         {
-            assert(_c != nullptr);
-            _c->push(std::move(ptr));
+            std::shared_lock guard(_mutex);
+            if(not _c)
+                return;
+            
+            {
+                assert(_c != nullptr);
+                _c->push(std::move(ptr));
+            }
         }
         update();
+        
     }
 
 private:
     bool update() {
         // wait for enough tasks
+        std::shared_lock guard(_mutex);
         if(not _c || _c->weight() < _weight_limit) {
             return true;
         }
@@ -215,6 +236,8 @@ private:
         //if (not _future.valid()) 
         {
             _future = std::async(std::launch::async, [this]() {
+                set_thread_name("pipeline_async");
+                std::shared_lock guard(_mutex);
                 (*_c)();
             });
         }

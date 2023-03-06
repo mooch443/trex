@@ -101,6 +101,8 @@ def load_model():
         t_model = DetectMultiBackend(model_path, device=device, dnn=False, fp16=False)
         imgsz = (image_size,image_size)
         stride, names, pt = t_model.stride, t_model.names, t_model.pt
+
+        from utils.general import check_img_size
         imgsz = check_img_size(imgsz, s=stride)
         t_model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))
         print("Loaded and warmed up")
@@ -561,14 +563,14 @@ def predict_custom_yolo7_seg(offsets, im):
 
     assert len(im.shape) == 4
 
-    dt = (Profile(), Profile(), Profile())
+    #dt = (Profile(), Profile(), Profile())
 
-    with dt[0]:
-        im = torch.from_numpy(im).to(device)
-        im = im.half() if t_model.fp16 else im.float()  # uint8 to fp16/32
-        im /= 255  # 0 - 255 to 0.0 - 1.0
-        if len(im.shape) == 3:
-            im = im[None]  # expand for batch dim
+    #with dt[0]:
+    im = torch.from_numpy(im).to(device)
+    im = im.half() if t_model.fp16 else im.float()  # uint8 to fp16/32
+    im /= 255  # 0 - 255 to 0.0 - 1.0
+    if len(im.shape) == 3:
+        im = im[None]  # expand for batch dim
 
 
 
@@ -661,6 +663,8 @@ def predict_custom_yolo7_seg(offsets, im):
     meta = []
     indexes = []
 
+    from utils.general import non_max_suppression
+
     #print("processing im.shape", im.shape)
     #print(offsets)
     offsets = np.reshape(offsets, (-1, 2)).astype(int)
@@ -676,22 +680,22 @@ def predict_custom_yolo7_seg(offsets, im):
         #print("local = ",local.shape, " ", local.dtype)
         #TRex.imshow("im"+str(len(im) - 1 - i), local)
 
-        with dt[1]:
-            with torch.no_grad():
-                pred, out = t_model(im[i][None], augment=None, visualize=None)
-                proto = out[1]
+        #with dt[1]:
+        with torch.no_grad():
+            pred, out = t_model(im[i][None], augment=None, visualize=None)
+            proto = out[1]
 
-                #print(proto.shape)
+            #print(proto.shape)
 
-                # NMS
-                #with dt[2]:
-                conf_thres = 0.25
-                iou_thres = 0.45
-                
-                pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_thres, iou_thres, None, False, max_det=1000, nm=32)]
-                #print("nonmaxsupp proc", (pred[0]).int().cpu().numpy())
-                _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
-                #print("RESULT FOR ",i,"=",_meta)
+            # NMS
+            #with dt[2]:
+            conf_thres = 0.25
+            iou_thres = 0.45
+            
+            pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_thres, iou_thres, None, False, max_det=1000, nm=32)]
+            #print("nonmaxsupp proc", (pred[0]).int().cpu().numpy())
+            _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
+            #print("RESULT FOR ",i,"=",_meta)
         meta += _meta
         shapes += _shapes
         indexes += np.repeat(len(im) - 1 - i, len(_meta)).tolist()

@@ -21,6 +21,9 @@
 #include <gui/types/List.h>
 #include <grabber/misc/default_config.h>
 #include <gui/DynamicGUI.h>
+#include <gui/SettingsDropdown.h>
+#include "Alterface.h"
+#include <misc/RepeatedDeferral.h>
 #include <GitSHA1.h>
 
 #include <misc/TaskPipeline.h>
@@ -54,7 +57,7 @@ using namespace gui;
 
 struct TileImage {
     Size2 tile_size;
-    Image::Ptr original;
+    SegmentationData data;
     std::vector<Image::Ptr> images;
     inline static useMat resized, converted, thresholded;
     inline static cv::Mat download_buffer;
@@ -83,11 +86,11 @@ struct TileImage {
     
     TileImage(const useMat& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
         : tile_size(tile_size),
-          original(std::move(original)),
           source_size(source.cols, source.rows),
           original_size(original_size)
     {
-
+        data.image = std::move(original);
+        
         static const auto get_buffer = []() {
             if (std::unique_lock guard{ buffer_mutex };
                 not buffers.empty())
@@ -246,28 +249,19 @@ struct Yolo7ObjectDetection {
         for(auto&& tiled : tiles) {
             images.insert(images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
             
-            SegmentationData data{
-                std::move(tiled.original)
-            };
-            
             promises.push_back(std::move(tiled.promise));
-            
-            static Frame_t running_id = 0_f;
-            auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-            data.frame.set_timestamp(uint64_t(fake));
-            data.frame.set_index(running_id++);
             
             scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
             //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
             
             for(auto p : tiled.offsets()) {
-                data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scales.back()));
+                tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scales.back()));
             }
             
             auto o = tiled.offsets();
             offsets.insert(offsets.end(), o.begin(), o.end());
-            datas.push_back(std::move(data));
-            callbacks.push_back(std::move(tiled.callback));
+            datas.emplace_back(std::move(tiled.data));
+            callbacks.emplace_back(tiled.callback);
         }
         
         py::schedule([datas = std::move(datas),
@@ -283,7 +277,7 @@ struct Yolo7ObjectDetection {
             const size_t _N = datas.size();
             py::ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
             bbx.set_variable("offsets", std::move(offsets));
-            bbx.set_variable("image", std::move(images));
+            bbx.set_variable("image", images);
             
             bbx.set_function("receive", [&](std::vector<uint64_t> Ns,
                                             std::vector<float> vector)
@@ -309,6 +303,7 @@ struct Yolo7ObjectDetection {
                     FormatExcept("Empty data for ", datas);
                     return;
                 }
+                
                 assert(Ns.size() == datas.size());
                 for(size_t i=0; i<datas.size(); ++i) {
                     auto& data = datas.at(i);
@@ -490,17 +485,17 @@ struct Yolo7InstanceSegmentation {
     static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
         namespace py = Python;
         
-        SegmentationData data{
+        /*SegmentationData data{
             std::move(tiled.original),
         };
         
         static Frame_t running_id = 0_f;
         auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
         data.frame.set_timestamp(uint64_t(fake));
-        data.frame.set_index(running_id++);
+        data.frame.set_index(running_id++);*/
         
         Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
-        print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", tiled.data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
         
         
         /*for(size_t i=0; i<tiled.images.size(); ++i) {
@@ -508,17 +503,17 @@ struct Yolo7InstanceSegmentation {
         }*/
         
         for(auto p : tiled.offsets()) {
-            data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));
+            tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));
         }
         
-        py::schedule([&data, scale, offsets = tiled.offsets(), images = std::move(tiled.images)]() mutable {
+        py::schedule([&tiled, scale, offsets = tiled.offsets()]() mutable {
             using py = track::PythonIntegration;
             py::ModuleProxy bbx("bbx_saved_model", reinit);
             bbx.set_variable("offsets", std::move(offsets));
-            bbx.set_variable("image", std::move(images));
+            bbx.set_variable("image", tiled.images);
             
             bbx.set_function("receive", [&](std::vector<float> masks, std::vector<float> meta, std::vector<int> indexes) {
-                receive(offsets, data, scale, masks, meta, indexes);
+                receive(offsets, tiled.data, scale, masks, meta, indexes);
             });
 
             Timer timer;
@@ -540,148 +535,12 @@ struct Yolo7InstanceSegmentation {
         }).get();
         
         //tf::imshow("test", ret);
-        return data;//Image::Make(ret);
+        return std::move(tiled.data);//Image::Make(ret);
     }
 };
 
 static_assert(ObjectDetection<Yolo7ObjectDetection>);
 static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
-
-template<typename F, typename R = typename cmn::detail::return_type<F>::type>
-struct RepeatedDeferral {
-    size_t _threads{ 1 }, _minimal_fill { 0 };
-    std::vector<R> _next;
-    //std::future<R> _next_image;
-    F _fn;
-    std::string name;
-    std::mutex mtiming;
-    double _waiting{0}, _samples{0};
-    double _since_last{0}, _ssamples{0};
-    
-    double _runtime{0}, _rsamples{0};
-    double _average_fill_state{ 0 }, _as{ 0 };
-    Timer since_last, since_print;
-
-    std::condition_variable _message, _new_item;
-    mutable std::mutex _mutex;
-    std::thread _updater;
-    std::atomic<bool> _terminate{ false };
-    
-    RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn) : _threads(threads), _minimal_fill(minimal_fill), _fn(std::forward<F>(fn)), name(name),
-        _updater([this]() {
-            set_thread_name(this->name+"_update_thread");
-            std::unique_lock guard(_mutex);
-            Timer runtime;
-
-            while (not _terminate) {
-                if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
-                    thread_print(this->name.c_str(), " #NEXT Sleeping at ", _next.size());
-                    _message.wait(guard);
-                    thread_print(this->name.c_str(), " #NEXT Wake at ", _next.size());
-                }
-
-
-                if (not _terminate and _next.size() < _threads) 
-                {
-                    _since_last += since_last.elapsed() * 1000;
-                    _ssamples++;
-
-                    R r;
-                    double e;
-
-                    guard.unlock();
-                    try {
-                        runtime.reset();
-                        r = _fn();
-                        e = runtime.elapsed();
-                    }
-                    catch (...) {
-                        //p.set_exception(std::current_exception());
-                    }
-                    guard.lock();
-
-                    _next.push_back(std::move(r));
-                    _new_item.notify_one();
-                    
-                    thread_print(this->name.c_str(), " #NEXT Filled up to ", _next.size());
-                    
-                    //std::unique_lock guard(mtiming);
-                    _runtime += e * 1000;
-                    _rsamples++;
-
-                    {
-                        //std::unique_lock guard(mtiming);
-                        //++predicted;
-
-                        if (since_print.elapsed() > 5) {
-                            std::unique_lock guard(mtiming);
-                            //auto total = (_waiting / _samples);
-                            thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ", 
-                                (_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
-
-                            if (_rsamples > 1000) {
-                                _waiting = _samples = 0;
-                                _runtime = _rsamples = 0;
-                                _since_last = _ssamples = 0;
-                                _average_fill_state = _as = 0;
-                            }
-                            since_print.reset();
-                        }
-                    }
-
-                    since_last.reset();
-                }
-            }
-        }) 
-    { }
-    
-    ~RepeatedDeferral() {
-        //if(_next_image.valid())
-        //    _next_image.get();
-        _terminate = true;
-        _message.notify_all();
-        _updater.join();
-    }
-
-    bool has_next() const {
-        std::unique_lock guard(_mutex);
-        return not _next.empty();
-    }
-
-    R get_next() {
-        assert(has_next());
-
-        Timer timer;
-
-        std::unique_lock guard(_mutex);
-        if(_next.empty())
-            _new_item.wait(guard, [this]() {return not _next.empty(); });
-
-        auto e = timer.elapsed();
-        {
-            std::unique_lock guard(mtiming);
-            _waiting += e * 1000;
-            _samples++;
-
-            _average_fill_state += _next.size();
-            ++_as;
-        }
-
-        auto f = std::move(_next.front());
-        _next.erase(_next.begin());
-        if(_next.size() <= _minimal_fill) {
-            _message.notify_one();
-            thread_print(this->name.c_str(), " #NEXT Need to update: ", _next.size(), " / ", _threads);
-        } else
-            thread_print(this->name.c_str(), " #NEXT No need to update: ", _next.size(), " / ", _threads);
-
-        return f;
-    }
-    
-    R next() {
-        return get_next();
-    }
-};
 
 template<typename SourceType>
 class AbstractVideoSource {
@@ -700,8 +559,11 @@ class AbstractVideoSource {
     const bool _finite;
     const Frame_t _length;
     
-    mutable package::packaged_func<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>> _retrieve;
-    mutable package::packaged_func<void, Frame_t> _set_frame;
+    RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>()>> _source_frame;
+    //mutable package::packaged_func<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>> _post_process;
+    //mutable package::packaged_func<void, Frame_t> _set_frame;
+    RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>()>> _resize_cvt;
+    
     
 public:
     template<typename T = SourceType>
@@ -710,97 +572,21 @@ public:
         :
             source(std::move(source)),
             _base(this->source.base()),
-            _retrieve([this]() -> std::tuple<Frame_t, gpuMatPtr, Image::Ptr> {
-                try {
-                    Timer timer;
-                    static RepeatedDeferral def{
-                        75u,
-                        25u,
-                        std::string("source.frame"),
-                        [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>  {
-                            if (i >= this->source.length()) {
-                                i = 0_f;
-                            }
-
-                            auto index = i++;
-                            
-                            gpuMatPtr buffer;
-                            
-                            if(std::unique_lock guard{buffer_mutex};
-                               not buffers.empty())
-                            {
-                                buffer = std::move(buffers.back());
-                                buffers.pop_back();
-                            } else {
-                                buffer = std::make_unique<useMat>();
-                            }
-
-                            static gpuMatPtr tmp = std::make_unique<useMat>();
-
-                            static Timing timing("Source(frame)", 1);
-                            TakeTiming take(timing);
-
-                            //static cv::Mat tmp;
-                            //static auto source_size = this->size();
-                            //if(image->rows != source_size.height || source_size.width != image->cols)
-                            //    image->create(source_size.height, source_size.width, 3);
-
-                            //auto mat = image->get();
-
-                            static cv::Mat cpuBuffer;
-                            this->source.frame(index, cpuBuffer);
-                            cpuBuffer.copyTo(*buffer);
-
-                            cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
-                            std::swap(buffer, tmp);
-                            return std::make_tuple(index, std::move(buffer));
-                        }
-                    };
-                    auto result = def.next();
-                    if(result) {
-                        auto& [index, buffer] = result.value();
-                        static gpuMatPtr tmp = std::make_unique<useMat>();
-                        
-                        //! resize according to settings
-                        //! (e.g. multiple tiled image size)
-                        if (SETTING(meta_video_scale).value<float>() != 1) {
-                            Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
-                            //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                            cv::resize(*buffer, *tmp, new_size);
-                            std::swap(buffer, tmp);
-                        }
-
-                        //! throws bad optional access if the returned frame is not valid
-                        assert(index.valid());
-
-                        auto image = OverlayBuffers::get_buffer();
-                        //image->set_index(index.get()); 
-                        image->create(*buffer, index.get());
-                    
-                        if (_video_samples.load() > 1000) {
-                            _video_samples = _video_fps = 0;
-                        }
-                        _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
-                        _video_samples = _video_samples.load() + 1;
-
-                        return std::make_tuple(index, std::move(buffer), std::move(image));
-                        
-                    } else
-                        throw U_EXCEPTION("Unable to load frame: ", result.error());
-                    
-                } catch(const std::exception& e) {
-                    FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
-                    return {Frame_t{}, nullptr, nullptr};
-                }
-            }),
-            _set_frame([this](Frame_t frame){
-                //std::unique_lock guard(mutex);
-                i = frame;
-            }),
+            _source_frame(75u, 25u,
+              std::string("source.frame"),
+                          [this]() {
+                return fetch_next();
+              }
+            ),
             _size(this->source.size()),
             _framerate(this->source.framerate()),
             _finite(true),
-            _length(this->source.length())
+            _length(this->source.length()),
+            _resize_cvt(50u, 10u,
+                std::string("resize+cvtColor"),
+                [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
+                    return this->fetch_next_process();
+            })
     {
         this->source.set_colors(VideoSource::ImageMode::RGB);
     }
@@ -818,20 +604,91 @@ public:
     }
     
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
-        static RepeatedDeferral _def{
-            50u,
-            10u,
-            std::string("resize+cvtColor"),
-            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
-                return _retrieve();
-            }
-        };
-        
-        auto result = _def.next();
+        auto result = _resize_cvt.next();
         if(not result)
             return std::make_tuple(Frame_t{}, nullptr, nullptr);
         
         return std::move(result.value());
+    }
+    
+    tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() {
+        if (i >= this->source.length()) {
+            i = 0_f;
+        }
+
+        auto index = i++;
+        
+        gpuMatPtr buffer;
+        
+        if(std::unique_lock guard{buffer_mutex};
+           not buffers.empty())
+        {
+            buffer = std::move(buffers.back());
+            buffers.pop_back();
+        } else {
+            buffer = std::make_unique<useMat>();
+        }
+
+        static gpuMatPtr tmp = std::make_unique<useMat>();
+        static Timing timing("Source(frame)", 1);
+        TakeTiming take(timing);
+
+        //static cv::Mat tmp;
+        //static auto source_size = this->size();
+        //if(image->rows != source_size.height || source_size.width != image->cols)
+        //    image->create(source_size.height, source_size.width, 3);
+
+        //auto mat = image->get();
+
+        static cv::Mat cpuBuffer;
+        this->source.frame(index, cpuBuffer);
+        cpuBuffer.copyTo(*buffer);
+
+        cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+        std::swap(buffer, tmp);
+        return std::make_tuple(index, std::move(buffer));
+    }
+    
+    tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> fetch_next_process() {
+        try {
+            Timer timer;
+            auto result = _source_frame.next();
+            if(result) {
+                auto& [index, buffer] = result.value();
+                static gpuMatPtr tmp = std::make_unique<useMat>();
+                
+                //! resize according to settings
+                //! (e.g. multiple tiled image size)
+                if (SETTING(meta_video_scale).value<float>() != 1) {
+                    Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
+                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                    cv::resize(*buffer, *tmp, new_size);
+                    std::swap(buffer, tmp);
+                }
+
+                //! throws bad optional access if the returned frame is not valid
+                assert(index.valid());
+
+                auto image = OverlayBuffers::get_buffer();
+                //image->set_index(index.get());
+                image->create(*buffer, index.get());
+            
+                if (_video_samples.load() > 1000) {
+                    _video_samples = _video_fps = 0;
+                }
+                _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
+                _video_samples = _video_samples.load() + 1;
+
+                return std::make_tuple(index, std::move(buffer), std::move(image));
+                
+            } else
+                return tl::unexpected(result.error());
+                //throw U_EXCEPTION("Unable to load frame: ", result.error());
+            
+        } catch(const std::exception& e) {
+            FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
+            return tl::unexpected(e.what());
+        }
     }
     
     bool is_finite() const {
@@ -841,7 +698,7 @@ public:
     void set_frame(Frame_t frame) {
         if(not is_finite())
             throw std::invalid_argument("Cannot skip on infinite source.");
-        _set_frame(frame);
+        i = frame;
     }
     
     Frame_t length() const {
@@ -868,7 +725,8 @@ struct OverlayedVideo {
     //cv::Mat downloader;
     useMat resized;
     
-    std::future<tl::expected<SegmentationData, const char*>> next_image;
+    using return_t = tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*>;
+    RepeatedDeferral<std::function<return_t()>> apply_net;
     
     bool eof() const noexcept {
         if(not source.is_finite())
@@ -882,16 +740,85 @@ struct OverlayedVideo {
     OverlayedVideo(OverlayedVideo&&) = delete;
     OverlayedVideo& operator=(OverlayedVideo&&) = delete;
     
-    template<typename SourceType>
-    OverlayedVideo(F&& fn, SourceType&& s)
-        : source(AbstractVideoSource<SourceType>(std::move(s))), overlay(std::move(fn))
+    template<typename SourceType, typename Callback>
+    OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
+        : source(AbstractVideoSource<SourceType>(std::move(s))), overlay(std::move(fn)),
+            apply_net(50u,
+                10u,
+                "ApplyNet",
+                [this, callback = std::move(callback)](){
+                    return retrieve_next(callback);
+                })
     {
         
     }
     
     ~OverlayedVideo() {
-        if(next_image.valid())
-            next_image.get();
+    }
+    
+    tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> retrieve_next(const std::function<void()>& callback)
+    {
+        static Timing timing("retrieve_next");
+        TakeTiming take(timing);
+        
+        std::scoped_lock guard(index_mutex);
+        TileImage tiled;
+        auto loaded = i;
+        
+        try {
+            Timer _timer;
+            auto&& [nix, buffer, image] = source.next();
+            if(not nix.valid())
+                return tl::unexpected("Cannot retrieve frame from video source.");
+            
+            static double _average = 0, _samples = 0;
+            _average += _timer.elapsed() * 1000;
+            ++_samples;
+            if ((size_t)_samples % 100 == 0) {
+                print("Waited for source frame for ", _average / _samples,"ms");
+                _samples = 0;
+                _average = 0;
+            }
+
+            useMat *use { buffer.get() };
+            image->set_index(nix.get());
+            
+            Size2 original_size(use->cols, use->rows);
+            
+            Size2 new_size(expected_size);
+            if(SETTING(tile_image).value<size_t>() > 1) {
+                size_t tiles = SETTING(tile_image).value<size_t>();
+                float ratio = use->rows / float(use->cols);
+                new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
+                while(use->cols < new_size.width
+                      && use->rows < new_size.height
+                      && tiles > 0)
+                {
+                    new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
+                    tiles--;
+                }
+            }
+            
+            if (use->cols != new_size.width || use->rows != new_size.height) {
+                cv::resize(*use, resized, new_size);
+                use = &resized;
+            }
+            
+            i = nix + 1_f;
+
+            //! tile image to make it ready for processing in the network
+            TileImage tiled(*use, std::move(image), expected_size, original_size);
+            tiled.callback = callback;
+            source.move_back(std::move(buffer));
+            
+            //thread_print("Queueing image ", nix);
+            //! network processing, and record network fps
+            return std::make_tuple(nix, this->overlay.apply(std::move(tiled)));
+            
+        } catch(const std::exception& e) {
+            FormatExcept("Error loading frame ", loaded, " from video ", source, ": ", e.what());
+            return tl::unexpected("Error loading frame.");
+        }
     }
     
     void reset(Frame_t frame) {
@@ -902,84 +829,11 @@ struct OverlayedVideo {
     }
     
     //! generates the next frame
-    tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> generate(std::function<void()>&& callback) noexcept {
+    tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> generate() noexcept
+    {
         if(eof())
             return tl::unexpected("End of file.");
-        
-        auto retrieve_next = [this, callback = std::move(callback)]()
-            -> tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*>
-        {
-            static Timing timing("retrieve_next");
-            TakeTiming take(timing);
-            
-            std::scoped_lock guard(index_mutex);
-            TileImage tiled;
-            auto loaded = i;
-            
-            try {
-                Timer _timer;
-                auto&& [nix, buffer, image] = source.next();
-                if(not nix.valid())
-                    return tl::unexpected("Cannot retrieve frame from video source.");
-                
-                static double _average = 0, _samples = 0;
-                _average += _timer.elapsed() * 1000;
-                ++_samples;
-                if ((size_t)_samples % 100 == 0) {
-                    print("Waited for source frame for ", _average / _samples,"ms");
-                    _samples = 0;
-                    _average = 0;
-                }
-
-                useMat *use { buffer.get() };
-                image->set_index(nix.get());
-                
-                Size2 original_size(use->cols, use->rows);
-                
-                Size2 new_size(expected_size);
-                if(SETTING(tile_image).value<size_t>() > 1) {
-                    size_t tiles = SETTING(tile_image).value<size_t>();
-                    float ratio = use->rows / float(use->cols);
-                    new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
-                    while(use->cols < new_size.width
-                          && use->rows < new_size.height
-                          && tiles > 0)
-                    {
-                        new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
-                        tiles--;
-                    }
-                }
-                
-                if (use->cols != new_size.width || use->rows != new_size.height) {
-                    cv::resize(*use, resized, new_size);
-                    use = &resized;
-                }
-                
-                i = nix + 1_f;
-
-                //! tile image to make it ready for processing in the network
-                TileImage tiled(*use, std::move(image), expected_size, original_size);
-                tiled.callback = std::move(callback);
-                source.move_back(std::move(buffer));
-                
-                //thread_print("Queueing image ", nix);
-                //! network processing, and record network fps
-                return std::make_tuple(nix, this->overlay.apply(std::move(tiled)));
-                
-            } catch(const std::exception& e) {
-                FormatExcept("Error loading frame ", loaded, " from video ", source, ": ", e.what());
-                return tl::unexpected("Error loading frame.");
-            }
-        };
-        
-        static RepeatedDeferral def{
-            50u,
-            10u,
-            "Tile+ApplyNet",
-            retrieve_next
-        };
-        
-        return def.next();
+        return apply_net.next();
     }
 };
 
@@ -1000,227 +854,6 @@ inline static sprite::Map _video_info = [](){
     fish["resolution"] = Size2();
     return fish;
 }();
-
-struct Menu {
-    Image::Ptr next;
-    dyn::Context context;
-    dyn::State state;
-    std::vector<Layout::Ptr> objects;
-    Frame_t _actual_frame, _video_frame;
-    
-    Menu() = delete;
-    Menu(Menu&&) = delete;
-    Menu(const Menu&) = delete;
-    
-    template<typename F>
-    Menu(F&& reset_func) : context(dyn::Context{
-        .actions = {
-            {
-                "QUIT", [](auto) {
-                    SETTING(terminate) = true;
-                }
-            },
-            {
-                "FILTER", [](auto) {
-                    static bool filter { false };
-                    filter = not filter;
-                    SETTING(filter_class) = filter;
-                }
-            },
-            {
-                "RESET", [reset_func = std::move(reset_func)](auto) {
-                    reset_func();
-                }
-            }
-        },
-        
-        .variables = {
-            {
-                "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return ::_fps.load() / ::_samples.load();
-                }))
-            },
-            {
-                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return ::_network_fps.load() / ::_network_samples.load();
-                }))
-            },
-            {
-                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return ::_video_fps.load() / ::_video_samples.load();
-                }))
-            },
-            {
-                "fish",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
-                    return fish;
-                }))
-            },
-            {
-                "global",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
-                    return GlobalSettings::map();
-                }))
-            },
-            {
-                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
-                    return _actual_frame;
-                }))
-            },
-            {
-                "video", std::unique_ptr<VarBase_t>(new Variable([this](std::string) -> sprite::Map& {
-                    return _video_info;
-                }))
-            }
-        }
-    }) { }
-    
-    ~Menu() {
-        context = {};
-        state = {};
-        
-        objects.clear();
-    }
-    
-    void draw(DrawStructure& g, Frame_t actual_frame, Frame_t video_frame) {
-        _actual_frame = actual_frame;
-        _video_frame = video_frame;
-        
-        dyn::update_layout("alter_layout.json", context, state, objects);
-        
-        g.section("buttons", [&](auto&, Section* section) {
-            section->set_scale(g.scale().reciprocal());
-            for(auto &obj : objects) {
-                dyn::update_objects(g, obj, context, state);
-                g.wrap_object(*obj);
-            }
-        });
-    }
-};
-
-struct SettingsDropdown {
-    Dropdown _settings_dropdown = Dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
-    Textfield _value_input = Textfield(Bounds(0, 0, 300, 33));
-    std::shared_ptr<gui::List> _settings_choice;
-    bool should_select{false};
-    
-    SettingsDropdown(auto&& on_enter) {
-        _settings_dropdown.set_origin(Vec2(0, 1));
-        _value_input.set_origin(Vec2(0, 1));
-        
-        _settings_dropdown.on_select([&](long_t index, const std::string& name) {
-            this->selected_setting(index, name, _value_input);
-        });
-        _value_input.on_enter([this, on_enter = std::move(on_enter)](){
-            try {
-                auto key = _settings_dropdown.items().at(_settings_dropdown.selected_id()).name();
-                if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
-                    GlobalSettings::get(key).get().set_value_from_string(_value_input.text());
-                    if(GlobalSettings::get(key).is_type<Color>())
-                        this->selected_setting(_settings_dropdown.selected_id(), key, _value_input);
-                    if((std::string)key == "auto_apply" || (std::string)key == "auto_train")
-                    {
-                        SETTING(auto_train_on_startup) = false;
-                    }
-                    if(key == "auto_tags") {
-                        SETTING(auto_tags_on_startup) = false;
-                    }
-                    
-                    on_enter(key);
-                    
-                } else
-                   FormatError("User cannot write setting ", key," (",GlobalSettings::access_level(key).name(),").");
-            } catch(const std::logic_error&) {
-                //FormatExcept("Cannot set ",settings_dropdown.items().at(settings_dropdown.selected_id())," to value ",textfield.text()," (invalid).");
-            } catch(const UtilsException&) {
-                //FormatExcept("Cannot set ",settings_dropdown.items().at(settings_dropdown.selected_id())," to value ",textfield.text()," (invalid).");
-            }
-        });
-    }
-    
-    void selected_setting(long_t index, const std::string& name, Textfield& textfield) {
-        print("choosing ",name);
-        if(index != -1) {
-            //auto name = settings_dropdown.items().at(index);
-            auto val = GlobalSettings::get(name);
-            if(val.get().is_enum() || val.is_type<bool>()) {
-                auto options = val.get().is_enum() ? val.get().enum_values()() : std::vector<std::string>{ "true", "false" };
-                auto index = val.get().is_enum() ? val.get().enum_index()() : (val ? 0 : 1);
-                
-                std::vector<std::shared_ptr<List::Item>> items;
-                std::map<std::string, bool> selected_option;
-                for(size_t i=0; i<options.size(); ++i) {
-                    selected_option[options[i]] = i == index;
-                    items.push_back(std::make_shared<TextItem>(options[i]));
-                    items.back()->set_selected(i == index);
-                }
-                
-                print("options: ", selected_option);
-                
-                _settings_choice = std::make_shared<List>(Bounds(0, 0, 150, textfield.height()), "", items, [&textfield, this](List*, const List::Item& item){
-                    print("Clicked on item ", item.ID());
-                    textfield.set_text(item);
-                    textfield.enter();
-                    _settings_choice->set_folded(true);
-                });
-                
-                _settings_choice->set_display_selection(true);
-                _settings_choice->set_selected(index, true);
-                _settings_choice->set_folded(false);
-                _settings_choice->set_foldable(true);
-                _settings_choice->set_toggle(false);
-                _settings_choice->set_accent_color(Color(80, 80, 80, 200));
-                _settings_choice->set_origin(Vec2(0, 1));
-                
-            } else {
-                _settings_choice = nullptr;
-                
-                if(val.is_type<std::string>()) {
-                    textfield.set_text(val.value<std::string>());
-                } else if(val.is_type<file::Path>()) {
-                    textfield.set_text(val.value<file::Path>().str());
-                } else
-                    textfield.set_text(val.get().valueString());
-            }
-            
-            if(!_settings_choice)
-                textfield.set_read_only(GlobalSettings::access_level(name) > AccessLevelType::PUBLIC);
-            else
-                _settings_choice->set_pos(textfield.pos());
-            
-            should_select = true;
-        }
-    }
-    
-    void draw(IMGUIBase& base, DrawStructure& g) {
-        auto stretch_w = g.width() - 10 - _value_input.global_bounds().pos().x;
-        if(_value_input.selected())
-            _value_input.set_size(Size2(max(300, stretch_w / 1.0), _value_input.height()));
-        else
-            _value_input.set_size(Size2(300, _value_input.height()));
-        
-        _settings_dropdown.set_pos(Vec2(10, base.window_dimensions().height - 10));
-        _value_input.set_pos(_settings_dropdown.pos() + Vec2(_settings_dropdown.width(), 0));
-        g.wrap_object(_settings_dropdown);
-        
-        if(_settings_choice) {
-            g.wrap_object(*_settings_choice);
-            _settings_choice->set_pos(_settings_dropdown.pos() + Vec2(_settings_dropdown.width(), 0));
-            
-            if(should_select) {
-                g.select(_settings_choice.get());
-                should_select = false;
-            }
-            
-        } else {
-            g.wrap_object(_value_input);
-            if(should_select) {
-                g.select(&_value_input);
-                should_select = false;
-            }
-        }
-    }
-};
 
 struct Detection {
     
@@ -1244,6 +877,15 @@ struct Detection {
             auto f = tiled.promise.get_future();
             manager.enqueue(std::move(tiled));
             return f;
+        } else if(type() == ObjectDetectionType::yolo7seg) {
+            std::promise<SegmentationData> p;
+            auto e = Yolo7InstanceSegmentation::apply(std::move(tiled));
+            try {
+                p.set_value(std::move(e.value()));
+            } catch(...) {
+                p.set_exception(std::current_exception());
+            }
+            return p.get_future();
         }
         
         throw U_EXCEPTION("Unknown detection type: ", type());
@@ -1265,30 +907,8 @@ struct Detection {
     inline static auto manager = PipelineManager<TileImage>(10.0, [](std::vector<TileImage>&& images) {
         // do what has to be done when the queue is full
         // i.e. py::execute()
-        //thread_print("Executing with ",images.size()," images!");
-        //for(auto &tile : images)
-        //    thread_print("\t",tile.original ? tile.original->index() : -1);
         Detection::apply(std::move(images));
     });
-    
-    /*static void receive(std::vector<Vec2> offsets, SegmentationData& data, Vec2 scale, std::vector<float>& masks, const std::vector<float>& vector, const std::vector<int>& indexes)
-    {
-        if(type() == ObjectDetectionType::yolo7seg) {
-            Yolo7InstanceSegmentation::receive(offsets, data, scale, masks, vector, indexes);
-            return;
-        }
-        
-        throw U_EXCEPTION("Unknown detection type: ", type());
-    }
-    
-    static void receive(SegmentationData& data, Vec2 scale, const std::span<float>& vector) {
-        if(type() == ObjectDetectionType::yolo7) {
-            Yolo7ObjectDetection::receive(data, scale, vector);
-            return;
-        }
-        
-        throw U_EXCEPTION("Unknown detection type: ", type());
-    }*/
 };
 
 int main(int argc, char**argv) {
@@ -1353,33 +973,10 @@ int main(int argc, char**argv) {
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     });
     
-    static_assert(ObjectDetection<Detection>);
-    OverlayedVideo video(
-        Detection{},
-        VideoSource(SETTING(source).value<std::string>())
-    );
-
-    {
-        VideoSource tmp(SETTING(source).value<std::string>());
-        Timer timer;
-        useMat m;
-        double average = 0, samples = 0;
-        for (int i = 0; i < 1000; ++i) {
-            tmp.frame(Frame_t(i), m);
-            average += timer.elapsed() * 1000;
-            timer.reset();
-            samples++;
-        }
-        print("Average time / frame: ", average / samples, "ms");
-    }
-    std::mutex mutex, current_mutex;
     std::condition_variable messages;
+    std::mutex mutex, current_mutex;
     std::atomic<bool> _terminate{false};
     SegmentationData next;
-    
-    ::Menu menu([&](){
-        video.reset(1500_f);
-    });
     
     using namespace track;
     
@@ -1394,13 +991,15 @@ int main(int argc, char**argv) {
     SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
         Rangef(10,300)
     });
-    SETTING(frame_rate) = Settings::frame_rate_t(video.source.framerate());
     SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
     SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
     SETTING(terminate) = false;
     SETTING(calculate_posture) = false;
     SETTING(gui_interface_scale) = float(1);
     SETTING(meta_source_path) = SETTING(source).value<std::string>();
+    
+    VideoSource video_base(SETTING(source).value<std::string>());
+    SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate());
     
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
@@ -1422,11 +1021,11 @@ int main(int argc, char**argv) {
     cmd.load_settings();
     
     if(SETTING(filename).value<file::Path>().empty()) {
-        SETTING(filename) = file::Path((std::string)file::Path(video.source.base()).filename());
+        SETTING(filename) = file::Path((std::string)file::Path(video_base.base()).filename());
     }
     
     SETTING(filter_class) = false;
-    Size2 output_size = (Size2(video.source.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+    Size2 output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
     
     _video_info["resolution"] = output_size;
@@ -1440,10 +1039,95 @@ int main(int argc, char**argv) {
     //FrameInfo frameinfo;
     //Timer timer;
     //Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
-    print("&video = ", (uint64_t)&video);
-    SettingsDropdown settings([&](const std::string& name) {
+    
+    static_assert(ObjectDetection<Detection>);
+    
+    OverlayedVideo video(
+        Detection{},
+        std::move(video_base),
+         [&messages](){
+             messages.notify_one();
+         }
+    );
+    
+    {
+        VideoSource tmp(SETTING(source).value<std::string>());
+        Timer timer;
+        useMat m;
+        double average = 0, samples = 0;
+        for (int i = 0; i < 1000; ++i) {
+            tmp.frame(Frame_t(i), m);
+            average += timer.elapsed() * 1000;
+            timer.reset();
+            samples++;
+        }
+        print("Average time / frame: ", average / samples, "ms");
+    }
+    
+    Frame_t _actual_frame, _video_frame;
+    
+    Alterface menu(dyn::Context{
+        .actions = {
+            {
+                "QUIT", [](auto) {
+                    SETTING(terminate) = true;
+                }
+            },
+            {
+                "FILTER", [](auto) {
+                    static bool filter { false };
+                    filter = not filter;
+                    SETTING(filter_class) = filter;
+                }
+            },
+            {
+                "RESET", [&](auto){
+                    video.reset(1500_f);
+                }
+            }
+        },
+        .variables = {
+            {
+                "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                    return ::_fps.load() / ::_samples.load();
+                }))
+            },
+            {
+                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                    return ::_network_fps.load() / ::_network_samples.load();
+                }))
+            },
+            {
+                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                    return ::_video_fps.load() / ::_video_samples.load();
+                }))
+            },
+            {
+                "fish",
+                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return fish;
+                }))
+            },
+            {
+                "global",
+                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return GlobalSettings::map();
+                }))
+            },
+            {
+                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([&_actual_frame](std::string) {
+                    return _actual_frame;
+                }))
+            },
+            {
+                "video", std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return _video_info;
+                }))
+            }
+        }
+    },
+    [&](const std::string& name) {
         if(name == "gui_frame") {
-            print("&video[settings] = ", (uint64_t)&video);
             video.reset(SETTING(gui_frame).value<Frame_t>());
         }
     });
@@ -1452,36 +1136,7 @@ int main(int argc, char**argv) {
     
     IMGUIBase base("TRexA", graph, [&, ptr = &base]()->bool {
         UNUSED(ptr);
-        
-        //timeline.set_base(ptr);
-        
-        //auto dt = timer.elapsed();
-        ///cache.set_dt(dt);
-        //timer.reset();
-
-        //Frame_t index = SETTING(gui_frame).value<Frame_t>();
-
-        //image.set_pos(last_mouse_pos);
-        //graph.wrap_object(image);
-
-        //auto scale = graph.scale().reciprocal();
-        //auto dim = ptr->window_dimensions().mul(scale * gui::interface_scale());
-        graph.draw_log_messages();//Bounds(Vec2(0), dim));
-        
-        /*static Timer frame_timer;
-        if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<uint32_t>()
-            && index + 1_f < file.length())
-        {
-            if (SETTING(gui_run)) {
-                index += 1_f;
-                SETTING(gui_frame) = index;
-            }
-            frame_timer.reset();
-        }*/
-
-        //frameinfo.mx = graph.mouse_position().x;
-        //frameinfo.my = graph.mouse_position().y;
-        //frameinfo.frameIndex = index;
+        graph.draw_log_messages();
         
         return true;
     }, [](Event) {
@@ -1489,14 +1144,12 @@ int main(int argc, char**argv) {
     });
 
     auto start_time = std::chrono::system_clock::now();
-    PPFrame pp;
     auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", filename);
     pv::File file(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     std::vector<pv::BlobPtr> objects, progress_objects, _trans_objects;
     file.set_average(bg);
     
-    //GUICache cache(&graph, &file);
     static std::vector<std::shared_ptr<VarBase_t>> gui_objects;
     static std::vector<sprite::Map> individual_properties;
     
@@ -1519,34 +1172,6 @@ int main(int argc, char**argv) {
         std::unique_lock guard(mutex);
         while(not _terminate) {
             try {
-                /*if (not result) {
-                    //guard.unlock();
-                    try {
-                        result = f.next();
-                        thread_print("Assigned f.next() value:", result ? std::get<0>(result.value()) : Frame_t());
-                    } catch(...) {
-                        result = tl::unexpected("Exception during f.next()");
-                        FormatExcept(result.error());
-                    }
-                    //guard.lock();
-                } else
-                    thread_print("Already have f.next()... ", std::get<0>(result.value()));
-                
-                if (result and not next) {
-                    try {
-                        auto [index, future] = std::move(result.value());
-                        thread_print("Waiting for an image ",index,"...");
-                        next = future.get();
-                        thread_print("Received image ", next.frame.index(), " (expected ",index,")");
-                    } catch(const SoftExceptionImpl& ex) {
-                        FormatExcept("Error executing prediction task (see above).");
-                    }
-                    result = tl::unexpected("empty");
-                    ready_for_tracking.notify_one();
-                } else {
-                    thread_print((bool)result, " and ", (bool)next);
-                }*/
-                
                 if(not next and not items.empty()) {
                     if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
                         auto data = std::get<1>(items.front()).get();
@@ -1559,9 +1184,7 @@ int main(int argc, char**argv) {
                     }
                 }
                 
-                auto result = video.generate([&messages](){
-                    messages.notify_one();
-                });
+                auto result = video.generate();
                 
                 if(not result) {
                     video.reset(0_f);
@@ -1586,8 +1209,12 @@ int main(int argc, char**argv) {
     });
     
     auto perform_tracking = [&](){
-        //thread_print("Tracking image ", progress.frame.index());
+        static Frame_t running_id = 0_f;
+        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+        progress.frame.set_timestamp(uint64_t(fake));
+        progress.frame.set_index(running_id++);
         progress.frame.set_source_index(Frame_t(progress.image->index()));
+        assert(progress.frame.source_index() == Frame_t(progress.image->index()));
         
         progress_objects.clear();
         for (size_t i = 0; i < progress.frame.n(); ++i) {
@@ -1601,6 +1228,7 @@ int main(int argc, char**argv) {
         file.add_individual(pv::Frame(progress.frame));
         
         {
+            PPFrame pp;
             Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
             tracker.add(pp);
             if (pp.index().get() % 100 == 0) {
@@ -1683,12 +1311,6 @@ int main(int argc, char**argv) {
     });
 
     auto fetch_files = [&](){
-        //std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        //static Timing timing("fetch_files");
-        //TakeTiming take(timing);
-        
-        //static Timing timing2("fetch_files#2");
-        //TakeTiming take2(timing2);
         static std::once_flag flag;
         std::call_once(flag, [](){
             set_thread_name("GUI");
@@ -1722,15 +1344,6 @@ int main(int argc, char**argv) {
         }
     };
 
-    /*std::thread testing([&]() {
-        while (not _terminate) {
-            fetch_files();
-        }
-        print("testing ended.");
-    });*/
-    
-    //graph.set_scale(1. / base.dpi_scale());
-    
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         fetch_files();
         
@@ -1759,11 +1372,6 @@ int main(int argc, char**argv) {
             }
             
             auto scale = wdim.div(output_size);
-            
-            //ratio = ratio.T();
-            //scale = scale.mul(ratio);
-            //if(not current.frame.index().valid() || current.frame.index().get()%10 == 0)
-            //    print("gui scale: ", scale, " dpi:",base.dpi_scale(), " graph:", graph.scale(), " window:", base.window_dimensions(), " video:", SETTING(output_size).value<Size2>(), " scale:", Size2(graph.width(), graph.height()).div(SETTING(output_size).value<Size2>()), " ratio:", ratio, " wdim:", wdim);
             section->set_scale(scale);
 
             LockGuard lguard(ro_t{}, "drawing", 10);
@@ -1814,48 +1422,8 @@ int main(int argc, char**argv) {
                 auto bds = basic->calculate_bounds();//.mul(scale);
                 
                 if(dirty) {
-                    /*SegmentationData::Assignment assign;
-                    if(current.frame.index().valid()) {
-                        if(basic->parent_id.valid()) {
-                            if(auto it = current.predictions.find(basic->parent_id);
-                               it != current.predictions.end())
-                            {
-                                assign = it->second;
-                                
-                            } else if((it = current.predictions.find(basic->blob_id())) != current.predictions.end())
-                            {
-                                assign = it->second;
-                                
-                            } else
-                                print("[draw]1 blob ", basic->blob_id(), " not found...");
-                            
-                        } else if(auto it = current.predictions.find(basic->blob_id()); it != current.predictions.end())
-                        {
-                            assign = it->second;
-                            
-                        } else
-                            print("[draw]2 blob ", basic->blob_id(), " not found...");
-                    }
-                    
-                    
-                        auto cname = meta_classes.size() > assign.clid
-                                ? meta_classes.at(assign.clid)
-                                : "<unknown:"+Meta::toStr(assign.clid)+">";
-                    
-                    sprite::Map tmp;
-                    tmp.set_do_print(false);
-                    tmp["pos"] = bds.pos().mul(scale);
-                    tmp["size"] = Size2(bds.size().mul(scale));
-                    tmp["type"] = std::string(cname);
-                    tmp["tracked"] = true;
-                    tmp["color"] = fish->identity().color();
-                    tmp["id"] = fish->identity().ID();
-                    tmp["p"] = Meta::toStr(assign.p);
-                    individual_properties.push_back(std::move(tmp));
-                    gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
-                        return individual_properties.at(i);
-                    }));*/
-                    
+                    if(basic->parent_id.valid())
+                        visible_bdx[basic->parent_id] = fish->identity();
                     visible_bdx[basic->blob_id()] = fish->identity();
                 }
                 
@@ -1869,75 +1437,84 @@ int main(int argc, char**argv) {
                     return true;
                 });
                 
-                //graph.rect(bds, attr::FillClr(Transparent), attr::LineClr(fish->identity().color()));
                 graph.vertices(line);
             });
             
-            if(dirty) {
-                for(auto &blob : objects) {
-                    
-                    const auto bds = blob->bounds();
-                    //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
-                    
-                    SegmentationData::Assignment assign;
-                    if(current.frame.index().valid()) {
-                        if(blob->parent_id().valid()) {
-                            if(auto it = current.predictions.find(blob->parent_id());
-                               it != current.predictions.end())
-                            {
-                                assign = it->second;
-                                
-                            } else if((it = current.predictions.find(blob->blob_id())) != current.predictions.end())
-                            {
-                                assign = it->second;
-                                
-                            } else
-                                print("[draw]3 blob ", blob->blob_id(), " not found...");
+            //! do not need to continue further if the view isnt dirty
+            if(not dirty)
+                return;
+            
+            for(auto &blob : objects) {
+                
+                const auto bds = blob->bounds();
+                //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+                
+                SegmentationData::Assignment assign;
+                if(current.frame.index().valid()) {
+                    if(blob->parent_id().valid()) {
+                        if(auto it = current.predictions.find(blob->parent_id());
+                           it != current.predictions.end())
+                        {
+                            assign = it->second;
                             
-                        } else if(auto it = current.predictions.find(blob->blob_id()); it != current.predictions.end())
+                        } else if((it = current.predictions.find(blob->blob_id())) != current.predictions.end())
                         {
                             assign = it->second;
                             
                         } else
-                            print("[draw]4 blob ", blob->blob_id(), " not found...");
-                    }
-                    
-                    auto cname = meta_classes.size() > assign.clid
-                                ? meta_classes.at(assign.clid)
-                                : "<unknown:"+Meta::toStr(assign.clid)+">";
-                    
-                    sprite::Map tmp;
-                    tmp.set_do_print(false);
-                    tmp["pos"] = bds.pos().mul(scale);
-                    tmp["size"] = Size2(bds.size().mul(scale));
-                    tmp["type"] = std::string(cname);
-
-                    if (contains(visible_bdx, blob->blob_id())) {
-                        auto id = visible_bdx.at(blob->blob_id());
-                        tmp["color"] = id.color();
-                        tmp["id"] = id.ID();
-                        tmp["tracked"] = true;
-                    }
-                    else {
-                        tmp["tracked"] = false;
-                        tmp["color"] = Gray;
-                        tmp["id"] = Idx_t();
-                    }
-                    tmp["p"] = Meta::toStr(assign.p);
-                    individual_properties.push_back(std::move(tmp));
-                    gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
-                        return individual_properties.at(i);
-                    }));
+                            print("[draw]3 blob ", blob->blob_id(), " not found...");
+                        
+                    } else if(auto it = current.predictions.find(blob->blob_id()); it != current.predictions.end())
+                    {
+                        assign = it->second;
+                        
+                    } else
+                        print("[draw]4 blob ", blob->blob_id(), " not found...");
                 }
+                
+                auto cname = meta_classes.size() > assign.clid
+                            ? meta_classes.at(assign.clid)
+                            : "<unknown:"+Meta::toStr(assign.clid)+">";
+                
+                sprite::Map tmp;
+                tmp.set_do_print(false);
+                tmp["pos"] = bds.pos().mul(scale);
+                tmp["size"] = Size2(bds.size().mul(scale));
+                tmp["type"] = std::string(cname);
+
+                if (contains(visible_bdx, blob->blob_id())) {
+                    auto id = visible_bdx.at(blob->blob_id());
+                    tmp["color"] = id.color();
+                    tmp["id"] = id.ID();
+                    tmp["tracked"] = true;
+                    
+                } else if(blob->parent_id().valid() && contains(visible_bdx, blob->parent_id()))
+                {
+                    auto id = visible_bdx.at(blob->parent_id());
+                    tmp["color"] = id.color();
+                    tmp["id"] = id.ID();
+                    tmp["tracked"] = true;
+                    
+                } else {
+                    tmp["tracked"] = false;
+                    tmp["color"] = Gray;
+                    tmp["id"] = Idx_t();
+                }
+                tmp["p"] = Meta::toStr(assign.p);
+                individual_properties.push_back(std::move(tmp));
+                gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
+                    return individual_properties.at(i);
+                }));
             }
         });
         
         graph.section("menus", [&](auto&, Section* section){
             section->set_scale(graph.scale().reciprocal());
             _video_info["frame"] = current.frame.index();
-            menu.draw(graph, current.frame.source_index(), current.frame.index());
+            _actual_frame = current.frame.source_index();
+            _video_frame = current.frame.index();
             
-            settings.draw(base, graph);
+            menu.draw(base, graph);
         });
         
         //graph.set_dirty(nullptr);
@@ -1959,6 +1536,8 @@ int main(int argc, char**argv) {
         std::unique_lock guard(mutex);
         messages.notify_all();
     }
+    
+    Detection::manager.clean_up();
     
     thread.join();
     graph.root().set_stage(nullptr);

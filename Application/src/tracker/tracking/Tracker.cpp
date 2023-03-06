@@ -465,7 +465,7 @@ void Tracker::add(PPFrame &frame) {
     }
     
     if(frame.timestamp > uint64_t(INT64_MAX)) {
-        print("frame timestamp is bigger than INT64_MAX! (",time," time)");
+        print("frame timestamp is bigger than INT64_MAX! (",frame.timestamp," time)");
     }
     
     auto props = properties(frame.index() - 1_f);
