@@ -88,10 +88,12 @@ offsets = None
 iou_threshold = 0.1
 conf_threshold = 0.1
 
+t_predict = None
+
 def load_model():
-    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type
+    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict
     print("loading model type", model_type)
-    if model_type == "yolo7-seg":
+    if model_type == "yolo7seg":
         from models.common import DetectMultiBackend
         if torch.backends.mps.is_available():
             device = torch.device("cpu")
@@ -102,10 +104,28 @@ def load_model():
         imgsz = (image_size,image_size)
         stride, names, pt = t_model.stride, t_model.names, t_model.pt
 
-        from utils.general import check_img_size
-        imgsz = check_img_size(imgsz, s=stride)
+        #from utils.general import check_img_size
+        #imgsz = check_img_size(imgsz, s=stride)
         t_model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))
         print("Loaded and warmed up")
+
+    elif model_type == "customseg":
+        if torch.backends.mps.is_available():
+            device = torch.device("cpu")
+        else:
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        import pickle
+        with open(model_path, "rb") as f:
+            content = pickle.load(f)
+
+        # loading a dictionary with both "model" and a "predict" function in it
+        # the predict function is supposed to have the following definition:
+        #    predict(t_model, device, image_size, offsets, im)
+        assert "predict" in content
+        assert "model" in content
+
+        t_model = content["model"].to(device)
+        t_predict = content["predict"]
 
     else:
         print("loading tensorflow model")
@@ -446,69 +466,76 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
     return [], np.array([], dtype=np.float32)
 
 def apply():
-    #from pyinstrument import Profiler
+    from pyinstrument import Profiler
 
-    #profiler = Profiler()
-    #profiler.start()
+    profiler = Profiler()
+    profiler.start()
 
     import time
     start = time.time()
 
-    #try:
+    try:
 
-    global model, image_size, receive, image, model_type, offsets
-    if model_type == "yolo5":
-        image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
-        #print(image)
-        results = inference(model, image, size=(image_size, image_size))
-        #print(np.array(results, dtype=int).flatten())
-        receive(np.array(results, dtype=int).flatten())
+        global model, image_size, receive, image, model_type, offsets, t_predict, t_model, device
+        if model_type == "yolo5":
+            image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
+            #print(image)
+            results = inference(model, image, size=(image_size, image_size))
+            #print(np.array(results, dtype=int).flatten())
+            receive(np.array(results, dtype=int).flatten())
 
-    elif model_type == "yolo7-seg":
-        im = np.array(image, copy=False)[..., :3]
-        results = predict_custom_yolo7_seg(offsets, im)
-        print("sending: ", results[0].shape, results[1])
-        receive(results[0], results[1], results[2])
-
-    elif model_type == "yolo7":
-        #profiler = Profiler()
-        #profiler.start()
-        try:
-            #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
+        elif model_type == "customseg":
             im = np.array(image, copy=False)[..., :3]
-            #print("shape: ", im.shape, " image_size=",image_size)
-            #print(np.shape(offsets))
-            #results = predict_custom_yolo7_seg(im)
-            #print("sending: ", results[0].shape, results[1])
+            print(im.shape)
+            results = t_predict(t_model = t_model, device = device, image_size = image_size, offsets = offsets, im = im)
+            print("sending: ", results[0].shape, results[1])
+            receive(results[0], results[1], results[2])
 
-            #receive_seg(results[0], results[1])
-            #s0 = time.time()
-            Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
-            #e0 = time.time()
+        elif model_type == "yolo7seg":
+            im = np.array(image, copy=False)[..., :3]
+            results = predict_custom_yolo7_seg(offsets, im)
+            print("sending: ", results[0].shape, results[1])
+            receive(results[0], results[1], results[2])
 
-            #multi = 10
-            #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
-            #s1 = time.time()
+        elif model_type == "yolo7":
+            #profiler = Profiler()
+            #profiler.start()
+            try:
+                #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
+                im = np.array(image, copy=False)[..., :3]
+                #print("shape: ", im.shape, " image_size=",image_size)
+                #print(np.shape(offsets))
+                #results = predict_custom_yolo7_seg(im)
+                #print("sending: ", results[0].shape, results[1])
 
-            #predict_yolov7(d0, d1, image_shape=(image_size,image_size))
+                #receive_seg(results[0], results[1])
+                #s0 = time.time()
+                Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
+                #e0 = time.time()
 
-            #e1 = time.time()
+                #multi = 10
+                #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
+                #s1 = time.time()
 
-            #print("******",(e0-s0)*1000,"ms im.shape=", im.shape)
+                #predict_yolov7(d0, d1, image_shape=(image_size,image_size))
 
-            receive(Ns, np.array(results, dtype=np.float32).flatten())
-        finally:
-            #profiler.stop()
-            #profiler.print(show_all=True)
-            pass
+                #e1 = time.time()
 
-    else:
-        raise Exception("model_type was not set before running inference:")
+                #print("******",(e0-s0)*1000,"ms im.shape=", im.shape)
 
-    #finally:
-    #    e = time.time()
-        #profiler.stop()
-        #profiler.print(show_all=True)
+                receive(Ns, np.array(results, dtype=np.float32).flatten())
+            finally:
+                #profiler.stop()
+                #profiler.print(show_all=True)
+                pass
+
+        else:
+            raise Exception("model_type was not set before running inference:")
+
+    finally:
+        #e = time.time()
+        profiler.stop()
+        profiler.print(show_all=True)
 
         #print("Took ", (e - start)*1000, "ms")
 

@@ -157,10 +157,14 @@ struct TileImage {
     }
 };
 
-ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg);
+ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg, customseg);
 static inline std::atomic<float> _fps{0}, _samples{0};
 static inline std::atomic<float> _network_fps{0}, _network_samples{0};
 static inline std::atomic<float> _video_fps{ 0 }, _video_samples{ 0 };
+
+static ObjectDetectionType::Class detection_type() {
+    return SETTING(detection_type).value<ObjectDetectionType::Class>();
+}
 
 template<typename T>
 concept MultiObjectDetection = requires (std::vector<TileImage> tiles) {
@@ -181,7 +185,7 @@ struct Yolo7ObjectDetection {
     Yolo7ObjectDetection() = delete;
     
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
-        proxy.set_variable("model_type", "yolo7");
+        proxy.set_variable("model_type", detection_type().toStr());
         proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
         proxy.set_variable("image_size", int(expected_size.width));
         proxy.run("load_model");
@@ -356,7 +360,7 @@ struct Yolo7InstanceSegmentation {
     Yolo7InstanceSegmentation() = delete;
     
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
-        proxy.set_variable("model_type", "yolo7-seg");
+        proxy.set_variable("model_type", detection_type().toStr());
         proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
         proxy.set_variable("image_size", int(expected_size.width));
         proxy.run("load_model");
@@ -861,7 +865,7 @@ struct Detection {
         if(type() == ObjectDetectionType::yolo7) {
             Yolo7ObjectDetection::init();
             
-        } else if(type() == ObjectDetectionType::yolo7seg) {
+        } else if(type() == ObjectDetectionType::yolo7seg || type() == ObjectDetectionType::customseg) {
             Yolo7InstanceSegmentation::init();
             
         } else
@@ -877,7 +881,7 @@ struct Detection {
             auto f = tiled.promise.get_future();
             manager.enqueue(std::move(tiled));
             return f;
-        } else if(type() == ObjectDetectionType::yolo7seg) {
+        } else if(type() == ObjectDetectionType::yolo7seg || type() == ObjectDetectionType::customseg) {
             std::promise<SegmentationData> p;
             auto e = Yolo7InstanceSegmentation::apply(std::move(tiled));
             try {
@@ -1449,7 +1453,9 @@ int main(int argc, char**argv) {
                 const auto bds = blob->bounds();
                 //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
                 
-                SegmentationData::Assignment assign;
+                SegmentationData::Assignment assign{
+                    .clid = size_t(-1)
+                };
                 if(current.frame.index().valid()) {
                     if(blob->parent_id().valid()) {
                         if(auto it = current.predictions.find(blob->parent_id());
