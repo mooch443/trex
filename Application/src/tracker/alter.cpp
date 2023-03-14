@@ -413,6 +413,8 @@ struct Yolo7InstanceSegmentation {
             cv::resize(m, tmp, dim);
             
             //cv::Mat dani;
+            //cv::subtract(cv::Scalar(1.0), tmp, dani);
+            //dani.convertTo(dani, CV_8UC1, 255.0);
             //tmp.convertTo(dani, CV_8UC1, 255.0);
             //tf::imshow("dani", dani);
             
@@ -1003,7 +1005,12 @@ int main(int argc, char**argv) {
     SETTING(meta_source_path) = SETTING(source).value<std::string>();
     
     VideoSource video_base(SETTING(source).value<std::string>());
-    SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate());
+    
+    //! TODO: Major thing with framerate not being set for VideoSources based on single images.
+    if(video_base.framerate() != short(-1))
+        SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate());
+    else
+        SETTING(frame_rate) = Settings::frame_rate_t(25);
     
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
@@ -1031,15 +1038,17 @@ int main(int argc, char**argv) {
     SETTING(filter_class) = false;
     Size2 output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
+    SETTING(is_writing) = true;
     
     _video_info["resolution"] = output_size;
     
-    Tracker tracker;
     //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
     //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
     cv::Mat bg = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
     bg.setTo(255);
-    tracker.set_average(Image::Make(bg));
+    
+    
+    Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
     //FrameInfo frameinfo;
     //Timer timer;
     //Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
@@ -1056,6 +1065,7 @@ int main(int argc, char**argv) {
     
     {
         VideoSource tmp(SETTING(source).value<std::string>());
+        tmp.set_colors(VideoSource::ImageMode::RGB);
         Timer timer;
         useMat m;
         double average = 0, samples = 0;
@@ -1225,15 +1235,17 @@ int main(int argc, char**argv) {
             progress_objects.emplace_back(progress.frame.blob_at(i));
         }
         
-        if (not file.is_open()) {
-            file.set_start_time(start_time);
-            file.set_resolution(output_size);
+        if(SETTING(is_writing)) {
+            if (not file.is_open()) {
+                file.set_start_time(start_time);
+                file.set_resolution(output_size);
+            }
+            file.add_individual(pv::Frame(progress.frame));
         }
-        file.add_individual(pv::Frame(progress.frame));
         
         {
             PPFrame pp;
-            Tracker::preprocess_frame(file, pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
+            Tracker::preprocess_frame(pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
             tracker.add(pp);
             if (pp.index().get() % 100 == 0) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
@@ -1308,7 +1320,8 @@ int main(int argc, char**argv) {
             
             //thread_print("Waiting for next...");
             messages.notify_one();
-            ready_for_tracking.wait(guard);
+            if(not _terminate)
+                ready_for_tracking.wait(guard);
             //thread_print("Received notification: next(", (bool)next,")");
         }
         thread_print("Tracking ended.");
@@ -1534,9 +1547,11 @@ int main(int argc, char**argv) {
     
     {
         //
-        _terminate = true;
-        
-        ready_for_tracking.notify_all();
+        {
+            std::unique_lock guard(mutex);
+            _terminate = true;
+            ready_for_tracking.notify_all();
+        }
         tracking.join();
         
         std::unique_lock guard(mutex);

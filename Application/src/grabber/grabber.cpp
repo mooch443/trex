@@ -225,6 +225,9 @@ void FrameGrabber::prepare_average() {
     _processed.set_average(temp);
     if(tracker)
         tracker->set_average(Image::Make(temp));
+    else {
+        tracker = new track::Tracker(Image::Make(_average), processed());
+    }
     
     if(GRAB_SETTINGS(image_invert))
         cv::subtract(cv::Scalar(255), _average, _average);
@@ -388,11 +391,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
     if (SETTING(enable_live_tracking)) {
-        tracker = new track::Tracker();
         Output::Library::Init();
-    }
-
-    if (tracker) {
         _tracker_thread = new std::thread([this]() {
             cmn::set_thread_name("update_tracker_queue");
             update_tracker_queue();
@@ -423,14 +422,14 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     GlobalSettings::get("cam_undistort1") = map1;
     GlobalSettings::get("cam_undistort2") = map2;
     
-    if(GlobalSettings::map().has("meta_real_width") && GlobalSettings::map().has("cam_scale") && SETTING(cam_scale).value<float>() != 1) {
+    /*if(GlobalSettings::map().has("meta_real_width") && GlobalSettings::map().has("cam_scale") && SETTING(cam_scale).value<float>() != 1) {
         FormatWarning{ "Scaling `meta_real_width` (", SETTING(meta_real_width).value<float>(),") due to `cam_scale` (",SETTING(cam_scale).value<float>(),") being set." };
         //SETTING(meta_real_width) = SETTING(meta_real_width).value<float>() * SETTING(cam_scale).value<float>();
-    }
+    }*/
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-        SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
+    //if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
+    //    SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
     
     SETTING(meta_video_scale) = SETTING(cam_scale).value<float>();
     
@@ -1164,8 +1163,9 @@ void FrameGrabber::update_tracker_queue() {
             last_processed = copy->frame.index();
             
             if(copy && tracker) {
+                track::Tracker::preprocess_frame(std::move(copy->frame), copy->pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
+                
                 track::LockGuard guard(track::w_t{}, "update_tracker_queue");
-                track::Tracker::preprocess_frame(processed(), std::move(copy->frame), copy->pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
                 tracker->add(copy->pp);
                 Frame_t frame{copy->pp.index()};
                 

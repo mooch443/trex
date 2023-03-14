@@ -51,9 +51,7 @@ int main(int argc, char**argv) {
     }
     DebugHeader("LOADED ", settings_file);
     
-    Tracker tracker;
-    tracker.set_average(Image::Make(video.average()));
-    
+    Tracker tracker(Image::Make(video.average()), video);
     video.print_info();
     
     Output::TrackingResults results(tracker);
@@ -68,7 +66,7 @@ int main(int argc, char**argv) {
         double s = 0;
         for(Frame_t i=0_f; i<video.length(); ++i) {
             video.read_frame(frame, i);
-            track::Tracker::preprocess_frame(video, std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
+            track::Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
             tracker.add(pp);
             
             s += timer.elapsed();

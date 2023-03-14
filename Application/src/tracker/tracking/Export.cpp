@@ -788,7 +788,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                     
                     pv::Frame vframe;
                     GUI::instance()->video_source()->read_frame(vframe, frame);
-                    Tracker::instance()->preprocess_frame(*GUI::instance()->video_source(), std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
+                    Tracker::instance()->preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
                 }
                 
                 for(auto && [id, data] : vec) {

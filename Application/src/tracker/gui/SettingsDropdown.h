@@ -41,11 +41,11 @@ struct SettingsDropdown {
                     FormatError("User cannot write setting ", key," (",GlobalSettings::access_level(key).name(),").");
             } catch(const std::logic_error&) {
 #ifndef NDEBUG
-                FormatExcept("Cannot set ",settings_dropdown.items().at(settings_dropdown.selected_id())," to value ",textfield.text()," (invalid).");
+                FormatExcept("Cannot set ",_settings_dropdown.items().at(_settings_dropdown.selected_id())," to value ",_value_input.text()," (invalid).");
 #endif
             } catch(const UtilsException&) {
 #ifndef NDEBUG
-                FormatExcept("Cannot set ",settings_dropdown.items().at(settings_dropdown.selected_id())," to value ",textfield.text()," (invalid).");
+                FormatExcept("Cannot set ",_settings_dropdown.items().at(_settings_dropdown.selected_id())," to value ",_value_input.text()," (invalid).");
 #endif
             }
         });

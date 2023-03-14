@@ -1505,7 +1505,7 @@ bool CacheHints::full() const {
 }
 
 void CacheHints::clear(size_t size) {
-    if (size == 0 && SLOW_SETTING(frame_rate) < 0) {
+    if (size == 0 && (SLOW_SETTING(frame_rate) < 0 || SLOW_SETTING(frame_rate) == uint32_t(-1))) {
 #ifndef NDEBUG
         FormatExcept("Size=", size," frame_rate=", SLOW_SETTING(frame_rate),"");
 #endif

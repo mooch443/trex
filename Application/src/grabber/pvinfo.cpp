@@ -469,12 +469,12 @@ int main(int argc, char**argv) {
         if(average.cols == video.size().width && average.rows == video.size().height)
             video.processImage(average, average);
         
-        if(SETTING(meta_real_width).value<float>() == 0)
-            SETTING(meta_real_width) = float(30.0);
+        //if(SETTING(meta_real_width).value<float>() == 0)
+        //    SETTING(meta_real_width) = float(30.0);
         
         // setting cm_per_pixel after average has been generated (and offsets have been set)
-        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-            SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(video.average().cols);
+        //if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
+        //    SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(video.average().cols);
         
         SETTING(video_size) = Size2(average.cols, average.rows);
         SETTING(video_mask) = video.has_mask();
@@ -490,10 +490,7 @@ int main(int argc, char**argv) {
         
         set_runtime_quiet(true);
         
-        track::Tracker _tracker;
-        cv::Mat local;
-        average.copyTo(local);
-        _tracker.set_average(Image::Make(local));
+        track::Tracker _tracker(Image::Make(average), video);
         
         if(auto_param || SETTING(auto_minmax_size) || SETTING(auto_number_individuals)) {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
@@ -871,12 +868,7 @@ int main(int argc, char**argv) {
         GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
-        track::Tracker tracker;
-        if(!average.empty()) {
-            cv::Mat local;
-            average.copyTo(local);
-            tracker.set_average(Image::Make(local));
-        }
+        track::Tracker tracker(Image::Make(average), SETTING(meta_real_width).value<float>());
         
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             Output::TrackingResults results(tracker);

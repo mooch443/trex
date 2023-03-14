@@ -319,13 +319,15 @@ INSTANTIATE_TEST_SUITE_P(TestPairing, TestPairing,
             &CreateData<default_config::matching_mode_t::approximate>*/));
 
 struct TrackerAndVideo {
-    Tracker tracker;
     pv::File video;
+    Tracker tracker;
     
-    TrackerAndVideo() : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string(), pv::FileMode::READ) {
+    TrackerAndVideo()
+        : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string(), pv::FileMode::READ),
+          tracker(Image::Make(video.average()), video)
+    {
         video.set_project_name("Test");
         video.print_info();
-        tracker.set_average(Image::Make(video.average()));
     }
 };
 
@@ -352,7 +354,7 @@ TEST_F(TestSystemTracker, TrackingTest) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(data->video, std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
     data->tracker.add(pp);
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);

@@ -466,10 +466,10 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
     return [], np.array([], dtype=np.float32)
 
 def apply():
-    from pyinstrument import Profiler
+    #from pyinstrument import Profiler
 
-    profiler = Profiler()
-    profiler.start()
+    #profiler = Profiler()
+    #profiler.start()
 
     import time
     start = time.time()
@@ -487,7 +487,14 @@ def apply():
         elif model_type == "customseg":
             im = np.array(image, copy=False)[..., :3]
             print(im.shape)
-            results = t_predict(t_model = t_model, device = device, image_size = image_size, offsets = offsets, im = im)
+            results = t_predict(
+                t_model = t_model, 
+                device = device, 
+                image_size = image_size, 
+                offsets = offsets, 
+                im = im, 
+                conf_threshold = conf_threshold, 
+                iou_threshold = iou_threshold)
             print("sending: ", results[0].shape, results[1])
             receive(results[0], results[1], results[2])
 
@@ -534,9 +541,9 @@ def apply():
 
     finally:
         #e = time.time()
-        profiler.stop()
-        profiler.print(show_all=True)
-
+        #profiler.stop()
+        #profiler.print(show_all=True)
+        pass
         #print("Took ", (e - start)*1000, "ms")
 
 

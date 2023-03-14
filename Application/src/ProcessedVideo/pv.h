@@ -311,14 +311,7 @@ namespace pv {
         //void start_reading() override;
         
     public:
-        File(const file::Path& filename, FileMode mode)
-            : DataFormat(filename.add_extension("pv"), filename.str()),
-                _header(filename.str()),
-                _filename(filename),
-                _prev_frame_time(0),
-                _mode(mode)
-        { }
-        
+        File(const file::Path& filename, FileMode mode);
         ~File();
         
         void close() override;
@@ -399,6 +392,7 @@ namespace pv {
     protected:
         virtual void _write_header() override;
         virtual void _read_header() override;
+        void _update_global_settings();
     };
     
     //! Tries to find irregular frames (timestamp smaller than timestamp from previous frame)

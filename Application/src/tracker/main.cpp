@@ -754,9 +754,6 @@ int main(int argc, char** argv)
             
         }
     }
-
-    Tracker tracker;
-    tracker.update_history_log();
     
     bool contains_illegal_options = false;
     for(auto &option : cmd.options()) {
@@ -831,9 +828,8 @@ int main(int argc, char** argv)
         GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), opening_result.extra_command_lines, AccessLevelType::STARTUP);
     }
     
-    cv::Mat local;
-    average.copyTo(local);
-    tracker.set_average(Image::Make(local));
+    Tracker tracker(Image::Make(average), video);
+    tracker.update_history_log();
     
     if(!SETTING(log_file).value<file::Path>().empty()) {
         auto path = SETTING(log_file).value<file::Path>();//file::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
@@ -1106,7 +1102,7 @@ int main(int argc, char** argv)
             Timer timer;
             pv::Frame frame;
             video.read_frame(frame, idx);
-            Tracker::preprocess_frame(video, std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, false);
+            Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, false);
 
             ptr->set_loading_time(narrow_cast<float>(timer.elapsed()));
 

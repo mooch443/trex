@@ -75,7 +75,7 @@ protected:
 public:
     const std::vector<FrameProperties::Ptr>& frames() const { return _added_frames; }
 protected:
-    Image::SPtr _average;
+    Image::Ptr _average;
     GETTER_SETTER(cv::Mat, mask)
     
     //! All the individuals that have been detected and are being maintained
@@ -155,8 +155,12 @@ public:
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
 public:
-    Tracker();
+    Tracker(Image::Ptr&& average, float meta_real_width);
+    Tracker(Image::Ptr&& average, const pv::File& file);
     ~Tracker();
+    
+    static float infer_meta_real_width_from(const pv::File& file);
+    static float infer_cm_per_pixel();
     
     /**
      * Adds a frame to the known frames.
@@ -170,8 +174,8 @@ private:
     void add(Frame_t frameIndex, PPFrame& frame);
     
 public:
-    void set_average(const Image::SPtr& average) {
-        _average = average;
+    void set_average(Image::Ptr&& average) {
+        _average = std::move(average);
         _background = new Background(Image::Make(*_average), nullptr);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
@@ -198,7 +202,7 @@ public:
     static size_t number_frames() { return instance()->_added_frames.size(); }
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(const pv::File&, pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, bool do_history_split = true);
+    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, bool do_history_split = true);
     
     friend class VisualField;
     

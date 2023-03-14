@@ -117,7 +117,7 @@ namespace gui {
             
             {
                 std::unique_lock info_guard(Timeline::_frame_info_mutex);
-                number << _frame_info->frameIndex.load().toStr() << "/" << _frame_info->video_length << ", " << _frame_info->big_count << " tracks";
+                number << _frame_info->frameIndex.load().toStr() << "/" << _frame_info->video_length << ", " << SETTING(gui_source_video_frame).value<Frame_t>().toStr() << " " << _frame_info->big_count << " tracks";
                 if (_frame_info->small_count)
                     number << " (" << _frame_info->small_count << " short)";
                 if (_frame_info->up_to_this_frame != _frame_info->big_count)

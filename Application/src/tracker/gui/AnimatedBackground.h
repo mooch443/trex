@@ -10,8 +10,11 @@ namespace gui {
 
 class AnimatedBackground : public Entangled {
     Color _tint{White};
+    cv::Mat _local_buffer;
     gpuMat _buffer;
     gpuMat _resized;
+    
+    std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;
     float _source_scale{1.f};
     
@@ -20,8 +23,8 @@ class AnimatedBackground : public Entangled {
     
     Timer _next_timer;
     std::mutex _next_mutex;
-    Image::Ptr _next_image;
-    std::future<bool> _next_frame;
+    //Image::Ptr _next_image;
+    std::future<Image::Ptr> _next_frame;
     
 public:
     AnimatedBackground(Image::Ptr&&);

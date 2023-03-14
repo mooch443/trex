@@ -80,10 +80,9 @@ void async_main(void*) {
 	SETTING(terminate) = false;
 
 	try {
-		Tracker tracker;
+		Tracker tracker(std::make_unique<Image>(file.average()), file);
 		print("Added tracker");
 		print("Image: ", Size2(file.average()));
-		tracker.set_average(std::make_unique<Image>(file.average()));
 
 		Tracker::auto_calculate_parameters(file);
 
@@ -129,7 +128,7 @@ void async_main(void*) {
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(file, std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, false);
+				track::Tracker::preprocess_frame(std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, false);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();

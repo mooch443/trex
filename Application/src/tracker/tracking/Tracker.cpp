@@ -151,8 +151,16 @@ std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
     return map;
 }
 
-static CacheHints _properties_cache;
-static std::shared_mutex _properties_mutex;
+auto& properties_cache() {
+    static CacheHints _properties_cache;
+    return _properties_cache;
+}
+
+
+auto& properties_mutex() {
+    static std::shared_mutex _properties_mutex;
+    return _properties_mutex;
+}
 
 double Tracker::time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache) {
     auto props_1 = properties(frame_1, cache);
@@ -173,8 +181,8 @@ const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints*
         }
         
     } else {
-        std::shared_lock guard(_properties_mutex);
-        auto ptr = _properties_cache.properties(frameIndex);
+        std::shared_lock guard(properties_mutex());
+        auto ptr = properties_cache().properties(frameIndex);
         if(ptr)
             return ptr;
     }
@@ -224,7 +232,37 @@ void Tracker::analysis_state(AnalysisState pause) {
     tmp.detach();
 }
 
-Tracker::Tracker()
+float Tracker::infer_meta_real_width_from(const pv::File &file) {
+    if(not GlobalSettings::has("meta_real_width")
+        || SETTING(meta_real_width).value<float>() == 0)
+    {
+        if(file.header().meta_real_width <= 0) {
+            FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
+            return float(30.0);
+        } else {
+            if(not GlobalSettings::has("meta_real_width")
+                || SETTING(meta_real_width).value<float>() == 0)
+            {
+                return file.header().meta_real_width;
+            }
+        }
+    }
+    
+    return SETTING(meta_real_width).value<float>();
+}
+
+float Tracker::infer_cm_per_pixel() {
+    // setting cm_per_pixel after average has been generated (and offsets have been set)
+    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
+        return SETTING(meta_real_width).value<float>() / float(average().cols);
+    return 1;
+}
+
+Tracker::Tracker(Image::Ptr&& average, const pv::File& video)
+    : Tracker(std::move(average), infer_meta_real_width_from(video))
+{ }
+
+Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
       : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
         _max_individuals(0),
         _background(NULL)
@@ -243,6 +281,18 @@ Tracker::Tracker()
     update_analysis_range();
     
     _instance = this;
+    set_average(std::move(average));
+    
+    if(not GlobalSettings::map().has("meta_real_width")
+       || SETTING(meta_real_width).value<float>() == 0)
+    {
+        SETTING(meta_real_width) = meta_real_width;
+    }
+    
+    // setting cm_per_pixel after average has been generated (and offsets have been set)
+    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
+        SETTING(cm_per_pixel) = infer_cm_per_pixel();
+    
     if(!SETTING(quiet))
         print("Initialized with ", _thread_pool.num_threads()," threads.");
     
@@ -285,8 +335,8 @@ Tracker::Tracker()
     Settings::set_callback(Settings::track_ignore, track_list_update);
     Settings::set_callback(Settings::track_include, track_list_update);
     Settings::set_callback(Settings::frame_rate, [](auto&, auto&){
-        std::unique_lock guard(_properties_mutex);
-        _properties_cache.clear(); //! TODO: need to refill as well
+        std::unique_lock guard(properties_mutex());
+        properties_cache().clear(); //! TODO: need to refill as well
     });
     Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
         static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
@@ -521,29 +571,8 @@ void Tracker::update_history_log() {
     PPFrame::UpdateLogs();
 }
 
-void Tracker::preprocess_frame(const pv::File& video, pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, bool do_history_split)
+void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, bool do_history_split)
 {
-    static std::once_flag flag;
-    std::call_once(flag, [&video](){
-        if(not GlobalSettings::has("meta_real_width")
-            || SETTING(meta_real_width).value<float>() == 0) 
-        {
-            if(video.header().meta_real_width <= 0) {
-                FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
-                SETTING(meta_real_width) = float(30.0);
-            } else {
-                if(not GlobalSettings::has("meta_real_width")
-                    || SETTING(meta_real_width).value<float>() == 0) {
-                    SETTING(meta_real_width) = video.header().meta_real_width;
-                }
-            }
-        }
-        
-        // setting cm_per_pixel after average has been generated (and offsets have been set)
-        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-            SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(average().cols);
-    });
-    
     double time = double(frame.timestamp()) / double(1000*1000);
     
     //! Free old memory
@@ -804,20 +833,20 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     instance()->_added_frames.emplace_back(FrameProperties::Make(props));
     
     if(frames.capacity() != capacity) {
-        std::unique_lock guard(_properties_mutex);
-        _properties_cache.clear();
+        std::unique_lock guard(properties_mutex());
+        properties_cache().clear();
         
         auto it = frames.rbegin();
-        while(it != frames.rend() && !_properties_cache.full())
+        while(it != frames.rend() && !properties_cache().full())
         {
-            _properties_cache.push((*it)->frame, (*it).get());
+            properties_cache().push((*it)->frame, (*it).get());
             ++it;
         }
         assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*frames.rbegin())->frame == end_frame()));
         
     } else {
-        std::unique_lock guard(_properties_mutex);
-        _properties_cache.push(props.frame, frames.back().get());
+        std::unique_lock guard(properties_mutex());
+        properties_cache().push(props.frame, frames.back().get());
     }
     
     return frames.back().get();
@@ -851,8 +880,8 @@ const std::set<Idx_t> Tracker::identities() {
 }
 
 void Tracker::clear_properties() {
-    std::unique_lock guard(_properties_mutex);
-    _properties_cache.clear();
+    std::unique_lock guard(properties_mutex());
+    properties_cache().clear();
 }
 
 Match::PairedProbabilities Tracker::calculate_paired_probabilities
@@ -2152,19 +2181,19 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         
         {
             //! update the cache for frame properties
-            std::unique_lock guard(_properties_mutex);
+            std::unique_lock guard(properties_mutex());
             while(!_added_frames.empty()) {
                 if((*(--_added_frames.end()))->frame < frameIndex)
                     break;
                 _added_frames.erase(--_added_frames.end());
             }
             
-            _properties_cache.clear();
+            properties_cache().clear();
             
             auto it = _added_frames.rbegin();
-            while(it != _added_frames.rend() && !_properties_cache.full())
+            while(it != _added_frames.rend() && !properties_cache().full())
             {
-                _properties_cache.push((*it)->frame, (*it).get());
+                properties_cache().push((*it)->frame, (*it).get());
                 ++it;
             }
         }

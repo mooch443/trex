@@ -1,6 +1,7 @@
 #include "AnimatedBackground.h"
 #include <gui/gui.h>
 #include <pv.h>
+#include <misc/RepeatedDeferral.h>
 
 namespace gui {
 
@@ -25,6 +26,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
     if(config.has("meta_source_path")) {
         std::string meta_source_path = config.get<std::string>("meta_source_path");
         try {
+            std::unique_lock guard(_source_mutex);
             _source = std::make_unique<VideoSource>(meta_source_path);
             _source->set_colors(VideoSource::ImageMode::RGB);
             _source->set_lazy_loader(true);
@@ -47,9 +49,12 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
 AnimatedBackground::AnimatedBackground(VideoSource&& source)
     : _source(std::make_unique<VideoSource>(std::move(source)))
 {
-    if(_source->length() > 0_f) {
-        _source->frame(0_f, _buffer);
-        _static_image.set_source(Image::Make(_buffer));
+    {
+        std::unique_lock guard(_source_mutex);
+        if(_source->length() > 0_f) {
+            _source->frame(0_f, _buffer);
+            _static_image.set_source(Image::Make(_buffer));
+        }
     }
     
     update([this](auto&) {
@@ -57,6 +62,30 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
     });
     auto_size({});
 }
+
+template<typename T, typename Construct>
+struct Buffers {
+    inline static std::mutex _mutex;
+    inline static std::vector<T> _buffers;
+    inline static Construct _create{};
+    
+    static T get() {
+        if(std::unique_lock guard(_mutex);
+           not _buffers.empty())
+        {
+            auto ptr = std::move(_buffers.back());
+            _buffers.pop_back();
+            return ptr;
+        }
+        
+        return _create();
+    }
+    
+    static void move_back(T&& image) {
+        std::unique_lock guard(_mutex);
+        _buffers.emplace_back(std::move(image));
+    }
+};
 
 void AnimatedBackground::before_draw() {
     if(not _source) {
@@ -69,51 +98,59 @@ void AnimatedBackground::before_draw() {
        && frame != _current_frame
        && _source)
     {
-        auto retrieve_next = [this](Frame_t index) {
+        using buffers = Buffers<Image::Ptr, decltype([]{ return Image::Make(); })>;
+        
+        auto retrieve_next = [this](Frame_t index) -> Image::Ptr {
+            std::unique_lock guard(_source_mutex);
             if(not index.valid() || index >= _source->length())
-                return false; // past end
+                return nullptr; // past end
             
             try {
-                _source->frame(index, _buffer);
+                print("Loading ", index);
+                _source->frame(index, _local_buffer);
+                _local_buffer.copyTo(_buffer); // upload
                 
                 const gpuMat *output = &_buffer;
                 if(_source_scale > 0 && _source_scale != 1)
                 {
-                    cv::resize(_buffer, _resized, Size2(_buffer.cols, _buffer.rows).mul(_source_scale).map(roundf));
+                    cv::resize(*output, _resized,
+                               Size2(output->cols, output->rows)
+                                .mul(_source_scale).map(roundf));
                     output = &_resized;
                 }
                 
                 const uint channels = is_in(output->channels(), 3, 4)
                                         ? 4 : 1;
+                auto image = buffers::get();
                 
-                if(not _next_image
-                   || _next_image->cols != (uint)output->cols
-                   || _next_image->rows != (uint)output->rows
-                   || _next_image->dims != channels)
+                if(not image
+                   || image->cols != (uint)output->cols
+                   || image->rows != (uint)output->rows
+                   || image->dims != channels)
                 {
-                    _next_image = Image::Make(output->rows, output->cols, channels);
+                    image = Image::Make(output->rows, output->cols, channels);
                 }
                 
                 if(output->channels() == 3) {
-                    cv::cvtColor(*output, _next_image->get(), cv::COLOR_BGR2RGBA);
+                    cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
                 } else {
-                    assert(_buffer.channels() == _next_image->dims);
-                    output->copyTo(_next_image->get());
+                    assert(output->channels() == image->dims);
+                    output->copyTo(image->get());
                 }
                 
-                _next_image->set_index(index.get());
-                return true;
+                image->set_index(index.get());
+                return image;
                 
             } catch(...) {
                 FormatError("Error pre-loading frame ", index);
-                return false;
+                return nullptr;
             }
         };
         
-        if(_next_frame.valid()
-           && (not GUI::instance()->is_recording() || _next_frame.get()))
-        {
-            if(not GUI::instance()->is_recording()) {
+        //if(_next_frame.valid()
+        //   && (not GUI::instance()->is_recording() || _next_frame.get()))
+        //{
+            /*if(not GUI::instance()->is_recording()) {
                 if(_next_frame.wait_for(std::chrono::milliseconds(5)) != std::future_status::ready
                    || not _next_frame.get())
                 {
@@ -156,20 +193,63 @@ void AnimatedBackground::before_draw() {
             Entangled::before_draw();
             return;
             
-        } else if(retrieve_next(frame)
-                  && _next_image
-                  && _next_image->index() == frame.get())
+        } else*/
+        
+        Image::Ptr image;
+        Timer timer;
+        if(_next_frame.valid()) {
+            if(not GUI::instance()->is_recording()) {
+                if(_next_frame.wait_for(std::chrono::milliseconds(5)) != std::future_status::ready)
+                {
+                    Entangled::before_draw();
+                    return;
+                }
+            }
+            
+            image = _next_frame.get();
+            if(image && image->index() != frame.get()) {
+                if(not GUI::instance()->is_recording())
+                {
+                    // image but wrong index
+                    buffers::move_back(_static_image.exchange_with(std::move(image)));
+                    _static_image.set_color(_tint.alpha(_tint.a * 0.5));
+                    _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame);
+                    Entangled::before_draw();
+                    return;
+                }
+                print("Loading wrong index from buffer: ", image->index(), " vs ", frame);
+                image = nullptr;
+            } else if(image) {
+                print("Loading image from buffer: ", image->index(), " vs ", frame);
+            } else print("Loading No image. ", frame);
+        }
+        
+        if(not image) {
+            if(not GUI::instance()->is_recording()) {
+                _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame);
+                Entangled::before_draw();
+                return;
+                
+            }
+            
+            image = retrieve_next(frame);
+            print("Loading directly ", frame);
+        }
+        
+        if(image && image->index() == frame.get())
         {
-            //print("PRELOAD: reloaded image directly ", _next_image->index()," for frame ", frame);
-            _next_image = _static_image.exchange_with(std::move(_next_image));
+            print("PRELOAD: loading image to gui ", image->index()," for frame ", frame, " in ", timer.elapsed() * 1000, "ms");
+            buffers::move_back(_static_image.exchange_with(std::move(image)));
+            _static_image.set_color(_tint);
+            set_content_changed(true);
         } else {
             FormatWarning("Failed to retrieve picture for ", frame);
         }
         
-        if(_current_frame.valid() && frame == _current_frame + 1_f) {
+        if(frame.valid()) {
             //print("Queueing retrieve for ", frame, " == ", _current_frame, " + 1_f");
             _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame + 1_f);
-        } //else
+        }
             //print("Not queueing for ", frame, " after ", _current_frame);
         _current_frame = frame;
     }

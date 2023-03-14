@@ -16,15 +16,16 @@ from detectron2.utils.memory import retry_if_cuda_oom
 from detectron2.layers import paste_masks_in_image
 
 from models.common import DetectMultiBackend
-from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
-                               #increment_path, non_max_suppression,scale_segments, print_args, strip_optimizer, xyxy2xywh)
+from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
 
-model_path = "Z:/work/octopus/yolov7-seg.pt"
+#model_path = "Z:/work/octopus/yolov7-seg.pt"
+model_path = "/Volumes/Public/work/octopus/yolov7-seg.pt"
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 t_model = DetectMultiBackend(model_path, device=device, dnn=False, fp16=False)
 
-def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im):
+def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_threshold = 0.25, iou_threshold = 0.1):
     def crop(masks, boxes):
         """
         "Crop" predicted masks by zeroing out everything not in the predicted bbox.
@@ -165,10 +166,10 @@ def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im):
 
             # NMS
             #with dt[2]:
-            conf_thres = 0.1
-            iou_thres = 0.0
+            #conf_thres = 0.1
+            #iou_thres = 0.0
             
-            pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_thres, iou_thres, None, True, max_det=1000, nm=32)]
+            pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_threshold, iou_threshold, None, True, max_det=1000, nm=32)]
             #print("nonmaxsupp proc", (pred[0]).int().cpu().numpy())
             _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
             #print("RESULT FOR ",i,"=",_meta)
@@ -191,5 +192,8 @@ cloudpickle.register_pickle_by_value(models)
 cloudpickle.register_pickle_by_value(utils)
 cloudpickle.register_pickle_by_value(detectron2)
 
-with open("C:/Users/tristan/Desktop/saved_model.pth", "wb") as f:
+output_path = "/Volumes/Public/work/octopus/saved_model_osx.pth"
+print("Output to",output_path)
+
+with open(output_path, "wb") as f:
 	cloudpickle.dump({"model":t_model, "predict":predict_custom_yolo7_seg}, f)

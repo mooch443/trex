@@ -68,6 +68,16 @@ namespace pv {
         }
     };
 
+File::File(const file::Path& filename, FileMode mode)
+    : DataFormat(filename.add_extension("pv"), filename.str()),
+        _header(filename.str()),
+        _filename(filename),
+        _prev_frame_time(0),
+        _mode(mode)
+{
+    
+}
+
     File::~File() {
         {
             std::unique_lock guard(_task_list_mutex); // try to lock once to sync
@@ -80,6 +90,7 @@ namespace pv {
         
         close();
     }
+
     Frame::Frame(const Frame &other)
         : _index(other._index),
           _timestamp(other._timestamp),
@@ -537,6 +548,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
               || bool(_mode & FileMode::MODIFY))
             || not is_open())
             throw U_EXCEPTION("File not opened when writing header ", _filename, ".");
+        
+        _update_global_settings();
         _header.write(*this);
     }
     void File::_read_header() {
@@ -577,6 +590,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         }
 
         _header.average_tdelta = fps_l;
+        _update_global_settings();
     }
     
     void Header::read(DataFormat& ref) {
@@ -975,6 +989,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             const_cast<pv::File*>(this)->start_reading();
         else
             const_cast<pv::File*>(this)->start_writing(bool(_mode & FileMode::OVERWRITE));
+    }
+
+    void File::_update_global_settings() {
     }
 
     void File::add_individual(Frame&& frame) {

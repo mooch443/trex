@@ -1067,7 +1067,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
         
         video_file.read_frame(video_frame, frame);
-        Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+        Tracker::instance()->preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
             /**

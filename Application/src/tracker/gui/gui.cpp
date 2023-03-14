@@ -2244,7 +2244,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 PD(video_source).read_frame(frame, idx);
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
-                    Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
+                    Tracker::instance()->preprocess_frame(std::move(frame), pp, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
                 }
                 
                 IndividualManager::transform_ids(pp.previously_active_identities(), [&](Idx_t fdx, Individual* fish) -> void {
@@ -4454,7 +4454,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         WorkProgress::set_percent(i.try_sub(range.start).get() / (float)(range.end - range.start).get());
         
         PD(video_source).read_frame(frame, i);
-        Tracker::instance()->preprocess_frame(PD(video_source), std::move(frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+        Tracker::instance()->preprocess_frame(std::move(frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
         
         cv::Mat image, padded, mask;
         pp.transform_blobs([&](pv::Blob& blob){
