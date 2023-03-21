@@ -14,6 +14,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
     GlobalSettings::docs_map_t docs;
     
     _static_image.set_clickable(true);
+    _static_image.set_color(_tint);
     
     try {
         default_config::get(config, docs, nullptr);
@@ -89,6 +90,10 @@ struct Buffers {
 
 void AnimatedBackground::before_draw() {
     if(not _source) {
+        if(content_changed()) {
+            _static_image.set_color(_tint);
+            //set_content_changed(false);
+        }
         Entangled::before_draw();
         return;
     }
@@ -258,8 +263,11 @@ void AnimatedBackground::before_draw() {
 }
 
 void AnimatedBackground::set_color(const Color & color) {
-    _tint = color;
-    //_static_image.set_color(color);
+    if(_tint != color) {
+        _tint = color;
+        set_content_changed(true);
+        //_static_image.set_color(color);
+    }
 }
 
 const Color& AnimatedBackground::color() const {

@@ -55,6 +55,7 @@ namespace gui {
             float speed_percentage;
         };
         
+        float _color_start, _color_end;
         std::deque<FrameVertex> frame_vertices;
         std::shared_ptr<Circle> _recognition_circle;
         std::vector<Vec2> points;
@@ -66,6 +67,7 @@ namespace gui {
         const BasicStuff* _basic_stuff{ nullptr };
         const PostureStuff* _posture_stuff{ nullptr };
         int _avg_cat = -1;
+        Color _previous_color;
         Output::Library::LibInfo _info;
         double _library_y = Graph::invalid();
         //ExternalImage _colored;
@@ -82,9 +84,11 @@ namespace gui {
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
-        void paintPath(const Vec2& offset, Frame_t to = {}, Frame_t from = {}, const Color& = Transparent);
+        void paintPath(const Vec2& offset);
+        void updatePath(Frame_t to = {}, Frame_t from = {});
         //void paintPixels() const;
         void update_recognition_circle();
+        Color get_color(const BasicStuff*) const;
     public:
         void label(Base*, Drawable* bowl, Entangled&);
         void shadow(DrawStructure&);

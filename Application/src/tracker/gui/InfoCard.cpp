@@ -180,19 +180,20 @@ void InfoCard::update() {
     else if(clr.b < 80) clr = clr + clr * ((80 - clr.b) / 80.f);
     
     //auto layout = std::make_shared<VerticalLayout>(Vec2(10, 10));
-    add<Text>(_shadow->identity.name(), Loc(11,11), White.alpha(clr.a * 0.7f), Font(0.9f, Style::Bold));
-    const auto font = Font(0.9f, Style::Bold);
-    auto text = add<Text>(_shadow->identity.name(), Loc(10, 10), clr, font);
+    const auto font = Font(0.8f, Style::Bold);
+    float y = 10;
+    add<Text>(_shadow->identity.name(), Loc(11,y + 1), White.alpha(clr.a * 0.7f), font);
+    auto text = add<Text>(_shadow->identity.name(), Loc(10, y), _shadow->has_frame ? clr : Color::blend(clr, Gray), font);
     
     if(!_shadow->has_frame) {
-        add<Text>(" (inactive)", Loc(text->pos() + Vec2(text->width(), 0)), Gray.alpha(clr.a), Font(0.9f, Style::Bold));
+        text = add<Text>("inactive", Loc(width() - 5, text->pos().y + 5), Gray.alpha(clr.a * 0.5), Font(font.size * 0.8, Style::Monospace, Align::Right));
     }
     
     segment_texts.clear();
     
-    auto add_segments = [&font, this](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
+    auto add_segments = [&font, y, this](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
     {
-        auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(Vec2(10, 10) + Vec2(offx, Base::default_line_spacing(font))), White, Font(0.8f));
+        auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), White, Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -338,7 +339,7 @@ void InfoCard::update() {
     advance_wrap(*next);
     advance_wrap(*prev);
     
-    float y = Base::default_line_spacing(Font(1.1f)) * 8 + 40;
+    y = Base::default_line_spacing(Font(1.1f)) * 8 + 40;
     bool fish_has_frame = _shadow->has_frame;
     if(!fish_has_frame)
         bg = Color(100, 100, 100, 125);

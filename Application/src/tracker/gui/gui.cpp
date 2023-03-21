@@ -1878,7 +1878,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             individuals_graph.set_scale(base.scale().reciprocal());
         }
         
-        DrawPreviewImage::draw(frameNr, base);
+        DrawPreviewImage::draw(PD(cache).processed_frame, frameNr, base);
         
 #if !COMMONS_NO_PYTHON
         if(SETTING(gui_show_uniqueness)) {

@@ -190,6 +190,11 @@ namespace gui {
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
         
+        if((not last_frame.valid() or frameIndex != last_frame) || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position)
+        {
+            
+        } else return;
+        
         frame_idx = frameIndex;
         
         if(!GUI_SETTINGS(nowindow)) {

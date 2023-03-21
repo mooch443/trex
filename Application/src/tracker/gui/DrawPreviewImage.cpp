@@ -164,7 +164,7 @@ std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
 VerticalLayout layout;
 SettingsTooltip tooltip;
 
-void draw(Frame_t frame, DrawStructure& graph) {
+void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     if(!SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
@@ -188,7 +188,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     auto& cache = GUICache::instance();
     Loc offset(5);
     
-    PPFrame pp;
+    /*PPFrame pp;
     try {
         pv::Frame vframe;
         pp.set_index(frame);
@@ -199,7 +199,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
 #ifndef NDEBUG
         FormatError("DrawPreviewImage failed for frame ", frame, ": ", e.what());
 #endif
-    }
+    }*/
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {

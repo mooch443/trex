@@ -2,6 +2,7 @@
 
 #include <gui/DrawStructure.h>
 #include <misc/frame_t.h>
+#include <tracking/PPFrame.h>
 
 /**
  * This command previews all selected individuals the way they would be shown,
@@ -14,7 +15,7 @@
 namespace gui {
 namespace DrawPreviewImage {
 
-void draw(Frame_t, DrawStructure&);
+void draw(track::PPFrame&, Frame_t, DrawStructure&);
 
 }
 }

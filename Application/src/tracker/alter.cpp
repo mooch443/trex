@@ -1160,6 +1160,12 @@ int main(int argc, char**argv) {
     auto start_time = std::chrono::system_clock::now();
     auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", filename);
+    
+    auto path = filename.remove_filename();
+    if(not path.exists()) {
+        path.create_folder();
+    }
+    
     pv::File file(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     std::vector<pv::BlobPtr> objects, progress_objects, _trans_objects;
     file.set_average(bg);
