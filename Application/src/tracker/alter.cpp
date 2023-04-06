@@ -946,19 +946,22 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app"));
     
     SETTING(meta_video_scale) = float(1);
-    SETTING(source) = std::string("/Users/tristan/goats/DJI_0160.MOV");
-    SETTING(model) = file::Path("/Users/tristan/Downloads/tfmodel_goats1024");
-    SETTING(image_width) = int(1024);
+    SETTING(source) = std::string("");
+    SETTING(model) = file::Path("");
+    SETTING(image_width) = int(640);
     SETTING(filename) = file::Path("");
-    SETTING(meta_classes) = std::vector<std::string>{
-        "goat", "sheep", "human"
-    };
+    SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo7;
-    SETTING(tile_image) = size_t(2);
+    SETTING(tile_image) = size_t(0);
     
     using namespace cmn;
     namespace py = Python;
-    CommandLine cmd(argc, argv);
+    print("CWD: ", file::cwd());
+    DebugHeader("LOADING COMMANDLINE");
+    CommandLine cmd(argc, argv, true);
+    file::cd(file::DataLocation::parse("app"));
+    print("CWD: ", file::cwd());
+    
     for(auto a : cmd) {
         if(a.name == "i") {
             SETTING(source) = std::string(a.value);
@@ -1488,6 +1491,7 @@ int main(int argc, char**argv) {
                 
                 const auto bds = blob->bounds();
                 //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+                auto [pos, image] = blob->image();
                 
                 SegmentationData::Assignment assign{
                     .clid = size_t(-1)
