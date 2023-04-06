@@ -349,7 +349,7 @@ endif()
 #target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
 
 install(TARGETS ${targets}
-    EXPORT TRex alter
+    EXPORT TRex
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
