@@ -13,6 +13,7 @@
 
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
+#include <grabber/misc/default_config.h>
 
 const auto homedir = []() {
 #ifndef WIN32
@@ -332,6 +333,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.", SYSTEM);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
         
+        CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
         CONFIG("meta_classes", std::vector<std::string>{}, "Class names for object classification in video during conversion.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
@@ -487,7 +489,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("threshold_ratio_range", Rangef(0.5, 1.0), "If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.");
         CONFIG("track_threshold_2", int(0), "If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).");
         CONFIG("track_posture_threshold", int(15), "Same as `track_threshold`, but for posture estimation.");
-        CONFIG("enable_absolute_difference", true, "If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).");
+        CONFIG("track_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `enable_absolute_difference`, but during tracking instead of converting.");
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         

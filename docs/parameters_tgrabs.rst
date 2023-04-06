@@ -142,6 +142,16 @@ TGrabs parameters
 
 
 
+.. function:: enable_absolute_difference(bool)
+
+	**default value:** true
+
+
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``track_absolute_difference``, but during conversion instead of tracking.
+
+	.. seealso:: :func:`threshold`, :func:`threshold`, :func:`track_absolute_difference`
+
+
 .. function:: enable_closed_loop(bool)
 
 	**default value:** false
@@ -312,7 +322,7 @@ TGrabs parameters
 
 .. function:: meta_write_these(array<string>)
 
-	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix","meta_video_scale","meta_classes"]
+	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix","meta_video_scale","meta_classes","meta_encoding"]
 
 
 	The given settings values will be written to the video file.

@@ -536,7 +536,7 @@ def start_learning():
                         best_accuracy_worst_class = callback.best_result["unique"]
                 except:
                     TRex.warn("loading weights failed")
-            elif settings.accumulation_step == -2:
+            elif settings["accumulation_step"] == -2:
                 TRex.warn("could not improve upon previous steps.")
             else:
                 TRex.warn("Could not improve upon previous steps.")

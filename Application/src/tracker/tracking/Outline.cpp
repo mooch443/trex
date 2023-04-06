@@ -685,56 +685,6 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
     return {-1, -1};
 }
 
-bool LineSegementsIntersect(Vec2 p, Vec2 p2, Vec2 q, Vec2 q2, Vec2& intersection)
-{
-    constexpr bool considerCollinearOverlapAsIntersect = false;
-    
-    auto r = p2 - p;
-    auto s = q2 - q;
-    auto rxs = cross(r, s);
-    auto qpxr = cross(q - p, r);
-    
-    // If r x s = 0 and (q - p) x r = 0, then the two lines are collinear.
-    if (rxs == 0 && qpxr == 0)
-    {
-        // 1. If either  0 <= (q - p) * r <= r * r or 0 <= (p - q) * s <= * s
-        // then the two lines are overlapping,
-        if constexpr (considerCollinearOverlapAsIntersect)
-            if ((0 <= (q - p).dot(r) && (q - p).dot(r) <= r.dot(r)) || (0 <= (p - q).dot(s) && (p - q).dot(s) <= s.dot(s)))
-                return true;
-        
-        // 2. If neither 0 <= (q - p) * r = r * r nor 0 <= (p - q) * s <= s * s
-        // then the two lines are collinear but disjoint.
-        // No need to implement this expression, as it follows from the expression above.
-        return false;
-    }
-    
-    // 3. If r x s = 0 and (q - p) x r != 0, then the two lines are parallel and non-intersecting.
-    if (rxs == 0 && qpxr != 0)
-        return false;
-    
-    // t = (q - p) x s / (r x s)
-    auto t = cross(q - p,s)/rxs;
-    
-    // u = (q - p) x r / (r x s)
-    
-    auto u = cross(q - p, r)/rxs;
-    
-    // 4. If r x s != 0 and 0 <= t <= 1 and 0 <= u <= 1
-    // the two line segments meet at the point p + t r = q + u s.
-    if (rxs != 0 && (0 <= t && t < 1) && (0 <= u && u < 1))
-    {
-        // We can calculate the intersection point using either t or u.
-        intersection = p + t*r;
-        
-        // An intersection was found.
-        return true;
-    }
-    
-    // 5. Otherwise, the two line segments are not parallel but do not intersect.
-    return false;
-}
-
 int Outline::calculate_curvature_range(size_t number_points) {
     return max(1, number_points * OUTLINE_SETTING(outline_curvature_range_ratio));
 }

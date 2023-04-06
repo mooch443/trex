@@ -19,7 +19,7 @@ from models.common import DetectMultiBackend
 from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
 
 #model_path = "Z:/work/octopus/yolov7-seg.pt"
-model_path = "/Volumes/Public/work/octopus/yolov7-seg.pt"
+model_path = "/Volumes/Public/work/yolov7-seg.pt"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -192,7 +192,7 @@ cloudpickle.register_pickle_by_value(models)
 cloudpickle.register_pickle_by_value(utils)
 cloudpickle.register_pickle_by_value(detectron2)
 
-output_path = "/Volumes/Public/work/octopus/saved_model_osx.pth"
+output_path = "/Volumes/Public/work/saved_model_osx.pth"
 print("Output to",output_path)
 
 with open(output_path, "wb") as f:

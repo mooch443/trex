@@ -242,6 +242,8 @@ void WorkProgress::set_item_abortable(bool abortable) {
 
 void WorkProgress::set_percent(float value) {
     work::check([&](){
+        if(_percent == value)
+            return;
         _percent = value;
 #if WIN32
         if (GUI::instance()->base()) {
