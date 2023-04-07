@@ -27,6 +27,7 @@
 #include <misc/create_struct.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+#include <misc/GlobalSettings.h>
 
 #if !COMMONS_NO_PYTHON
 namespace py = Python;
@@ -223,10 +224,16 @@ void FrameGrabber::prepare_average() {
     cv::Mat temp;
     _average.copyTo(temp);
     _processed.set_average(temp);
-    if(tracker)
-        tracker->set_average(Image::Make(temp));
-    else {
-        tracker = new track::Tracker(Image::Make(_average), processed());
+    
+    if(GRAB_SETTINGS(enable_closed_loop)
+       //|| GRAB_SETTINGS(tags_enable)
+       || SETTING(enable_live_tracking).value<bool>())
+    {
+        if(tracker)
+            tracker->set_average(Image::Make(temp));
+        else {
+            tracker = new track::Tracker(Image::Make(_average), processed());
+        }
     }
     
     if(GRAB_SETTINGS(image_invert))

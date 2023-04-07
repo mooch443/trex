@@ -28,6 +28,11 @@ using namespace file;
 #define CONFIG adding.add
 
 namespace default_config {
+
+ENUM_CLASS_DOCS(meta_encoding_t,
+                "Grayscale video, calculated by simply extracting one channel (default R) from the video.",
+                "Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).");
+
     static const std::map<std::string, std::string> deprecated = {
         {"fish_minmax_size", "blob_size_range"},
         {"use_dilation", "dilation_size"},
@@ -120,7 +125,8 @@ namespace default_config {
         CONFIG("image_contrast_increase", float(3), "Value that is multiplied to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 1 here.");
         CONFIG("image_brightness_increase", float(0), "Value that is added to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 0 here.");
         CONFIG("enable_difference", true, "Enables background subtraction. If disabled, `threshold` will be applied to the raw greyscale values instead of difference values.");
-        CONFIG("enable_absolute_difference", true, "Uses absolute difference values and disregards anything below `threshold` during conversion.");
+        CONFIG("track_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `enable_absolute_difference`, but during tracking instead of converting.");
+        CONFIG("enable_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `track_absolute_difference`, but during conversion instead of tracking.");
         CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", STARTUP);
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
@@ -154,6 +160,7 @@ namespace default_config {
         
         CONFIG("gui_interface_scale", float(1.25), "A lower number will make the texts and GUI elements bigger.");
         
+        CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
         CONFIG("meta_species", std::string(""), "Name of the species used.");
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
         CONFIG("meta_conditions", std::string(""), "Treatment name.");
@@ -185,7 +192,8 @@ namespace default_config {
             "cam_undistort_vector",
             "cam_matrix",
             "meta_video_scale",
-            "meta_classes"
+            "meta_classes",
+            "meta_encoding"
         }, "The given settings values will be written to the video file.");
 
         CONFIG("nowindow", false, "Start without a window enabled (for terminal-only use).");

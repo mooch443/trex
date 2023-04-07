@@ -339,7 +339,7 @@ TRex parameters
 
 .. function:: categories_min_sample_images(uint)
 
-	**default value:** 50
+	**default value:** 0
 
 
 	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``track_segment_max_length``, if that parameter is set. If ``track_segment_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
@@ -399,15 +399,6 @@ TRex parameters
 
 
 	If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.
-
-
-
-.. function:: enable_absolute_difference(bool)
-
-	**default value:** true
-
-
-	If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).
 
 
 
@@ -1444,6 +1435,19 @@ TRex parameters
 
 
 
+.. function:: meta_encoding(meta_encoding_t)
+
+	**default value:** gray
+
+	**possible values:**
+		- `gray`: Grayscale video, calculated by simply extracting one channel (default R) from the video.
+		- `r3g3b2`: Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).
+
+	The encoding used for the given .pv video.
+
+
+
+
 .. function:: meta_mass_mg(float)
 
 	**default value:** 200
@@ -2020,6 +2024,15 @@ TRex parameters
 	.. seealso:: :func:`track_threshold_2`
 
 
+.. function:: track_absolute_difference(bool)
+
+	**default value:** true
+
+
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``enable_absolute_difference``, but during tracking instead of converting.
+
+
+
 .. function:: track_consistent_categories(bool)
 
 	**default value:** false
@@ -2133,7 +2146,7 @@ TRex parameters
 
 .. function:: track_speed_decay(float)
 
-	**default value:** 0.7
+	**default value:** 1
 
 
 	The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to ``0.7 > value > 0``.
@@ -2216,7 +2229,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-222-g78033a5"
+	**default value:** "v1.1.9-275-g79d80be"
 
 
 	Current application version.

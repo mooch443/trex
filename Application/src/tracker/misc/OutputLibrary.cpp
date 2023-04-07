@@ -289,8 +289,6 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return _average / _samples;
             }
             
-            print("Unsmoothed");
-            
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
                     return gui::Graph::invalid();

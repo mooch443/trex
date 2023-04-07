@@ -226,12 +226,21 @@ struct Yolo7ObjectDetection {
                     (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
                 };
                 for(int x = line.x0; x <= line.x1; ++x) {
-                    pixels.emplace_back(data.image->get().at<cv::Vec3b>(y, x)[0]);
+                    pixels.emplace_back(vec_to_r3g3b2(data.image->get().at<cv::Vec3b>(y, x)));
                 }
                 //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
                 //              (uchar*)mat.ptr(y, line.x1));
                 lines.emplace_back(std::move(line));
             }
+            
+            //cv::Mat full_image;
+            //cv::Mat back;
+            //convert_to_r3g3b2(data.image->get(), full_image);
+            //convert_from_r3g3b2(full_image, back);
+            //cv::cvtColor(back, back, cv::COLOR_BGR2RGB);
+            
+            //tf::imshow("mat", full_image);
+            //tf::imshow("back2", back);
             
             if(not lines.empty()) {
                 pv::Blob blob(lines, 0);
@@ -379,7 +388,14 @@ struct Yolo7InstanceSegmentation {
         size_t N = vector.size() / 6u;
         
         cv::Mat full_image;
-        cv::cvtColor(data.image->get(), full_image, cv::COLOR_RGB2GRAY);
+        //cv::Mat back;
+        convert_to_r3g3b2(data.image->get(), full_image);
+        //convert_from_r3g3b2(full_image, back);
+        //cv::cvtColor(back, back, cv::COLOR_BGR2RGB);
+        
+        //tf::imshow("mat", full_image);
+        //tf::imshow("back2", back);
+        //cv::cvtColor(data.image->get(), full_image, cv::COLOR_RGB2GRAY);
         
         for (size_t i = 0; i < N; ++i) {
             Vec2 pos(vector.at(i * 6 + 0), vector.at(i * 6 + 1));
@@ -594,7 +610,7 @@ public:
                     return this->fetch_next_process();
             })
     {
-        this->source.set_colors(VideoSource::ImageMode::RGB);
+        this->source.set_colors(ImageMode::RGB);
     }
 
     AbstractVideoSource(AbstractVideoSource&& other) = default;
@@ -930,19 +946,22 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app"));
     
     SETTING(meta_video_scale) = float(1);
-    SETTING(source) = std::string("/Users/tristan/goats/DJI_0160.MOV");
-    SETTING(model) = file::Path("/Users/tristan/Downloads/tfmodel_goats1024");
-    SETTING(image_width) = int(1024);
+    SETTING(source) = std::string("");
+    SETTING(model) = file::Path("");
+    SETTING(image_width) = int(640);
     SETTING(filename) = file::Path("");
-    SETTING(meta_classes) = std::vector<std::string>{
-        "goat", "sheep", "human"
-    };
+    SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo7;
-    SETTING(tile_image) = size_t(2);
+    SETTING(tile_image) = size_t(0);
     
     using namespace cmn;
     namespace py = Python;
-    CommandLine cmd(argc, argv);
+    print("CWD: ", file::cwd());
+    DebugHeader("LOADING COMMANDLINE");
+    CommandLine cmd(argc, argv, true);
+    file::cd(file::DataLocation::parse("app"));
+    print("CWD: ", file::cwd());
+    
     for(auto a : cmd) {
         if(a.name == "i") {
             SETTING(source) = std::string(a.value);
@@ -1028,6 +1047,7 @@ int main(int argc, char**argv) {
     SETTING(meta_build) = std::string("<undefined>");
 #endif
     SETTING(meta_conversion_time) = std::string(date_time());
+    SETTING(meta_encoding) = grab::default_config::meta_encoding_t::r3g3b2;
 
     cmd.load_settings();
     
@@ -1065,7 +1085,7 @@ int main(int argc, char**argv) {
     
     {
         VideoSource tmp(SETTING(source).value<std::string>());
-        tmp.set_colors(VideoSource::ImageMode::RGB);
+        tmp.set_colors(ImageMode::RGB);
         Timer timer;
         useMat m;
         double average = 0, samples = 0;
@@ -1471,6 +1491,7 @@ int main(int argc, char**argv) {
                 
                 const auto bds = blob->bounds();
                 //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+                auto [pos, image] = blob->image();
                 
                 SegmentationData::Assignment assign{
                     .clid = size_t(-1)
