@@ -964,7 +964,7 @@ void Fish::updatePath(Frame_t to, Frame_t from) {
                     frame_vertices.push_front(FrameVertex{
                         .frame = i,
                         .vertex = Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>(), get_color(stuff.get())),
-                        min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
+                        .speed_percentage = (1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
                     });
                 }
             }
@@ -1009,7 +1009,7 @@ void Fish::updatePath(Frame_t to, Frame_t from) {
                     frame_vertices.push_back(FrameVertex{
                         .frame = i,
                         .vertex = Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>(), get_color(stuff.get())),
-                        min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
+                        .speed_percentage = min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
                     });
                 }
             }
