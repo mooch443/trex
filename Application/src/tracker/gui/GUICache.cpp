@@ -186,11 +186,19 @@ namespace gui {
     
     void GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
+        const auto posture_threshold = FAST_SETTING(track_posture_threshold);
         auto& _tracker = *Tracker::instance();
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
         
-        if((not last_frame.valid() or frameIndex != last_frame) || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position)
+        if((not last_frame.valid() or frameIndex != last_frame)
+           || last_threshold != threshold
+           || selected != previous_active_fish
+           || active_blobs != previous_active_blobs
+           || _gui.mouse_position() != previous_mouse_position
+           || _tracking_dirty
+           || _raw_blobs_dirty
+           || _blobs_dirty)
         {
             
         } else return;

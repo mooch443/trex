@@ -329,7 +329,6 @@ File::File(const file::Path& filename, FileMode mode)
                 for(int i=0; i<_n; ++i)
                     ptr->read<blob::Prediction>(_predictions[i]);
             }
-            print(_predictions);
         }
         
         if(compressed)

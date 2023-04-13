@@ -53,6 +53,7 @@ void update_analysis_range() {
         DEF_CALLBACK(track_max_reassign_time);
         DEF_CALLBACK(calculate_posture);
         DEF_CALLBACK(track_absolute_difference);
+        DEF_CALLBACK(use_differences);
         
         DEF_CALLBACK(track_trusted_probability);
         DEF_CALLBACK(huge_timestamp_ends_segment);
@@ -584,6 +585,14 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     pp.timestamp = frame.timestamp();
     pp.set_loading_time(frame.loading_time());
     pp.init_from_blobs(std::move(frame).steal_blobs());
+    if(SETTING(image_invert)) {
+        pp.transform_all([](pv::Blob& blob){
+            auto &pixels = blob.pixels();
+            for(auto &p : *pixels)
+                p = 255 - p;
+        });
+    }
+    
     frame.clear();
     
     filter_blobs(pp, pool);
