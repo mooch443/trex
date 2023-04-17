@@ -19,13 +19,14 @@ from models.common import DetectMultiBackend
 from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
 
 #model_path = "Z:/work/octopus/yolov7-seg.pt"
-model_path = "/Volumes/Public/work/yolov7-seg.pt"
+#model_path = "/Volumes/Public/work/yolov7-seg.pt"
+model_path= "/Users/tristan/Downloads/tortoise-640-32-seg.pt"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 t_model = DetectMultiBackend(model_path, device=device, dnn=False, fp16=False)
 
-def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_threshold = 0.25, iou_threshold = 0.1):
+def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_threshold = 0.25, iou_threshold = 0.1, mask_res = 56):
     def crop(masks, boxes):
         """
         "Crop" predicted masks by zeroing out everything not in the predicted bbox.
@@ -124,7 +125,7 @@ def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_thre
 
             if x1-x0 > 0 and y1-y0 > 0 and x1+1 <= x.shape[1] and y1+1 <= x.shape[0] and x0 >= 0 and y0 >= 0:
                 x = x[y0:y1+1, x0:x1+1]
-                x = (T.Resize((56,56))(x[None])[0])# * 255).to(torch.uint8)
+                x = (T.Resize((mask_res,mask_res))(x[None])[0])# * 255).to(torch.uint8)
                 shapes.append(x.cpu().numpy())
                 indexes.append(index)
                 #if not x.shape[0] == 0 and not x.shape[1] == 0:
@@ -192,7 +193,7 @@ cloudpickle.register_pickle_by_value(models)
 cloudpickle.register_pickle_by_value(utils)
 cloudpickle.register_pickle_by_value(detectron2)
 
-output_path = "/Volumes/Public/work/saved_model_osx.pth"
+output_path = "/Volumes/Public/work/tali/models/640p/tortoise-640-32-seg-macosx.pth"
 print("Output to",output_path)
 
 with open(output_path, "wb") as f:

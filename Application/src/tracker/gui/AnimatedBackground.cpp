@@ -89,7 +89,14 @@ struct Buffers {
 };
 
 void AnimatedBackground::before_draw() {
-    if(not _source) {
+    bool value = SETTING(gui_show_video_background).value<bool>();
+    if(value != gui_show_video_background) {
+        gui_show_video_background = value;
+        _static_image.set_source(Image::Make(GUI::video_source()->average()));
+        set_content_changed(true);
+    }
+    
+    if(not _source or not SETTING(gui_show_video_background)) {
         if(content_changed()) {
             _static_image.set_color(_tint);
             //set_content_changed(false);

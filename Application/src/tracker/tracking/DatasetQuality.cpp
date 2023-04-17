@@ -30,6 +30,9 @@ void print_info() {
 }
 
 Quality quality(const Range<Frame_t> &range) {
+    if(range.empty())
+        return Quality();
+    
     auto it = _quality.find(range);
     if(it == _quality.end())
         return Quality();
@@ -71,6 +74,8 @@ void remove_frames(Frame_t start) {
 }
 
 bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const LockGuard& guard) {
+    if(consec.empty())
+        return false;
     if(consec.length().get() < 5) {
         return true; // skipping range because its too short, but send "ok" signal
     }
@@ -163,6 +168,9 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
 }
 
 void remove_segment(const Range<Frame_t> &range) {
+    if(range.empty())
+        return;
+    
     auto it = _cache.find(range);
     if(it != _cache.end()) {
         _sorted.erase(range);
@@ -245,6 +253,8 @@ Range<Frame_t> best_range() {
 }
 
 std::map<Idx_t, Single> per_fish(const Range<Frame_t> &range) {
+    if(range.empty())
+        return {};
     auto it = _cache.find(range);
     if(it == _cache.end())
         return {};
@@ -252,6 +262,8 @@ std::map<Idx_t, Single> per_fish(const Range<Frame_t> &range) {
 }
 
 bool has(const Range<Frame_t>& range) {
+    if(range.empty())
+        return {};
     auto it = _cache.find(range);
     return it != _cache.end() && !it->second.empty();
 }
