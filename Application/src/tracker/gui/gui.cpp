@@ -1676,6 +1676,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                     if (it != PD(cache)._fish_map.end()) {
                                         PD(cache)._fish_map.erase(f);
                                     }
+                                    PD(cache).set_tracking_dirty();
                                 });
                             }
 

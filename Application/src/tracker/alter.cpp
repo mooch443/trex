@@ -1100,9 +1100,6 @@ int main(int argc, char**argv) {
         tmp.generate_average(bg, 0);
     }
     
-    cv::imshow("backgroun", bg);
-    cv::waitKey(0);
-    
     Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
     //FrameInfo frameinfo;
     //Timer timer;
