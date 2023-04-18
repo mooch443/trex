@@ -1071,7 +1071,7 @@ int main(int argc, char**argv) {
         SETTING(filename) = file::Path((std::string)file::Path(video_base.base()).filename());
     }
     
-    SETTING(do_filter) = true;
+    SETTING(do_filter) = false;
     SETTING(filter_classes) = std::vector<uint8_t>{};
     Size2 output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
