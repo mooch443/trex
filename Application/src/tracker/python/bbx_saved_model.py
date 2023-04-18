@@ -86,7 +86,7 @@ imgsz = None
 device = None
 offsets = None
 iou_threshold = 0.25
-conf_threshold = 0.35
+conf_threshold = 0.1
 
 t_predict = None
 

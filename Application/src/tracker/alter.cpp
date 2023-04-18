@@ -653,37 +653,47 @@ public:
             return tl::unexpected("EOF");
         }
 
-        auto index = i++;
-        
-        gpuMatPtr buffer;
-        
-        if(std::unique_lock guard{buffer_mutex};
-           not buffers.empty())
-        {
-            buffer = std::move(buffers.back());
-            buffers.pop_back();
-        } else {
-            buffer = std::make_unique<useMat>();
+        try {
+            if (not i.valid() or i >= this->source.length()) {
+                i = 0_f;
+            }
+
+            auto index = i++;
+
+            gpuMatPtr buffer;
+
+            if (std::unique_lock guard{ buffer_mutex };
+                not buffers.empty())
+            {
+                buffer = std::move(buffers.back());
+                buffers.pop_back();
+            }
+            else {
+                buffer = std::make_unique<useMat>();
+            }
+
+            static gpuMatPtr tmp = std::make_unique<useMat>();
+            static Timing timing("Source(frame)", 1);
+            TakeTiming take(timing);
+
+            //static cv::Mat tmp;
+            //static auto source_size = this->size();
+            //if(image->rows != source_size.height || source_size.width != image->cols)
+            //    image->create(source_size.height, source_size.width, 3);
+
+            //auto mat = image->get();
+
+            static cv::Mat cpuBuffer;
+            this->source.frame(index, cpuBuffer);
+            cpuBuffer.copyTo(*buffer);
+
+            cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+            std::swap(buffer, tmp);
+            return std::make_tuple(index, std::move(buffer));
         }
-
-        static gpuMatPtr tmp = std::make_unique<useMat>();
-        static Timing timing("Source(frame)", 1);
-        TakeTiming take(timing);
-
-        //static cv::Mat tmp;
-        //static auto source_size = this->size();
-        //if(image->rows != source_size.height || source_size.width != image->cols)
-        //    image->create(source_size.height, source_size.width, 3);
-
-        //auto mat = image->get();
-
-        static cv::Mat cpuBuffer;
-        this->source.frame(index, cpuBuffer);
-        cpuBuffer.copyTo(*buffer);
-
-        cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
-        std::swap(buffer, tmp);
-        return std::make_tuple(index, std::move(buffer));
+        catch (const std::exception& e) {
+            return tl::unexpected(e.what());
+        }
     }
     
     tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> fetch_next_process() {
@@ -693,6 +703,8 @@ public:
             if(result) {
                 auto& [index, buffer] = result.value();
                 static gpuMatPtr tmp = std::make_unique<useMat>();
+                if (not index.valid())
+                    throw U_EXCEPTION("Invalid index");
                 
                 //! resize according to settings
                 //! (e.g. multiple tiled image size)
@@ -1083,7 +1095,7 @@ int main(int argc, char**argv) {
     //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
     //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
     cv::Mat bg = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
-    //bg.setTo(255);
+    bg.setTo(255);
     
     {
         VideoSource tmp(SETTING(source).value<std::string>());
@@ -1099,7 +1111,7 @@ int main(int argc, char**argv) {
         }
         print("Average time / frame: ", average / samples, "ms");*/
         
-        tmp.generate_average(bg, 0);
+        //tmp.generate_average(bg, 0);
     }
     
     Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
