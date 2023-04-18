@@ -203,11 +203,12 @@ struct Yolo7ObjectDetection {
     
     static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector) {
         //thread_print("Received seg-data for frame ", data.frame.index());
+        static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
         for(size_t i=0; i<vector.size(); i+=4+2) {
             float conf = vector[i];
             float cls = vector[i+1];
             
-            if (SETTING(filter_class).value<bool>() && cls != 1 && cls != 0)
+            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
                 continue;
             
             Vec2 pos = Vec2(vector[i+2], vector[i+3]);
@@ -216,23 +217,37 @@ struct Yolo7ObjectDetection {
             
             std::vector<HorizontalLine> lines;
             std::vector<uchar> pixels;
-            for(int y = pos.y; y < pos.y + dim.height; ++y) {
-                if(y < 0 || y >= data.image->rows)
-                    continue;
-                
-                HorizontalLine line{
-                    (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
-                    (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
-                    (coord_t)saturate(int(pos.x + dim.width), int(0), int(pos.x + dim.width - 1))
-                };
-                for(int x = line.x0; x <= line.x1; ++x) {
-                    pixels.emplace_back(vec_to_r3g3b2(data.image->get().at<cv::Vec3b>(y, x)));
+            auto conversion = [&]<ImageMode mode>(){
+                for(int y = pos.y; y < pos.y + dim.height; ++y) {
+                    // integer overflow deals with this, lol
+                    if(/*y < 0 || */uint(y) >= data.image->rows)
+                        continue;
+                    
+                    HorizontalLine line{
+                        (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
+                        (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
+                        (coord_t)saturate(int(pos.x + dim.width), int(0), int(min(data.image->cols-1.f, pos.x + dim.width - 1)))
+                    };
+                    
+                    const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
+                    auto mat = data.image->get();
+                    for(int x = line.x0; x <= line.x1; ++x) {
+                        if constexpr (mode == ImageMode::R3G3B2) {
+                            pixels.emplace_back(vec_to_r3g3b2(mat.at<cv::Vec3b>(y, x)));
+                        } else {
+                            pixels.emplace_back(mat.at<cv::Vec3b>(y, x)[channel]);
+                        }
+                    }
+                    
+                    lines.emplace_back(std::move(line));
                 }
-                //pixels.insert(pixels.end(), (uchar*)mat.ptr(y, line.x0),
-                //              (uchar*)mat.ptr(y, line.x1));
-                lines.emplace_back(std::move(line));
-            }
+            };
             
+            
+            if(meta_encoding == grab::default_config::meta_encoding_t::r3g3b2)
+                conversion.operator() <ImageMode::R3G3B2>();
+            else
+                conversion.operator() <ImageMode::GRAY>();
             //cv::Mat full_image;
             //cv::Mat back;
             //convert_to_r3g3b2(data.image->get(), full_image);
@@ -414,7 +429,7 @@ struct Yolo7InstanceSegmentation {
             print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
             cls = meta.at(i);
             
-            if (SETTING(filter_class).value<bool>() && cls != 14)
+            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
                 continue;
             if (dim.min() < 1)
                 continue;
@@ -609,9 +624,7 @@ public:
                 [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
                     return this->fetch_next_process();
             })
-    {
-        this->source.set_colors(ImageMode::RGB);
-    }
+    { }
 
     AbstractVideoSource(AbstractVideoSource&& other) = default;
     AbstractVideoSource(const AbstractVideoSource& other) = delete;
@@ -635,7 +648,9 @@ public:
     
     tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() {
         if (i >= this->source.length()) {
-            i = 0_f;
+            //i = 0_f;
+            SETTING(terminate) = true;
+            return tl::unexpected("EOF");
         }
 
         auto index = i++;
@@ -1024,6 +1039,7 @@ int main(int argc, char**argv) {
     SETTING(meta_source_path) = SETTING(source).value<std::string>();
     
     VideoSource video_base(SETTING(source).value<std::string>());
+    video_base.set_colors(ImageMode::RGB);
     
     //! TODO: Major thing with framerate not being set for VideoSources based on single images.
     if(video_base.framerate() != short(-1))
@@ -1055,7 +1071,8 @@ int main(int argc, char**argv) {
         SETTING(filename) = file::Path((std::string)file::Path(video_base.base()).filename());
     }
     
-    SETTING(filter_class) = false;
+    SETTING(do_filter) = false;
+    SETTING(filter_classes) = std::vector<uint8_t>{};
     Size2 output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
     SETTING(is_writing) = true;
@@ -1065,8 +1082,24 @@ int main(int argc, char**argv) {
     //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
     //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
     cv::Mat bg = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
-    bg.setTo(255);
+    //bg.setTo(255);
     
+    {
+        VideoSource tmp(SETTING(source).value<std::string>());
+        /*tmp.set_colors(ImageMode::RGB);
+        Timer timer;
+        useMat m;
+        double average = 0, samples = 0;
+        for (int i = 0; i < 1000; ++i) {
+            tmp.frame(Frame_t(i), m);
+            average += timer.elapsed() * 1000;
+            timer.reset();
+            samples++;
+        }
+        print("Average time / frame: ", average / samples, "ms");*/
+        
+        tmp.generate_average(bg, 0);
+    }
     
     Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
     //FrameInfo frameinfo;
@@ -1083,21 +1116,6 @@ int main(int argc, char**argv) {
          }
     );
     
-    {
-        VideoSource tmp(SETTING(source).value<std::string>());
-        tmp.set_colors(ImageMode::RGB);
-        Timer timer;
-        useMat m;
-        double average = 0, samples = 0;
-        for (int i = 0; i < 1000; ++i) {
-            tmp.frame(Frame_t(i), m);
-            average += timer.elapsed() * 1000;
-            timer.reset();
-            samples++;
-        }
-        print("Average time / frame: ", average / samples, "ms");
-    }
-    
     Frame_t _actual_frame, _video_frame;
     
     Alterface menu(dyn::Context{
@@ -1111,7 +1129,7 @@ int main(int argc, char**argv) {
                 "FILTER", [](auto) {
                     static bool filter { false };
                     filter = not filter;
-                    SETTING(filter_class) = filter;
+                    SETTING(do_filter) = filter;
                 }
             },
             {
@@ -1566,9 +1584,9 @@ int main(int argc, char**argv) {
         //graph.set_dirty(nullptr);
 
         if (graph.is_key_pressed(Keyboard::Right)) {
-            SETTING(filter_class) = true;
+            SETTING(do_filter) = true;
         } else if (graph.is_key_pressed(Keyboard::Left)) {
-            SETTING(filter_class) = false;
+            SETTING(do_filter) = false;
         }
     });
     

@@ -7,6 +7,7 @@
 #include <gui/types/Dropdown.h>
 #include <gui/types/Checkbox.h>
 #include <gui/types/SettingsTooltip.h>
+#include <grabber/misc/default_config.h>
 
 namespace gui {
 namespace meta {
@@ -257,11 +258,22 @@ void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
-            for(size_t i=0; i<image->size(); ++i) {
-                image->data()[i] = 255 - image->data()[i];
+            if(FAST_SETTING(use_differences)) {
+                for(size_t i=0; i<image->size(); ++i) {
+                    image->data()[i] = 255 - image->data()[i];
+                }
             }
             
-            ptr = e.add<ExternalImage>(std::move(image), offset, scale);
+            if(SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>() == grab::default_config::meta_encoding_t::r3g3b2)
+            {
+                auto rgba = Image::Make(image->rows, image->cols, 4);
+                cv::Mat output = rgba->get();
+                convert_from_r3g3b2<4, 1>(image->get(), output);
+                ptr = e.add<ExternalImage>(std::move(rgba), offset, scale);
+                
+            } else
+                ptr = e.add<ExternalImage>(std::move(image), offset, scale);
+            
             e.add<Text>(fish->identity().name(), Loc(offset + Vec2(5, 2)), White.alpha(200), Font(0.5), Scale(graph.scale().reciprocal()));
             
             offset.x += ptr->local_bounds().width + 5;

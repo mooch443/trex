@@ -45,6 +45,7 @@
 #include <file/DataLocation.h>
 #include <gui/types/SettingsTooltip.h>
 #include <tracking/IndividualManager.h>
+#include <grabber/misc/default_config.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -1675,6 +1676,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                     if (it != PD(cache)._fish_map.end()) {
                                         PD(cache)._fish_map.erase(f);
                                     }
+                                    PD(cache).set_tracking_dirty();
                                 });
                             }
 
@@ -2881,25 +2883,38 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             const auto image = Bounds(Size2(mat));
             
             distribute_indexes([&mat, &image](auto, auto start, auto end, auto){
-                for(auto it = start; it != end; ++it) {
-                    auto& e = *it;
-                    auto input = e.second->ptr->source()->get();
-                    auto &bounds = e.second->ptr->bounds();
-                    
-                    if(image.contains(bounds)) {
-                        assert(input.channels() == 2);
-                        assert(mat.channels() == 4);
+                using namespace grab::default_config;
+                auto apply = [&]<grab::default_config::meta_encoding_t::Class encoding>() {
+                    Color inp;
+                    for(auto it = start; it != end; ++it) {
+                        auto& e = *it;
+                        auto input = e.second->ptr->source()->get();
+                        auto &bounds = e.second->ptr->bounds();
                         
-                        for (int y = bounds.y; y < bounds.y + bounds.height && y - image.y < image.height; ++y) {
-                            for (int x = bounds.x; x < bounds.x + bounds.width && x - image.x < image.width; ++x) {
-                                auto inp = Color(input.template at<cv::Vec2b>(y - bounds.y, x - bounds.x));
-                                if(inp.a > 0)
-                                    mat.at<cv::Vec4b>(y, x) = inp;
-                                //Color::blend(Color(out), Color(input.template at<cv::Vec2b>(y - pos.y, x - pos.x)));
+                        if(image.contains(bounds)) {
+                            for (int y = bounds.y; y < bounds.y + bounds.height && y - image.y < image.height; ++y) {
+                                for (int x = bounds.x; x < bounds.x + bounds.width && x - image.x < image.width; ++x) {
+                                    if constexpr(encoding == meta_encoding_t::r3g3b2)
+                                        inp = Color(input.template at<cv::Vec4b>(y - bounds.y, x - bounds.x));
+                                    else {
+                                        inp = Color(input.template at<cv::Vec2b>(y - bounds.y, x - bounds.x));
+                                    }
+                                    
+                                    if(inp.a > 0)
+                                        mat.at<cv::Vec4b>(y, x) = inp;
+                                }
                             }
                         }
                     }
-                }
+                };
+                
+                
+                        //assert(input.channels() == 2);
+                        //assert(mat.channels() == 4);
+                if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2)
+                        apply.template operator()<meta_encoding_t::r3g3b2>();
+                else
+                    apply.template operator()<meta_encoding_t::gray>();
                 
             }, _blob_thread_pool, PD(cache).display_blobs.begin(), PD(cache).display_blobs.end());
             

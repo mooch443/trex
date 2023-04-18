@@ -25,6 +25,7 @@ class AnimatedBackground : public Entangled {
     std::mutex _next_mutex;
     //Image::Ptr _next_image;
     std::future<Image::Ptr> _next_frame;
+    bool gui_show_video_background{true};
     
 public:
     AnimatedBackground(Image::Ptr&&);

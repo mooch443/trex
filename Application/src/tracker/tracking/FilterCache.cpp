@@ -134,7 +134,10 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
     cv::Mat mask, image;
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    if(FAST_SETTING(use_differences))
+        imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    else
+        imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
     
     return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
@@ -149,7 +152,10 @@ calculate_diff_image(pv::BlobWeakPtr blob,
     
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    if(FAST_SETTING(use_differences))
+        imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    else
+        imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
     image.copyTo(padded, mask);
     
     auto scale = FAST_SETTING(individual_image_scale);

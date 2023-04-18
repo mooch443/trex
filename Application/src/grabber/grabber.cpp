@@ -232,7 +232,7 @@ void FrameGrabber::prepare_average() {
         if(tracker)
             tracker->set_average(Image::Make(temp));
         else {
-            tracker = new track::Tracker(Image::Make(_average), processed());
+            tracker = new track::Tracker(Image::Make(temp), processed());
         }
     }
     
@@ -435,8 +435,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }*/
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
-    //if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-    //    SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
+    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
+        SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
     
     SETTING(meta_video_scale) = SETTING(cam_scale).value<float>();
     
@@ -577,15 +577,14 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         
         if(filenames.size() == 1) {
             _video = new VideoSource(filenames.front().str());
-            
+            //_video->set_colors(ImageMode::R3G3B2);
         } else {
             _video = new VideoSource(filenames);
+            //_video->set_colors(ImageMode::R3G3B2);
         }
         
         auto frame_rate = _video->framerate();
-        if(frame_rate == -1) {
-            frame_rate = 25;
-        }
+        assert(frame_rate > 0);
         
         if(SETTING(frame_rate).value<uint32_t>() == 0) {
             print("Setting frame rate to ", frame_rate," (from video).");

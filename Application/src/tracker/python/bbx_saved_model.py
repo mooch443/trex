@@ -85,8 +85,8 @@ model_type = None
 imgsz = None
 device = None
 offsets = None
-iou_threshold = 0.1
-conf_threshold = 0.1
+iou_threshold = 0.25
+conf_threshold = 0.35
 
 t_predict = None
 
@@ -486,7 +486,7 @@ def apply():
 
         elif model_type == "customseg":
             im = np.array(image, copy=False)[..., :3]
-            print(im.shape)
+            print(im.shape, hyp)
             results = t_predict(
                 t_model = t_model, 
                 device = device, 
@@ -559,8 +559,8 @@ import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 import torchvision.transforms as T
 
-def predict_custom_yolo7_seg(offsets, im):
-    global t_model, device
+def predict_custom_yolo7_seg(offsets, im, mask_res=56):
+    global t_model, device, conf_threshold, iou_threshold
 
     from detectron2.modeling.poolers import ROIPooler
     from detectron2.structures import Boxes
@@ -679,7 +679,7 @@ def predict_custom_yolo7_seg(offsets, im):
 
             if x1-x0 > 0 and y1-y0 > 0 and x1+1 <= x.shape[1] and y1+1 <= x.shape[0] and x0 >= 0 and y0 >= 0:
                 x = x[y0:y1+1, x0:x1+1]
-                x = (T.Resize((56,56))(x[None])[0])# * 255).to(torch.uint8)
+                x = (T.Resize((mask_res,mask_res))(x[None])[0])# * 255).to(torch.uint8)
                 shapes.append(x.cpu().numpy())
                 indexes.append(index)
                 #if not x.shape[0] == 0 and not x.shape[1] == 0:

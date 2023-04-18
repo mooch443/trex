@@ -7,6 +7,8 @@
 #include <gui/Timeline.h>
 #include <gui/DrawBase.h>
 #include <tracking/IndividualManager.h>
+#include <misc/default_config.h>
+#include <grabber/misc/default_config.h>
 
 namespace gui {
     static std::unique_ptr<std::thread> percentile_ptr = nullptr;
@@ -68,6 +70,18 @@ namespace gui {
             image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source());
         }
 
+        if(SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>() == grab::default_config::meta_encoding_t::r3g3b2) {
+            if(not ptr->empty()) {
+                auto mat = ptr->unsafe_get_source().get();
+                cv::Mat output;
+                convert_from_r3g3b2<4,2>(mat, output);
+                //print("converted ", mat.channels(), " to ", output.channels());
+                //tf::imshow("output", output);
+                //ptr->unsafe_get_source().create(output);
+                ptr->set_source(Image::Make(output));
+            }
+        }
+        
         ptr->set_pos(image_pos);
         ptr->updated_source();
         
@@ -186,11 +200,19 @@ namespace gui {
     
     void GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
+        const auto posture_threshold = FAST_SETTING(track_posture_threshold);
         auto& _tracker = *Tracker::instance();
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
         
-        if((not last_frame.valid() or frameIndex != last_frame) || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position)
+        if((not last_frame.valid() or frameIndex != last_frame)
+           || last_threshold != threshold
+           || selected != previous_active_fish
+           || active_blobs != previous_active_blobs
+           || _gui.mouse_position() != previous_mouse_position
+           || _tracking_dirty
+           || _raw_blobs_dirty
+           || _blobs_dirty)
         {
             
         } else return;

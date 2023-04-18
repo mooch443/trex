@@ -280,9 +280,17 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                     COMMAND ${CMAKE_COMMAND} -E copy
                             "${comp}"
                             "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E create_symlink
+                            "${comp}"
+                            "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
             message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s} ")
             add_custom_command(TARGET alter POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
+            add_custom_command(TARGET alter POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "${comp}"
                     "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
             install(FILES ${comp} DESTINATION bin)

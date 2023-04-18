@@ -621,22 +621,22 @@ bool Individual::recently_manually_matched(Frame_t frameIndex) const {
 }
 
 void Individual::remove_frame(Frame_t frameIndex) {
-    if (not _endFrame.valid()
-        or frameIndex > _endFrame)
-    {
-        return;
-    }
-
     {
         decltype(_delete_callbacks) callbacks;
         {
             std::unique_lock guard(_delete_callback_mutex);
-            callbacks = _delete_callbacks; 
+            callbacks = _delete_callbacks;
             _delete_callbacks.clear();
         }
 
         for (auto& f : callbacks)
             f.second(this);
+    }
+    
+    if (not _endFrame.valid()
+        or frameIndex > _endFrame)
+    {
+        return;
     }
 
     if(frameIndex <= start_frame())

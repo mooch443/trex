@@ -261,8 +261,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 
                 auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
                 
-                if(!image) {
-                    //! can this happen?
+                if(not image) {
+                    //! can this happen? (yes, when no posture is available)
                     FormatWarning("[IE] Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
                     {
                         std::unique_lock guard(mutex);
