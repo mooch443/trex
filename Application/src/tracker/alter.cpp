@@ -208,7 +208,7 @@ struct Yolo7ObjectDetection {
             float conf = vector[i];
             float cls = vector[i+1];
             
-            if (SETTING(filter_class).value<bool>() && cls != 1 && cls != 0)
+            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
                 continue;
             
             Vec2 pos = Vec2(vector[i+2], vector[i+3]);
@@ -429,7 +429,7 @@ struct Yolo7InstanceSegmentation {
             print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
             cls = meta.at(i);
             
-            if (SETTING(filter_class).value<bool>() && cls != 14)
+            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
                 continue;
             if (dim.min() < 1)
                 continue;
@@ -1071,7 +1071,8 @@ int main(int argc, char**argv) {
         SETTING(filename) = file::Path((std::string)file::Path(video_base.base()).filename());
     }
     
-    SETTING(filter_class) = false;
+    SETTING(do_filter) = true;
+    SETTING(filter_classes) = std::vector<uint8_t>{};
     Size2 output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = output_size;
     SETTING(is_writing) = true;
@@ -1128,7 +1129,7 @@ int main(int argc, char**argv) {
                 "FILTER", [](auto) {
                     static bool filter { false };
                     filter = not filter;
-                    SETTING(filter_class) = filter;
+                    SETTING(do_filter) = filter;
                 }
             },
             {
@@ -1583,9 +1584,9 @@ int main(int argc, char**argv) {
         //graph.set_dirty(nullptr);
 
         if (graph.is_key_pressed(Keyboard::Right)) {
-            SETTING(filter_class) = true;
+            SETTING(do_filter) = true;
         } else if (graph.is_key_pressed(Keyboard::Left)) {
-            SETTING(filter_class) = false;
+            SETTING(do_filter) = false;
         }
     });
     

@@ -116,6 +116,7 @@ CREATE_STRUCT(Settings,
   (bool, track_consistent_categories),
   (std::vector<std::string>, categories_ordered),
   (std::vector<std::string>, track_only_categories),
+  (std::vector<std::string>, track_only_labels),
   (float, track_segment_max_length),
   (Size2, individual_image_size),
   (uint32_t, categories_min_sample_images)

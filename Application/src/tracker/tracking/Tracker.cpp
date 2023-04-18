@@ -619,7 +619,11 @@ void Tracker::prefilter(
     const auto track_ignore = FAST_SETTING(track_ignore);
     
     std::vector<pv::BlobPtr> ptrs;
-    auto only_allowed = FAST_SETTING(track_only_categories);
+    auto track_only_categories = FAST_SETTING(track_only_categories);
+    auto track_only_labels = FAST_SETTING(track_only_labels);
+    auto meta_classes = GlobalSettings::has("meta_classes")
+            ? SETTING(meta_classes).value<std::vector<std::string>>()
+            : std::vector<std::string>{};
     
     const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
     
@@ -711,14 +715,29 @@ void Tracker::prefilter(
                 }
                 
 #if !COMMONS_NO_PYTHON
-                if(!only_allowed.empty()) {
+                if(!track_only_categories.empty()) {
                     auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), ptr->blob_id());
-                    if(ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
+                    if(ldx == -1 || !contains(track_only_categories, Categorize::DataStore::label(ldx)->name)) {
                         result.filter_out(std::move(ptr), FilterReason::Category);
                         continue;
                     }
                 }
 #endif
+                //! TODO: translate track_only_labels to IDs and check those...
+                if(not track_only_labels.empty()) {
+                    if(ptr->prediction().valid()) {
+                        auto clid = ptr->prediction().clid;
+                        if(meta_classes.size() <= clid
+                           || not contains(track_only_labels, meta_classes.at(clid)))
+                        {
+                            result.filter_out(std::move(ptr), FilterReason::Category);
+                            continue;
+                        }
+                    } else {
+                        result.filter_out(std::move(ptr), FilterReason::Category);
+                        continue;
+                    }
+                }
                 
                 //! only after all the checks passed, do we commit the blob
                 /// to the "filtered" array:
@@ -754,11 +773,11 @@ void Tracker::prefilter(
               BlobReceiver(result, BlobReceiver::regular,
 #if !COMMONS_NO_PYTHON
                   [&](auto& blob) {
-                      if(only_allowed.empty())
+                      if(track_only_categories.empty())
                           return false;
                       
                       auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), blob->blob_id());
-                      if (ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name))
+                      if (ldx == -1 || !contains(track_only_categories, Categorize::DataStore::label(ldx)->name))
                       {
                           noises.push_back(std::move(blob));
                           return true;

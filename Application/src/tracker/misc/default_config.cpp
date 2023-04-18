@@ -500,6 +500,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_segment_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.");
         
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
+        CONFIG("track_only_labels", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
