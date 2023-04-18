@@ -995,13 +995,6 @@ int main(int argc, char**argv) {
         }
     }
     
-    DebugHeader("Starting tracking of");
-    print("model: ",SETTING(model).value<file::Path>());
-    print("video: ", SETTING(source).value<std::string>());
-    print("model resolution: ", SETTING(image_width).value<int>());
-    print("output size: ", SETTING(video_source).value<Size2>());
-    print("output path: ", SETTING(filename).value<file::Path>());
-    
     _video_info.set_do_print(false);
     fish.set_do_print(false);
     
@@ -1078,6 +1071,14 @@ int main(int argc, char**argv) {
     SETTING(is_writing) = true;
     
     _video_info["resolution"] = output_size;
+    
+    DebugHeader("Starting tracking of");
+    print("model: ",SETTING(model).value<file::Path>());
+    print("video: ", SETTING(source).value<std::string>());
+    print("model resolution: ", SETTING(image_width).value<int>());
+    print("output size: ", SETTING(output_size).value<Size2>());
+    print("output path: ", SETTING(filename).value<file::Path>());
+    print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
     
     //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
     //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
