@@ -1096,6 +1096,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_video_background(bool)
+
+	**default value:** true
+
+
+	If available, show an animated background of the original video.
+
+
+
 .. function:: gui_show_visualfield(bool)
 
 	**default value:** false
@@ -2125,6 +2134,15 @@ TRex parameters
 
 
 
+.. function:: track_only_labels(array<string>)
+
+	**default value:** []
+
+
+	If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.
+
+
+
 .. function:: track_posture_threshold(int)
 
 	**default value:** 15
@@ -2229,7 +2247,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-275-g79d80be"
+	**default value:** "v1.1.9-291-gc939b1da"
 
 
 	Current application version.

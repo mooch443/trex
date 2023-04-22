@@ -60,6 +60,15 @@ TGrabs parameters
 
 
 
+.. function:: blur_difference(bool)
+
+	**default value:** false
+
+
+	Enables a special mode that will 1. truncate all difference values below threshold, 2. blur the remaining difference, 3. threshold again.
+
+
+
 .. function:: cam_framerate(int)
 
 	**default value:** -1
