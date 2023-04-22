@@ -755,6 +755,36 @@ IMPL_VARIABLE(const char*)
 IMPL_VARIABLE(bool)
 IMPL_VARIABLE(uint64_t)
 
+void PythonIntegration::set_variable(const std::string & name, Size2 v, const std::string& m) {
+    check_correct_thread_id();
+    
+    std::vector<float> vec{
+        v.width, v.height
+    };
+    if(m.empty())
+        (*_locals)[name.c_str()] = vec;
+    else if(_modules.count(m)) {
+        auto &mod = _modules[m];
+        if(mod.ptr() != nullptr)
+            mod.attr(name.c_str()) = vec;
+    }
+}
+
+void PythonIntegration::set_variable(const std::string & name, Vec2 v, const std::string& m) {
+    check_correct_thread_id();
+    
+    std::vector<float> vec{
+        v.x, v.y
+    };
+    if(m.empty())
+        (*_locals)[name.c_str()] = vec;
+    else if(_modules.count(m)) {
+        auto &mod = _modules[m];
+        if(mod.ptr() != nullptr)
+            mod.attr(name.c_str()) = vec;
+    }
+}
+
 void PythonIntegration::set_variable(const std::string & name, const std::vector<Idx_t> & v, const std::string& m) {
     check_correct_thread_id();
     

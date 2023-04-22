@@ -187,7 +187,7 @@ struct Yolo7ObjectDetection {
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
         proxy.set_variable("model_type", detection_type().toStr());
         proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
-        proxy.set_variable("image_size", int(expected_size.width));
+        proxy.set_variable("image_size", expected_size);
         proxy.run("load_model");
     }
     
@@ -386,7 +386,7 @@ struct Yolo7InstanceSegmentation {
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
         proxy.set_variable("model_type", detection_type().toStr());
         proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
-        proxy.set_variable("image_size", int(expected_size.width));
+        proxy.set_variable("image_size", expected_size);
         proxy.run("load_model");
     }
     
@@ -975,7 +975,7 @@ int main(int argc, char**argv) {
     SETTING(meta_video_scale) = float(1);
     SETTING(source) = std::string("");
     SETTING(model) = file::Path("");
-    SETTING(image_width) = int(640);
+    SETTING(image_width) = Size2(640, 640);
     SETTING(filename) = file::Path("");
     SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo7;
@@ -1000,7 +1000,7 @@ int main(int argc, char**argv) {
             SETTING(output_dir) = file::Path(a.value);
         }
         if(a.name == "dim") {
-            SETTING(image_width) = Meta::fromStr<int>(a.value);
+            SETTING(image_width) = Meta::fromStr<Size2>(a.value);
         }
         if(a.name == "o") {
             SETTING(filename) = file::Path(a.value);
@@ -1010,7 +1010,7 @@ int main(int argc, char**argv) {
     _video_info.set_do_print(false);
     fish.set_do_print(false);
     
-    expected_size = Size2(SETTING(image_width).value<int>(), SETTING(image_width).value<int>());
+    expected_size = SETTING(image_width).value<Size2>();
     
     py::init();
     py::schedule([](){
@@ -1087,7 +1087,7 @@ int main(int argc, char**argv) {
     DebugHeader("Starting tracking of");
     print("model: ",SETTING(model).value<file::Path>());
     print("video: ", SETTING(source).value<std::string>());
-    print("model resolution: ", SETTING(image_width).value<int>());
+    print("model resolution: ", SETTING(image_width).value<Size2>());
     print("output size: ", SETTING(output_size).value<Size2>());
     print("output path: ", SETTING(filename).value<file::Path>());
     print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());

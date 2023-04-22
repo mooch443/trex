@@ -177,7 +177,7 @@ set_target_properties(alter PROPERTIES
   MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.run.a"
   MACOSX_BUNDLE_BUNDLE_NAME TRexA
   MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
-  MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
+  MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
 )
 
 set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>")
@@ -194,6 +194,7 @@ if(NOT APPLE)
 endif()
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/TRexIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+#set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     set(RESOURCE_COPY_FILES
@@ -350,6 +351,13 @@ set_source_files_properties(gfx/TRexIcons.xcassets PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources
 )
 set_target_properties(${TREX_EXEC_NAME} PROPERTIES
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+    
+target_sources(alter PRIVATE gfx/AlterIcons.xcassets)
+set_source_files_properties(gfx/AlterIcons.xcassets PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources
+)
+set_target_properties(alter PROPERTIES
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 

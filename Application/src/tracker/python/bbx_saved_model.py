@@ -78,7 +78,7 @@ def non_max_suppression_fast(boxes, overlapThresh):
 
 
 model = None
-image_size = 640
+image_size = [640,640]
 model_path = None
 image = None
 model_type = None
@@ -101,7 +101,7 @@ def load_model():
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         t_model = DetectMultiBackend(model_path, device=device, dnn=False, fp16=False)
-        imgsz = (image_size,image_size)
+        imgsz = tuple(np.array(image_size).astype(int))
         stride, names, pt = t_model.stride, t_model.names, t_model.pt
 
         #from utils.general import check_img_size
@@ -128,11 +128,12 @@ def load_model():
         t_predict = content["predict"]
 
     else:
+        image_size = np.array(image_size).astype(int)
         print("loading tensorflow model")
         model = tf.saved_model.load(model_path)
         full_model = tf.function(lambda x: model(images=x))
         full_model = full_model.get_concrete_function(
-            tf.TensorSpec((None, 3, image_size, image_size), tf.float32))
+            tf.TensorSpec((None, 3, image_size[1], image_size[0]), tf.float32))
         # Get frozen ConcreteFunction
 
         from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
@@ -480,7 +481,7 @@ def apply():
         if model_type == "yolo5":
             image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
             #print(image)
-            results = inference(model, image, size=(image_size, image_size))
+            results = inference(model, image, size=image_size)
             #print(np.array(results, dtype=int).flatten())
             receive(np.array(results, dtype=int).flatten())
 
@@ -517,7 +518,7 @@ def apply():
 
                 #receive_seg(results[0], results[1])
                 #s0 = time.time()
-                Ns, results = predict_yolov7(offsets, im, image_shape=(image_size,image_size))
+                Ns, results = predict_yolov7(offsets, im, image_shape=image_size)
                 #e0 = time.time()
 
                 #multi = 10
@@ -590,7 +591,7 @@ def predict_custom_yolo7_seg(offsets, im, mask_res=56):
     if len(im.shape) < 4:
         im = im[np.newaxis, ...]
 
-    assert im.shape[1:] == (image_size,image_size,3)
+    assert im.shape[1:] == (image_size[1],image_size[0],3)
     im0 = im.shape[1:]
     im = im.transpose((0, 3, 1, 2))[::-1]  # HWC to CHW, BGR to RGB
     im = np.ascontiguousarray(im)
