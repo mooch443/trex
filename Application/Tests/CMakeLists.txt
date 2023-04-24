@@ -26,6 +26,7 @@ target_link_libraries(test_matching PUBLIC
         tracker_tracking
         tracker_python
         tracker_misc
+        framegrabber_misc
         commons 
         pv)
 
