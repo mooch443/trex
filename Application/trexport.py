@@ -26,7 +26,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 t_model = DetectMultiBackend(model_path, device=device, dnn=False, fp16=False)
 
-def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_threshold = 0.25, iou_threshold = 0.1, mask_res = 56):
+def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_threshold = 0.25, iou_threshold = 0.1, mask_res = 56, max_det = 1000):
     def crop(masks, boxes):
         """
         "Crop" predicted masks by zeroing out everything not in the predicted bbox.
@@ -174,7 +174,7 @@ def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_thre
             #conf_thres = 0.1
             #iou_thres = 0.0
             
-            pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_threshold, iou_threshold, None, True, max_det=1000, nm=32)]
+            pred = [a.to(device) for a in non_max_suppression(pred.cpu(), conf_threshold, iou_threshold, None, True, max_det=max_det, nm=32)]
             #print("nonmaxsupp proc", (pred[0]).int().cpu().numpy())
             _meta, _index, _shapes = apply(pred[0], index=i, im=im[i:i+1], prot = proto[0])
             #print("RESULT FOR ",i,"=",_meta)

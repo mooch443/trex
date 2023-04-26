@@ -501,6 +501,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
         CONFIG("track_only_labels", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
+        CONFIG("track_label_confidence_threshold", float(0.25), "Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
