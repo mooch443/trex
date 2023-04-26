@@ -17,10 +17,12 @@ from detectron2.layers import paste_masks_in_image
 
 from models.common import DetectMultiBackend
 from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
+import os
 
 #model_path = "Z:/work/octopus/yolov7-seg.pt"
-#model_path = "/Volumes/Public/work/yolov7-seg.pt"
-model_path= "/Users/tristan/Downloads/tortoise-640-32-seg.pt"
+model_path = "/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
+output_path = "/Volumes/Public/work/shark/models/"+os.path.basename(model_path).replace('.pt', '')+"-macosx.pth"
+#model_path= "/Users/tristan/Downloads/shark-cropped-0.771-loops-64-seg.pt"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -197,7 +199,6 @@ cloudpickle.register_pickle_by_value(models)
 cloudpickle.register_pickle_by_value(utils)
 cloudpickle.register_pickle_by_value(detectron2)
 
-output_path = "/Volumes/Public/work/tali/models/640p/tortoise-640-32-seg-macosx.pth"
 print("Output to",output_path)
 
 with open(output_path, "wb") as f:
