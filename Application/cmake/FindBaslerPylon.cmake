@@ -22,7 +22,10 @@ message(STATUS "Searching for pylon at " ${PYLON_LIBRARY})
 
 FIND_PATH(	PYLON_INCLUDE_DIR pylon/PylonBase.h
 			PATHS
+			"$ENV{PYLON_ROOT}/lib"
+			"$ENV{PYLON_ROOT}/lib64"
 			/opt/pylon6/include
+			/opt/pylon5/include
 			"$ENV{PYLON_ROOT}/include"
 			"$ENV{PYLON_ROOT}/Development/include"
 			"C:/Program Files/Basler/pylon 5/Development/include"
@@ -39,6 +42,11 @@ FIND_LIBRARY(	PYLONBASE_LIBRARY
 				PylonBase_v5_1
 				PATHS
 				${PYLON_LIBRARY}
+				"$ENV{PYLON_ROOT}/lib"
+				"$ENV{PYLON_ROOT}/lib64"
+				/opt/pylon6/lib
+				/opt/pylon5/lib
+				/opt/pylon5/lib64
 				"C:/Program Files/Basler/pylon 5/Runtime/x64"
 				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
 				"C:/Program Files/Basler/pylon 6/Runtime/x64"
@@ -53,6 +61,8 @@ FIND_LIBRARY(	PYLON_UTILITY_LIBRARY
 				PylonUtility_v5_1
 				PATHS
 				${PYLON_LIBRARY}
+				"$ENV{PYLON_ROOT}/lib"
+				"$ENV{PYLON_ROOT}/lib64"
 				"C:/Program Files/Basler/pylon 5/Runtime/x64"
 				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
 				"C:/Program Files/Basler/pylon 6/Runtime/x64"
@@ -68,6 +78,8 @@ FIND_LIBRARY( PYLON_GEN_LIBRARY
 	GenApi_MD_VC141_v3_1_Basler_pylon 
 	PATHS
 	${PYLON_LIBRARY}
+	"$ENV{PYLON_ROOT}/lib"
+	"$ENV{PYLON_ROOT}/lib64"
 				"C:/Program Files/Basler/pylon 5/Runtime/x64"
 				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
 				"C:/Program Files/Basler/pylon 6/Runtime/x64"
@@ -78,11 +90,14 @@ FIND_LIBRARY( PYLON_GEN2_LIBRARY
 	NAMES
 	GCBase_gcc_v3_0_Basler_pylon_v5_0
 	GCBase_gcc_v3_0_Basler_pylon_v5_1
+	GCBase_gcc_v3_1_Basler_pylon_v5_1
 	GCBase_gcc_v3_1_Basler_pylon 
 	GCBase_MD_VC141_v3_1_Basler_pylon
 	GCBase_MD_VC141_v3_1_Basler_pylon_v5_1
 	PATHS
 	${PYLON_LIBRARY}
+	"$ENV{PYLON_ROOT}/lib"
+	"$ENV{PYLON_ROOT}/lib64"
 				"C:/Program Files/Basler/pylon 5/Runtime/x64"
 				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
 				"C:/Program Files/Basler/pylon 6/Runtime/x64"
@@ -96,6 +111,8 @@ FIND_LIBRARY(	XERCES-C_LIBRARY
 				Xerces-C_gcc40_v2_7 Xerces-C_MD_VC100_v2_7_1
 				PATHS
 				${PYLON_LIBRARY}
+				"$ENV{PYLON_ROOT}/lib"
+				"$ENV{PYLON_ROOT}/lib64"
 )
 
 if( NOT XERCES-C_LIBRARY)

@@ -81,6 +81,7 @@ model = None
 image_size = [640,640]
 model_path = None
 image = None
+oimages = None
 model_type = None
 imgsz = None
 device = None
@@ -140,6 +141,25 @@ def load_model():
         frozen_func = convert_variables_to_constants_v2(full_model)
         frozen_func.graph.as_graph_def()
         model = frozen_func
+
+        ## load additional segmentation model
+        ## to generate outlines from masked image portions (64x64px)
+        if torch.backends.mps.is_available():
+            device = torch.device("cpu")
+        else:
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        import pickle
+        with open("/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg-macosx.pth", "rb") as f:
+            content = pickle.load(f)
+
+        # loading a dictionary with both "model" and a "predict" function in it
+        # the predict function is supposed to have the following definition:
+        #    predict(t_model, device, image_size, offsets, im)
+        assert "predict" in content
+        assert "model" in content
+
+        t_model = content["model"].to(device)
+        t_predict = content["predict"]
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     # Rescale boxes (xyxy) from img1_shape to img0_shape
@@ -477,7 +497,7 @@ def apply():
 
     try:
 
-        global model, image_size, receive, image, model_type, offsets, t_predict, t_model, device
+        global model, image_size, receive, image, oimages, model_type, offsets, t_predict, t_model, device
         if model_type == "yolo5":
             image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
             #print(image)
@@ -495,7 +515,8 @@ def apply():
                 offsets = offsets, 
                 im = im, 
                 conf_threshold = conf_threshold, 
-                iou_threshold = iou_threshold)
+                iou_threshold = iou_threshold,
+                mask_res = hyp['mask_resolution'])
             print("sending: ", results[0].shape, results[1])
             receive(results[0], results[1], results[2])
 
@@ -511,6 +532,8 @@ def apply():
             try:
                 #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
                 im = np.array(image, copy=False)[..., :3]
+                oim = np.array(oimages, copy=False)
+                assert len(im) == len(oim)
                 #print("shape: ", im.shape, " image_size=",image_size)
                 #print(np.shape(offsets))
                 #results = predict_custom_yolo7_seg(im)
@@ -520,6 +543,119 @@ def apply():
                 #s0 = time.time()
                 Ns, results = predict_yolov7(offsets, im, image_shape=image_size)
                 #e0 = time.time()
+
+                ## apply additional segmentation
+                if type(t_model) != type(None):
+                    #print("applying segmentation to", Ns.shape, results.shape, im.shape)
+                    index = 0
+                    sub_size = 96
+                    offset_percentage = 0.1
+
+                    for img, resized, N in zip(oim, im, Ns):
+                        # rw, rh
+                        ratio = np.array((img.shape[1] / resized.shape[1], img.shape[0] / resized.shape[0]) * 2)
+
+                        s = results[int(index):int(index+N)]#.copy()
+                        index += N
+
+                        assert N == len(s)
+                        boxes = s[..., 2:] * ratio
+                        clid = s[..., 1]
+                        print(img.shape, s.shape, N, boxes.shape, clid)
+                        subs = []
+                        scales = []
+                        distorted_boxes = []
+                        for (x0,y0,x1,y1), c in zip(boxes, clid):
+                            # filter for class ID to only generate relevant outlines
+                            if c != 1:
+                                continue
+
+                            w = x1 - x0 + 1
+                            h = y1 - y0 + 1
+                            dy0 = int(max(0, y0 - max(0, w * offset_percentage)))
+                            dx0 = int(max(0, x0 - max(0, w * offset_percentage)))
+                            dy1 = int(y1 + (y0 - dy0) * 2)
+                            dx1 = int(x1 + (x0 - dx0) * 2)
+                            #dx0 = int(x0)
+                            #dy0 = int(y0)
+                            #dx1 = int(x1)
+                            #dy1 = int(y1)
+
+                            sub = img[dy0:dy1, dx0:dx1, :]
+
+                            print(sub.shape, x0, y0, x1, y1, " -> ",  dx1, dy1, "increased by", (dx1-dx0) - w, ",",(dy1-dy0) - h)
+
+                            if np.min(sub.shape[:2]) < 10:
+                                continue
+
+                            distorted_boxes.append([dx0, dy0, dx0 + sub.shape[1], dy0 + sub.shape[0]])
+                            import TRex
+                            TRex.imshow("mask1",np.ascontiguousarray(sub.astype(np.uint8)))
+                            subs.append(cv2.resize(sub, (sub_size,sub_size)))
+                            scales.append((sub.shape[1] / subs[-1].shape[1], sub.shape[0] / subs[-1].shape[0]) * 2)
+
+                        if len(subs) == 0:
+                            continue
+
+                        scales = np.array(scales)
+                        distorted_boxes = np.array(distorted_boxes)
+
+                        rs = t_predict(t_model = t_model, 
+                                  device = device, 
+                                  image_size = sub_size, 
+                                  offsets = offsets, 
+                                  im = np.array(subs), 
+                                  conf_threshold = conf_threshold,
+                                  iou_threshold = iou_threshold,
+                                  mask_res = hyp['mask_resolution'],
+                                  max_det = 1)
+                        #print("shapes", rs[0].reshape((-1, 56, 56)).shape)
+                        #print("meta", rs[1].reshape((-1, 6)))
+                        #print("indexes", rs[2])
+                        #print("distorted_boxes", distorted_boxes)
+
+                        meta = rs[1].reshape((-1, 6))
+                        meta[..., :4] = meta[..., :4] * scales[rs[2]]
+                        meta[..., :2] += distorted_boxes[rs[2]][..., :2]
+                        meta[..., 2:4] += distorted_boxes[rs[2]][..., :2]
+                        #meta[..., :4] += boxes[rs[2]][..., :4]
+
+                        sizes = meta.astype(int)[..., [2,3]] - meta.astype(int)[..., [0,1]]
+                        #meta[..., :2] +=meta[..., :2] + distorted_boxes[rs[2]]
+                        #meta[..., 2:4] += meta[..., :2] + distorted_boxes[rs[2]]
+
+                        #print("corrected:", meta.astype(int))
+                        #print("sizes:", sizes)
+
+                        masks = []
+                        deformed =  (rs[0] * 255).reshape((-1, 56, 56)).astype(np.uint8)
+                        #max_conf = np.max(meta[..., 4])
+
+                        for d,s, m,conf in zip(deformed, sizes, meta.astype(int), meta[..., 4]):
+                            #if conf < max_conf:
+                            #    continue
+
+                            crop = img[m[..., 1]:m[..., 3], m[..., 0]:m[..., 2], :]
+                            undistorted = (cv2.resize(d, tuple(s.T))).astype(np.uint8)
+                            #print(s, d.shape, crop.shape, undistorted.shape, undistorted.dtype, crop.dtype)
+                            #crop[..., 0] += undistorted[:crop.shape[0], :crop.shape[1]]
+                            #crop[..., 1] = undistorted[:crop.shape[0], :crop.shape[1]]
+                            crop[..., 1] = np.where(
+                                undistorted[:crop.shape[0], :crop.shape[1]] > 80, 
+                                undistorted[:crop.shape[0], :crop.shape[1]], 
+                                crop[..., 0])
+
+                            if crop.shape[0] > 0 and crop.shape[1] > 0:
+                                masks.append(crop)
+
+                        if len(masks) > 0:
+                            import TRex
+                            if masks[0].shape[0] < 128:
+                                TRex.imshow("mask",cv2.resize(np.ascontiguousarray(masks[0].astype(np.uint8)), (128,128)))
+                            else:
+                                TRex.imshow("mask",np.ascontiguousarray(masks[0].astype(np.uint8)))
+                            TRex.imshow("whole",np.ascontiguousarray(img.astype(np.uint8)))
+                            #print(scales)
 
                 #multi = 10
                 #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)

@@ -268,6 +268,7 @@ struct Yolo7ObjectDetection {
     static void apply(std::vector<TileImage>&& tiles) {
         namespace py = Python;
         std::vector<Image::Ptr> images;
+        std::vector<Image::Ptr> oimages;
         std::vector<SegmentationData> datas;
         std::vector<Vec2> scales;
         std::vector<Vec2> offsets;
@@ -276,6 +277,10 @@ struct Yolo7ObjectDetection {
         
         for(auto&& tiled : tiles) {
             images.insert(images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
+            if(tiled.images.size() == 1)
+                oimages.emplace_back(Image::Make(*tiled.data.image));
+            else
+                FormatWarning("Cannot use oimages with tiled.");
             
             promises.push_back(std::move(tiled.promise));
             
@@ -294,6 +299,7 @@ struct Yolo7ObjectDetection {
         
         py::schedule([datas = std::move(datas),
                       images = std::move(images),
+                      oimages = std::move(oimages),
                       scales = std::move(scales),
                       offsets = std::move(offsets),
                       callbacks = std::move(callbacks),
@@ -306,6 +312,7 @@ struct Yolo7ObjectDetection {
             py::ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
             bbx.set_variable("offsets", std::move(offsets));
             bbx.set_variable("image", images);
+            bbx.set_variable("oimages", oimages);
             
             bbx.set_function("receive", [&](std::vector<uint64_t> Ns,
                                             std::vector<float> vector)

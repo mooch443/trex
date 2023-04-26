@@ -621,6 +621,7 @@ void Tracker::prefilter(
     std::vector<pv::BlobPtr> ptrs;
     auto track_only_categories = FAST_SETTING(track_only_categories);
     auto track_only_labels = FAST_SETTING(track_only_labels);
+    auto track_label_confidence_threshold = FAST_SETTING(track_label_confidence_threshold);
     auto meta_classes = GlobalSettings::has("meta_classes")
             ? SETTING(meta_classes).value<std::vector<std::string>>()
             : std::vector<std::string>{};
@@ -734,6 +735,14 @@ void Tracker::prefilter(
                             continue;
                         }
                     } else {
+                        result.filter_out(std::move(ptr), FilterReason::Category);
+                        continue;
+                    }
+                }
+                
+                if(ptr->prediction().valid()) {
+                    if(float(ptr->prediction().p) / 255.f < track_label_confidence_threshold) {
+                        //! TODO: use own filter reason
                         result.filter_out(std::move(ptr), FilterReason::Category);
                         continue;
                     }

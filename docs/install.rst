@@ -95,8 +95,15 @@ The easiest way to ensure that all requirements are met, is by using conda to cr
 	# Windows
 	conda create -n trex git cmake ffmpeg tensorflow=2
 	
-	# Linux
-	conda create -n trex git cmake ffmpeg tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+	# Linux (minila)
+	conda create -n trex git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler
+
+	# Linux (graphics) - if compilation is missing graphics driver things, try recreating the environment like this and start over:
+	conda create -n trex git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+
+	# on linux you may also need this, if it's not already installed elsewhere:
+	conda activate trex
+	conda install -c conda-forge pkg-config libxcursor-devel-cos6-x86_64 libxrender-devel-cos6-x86_64 libx11-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libxcb-cos6-x86_64 libxrandr-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libXxf86vm-devel-cos6-x86_64 xorg-x11-proto-devel-cos6-x86_64 libxext-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxinerama-devel-cos6-x86_64 libselinux-cos6-x86_64 libXau-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 libdc1394
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
