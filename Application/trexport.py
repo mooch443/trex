@@ -50,6 +50,10 @@ def predict_custom_yolo7_seg(t_model, device, image_size, offsets, im, conf_thre
     if len(im.shape) < 4:
         im = im[np.newaxis, ...]
 
+    print(image_size)
+    if type(image_size) == np.ndarray or type(image_size) == list:
+        image_size = int(image_size[0])
+
     if im.shape[1:] != (image_size,image_size,3):
     	print("Image shape unexpected, got ", im.shape, " expected (:",",",image_size,",",image_size,",3)")
     assert im.shape[1:] == (image_size,image_size,3)

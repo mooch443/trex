@@ -112,6 +112,7 @@ target_link_libraries(properties
         tracker_tracking
         tracker_python
         tracker_misc
+        framegrabber_misc
         commons 
         pv)
 
