@@ -10,6 +10,199 @@ import numpy as np
 import time
 import cv2
 
+import torch
+import pickle
+import cloudpickle
+from torchvision import transforms
+from torch.nn import functional as F
+import torchvision.transforms as T
+import torchvision
+import torch.backends.cudnn as cudnn
+
+from utils.general import non_max_suppression
+import numpy as np
+import detectron2
+from detectron2.modeling.poolers import ROIPooler
+from detectron2.structures import Boxes
+from detectron2.utils.memory import retry_if_cuda_oom
+from detectron2.layers import paste_masks_in_image
+
+from models.common import DetectMultiBackend
+from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
+from utils.general import Profile
+import os
+import numpy as np
+
+def t_predict(t_model, device, image_size, offsets, im, conf_threshold = 0.25, iou_threshold = 0.1, mask_res = 56, max_det = 1000):
+    def crop(masks, boxes):
+        """
+        "Crop" predicted masks by zeroing out everything not in the predicted bbox.
+        Vectorized by Chong (thanks Chong).
+
+        Args:
+            - masks should be a size [h, w, n] tensor of masks
+            - boxes should be a size [n, 4] tensor of bbox coords in relative point form
+        """
+
+        n, h, w = masks.shape
+        #print(n,h,w)
+        x1, y1, x2, y2 = torch.chunk(boxes[:, :, None], 4, 1)  # x1 shape(1,1,n)
+        #print(x1,y1,x2,y2)
+        r = torch.arange(w, device=masks.device, dtype=x1.dtype)[None, None, :]  # rows shape(1,w,1)
+        #print(r)
+        c = torch.arange(h, device=masks.device, dtype=x1.dtype)[None, :, None]  # cols shape(h,1,1)
+        #print(c)
+        return masks * ((r >= x1) * (r < x2) * (c >= y1) * (c < y2))
+
+    if len(im.shape) < 4:
+        im = im[np.newaxis, ...]
+
+    print(image_size)
+    if type(image_size) == np.ndarray or type(image_size) == list:
+        image_size = int(image_size[0])
+
+    if im.shape[1:] != (image_size,image_size,3):
+        print("Image shape unexpected, got ", im.shape, " expected (:",",",image_size,",",image_size,",3)")
+    assert im.shape[1:] == (image_size,image_size,3)
+    im0 = im.shape[1:]
+    im = im.transpose((0, 3, 1, 2))[::-1]  # HWC to CHW, BGR to RGB
+    im = np.ascontiguousarray(im)
+
+    assert len(im.shape) == 4
+
+    #dt = (Profile(), Profile(), Profile())
+    global dt
+    with dt[0]:
+        im = torch.from_numpy(im).to(device)
+        im = im.half() if t_model.fp16 else im.float()  # uint8 to fp16/32
+        print(im.dtype)
+        im /= 255  # 0 - 255 to 0.0 - 1.0
+        if len(im.shape) == 3:
+            im = im[None]  # expand for batch dim
+
+    def clip_coords(boxes, shape):
+        # Clip bounding xyxy bounding boxes to image shape (height, width)
+        if isinstance(boxes, torch.Tensor):  # faster individually
+            boxes[:, 0].clamp_(0, shape[1])  # x1
+            boxes[:, 1].clamp_(0, shape[0])  # y1
+            boxes[:, 2].clamp_(0, shape[1])  # x2
+            boxes[:, 3].clamp_(0, shape[0])  # y2
+        else:  # np.array (faster grouped)
+            boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, shape[1])  # x1, x2
+            boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
+
+    def scale_coords(img1_shape, coords, img0_shape):
+        # Rescale coords (xyxy) from img1_shape to img0_shape
+        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
+        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+
+        coords[:, [0, 2]] -= pad[0]  # x padding
+        coords[:, [1, 3]] -= pad[1]  # y padding
+        coords[:, :4] /= gain
+        clip_coords(coords, img0_shape)
+        return coords
+
+    def apply(pred, index, im, prot):
+        meta = []
+        indexes = []
+        shapes = []
+        ih, iw = im.shape[2:]
+
+        c, mh, mw = prot.shape  # CHW
+
+        downsampled_bboxes = pred[:, :4].clone()
+        downsampled_bboxes[:, 0] *= mw / iw
+        downsampled_bboxes[:, 2] *= mw / iw
+        downsampled_bboxes[:, 3] *= mh / ih
+        downsampled_bboxes[:, 1] *= mh / ih
+
+        masks = (pred[:, 6:] @ prot.float().view(c, -1)).sigmoid().view(-1, mh, mw)  # CHW
+        masks = crop(masks, downsampled_bboxes)
+
+        pred[:, :4] = scale_coords(im.shape[2:], pred[:, :4], im0).round()
+
+        confs = pred[:, 4]
+        clids = pred[:, 5]
+
+        #for i, (det, proto) in enumerate(zip(pred, prot)):
+            
+
+        for j in range(len(masks)):
+            x = masks[j]
+            
+            box = downsampled_bboxes[j]
+            x0,y0,x1,y1 = box.cpu().numpy().astype(int)
+
+            if x1-x0 > 0 and y1-y0 > 0 and x1+1 <= x.shape[1] and y1+1 <= x.shape[0] and x0 >= 0 and y0 >= 0:
+                x = x[y0:y1+1, x0:x1+1]
+                x = (T.Resize((mask_res,mask_res))(x[None])[0])# * 255).to(torch.uint8)
+                shapes.append(x.cpu().numpy())
+                indexes.append(index)
+                #if not x.shape[0] == 0 and not x.shape[1] == 0:
+                #    shapes.append(cv2.resize(x, (56,56)))
+                meta.append(pred[j, :6].to(torch.float32).cpu().numpy())
+            else:
+                print("image empty :(")
+
+            #meta.append(det[:, :6].to(torch.float32).cpu().numpy())
+        assert len(meta) == len(indexes)
+        return meta, indexes, shapes
+
+    results = []
+    shapes = []
+    meta = []
+    indexes = []
+
+    #print("processing im.shape", im.shape)
+    #print(offsets)
+    offsets = np.reshape(offsets, (-1, 2)).astype(int)
+    #print(len(pred))
+    #assert len(offsets) == len(pred)
+    pred = None
+    prediction = None
+    proto = None
+
+    with dt[1]:
+        preds, outs = t_model(im, augment=None, visualize=None)
+        print(preds.shape, outs[1].shape, len(im))
+    with dt[2]:
+        preds = non_max_suppression(preds, conf_threshold, iou_threshold, None, True, max_det=max_det, nm=32)
+
+    for i, pred, proto in zip(range(len(im)), preds, outs[1]):
+        # Inference
+        #local = (im[i:i+1].cpu().numpy() * 255).astype(np.uint8)[0, 0, ...]
+        #print("local = ",local.shape, " ", local.dtype)
+        #TRex.imshow("im"+str(len(im) - 1 - i), local)
+
+        #with dt[1]:
+            #pred, out = t_model(im[i][None], augment=None, visualize=None)
+            #proto = out[1]
+
+            #print(proto.shape)
+
+            # NMS
+            #with dt[2]:
+            #conf_thres = 0.1
+            #iou_thres = 0.0
+
+        #with dt[2]:
+        #    pred = [a.to(device) for a in non_max_suppression(pred[None], conf_threshold, iou_threshold, None, True, max_det=max_det, nm=32)]
+            #print("nonmaxsupp proc", (pred[0]).int().cpu().numpy())
+        _meta, _index, _shapes = apply(pred, index=i, im=im[i:i+1], prot = proto)
+            #print("RESULT FOR ",i,"=",_meta)
+        meta += _meta
+        shapes += _shapes
+        indexes += np.repeat(len(im) - 1 - i, len(_meta)).tolist()
+
+    #print("meta: ", meta)
+    #print("meta: ", np.concatenate(meta, axis=0))
+    if len(meta) > 0:
+        meta = np.concatenate(meta, axis=0, dtype=np.float32)
+    else:
+        meta = np.array([], dtype=np.float32)
+
+    return np.array(shapes, dtype=np.float32).flatten(), meta.flatten(), np.array(indexes, dtype=int)
+
 '''if torch.backends.mps.is_available():
     device = torch.device("mps")
     #x = torch.ones(1, device=mps_device)
@@ -83,16 +276,19 @@ model_path = None
 image = None
 oimages = None
 model_type = None
+q_model = None
 imgsz = None
 device = None
 offsets = None
 iou_threshold = 0.25
 conf_threshold = 0.1
 
-t_predict = None
+seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
+
+#t_predict = None
 
 def load_model():
-    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict
+    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
     print("loading model type", model_type)
     if model_type == "yolo7seg":
         from models.common import DetectMultiBackend
@@ -142,14 +338,18 @@ def load_model():
         frozen_func.graph.as_graph_def()
         model = frozen_func
 
+        from tensorflow.keras import backend
+        backend.clear_session()
+        print("loaded ", model_path)
+
         ## load additional segmentation model
         ## to generate outlines from masked image portions (64x64px)
         if torch.backends.mps.is_available():
             device = torch.device("cpu")
         else:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        import pickle
-        with open("/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg-macosx.pth", "rb") as f:
+        '''import pickle
+        with open("Z:/work/shark/models/shark-cropped-0.712-loops-128-seg-windows.pth", "rb") as f:
             content = pickle.load(f)
 
         # loading a dictionary with both "model" and a "predict" function in it
@@ -159,7 +359,16 @@ def load_model():
         assert "model" in content
 
         t_model = content["model"].to(device)
-        t_predict = content["predict"]
+        t_predict = content["predict"]'''
+        from models.common import DetectMultiBackend
+        t_model = DetectMultiBackend("Z:/work/shark/models/shark-cropped-0.712-loops-128-seg.pt", device=device, dnn=True, fp16=True)
+
+        #t_model.model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+        #torch.quantization.prepare(t_model.model, inplace=True)
+        #torch.quantization.convert(t_model.model, inplace=True)
+        #q_model = torch.quantization.quantize_dynamic(t_model.model, {torch.nn.Conv2d, torch.nn.Linear}, dtype=torch.qint8)
+
+        #t_predict = predict_custom_yolo7_seg
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     # Rescale boxes (xyxy) from img1_shape to img0_shape
@@ -550,6 +759,7 @@ def apply():
                     index = 0
                     sub_size = 96
                     offset_percentage = 0.1
+                    subs = []
 
                     for img, resized, N in zip(oim, im, Ns):
                         # rw, rh
@@ -562,7 +772,7 @@ def apply():
                         boxes = s[..., 2:] * ratio
                         clid = s[..., 1]
                         print(img.shape, s.shape, N, boxes.shape, clid)
-                        subs = []
+                        
                         scales = []
                         distorted_boxes = []
                         for (x0,y0,x1,y1), c in zip(boxes, clid):
@@ -583,24 +793,24 @@ def apply():
 
                             sub = img[dy0:dy1, dx0:dx1, :]
 
-                            print(sub.shape, x0, y0, x1, y1, " -> ",  dx1, dy1, "increased by", (dx1-dx0) - w, ",",(dy1-dy0) - h)
+                            #print(sub.shape, x0, y0, x1, y1, " -> ",  dx1, dy1, "increased by", (dx1-dx0) - w, ",",(dy1-dy0) - h)
 
                             if np.min(sub.shape[:2]) < 10:
                                 continue
 
                             distorted_boxes.append([dx0, dy0, dx0 + sub.shape[1], dy0 + sub.shape[0]])
-                            import TRex
-                            TRex.imshow("mask1",np.ascontiguousarray(sub.astype(np.uint8)))
+                            #import TRex
+                            #TRex.imshow("mask1",np.ascontiguousarray(sub.astype(np.uint8)))
                             subs.append(cv2.resize(sub, (sub_size,sub_size)))
                             scales.append((sub.shape[1] / subs[-1].shape[1], sub.shape[0] / subs[-1].shape[0]) * 2)
 
-                        if len(subs) == 0:
+                        if len(scales) == 0:
                             continue
 
                         scales = np.array(scales)
                         distorted_boxes = np.array(distorted_boxes)
 
-                        rs = t_predict(t_model = t_model, 
+                        '''rs = t_predict(t_model = t_model, 
                                   device = device, 
                                   image_size = sub_size, 
                                   offsets = offsets, 
@@ -625,9 +835,9 @@ def apply():
                         #meta[..., 2:4] += meta[..., :2] + distorted_boxes[rs[2]]
 
                         #print("corrected:", meta.astype(int))
-                        #print("sizes:", sizes)
+                        #print("sizes:", sizes)'''
 
-                        masks = []
+                        '''masks = []
                         deformed =  (rs[0] * 255).reshape((-1, 56, 56)).astype(np.uint8)
                         #max_conf = np.max(meta[..., 4])
 
@@ -646,16 +856,26 @@ def apply():
                                 crop[..., 0])
 
                             if crop.shape[0] > 0 and crop.shape[1] > 0:
-                                masks.append(crop)
+                                masks.append(crop)'''
 
-                        if len(masks) > 0:
-                            import TRex
-                            if masks[0].shape[0] < 128:
-                                TRex.imshow("mask",cv2.resize(np.ascontiguousarray(masks[0].astype(np.uint8)), (128,128)))
-                            else:
-                                TRex.imshow("mask",np.ascontiguousarray(masks[0].astype(np.uint8)))
-                            TRex.imshow("whole",np.ascontiguousarray(img.astype(np.uint8)))
+                        #if len(masks) > 0:
+                            #import TRex
+                            #if masks[0].shape[0] < 128:
+                            #    TRex.imshow("mask",cv2.resize(np.ascontiguousarray(masks[0].astype(np.uint8)), (128,128)))
+                            #else:
+                            #    TRex.imshow("mask",np.ascontiguousarray(masks[0].astype(np.uint8)))
+                            #TRex.imshow("whole",np.ascontiguousarray(img.astype(np.uint8)))
                             #print(scales)
+                    print(np.shape(subs))
+                    rs = t_predict(t_model = t_model, 
+                                  device = device, 
+                                  image_size = sub_size, 
+                                  offsets = offsets, 
+                                  im = np.array(subs), 
+                                  conf_threshold = conf_threshold,
+                                  iou_threshold = iou_threshold,
+                                  mask_res = hyp['mask_resolution'],
+                                  max_det = 1)
 
                 #multi = 10
                 #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
