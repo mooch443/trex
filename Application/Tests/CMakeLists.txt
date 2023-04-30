@@ -17,8 +17,12 @@ include_directories(../src/ProcessedVideo)
 add_executable(test_matching test_matching.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_strings test_strings.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_strings PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 # Standard linking to gtest stuff.
 target_link_libraries(test_matching PUBLIC gtest gtest_main)
+target_link_libraries(test_strings PUBLIC gtest gtest_main)
 
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC 
@@ -29,11 +33,13 @@ target_link_libraries(test_matching PUBLIC
         framegrabber_misc
         commons 
         pv)
+        
+# Extra linking for the project.
+target_link_libraries(test_strings PUBLIC
+        commons
+        pv)
 
 # This is so you can do 'make test' to see all your tests run, instead of
 # manually running the executable runUnitTests to see those specific tests.
-add_test(NAME that-test-I-made COMMAND test_matching)
-
-# You can also omit NAME and COMMAND. The second argument could be some other
-# test executable.
-#add_test(that-other-test-I-made runUnitTests)
+add_test(NAME test-matching COMMAND test_matching)
+add_test(NAME test-strings COMMAND test_strings)

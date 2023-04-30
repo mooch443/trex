@@ -6,6 +6,7 @@
 
 //-Includes--------------------------------------------------------------------
 
+#include <regex>
 #include <signal.h>
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
@@ -197,6 +198,43 @@ void init_signals() {
 }
 
 #include <gui/GLImpl.h>
+
+std::set<file::Path> parse_input(const cmn::CommandLine::Option& option) {
+    file::Path path = file::DataLocation::parse("input", file::Path(option.value));
+
+    if (utils::contains(option.value, '*')) {
+        std::set<file::Path> found;
+
+        std::regex pattern(utils::find_replace(option.value, "*", ".*"));
+        file::Path folder = file::DataLocation::parse("input", file::Path(option.value).remove_filename());
+        print("Scanning pattern ", option.value, " in folder ", folder.str(), "...");
+
+        for (auto &file : folder.find_files("pv")) {
+            if (!file.is_regular()) {
+                continue;
+            }
+
+            auto filename = (std::string) file.filename();
+
+            if (std::regex_match(filename, pattern)) {
+                found.insert(file);
+            }
+        }
+
+        if (found.size() == 1) {
+            path = file::DataLocation::parse("input", *found.begin());
+
+        } else if (found.size() > 1) {
+            print("Found too many files matching the pattern ", option.value, ": ", found, ".");
+            return found;
+        } else {
+            print("No files found that match the pattern ", option.value, ".");
+        }
+    }
+    
+    return {path};
+}
+
 
 
 int main(int argc, char** argv)
@@ -395,64 +433,14 @@ int main(int argc, char** argv)
                     
                 case Arguments::i:
                 case Arguments::input: {
-                    if(utils::contains(option.value, '*')) {
-                        std::set<file::Path> found;
+                    auto files = parse_input(option);
+                    if(files.size() == 1) {
+                        Path path = file::DataLocation::parse("input", Path(option.value).add_extension("pv"));
+                        if(!path.exists())
+                            throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
                         
-                        auto parts = utils::split(option.value, '*');
-                        Path folder = file::DataLocation::parse("input", Path(option.value).remove_filename());
-                        print("Scanning pattern ",option.value," in folder ",folder,"...");
-                        
-                        for(auto &file: folder.find_files("pv")) {
-                            if(!file.is_regular())
-                                continue;
-                            
-                            auto filename = (std::string)file.filename();
-                            
-                            bool all_contained = true;
-                            size_t offset = 0;
-                            
-                            for(size_t i=0; i<parts.size(); ++i) {
-                                auto & part = parts.at(i);
-                                if(part.empty()) {
-                                    continue;
-                                }
-                                
-                                auto index = filename.find(part, offset);
-                                if(index == std::string::npos
-                                   || (i == 0 && index > 0))
-                                {
-                                    all_contained = false;
-                                    break;
-                                }
-                                
-                                offset = index + part.length();
-                            }
-                            
-                            if(all_contained) {
-                                found.insert(file);
-                            }
-                        }
-                        
-                        if(found.size() == 1) {
-                            Path path = file::DataLocation::parse("input", *found.begin());
-                            if(!path.exists())
-                                throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
-                            
-                            print("Using file ", path);
-                            SETTING(filename) = path.remove_extension();
-                            break;
-                            
-                        } else if(found.size() > 1) {
-                            print("Found too many files matching the pattern ",option.value,": ",found,".");
-                        } else
-                            print("No files found that match the pattern ",option.value,".");
+                        SETTING(filename) = path.remove_extension();
                     }
-                    
-                    Path path = file::DataLocation::parse("input", Path(option.value).add_extension("pv"));
-                    if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
-                    
-                    SETTING(filename) = path.remove_extension();
                     break;
                 }
                     

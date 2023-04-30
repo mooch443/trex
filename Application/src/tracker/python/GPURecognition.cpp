@@ -616,6 +616,16 @@ void PythonIntegration::set_function(const char* name_, std::function<void(float
 void PythonIntegration::set_function(const char* name_, std::function<void(std::string)> f, const std::string &m) {
     set_function_internal(name_, f, m);
 }
+void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uint64_t> Ns,
+                       std::vector<float> vector,
+                       std::vector<float> masks,
+                       std::vector<float> meta,
+                       std::vector<int>, std::vector<int>)> f,
+    const std::string &m)
+{
+    set_function_internal(name_, f, m);
+}
+
 
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m)
 {
