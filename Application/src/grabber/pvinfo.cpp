@@ -505,6 +505,8 @@ int main(int argc, char**argv) {
         
         Output::Library::Init();
         
+        set_runtime_quiet(be_quiet);
+        
         if(heatmap) {
             gui::heatmap::HeatmapController svenja;
             Output::TrackingResults results(*track::Tracker::instance());
