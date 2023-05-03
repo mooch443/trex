@@ -371,7 +371,7 @@ struct Yolo7ObjectDetection {
                                         std::vector<int> indexes,
                                         std::vector<int> segNs)
             {
-                thread_print("Received masks:", masks.size());
+                thread_print("Received masks:", masks.size(), " -> ", double(masks.size()) / 56.0 / 56.0);
                 thread_print("Received meta:", meta.size());
                 thread_print("Received indexes:", indexes);
                 thread_print("Received segNs:", segNs);
@@ -381,6 +381,8 @@ struct Yolo7ObjectDetection {
                     auto N = segNs.at(i);
                     auto &data = datas.at(i);
                     
+                    assert(meta.size() >= (offset + N) * 6u);
+                    assert(masks.size() >= (offset + N) * 56u * 56u);
                     std::vector<float> m(meta.data() + offset * 6, meta.data() + (offset + N) * 6);
                     std::vector<float> s(masks.data() + offset * 56u * 56u, masks.data() + (offset + N) * 56u * 56u);
                     thread_print(" * working ", N, " masks for frame ", data.original_index(), " (", m.size()," and images ",s.size(),")");

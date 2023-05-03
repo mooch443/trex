@@ -764,9 +764,6 @@ def apply():
                     sub_size = 96
                     offset_percentage = 0.1
 
-                    # only one per original image
-                    segNs = []
-
                     # per box, so has to be segmented wrt original images
                     image_indexes = []
                     scales = []
@@ -784,8 +781,7 @@ def apply():
                         boxes = s[..., 2:] * ratio
                         clid = s[..., 1]
                         print(img.shape, s.shape, N, boxes.shape, clid)
-                        segNs.append(0)
-                        
+
                         for (x0,y0,x1,y1), c in zip(boxes, clid):
                             # filter for class ID to only generate relevant outlines
                             if c != 1:
@@ -816,13 +812,12 @@ def apply():
                             
                             image_indexes.append(image_index)
                             scales.append((sub.shape[1] / subs[-1].shape[1], sub.shape[0] / subs[-1].shape[0]) * 2)
-                            segNs[-1] += 1
 
                     rs = None
                     if len(scales) > 0:
                         scales = np.array(scales)
-                        segNs = np.array(segNs).astype(int)
                         distorted_boxes = np.array(distorted_boxes)
+                        image_indexes = np.array(image_indexes)
 
                         rs = t_predict(t_model = t_model, 
                                       device = device, 
@@ -847,15 +842,32 @@ def apply():
                         masks = []
                         last_index = None
 
+                        ons = {}
+                        oindexes = image_indexes[indexes]
+                        for index in range(0, len(oim)):
+                            ons[index] = 0
+                        
+                        for index in oindexes:
+                            ons[index] += 1
+                        segNs = []
+                        for index in range(0, len(oim)):
+                            if index in ons:
+                                segNs.append(ons[index])
+                            else:
+                                segNs.append(0)
+                        segNs = np.array(segNs).astype(int)
+
                         rs = [
                             shapes.copy().flatten(), 
                             meta.copy().flatten(), 
                             indexes.astype(int).copy(), 
-                            np.copy(segNs) # indexed like the original images
+                            segNs # indexed like the original images
                         ]
 
-                        '''for i, shape, m, s, d in zip(indexes, shapes, meta, sizes, deformed):
-                            print("image",image_indexes[i]," with shape ", shape," and meta ", m, s)
+                        print(shapes.shape, " shapes and ", meta.shape, " meta are transformed into ", rs[0].shape, " and ", rs[1].shape, " and ", rs[-1].shape)
+
+                        for i, shape, m, s, d in zip(indexes, shapes, meta, sizes, deformed):
+                            #print("image",image_indexes[i]," with shape ", shape," and meta ", m, s)
 
                             image_index = image_indexes[i]
                             img = oim[image_index]
@@ -871,7 +883,7 @@ def apply():
                             contours, _ = cv2.findContours(undistorted, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                             cv2.drawContours(crop, contours, -1, (0, 255, 0), 1)  # Green color for contours
 
-                            print("masks = ", len(masks))
+                            #print("masks = ", len(masks))
                             if image_index != last_index:
                                 if len(masks) > 0:
                                     import TRex
@@ -886,7 +898,7 @@ def apply():
 
 
                             if crop.shape[0] > 0 and crop.shape[1] > 0:
-                                masks.append(crop)'''
+                                masks.append(crop)
 
                     if type(rs) != type(None):
                         receive_with_seg(Ns, np.array(results, dtype=np.float32).flatten(), rs[0], rs[1], rs[2], rs[3])
