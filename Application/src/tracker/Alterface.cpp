@@ -36,7 +36,6 @@ Alterface::~Alterface() {
 }
 
 void Alterface::draw(IMGUIBase& base, DrawStructure& g) {
-    
     dyn::update_layout("alter_layout.json", context, state, objects);
     
     g.section("buttons", [&](auto&, Section* section) {

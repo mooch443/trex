@@ -1135,7 +1135,7 @@ int main(int argc, char**argv) {
         }
         print("Average time / frame: ", average / samples, "ms");*/
         
-        //tmp.generate_average(bg, 0);
+        tmp.generate_average(bg, 0);
     }
     
     Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
@@ -1441,6 +1441,8 @@ int main(int argc, char**argv) {
             current.image = nullptr;
         }
     };
+    
+    file::cd(file::DataLocation::parse("app"));
 
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         fetch_files();
