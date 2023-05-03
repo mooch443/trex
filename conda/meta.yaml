@@ -46,8 +46,8 @@ requirements:
     - python =3.9 # [arm64]
     - python =3.7 # [linux]
     - python =3.7.11 # [osx and not arm64]
-    - {{ compiler('c') }}
-    - {{ compiler('cxx') }}
+    - {{ compiler('c') }}   # [not osx]
+    - {{ compiler('cxx') }} # [not osx]
     - cmake >=3.14
     - git
     - {{ cdt('mesa-libgl-devel') }}  # [linux]
