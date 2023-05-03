@@ -102,6 +102,12 @@ else
 fi  
 
 if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) libpng_custom
+else
+    make -j$(( $(sysctl -n hw.ncpu) - 1 )) libpng_custom
+fi  
+
+if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) CustomOpenCV
 else
     make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV
