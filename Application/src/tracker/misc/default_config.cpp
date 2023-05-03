@@ -353,6 +353,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
         CONFIG("debug", false, "Enables some verbose debug print-outs.");
+        CONFIG("track_background_subtraction", true, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_enable_absolute_difference` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
         CONFIG("analysis_paused", false, "Halts the analysis.");

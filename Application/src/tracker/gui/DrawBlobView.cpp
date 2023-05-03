@@ -271,7 +271,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 base.text(text, Loc(pos + Vec2(2)), White, Font(0.5), scale);
             }
             
-            static std::unordered_map<pv::bid, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+            static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
             static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
             
             for(auto & [id, tup] : _blob_labels)
@@ -286,8 +286,8 @@ void draw_blob_view(const DisplayParameters& parm)
                 auto d = sqdistance(mp, blob.bounds().pos());
                 draw_order.insert({d, &blob, false});
                 
-                if(_blob_labels.count(id))
-                    std::get<0>(_blob_labels.at(id)) = true;
+                if(_blob_labels.count(&blob))
+                    std::get<0>(_blob_labels.at(&blob)) = true;
             });
             
             if(!SETTING(gui_draw_only_filtered_out)) {
@@ -296,8 +296,8 @@ void draw_blob_view(const DisplayParameters& parm)
                     auto d = sqdistance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
                     
-                    if(_blob_labels.count(id))
-                        std::get<0>(_blob_labels.at(id)) = true;
+                    if(_blob_labels.count(&blob))
+                        std::get<0>(_blob_labels.at(&blob)) = true;
                 });
             }
             
@@ -340,17 +340,17 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 auto text = label_for_blob(parm, *blob, real_size, active, d);
                 
-                decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
+                decltype(_blob_labels)::iterator it = _blob_labels.find(blob);
                 if(it == _blob_labels.end()) {
                     if(!_unused_labels.empty()) {
-                        auto [k, success] = _blob_labels.try_emplace(blob->blob_id(), std::move(_unused_labels.back()));
+                        auto [k, success] = _blob_labels.try_emplace(blob, std::move(_unused_labels.back()));
                         _unused_labels.resize(_unused_labels.size()-1);
                         
                         it = k;
                         std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
-                        auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()) });
+                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()) });
                         it = k;
                     }
                     

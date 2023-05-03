@@ -138,7 +138,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
             }
         };
         
-        if(not SLOW_SETTING(use_differences)) {
+        if(not SLOW_SETTING(track_background_subtraction)) {
             work.operator()<DifferenceMethod::none>();
         } else if(SLOW_SETTING(track_absolute_difference)) {
             work.operator()<DifferenceMethod::absolute>();

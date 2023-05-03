@@ -293,4 +293,34 @@ bool PrefilterBlobs::blob_matches_shapes(const pv::Blob & b, const std::vector<s
     return false;
 }
 
+bool PrefilterBlobs::rect_overlaps_shapes(const Bounds & b, const std::vector<std::vector<Vec2> > & shapes) {
+    for(auto &rect : shapes) {
+        if(rect.size() == 2) {
+            Bounds bds(rect[0], rect[1] - rect[0]);
+            if(bds.overlaps(b))
+                return true;
+        } else if(rect.size() > 2) {
+            Bounds bds(0, 0, FLT_MAX, FLT_MAX);
+            for(auto &p : rect) {
+                bds.insert_point(p);
+            }
+            bds.width -= bds.x;
+            bds.height -= bds.y;
+            if(bds.overlaps(b))
+                return true;
+        }
+#ifndef NDEBUG
+        else {
+            static bool warned = false;
+            if(!warned) {
+                print("Array of numbers ",rect," is not a polygon (or rectangle).");
+                warned = true;
+            }
+        }
+#endif
+    }
+    
+    return false;
+}
+
 }

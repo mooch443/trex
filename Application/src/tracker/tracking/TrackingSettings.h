@@ -95,7 +95,7 @@ CREATE_STRUCT(Settings,
   (bool, track_time_probability_enabled),
   (float, posture_head_percentage),
   (bool, track_absolute_difference),
-  (bool, use_differences),
+  (bool, track_background_subtraction),
   (float, blobs_per_thread),
   (std::string, individual_prefix),
   (uint64_t, video_length),
@@ -138,7 +138,7 @@ struct slow {
     DEF_SLOW_SETTINGS(track_max_reassign_time);
     DEF_SLOW_SETTINGS(calculate_posture);
     DEF_SLOW_SETTINGS(track_absolute_difference);
-    DEF_SLOW_SETTINGS(use_differences);
+    DEF_SLOW_SETTINGS(track_background_subtraction);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);

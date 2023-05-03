@@ -89,6 +89,7 @@ public:
         GenericThreadPool* pool = nullptr);
     
     static bool blob_matches_shapes(const pv::Blob&, const std::vector<std::vector<Vec2>>&);
+    static bool rect_overlaps_shapes(const Bounds&, const std::vector<std::vector<Vec2>>&);
 };
 
 }

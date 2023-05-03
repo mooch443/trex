@@ -53,7 +53,7 @@ void update_analysis_range() {
         DEF_CALLBACK(track_max_reassign_time);
         DEF_CALLBACK(calculate_posture);
         DEF_CALLBACK(track_absolute_difference);
-        DEF_CALLBACK(use_differences);
+        DEF_CALLBACK(track_background_subtraction);
         
         DEF_CALLBACK(track_trusted_probability);
         DEF_CALLBACK(huge_timestamp_ends_segment);
@@ -628,19 +628,7 @@ void Tracker::prefilter(
     
     const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
     
-    auto check_blob = [&tags_dont_track, &track_ignore, &track_include, &result, &cm_sqr](pv::BlobPtr&& b)
-    {
-        // TODO: magic numbers
-        if(b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
-            b->force_set_recount(result.threshold);
-        else
-            b->recount(result.threshold, *result.background);
-        
-        if(b->is_tag() && tags_dont_track) {
-            result.filter_out(std::move(b), FilterReason::DontTrackTags);
-            return false;
-        }
-        
+    auto check_precise_not_ignored = [&track_ignore, &track_include, &result](pv::BlobPtr&& b){
         if (!track_ignore.empty()) {
             if (PrefilterBlobs::blob_matches_shapes(*b, track_ignore)) {
                 result.filter_out(std::move(b), FilterReason::InsideIgnore);
@@ -657,6 +645,33 @@ void Tracker::prefilter(
         
         return true;
     };
+    
+    auto check_blob = [&tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr](pv::BlobPtr&& b, bool precise_check_boundaries)
+    {
+        // TODO: magic numbers
+        if(b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
+            b->force_set_recount(result.threshold);
+        else
+            b->recount(result.threshold, *result.background);
+        
+        if(b->is_tag() && tags_dont_track) {
+            result.filter_out(std::move(b), FilterReason::DontTrackTags);
+            return false;
+        }
+        
+        //! use imprecise boundary check
+        if(not precise_check_boundaries) {
+            if (!track_include.empty()) {
+                if (not PrefilterBlobs::rect_overlaps_shapes(b->bounds(), track_include)) {
+                    result.filter_out(std::move(b), FilterReason::OutsideInclude);
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        return check_precise_not_ignored(std::move(b));
+    };
 
     for(; it != end; ++it) {
         auto &&own = *it;
@@ -668,11 +683,12 @@ void Tracker::prefilter(
         //! check if this blob is of valid size.
         //! if it is NOT of valid size, it will
         //! be moved to one of the other arrays.
-        if(!check_blob(std::move(own)))
+        if(!check_blob(std::move(own), false))
             continue;
         
         // it has NOT been moved, continue here...
         float recount = own->recount(-1);
+        ptrs.clear();
         
         //! If the size is appropriately big, try to split the blob using the minimum of threshold and
         //  posture_threshold. Using the minimum ensures that the thresholds dont depend on each other
@@ -684,19 +700,20 @@ void Tracker::prefilter(
             // only use blobs that split at least into 2 new blobs
             for(auto &&add : pblobs) {
                 add->set_split(false, own); // set_split even if the blob has just been thresholded normally?
-                if(!check_blob(std::move(add)))
+                if(!check_blob(std::move(add), true))
                     continue;
 
                 ptrs.push_back(std::move(add));
             }
-
-            // if we havent found any blobs, add the unthresholded
-            // blob instead:
-            if (ptrs.empty())
+        }
+        
+        // if we havent found any blobs, add the unthresholded
+        // blob instead:
+        if (ptrs.empty()) {
+            if(check_precise_not_ignored(std::move(own)))
                 ptrs.push_back(std::move(own));
-            
-        } else {
-            ptrs.push_back(std::move(own));
+            else
+                continue;
         }
         
         //! actually add the blob(s) to the filtered/filtered_out arrays
@@ -758,13 +775,12 @@ void Tracker::prefilter(
                 result.big_blob(std::move(ptr));
         }
         
-        //! all pointers have been moved, so clear to be safe
 #ifndef NDEBUG
+        //! all pointers should have been moved, check if thats true
         for(auto &b : ptrs) {
             assert(b == nullptr);
         }
 #endif
-        ptrs.clear();
     }
     
     for(auto &blob : result.filtered())

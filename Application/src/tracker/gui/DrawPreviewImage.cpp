@@ -258,7 +258,7 @@ void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
-            if(FAST_SETTING(use_differences)) {
+            if(FAST_SETTING(track_background_subtraction)) {
                 for(size_t i=0; i<image->size(); ++i) {
                     image->data()[i] = 255 - image->data()[i];
                 }
