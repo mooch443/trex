@@ -445,6 +445,10 @@ bool PythonIntegration::check_module(const std::string& name) {
     std::lock_guard<std::mutex> guard(module_mutex);
     bool result = false;
     
+    print("check_module_CWD: ", file::cwd());
+    file::cd(file::DataLocation::parse("app"));
+    print("check_module_CWD_: ", file::cwd());
+    
     auto c = utils::read_file(name+".py");
     if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
