@@ -7,3 +7,5 @@ output_graphs = [["X",["wcentroid"]],["SPEED",["wcentroid"]],["midline_length",[
 output_csv_decimals = 0
 output_format = csv
 match_mode = automatic
+frame_rate = 25
+track_speed_decay = 0.7
