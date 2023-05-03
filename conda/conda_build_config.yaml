@@ -1,14 +1,22 @@
 SDKROOT:
-  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [arm64]
-  - /opt/MacOSX10.14.sdk        # [osx and not arm64]
+  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [osx]
 
 CONDA_BUILD_SYSROOT:
-  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [arm64]
-  - /opt/MacOSX10.14.sdk        # [osx and not arm64]
+  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [osx]
+
+CC:
+  - /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang # [osx]
+CXX:
+  - /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ # [osx]
+#CC:
+#  - $BUILD_PREFIX/bin/clang # [osx and not arm64]
+#CXX:
+#  - $BUILD_PREFIX/bin/clang++ # [osx and not arm64]
 
 MACOSX_DEPLOYMENT_TARGET:
-  - 10.14 # [osx and not arm64]
-  - 11.1 # [osx and arm64]
+  - 11.0 # [osx and not arm64]
+  - 11.0 # [osx and arm64]
+  #- 10.15 # [osx and not arm64]
 
 c_compiler:
 - vs2019 # [win]
@@ -18,3 +26,11 @@ cxx_compiler_version:
   - 11 # [linux]
 c_compiler_version:
   - 11 # [linux]
+
+pin_run_as_build:
+  python:
+    min_pin: x.x.x
+    max_pin: x.x.x
+  ffmpeg:
+    min_pin: x.x.x
+    max_pin: x.x.x
