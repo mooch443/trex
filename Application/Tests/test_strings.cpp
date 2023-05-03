@@ -4,6 +4,13 @@
 #include <misc/format.h>
 #include <misc/Timer.h>
 
+
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
+#include <misc/checked_casts.h>
+
 using namespace cmn;
 using namespace utils;
 // Tests for the split function.
@@ -565,4 +572,39 @@ TEST(SearchText, HandlesPartialWordMatches) {
     
     
     
+}
+
+// Test narrow_cast with warn_on_error
+TEST(NarrowCastTest, WarnOnError) {
+    EXPECT_NO_THROW({
+        int negative_value = -5;
+        unsigned int result = narrow_cast<unsigned int>(negative_value, tag::warn_on_error{});
+        EXPECT_EQ(result, static_cast<unsigned int>(negative_value));
+    });
+
+    EXPECT_NO_THROW({
+        int large_value = 100000;
+        short result = narrow_cast<short>(large_value, tag::warn_on_error{});
+        EXPECT_EQ(result, static_cast<short>(large_value));
+    });
+}
+
+// Test narrow_cast with fail_on_error
+TEST(NarrowCastTest, FailOnError) {
+    int negative_value = -5;
+    ASSERT_ANY_THROW(narrow_cast<unsigned int>(negative_value, tag::fail_on_error{}));
+
+    int large_value = 100000;
+    ASSERT_ANY_THROW(narrow_cast<short>(large_value, tag::fail_on_error{}));
+}
+
+// Test narrow_cast without tags
+TEST(NarrowCastTest, NoTags) {
+    int value = 42;
+    short result = narrow_cast<short>(value);
+    EXPECT_EQ(result, static_cast<short>(value));
+
+    value = -42;
+    result = narrow_cast<short>(value);
+    EXPECT_EQ(result, static_cast<short>(value));
 }

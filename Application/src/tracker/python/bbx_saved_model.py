@@ -361,7 +361,11 @@ def load_model():
         t_model = content["model"].to(device)
         t_predict = content["predict"]'''
         from models.common import DetectMultiBackend
-        t_model = DetectMultiBackend("Z:/work/shark/models/shark-cropped-0.712-loops-128-seg.pt", device=device, dnn=True, fp16=True)
+        if torch.backends.mps.is_available():
+            path = "/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
+        else:
+            path = "Z:/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
+        t_model = DetectMultiBackend(path, device=device, dnn=True, fp16=False)
 
         #t_model.model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
         #torch.quantization.prepare(t_model.model, inplace=True)
@@ -759,9 +763,17 @@ def apply():
                     index = 0
                     sub_size = 96
                     offset_percentage = 0.1
+
+                    # only one per original image
+                    segNs = []
+
+                    # per box, so has to be segmented wrt original images
+                    image_indexes = []
+                    scales = []
+                    distorted_boxes = []
                     subs = []
 
-                    for img, resized, N in zip(oim, im, Ns):
+                    for image_index, (img, resized, N) in enumerate(zip(oim, im, Ns)):
                         # rw, rh
                         ratio = np.array((img.shape[1] / resized.shape[1], img.shape[0] / resized.shape[0]) * 2)
 
@@ -772,9 +784,8 @@ def apply():
                         boxes = s[..., 2:] * ratio
                         clid = s[..., 1]
                         print(img.shape, s.shape, N, boxes.shape, clid)
+                        segNs.append(0)
                         
-                        scales = []
-                        distorted_boxes = []
                         for (x0,y0,x1,y1), c in zip(boxes, clid):
                             # filter for class ID to only generate relevant outlines
                             if c != 1:
@@ -802,81 +813,87 @@ def apply():
                             #import TRex
                             #TRex.imshow("mask1",np.ascontiguousarray(sub.astype(np.uint8)))
                             subs.append(cv2.resize(sub, (sub_size,sub_size)))
+                            
+                            image_indexes.append(image_index)
                             scales.append((sub.shape[1] / subs[-1].shape[1], sub.shape[0] / subs[-1].shape[0]) * 2)
+                            segNs[-1] += 1
 
-                        if len(scales) == 0:
-                            continue
-
+                    rs = None
+                    if len(scales) > 0:
                         scales = np.array(scales)
+                        segNs = np.array(segNs).astype(int)
                         distorted_boxes = np.array(distorted_boxes)
 
-                        '''rs = t_predict(t_model = t_model, 
-                                  device = device, 
-                                  image_size = sub_size, 
-                                  offsets = offsets, 
-                                  im = np.array(subs), 
-                                  conf_threshold = conf_threshold,
-                                  iou_threshold = iou_threshold,
-                                  mask_res = hyp['mask_resolution'],
-                                  max_det = 1)
-                        #print("shapes", rs[0].reshape((-1, 56, 56)).shape)
-                        #print("meta", rs[1].reshape((-1, 6)))
-                        #print("indexes", rs[2])
-                        #print("distorted_boxes", distorted_boxes)
+                        rs = t_predict(t_model = t_model, 
+                                      device = device, 
+                                      image_size = sub_size, 
+                                      offsets = offsets, 
+                                      im = np.array(subs), 
+                                      conf_threshold = conf_threshold,
+                                      iou_threshold = iou_threshold,
+                                      mask_res = hyp['mask_resolution'],
+                                      max_det = 1)
 
+                        shapes = rs[0].reshape((-1, 56, 56))
                         meta = rs[1].reshape((-1, 6))
+                        indexes = rs[2]
+
                         meta[..., :4] = meta[..., :4] * scales[rs[2]]
                         meta[..., :2] += distorted_boxes[rs[2]][..., :2]
                         meta[..., 2:4] += distorted_boxes[rs[2]][..., :2]
-                        #meta[..., :4] += boxes[rs[2]][..., :4]
 
                         sizes = meta.astype(int)[..., [2,3]] - meta.astype(int)[..., [0,1]]
-                        #meta[..., :2] +=meta[..., :2] + distorted_boxes[rs[2]]
-                        #meta[..., 2:4] += meta[..., :2] + distorted_boxes[rs[2]]
+                        deformed =  (shapes * 255).astype(np.uint8)
+                        masks = []
+                        last_index = None
 
-                        #print("corrected:", meta.astype(int))
-                        #print("sizes:", sizes)'''
+                        rs = [
+                            shapes.copy().flatten(), 
+                            meta.copy().flatten(), 
+                            indexes.astype(int).copy(), 
+                            np.copy(segNs) # indexed like the original images
+                        ]
 
-                        '''masks = []
-                        deformed =  (rs[0] * 255).reshape((-1, 56, 56)).astype(np.uint8)
-                        #max_conf = np.max(meta[..., 4])
+                        '''for i, shape, m, s, d in zip(indexes, shapes, meta, sizes, deformed):
+                            print("image",image_indexes[i]," with shape ", shape," and meta ", m, s)
 
-                        for d,s, m,conf in zip(deformed, sizes, meta.astype(int), meta[..., 4]):
-                            #if conf < max_conf:
-                            #    continue
-
-                            crop = img[m[..., 1]:m[..., 3], m[..., 0]:m[..., 2], :]
+                            image_index = image_indexes[i]
+                            img = oim[image_index]
+                            crop = img[int(m[..., 1]):int(m[..., 3]), int(m[..., 0]):int(m[..., 2]), :]
                             undistorted = (cv2.resize(d, tuple(s.T))).astype(np.uint8)
-                            #print(s, d.shape, crop.shape, undistorted.shape, undistorted.dtype, crop.dtype)
-                            #crop[..., 0] += undistorted[:crop.shape[0], :crop.shape[1]]
-                            #crop[..., 1] = undistorted[:crop.shape[0], :crop.shape[1]]
+
                             crop[..., 1] = np.where(
-                                undistorted[:crop.shape[0], :crop.shape[1]] > 80, 
+                                undistorted[:crop.shape[0], :crop.shape[1]] > 153, 
                                 undistorted[:crop.shape[0], :crop.shape[1]], 
                                 crop[..., 0])
+
+                            undistorted[undistorted < 153] = 0
+                            contours, _ = cv2.findContours(undistorted, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            cv2.drawContours(crop, contours, -1, (0, 255, 0), 1)  # Green color for contours
+
+                            print("masks = ", len(masks))
+                            if image_index != last_index:
+                                if len(masks) > 0:
+                                    import TRex
+                                    for i in range(0, min(len(masks), 10)):
+                                        if masks[i].shape[0] < 128:
+                                           TRex.imshow("mask"+str(i),cv2.resize(np.ascontiguousarray(masks[i].astype(np.uint8)), (128,128)))
+                                        else:
+                                            TRex.imshow("mask"+str(i),np.ascontiguousarray(masks[i].astype(np.uint8)))
+                                    TRex.imshow("whole",np.ascontiguousarray(oim[last_index].astype(np.uint8)))
+                                last_index = image_index
+                                masks = []
+
 
                             if crop.shape[0] > 0 and crop.shape[1] > 0:
                                 masks.append(crop)'''
 
-                        #if len(masks) > 0:
-                            #import TRex
-                            #if masks[0].shape[0] < 128:
-                            #    TRex.imshow("mask",cv2.resize(np.ascontiguousarray(masks[0].astype(np.uint8)), (128,128)))
-                            #else:
-                            #    TRex.imshow("mask",np.ascontiguousarray(masks[0].astype(np.uint8)))
-                            #TRex.imshow("whole",np.ascontiguousarray(img.astype(np.uint8)))
-                            #print(scales)
-                    print(np.shape(subs))
-                    rs = t_predict(t_model = t_model, 
-                                  device = device, 
-                                  image_size = sub_size, 
-                                  offsets = offsets, 
-                                  im = np.array(subs), 
-                                  conf_threshold = conf_threshold,
-                                  iou_threshold = iou_threshold,
-                                  mask_res = hyp['mask_resolution'],
-                                  max_det = 1)
-
+                    if type(rs) != type(None):
+                        receive_with_seg(Ns, np.array(results, dtype=np.float32).flatten(), rs[0], rs[1], rs[2], rs[3])
+                    else:
+                        receive(Ns, np.array(results, dtype=np.float32).flatten())
+                else:
+                    receive(Ns, np.array(results, dtype=np.float32).flatten())
                 #multi = 10
                 #d0, d1 = np.concatenate((offsets, )*multi, axis=0), np.concatenate((im, )*multi, axis=0)
                 #s1 = time.time()
@@ -887,7 +904,6 @@ def apply():
 
                 #print("******",(e0-s0)*1000,"ms im.shape=", im.shape)
 
-                receive(Ns, np.array(results, dtype=np.float32).flatten())
             finally:
                 #profiler.stop()
                 #profiler.print(show_all=True)

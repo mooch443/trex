@@ -314,13 +314,13 @@ struct Yolo7ObjectDetection {
             bbx.set_variable("image", images);
             bbx.set_variable("oimages", oimages);
             
-            bbx.set_function("receive", [&](std::vector<uint64_t> Ns,
-                                            std::vector<float> vector)
+            auto recv = [&](std::vector<uint64_t> Ns,
+                            std::vector<float> vector)
             {
                 size_t elements{0};
                 //thread_print("Received a number of results: ", Ns);
                 //thread_print("For elements: ", datas);
-                
+
                 if(Ns.empty()) {
                     for(size_t i=0; i<datas.size(); ++i) {
                         try {
@@ -338,7 +338,7 @@ struct Yolo7ObjectDetection {
                     FormatExcept("Empty data for ", datas);
                     return;
                 }
-                
+
                 assert(Ns.size() == datas.size());
                 for(size_t i=0; i<datas.size(); ++i) {
                     auto& data = datas.at(i);
@@ -361,6 +361,35 @@ struct Yolo7ObjectDetection {
                         FormatExcept("Exception in callback of element ", i," in python results.");
                     }
                 }
+            };
+            
+            bbx.set_function("receive", recv);
+            bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
+                                        std::vector<float> vector,
+                                        std::vector<float> masks,
+                                        std::vector<float> meta,
+                                        std::vector<int> indexes,
+                                        std::vector<int> segNs)
+            {
+                thread_print("Received masks:", masks.size());
+                thread_print("Received meta:", meta.size());
+                thread_print("Received indexes:", indexes);
+                thread_print("Received segNs:", segNs);
+
+                size_t offset = 0;
+                for(size_t i=0; i<segNs.size(); ++i) {
+                    auto N = segNs.at(i);
+                    auto &data = datas.at(i);
+                    
+                    std::vector<float> m(meta.data() + offset * 6, meta.data() + (offset + N) * 6);
+                    std::vector<float> s(masks.data() + offset * 56u * 56u, masks.data() + (offset + N) * 56u * 56u);
+                    thread_print(" * working ", N, " masks for frame ", data.original_index(), " (", m.size()," and images ",s.size(),")");
+                    
+                    // move further in all sub arrays on to the next original image
+                    offset += N;
+                }
+                
+                recv(Ns, vector);
             });
 
             try {
@@ -372,6 +401,7 @@ struct Yolo7ObjectDetection {
             }
             
             bbx.unset_function("receive");
+            bbx.unset_function("receive_with_seg");
 
             for (auto&& img : images) {
                 TileImage::move_back(std::move(img));
@@ -529,22 +559,8 @@ struct Yolo7InstanceSegmentation {
     static tl::expected<SegmentationData, const char*> apply(TileImage&& tiled) {
         namespace py = Python;
         
-        /*SegmentationData data{
-            std::move(tiled.original),
-        };
-        
-        static Frame_t running_id = 0_f;
-        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-        data.frame.set_timestamp(uint64_t(fake));
-        data.frame.set_index(running_id++);*/
-        
         Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
         print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", tiled.data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
-        
-        
-        /*for(size_t i=0; i<tiled.images.size(); ++i) {
-            tf::imshow(Meta::toStr(i)+ " " +Meta::toStr(tiled.offsets().at(i)), tiled.images.at(i)->get());
-        }*/
         
         for(auto p : tiled.offsets()) {
             tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));
@@ -578,8 +594,7 @@ struct Yolo7InstanceSegmentation {
             
         }).get();
         
-        //tf::imshow("test", ret);
-        return std::move(tiled.data);//Image::Make(ret);
+        return std::move(tiled.data);
     }
 };
 
