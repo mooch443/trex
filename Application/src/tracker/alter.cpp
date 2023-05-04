@@ -984,6 +984,19 @@ struct Detection {
     });
 };
 
+file::Path average_name() {
+    auto path = file::DataLocation::parse("output", "average_" + (std::string)SETTING(filename).value<file::Path>().filename() + ".png");
+    return path;
+}
+
+std::string window_title() {
+    auto output_prefix = SETTING(output_prefix).value<std::string>();
+    return SETTING(app_name).value<std::string>()
+        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
+        + " (" + (std::string)SETTING(filename).value<file::Path>().filename() + ")"
+        + (output_prefix.empty() ? "" : (" ["+output_prefix+"]"));
+}
+
 int main(int argc, char**argv) {
     using namespace gui;
     
@@ -993,8 +1006,6 @@ int main(int argc, char**argv) {
     
     grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    
-    file::cd(file::DataLocation::parse("app"));
     
     SETTING(meta_video_scale) = float(1);
     SETTING(source) = std::string("");
@@ -1010,7 +1021,7 @@ int main(int argc, char**argv) {
     print("CWD: ", file::cwd());
     DebugHeader("LOADING COMMANDLINE");
     CommandLine cmd(argc, argv, true);
-    file::cd(file::DataLocation::parse("app"));
+    file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
     for(auto a : cmd) {
@@ -1051,6 +1062,7 @@ int main(int argc, char**argv) {
     
     GlobalSettings::map().set_do_print(true);
     GlobalSettings::map().dont_print("gui_frame");
+    SETTING(app_name) = std::string("TRexA");
     SETTING(track_do_history_split) = false;
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
     SETTING(meta_real_width) = float(expected_size.width * 10);
@@ -1109,6 +1121,7 @@ int main(int argc, char**argv) {
     _video_info["resolution"] = output_size;
     
     DebugHeader("Starting tracking of");
+    print("average at: ", average_name());
     print("model: ",SETTING(model).value<file::Path>());
     print("video: ", SETTING(source).value<std::string>());
     print("model resolution: ", SETTING(image_width).value<Size2>());
@@ -1121,7 +1134,7 @@ int main(int argc, char**argv) {
     cv::Mat bg = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
     bg.setTo(255);
     
-    {
+    if(not average_name().exists()) {
         VideoSource tmp(SETTING(source).value<std::string>());
         /*tmp.set_colors(ImageMode::RGB);
         Timer timer;
@@ -1136,6 +1149,11 @@ int main(int argc, char**argv) {
         print("Average time / frame: ", average / samples, "ms");*/
         
         tmp.generate_average(bg, 0);
+        cv::imwrite(average_name().str(), bg);
+    } else {
+        print("Loading from file...");
+        bg = cv::imread(average_name().str());
+        cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
     }
     
     Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
@@ -1223,7 +1241,7 @@ int main(int argc, char**argv) {
     
     DrawStructure graph(1024, output_size.height / output_size.width * 1024);
     
-    IMGUIBase base("TRexA", graph, [&, ptr = &base]()->bool {
+    IMGUIBase base(window_title(), graph, [&, ptr = &base]()->bool {
         UNUSED(ptr);
         graph.draw_log_messages();
         

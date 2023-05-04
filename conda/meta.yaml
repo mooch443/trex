@@ -1,4 +1,15 @@
-{% set version = environ.get('GIT_DESCRIBE_TAG', '-failed')[1:] %}
+{% set git_cmd = "git describe --tags --always --abbrev=0 $(git rev-list --tags --max-count=1)" %}
+{% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
+{% set git_tag = "main" %}
+
+{% if git_tag != 'main' %}
+{% set version_prefix = '_' + git_tag %}
+{% else %}
+{% set version_prefix = '' %}
+{% endif %}
+
+{% set version = ((latest_tag if latest_tag else '-failed') + version_prefix)[1:] %}
+
 {% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
 {% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
 
@@ -13,7 +24,7 @@ channels:
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
-    git_tag: main
+    git_tag: {{ git_tag }}
 
 build:
     script_env:

@@ -4,6 +4,7 @@ if(WITH_GITSHA1)
 	include(GetGitRevisionDescription)
 	get_git_head_revision(GIT_REFSPEC GIT_SHA1)
     git_get_description(GIT_DESCRIBE_TAG)
+    git_get_branch(GIT_CURRENT_BRANCH)
 
     set(TREX_CMAKE_BUILD_TYPE_IN "${TREX_CMAKE_BUILD_TYPE}")
     set(TREX_BUILD_CXX_OPTIONS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
