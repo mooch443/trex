@@ -41,11 +41,13 @@ build:
     detect_binary_files_with_prefix: True
     files_with_prefix:
         - bin/trex
+        - bin/alter
         - bin/tgrabs
         - bin/pvinfo
         - bin/pvconvert
-        - bin/TRex.app/Contents/MacOS/TRex [osx]
-        - bin/TGrabs.app/Contents/MacOS/TGrabs [osx]
+        - bin/TRex.app/Contents/MacOS/TRex # [osx]
+        - bin/alter.app/Contents/MacOS/alter # [osx]
+        - bin/TGrabs.app/Contents/MacOS/TGrabs # [osx]
     
 requirements:
   build:
