@@ -19,9 +19,8 @@ from models.common import DetectMultiBackend
 from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
 import os
 
-#model_path = "Z:/work/octopus/yolov7-seg.pt"
-model_path = "/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
-output_path = "/Volumes/Public/work/shark/models/"+os.path.basename(model_path).replace('.pt', '')+"-macosx.pth"
+model_path = "Z:/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
+output_path = model_path.replace('.pt', '')+"-windows.pth"
 #model_path= "/Users/tristan/Downloads/shark-cropped-0.771-loops-64-seg.pt"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

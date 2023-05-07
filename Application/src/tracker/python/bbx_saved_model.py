@@ -784,8 +784,8 @@ def apply():
 
                         for (x0,y0,x1,y1), c in zip(boxes, clid):
                             # filter for class ID to only generate relevant outlines
-                            if c != 1:
-                                continue
+                            #if c != 1:
+                            #    continue
 
                             w = x1 - x0 + 1
                             h = y1 - y0 + 1
@@ -846,7 +846,7 @@ def apply():
                         oindexes = image_indexes[indexes]
                         for index in range(0, len(oim)):
                             ons[index] = 0
-                        
+
                         for index in oindexes:
                             ons[index] += 1
                         segNs = []
@@ -892,7 +892,7 @@ def apply():
                                            TRex.imshow("mask"+str(i),cv2.resize(np.ascontiguousarray(masks[i].astype(np.uint8)), (128,128)))
                                         else:
                                             TRex.imshow("mask"+str(i),np.ascontiguousarray(masks[i].astype(np.uint8)))
-                                    TRex.imshow("whole",np.ascontiguousarray(oim[last_index].astype(np.uint8)))
+                                    #TRex.imshow("whole",np.ascontiguousarray(oim[last_index].astype(np.uint8)))
                                 last_index = image_index
                                 masks = []
 
