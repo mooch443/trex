@@ -87,13 +87,14 @@ requirements:
 
   host:
     - pthread-stubs  # [linux]
-    - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
-    - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
-    - python >=3.7,<4
-    - ffmpeg =4 # [not osx or arm64]
-    - ffmpeg <=4.2.2 # [osx and not arm64]
+    - python =3.10 # [osx]
+    - python =3.9 # [win]
+    - python =3.8 # [linux]
+    - ffmpeg =4
     
   run:
+    - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - tensorflow-gpu =2 # [win]
     - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
@@ -102,21 +103,17 @@ requirements:
     - pandas
     - seaborn
     - cloudpickle
-    - pip # [osx]
     - tensorflow-deps # [osx]
     - git
     - cudatoolkit # [linux]
     - cudatoolkit =11 # [win]
     - cudnn # [win or linux]
     - scikit-learn
-    - numpy # [not arm64]
+    - pip
+    - requests
     - numpy =1.19 # # [linux]
     - numpy >=1.21,<1.22 # [win]
     - numpy >=1.23,<1.24 # [arm64]
-    - pip  # [arm64]
-    - requests
-    - python # [osx or linux]
-    - python >=3.9,<3.10 # [win]
 
 about:
   home: https://trex.run
