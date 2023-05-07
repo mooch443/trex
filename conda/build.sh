@@ -108,44 +108,28 @@ cmake .. \
     ${CMAKE_PLATFORM_FLAGS[@]}
     #-DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     #-DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
+
+PROCS=2
 if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) Z_LIB
+    if [ ! -z $(nproc) ]; then
+        PROCS=$(( $(nproc) - 1 ))
+    fi
+    echo "Processors on Linux: ${PROCS}"
 else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) Z_LIB
+    if [ ! -z $(sysctl -n hw.ncpu) ]; then
+        PROCS=$(( $(sysctl -n hw.ncpu) - 1 ))
+    fi
+    echo "Processors on macOS: $PROCS"
 fi
 
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) libzip
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) libzip
-fi  
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) libpng_custom
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) libpng_custom
-fi  
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) CustomOpenCV
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV
-fi
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) gladex
-fi
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) imgui
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) imgui
-fi
+make -j${PROCS} Z_LIB
+make -j${PROCS} libzip
+make -j${PROCS} libpng_custom
+make -j${PROCS} CustomOpenCV
+make -j${PROCS} gladex
+make -j${PROCS} imgui
 
 cmake ..
 
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) && make install
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) && make install
-fi
+make -j${PROCS} && make install
+make -j${PROCS} && make install
