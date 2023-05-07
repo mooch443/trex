@@ -109,7 +109,7 @@ cmake .. \
     #-DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     #-DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
 
-PROCS=2
+PROCS=8
 if [ "$(uname)" == "Linux" ]; then
     if [ ! -z $(nproc) ]; then
         PROCS=$(( $(nproc) - 1 ))
