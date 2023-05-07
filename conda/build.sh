@@ -126,7 +126,9 @@ make -j${PROCS} Z_LIB
 make -j${PROCS} libzip
 make -j${PROCS} libpng_custom
 make -j${PROCS} CustomOpenCV
-make -j${PROCS} gladex
+if [ "$(uname)" == "Linux" ]; then
+    make -j${PROCS} gladex
+fi
 make -j${PROCS} imgui
 
 cmake ..
