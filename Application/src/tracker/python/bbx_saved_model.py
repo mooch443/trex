@@ -360,19 +360,22 @@ def load_model():
 
         t_model = content["model"].to(device)
         t_predict = content["predict"]'''
-        from models.common import DetectMultiBackend
         if torch.backends.mps.is_available():
             path = "/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
         else:
             path = "Z:/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
-        t_model = DetectMultiBackend(path, device=device, dnn=True, fp16=False)
+        if os.path.exists(path):
+            from models.common import DetectMultiBackend
+            t_model = DetectMultiBackend(path, device=device, dnn=True, fp16=False)
 
-        #t_model.model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-        #torch.quantization.prepare(t_model.model, inplace=True)
-        #torch.quantization.convert(t_model.model, inplace=True)
-        #q_model = torch.quantization.quantize_dynamic(t_model.model, {torch.nn.Conv2d, torch.nn.Linear}, dtype=torch.qint8)
+            #t_model.model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+            #torch.quantization.prepare(t_model.model, inplace=True)
+            #torch.quantization.convert(t_model.model, inplace=True)
+            #q_model = torch.quantization.quantize_dynamic(t_model.model, {torch.nn.Conv2d, torch.nn.Linear}, dtype=torch.qint8)
 
-        #t_predict = predict_custom_yolo7_seg
+            #t_predict = predict_custom_yolo7_seg
+        else:
+            t_model = None
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     # Rescale boxes (xyxy) from img1_shape to img0_shape
@@ -886,12 +889,13 @@ def apply():
                             #print("masks = ", len(masks))
                             if image_index != last_index:
                                 if len(masks) > 0:
-                                    import TRex
-                                    for i in range(0, min(len(masks), 10)):
-                                        if masks[i].shape[0] < 128:
-                                           TRex.imshow("mask"+str(i),cv2.resize(np.ascontiguousarray(masks[i].astype(np.uint8)), (128,128)))
-                                        else:
-                                            TRex.imshow("mask"+str(i),np.ascontiguousarray(masks[i].astype(np.uint8)))
+                                    pass
+                                    #import TRex
+                                    #for i in range(0, min(len(masks), 10)):
+                                    #    if masks[i].shape[0] < 128:
+                                    #       TRex.imshow("mask"+str(i),cv2.resize(np.ascontiguousarray(masks[i].astype(np.uint8)), (128,128)))
+                                    #    else:
+                                    #        TRex.imshow("mask"+str(i),np.ascontiguousarray(masks[i].astype(np.uint8)))
                                     #TRex.imshow("whole",np.ascontiguousarray(oim[last_index].astype(np.uint8)))
                                 last_index = image_index
                                 masks = []

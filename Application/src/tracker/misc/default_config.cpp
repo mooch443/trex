@@ -214,8 +214,8 @@ file::Path conda_environment_path() {
     } else
         home = compiled_path;
     
-    if(!SETTING(quiet))
-        print("Set conda environment path = ",home);
+    //if(!SETTING(quiet))
+    //    print("Set conda environment path = ",home);
     return home;
 }
     
