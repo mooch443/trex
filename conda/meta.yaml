@@ -100,7 +100,7 @@ requirements:
     - scikit-learn
     - numpy # [not arm64]
     - pip  # [arm64]
-    - protobuf =3.19 # [arm64]
+    - protobuf =3.22 # [arm64]
     - requests
     - python
 
