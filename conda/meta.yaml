@@ -94,16 +94,29 @@ requirements:
     - ffmpeg <=4.2.2 # [osx and not arm64]
     
   run:
-    - tensorflow-gpu >=2.4,<3 # [win or linux]
+    - tensorflow-gpu =2 # [win]
+    - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
-    - cudatoolkit # [win]
-    - cudnn # [win]
+    - pytorch-cuda # [win or linux]
+    - torchvision
+    - pandas
+    - seaborn
+    - cloudpickle
+    - pip # [osx]
+    - tensorflow-deps # [osx]
+    - git
+    - cudatoolkit # [linux]
+    - cudatoolkit =11 # [win]
+    - cudnn # [win or linux]
     - scikit-learn
     - numpy # [not arm64]
+    - numpy =1.19 # # [linux]
+    - numpy >=1.21,<1.22 # [win]
     - numpy >=1.23,<1.24 # [arm64]
     - pip  # [arm64]
     - requests
-    - python
+    - python # [osx or linux]
+    - python >=3.9,<3.10 # [win]
 
 about:
   home: https://trex.run
