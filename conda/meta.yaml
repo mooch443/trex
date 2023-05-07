@@ -83,13 +83,12 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
-    - python
 
   host:
     - pthread-stubs  # [linux]
     - python =3.10 # [osx]
     - python =3.9 # [win]
-    - python =3.8 # [linux]
+    - python =3.7 # [linux]
     - ffmpeg =4
     
   run:
@@ -97,6 +96,7 @@ requirements:
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - tensorflow-gpu =2 # [win]
     - tensorflow-gpu =2.4.1 # [linux]
+    - tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
     - pytorch-cuda # [win or linux]
     - torchvision
@@ -105,13 +105,14 @@ requirements:
     - cloudpickle
     - tensorflow-deps # [osx]
     - git
-    - cudatoolkit # [linux]
+    - cudatoolkit =10.1 # [linux]
     - cudatoolkit =11 # [win]
-    - cudnn # [win or linux]
+    - cudnn # [win]
+    - cudnn =7.6 # [linux]
     - scikit-learn
     - pip
     - requests
-    - numpy =1.19 # # [linux]
+    - numpy >=1.19,<1.22 # [linux]
     - numpy >=1.21,<1.22 # [win]
     - numpy >=1.23,<1.24 # [arm64]
 

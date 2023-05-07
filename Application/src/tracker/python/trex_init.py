@@ -1,6 +1,5 @@
 import sys
 import numpy as np
-import torch
 
 #torch.cuda.empty_cache()
 #total_memory = torch.cuda.get_device_properties(0).total_memory
@@ -13,6 +12,15 @@ import torch
 #    print("avoiding tensorflow bug")
 
 import tensorflow as tf
+print("TensorFlow version:", tf.__version__)
+
+try:
+    import torch
+    print("PyTorch version:", torch.__version__)
+except ImportError:
+    print("PyTorch is not installed")
+
+# Your testing code here
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
   try:
