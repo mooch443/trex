@@ -132,6 +132,8 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
         static const std::unordered_map<FilterReason, const char*> reasons {
             { FilterReason::Unknown, "unkown" },
             { FilterReason::Category, "Category" },
+            { FilterReason::Label, "Label" },
+            { FilterReason::LabelConfidenceThreshold, "Confidence" },
             { FilterReason::OutsideRange, "Inacceptable size" },
             { FilterReason::SecondThreshold, "Outside range after track_threshold_2" },
             { FilterReason::OutsideInclude, "Outside track_include shape" },

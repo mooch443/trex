@@ -745,14 +745,16 @@ void Tracker::prefilter(
                 if(not track_only_labels.empty()) {
                     if(ptr->prediction().valid()) {
                         auto clid = ptr->prediction().clid;
-                        if(meta_classes.size() <= clid
-                           || not contains(track_only_labels, meta_classes.at(clid)))
+                        if((meta_classes.size() > clid
+                               && not contains(track_only_labels, meta_classes.at(clid)))
+                           || (meta_classes.size() <= clid
+                               && not contains(track_only_labels, Meta::toStr(clid))))
                         {
-                            result.filter_out(std::move(ptr), FilterReason::Category);
+                            result.filter_out(std::move(ptr), FilterReason::Label);
                             continue;
                         }
                     } else {
-                        result.filter_out(std::move(ptr), FilterReason::Category);
+                        result.filter_out(std::move(ptr), FilterReason::Label);
                         continue;
                     }
                 }
@@ -760,7 +762,7 @@ void Tracker::prefilter(
                 if(ptr->prediction().valid()) {
                     if(float(ptr->prediction().p) / 255.f < track_label_confidence_threshold) {
                         //! TODO: use own filter reason
-                        result.filter_out(std::move(ptr), FilterReason::Category);
+                        result.filter_out(std::move(ptr), FilterReason::LabelConfidenceThreshold);
                         continue;
                     }
                 }
@@ -815,11 +817,8 @@ void Tracker::prefilter(
         
         result.big_blobs.clear();
 #if !COMMONS_NO_PYTHON
-        result.filter_out(std::move(noises), FilterReason::Category);
+        result.filter_out(std::move(noises), FilterReason::SplitFailed);
 #endif
-    }
-    
-    if(!result.big_blobs.empty()) {
     }
 }
 
