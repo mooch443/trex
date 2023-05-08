@@ -8,7 +8,7 @@ if [ "$(uname -p)" == "arm" ]; then
 elif [ "${OSTYPE}" == "linux-gnu" ]; then
 	echo "" >> $PREFIX/.messages.txt;
 	echo "============ TRex ===========" >> $PREFIX/.messages.txt;
-	echo "    conda activate $(basename ${PREFIX}) && python -m pip install opencv-python pybind11[global] && pip install --global-option=build_ext --global-option=\"-I$(python -c 'import pybind11;print(pybind11.get_include())')\" 'git+https://github.com/facebookresearch/detectron2.git@v0.6'"  >> $PREFIX/.messages.txt;
+	echo "    conda activate $(basename ${PREFIX}) && python -m pip install opencv-python pybind11[global] && { pip install 'git+https://github.com/facebookresearch/detectron2.git@v0.6' 2>&1; } >/dev/null; pip install --global-option=build_ext --global-option=\"-I$(python -c 'import pybind11;print(pybind11.get_include())')\" 'git+https://github.com/facebookresearch/detectron2.git@v0.6'"  >> $PREFIX/.messages.txt;
 	echo "============ /TRex ==========" >> $PREFIX/.messages.txt;
 else
 	echo "" >> $PREFIX/.messages.txt;
