@@ -57,8 +57,10 @@ endif()
 
 if(APPLE)
     set(TREX_EXEC_NAME TRex)
+    set(TREXA_EXEC_NAME TRexA)
 else()
     set(TREX_EXEC_NAME trex)
+    set(TREXA_EXEC_NAME trexa)
 endif()
 
 # to include generated moc headers, since they are generated in binary dir
@@ -122,8 +124,8 @@ if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
 endif()
 
 # add actual executable
-add_executable(alter alter.cpp Alterface.cpp Alterface.h "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-target_link_libraries(alter PUBLIC tracker_tracking tracker_misc framegrabber_misc pv commons Commons::OpenCV)
+add_executable(${TREXA_EXEC_NAME} alter.cpp Alterface.cpp Alterface.h "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_tracking tracker_misc framegrabber_misc pv commons Commons::OpenCV)
 
 add_executable(${TREX_EXEC_NAME} ${SRCS})
 add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
@@ -144,7 +146,7 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
     target_link_libraries(${TREX_EXEC_NAME} 
         PUBLIC tracker_python)
-    target_link_libraries(alter PUBLIC tracker_python)
+    target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_python)
     message(STATUS "Linking tracker_python")
 endif()
 
@@ -154,12 +156,12 @@ endif()
 
 if(WIN32 AND NOT COMMONS_NO_PYTHON)
 	set_target_properties(${TREX_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
-    set_target_properties(alter PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    set_target_properties(${TREXA_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
 
 if(NOT WIN32)
     target_link_libraries(${TREX_EXEC_NAME} PUBLIC pthread m)
-    target_link_libraries(alter PUBLIC pthread m)
+    target_link_libraries(${TREXA_EXEC_NAME} PUBLIC pthread m)
     if(TREX_WITH_TESTS)
         target_link_libraries(test_imgui PUBLIC pthread m)
     endif()
@@ -173,10 +175,10 @@ set_target_properties(${TREX_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
 )
 
-set_target_properties(alter PROPERTIES
+set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
   MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.run.a"
-  MACOSX_BUNDLE_BUNDLE_NAME TRexA
+  MACOSX_BUNDLE_BUNDLE_NAME ${TREXA_EXEC_NAME}
   MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
 )
@@ -222,10 +224,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
             message(STATUS ${CMAKE_COMMAND} -E copy
                 "${comp}"
                 "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
@@ -238,10 +240,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
         endforeach()
     elseif(WIN32)
         message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
@@ -254,10 +256,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
         endforeach()
 
         message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
@@ -268,10 +270,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
         endforeach()
         
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -287,14 +289,14 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                             "${comp}"
                             "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
             message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s} ")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
             install(FILES ${comp} DESTINATION bin)
         endforeach()
 
@@ -304,10 +306,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
         endforeach()
     endif()
 else()
@@ -324,17 +326,17 @@ else()
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
-            add_custom_command(TARGET alter POST_BUILD
+            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${comp}"
-                    "$<TARGET_FILE_DIR:alter>/../Resources/${comp_s}")
+                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
         endforeach()
     endif()
 endif()
 
-set(targets ${TREX_EXEC_NAME} alter)
+set(targets ${TREX_EXEC_NAME} ${TREXA_EXEC_NAME})
 if(WIN32 AND NOT COMMONS_NO_PYTHON)
-set(targets ${targets} tracker_python)
+    set(targets ${targets} tracker_python)
 endif()
 
 if(APPLE)
@@ -345,10 +347,10 @@ set(targets ${targets} trex_starter)
 endif()
 
 if(APPLE)
-add_executable(trexa_starter trexa.cpp)
-target_link_libraries(trexa_starter PRIVATE commons)
-set_target_properties(trexa_starter PROPERTIES OUTPUT_NAME trexa)
-set(targets ${targets} trexa_starter)
+    add_executable(trexa_starter trexa.cpp)
+    target_link_libraries(trexa_starter PRIVATE commons)
+    set_target_properties(trexa_starter PROPERTIES OUTPUT_NAME trexa)
+    set(targets ${targets} trexa_starter)
 endif()
 
 if(APPLE)
@@ -359,11 +361,11 @@ set_source_files_properties(gfx/TRexIcons.xcassets PROPERTIES
 set_target_properties(${TREX_EXEC_NAME} PROPERTIES
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
     
-target_sources(alter PRIVATE gfx/AlterIcons.xcassets)
+target_sources(${TREXA_EXEC_NAME} PRIVATE gfx/AlterIcons.xcassets)
 set_source_files_properties(gfx/AlterIcons.xcassets PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources
 )
-set_target_properties(alter PROPERTIES
+set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
