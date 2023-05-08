@@ -273,6 +273,8 @@ def non_max_suppression_fast(boxes, overlapThresh):
 model = None
 image_size = [640,640]
 model_path = None
+segmentation_path = None
+segmentation_resolution = 128
 image = None
 oimages = None
 model_type = None
@@ -288,7 +290,7 @@ seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
 #t_predict = None
 
 def load_model():
-    global model, model_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
+    global model, model_path, segmentation_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
     print("loading model type", model_type)
     if model_type == "yolo7seg":
         from models.common import DetectMultiBackend
@@ -360,13 +362,9 @@ def load_model():
 
         t_model = content["model"].to(device)
         t_predict = content["predict"]'''
-        if torch.backends.mps.is_available():
-            path = "/Volumes/Public/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
-        else:
-            path = "Z:/work/shark/models/shark-cropped-0.712-loops-128-seg.pt"
-        if os.path.exists(path):
+        if os.path.exists(segmentation_path):
             from models.common import DetectMultiBackend
-            t_model = DetectMultiBackend(path, device=device, dnn=True, fp16=False)
+            t_model = DetectMultiBackend(segmentation_path, device=device, dnn=True, fp16=False)
 
             #t_model.model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
             #torch.quantization.prepare(t_model.model, inplace=True)
@@ -712,8 +710,7 @@ def apply():
     start = time.time()
 
     try:
-
-        global model, image_size, receive, image, oimages, model_type, offsets, t_predict, t_model, device
+        global model, image_size, segmentation_resolution, receive, image, oimages, model_type, offsets, t_predict, t_model, device
         if model_type == "yolo5":
             image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
             #print(image)
@@ -764,7 +761,6 @@ def apply():
                 if type(t_model) != type(None):
                     #print("applying segmentation to", Ns.shape, results.shape, im.shape)
                     index = 0
-                    sub_size = 96
                     offset_percentage = 0.1
 
                     # per box, so has to be segmented wrt original images
@@ -811,7 +807,7 @@ def apply():
                             distorted_boxes.append([dx0, dy0, dx0 + sub.shape[1], dy0 + sub.shape[0]])
                             #import TRex
                             #TRex.imshow("mask1",np.ascontiguousarray(sub.astype(np.uint8)))
-                            subs.append(cv2.resize(sub, (sub_size,sub_size)))
+                            subs.append(cv2.resize(sub, (segmentation_resolution,segmentation_resolution)))
                             
                             image_indexes.append(image_index)
                             scales.append((sub.shape[1] / subs[-1].shape[1], sub.shape[0] / subs[-1].shape[0]) * 2)
@@ -824,7 +820,7 @@ def apply():
 
                         rs = t_predict(t_model = t_model, 
                                       device = device, 
-                                      image_size = sub_size, 
+                                      image_size = segmentation_resolution, 
                                       offsets = offsets, 
                                       im = np.array(subs), 
                                       conf_threshold = conf_threshold,
@@ -863,46 +859,47 @@ def apply():
                         rs = [
                             shapes.copy().flatten(), 
                             meta.copy().flatten(), 
-                            indexes.astype(int).copy(), 
+                            oindexes.astype(int).copy(), 
                             segNs # indexed like the original images
                         ]
 
-                        print(shapes.shape, " shapes and ", meta.shape, " meta are transformed into ", rs[0].shape, " and ", rs[1].shape, " and ", rs[-1].shape)
+                        if False:
+                            print(shapes.shape, " shapes and ", meta.shape, " meta are transformed into ", rs[0].shape, " and ", rs[1].shape, " and ", rs[-1].shape)
 
-                        for i, shape, m, s, d in zip(indexes, shapes, meta, sizes, deformed):
-                            #print("image",image_indexes[i]," with shape ", shape," and meta ", m, s)
+                            for i, shape, m, s, d in zip(indexes, shapes, meta, sizes, deformed):
+                                image_index = image_indexes[i]
+                                img = oim[image_index]
+                                print("image",image_indexes[i]," with shape ", shape.shape," and meta ", m, s, " img ", img.shape)
 
-                            image_index = image_indexes[i]
-                            img = oim[image_index]
-                            crop = img[int(m[..., 1]):int(m[..., 3]), int(m[..., 0]):int(m[..., 2]), :]
-                            undistorted = (cv2.resize(d, tuple(s.T))).astype(np.uint8)
+                                crop = img[int(m[..., 1]):int(m[..., 3]), int(m[..., 0]):int(m[..., 2]), :]
+                                undistorted = (cv2.resize(d, tuple(s.T))).astype(np.uint8)
 
-                            crop[..., 1] = np.where(
-                                undistorted[:crop.shape[0], :crop.shape[1]] > 153, 
-                                undistorted[:crop.shape[0], :crop.shape[1]], 
-                                crop[..., 0])
+                                crop[..., 1] = np.where(
+                                    undistorted[:crop.shape[0], :crop.shape[1]] > 153, 
+                                    undistorted[:crop.shape[0], :crop.shape[1]], 
+                                    crop[..., 0])
 
-                            undistorted[undistorted < 153] = 0
-                            contours, _ = cv2.findContours(undistorted, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                            cv2.drawContours(crop, contours, -1, (0, 255, 0), 1)  # Green color for contours
+                                undistorted[undistorted < 100] = 0
+                                contours, _ = cv2.findContours(undistorted, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                cv2.drawContours(crop, contours, -1, (0, 255, 0), 1)  # Green color for contours
 
-                            #print("masks = ", len(masks))
-                            if image_index != last_index:
-                                if len(masks) > 0:
-                                    pass
-                                    #import TRex
-                                    #for i in range(0, min(len(masks), 10)):
-                                    #    if masks[i].shape[0] < 128:
-                                    #       TRex.imshow("mask"+str(i),cv2.resize(np.ascontiguousarray(masks[i].astype(np.uint8)), (128,128)))
-                                    #    else:
-                                    #        TRex.imshow("mask"+str(i),np.ascontiguousarray(masks[i].astype(np.uint8)))
-                                    #TRex.imshow("whole",np.ascontiguousarray(oim[last_index].astype(np.uint8)))
-                                last_index = image_index
-                                masks = []
+                                #print("masks = ", len(masks))
+                                if image_index != last_index:
+                                    if len(masks) > 0:
+                                        pass
+                                        #import TRex
+                                        #for i in range(0, min(len(masks), 10)):
+                                        #    if masks[i].shape[0] < 128:
+                                        #       TRex.imshow("mask"+str(i),cv2.resize(np.ascontiguousarray(masks[i].astype(np.uint8)), (128,128)))
+                                        #    else:
+                                        #        TRex.imshow("mask"+str(i),np.ascontiguousarray(masks[i].astype(np.uint8)))
+                                        #TRex.imshow("whole",np.ascontiguousarray(oim[last_index].astype(np.uint8)))
+                                    last_index = image_index
+                                    masks = []
 
 
-                            if crop.shape[0] > 0 and crop.shape[1] > 0:
-                                masks.append(crop)
+                                if crop.shape[0] > 0 and crop.shape[1] > 0:
+                                    masks.append(crop)
 
                     if type(rs) != type(None):
                         receive_with_seg(Ns, np.array(results, dtype=np.float32).flatten(), rs[0], rs[1], rs[2], rs[3])

@@ -187,6 +187,10 @@ struct Yolo7ObjectDetection {
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
         proxy.set_variable("model_type", detection_type().toStr());
         proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+        if(SETTING(segmentation_model).value<file::Path>().exists()) {
+            proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
+            proxy.set_variable("segmentation_resolution", (uint64_t)SETTING(segmentation_resolution).value<uint16_t>());
+        }
         proxy.set_variable("image_size", expected_size);
         proxy.run("load_model");
     }
@@ -376,22 +380,152 @@ struct Yolo7ObjectDetection {
                 thread_print("Received indexes:", indexes);
                 thread_print("Received segNs:", segNs);
 
-                size_t offset = 0;
-                for(size_t i=0; i<segNs.size(); ++i) {
-                    auto N = segNs.at(i);
-                    auto &data = datas.at(i);
+                std::unordered_map<size_t, std::unique_ptr<cv::Mat>> converted_images;
+                const auto threshold = saturate(float(SETTING(threshold).value<int>()), 0.f, 255.f) / 255.0;
+                
+                //size_t offset = 0;
+                for(size_t offset = 0; offset < indexes.size(); ++offset) {
+                    auto idx = indexes.at(offset);
+                    //auto N = segNs.at(idx);
+                    //if(N == 0)
+                    //    continue;
                     
-                    assert(meta.size() >= (offset + N) * 6u);
-                    assert(masks.size() >= (offset + N) * 56u * 56u);
-                    std::vector<float> m(meta.data() + offset * 6, meta.data() + (offset + N) * 6);
-                    std::vector<float> s(masks.data() + offset * 56u * 56u, masks.data() + (offset + N) * 56u * 56u);
-                    thread_print(" * working ", N, " masks for frame ", data.original_index(), " (", m.size()," and images ",s.size(),")");
+                    auto &data = datas.at(idx);
+                    const cv::Mat* full_image;
+                    if(not converted_images.contains(idx)) {
+                        converted_images[idx] = std::make_unique<cv::Mat>();
+                        convert_to_r3g3b2(data.image->get(), *converted_images[idx]);
+                        full_image = converted_images[idx].get();
+                    } else {
+                        full_image = converted_images.at(idx).get();
+                    }
+                    
+                    auto scale_factor = scales.at(idx);
+                    
+                    assert(meta.size() >= (offset + 1) * 6u);
+                    assert(masks.size() >= (offset + 1) * 56u * 56u);
+                    std::span<float> m(meta.data() + offset * 6, (offset + 1) * 6);
+                    std::span<float> s(masks.data() + offset * 56u * 56u, (offset + 1) * 56u * 56u);
+                    
+                    thread_print(" * working mask for frame ", data.original_index(), " (", m.size()," and images ",s.size(),")");
+                    
+                    Vec2 pos(m[0], m[1]);
+                    Size2 dim = Size2(m[2] - pos.x, m[3] - pos.y).map(roundf);
+                    
+                    float conf = m[4];
+                    float cls = m[5];
+                    
+                    //thread_print(" \t - pos: ", pos, " dim: ", dim, " conf: ", conf, " cls: ", cls, " offset: ", offsets.at(idx));
+                    
+                    pos += offsets.at(idx);
+                    
+                    //pos = pos.mul(scale_factor);
+                    //dim = dim.mul(scale_factor);
+                    
+                    //thread_print(" \t>> - pos: ", pos, " dim: ", dim, " conf: ", conf, " cls: ", cls, " offset: ", offsets.at(idx));
+                    
+                    //print(i, vector.at(i*6 + 0), " ", vector.at(i*6 + 1), " ",vector.at(i*6 + 2), " ", vector.at(i*6 + 3));
+                    //print("\t->", conf, " ", cls, " ",pos, " ", dim);
+                    //print("\tmeta of object = ", m, " offset=", offsets.at(i));
+                    
+                    if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
+                        continue;
+                    if (dim.min() < 1)
+                        continue;
+                    
+                    //if(dim.height + pos.y > full_image.rows
+                    //   || dim.width + pos.x > full_image.cols)
+                    //    continue;
+                    {
+                        cv::Mat m(56, 56, CV_32FC1, s.data());
+                        
+                        cv::Mat tmp;
+                        cv::resize(m, tmp, dim);
+                        
+                        //cv::Mat dani;
+                        //cv::subtract(cv::Scalar(1.0), tmp, dani);
+                        //dani.convertTo(dani, CV_8UC1, 255.0);
+                        //tmp.convertTo(dani, CV_8UC1, 255.0);
+                        //tf::imshow("dani", dani);
+                        
+                        cv::threshold(tmp, tmp, threshold, 1.0, cv::THRESH_BINARY);
+                        //cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
+                        //print(Bounds(pos, dim), " and image ", Size2(full_image), " and t ", Size2(t));
+                        //print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
+                        //print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
+                        cv::Mat d;// = full_image(Bounds(pos, dim));
+                        auto restricted = Bounds(pos, dim);
+                        restricted.restrict_to(Bounds(*full_image));
+                        if(restricted.width <= 0 || restricted.height <= 0)
+                            continue;
+                        
+                        (*full_image)(restricted).convertTo(d, CV_32FC1);
+                        
+                        //tf::imshow("ref", d);
+                        //tf::imshow("tmp", tmp);
+                        //tf::imshow("t", t);
+                        
+                        //print("d(", getImgType(d.type()), ") ",Size2(d)," tmp(", getImgType(tmp.type()), "): ", Size2(tmp));
+                        cv::multiply(d, tmp(Bounds(restricted.size())), d);
+                        d.convertTo(tmp, CV_8UC1);
+                        //cv::bitwise_and(d, t, tmp);
+                        
+                        //cv::subtract(255, tmp, tmp);
+                        //tf::imshow("tmp", tmp);
+                        //tf::imshow("image"+Meta::toStr(i), image.get());
+                        
+                        auto blobs = CPULabeling::run(tmp);
+                        if (not blobs.empty()) {
+                            size_t msize = 0, midx = 0;
+                            for (size_t j = 0; j < blobs.size(); ++j) {
+                                if (blobs.at(j).pixels->size() > msize) {
+                                    msize = blobs.at(j).pixels->size();
+                                    midx = j;
+                                }
+                            }
+                            
+                            auto&& pair = blobs.at(midx);
+                            for (auto& line : *pair.lines) {
+                                line.x1 += pos.x;
+                                line.x0 += pos.x;
+                                line.y += pos.y;
+                            }
+                            
+                            pair.pred = blob::Prediction{
+                                .clid = static_cast<uint8_t>(cls),
+                                .p = uint8_t(float(conf) * 255.f)
+                            };
+                            
+                            pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+                            auto points = pixel::find_outer_points(&blob, 0);
+                            if (not points.empty()) {
+                                data.outlines.emplace_back(std::move(*points.front()));
+                                //for (auto& pt : outline_points.back())
+                                //    pt = (pt + blob.bounds().pos())/*.mul(dim.div(image.dimensions())) + pos*/;
+                            }
+                            data.predictions[blob.blob_id()] = { .clid = size_t(cls), .p = float(conf) };
+                            data.frame.add_object(std::move(pair));
+                            //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
+                            //auto [pos, img] = big->image();
+                            
+                            /*if (i % 2 && data.frame.index().get() % 10 == 0) {
+                             auto [pos, img] = blob.image();
+                             cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
+                             auto vit = vir.ptr<cv::Vec3b>();
+                             for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
+                             *vit = Viridis::value(*it / 255.0);
+                             tf::imshow("big", vir);
+                             }*/
+                        }
+                    }
                     
                     // move further in all sub arrays on to the next original image
-                    offset += N;
+                    //offset += N;
                 }
                 
+                //print("Passing on to recv: Ns=", Ns, " vector=", vector);
                 recv(Ns, vector);
+                //print("Done.");
             });
 
             try {
@@ -424,7 +558,7 @@ struct Yolo7InstanceSegmentation {
     
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
         proxy.set_variable("model_type", detection_type().toStr());
-        proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
+        proxy.set_variable("model_path", SETTING(segmentation_model).value<file::Path>().str());
         proxy.set_variable("image_size", expected_size);
         proxy.run("load_model");
     }
@@ -1010,7 +1144,9 @@ int main(int argc, char**argv) {
     SETTING(meta_video_scale) = float(1);
     SETTING(source) = std::string("");
     SETTING(model) = file::Path("");
-    SETTING(image_width) = Size2(640, 640);
+    SETTING(segmentation_resolution) = uint16_t(128);
+    SETTING(segmentation_model) = file::Path("");
+    SETTING(image_width) = uint16_t(640);
     SETTING(filename) = file::Path("");
     SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo7;
@@ -1031,11 +1167,14 @@ int main(int argc, char**argv) {
         if(a.name == "m") {
             SETTING(model) = file::Path(a.value);
         }
+        if(a.name == "sm") {
+            SETTING(segmentation_model) = file::Path(a.value);
+        }
         if(a.name == "d") {
             SETTING(output_dir) = file::Path(a.value);
         }
         if(a.name == "dim") {
-            SETTING(image_width) = Meta::fromStr<Size2>(a.value);
+            SETTING(image_width) = Meta::fromStr<uint16_t>(a.value);
         }
         if(a.name == "o") {
             SETTING(filename) = file::Path(a.value);
@@ -1045,7 +1184,7 @@ int main(int argc, char**argv) {
     _video_info.set_do_print(false);
     fish.set_do_print(false);
     
-    expected_size = SETTING(image_width).value<Size2>();
+    expected_size = Size2(SETTING(image_width).value<uint16_t>());
     
     py::init();
     py::schedule([](){
@@ -1063,6 +1202,7 @@ int main(int argc, char**argv) {
     GlobalSettings::map().set_do_print(true);
     GlobalSettings::map().dont_print("gui_frame");
     SETTING(app_name) = std::string("TRexA");
+    SETTING(threshold) = int(100);
     SETTING(track_do_history_split) = false;
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
     SETTING(meta_real_width) = float(expected_size.width * 10);
@@ -1124,7 +1264,7 @@ int main(int argc, char**argv) {
     print("average at: ", average_name());
     print("model: ",SETTING(model).value<file::Path>());
     print("video: ", SETTING(source).value<std::string>());
-    print("model resolution: ", SETTING(image_width).value<Size2>());
+    print("model resolution: ", SETTING(image_width).value<uint16_t>());
     print("output size: ", SETTING(output_size).value<Size2>());
     print("output path: ", SETTING(filename).value<file::Path>());
     print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
@@ -1248,6 +1388,13 @@ int main(int argc, char**argv) {
         return true;
     }, [](Event) {
         
+    });
+    
+    
+    base.platform()->set_icons({
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_32.png"),
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_64.png")
     });
 
     auto start_time = std::chrono::system_clock::now();

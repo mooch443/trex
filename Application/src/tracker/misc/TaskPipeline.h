@@ -187,8 +187,11 @@ public:
     
     void clean_up() {
         std::unique_lock guard(_mutex);
-        if(_future.valid())
+        if(_future.valid()) {
+            guard.unlock();
             _future.get();
+            guard.lock();
+        }
         _c = nullptr;
     }
 
