@@ -362,7 +362,7 @@ def load_model():
 
         t_model = content["model"].to(device)
         t_predict = content["predict"]'''
-        if os.path.exists(segmentation_path):
+        if not type(segmentation_path) == type(None) and os.path.exists(segmentation_path):
             from models.common import DetectMultiBackend
             t_model = DetectMultiBackend(segmentation_path, device=device, dnn=True, fp16=False)
 
