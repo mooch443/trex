@@ -670,6 +670,10 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
     #print("prelim shape", img.shape)
     if len(img.shape) < 4:
         img = img[np.newaxis, ...]
+    if np.min(img.shape) == 0:
+        print("WARNING: Shape of image is zero: ", img.shape)
+        return [], np.array([], dtype=np.float32)
+
     im, ratio, dwdh = transform_image(img, image_shape=image_shape)
     #print("final shape", im.shape)
     output_data = model(im)[0]
