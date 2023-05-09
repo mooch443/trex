@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
 #endif
     ss << target_path;
 #if __APPLE__
-    ss << "alter.app/Contents/MacOS/alter";
+    ss << "TRexA.app/Contents/MacOS/TRexA";
 #else
     throw U_EXCEPTION("Only apple supported.");
 #endif
