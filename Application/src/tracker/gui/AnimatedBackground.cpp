@@ -136,7 +136,7 @@ void AnimatedBackground::before_draw() {
                 return nullptr; // past end
             
             try {
-                print("Loading ", index);
+                //print("Loading ", index);
                 _source->frame(index, _local_buffer);
                 _local_buffer.copyTo(_buffer); // upload
                 
@@ -247,11 +247,11 @@ void AnimatedBackground::before_draw() {
                     Entangled::before_draw();
                     return;
                 }
-                print("Loading wrong index from buffer: ", image->index(), " vs ", frame);
+                //print("Loading wrong index from buffer: ", image->index(), " vs ", frame);
                 image = nullptr;
             } else if(image) {
-                print("Loading image from buffer: ", image->index(), " vs ", frame);
-            } else print("Loading No image. ", frame);
+                //print("Loading image from buffer: ", image->index(), " vs ", frame);
+            } //else print("Loading No image. ", frame);
         }
         
         if(not image) {
@@ -263,12 +263,12 @@ void AnimatedBackground::before_draw() {
             }
             
             image = retrieve_next(frame);
-            print("Loading directly ", frame);
+            //print("Loading directly ", frame);
         }
         
         if(image && image->index() == frame.get())
         {
-            print("PRELOAD: loading image to gui ", image->index()," for frame ", frame, " in ", timer.elapsed() * 1000, "ms");
+            //print("PRELOAD: loading image to gui ", image->index()," for frame ", frame, " in ", timer.elapsed() * 1000, "ms");
             buffers::move_back(_static_image.exchange_with(std::move(image)));
             _static_image.set_color(_tint);
             set_content_changed(true);
