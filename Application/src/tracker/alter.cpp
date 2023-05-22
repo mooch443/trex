@@ -1131,6 +1131,689 @@ std::string window_title() {
         + (output_prefix.empty() ? "" : (" ["+output_prefix+"]"));
 }
 
+class Scene {
+    std::string _name;
+    std::vector<Layout::Ptr> _children;
+    const Base* _window{nullptr};
+    std::function<void(Scene&, DrawStructure& base)> _draw;
+    
+    static inline std::mutex _mutex;
+    static inline std::unordered_map<const DrawStructure*, std::string> _active_scenes;
+    
+public:
+    Scene(const Base& window, const std::string& name, std::function<void(Scene&, DrawStructure& base)> draw)
+        : _name(name), _window(&window), _draw(draw)
+    {
+        
+    }
+    
+    auto window() const { return _window; }
+    virtual ~Scene() {
+        deactivate();
+    }
+    
+    virtual void activate() {
+        print("Activating scene ", _name);
+    }
+    virtual void deactivate() {
+        print("Deactivating scene ", _name);
+    }
+    
+    void draw(DrawStructure& base) {
+        _draw(*this, base);
+    }
+};
+
+class SceneManager {
+    Scene* active_scene{nullptr};
+    std::queue<std::function<void()>> _queue;
+    std::mutex _mutex;
+    
+public:
+    void set_active(Scene* scene) {
+        auto fn = [this, scene](){
+            if(active_scene && active_scene != scene) {
+                active_scene->deactivate();
+            }
+            active_scene = scene;
+            if(scene)
+                scene->activate();
+        };
+        enqueue(fn);
+    }
+    
+    ~SceneManager() {
+        update_queue();
+        if(active_scene)
+            active_scene->deactivate();
+    }
+    
+    void update(DrawStructure& graph) {
+        update_queue();
+        if(active_scene)
+            active_scene->draw(graph);
+    }
+    void update_queue() {
+        std::unique_lock guard{_mutex};
+        while(not _queue.empty()) {
+            auto f = std::move(_queue.front());
+            _queue.pop();
+            guard.unlock();
+            try {
+                f();
+            } catch(...) {
+                // pass
+            }
+            guard.lock();
+        }
+    }
+    
+private:
+    void enqueue(auto&& task) {
+        std::unique_lock guard(_mutex);
+        _queue.push(std::move(task));
+    }
+};
+
+class ConvertScene : public Scene {
+    // condition variables and mutexes for thread synchronization
+    std::condition_variable _cv_messages, _cv_ready_for_tracking;
+    std::mutex _mutex_general, _mutex_current;
+    std::atomic<bool> _should_terminate{false};
+
+    // Segmentation data for the next frame
+    SegmentationData _next_frame_data;
+
+    // Progress and current data for tracking
+    SegmentationData _progress_data, _current_data, _transferred_current_data;
+
+    // External images for background and overlay
+    std::shared_ptr<ExternalImage> _background_image = std::make_shared<ExternalImage>(),
+                                   _overlay_image = std::make_shared<ExternalImage>();
+
+    // Vectors for object blobs and GUI objects
+    std::vector<pv::BlobPtr> _object_blobs, _progress_blobs, _transferred_blobs;
+    std::vector<std::shared_ptr<VarBase_t>> _gui_objects;
+
+    // Individual properties for each object
+    std::vector<sprite::Map> _individual_properties;
+
+    // Overlayed video with detections and tracker for object tracking
+    std::unique_ptr<OverlayedVideo<Detection>> _overlayed_video;
+    std::unique_ptr<Tracker> _tracker;
+
+    // File for output
+    std::unique_ptr<pv::File> _output_file;
+
+    // Threads for tracking and generation
+    std::thread _tracking_thread, _generator_thread;
+
+    // Frame data
+    Frame_t _actual_frame, _video_frame;
+
+    // Size of output and start time for timing operations
+    GETTER(Size2, output_size)
+    std::chrono::time_point<std::chrono::system_clock> _start_time;
+    
+    Alterface menu{
+        dyn::Context{
+            .actions = {
+                {
+                    "QUIT", [](auto) {
+                        SETTING(terminate) = true;
+                    }
+                },
+                {
+                    "FILTER", [](auto) {
+                        static bool filter { false };
+                        filter = not filter;
+                        SETTING(do_filter) = filter;
+                    }
+                },
+                {
+                    "RESET", [this](auto){
+                        _overlayed_video->reset(1500_f);
+                    }
+                }
+            },
+            
+            .variables = {
+                {
+                    "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                        return ::_fps.load() / ::_samples.load();
+                    }))
+                },
+                {
+                    "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                        return ::_network_fps.load() / ::_network_samples.load();
+                    }))
+                },
+                {
+                    "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                        return ::_video_fps.load() / ::_video_samples.load();
+                    }))
+                },
+                {
+                    "fish",
+                    std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                        return fish;
+                    }))
+                },
+                {
+                    "global",
+                    std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                        return GlobalSettings::map();
+                    }))
+                },
+                {
+                    "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
+                        return _actual_frame;
+                    }))
+                },
+                {
+                    "video", std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                        return _video_info;
+                    }))
+                }
+            }
+        },
+        [&](const std::string& name) {
+            if(name == "gui_frame") {
+                _overlayed_video->reset(SETTING(gui_frame).value<Frame_t>());
+            }
+        }
+        
+    };
+    
+public:
+    ConvertScene(const Base& window) : Scene(window, "converting", [this](Scene&, DrawStructure& graph){
+        _draw(graph);
+    }) {
+        menu.context.variables.emplace("fishes", new Variable([this](std::string) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return _gui_objects;
+        }));
+    }
+    
+    ~ConvertScene() {
+        if(not _should_terminate)
+            deactivate();
+    }
+    
+private:
+    void deactivate() override {
+        _should_terminate = true;
+        
+        std::unique_lock guard(_mutex_general);
+        _cv_ready_for_tracking.notify_all();
+        _cv_messages.notify_all();
+        
+        if (_tracking_thread.joinable()) {
+            _tracking_thread.join();
+        }
+        
+        Detection::manager.clean_up();
+        
+        if (_generator_thread.joinable()) {
+            _generator_thread.join();
+        }
+        
+        if (_output_file) {
+            _output_file->close();
+        }
+        
+        _overlayed_video = nullptr;
+        _tracker = nullptr;
+        
+        pv::File test(_output_file->filename(), pv::FileMode::READ);
+        test.print_info();
+    }
+
+    void activate() override {
+        VideoSource video_base(SETTING(source).value<std::string>());
+        video_base.set_colors(ImageMode::RGB);
+        
+        SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
+        
+        if(SETTING(filename).value<file::Path>().empty()) {
+            SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
+        }
+        
+        setDefaultSettings();
+        _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+        SETTING(output_size) = _output_size;
+        _video_info["resolution"] = _output_size;
+        
+        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+            Detection{},
+            std::move(video_base),
+            [this](){
+                _cv_messages.notify_one();
+            }
+        );
+        
+        printDebugInformation();
+        
+        cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
+        bg.setTo(255);
+        
+        VideoSource tmp(SETTING(source).value<std::string>());
+        if(not average_name().exists()) {
+            tmp.generate_average(bg, 0);
+            cv::imwrite(average_name().str(), bg);
+        } else {
+            print("Loading from file...");
+            bg = cv::imread(average_name().str());
+            cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+        }
+        
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
+        static_assert(ObjectDetection<Detection>);
+        
+        _start_time = std::chrono::system_clock::now();
+        auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+        DebugHeader("Output: ", filename);
+        
+        auto path = filename.remove_filename();
+        if(not path.exists()) {
+            path.create_folder();
+        }
+        
+        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file->set_average(bg);
+        
+        _generator_thread = std::thread([this](){
+            generator_thread();
+        });
+        _tracking_thread = std::thread([this](){
+            tracking_thread();
+        });
+    }
+
+    void setDefaultSettings() {
+        SETTING(do_filter) = false;
+        SETTING(filter_classes) = std::vector<uint8_t>{};
+        SETTING(is_writing) = true;
+    }
+
+    void printDebugInformation() {
+        DebugHeader("Starting tracking of");
+        print("average at: ", average_name());
+        print("model: ",SETTING(model).value<file::Path>());
+        print("video: ", SETTING(source).value<std::string>());
+        print("model resolution: ", SETTING(image_width).value<uint16_t>());
+        print("output size: ", SETTING(output_size).value<Size2>());
+        print("output path: ", SETTING(filename).value<file::Path>());
+        print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
+    }
+
+    void fetch_new_data() {
+        static std::once_flag flag;
+        std::call_once(flag, [](){
+            set_thread_name("GUI");
+        });
+        
+        {
+            std::unique_lock guard(_mutex_current);
+            if (_transferred_current_data.image) {
+                _current_data = std::move(_transferred_current_data);
+                _object_blobs = std::move(_transferred_blobs);
+            }
+        }
+
+        if (_current_data.image) {
+            if(_background_image->source()
+               && _background_image->source()->rows == _current_data.image->rows
+               && _background_image->source()->cols == _current_data.image->cols
+               && _background_image->source()->dims == 4)
+            {
+                cv::cvtColor(_current_data.image->get(), _background_image->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+                OverlayBuffers::put_back(std::move(_current_data.image));
+                _background_image->updated_source();
+            } else {
+                auto rgba = Image::Make(_current_data.image->rows,
+                                        _current_data.image->cols, 4);
+                cv::cvtColor(_current_data.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+                OverlayBuffers::put_back(std::move(_current_data.image));
+                _background_image->set_source(std::move(rgba));
+            }
+            
+            _current_data.image = nullptr;
+        }
+    }
+    
+    // Helper function to calculate window dimensions
+    Size2 calculateWindowSize(const Size2& output_size, const Size2& window_size) {
+        auto ratio = output_size.width / output_size.height;
+        Size2 wdim;
+
+        if(window_size.width * output_size.height < window_size.height * output_size.width) {
+            wdim = Size2(window_size.width, window_size.width / ratio);
+        } else {
+            wdim = Size2(window_size.height * ratio, window_size.height);
+        }
+
+        return wdim;
+    }
+
+    // Helper function to draw outlines
+    void drawOutlines(DrawStructure& graph, const Size2& scale) {
+        if (not _current_data.outlines.empty()) {
+            graph.text(Meta::toStr(_current_data.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
+                    
+            ColorWheel wheel;
+            for (const auto& v : _current_data.outlines) {
+                auto clr = wheel.next();
+                graph.line(v, 1, clr.alpha(150));
+            }
+        }
+    }
+    
+    void drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, const std::unordered_map<pv::bid, Identity>& visible_bdx) {
+        for(auto &blob : _object_blobs) {
+            const auto bds = blob->bounds();
+            //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
+            auto [pos, image] = blob->image();
+            
+            SegmentationData::Assignment assign{
+                .clid = size_t(-1)
+            };
+            if(_current_data.frame.index().valid()) {
+                if(blob->parent_id().valid()) {
+                    if(auto it = _current_data.predictions.find(blob->parent_id());
+                       it != _current_data.predictions.end())
+                    {
+                        assign = it->second;
+                        
+                    } else if((it = _current_data.predictions.find(blob->blob_id())) != _current_data.predictions.end())
+                    {
+                        assign = it->second;
+                        
+                    } else
+                        print("[draw]3 blob ", blob->blob_id(), " not found...");
+                    
+                } else if(auto it = _current_data.predictions.find(blob->blob_id()); it != _current_data.predictions.end())
+                {
+                    assign = it->second;
+                    
+                } else
+                    print("[draw]4 blob ", blob->blob_id(), " not found...");
+            }
+            
+            auto cname = meta_classes.size() > assign.clid
+                        ? meta_classes.at(assign.clid)
+                        : "<unknown:"+Meta::toStr(assign.clid)+">";
+            
+            sprite::Map tmp;
+            tmp.set_do_print(false);
+            tmp["pos"] = bds.pos().mul(scale);
+            tmp["size"] = Size2(bds.size().mul(scale));
+            tmp["type"] = std::string(cname);
+
+            if (contains(visible_bdx, blob->blob_id())) {
+                auto id = visible_bdx.at(blob->blob_id());
+                tmp["color"] = id.color();
+                tmp["id"] = id.ID();
+                tmp["tracked"] = true;
+                
+            } else if(blob->parent_id().valid() && contains(visible_bdx, blob->parent_id()))
+            {
+                auto id = visible_bdx.at(blob->parent_id());
+                tmp["color"] = id.color();
+                tmp["id"] = id.ID();
+                tmp["tracked"] = true;
+                
+            } else {
+                tmp["tracked"] = false;
+                tmp["color"] = Gray;
+                tmp["id"] = Idx_t();
+            }
+            tmp["p"] = Meta::toStr(assign.p);
+            _individual_properties.push_back(std::move(tmp));
+            _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](std::string) -> sprite::Map& {
+                return _individual_properties.at(i);
+            }));
+        }
+    }
+
+    // Main _draw function
+    void _draw(DrawStructure& graph) {
+        fetch_new_data();
+        
+        const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
+        graph.section("video", [&](auto&, Section* section){
+            auto output_size = SETTING(output_size).value<Size2>();
+            auto window_size = window()->window_dimensions();
+
+            // Calculate window dimensions
+            Size2 wdim = calculateWindowSize(output_size, window_size);
+                
+            auto scale = wdim.div(output_size);
+            section->set_scale(scale);
+
+            LockGuard lguard(ro_t{}, "drawing", 10);
+            if (not lguard.locked()) {
+                section->reuse_objects();
+                return;
+            }
+
+            SETTING(gui_frame) = _current_data.frame.index();
+            
+            if(_background_image->source()) {
+                graph.wrap_object(*_background_image);
+            }
+            
+            for(auto box : _current_data.tiles)
+                graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
+            
+            static Frame_t last_frame;
+            bool dirty{false};
+            if(last_frame != _current_data.frame.index()) {
+                last_frame = _current_data.frame.index();
+                _gui_objects.clear();
+                _individual_properties.clear();
+                dirty = true;
+            }
+
+            // Draw outlines
+            drawOutlines(graph, scale);
+            
+            using namespace track;
+            std::unordered_map<pv::bid, Identity> visible_bdx;
+            
+            IndividualManager::transform_all([&](Idx_t , Individual* fish)
+            {
+                if(not fish->has(_current_data.frame.index()))
+                    return;
+                auto p = fish->iterator_for(_current_data.frame.index());
+                auto segment = p->get();
+                
+                auto basic = fish->compressed_blob(_current_data.frame.index());
+                //auto bds = basic->calculate_bounds();//.mul(scale);
+                
+                if(dirty) {
+                    if(basic->parent_id.valid())
+                        visible_bdx[basic->parent_id] = fish->identity();
+                    visible_bdx[basic->blob_id()] = fish->identity();
+                }
+                
+                std::vector<Vertex> line;
+                fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t , const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
+                {
+                    if(ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
+                        return true;
+                    auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
+                    line.push_back(Vertex(p.x, p.y, fish->identity().color()));
+                    return true;
+                });
+                
+                graph.vertices(line);
+            });
+            
+            //! do not need to continue further if the view isnt dirty
+            if(not dirty)
+                return;
+            
+            drawBlobs(meta_classes, scale, visible_bdx);
+        });
+
+        graph.section("menus", [&](auto&, Section* section){
+            section->set_scale(graph.scale().reciprocal());
+            _video_info["frame"] = _current_data.frame.index();
+            _actual_frame = _current_data.frame.source_index();
+            _video_frame = _current_data.frame.index();
+            
+            menu.draw(*(IMGUIBase*)window(), graph);
+        });
+    }
+    
+    void generator_thread() {
+        set_thread_name("GeneratorT");
+        std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
+        
+        std::unique_lock guard(_mutex_general);
+        while(not _should_terminate) {
+            try {
+                if(not _next_frame_data and not items.empty()) {
+                    if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
+                        auto data = std::get<1>(items.front()).get();
+                        //thread_print("Got data for item ", data.frame.index());
+                        
+                        _next_frame_data = std::move(data);
+                        _cv_ready_for_tracking.notify_one();
+                        
+                        items.erase(items.begin());
+                    }
+                }
+                
+                auto result = _overlayed_video->generate();
+                if(not result) {
+                    _overlayed_video->reset(0_f);
+                } else {
+                    items.push_back(std::move(result.value()));
+                }
+                
+            } catch(...) {
+                // pass
+            }
+            
+            if(items.size() >= 10 && _next_frame_data) {
+                //thread_print("Entering wait with ", items.size(), " items queued up.");
+                _cv_messages.wait(guard, [&](){
+                    return not _next_frame_data or _should_terminate;
+                });
+                //thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
+            }
+        }
+        
+        thread_print("ended.");
+    };
+    
+    void perform_tracking() {
+        static Frame_t running_id = 0_f;
+        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+        _progress_data.frame.set_timestamp(uint64_t(fake));
+        _progress_data.frame.set_index(running_id++);
+        _progress_data.frame.set_source_index(Frame_t(_progress_data.image->index()));
+        assert(_progress_data.frame.source_index() == Frame_t(_progress_data.image->index()));
+        
+        _progress_blobs.clear();
+        for (size_t i = 0; i < _progress_data.frame.n(); ++i) {
+            _progress_blobs.emplace_back(_progress_data.frame.blob_at(i));
+        }
+        
+        if(SETTING(is_writing)) {
+            if (not _output_file->is_open()) {
+                _output_file->set_start_time(_start_time);
+                _output_file->set_resolution(_output_size);
+            }
+            _output_file->add_individual(pv::Frame(_progress_data.frame));
+        }
+        
+        {
+            PPFrame pp;
+            Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
+            _tracker->add(pp);
+            if (pp.index().get() % 100 == 0) {
+                print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+            }
+        }
+
+        {
+            std::unique_lock guard(_mutex_current);
+            //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
+            _transferred_current_data = std::move(_progress_data);
+            _transferred_blobs = std::move(_progress_blobs);
+        }
+        
+        static Timer last_add;
+        static double average{0}, samples{0};
+        auto c = last_add.elapsed();
+        average += c;
+        ++samples;
+        
+
+        static Timer frame_counter;
+        static size_t num_frames{0};
+        static std::mutex mFPS;
+        static double FPS{0};
+        
+        {
+            std::unique_lock g(mFPS);
+            num_frames++;
+            
+            if(frame_counter.elapsed() > 1) {
+                FPS = num_frames / frame_counter.elapsed();
+                num_frames = 0;
+                _fps = FPS;
+                _samples = 1;
+                frame_counter.reset();
+                print("FPS: ", FPS);
+            }
+            
+        }
+        
+        if(samples > 100) {
+            print("Average time since last frame: ", average / samples * 1000.0,"ms (",c * 1000,"ms)");
+            
+            average /= samples;
+            samples = 1;
+        }
+        last_add.reset();
+    };
+    
+    void tracking_thread() {
+        set_thread_name("Tracking thread");
+        std::unique_lock guard(_mutex_general);
+        while(not _should_terminate) {
+            if(_next_frame_data) {
+                try {
+                    _progress_data = std::move(_next_frame_data);
+                    assert(not _next_frame_data);
+                    //thread_print("Got next: ", progress.frame.index());
+                } catch(...) {
+                    FormatExcept("Exception while moving to progress");
+                    continue;
+                }
+                //guard.unlock();
+                try {
+                    perform_tracking();
+                    //guard.lock();
+                } catch(...) {
+                    FormatExcept("Exception while tracking");
+                    throw;
+                }
+            }
+            
+            //thread_print("Waiting for next...");
+            _cv_messages.notify_one();
+            if(not _should_terminate)
+                _cv_ready_for_tracking.wait(guard);
+            //thread_print("Received notification: next(", (bool)next,")");
+        }
+        thread_print("Tracking ended.");
+    };
+};
+
 int main(int argc, char**argv) {
     using namespace gui;
     
@@ -1192,10 +1875,6 @@ int main(int argc, char**argv) {
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     });
     
-    std::condition_variable messages;
-    std::mutex mutex, current_mutex;
-    std::atomic<bool> _terminate{false};
-    SegmentationData next;
     
     using namespace track;
     
@@ -1219,15 +1898,6 @@ int main(int argc, char**argv) {
     SETTING(gui_interface_scale) = float(1);
     SETTING(meta_source_path) = SETTING(source).value<std::string>();
     
-    VideoSource video_base(SETTING(source).value<std::string>());
-    video_base.set_colors(ImageMode::RGB);
-    
-    //! TODO: Major thing with framerate not being set for VideoSources based on single images.
-    if(video_base.framerate() != short(-1))
-        SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate());
-    else
-        SETTING(frame_rate) = Settings::frame_rate_t(25);
-    
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
         if(i > 0)
@@ -1248,139 +1918,7 @@ int main(int argc, char**argv) {
 
     cmd.load_settings();
     
-    if(SETTING(filename).value<file::Path>().empty()) {
-        SETTING(filename) = file::Path((std::string)file::Path(video_base.base()).filename());
-    }
-    
-    SETTING(do_filter) = false;
-    SETTING(filter_classes) = std::vector<uint8_t>{};
-    Size2 output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
-    SETTING(output_size) = output_size;
-    SETTING(is_writing) = true;
-    
-    _video_info["resolution"] = output_size;
-    
-    DebugHeader("Starting tracking of");
-    print("average at: ", average_name());
-    print("model: ",SETTING(model).value<file::Path>());
-    print("video: ", SETTING(source).value<std::string>());
-    print("model resolution: ", SETTING(image_width).value<uint16_t>());
-    print("output size: ", SETTING(output_size).value<Size2>());
-    print("output path: ", SETTING(filename).value<file::Path>());
-    print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
-    
-    //cv::Mat bg = cv::Mat::zeros(video.source.size().height, video.source.size().width, CV_8UC1);
-    //cv::Mat bg = cv::Mat::zeros(expected_size.width, expected_size.height, CV_8UC1);
-    cv::Mat bg = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
-    bg.setTo(255);
-    
-    if(not average_name().exists()) {
-        VideoSource tmp(SETTING(source).value<std::string>());
-        /*tmp.set_colors(ImageMode::RGB);
-        Timer timer;
-        useMat m;
-        double average = 0, samples = 0;
-        for (int i = 0; i < 1000; ++i) {
-            tmp.frame(Frame_t(i), m);
-            average += timer.elapsed() * 1000;
-            timer.reset();
-            samples++;
-        }
-        print("Average time / frame: ", average / samples, "ms");*/
-        
-        tmp.generate_average(bg, 0);
-        cv::imwrite(average_name().str(), bg);
-    } else {
-        print("Loading from file...");
-        bg = cv::imread(average_name().str());
-        cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
-    }
-    
-    Tracker tracker(Image::Make(bg), float(expected_size.width * 10));
-    //FrameInfo frameinfo;
-    //Timer timer;
-    //Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
-    
-    static_assert(ObjectDetection<Detection>);
-    
-    OverlayedVideo video(
-        Detection{},
-        std::move(video_base),
-         [&messages](){
-             messages.notify_one();
-         }
-    );
-    
-    Frame_t _actual_frame, _video_frame;
-    
-    Alterface menu(dyn::Context{
-        .actions = {
-            {
-                "QUIT", [](auto) {
-                    SETTING(terminate) = true;
-                }
-            },
-            {
-                "FILTER", [](auto) {
-                    static bool filter { false };
-                    filter = not filter;
-                    SETTING(do_filter) = filter;
-                }
-            },
-            {
-                "RESET", [&](auto){
-                    video.reset(1500_f);
-                }
-            }
-        },
-        .variables = {
-            {
-                "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return ::_fps.load() / ::_samples.load();
-                }))
-            },
-            {
-                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return ::_network_fps.load() / ::_network_samples.load();
-                }))
-            },
-            {
-                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
-                    return ::_video_fps.load() / ::_video_samples.load();
-                }))
-            },
-            {
-                "fish",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
-                    return fish;
-                }))
-            },
-            {
-                "global",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
-                    return GlobalSettings::map();
-                }))
-            },
-            {
-                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([&_actual_frame](std::string) {
-                    return _actual_frame;
-                }))
-            },
-            {
-                "video", std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
-                    return _video_info;
-                }))
-            }
-        }
-    },
-    [&](const std::string& name) {
-        if(name == "gui_frame") {
-            video.reset(SETTING(gui_frame).value<Frame_t>());
-        }
-    });
-    
-    DrawStructure graph(1024, output_size.height / output_size.width * 1024);
-    
+    DrawStructure graph(1024, 768);
     IMGUIBase base(window_title(), graph, [&, ptr = &base]()->bool {
         UNUSED(ptr);
         graph.draw_log_messages();
@@ -1390,403 +1928,23 @@ int main(int argc, char**argv) {
         
     });
     
+    SceneManager manager;
+    ConvertScene converting(base);
+    manager.set_active(&converting);
+    
+    graph.set_size(Size2(1024, converting.output_size().height / converting.output_size().width * 1024));
     
     base.platform()->set_icons({
         file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
         file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_32.png"),
         file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_64.png")
     });
-
-    auto start_time = std::chrono::system_clock::now();
-    auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-    DebugHeader("Output: ", filename);
-    
-    auto path = filename.remove_filename();
-    if(not path.exists()) {
-        path.create_folder();
-    }
-    
-    pv::File file(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-    std::vector<pv::BlobPtr> objects, progress_objects, _trans_objects;
-    file.set_average(bg);
-    
-    static std::vector<std::shared_ptr<VarBase_t>> gui_objects;
-    static std::vector<sprite::Map> individual_properties;
-    
-    const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
-    
-    menu.context.variables.emplace("fishes", new Variable([](std::string) -> std::vector<std::shared_ptr<VarBase_t>>& {
-        return gui_objects;
-    }));
-    
-    std::condition_variable ready_for_tracking;
-    SegmentationData progress, current, _trans_current;
-    std::shared_ptr<ExternalImage>
-        background = std::make_shared<ExternalImage>(),
-        overlay = std::make_shared<ExternalImage>();
-    
-    std::thread thread([&](){
-        set_thread_name("GeneratorT");
-        std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
-        
-        std::unique_lock guard(mutex);
-        while(not _terminate) {
-            try {
-                if(not next and not items.empty()) {
-                    if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
-                        auto data = std::get<1>(items.front()).get();
-                        //thread_print("Got data for item ", data.frame.index());
-                        
-                        next = std::move(data);
-                        ready_for_tracking.notify_one();
-                        
-                        items.erase(items.begin());
-                    }
-                }
-                
-                auto result = video.generate();
-                
-                if(not result) {
-                    video.reset(0_f);
-                } else {
-                    items.push_back(std::move(result.value()));
-                }
-                
-            } catch(...) {
-                // pass
-            }
-            
-            if(items.size() >= 10 && next) {
-                //thread_print("Entering wait with ", items.size(), " items queued up.");
-                messages.wait(guard, [&](){
-                    return not next or _terminate;
-                });
-                //thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
-            }
-        }
-        
-        thread_print("ended.");
-    });
-    
-    auto perform_tracking = [&](){
-        static Frame_t running_id = 0_f;
-        auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-        progress.frame.set_timestamp(uint64_t(fake));
-        progress.frame.set_index(running_id++);
-        progress.frame.set_source_index(Frame_t(progress.image->index()));
-        assert(progress.frame.source_index() == Frame_t(progress.image->index()));
-        
-        progress_objects.clear();
-        for (size_t i = 0; i < progress.frame.n(); ++i) {
-            progress_objects.emplace_back(progress.frame.blob_at(i));
-        }
-        
-        if(SETTING(is_writing)) {
-            if (not file.is_open()) {
-                file.set_start_time(start_time);
-                file.set_resolution(output_size);
-            }
-            file.add_individual(pv::Frame(progress.frame));
-        }
-        
-        {
-            PPFrame pp;
-            Tracker::preprocess_frame(pv::Frame(progress.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
-            tracker.add(pp);
-            if (pp.index().get() % 100 == 0) {
-                print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-            }
-        }
-
-        {
-            std::unique_lock guard(current_mutex);
-            //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
-            _trans_current = std::move(progress);
-            _trans_objects = std::move(progress_objects);
-        }
-        
-        static Timer last_add;
-        static double average{0}, samples{0};
-        auto c = last_add.elapsed();
-        average += c;
-        ++samples;
-        
-
-        static Timer frame_counter;
-        static size_t num_frames{0};
-        static std::mutex mFPS;
-        static double FPS{0};
-        
-        {
-            std::unique_lock g(mFPS);
-            num_frames++;
-            
-            if(frame_counter.elapsed() > 1) {
-                FPS = num_frames / frame_counter.elapsed();
-                num_frames = 0;
-                _fps = FPS;
-                _samples = 1;
-                frame_counter.reset();
-                print("FPS: ", FPS);
-            }
-            
-        }
-        
-        if(samples > 100) {
-            print("Average time since last frame: ", average / samples * 1000.0,"ms (",c * 1000,"ms)");
-            
-            average /= samples;
-            samples = 1;
-        }
-        last_add.reset();
-    };
-    
-    std::thread tracking([&](){
-        set_thread_name("Tracking thread");
-        std::unique_lock guard(mutex);
-        while(not _terminate) {
-            if(next) {
-                try {
-                    progress = std::move(next);
-                    assert(not next);
-                    //thread_print("Got next: ", progress.frame.index());
-                } catch(...) {
-                    FormatExcept("Exception while moving to progress");
-                    continue;
-                }
-                //guard.unlock();
-                try {
-                    perform_tracking();
-                    //guard.lock();
-                } catch(...) {
-                    FormatExcept("Exception while tracking");
-                    throw;
-                }
-            }
-            
-            //thread_print("Waiting for next...");
-            messages.notify_one();
-            if(not _terminate)
-                ready_for_tracking.wait(guard);
-            //thread_print("Received notification: next(", (bool)next,")");
-        }
-        thread_print("Tracking ended.");
-    });
-
-    auto fetch_files = [&](){
-        static std::once_flag flag;
-        std::call_once(flag, [](){
-            set_thread_name("GUI");
-        });
-        
-        {
-            std::unique_lock guard(current_mutex);
-            if (_trans_current.image) {
-                current = std::move(_trans_current);
-                objects = std::move(_trans_objects);
-            }
-        }
-
-        if (current.image) {
-            if(background->source()
-               && background->source()->rows == current.image->rows
-               && background->source()->cols == current.image->cols
-               && background->source()->dims == 4)
-            {
-                cv::cvtColor(current.image->get(), background->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
-                OverlayBuffers::put_back(std::move(current.image));
-                background->updated_source();
-            } else {
-                auto rgba = Image::Make(current.image->rows, current.image->cols, 4);
-                cv::cvtColor(current.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
-                OverlayBuffers::put_back(std::move(current.image));
-                background->set_source(std::move(rgba));
-            }
-            
-            current.image = nullptr;
-        }
-    };
     
     file::cd(file::DataLocation::parse("app"));
-
+    
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
-        fetch_files();
+        manager.update(graph);
         
-        {
-            //track::LockGuard guard(track::ro_t{}, "update", 10);
-            //cache.update_data(current.frame.index());
-            //frameinfo.analysis_range = tracker.analysis_range();
-            //frameinfo.video_length = file.length().get();
-            //frameinfo.consecutive = tracker.consecutive();
-            //frameinfo.current_fps = fps;
-        }
-        
-        graph.section("video", [&](auto&, Section* section){
-
-            auto output_size = SETTING(output_size).value<Size2>();
-            auto window_size = base.window_dimensions();
-            
-            auto ratio = output_size.width / output_size.height;
-            Size2 wdim;
-            
-            if(window_size.width * output_size.height < window_size.height * output_size.width)
-            {
-                wdim = Size2(window_size.width, window_size.width / ratio);
-            } else {
-                wdim = Size2(window_size.height * ratio, window_size.height);
-            }
-            
-            auto scale = wdim.div(output_size);
-            section->set_scale(scale);
-
-            LockGuard lguard(ro_t{}, "drawing", 10);
-            if (not lguard.locked()) {
-                section->reuse_objects();
-                return;
-            }
-
-            SETTING(gui_frame) = current.frame.index();
-            
-            if(background->source()) {
-                graph.wrap_object(*background);
-            }
-            
-            for(auto box : current.tiles)
-                graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
-            
-            static Frame_t last_frame;
-            bool dirty{false};
-            if(last_frame != current.frame.index()) {
-                last_frame = current.frame.index();
-                gui_objects.clear();
-                individual_properties.clear();
-                dirty = true;
-            }
-            
-            if (not current.outlines.empty()) {
-                graph.text(Meta::toStr(current.outlines.size())+" lines", attr::Loc(10,50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
-                
-                ColorWheel wheel;
-                for (const auto& v : current.outlines) {
-                    auto clr = wheel.next();
-                    graph.line(v, 1, clr.alpha(150));
-                }
-            }
-            
-            using namespace track;
-            std::unordered_map<pv::bid, Identity> visible_bdx;
-            
-            IndividualManager::transform_all([&](Idx_t , Individual* fish)
-            {
-                if(not fish->has(current.frame.index()))
-                    return;
-                auto p = fish->iterator_for(current.frame.index());
-                auto segment = p->get();
-                
-                auto basic = fish->compressed_blob(current.frame.index());
-                auto bds = basic->calculate_bounds();//.mul(scale);
-                
-                if(dirty) {
-                    if(basic->parent_id.valid())
-                        visible_bdx[basic->parent_id] = fish->identity();
-                    visible_bdx[basic->blob_id()] = fish->identity();
-                }
-                
-                std::vector<Vertex> line;
-                fish->iterate_frames(Range(current.frame.index().try_sub(50_f), current.frame.index()), [&](Frame_t , const std::shared_ptr<SegmentInformation> &ptr, const BasicStuff *basic, const PostureStuff *) -> bool
-                {
-                    if(ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
-                        return true;
-                    auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
-                    line.push_back(Vertex(p.x, p.y, fish->identity().color()));
-                    return true;
-                });
-                
-                graph.vertices(line);
-            });
-            
-            //! do not need to continue further if the view isnt dirty
-            if(not dirty)
-                return;
-            
-            for(auto &blob : objects) {
-                
-                const auto bds = blob->bounds();
-                //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
-                auto [pos, image] = blob->image();
-                
-                SegmentationData::Assignment assign{
-                    .clid = size_t(-1)
-                };
-                if(current.frame.index().valid()) {
-                    if(blob->parent_id().valid()) {
-                        if(auto it = current.predictions.find(blob->parent_id());
-                           it != current.predictions.end())
-                        {
-                            assign = it->second;
-                            
-                        } else if((it = current.predictions.find(blob->blob_id())) != current.predictions.end())
-                        {
-                            assign = it->second;
-                            
-                        } else
-                            print("[draw]3 blob ", blob->blob_id(), " not found...");
-                        
-                    } else if(auto it = current.predictions.find(blob->blob_id()); it != current.predictions.end())
-                    {
-                        assign = it->second;
-                        
-                    } else
-                        print("[draw]4 blob ", blob->blob_id(), " not found...");
-                }
-                
-                auto cname = meta_classes.size() > assign.clid
-                            ? meta_classes.at(assign.clid)
-                            : "<unknown:"+Meta::toStr(assign.clid)+">";
-                
-                sprite::Map tmp;
-                tmp.set_do_print(false);
-                tmp["pos"] = bds.pos().mul(scale);
-                tmp["size"] = Size2(bds.size().mul(scale));
-                tmp["type"] = std::string(cname);
-
-                if (contains(visible_bdx, blob->blob_id())) {
-                    auto id = visible_bdx.at(blob->blob_id());
-                    tmp["color"] = id.color();
-                    tmp["id"] = id.ID();
-                    tmp["tracked"] = true;
-                    
-                } else if(blob->parent_id().valid() && contains(visible_bdx, blob->parent_id()))
-                {
-                    auto id = visible_bdx.at(blob->parent_id());
-                    tmp["color"] = id.color();
-                    tmp["id"] = id.ID();
-                    tmp["tracked"] = true;
-                    
-                } else {
-                    tmp["tracked"] = false;
-                    tmp["color"] = Gray;
-                    tmp["id"] = Idx_t();
-                }
-                tmp["p"] = Meta::toStr(assign.p);
-                individual_properties.push_back(std::move(tmp));
-                gui_objects.emplace_back(new Variable([&, i = individual_properties.size() - 1](std::string) -> sprite::Map& {
-                    return individual_properties.at(i);
-                }));
-            }
-        });
-        
-        graph.section("menus", [&](auto&, Section* section){
-            section->set_scale(graph.scale().reciprocal());
-            _video_info["frame"] = current.frame.index();
-            _actual_frame = current.frame.source_index();
-            _video_frame = current.frame.index();
-            
-            menu.draw(base, graph);
-        });
-        
-        //graph.set_dirty(nullptr);
-
         if (graph.is_key_pressed(Keyboard::Right)) {
             SETTING(do_filter) = true;
         } else if (graph.is_key_pressed(Keyboard::Left)) {
@@ -1794,30 +1952,10 @@ int main(int argc, char**argv) {
         }
     });
     
-    {
-        //
-        {
-            std::unique_lock guard(mutex);
-            _terminate = true;
-            ready_for_tracking.notify_all();
-        }
-        tracking.join();
-        
-        std::unique_lock guard(mutex);
-        messages.notify_all();
-    }
-    
-    Detection::manager.clean_up();
-    
-    thread.join();
+    manager.set_active(nullptr);
+    manager.update_queue();
     graph.root().set_stage(nullptr);
     py::deinit();
-    file.close();
-    
-    {
-        pv::File test(file.filename(), pv::FileMode::READ);
-        test.print_info();
-    }
     return 0;
 }
 
