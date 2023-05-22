@@ -101,7 +101,7 @@ requirements:
     - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
-    - pytorch-cuda # [win or linux]
+    - pytorch # [win or linux]
     - torchvision
     - pandas
     - seaborn
