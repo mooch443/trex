@@ -1407,69 +1407,91 @@ private:
         _overlayed_video = nullptr;
         _tracker = nullptr;
         
-        pv::File test(_output_file->filename(), pv::FileMode::READ);
-        test.print_info();
+        if(_output_file) {
+            pv::File test(_output_file->filename(), pv::FileMode::READ);
+            test.print_info();
+        }
+        
+        _output_file = nullptr;
+        _next_frame_data = {};
+        _progress_data = {};
+        _current_data = {};
+        _transferred_blobs.clear();
+        _object_blobs.clear();
+        _progress_blobs.clear();
+        _transferred_current_data = {};
     }
 
     void activate() override {
-        VideoSource video_base(SETTING(source).value<std::string>());
-        video_base.set_colors(ImageMode::RGB);
+        _should_terminate = false;
         
-        SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
-        
-        if(SETTING(filename).value<file::Path>().empty()) {
-            SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
-        }
-        
-        setDefaultSettings();
-        _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
-        SETTING(output_size) = _output_size;
-        _video_info["resolution"] = _output_size;
-        
-        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
-            Detection{},
-            std::move(video_base),
-            [this](){
-                _cv_messages.notify_one();
+        print("Loading source = ", SETTING(source).value<std::string>());
+        try {
+            VideoSource video_base(SETTING(source).value<std::string>());
+            video_base.set_colors(ImageMode::RGB);
+            
+            SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
+            
+            print("filename = ", SETTING(filename).value<file::Path>());
+            print("video_base = ", video_base.base());
+            if(SETTING(filename).value<file::Path>().empty()) {
+                SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
             }
-        );
-        
-        printDebugInformation();
-        
-        cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
-        bg.setTo(255);
-        
-        VideoSource tmp(SETTING(source).value<std::string>());
-        if(not average_name().exists()) {
-            tmp.generate_average(bg, 0);
-            cv::imwrite(average_name().str(), bg);
-        } else {
-            print("Loading from file...");
-            bg = cv::imread(average_name().str());
-            cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+            
+            setDefaultSettings();
+            _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+            SETTING(output_size) = _output_size;
+            _video_info["resolution"] = _output_size;
+            
+            _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+                                                                           Detection{},
+                                                                           std::move(video_base),
+                                                                           [this](){
+                                                                               _cv_messages.notify_one();
+                                                                           }
+                                                                           );
+            
+            printDebugInformation();
+            
+            cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
+            bg.setTo(255);
+            
+            VideoSource tmp(SETTING(source).value<std::string>());
+            if(not average_name().exists()) {
+                tmp.generate_average(bg, 0);
+                cv::imwrite(average_name().str(), bg);
+            } else {
+                print("Loading from file...");
+                bg = cv::imread(average_name().str());
+                cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+            }
+            
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
+            static_assert(ObjectDetection<Detection>);
+            
+            _start_time = std::chrono::system_clock::now();
+            auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+            DebugHeader("Output: ", filename);
+            
+            auto path = filename.remove_filename();
+            if(not path.exists()) {
+                path.create_folder();
+            }
+            
+            _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+            _output_file->set_average(bg);
+            
+            _generator_thread = std::thread([this](){
+                generator_thread();
+            });
+            _tracking_thread = std::thread([this](){
+                tracking_thread();
+            });
+            
+        } catch(const std::exception& e) {
+            FormatExcept("Exception when switching scenes: ", e.what());
+            SceneManager::getInstance().set_active("starting-scene");
         }
-        
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
-        static_assert(ObjectDetection<Detection>);
-        
-        _start_time = std::chrono::system_clock::now();
-        auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-        DebugHeader("Output: ", filename);
-        
-        auto path = filename.remove_filename();
-        if(not path.exists()) {
-            path.create_folder();
-        }
-        
-        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-        _output_file->set_average(bg);
-        
-        _generator_thread = std::thread([this](){
-            generator_thread();
-        });
-        _tracking_thread = std::thread([this](){
-            tracking_thread();
-        });
     }
 
     void setDefaultSettings() {
@@ -1717,13 +1739,18 @@ private:
         while(not _should_terminate) {
             try {
                 if(not _next_frame_data and not items.empty()) {
-                    if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
+                    if(std::get<1>(items.front()).valid()
+                       && std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                    {
                         auto data = std::get<1>(items.front()).get();
                         //thread_print("Got data for item ", data.frame.index());
                         
                         _next_frame_data = std::move(data);
                         _cv_ready_for_tracking.notify_one();
                         
+                        items.erase(items.begin());
+                    } else if(not std::get<1>(items.front()).valid()) {
+                        FormatExcept("Invalid future ", std::get<0>(items.front()));
                         items.erase(items.begin());
                     }
                 }
@@ -1857,6 +1884,133 @@ private:
     };
 };
 
+class StartingScene : public Scene {
+    file::Path _image_path = file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_1024.png");
+
+    // The image of the logo
+    std::shared_ptr<ExternalImage> _logo_image;
+    std::shared_ptr<Entangled> _title = std::make_shared<Entangled>();
+
+    // The list of recent items
+    std::shared_ptr<ScrollableList<>> _recent_items;
+    std::shared_ptr<VerticalLayout> _buttons_and_items = std::make_shared<VerticalLayout>();
+    
+    std::shared_ptr<VerticalLayout> _logo_title_layout = std::make_shared<VerticalLayout>();
+    std::shared_ptr<HorizontalLayout> _button_layout;
+    
+    // The two buttons for user interactions, now as Layout::Ptr
+    std::shared_ptr<Button> _video_file_button;
+    std::shared_ptr<Button> _camera_button;
+
+    // The HorizontalLayout for the two buttons and the image
+    HorizontalLayout _main_layout;
+    
+    dyn::Context context {
+        .variables = {
+            {
+                "global",
+                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return GlobalSettings::map();
+                }))
+            }
+        }
+    };
+    dyn::State state;
+    std::vector<Layout::Ptr> objects;
+
+public:
+    StartingScene(const Base& window)
+    : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
+      _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
+      _recent_items(std::make_shared<ScrollableList<>>(Bounds(0, 10, 310, 500))),
+      _video_file_button(std::make_shared<Button>("Load video", attr::Size(150, 50))),
+      _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50)))
+    {
+        auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
+        print(window.window_dimensions().mul(dpi), " and logo ", _logo_image->size());
+        
+        // Callback for video file button
+        _video_file_button->on_click([](auto){
+            // Implement logic to handle the video file
+            SceneManager::getInstance().set_active("converting");
+        });
+
+        // Callback for camera button
+        _camera_button->on_click([](auto){
+            // Implement logic to start recording from camera
+            print("Camera button clicked!");
+        });
+        
+        // Create a new HorizontalLayout for the buttons
+        _button_layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{
+            Layout::Ptr(_video_file_button),
+            Layout::Ptr(_camera_button)
+        });
+        //_button_layout->set_pos(Vec2(1024 - 10, 550));
+        //_button_layout->set_origin(Vec2(1, 0));
+
+        _buttons_and_items->set_children({
+            Layout::Ptr(_recent_items),
+            Layout::Ptr(_button_layout)
+        });
+        
+        _logo_title_layout->set_children({
+            Layout::Ptr(_title),
+            Layout::Ptr(_logo_image)
+        });
+        
+        // Set the list and button layout to the main layout
+        _main_layout.set_children({
+            Layout::Ptr(_logo_title_layout),
+            Layout::Ptr(_buttons_and_items)
+        });
+        //_main_layout.set_origin(Vec2(1, 0));
+    }
+
+    void activate() override {
+        // Fill the recent items list
+        _recent_items->set_items({
+            TextItem("recent item 0", 0),
+            TextItem("recent item 1", 1),
+            TextItem("recent item 2", 2)
+        });
+    }
+
+    void deactivate() override {
+        // Logic to clear or save state if needed
+    }
+
+    void _draw(DrawStructure& graph) {
+        dyn::update_layout("welcome_layout.json", context, state, objects);
+        
+        //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
+        auto max_w = window()->window_dimensions().width * 0.65;
+        auto max_h = window()->window_dimensions().height - _button_layout->height() - 25;
+        auto scale = Vec2(max_w * 0.4 / _logo_image->width());
+        _logo_image->set_scale(scale);
+        _title->set_size(Size2(max_w, 25));
+        _recent_items->set_size(Size2(_recent_items->width(), max_h));
+        
+        graph.wrap_object(_main_layout);
+        
+        std::vector<Layout::Ptr> _objs{objects.begin(), objects.end()};
+        _objs.insert(_objs.begin(), Layout::Ptr(_title));
+        _objs.push_back(Layout::Ptr(_logo_image));
+        _logo_title_layout->set_children(_objs);
+        _logo_title_layout->set_policy(VerticalLayout::Policy::CENTER);
+        
+        
+        for(auto &obj : objects) {
+            dyn::update_objects(graph, obj, context, state);
+            //graph.wrap_object(*obj);
+        }
+        
+        _buttons_and_items->auto_size(Margin{0,0});
+        _logo_title_layout->auto_size(Margin{0,0});
+        _main_layout.auto_size(Margin{0,0});
+    }
+};
+
 int main(int argc, char**argv) {
     using namespace gui;
     
@@ -1866,6 +2020,9 @@ int main(int argc, char**argv) {
     
     grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
+    gui::init_errorlog();
+    set_thread_name("main");
     
     SETTING(meta_video_scale) = float(1);
     SETTING(source) = std::string("");
@@ -1967,14 +2124,23 @@ int main(int argc, char**argv) {
         graph.draw_log_messages();
         
         return true;
-    }, [](Event) {
-        
+    }, [](Event e) {
+        if(e.type == EventType::KEY) {
+            if(e.key.code == Keyboard::Escape) {
+                SETTING(terminate) = true;
+            }
+        }
     });
     
     auto& manager = SceneManager::getInstance();
+    
+    StartingScene start(base);
+    manager.register_scene(&start);
+    manager.set_active(&start);
+    
     ConvertScene converting(base);
     manager.register_scene(&converting);
-    manager.set_active(&converting);
+    //manager.set_active(&converting);
     
     graph.set_size(Size2(1024, converting.output_size().height / converting.output_size().width * 1024));
     

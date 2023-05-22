@@ -183,6 +183,7 @@ public:
             printf("Not executing since weight == %f\n", _c->weight());
         } else
             printf("Not executing since object is nullptr\n");*/
+        _c = nullptr;
     }
     
     void clean_up() {
@@ -191,8 +192,9 @@ public:
             guard.unlock();
             _future.get();
             guard.lock();
+            _future = {};
         }
-        _c = nullptr;
+        
     }
 
     void enqueue(std::vector<Data>&& v) {
