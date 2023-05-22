@@ -7,13 +7,13 @@
       "size" : "16x16"
     },
     {
-      "filename" : "TRexA_32 1.png",
+      "filename" : "TRexA_32.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "16x16"
     },
     {
-      "filename" : "TRexA_32.png",
+      "filename" : "TRexA_32 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"
@@ -31,25 +31,25 @@
       "size" : "128x128"
     },
     {
-      "filename" : "TRexA_256 1.png",
+      "filename" : "TRexA_256.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "128x128"
     },
     {
-      "filename" : "TRexA_256.png",
+      "filename" : "TRexA_256 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
     },
     {
-      "filename" : "TRexA_512 1.png",
+      "filename" : "TRexA_512.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "256x256"
     },
     {
-      "filename" : "TRexA_512.png",
+      "filename" : "TRexA_512 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"

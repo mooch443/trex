@@ -9,35 +9,53 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
     :
       _static_image(std::move(image))
 {
-    auto metadata = GUI::video_source()->header().metadata;
-    sprite::Map config;
-    GlobalSettings::docs_map_t docs;
-    
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
     
-    try {
-        default_config::get(config, docs, nullptr);
-        sprite::parse_values(config, metadata);
+    if(not GlobalSettings::has("meta_source_path") or SETTING(meta_source_path).value<std::string>().empty()) {
+        auto metadata = GUI::video_source()->header().metadata;
+        sprite::Map config;
+        GlobalSettings::docs_map_t docs;
         
-    } catch(...) {
-        FormatExcept("Failed to load metadata from: ", metadata);
-    }
-    
-    if(config.has("meta_source_path")) {
-        std::string meta_source_path = config.get<std::string>("meta_source_path");
+        try {
+            default_config::get(config, docs, nullptr);
+            sprite::parse_values(config, metadata);
+            
+        } catch(...) {
+            FormatExcept("Failed to load metadata from: ", metadata);
+        }
+        
+        if(config.has("meta_source_path")) {
+            std::string meta_source_path = config.get<std::string>("meta_source_path");
+            try {
+                std::unique_lock guard(_source_mutex);
+                _source = std::make_unique<VideoSource>(meta_source_path);
+                _source->set_colors(ImageMode::RGB);
+                _source->set_lazy_loader(true);
+            } catch(const UtilsException& e) {
+                FormatError("Cannot load animated gui background: ", e.what());
+            }
+        }
+        
+        if(config.has("meta_video_scale")) {
+            _source_scale = config.get<float>("meta_video_scale");
+        }
+        
+    } else {
+        std::string meta_source_path = SETTING(meta_source_path).value<std::string>();
         try {
             std::unique_lock guard(_source_mutex);
             _source = std::make_unique<VideoSource>(meta_source_path);
             _source->set_colors(ImageMode::RGB);
             _source->set_lazy_loader(true);
+            
+            if(GlobalSettings::has("meta_video_scale")) {
+                _source_scale = SETTING("meta_video_scale").value<float>();
+            }
+            
         } catch(const UtilsException& e) {
             FormatError("Cannot load animated gui background: ", e.what());
         }
-    }
-    
-    if(config.has("meta_video_scale")) {
-        _source_scale = config.get<float>("meta_video_scale");
     }
     
     update([this](auto&) {
