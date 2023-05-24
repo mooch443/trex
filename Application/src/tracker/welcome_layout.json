@@ -1,0 +1,16 @@
+{"objects":[
+    {
+        "type":"stext",
+        "text":"<b>Welcome</b> to {global:app_name}.",
+        "color":[255,255,255],
+        "font":{"size":1.25},
+        "origin":[0.5, 0.5]
+    },
+    {
+        "type":"stext",
+        "text":"please select a task from the list on the right",
+        "color":[255,255,255],
+        "font":{"size":0.75},
+        "origin":[0.5, 0.5]
+    }
+]}
