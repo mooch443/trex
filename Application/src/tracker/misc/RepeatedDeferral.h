@@ -21,6 +21,7 @@ struct RepeatedDeferral {
     
     std::condition_variable _message, _new_item;
     mutable std::mutex _mutex;
+    std::unique_lock<std::mutex> _init_guard{_mutex};
     std::thread _updater;
     std::atomic<bool> _terminate{ false };
     
@@ -28,6 +29,9 @@ struct RepeatedDeferral {
     _updater([this]() {
         set_thread_name(this->name+"_update_thread");
         std::unique_lock guard(_mutex);
+        _message.notify_all();
+        _message.wait(guard);
+        
         Timer runtime;
         
         while (not _terminate) {
@@ -89,13 +93,21 @@ struct RepeatedDeferral {
             }
         }
     })
-    { }
+    {
+        _message.wait(_init_guard);
+        _init_guard = {};
+    }
+    
+    void notify() {
+        _message.notify_all();
+        _new_item.notify_all();
+    }
     
     ~RepeatedDeferral() {
         //if(_next_image.valid())
         //    _next_image.get();
         _terminate = true;
-        _message.notify_all();
+        notify();
         _updater.join();
     }
     

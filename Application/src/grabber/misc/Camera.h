@@ -19,6 +19,9 @@ namespace fg {
         virtual void close() = 0;
         virtual bool next(Image& image) = 0;
         virtual Size2 size() const = 0;
+        
+        virtual std::string toStr() const { return "Camera"; }
+        static std::string class_name() { return "Camera"; }
     };
 }
 

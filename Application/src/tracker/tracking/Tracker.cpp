@@ -627,6 +627,7 @@ void Tracker::prefilter(
             : std::vector<std::string>{};
     
     const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
+    const auto track_only_segmentations = SETTING(track_only_segmentations).value<bool>();
     
     auto check_precise_not_ignored = [&track_ignore, &track_include, &result](pv::BlobPtr&& b){
         if (!track_ignore.empty()) {
@@ -646,7 +647,7 @@ void Tracker::prefilter(
         return true;
     };
     
-    auto check_blob = [&tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr](pv::BlobPtr&& b, bool precise_check_boundaries)
+    auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr](pv::BlobPtr&& b, bool precise_check_boundaries)
     {
         // TODO: magic numbers
         if(b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
@@ -656,6 +657,11 @@ void Tracker::prefilter(
         
         if(b->is_tag() && tags_dont_track) {
             result.filter_out(std::move(b), FilterReason::DontTrackTags);
+            return false;
+        }
+        
+        if(not b->is_instance_segmentation() and track_only_segmentations) {
+            result.filter_out(std::move(b), FilterReason::OnlySegmentations);
             return false;
         }
         

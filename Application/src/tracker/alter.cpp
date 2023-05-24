@@ -25,6 +25,7 @@
 #include "Alterface.h"
 #include <misc/RepeatedDeferral.h>
 #include <GitSHA1.h>
+#include <grabber/misc/Webcam.h>
 
 #include <misc/TaskPipeline.h>
 
@@ -57,14 +58,14 @@ using namespace gui;
 class Scene {
     GETTER(std::string, name)
     std::vector<Layout::Ptr> _children;
-    const Base* _window{nullptr};
+    Base* _window{nullptr};
     std::function<void(Scene&, DrawStructure& base)> _draw;
     
     static inline std::mutex _mutex;
     static inline std::unordered_map<const DrawStructure*, std::string> _active_scenes;
     
 public:
-    Scene(const Base& window, const std::string& name, std::function<void(Scene&, DrawStructure& base)> draw)
+    Scene(Base& window, const std::string& name, std::function<void(Scene&, DrawStructure& base)> draw)
         : _name(name), _window(&window), _draw(draw)
     {
         
@@ -312,6 +313,12 @@ struct Yolo7ObjectDetection {
     
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
         proxy.set_variable("model_type", detection_type().toStr());
+        
+        if(SETTING(model).value<file::Path>().empty())
+            throw U_EXCEPTION("When using yolov7 object detection, please set model using command-line argument -m <path> to set a model (tensorflow saved model).");
+        else if(not SETTING(model).value<file::Path>().exists())
+            throw U_EXCEPTION("Cannot find model file ",SETTING(model).value<file::Path>(),".");
+        
         proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
         if(SETTING(segmentation_model).value<file::Path>().exists()) {
             proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
@@ -621,6 +628,7 @@ struct Yolo7ObjectDetection {
                                 .clid = static_cast<uint8_t>(cls),
                                 .p = uint8_t(float(conf) * 255.f)
                             };
+                            pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
                             
                             pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
                             auto points = pixel::find_outer_points(&blob, 0);
@@ -629,6 +637,7 @@ struct Yolo7ObjectDetection {
                                 //for (auto& pt : outline_points.back())
                                 //    pt = (pt + blob.bounds().pos())/*.mul(dim.div(image.dimensions())) + pos*/;
                             }
+                            
                             data.predictions[blob.blob_id()] = { .clid = size_t(cls), .p = float(conf) };
                             data.frame.add_object(std::move(pair));
                             //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
@@ -684,6 +693,12 @@ struct Yolo7InstanceSegmentation {
     
     static void reinit(track::PythonIntegration::ModuleProxy& proxy) {
         proxy.set_variable("model_type", detection_type().toStr());
+        
+        if(SETTING(segmentation_model).value<file::Path>().empty())
+            throw U_EXCEPTION("When using yolov7 instance segmentation, please set model using command-line argument -sm <path> to set a model (pytorch model).");
+        else if(not SETTING(segmentation_model).value<file::Path>().exists())
+            throw U_EXCEPTION("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
+        
         proxy.set_variable("model_path", SETTING(segmentation_model).value<file::Path>().str());
         proxy.set_variable("image_size", expected_size);
         proxy.run("load_model");
@@ -794,6 +809,8 @@ struct Yolo7InstanceSegmentation {
                     .p = uint8_t(float(conf) * 255.f)
                 };
                 
+                pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+                
                 pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
                 auto points = pixel::find_outer_points(&blob, 0);
                 if (not points.empty()) {
@@ -863,59 +880,50 @@ struct Yolo7InstanceSegmentation {
 static_assert(ObjectDetection<Yolo7ObjectDetection>);
 static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 
-template<typename SourceType>
-class AbstractVideoSource {
-    //mutable std::mutex mutex;
+struct VideoInfo {
+    file::Path base;
+    Size2 size;
+    short framerate;
+    bool finite;
+    Frame_t length;
+};
+
+class AbstractBaseVideoSource {
+protected:
     Frame_t i{0_f};
-    
     using gpuMatPtr = std::unique_ptr<useMat>;
     std::mutex buffer_mutex;
     std::vector<gpuMatPtr> buffers;
     
-    SourceType source;
-    GETTER(file::Path, base)
-    GETTER(Size2, size)
-    GETTER(short, framerate)
-    
-    const bool _finite;
-    const Frame_t _length;
+    VideoInfo info;
     
     RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>()>> _source_frame;
-    //mutable package::packaged_func<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>> _post_process;
-    //mutable package::packaged_func<void, Frame_t> _set_frame;
     RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>()>> _resize_cvt;
     
-    
 public:
-    template<typename T = SourceType>
-        requires _clean_same<SourceType, VideoSource>
-    AbstractVideoSource(SourceType&& source)
-        :
-            source(std::move(source)),
-            _base(this->source.base()),
-            _source_frame(75u, 25u,
-              std::string("source.frame"),
-                          [this]() {
-                return fetch_next();
-              }
-            ),
-            _size(this->source.size()),
-            _framerate(this->source.framerate()),
-            _finite(true),
-            _length(this->source.length()),
-            _resize_cvt(50u, 10u,
+    AbstractBaseVideoSource(VideoInfo info)
+    : info(info),
+    _source_frame(75u, 25u,
+                  std::string("source.frame"),
+                  [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>
+                  {
+        return fetch_next();
+    }),
+    _resize_cvt(50u, 10u,
                 std::string("resize+cvtColor"),
                 [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
-                    return this->fetch_next_process();
-            })
-    { }
-
-    AbstractVideoSource(AbstractVideoSource&& other) = default;
-    AbstractVideoSource(const AbstractVideoSource& other) = delete;
-    AbstractVideoSource() = delete;
+        return this->fetch_next_process();
+    })
+    {
+        notify();
+    }
+    virtual ~AbstractBaseVideoSource() = default;
+    void notify() {
+        _source_frame.notify();
+        _resize_cvt.notify();
+    }
     
-    AbstractVideoSource& operator=(AbstractVideoSource&&) = delete;
-    AbstractVideoSource& operator=(const AbstractVideoSource&) = delete;
+    Size2 size() const { return info.size; }
     
     void move_back(gpuMatPtr&& ptr) {
         std::unique_lock guard(buffer_mutex);
@@ -924,15 +932,158 @@ public:
     
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next() {
         auto result = _resize_cvt.next();
-        if(not result)
+        if(!result)
             return std::make_tuple(Frame_t{}, nullptr, nullptr);
         
         return std::move(result.value());
     }
     
-    tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() {
+    virtual tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() = 0;
+    
+    tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> fetch_next_process() {
+        try {
+            Timer timer;
+            auto result = _source_frame.next();
+            if(result) {
+                auto& [index, buffer] = result.value();
+                static gpuMatPtr tmp = std::make_unique<useMat>();
+                if (not index.valid())
+                    throw U_EXCEPTION("Invalid index");
+                
+                //! resize according to settings
+                //! (e.g. multiple tiled image size)
+                if (SETTING(meta_video_scale).value<float>() != 1) {
+                    Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
+                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                    cv::resize(*buffer, *tmp, new_size);
+                    std::swap(buffer, tmp);
+                }
+                
+                //! throws bad optional access if the returned frame is not valid
+                assert(index.valid());
+                
+                auto image = OverlayBuffers::get_buffer();
+                //image->set_index(index.get());
+                image->create(*buffer, index.get());
+                
+                if (_video_samples.load() > 1000) {
+                    _video_samples = _video_fps = 0;
+                }
+                _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
+                _video_samples = _video_samples.load() + 1;
+                
+                return std::make_tuple(index, std::move(buffer), std::move(image));
+                
+            } else
+                return tl::unexpected(result.error());
+            //throw U_EXCEPTION("Unable to load frame: ", result.error());
+            
+        } catch(const std::exception& e) {
+            auto desc = toStr();
+            FormatExcept("Unable to load frame ", i, " from video source ", desc.c_str(), " because: ", e.what());
+            return tl::unexpected(e.what());
+        }
+    }
+    
+    bool is_finite() const {
+        return info.finite;
+    }
+    
+    void set_frame(Frame_t frame) {
+        if(!is_finite())
+            throw std::invalid_argument("Cannot skip on infinite source.");
+        i = frame;
+    }
+    
+    Frame_t length() const {
+        if(!is_finite()) {
+            FormatWarning("Cannot return length of infinite source (", i,").");
+            return i;
+        }
+        return info.length;
+    }
+    
+    virtual std::string toStr() const {return "AbstractBaseVideoSource<>";}
+    static std::string class_name() { return "AbstractBaseVideoSource"; }
+};
+
+
+class WebcamVideoSource : public AbstractBaseVideoSource {
+    fg::Webcam source;
+    
+public:
+    using SourceType = fg::Webcam;
+    
+public:
+    WebcamVideoSource(fg::Webcam&& source)
+        : AbstractBaseVideoSource({.base = "Webcam",
+                                   .size = source.size(),
+                                   .framerate = short(source.frame_rate()),
+                                   .finite = false,
+                                   .length = Frame_t{}}),
+          source(std::move(source))
+    {
+        
+    }
+
+    tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() override {
+        try {
+            if (not i.valid()) {
+                i = 0_f;
+            }
+
+            auto index = i++;
+
+            gpuMatPtr buffer;
+
+            if (std::unique_lock guard{ buffer_mutex };
+                not buffers.empty())
+            {
+                buffer = std::move(buffers.back());
+                buffers.pop_back();
+            }
+            else {
+                buffer = std::make_unique<useMat>();
+            }
+
+            static gpuMatPtr tmp = std::make_unique<useMat>();
+            static Image cpuBuffer(this->source.size().height, this->source.size().width, 3);
+            this->source.next(cpuBuffer);
+            //this->source.frame(index, cpuBuffer);
+            cpuBuffer.get().copyTo(*buffer);
+
+            cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+            std::swap(buffer, tmp);
+            return std::make_tuple(index, std::move(buffer));
+        }
+        catch (const std::exception& e) {
+            return tl::unexpected(e.what());
+        }
+    }
+
+    std::string toStr() const override {
+        return "WebcamVideoSource<"+Meta::toStr(source)+">";
+    }
+    static std::string class_name() { return "WebcamVideoSource"; }
+};
+
+class VideoSourceVideoSource : public AbstractBaseVideoSource {
+    VideoSource source;
+public:
+    using SourceType = VideoSource;
+    
+public:
+    VideoSourceVideoSource(VideoSource&& source)
+        : AbstractBaseVideoSource({.base = source.base(),
+                                   .size = source.size(),
+                                   .framerate = source.framerate(),
+                                   .finite = true,
+                                   .length = source.length()}),
+          source(std::move(source))
+    { }
+    
+    tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() override {
         if (i >= this->source.length()) {
-            //i = 0_f;
             SETTING(terminate) = true;
             return tl::unexpected("EOF");
         }
@@ -957,16 +1108,6 @@ public:
             }
 
             static gpuMatPtr tmp = std::make_unique<useMat>();
-            static Timing timing("Source(frame)", 1);
-            TakeTiming take(timing);
-
-            //static cv::Mat tmp;
-            //static auto source_size = this->size();
-            //if(image->rows != source_size.height || source_size.width != image->cols)
-            //    image->create(source_size.height, source_size.width, 3);
-
-            //auto mat = image->get();
-
             static cv::Mat cpuBuffer;
             this->source.frame(index, cpuBuffer);
             cpuBuffer.copyTo(*buffer);
@@ -979,76 +1120,18 @@ public:
             return tl::unexpected(e.what());
         }
     }
-    
-    tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> fetch_next_process() {
-        try {
-            Timer timer;
-            auto result = _source_frame.next();
-            if(result) {
-                auto& [index, buffer] = result.value();
-                static gpuMatPtr tmp = std::make_unique<useMat>();
-                if (not index.valid())
-                    throw U_EXCEPTION("Invalid index");
-                
-                //! resize according to settings
-                //! (e.g. multiple tiled image size)
-                if (SETTING(meta_video_scale).value<float>() != 1) {
-                    Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
-                    //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
-                    cv::resize(*buffer, *tmp, new_size);
-                    std::swap(buffer, tmp);
-                }
 
-                //! throws bad optional access if the returned frame is not valid
-                assert(index.valid());
-
-                auto image = OverlayBuffers::get_buffer();
-                //image->set_index(index.get());
-                image->create(*buffer, index.get());
-            
-                if (_video_samples.load() > 1000) {
-                    _video_samples = _video_fps = 0;
-                }
-                _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
-                _video_samples = _video_samples.load() + 1;
-
-                return std::make_tuple(index, std::move(buffer), std::move(image));
-                
-            } else
-                return tl::unexpected(result.error());
-                //throw U_EXCEPTION("Unable to load frame: ", result.error());
-            
-        } catch(const std::exception& e) {
-            FormatExcept("Unable to load frame ", i, " from video source ", this->source, " because: ", e.what());
-            return tl::unexpected(e.what());
-        }
+    std::string toStr() const override {
+        return "VideoSourceVideoSource<"+Meta::toStr(source)+">";
     }
-    
-    bool is_finite() const {
-        return true;
-    }
-    
-    void set_frame(Frame_t frame) {
-        if(not is_finite())
-            throw std::invalid_argument("Cannot skip on infinite source.");
-        i = frame;
-    }
-    
-    Frame_t length() const {
-        if(not is_finite())
-            throw std::invalid_argument("Cannot return length of infinite source.");
-        return _length;
-    }
-    
-    std::string toStr() const {
-        return "AbstractVideoSource<"+Meta::toStr(source)+">";
-    }
+    static std::string class_name() { return "VideoSourceVideoSource"; }
 };
+
 
 template<typename F>
     requires ObjectDetection<F>
 struct OverlayedVideo {
-    AbstractVideoSource<VideoSource> source;
+    std::unique_ptr<AbstractBaseVideoSource> source;
 
     F overlay;
     
@@ -1062,9 +1145,10 @@ struct OverlayedVideo {
     RepeatedDeferral<std::function<return_t()>> apply_net;
     
     bool eof() const noexcept {
-        if(not source.is_finite())
+        assert(source);
+        if(not source->is_finite())
             return false;
-        return i >= source.length();
+        return i >= source->length();
     }
     
     OverlayedVideo() = delete;
@@ -1074,8 +1158,9 @@ struct OverlayedVideo {
     OverlayedVideo& operator=(OverlayedVideo&&) = delete;
     
     template<typename SourceType, typename Callback>
+        requires _clean_same<SourceType, VideoSource>
     OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
-        : source(AbstractVideoSource<SourceType>(std::move(s))), overlay(std::move(fn)),
+        : source(std::make_unique<VideoSourceVideoSource>(std::move(s))), overlay(std::move(fn)),
             apply_net(50u,
                 10u,
                 "ApplyNet",
@@ -1083,7 +1168,21 @@ struct OverlayedVideo {
                     return retrieve_next(callback);
                 })
     {
-        
+        apply_net.notify();
+    }
+    
+    template<typename SourceType, typename Callback>
+        requires _clean_same<SourceType, fg::Webcam>
+    OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
+        : source(std::make_unique<WebcamVideoSource>(std::move(s))), overlay(std::move(fn)),
+            apply_net(50u,
+                10u,
+                "ApplyNet",
+                [this, callback = std::move(callback)](){
+                    return retrieve_next(callback);
+                })
+    {
+        apply_net.notify();
     }
     
     ~OverlayedVideo() {
@@ -1100,7 +1199,8 @@ struct OverlayedVideo {
         
         try {
             Timer _timer;
-            auto&& [nix, buffer, image] = source.next();
+            assert(source);
+            auto&& [nix, buffer, image] = source->next();
             if(not nix.valid())
                 return tl::unexpected("Cannot retrieve frame from video source.");
             
@@ -1142,14 +1242,14 @@ struct OverlayedVideo {
             //! tile image to make it ready for processing in the network
             TileImage tiled(*use, std::move(image), expected_size, original_size);
             tiled.callback = callback;
-            source.move_back(std::move(buffer));
+            source->move_back(std::move(buffer));
             
             //thread_print("Queueing image ", nix);
             //! network processing, and record network fps
             return std::make_tuple(nix, this->overlay.apply(std::move(tiled)));
             
         } catch(const std::exception& e) {
-            FormatExcept("Error loading frame ", loaded, " from video ", source, ": ", e.what());
+            FormatExcept("Error loading frame ", loaded, " from video ", *source, ": ", e.what());
             return tl::unexpected("Error loading frame.");
         }
     }
@@ -1157,8 +1257,9 @@ struct OverlayedVideo {
     void reset(Frame_t frame) {
         std::scoped_lock guard(index_mutex);
         i = frame;
-        if(source.is_finite())
-            source.set_frame(i);
+        assert(source);
+        if(source->is_finite())
+            source->set_frame(i);
     }
     
     //! generates the next frame
@@ -1369,7 +1470,7 @@ class ConvertScene : public Scene {
     };
     
 public:
-    ConvertScene(const Base& window) : Scene(window, "converting", [this](Scene&, DrawStructure& graph){
+    ConvertScene(Base& window) : Scene(window, "converting", [this](Scene&, DrawStructure& graph){
         _draw(graph);
     }) {
         menu.context.variables.emplace("fishes", new Variable([this](std::string) -> std::vector<std::shared_ptr<VarBase_t>>& {
@@ -1386,9 +1487,11 @@ private:
     void deactivate() override {
         _should_terminate = true;
         
-        std::unique_lock guard(_mutex_general);
-        _cv_ready_for_tracking.notify_all();
-        _cv_messages.notify_all();
+        {
+            std::unique_lock guard(_mutex_general);
+            _cv_ready_for_tracking.notify_all();
+            _cv_messages.notify_all();
+        }
         
         if (_tracking_thread.joinable()) {
             _tracking_thread.join();
@@ -1400,6 +1503,7 @@ private:
             _generator_thread.join();
         }
         
+        std::unique_lock guard(_mutex_general);
         if (_output_file) {
             _output_file->close();
         }
@@ -1421,73 +1525,151 @@ private:
         _progress_blobs.clear();
         _transferred_current_data = {};
     }
+    
+    void open_video() {
+        VideoSource video_base(SETTING(source).value<std::string>());
+        video_base.set_colors(ImageMode::RGB);
+        
+        SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
+        
+        print("filename = ", SETTING(filename).value<file::Path>());
+        print("video_base = ", video_base.base());
+        if(SETTING(filename).value<file::Path>().empty()) {
+            SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
+        }
+        
+        setDefaultSettings();
+        _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+        SETTING(output_size) = _output_size;
+        _video_info["resolution"] = _output_size;
+        
+        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+               Detection{},
+               std::move(video_base),
+               [this](){
+                   _cv_messages.notify_one();
+               }
+        );
+        _video_info["length"] = _overlayed_video->source->length();
+        SETTING(video_length) = uint64_t(_overlayed_video->source->length().get());
+        SETTING(meta_real_width) = float(expected_size.width * 10);
+        
+        //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
+        
+        printDebugInformation();
+        
+        cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
+        bg.setTo(255);
+        
+        VideoSource tmp(SETTING(source).value<std::string>());
+        if(not average_name().exists()) {
+            tmp.generate_average(bg, 0);
+            cv::imwrite(average_name().str(), bg);
+        } else {
+            print("Loading from file...");
+            bg = cv::imread(average_name().str());
+            cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+        }
+        
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
+        static_assert(ObjectDetection<Detection>);
+        
+        _start_time = std::chrono::system_clock::now();
+        auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+        DebugHeader("Output: ", filename);
+        
+        auto path = filename.remove_filename();
+        if(not path.exists()) {
+            path.create_folder();
+        }
+        
+        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file->set_average(bg);
+        
+        _generator_thread = std::thread([this](){
+            generator_thread();
+        });
+        _tracking_thread = std::thread([this](){
+            tracking_thread();
+        });
+    }
 
+    void open_camera() {
+        using namespace grab;
+        fg::Webcam camera;
+        
+        SETTING(frame_rate) = Settings::frame_rate_t(25);
+        SETTING(filename) = file::Path("webcam");
+        
+        setDefaultSettings();
+        _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+        SETTING(output_size) = _output_size;
+        _video_info["resolution"] = _output_size;
+        
+        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+               Detection{},
+               std::move(camera),
+               [this](){
+                   _cv_messages.notify_one();
+               }
+        );
+        
+        _overlayed_video->source->notify();
+        
+        _video_info["length"] = _overlayed_video->source->length();
+        SETTING(video_length) = uint64_t(_overlayed_video->source->length().get());
+        SETTING(meta_real_width) = float(expected_size.width * 10);
+        
+        //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
+        
+        printDebugInformation();
+        
+        cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
+        bg.setTo(255);
+        
+        /*VideoSource tmp(SETTING(source).value<std::string>());
+        if(not average_name().exists()) {
+            tmp.generate_average(bg, 0);
+            cv::imwrite(average_name().str(), bg);
+        } else {
+            print("Loading from file...");
+            bg = cv::imread(average_name().str());
+            cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+        }*/
+        
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
+        static_assert(ObjectDetection<Detection>);
+        
+        _start_time = std::chrono::system_clock::now();
+        auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+        DebugHeader("Output: ", filename);
+        
+        auto path = filename.remove_filename();
+        if(not path.exists()) {
+            path.create_folder();
+        }
+        
+        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file->set_average(bg);
+        
+        _generator_thread = std::thread([this](){
+            generator_thread();
+        });
+        _tracking_thread = std::thread([this](){
+            tracking_thread();
+        });
+    }
+    
     void activate() override {
         _should_terminate = false;
         
-        print("Loading source = ", SETTING(source).value<std::string>());
         try {
-            VideoSource video_base(SETTING(source).value<std::string>());
-            video_base.set_colors(ImageMode::RGB);
+            print("Loading source = ", SETTING(source).value<std::string>());
+            open_camera();
             
-            SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
-            
-            print("filename = ", SETTING(filename).value<file::Path>());
-            print("video_base = ", video_base.base());
-            if(SETTING(filename).value<file::Path>().empty()) {
-                SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
-            }
-            
-            setDefaultSettings();
-            _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
-            SETTING(output_size) = _output_size;
-            _video_info["resolution"] = _output_size;
-            
-            _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
-                                                                           Detection{},
-                                                                           std::move(video_base),
-                                                                           [this](){
-                                                                               _cv_messages.notify_one();
-                                                                           }
-                                                                           );
-            
-            printDebugInformation();
-            
-            cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
-            bg.setTo(255);
-            
-            VideoSource tmp(SETTING(source).value<std::string>());
-            if(not average_name().exists()) {
-                tmp.generate_average(bg, 0);
-                cv::imwrite(average_name().str(), bg);
-            } else {
-                print("Loading from file...");
-                bg = cv::imread(average_name().str());
-                cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
-            }
-            
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
-            static_assert(ObjectDetection<Detection>);
-            
-            _start_time = std::chrono::system_clock::now();
-            auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-            DebugHeader("Output: ", filename);
-            
-            auto path = filename.remove_filename();
-            if(not path.exists()) {
-                path.create_folder();
-            }
-            
-            _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-            _output_file->set_average(bg);
-            
-            _generator_thread = std::thread([this](){
-                generator_thread();
-            });
-            _tracking_thread = std::thread([this](){
-                tracking_thread();
-            });
-            
+            auto size = _overlayed_video->source->size();
+            window()->set_window_size(Size2(1024, size.height / size.width * 1024));
+        
         } catch(const std::exception& e) {
             FormatExcept("Exception when switching scenes: ", e.what());
             SceneManager::getInstance().set_active("starting-scene");
@@ -1919,7 +2101,7 @@ class StartingScene : public Scene {
     std::vector<Layout::Ptr> objects;
 
 public:
-    StartingScene(const Base& window)
+    StartingScene(Base& window)
     : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
       _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
       _recent_items(std::make_shared<ScrollableList<>>(Bounds(0, 10, 310, 500))),
@@ -1970,7 +2152,7 @@ public:
     void activate() override {
         // Fill the recent items list
         _recent_items->set_items({
-            TextItem("recent item 0", 0),
+            TextItem("/Volumes/Public/work/allison/videos/2022/olivia_momo-carrot_t4t_041822.mp4", 0),
             TextItem("recent item 1", 1),
             TextItem("recent item 2", 2)
         });
@@ -2034,6 +2216,10 @@ int main(int argc, char**argv) {
     SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo7;
     SETTING(tile_image) = size_t(0);
+    
+    SETTING(do_filter) = false;
+    SETTING(filter_classes) = std::vector<uint8_t>{};
+    SETTING(is_writing) = false;
     
     using namespace cmn;
     namespace py = Python;

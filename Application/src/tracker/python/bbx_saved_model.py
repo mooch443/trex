@@ -283,7 +283,7 @@ imgsz = None
 device = None
 offsets = None
 iou_threshold = 0.25
-conf_threshold = 0.1
+conf_threshold = 0.2
 
 seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
 
@@ -728,7 +728,7 @@ def apply():
             results = t_predict(
                 t_model = t_model, 
                 device = device, 
-                image_size = image_size, 
+                image_size = int(image_size[0]), 
                 offsets = offsets, 
                 im = im, 
                 conf_threshold = conf_threshold, 
@@ -790,16 +790,17 @@ def apply():
                             #if c != 1:
                             #    continue
 
-                            w = x1 - x0 + 1
-                            h = y1 - y0 + 1
-                            dy0 = int(max(0, y0 - max(0, w * offset_percentage)))
-                            dx0 = int(max(0, x0 - max(0, w * offset_percentage)))
-                            dy1 = int(y1 + (y0 - dy0) * 2)
-                            dx1 = int(x1 + (x0 - dx0) * 2)
-                            #dx0 = int(x0)
-                            #dy0 = int(y0)
-                            #dx1 = int(x1)
-                            #dy1 = int(y1)
+                            w = max(0, x1 - x0) + 1
+                            h = max(0, y1 - y0) + 1
+
+                            woff = w * offset_percentage
+                            hoff = h * offset_percentage
+
+                            dx0 = int(max(0, x0 - woff))
+                            dy0 = int(max(0, y0 - hoff))
+
+                            dx1 = int(x1 + np.abs(x0 - dx0) * 2)
+                            dy1 = int(y1 + np.abs(y0 - dy0) * 2)
 
                             sub = img[dy0:dy1, dx0:dx1, :]
 

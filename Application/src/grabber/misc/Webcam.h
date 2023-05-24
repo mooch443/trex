@@ -21,6 +21,9 @@ namespace fg {
         virtual bool open() override { return _capture.isOpened(); }
         virtual void close() override { _capture.release(); }
         int frame_rate();
+        
+        std::string toStr() const override { return "Webcam"; }
+        static std::string class_name() { return "fg::Webcam"; }
     };
 }
 

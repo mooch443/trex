@@ -177,7 +177,9 @@ void IndividualManager::clear() noexcept {
     inactive_individuals.clear();
     Identity::set_running_id(Idx_t(0));
     
+#ifndef NDEBUG
     print("[IManager] Cleared all individuals.");
+#endif
 }
 
 void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individual*)>&& delete_callback) {
@@ -251,10 +253,12 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     else
         Identity::set_running_id(largest_valid + Idx_t(1));
     
+#ifndef NDEBUG
     print("[IManager] Removed frames from ", from, ".");
     print("[IManager] Inactive individuals: ", track::inactive_individuals);
     print("[IManager] Active individuals: ", track::last_active ? Meta::toStr(*track::last_active) : "null");
     print("[IManager] All individuals: ", individuals());
+#endif
 }
 
 bool IndividualManager::has_individual(Idx_t fdx) noexcept {

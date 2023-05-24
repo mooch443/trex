@@ -1843,7 +1843,8 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 #endif
             rawblobs = CPULabeling::run(task->current->get(), task->list_cache, true);
 
-        constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag);
+        constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
+                                | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
         for (auto& blob : task->tags.tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
