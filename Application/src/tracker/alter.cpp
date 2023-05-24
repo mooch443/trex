@@ -1599,7 +1599,8 @@ private:
         fg::Webcam camera;
         
         SETTING(frame_rate) = Settings::frame_rate_t(25);
-        SETTING(filename) = file::Path("webcam");
+        if(SETTING(filename).value<file::Path>().empty())
+            SETTING(filename) = file::Path("webcam");
         
         setDefaultSettings();
         _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
