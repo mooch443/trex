@@ -340,7 +340,7 @@ namespace pv {
         virtual void stop_writing() override;
         
     public:
-        void set_resolution(const Size2& size) { _header.resolution = (cv::Size)size; }
+        void set_resolution(const Size2& size) { _header.resolution = Size2((cv::Size)size); }
         void set_average(const cv::Mat& average);
         const Header& header() const; //{ return _header; }
         Header& header(); //{ return _header; }

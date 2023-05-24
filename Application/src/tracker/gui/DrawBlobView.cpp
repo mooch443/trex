@@ -413,7 +413,7 @@ void draw_blob_view(const DisplayParameters& parm)
     });
     
     static pv::bid last_blob_id;
-    if(_clicked_blob_id.load().valid() && _clicked_blob_frame == GUI::frame()) {
+    if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == GUI::frame()) {
         static std::shared_ptr<Entangled> popup;
         static std::shared_ptr<Dropdown> list;
         if(popup == nullptr) {

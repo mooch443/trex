@@ -144,11 +144,11 @@ TEST_P(TestPairing, TestOrder) {
     p0.set_timestamp((uint64_t)ts);
     
     p1 = std::move(p0);
-    ASSERT_EQ(p1.timestamp(), ts);
+    ASSERT_EQ(p1.timestamp(), ts.get());
     ASSERT_EQ(p1.index(), 42_f);
     
     p0 = pv::Frame(p1);
-    ASSERT_EQ(p0.timestamp(), ts);
+    ASSERT_EQ(p0.timestamp(), ts.get());
     ASSERT_EQ(p0.index(), 42_f);
     
     /**
