@@ -12,24 +12,13 @@ import cv2
 
 import torch
 import pickle
-import cloudpickle
 from torchvision import transforms
 from torch.nn import functional as F
 import torchvision.transforms as T
 import torchvision
 import torch.backends.cudnn as cudnn
 
-from utils.general import non_max_suppression
 import numpy as np
-import detectron2
-from detectron2.modeling.poolers import ROIPooler
-from detectron2.structures import Boxes
-from detectron2.utils.memory import retry_if_cuda_oom
-from detectron2.layers import paste_masks_in_image
-
-from models.common import DetectMultiBackend
-from utils.general import non_max_suppression# (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, 
-from utils.general import Profile
 import os
 import numpy as np
 
@@ -72,6 +61,10 @@ def t_predict(t_model, device, image_size, offsets, im, conf_threshold = 0.25, i
 
     #dt = (Profile(), Profile(), Profile())
     global dt
+    from utils.general import Profile
+    if type(dt) == type(None):
+        dt = (Profile(), Profile(), Profile())
+
     with dt[0]:
         im = torch.from_numpy(im).to(device)
         im = im.half() if t_model.fp16 else im.float()  # uint8 to fp16/32
@@ -161,6 +154,8 @@ def t_predict(t_model, device, image_size, offsets, im, conf_threshold = 0.25, i
     pred = None
     prediction = None
     proto = None
+
+    from utils.general import non_max_suppression
 
     with dt[1]:
         preds, outs = t_model(im, augment=None, visualize=None)
@@ -285,9 +280,7 @@ offsets = None
 iou_threshold = 0.25
 conf_threshold = 0.2
 
-seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
-
-#t_predict = None
+seen, windows, dt = 0, [], None
 
 def load_model():
     global model, model_path, segmentation_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
@@ -314,6 +307,7 @@ def load_model():
         else:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         import pickle
+        import cloudpickle
         with open(model_path, "rb") as f:
             content = pickle.load(f)
 
@@ -955,8 +949,6 @@ def predict_custom_yolo7_seg(offsets, im, mask_res=56):
 
     from detectron2.modeling.poolers import ROIPooler
     from detectron2.structures import Boxes
-    from detectron2.utils.memory import retry_if_cuda_oom
-    from detectron2.layers import paste_masks_in_image
 
     def crop(masks, boxes):
         """
@@ -1168,6 +1160,7 @@ def predict_yolo7_seg(image):
         return masks_preds
 
     def non_max_suppression_mask_conf(prediction, attn, bases, pooler, hyp, conf_thres=0.1, iou_thres=0.6, merge=False, classes=None, agnostic=False, mask_iou=None, vote=False):
+        from detectron2.structures import Boxes
 
         if prediction.dtype is torch.float16:
             prediction = prediction.float()  # to FP32
@@ -1317,6 +1310,9 @@ def predict_yolo7_seg(image):
     nb, _, height, width = image.shape
     names = t_model.names
     pooler_scale = t_model.pooler_scale
+
+    from detectron2.structures import Boxes
+    from detectron2.modeling.poolers import ROIPooler
     pooler = ROIPooler(output_size=hyp['mask_resolution'], scales=(pooler_scale,), sampling_ratio=1, pooler_type='ROIAlignV2', canonical_level=2)
 
     output, output_mask, output_mask_score, output_ac, output_ab = non_max_suppression_mask_conf(inf_out, attn, bases, pooler, hyp, conf_thres=0.15, iou_thres=1.0, merge=False, vote=False, mask_iou=None)
@@ -1366,6 +1362,8 @@ def predict_yolo7_seg(image):
 
     return np.ascontiguousarray(np.array(shapes, dtype=np.uint8).flatten()), np.array(results, dtype=np.float32)
 
+    from detectron2.utils.memory import retry_if_cuda_oom
+    from detectron2.layers import paste_masks_in_image
 
     pred_masks = retry_if_cuda_oom(paste_masks_in_image)( original_pred_masks, bboxes, (height, width), threshold=0.5)
     pred_masks_np = pred_masks.detach().cpu().numpy()
