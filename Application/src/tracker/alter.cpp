@@ -1022,9 +1022,7 @@ public:
                                    .finite = false,
                                    .length = Frame_t{}}),
           source(std::move(source))
-    {
-        
-    }
+    { }
 
     tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() override {
         try {
@@ -1597,6 +1595,7 @@ private:
     void open_camera() {
         using namespace grab;
         fg::Webcam camera;
+        camera.set_color_mode(ImageMode::RGB);
         
         SETTING(frame_rate) = Settings::frame_rate_t(25);
         if(SETTING(filename).value<file::Path>().empty())

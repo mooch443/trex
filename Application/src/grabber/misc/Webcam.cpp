@@ -34,13 +34,17 @@ namespace fg {
         if(tmp.empty())
             return false;
         
-        std::vector<cv::Mat> array;
-        cv::split(tmp, array);
-        
-        auto img = cv::Mat(cv::max(array[2], cv::Mat(cv::max(array[0], array[1]))));
-        assert((uint)img.cols == image.cols && (uint)img.rows == image.rows);
-        
-        image.create(img, image.index());
+        if(_color_mode == ImageMode::GRAY) {
+            std::vector<cv::Mat> array;
+            cv::split(tmp, array);
+            
+            auto img = cv::Mat(cv::max(array[2], cv::Mat(cv::max(array[0], array[1]))));
+            assert((uint)img.cols == image.cols && (uint)img.rows == image.rows);
+            
+            image.create(img, image.index());
+        } else {
+            image.create(tmp, image.index());
+        }
         return true;
     }
 }

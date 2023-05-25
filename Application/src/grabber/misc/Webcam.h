@@ -2,12 +2,14 @@
 #define _WEBCAM_H
 
 #include <types.h>
+#include <video/Video.h>
 #include "Camera.h"
 
 namespace fg {
     class Webcam : public Camera {
         Size2 _size;
         cv::VideoCapture _capture;
+        GETTER_SETTER_I(ImageMode, color_mode, ImageMode::GRAY)
         
     public:
         Webcam();

@@ -183,6 +183,8 @@ public:
             printf("Not executing since weight == %f\n", _c->weight());
         } else
             printf("Not executing since object is nullptr\n");*/
+        //clean_up();
+        std::unique_lock guard(_mutex);
         _c = nullptr;
     }
     
