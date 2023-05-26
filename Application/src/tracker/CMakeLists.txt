@@ -124,7 +124,12 @@ if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
 endif()
 
 # add actual executable
-add_executable(${TREXA_EXEC_NAME} alter.cpp Alterface.cpp Alterface.h "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+add_executable(${TREXA_EXEC_NAME} alter.cpp Alterface.cpp Alterface.h 
+    Scene.h
+    FileOpenerScene.cpp
+    FileOpenerScene.h
+    VideoOpenerScene.cpp
+    VideoOpenerScene.h "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
 target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_tracking tracker_misc framegrabber_misc pv commons Commons::OpenCV)
 
 add_executable(${TREX_EXEC_NAME} ${SRCS})
