@@ -28,6 +28,7 @@
 #include <grabber/misc/Webcam.h>
 
 #include <misc/TaskPipeline.h>
+#include <Scene.h>
 
 using namespace cmn;
 
@@ -51,132 +52,6 @@ template<typename T>
 concept overlay_function = requires {
     requires std::invocable<T, TileImage&&>;
     //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::Ptr>;
-};
-
-using namespace gui;
-
-class Scene {
-    GETTER(std::string, name)
-    std::vector<Layout::Ptr> _children;
-    Base* _window{nullptr};
-    std::function<void(Scene&, DrawStructure& base)> _draw;
-    
-    static inline std::mutex _mutex;
-    static inline std::unordered_map<const DrawStructure*, std::string> _active_scenes;
-    
-public:
-    Scene(Base& window, const std::string& name, std::function<void(Scene&, DrawStructure& base)> draw)
-        : _name(name), _window(&window), _draw(draw)
-    {
-        
-    }
-    
-    auto window() const { return _window; }
-    virtual ~Scene() {
-        deactivate();
-    }
-    
-    virtual void activate() {
-        print("Activating scene ", _name);
-    }
-    virtual void deactivate() {
-        print("Deactivating scene ", _name);
-    }
-    
-    void draw(DrawStructure& base) {
-        _draw(*this, base);
-    }
-};
-
-class SceneManager {
-    Scene* active_scene{nullptr};
-    std::map<std::string, Scene*> _scene_registry;
-    std::queue<std::function<void()>> _queue;
-    std::mutex _mutex;
-    
-    // Private constructor to prevent external instantiation
-    SceneManager() {}
-    
-public:
-    // Deleted copy constructor and assignment operator
-    SceneManager(const SceneManager&) = delete;
-    SceneManager& operator=(const SceneManager&) = delete;
-    
-    static SceneManager& getInstance() {
-        static SceneManager instance;  // Singleton instance
-        return instance;
-    }
-
-    void set_active(Scene* scene) {
-        auto fn = [this, scene]() {
-            if (active_scene && active_scene != scene) {
-                active_scene->deactivate();
-            }
-            active_scene = scene;
-            if (scene)
-                scene->activate();
-        };
-        enqueue(fn);
-    }
-    
-    void register_scene(Scene* scene) {
-        std::unique_lock guard{_mutex};
-        _scene_registry[scene->name()] = scene;
-    }
-    
-    void set_active(std::string name) {
-        if (name.empty()) {
-            set_active(nullptr);
-            return;
-        }
-        
-        Scene* ptr{nullptr};
-        
-        if (std::unique_lock guard{_mutex};
-            _scene_registry.contains(name))
-        {
-            ptr = _scene_registry.at(name);
-        }
-        
-        if (ptr) {
-            set_active(ptr);
-        } else {
-            throw std::invalid_argument("Cannot find the given Scene name.");
-        }
-    }
-    
-    ~SceneManager() {
-        update_queue();
-        if (active_scene)
-            active_scene->deactivate();
-    }
-    
-    void update(DrawStructure& graph) {
-        update_queue();
-        if (active_scene)
-            active_scene->draw(graph);
-    }
-    
-    void update_queue() {
-        std::unique_lock guard{_mutex};
-        while (not _queue.empty()) {
-            auto f = std::move(_queue.front());
-            _queue.pop();
-            guard.unlock();
-            try {
-                f();
-            } catch (...) {
-                // pass
-            }
-            guard.lock();
-        }
-    }
-    
-private:
-    void enqueue(auto&& task) {
-        std::unique_lock guard(_mutex);
-        _queue.push(std::move(task));
-    }
 };
 
 static Size2 expected_size(640, 640);
@@ -1159,8 +1034,8 @@ struct OverlayedVideo {
         requires _clean_same<SourceType, VideoSource>
     OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
         : source(std::make_unique<VideoSourceVideoSource>(std::move(s))), overlay(std::move(fn)),
-            apply_net(50u,
-                10u,
+            apply_net(10u,
+                5u,
                 "ApplyNet",
                 [this, callback = std::move(callback)](){
                     return retrieve_next(callback);
@@ -1173,8 +1048,8 @@ struct OverlayedVideo {
         requires _clean_same<SourceType, fg::Webcam>
     OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
         : source(std::make_unique<WebcamVideoSource>(std::move(s))), overlay(std::move(fn)),
-            apply_net(50u,
-                10u,
+            apply_net(10u,
+                5u,
                 "ApplyNet",
                 [this, callback = std::move(callback)](){
                     return retrieve_next(callback);
@@ -1665,7 +1540,10 @@ private:
         
         try {
             print("Loading source = ", SETTING(source).value<std::string>());
-            open_camera();
+            if(SETTING(source).value<std::string>() == "webcam")
+                open_camera();
+            else
+                open_video();
             
             auto size = _overlayed_video->source->size();
             window()->set_window_size(Size2(1024, size.height / size.width * 1024));
@@ -2066,6 +1944,632 @@ private:
     };
 };
 
+class LoadingScene : public Scene {
+    class FileItem {
+        GETTER(file::Path, path)
+
+    public:
+        FileItem(const file::Path& path = "");
+
+        Color base_color() const;
+        Color color() const;
+        operator std::string() const;
+        bool operator!=(const FileItem& other) const {
+            return _path != other._path;
+        }
+    };
+
+public:
+    struct Settings {
+        enum Display {
+            None = 0,
+            Browser = 2
+        } display;
+
+        std::string name;
+        std::string extension;
+        derived_ptr<Entangled> content;
+
+        Settings(const std::string& name = "", const std::string& extensions = "", const derived_ptr<Entangled>& content = nullptr, Display d = Display::Browser)
+            : display(d), name(name), extension(extensions), content(content)
+        {}
+
+        bool is_valid_extension(const file::Path& path) const {
+            return file::valid_extension(path, extension);
+        }
+
+        std::string toStr() const {
+            return name;
+        }
+
+        static std::string class_name() {
+            return "LoadingScene::Settings";
+        }
+    };
+
+protected:
+    derived_ptr<Text> _description;
+    derived_ptr<StaticText> _selected_text;
+    derived_ptr<ScrollableList<FileItem>> _list;
+    derived_ptr<Button> _button;
+    derived_ptr<Dropdown> _textfield;
+    derived_ptr<VerticalLayout> _rows;
+    derived_ptr<HorizontalLayout> _columns;
+    derived_ptr<VerticalLayout> _overall;
+    derived_ptr<HorizontalLayout> _tabs_bar;
+    std::unordered_map<int, derived_ptr<Tooltip>> _tooltips;
+    std::vector<Layout::Ptr> tabs_elements;
+    std::vector<FileItem> _names;
+    std::vector<Dropdown::TextItem> _search_items;
+
+    file::Path _path;
+    bool _running;
+
+    std::set<file::Path, std::function<bool(const file::Path&, const file::Path&)>> _files;
+    file::Path _selected_file;
+    GETTER(file::Path, confirmed_file)
+        std::function<void(const file::Path&, std::string)> _callback, _on_select_callback;
+    std::function<void(DrawStructure&)> _on_update;
+    std::function<bool(file::Path)> _validity;
+    std::function<void(file::Path)> _on_open;
+    std::function<void(std::string)> _on_tab_change;
+    std::queue<std::function<void()>> _execute;
+    std::mutex _execute_mutex;
+    std::map<std::string, Settings> _tabs;
+    GETTER(Settings, current_tab)
+        Settings _default_tab;
+
+    // The HorizontalLayout for the two buttons and the image
+    HorizontalLayout _main_layout;
+
+    dyn::Context context {
+        .variables = {
+            {
+                "global",
+                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                    return GlobalSettings::map();
+                }))
+            }
+        }
+    };
+    dyn::State state;
+    std::vector<Layout::Ptr> objects;
+
+public:
+    LoadingScene(Base& window, const file::Path& start, const std::string& extension,
+        std::function<void(const file::Path&, std::string)> callback,
+        std::function<void(const file::Path&, std::string)> on_select_callback)
+        : Scene(window, "loading-scene", [this](auto&, DrawStructure& graph) { _draw(graph); }),
+        _description(std::make_shared<Text>("Please choose a file in order to continue.", Loc(10, 10), Font(0.75))),
+        _columns(std::make_shared<HorizontalLayout>()),
+        _overall(std::make_shared<VerticalLayout>()),
+        _path(start),
+        _running(true),
+        _files([](const file::Path& A, const file::Path& B) -> bool {
+        return (A.is_folder() && !B.is_folder()) || (A.is_folder() == B.is_folder() && A.str() < B.str()); //A.str() == ".." || (A.str() != ".." && ((A.is_folder() && !B.is_folder()) || (A.is_folder() == B.is_folder() && A.str() < B.str())));
+            }),
+        _callback(callback),
+        _on_select_callback(on_select_callback)
+    {
+        auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
+        print(window.window_dimensions().mul(dpi));
+        _default_tab.extension = extension;
+        
+    }
+
+    void activate() override {
+        set_tab("");
+
+        ((IMGUIBase*)window())->set_open_files_fn([this](const std::vector<file::Path>& paths) -> bool {
+            if (paths.size() != 1)
+                return false;
+
+            auto path = paths.front();
+            if (!_validity || _validity(path)) //path.exists() || path.str() == "/" || path.add_extension("pv").exists())
+            {
+                file_selected(0, path.str());
+                return true;
+            }
+            else {
+                FormatError("Path ", path.str(), " cannot be opened.");
+            }
+            return false;
+        });
+
+        _columns->set_policy(HorizontalLayout::TOP);
+        //_columns->set_background(Transparent, Red);
+        _overall->set_policy(VerticalLayout::CENTER);
+        //_overall->set_background(Transparent, Blue);
+
+        _list = std::make_shared<ScrollableList<FileItem>>(Bounds(
+            0,
+            0,
+            //_graph->width() - 
+            20 - (_current_tab.content ? _current_tab.content->width() + 5 : 0),
+            //_graph->height() - 
+            70 - 10 - 100 - 70));
+
+        _list->set_stays_toggled(true);
+        //if(_extra)
+        //    _extra->set_background(Transparent, Green);
+
+        //auto overall_width = _list->width() + (_extra ? _extra->width() : 0);
+
+        _button = Button::MakePtr("Open", Bounds(_list->pos() + Vec2(0, _list->height() + 40), attr::Size(100, 30)));
+
+        _textfield = std::make_shared<Dropdown>(Bounds(0, 0, _list->width(), 30));
+        //_textfield = std::make_shared
+        _textfield->on_select([this](long_t, const Dropdown::TextItem& item) {
+            file::Path path;
+
+            if (((std::string)item).empty()) {
+                path = _textfield->textfield()->text();
+            }
+            else
+                path = file::Path((std::string)item);
+
+            if (!_validity || _validity(path))
+            {
+                file_selected(0, path.str());
+                if (!path.is_regular())
+                    _textfield->select_textfield();
+            }
+            else
+                FormatError("Path ", path.str(), " cannot be opened.");
+            });
+
+        _textfield->on_text_changed([this](std::string str) {
+            auto path = file::Path(str);
+            auto file = (std::string)path.filename();
+
+            if (path.empty() || (path == _path || ((!path.exists() || !path.is_folder()) && path.remove_filename() == _path)))
+            {
+                // still in the same folder
+            }
+            else if (utils::endsWith(str, file::Path::os_sep()) && path != _path && path.is_folder()) {
+                file_selected(0, path);
+            }
+            });
+
+        _rows = std::make_shared<VerticalLayout>(std::vector<Layout::Ptr>{
+            _textfield, _list
+        });
+        //_rows->set_background(Transparent, Yellow);
+
+        _columns->set_name("Columns");
+        _rows->set_name("Rows");
+
+        if (_current_tab.content && !_selected_file.empty())
+            _columns->set_children({ _rows, _current_tab.content });
+        else
+            _columns->set_children({ _rows });
+
+        _overall->set_children({ _columns });
+
+        //update_size();
+
+        if (!_path.exists())
+            _path = ".";
+
+        try {
+            auto files = _path.find_files(_current_tab.extension);
+            _files.clear();
+            _files.insert(files.begin(), files.end());
+            _files.insert("..");
+
+        }
+        catch (const UtilsException& ex) {
+            FormatError("Cannot list folder ", _path, " (", ex.what(), ").");
+        }
+
+        update_names();
+
+        _textfield->textfield()->set_text(_path.str());
+        //_textfield->set_text(_path.str());
+
+        //_graph->set_scale(_base.dpi_scale() * gui::interface_scale());
+        _list->on_select([this](auto i, auto& path) { file_selected(i, path.path()); });
+
+        _button->set_font(gui::Font(0.6f, Align::Center));
+        _button->on_click([this](auto) {
+            _running = false;
+            _confirmed_file = _selected_file;
+            if (_on_open)
+                _on_open(_confirmed_file);
+            });
+
+        _list->set_font(gui::Font(0.6f, gui::Align::Left));
+
+        //update_size();
+    }
+
+    void deactivate() override {
+        // Logic to clear or save state if needed
+    }
+
+    void _draw(DrawStructure& graph) {
+        using namespace gui;
+        tf::show();
+
+        {
+            std::lock_guard<std::mutex> guard(_execute_mutex);
+            auto N = _execute.size();
+            while (!_execute.empty()) {
+                _execute.front()();
+                _execute.pop();
+            }
+            if (N > 0)
+                update_size(graph);
+        }
+
+        _list->set_bounds(Bounds(
+            0,
+            0,
+            graph.width() - 
+            20 - (_current_tab.content ? _current_tab.content->width() + 5 : 0),
+            graph.height() - 
+            70 - 10 - 100 - 70));
+        update_size(graph);
+
+        if (!_list)
+            return;
+
+        //_graph->wrap_object(*_textfield);
+        //_graph->wrap_object(*_list);
+        graph.wrap_object(*_overall);
+        if (_on_update)
+            _on_update(graph);
+
+        auto scale = graph.scale().reciprocal();
+        auto dim = window()->window_dimensions().mul(scale * gui::interface_scale());
+        graph.draw_log_messages(Bounds(Vec2(), dim));
+        if (!_tooltips.empty()) {
+            for (auto&& [ID, obj] : _tooltips)
+                graph.wrap_object(*obj);
+        }
+
+        if (!_selected_file.empty()) {
+
+        }
+        if (SETTING(terminate))
+            _running = false;
+    }
+
+    void set_tabs(const std::vector<Settings>&);
+    void set_tab(std::string);
+    void open();
+    void execute(std::function<void()>&&);
+    virtual void update_size(DrawStructure& graph);
+    void on_update(std::function<void(DrawStructure&)>&& fn) { _on_update = std::move(fn); }
+    void on_open(std::function<void(file::Path)>&& fn) { _on_open = std::move(fn); }
+    void on_tab_change(std::function<void(std::string)>&& fn) { _on_tab_change = std::move(fn); }
+    void set_validity_check(std::function<bool(file::Path)>&& fn) { _validity = std::move(fn); }
+    void deselect();
+    void set_tooltip(int ID, Drawable*, const std::string&);
+
+private:
+    void file_selected(size_t i, file::Path path);
+    void update_names();
+    void update_tabs();
+    void change_folder(const file::Path&);
+};
+
+void LoadingScene::set_tabs(const std::vector<Settings>& tabs) {
+    _tabs.clear();
+    tabs_elements.clear();
+
+    for (auto tab : tabs) {
+        if (tab.extension == "")
+            tab.extension = _default_tab.extension;
+        _tabs[tab.name] = tab;
+
+        auto button = new Button(tab.name, attr::Size(Base::default_text_bounds(tab.name).width + 20, 40));
+        button->set_fill_clr(Color(100, 100, 100, 255));
+        button->set_toggleable(true);
+        button->on_click([this, button](auto) {
+            if (button->toggled()) {
+                set_tab(button->txt());
+            }
+            });
+        auto ptr = std::shared_ptr<Drawable>(button);
+        tabs_elements.push_back(ptr);
+    }
+
+    if (_tabs.size() > 1) {
+        _tabs_bar = std::make_shared<HorizontalLayout>(tabs_elements);
+    }
+    else {
+        _tabs_bar = nullptr;
+    }
+
+    std::vector<Layout::Ptr> childs;
+    if (_tabs_bar)
+        childs.push_back(_tabs_bar);
+
+    childs.push_back(_columns);
+
+    if (_selected_text && _button) {
+        childs.push_back(_selected_text);
+        childs.push_back(_button);
+    }
+
+    _overall->set_children(childs);
+
+    if (!_tabs.empty())
+        set_tab(tabs.front().name);
+    else
+        set_tab("");
+}
+
+void LoadingScene::deselect() {
+    file_selected(0, "");
+}
+
+void LoadingScene::set_tab(std::string tab) {
+    if (tab != _current_tab.name) {
+    }
+    else
+        return;
+
+    if (tab.empty()) {
+        _current_tab = _default_tab;
+
+        if (_on_tab_change)
+            _on_tab_change(_current_tab.name);
+        deselect();
+
+    }
+    else if (!_tabs.count(tab)) {
+        auto str = Meta::toStr(_tabs);
+        FormatExcept("FileChooser ", str, " does not contain tab ", tab, ".");
+    }
+    else {
+        _current_tab = _tabs.at(tab);
+        if (_on_tab_change)
+            _on_tab_change(_current_tab.name);
+        deselect();
+    }
+
+    for (auto& ptr : tabs_elements) {
+        if (static_cast<Button*>(ptr.get())->txt() != tab) {
+            static_cast<Button*>(ptr.get())->set_toggle(false);
+            static_cast<Button*>(ptr.get())->set_clickable(true);
+        }
+        else {
+            static_cast<Button*>(ptr.get())->set_toggle(true);
+            static_cast<Button*>(ptr.get())->set_clickable(false);
+        }
+    }
+
+    change_folder(_path);
+    if (!_selected_file.empty())
+        file_selected(0, _selected_file);
+
+    if (_current_tab.content) {
+        _current_tab.content->auto_size(Margin{ 0,0 });
+        _current_tab.content->set_name("Extra");
+    }
+
+    if (_current_tab.display == Settings::Display::None) {
+        _rows->set_children({});
+
+    }
+    else {
+        _rows->set_children(std::vector<Layout::Ptr>{
+            _textfield, _list
+        });
+    }
+
+    //update_size();
+    //_graph->set_dirty(&_base);
+}
+
+void LoadingScene::update_names() {
+    _names.clear();
+    _search_items.clear();
+    for (auto& f : _files) {
+        if (f.str() == ".." || !utils::beginsWith((std::string)f.filename(), '.')) {
+            _names.push_back(FileItem(f));
+            _search_items.push_back(Dropdown::TextItem(f.str()));
+        }
+    }
+    _list->set_items(_names);
+    _textfield->set_items(_search_items);
+}
+
+void LoadingScene::set_tooltip(int ID, Drawable* ptr, const std::string& docs)
+{
+    auto it = _tooltips.find(ID);
+    if (!ptr) {
+        if (it != _tooltips.end())
+            _tooltips.erase(it);
+
+    }
+    else {
+        if (it == _tooltips.end()) {
+            _tooltips[ID] = std::make_shared<Tooltip>(ptr, 400);
+            _tooltips[ID]->text().set_default_font(Font(0.5));
+            it = _tooltips.find(ID);
+        }
+        else
+            it->second->set_other(ptr);
+
+        it->second->set_text(docs);
+    }
+}
+
+LoadingScene::FileItem::FileItem(const file::Path& path) : _path(path)
+{
+
+}
+
+LoadingScene::FileItem::operator std::string() const {
+    return std::string(_path.filename());
+}
+
+Color LoadingScene::FileItem::base_color() const {
+    return _path.is_folder() ? Color(80, 80, 80, 200) : Color(100, 100, 100, 200);
+}
+
+Color LoadingScene::FileItem::color() const {
+    return _path.is_folder() ? Color(180, 255, 255, 255) : White;
+}
+
+/*void LoadingScene::open() {
+    _base.loop();
+    if (_callback)
+        _callback(_confirmed_file, _current_tab.name);
+}*/
+
+void LoadingScene::change_folder(const file::Path& p) {
+    auto org = _path;
+    auto copy = _files;
+
+    if (p.str() == "..") {
+        try {
+            _path = _path.remove_filename();
+            auto files = _path.find_files(_current_tab.extension);
+            _files.clear();
+            _files.insert(files.begin(), files.end());
+            _files.insert("..");
+
+            _list->set_scroll_offset(Vec2());
+            _textfield->textfield()->set_text(_path.str());
+
+        }
+        catch (const UtilsException&) {
+            _path = org;
+            _files = copy;
+        }
+        update_names();
+
+    }
+    else if (p.is_folder()) {
+        try {
+            _path = p;
+            auto files = _path.find_files(_current_tab.extension);
+            _files.clear();
+            _files.insert(files.begin(), files.end());
+            _files.insert("..");
+
+            _list->set_scroll_offset(Vec2());
+            _textfield->textfield()->set_text(_path.str() + file::Path::os_sep());
+
+        }
+        catch (const UtilsException&) {
+            _path = org;
+            _files = copy;
+        }
+        update_names();
+    }
+}
+
+void LoadingScene::file_selected(size_t, file::Path p) {
+    if (!p.empty() && (p.str() == ".." || p.is_folder())) {
+        change_folder(p);
+
+    }
+    else {
+        _selected_file = p;
+        if (!_selected_file.empty() && _selected_file.remove_filename() != _path) {
+            change_folder(_selected_file.remove_filename());
+        }
+
+        if (p.empty()) {
+            _selected_file = file::Path();
+            _selected_text = nullptr;
+            if (_tabs_bar)
+                _overall->set_children({
+                    _tabs_bar,
+                    _columns
+                    });
+            else
+                _overall->set_children({
+                    _columns
+                    });
+
+        }
+        else {
+            if (!_selected_text)
+                _selected_text = std::make_shared<StaticText>("Selected: " + _selected_file.str(), SizeLimit(700, 0), Font(0.6f));
+            else
+                _selected_text->set_txt("Selected: " + _selected_file.str());
+
+            if (_tabs_bar)
+                _overall->set_children({
+                    _tabs_bar,
+                    _columns,
+                    _selected_text,
+                    _button
+                    });
+            else
+                _overall->set_children({
+                    _columns,
+                    _selected_text,
+                    _button
+                    });
+        }
+        _overall->update_layout();
+
+        if (!_selected_file.empty() && _on_select_callback)
+            _on_select_callback(_selected_file, _current_tab.extension);
+        //update_size();
+    }
+
+    update_names();
+}
+
+void LoadingScene::update_size(DrawStructure& graph) {
+    float s = graph.scale().x / gui::interface_scale();
+
+    if (_selected_text && !_selected_file.empty()) {
+        _selected_text->set_max_size(Size2(graph.width() / s, -1));
+    }
+
+    //if(_tabs_bar) _tabs_bar->auto_size(Margin{0,0});
+    //if(_tabs_bar) _tabs_bar->update_layout();
+
+    if (_current_tab.display == Settings::Display::None) {
+        if (_current_tab.content) {
+            _columns->set_children(std::vector<Layout::Ptr>{_current_tab.content});
+        }
+        else
+            _columns->clear_children();
+
+    }
+    else if (_current_tab.content && !_selected_file.empty())
+        _columns->set_children({ _rows, _current_tab.content });
+    else
+        _columns->set_children({ _rows });
+
+    //_columns->set_background(Transparent, Purple);
+    if (_current_tab.content)
+        _current_tab.content->auto_size(Margin{ 0,0 });
+
+    float left_column_height = graph.height() / s - 50 - 10 - (_selected_text && !_selected_file.empty() ? _button->height() + 85 : 0) - (_tabs_bar ? _tabs_bar->height() + 10 : 0);
+    _button->set_bounds(Bounds(_list->pos() + Vec2(0, left_column_height), Size2(100, 30)));
+
+    float left_column_width = graph.width() / s - 20
+        - (_current_tab.content && _current_tab.content->width() > 20 && !_selected_file.empty() ? _current_tab.content->width() + 30 : 0) - 10;
+
+    _list->set_bounds(Bounds(0, 0, left_column_width, left_column_height));
+    _textfield->set_bounds(Bounds(0, 0, left_column_width, 30));
+
+    /*if (_rows) _rows->auto_size(Margin{0,0});
+    if(_rows) _rows->update_layout();
+
+    _columns->auto_size(Margin{0,0});
+    _columns->update_layout();*/
+
+    _overall->auto_size(Margin{ 0,0 });
+    _overall->update_layout();
+}
+
+void LoadingScene::execute(std::function<void()>&& fn) {
+    std::lock_guard<std::mutex> guard(_execute_mutex);
+    _execute.push(std::move(fn));
+}
+
 class StartingScene : public Scene {
     file::Path _image_path = file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_1024.png");
 
@@ -2105,7 +2609,7 @@ public:
     : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
       _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
       _recent_items(std::make_shared<ScrollableList<>>(Bounds(0, 10, 310, 500))),
-      _video_file_button(std::make_shared<Button>("Load video", attr::Size(150, 50))),
+      _video_file_button(std::make_shared<Button>("Open file", attr::Size(150, 50))),
       _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50)))
     {
         auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
@@ -2114,13 +2618,14 @@ public:
         // Callback for video file button
         _video_file_button->on_click([](auto){
             // Implement logic to handle the video file
-            SceneManager::getInstance().set_active("converting");
+            SceneManager::getInstance().set_active("loading-scene");
         });
 
         // Callback for camera button
         _camera_button->on_click([](auto){
             // Implement logic to start recording from camera
-            print("Camera button clicked!");
+            SETTING(source).value<std::string>() = "webcam";
+            SceneManager::getInstance().set_active("converting");
         });
         
         // Create a new HorizontalLayout for the buttons
@@ -2152,9 +2657,9 @@ public:
     void activate() override {
         // Fill the recent items list
         _recent_items->set_items({
-            TextItem("/Volumes/Public/work/allison/videos/2022/olivia_momo-carrot_t4t_041822.mp4", 0),
-            TextItem("recent item 1", 1),
-            TextItem("recent item 2", 2)
+            TextItem("olivia_momo-carrot_t4t_041822.mp4", 0),
+            TextItem("DJI_0268.MOV", 1),
+            TextItem("8guppies_20s", 2)
         });
     }
 
@@ -2327,7 +2832,13 @@ int main(int argc, char**argv) {
     ConvertScene converting(base);
     manager.register_scene(&converting);
     //manager.set_active(&converting);
-    
+
+    LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
+        }, [](const file::Path&, std::string) {
+
+        });
+    manager.register_scene(&loading);
+
     graph.set_size(Size2(1024, converting.output_size().height / converting.output_size().width * 1024));
     
     base.platform()->set_icons({
