@@ -2618,7 +2618,7 @@ public:
         // Callback for video file button
         _video_file_button->on_click([](auto){
             // Implement logic to handle the video file
-            SceneManager::getInstance().set_active("loading-scene");
+            SceneManager::getInstance().set_active("converting");
         });
 
         // Callback for camera button
