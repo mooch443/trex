@@ -788,12 +788,12 @@ struct Yolo8InstanceSegmentation {
         }).get();
     }
     
-    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector) {
+    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, const std::span<float>& mask_points) {
         //thread_print("Received seg-data for frame ", data.frame.index());
         static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
         for(size_t i=0; i<vector.size(); i+=4+2) {
-            float conf = vector[i+5];
-            float cls = vector[i+4];
+            float conf = vector[i+4];
+            float cls = vector[i+5];
             
             if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
                 continue;
@@ -805,6 +805,27 @@ struct Yolo8InstanceSegmentation {
             std::vector<HorizontalLine> lines;
             std::vector<uchar> pixels;
             auto conversion = [&]<ImageMode mode>(){
+                const Vec2* ptr = (const Vec2*)mask_points.data();
+                const size_t N = mask_points.size() / 2u;
+                assert(mask_points.size() % 2u == 0);
+                
+                std::vector<cv::Point> integer;
+                integer.reserve(N);
+                Bounds boundaries(FLT_MAX, FLT_MAX, 0, 0);
+                for(auto it = ptr, end = ptr + N; it != end; ++it) {
+                    integer.emplace_back(saturate(it->x, 0.f, 1.f) * data.image->cols,
+                                         saturate(it->y, 0.f, 1.f) * data.image->rows);
+                    boundaries.insert_point(integer.back());
+                }
+                boundaries.width -= boundaries.x;
+                boundaries.height -= boundaries.y;
+                
+                print("Boundaries: ", boundaries);
+                
+                cv::Mat mask = cv::Mat::zeros(data.image->rows, data.image->cols, CV_8UC1);
+                cv::fillConvexPoly(mask, integer, 255, 8, 0);
+                tf::imshow("current mask", mask);
+                
                 for(int y = pos.y; y < pos.y + dim.height; ++y) {
                     // integer overflow deals with this, lol
                     if(/*y < 0 || */uint(y) >= data.image->rows)
@@ -901,12 +922,21 @@ struct Yolo8InstanceSegmentation {
             bbx.set_variable("image", images);
             bbx.set_variable("oimages", oimages);
             
+            std::vector<uint64_t> mask_Ns;
+            std::vector<float> mask_points;
+            
             auto recv = [&](std::vector<uint64_t> Ns,
                             std::vector<float> vector)
             {
                 size_t elements{0};
+                size_t outline_elements{0};
                 //thread_print("Received a number of results: ", Ns);
                 //thread_print("For elements: ", datas);
+                
+                if(datas.empty() and not Ns.empty()) {
+                    FormatExcept("Empty datas with Ns being set: ", datas.size(), " / ", Ns.size());
+                    return;
+                }
 
                 if(Ns.empty()) {
                     for(size_t i=0; i<datas.size(); ++i) {
@@ -935,8 +965,18 @@ struct Yolo8InstanceSegmentation {
                                           vector.data() + (elements + Ns.at(i)) * 6u);
                     elements += Ns.at(i);
                     
+                    std::span<float> mask_span;
+                    if(not mask_Ns.empty()) {
+                        mask_span = {
+                            mask_points.data() + outline_elements * 2u,
+                            mask_points.data() + (outline_elements + mask_Ns.at(i)) * 2u
+                        };
+                        thread_print("Data[",i,"] -> ", mask_span.size(), " elements.");
+                        outline_elements += mask_Ns.at(i);
+                    }
+                    
                     try {
-                        receive(data, scale, span);
+                        receive(data, scale, span, mask_span);
                         promises.at(i).set_value(std::move(data));
                     } catch(...) {
                         promises.at(i).set_exception(std::current_exception());
@@ -952,6 +992,15 @@ struct Yolo8InstanceSegmentation {
             
             bbx.set_function("receive", recv);
             bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
+                                                     std::vector<float> m_points)
+            {
+                thread_print("Received seg masks with:", Ns);
+                thread_print("and ", m_points.size() / 2, " mask points.");
+                
+                mask_Ns = std::move(Ns);
+                mask_points = std::move(m_points);
+            });
+            /*bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
                                         std::vector<float> vector,
                                         std::vector<float> masks,
                                         std::vector<float> meta,
@@ -1060,7 +1109,7 @@ struct Yolo8InstanceSegmentation {
                 }
                 
                 recv(Ns, vector);
-            });
+            });*/
 
             try {
                 bbx.run("apply");
@@ -3304,6 +3353,7 @@ void launch_gui() {
     manager.set_active(nullptr);
     manager.update_queue();
     graph.root().set_stage(nullptr);
+    Detection::manager.~PipelineManager<TileImage>();
 }
 
 int main(int argc, char**argv) {

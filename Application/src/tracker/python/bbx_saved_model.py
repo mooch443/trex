@@ -328,10 +328,13 @@ class TRexYOLO8:
         if self.segmentation_model is None and not self.model is None:
             print("only object detection")
             tensor = [i for i in im]#torch.from_numpy(np.transpose(im, (0,3,1,2))).to(self.device)
-            results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold)
+            results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=True)
 
             Ns = []
             boxes = []
+
+            mask_Ns = []
+            mask_points = []
             for i, result in enumerate(results):
                 coords = result.boxes.data.cpu().numpy()
                 shape = im[i].shape
@@ -364,11 +367,41 @@ class TRexYOLO8:
                     Ns.append(coords.shape[0])
 
                 if not result.masks is None:
-                    print("masks=", result.masks.xyn.shape)
-                    print("xyn=", result.masks.xyn)
+                    '''print("masks=", result.masks.data.shape, result.masks.data.dtype, np.histogram(result.masks.data.numpy()))
+                    print("masks=", result.masks.data[0])
+                    print("names=",[result.names[cli] for cli in coords[..., -1].astype(np.int)])
+                    h,w = result.masks.data.shape[1:]
+                    full = np.copy(result.orig_img)
+
+                    for k, points in enumerate(result.masks.xyn):
+                        coord = coords[k, :4]
+                        print("coord=", coord)
+                        
+                        # cp[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])])# = [0,0,255]
+                        cp = cv2.cvtColor((result.masks.data[k] * 255).cpu().numpy().astype(np.uint8), cv2.COLOR_GRAY2BGR)
+                        prev = points[-1]
+                        for x,y in points:
+                            cv2.circle(full, (int(x*w), int(y*h)), 1, (255,0,0), 1)
+                            cv2.line(full, (int(prev[0]*w), int(prev[1]*h)), (int(x*w), int(y*h)), (0,255,0), 2)
+                            prev = (x,y)
+
+
+                        kimg = np.copy(cp[int(coord[1]-1):int(coord[3]+1), int(coord[0]-1):int(coord[2]+1)])
+                        print("kimg=", kimg.shape, "points=", points.shape)
+                        TRex.imshow("sub"+str(k), kimg)
+                    
+                    TRex.imshow("mask",full)
+                    #print("xyn=", result.masks.xyn)'''
+                    mask_Ns.append([points.shape[0] for points in result.masks.xyn])
+                    mask_points.append(np.concatenate(result.masks.xyn, dtype=np.float32).flatten())
+
+                    #print(mask_Ns)
+                    #print("xyns=", flatter.shape)
                 
-                print("final coords=",coords)
-                
+            mask_Ns = np.concatenate(mask_Ns, axis=0, dtype=int)
+            mask_points = np.concatenate(mask_points, axis=0, dtype=np.float32)
+            receive_with_seg(mask_Ns, mask_points)
+
             boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
             Ns = np.array(Ns, dtype=int)
             print("resulting boxes=", boxes.shape, "Ns=", Ns)
