@@ -823,7 +823,7 @@ struct Yolo8InstanceSegmentation {
                 print("Boundaries: ", boundaries);
                 
                 cv::Mat mask = cv::Mat::zeros(data.image->rows, data.image->cols, CV_8UC1);
-                cv::fillConvexPoly(mask, integer, 255, 8, 0);
+                cv::fillPoly(mask, integer, 255, 8, 0);
                 tf::imshow("current mask", mask);
                 
                 for(int y = pos.y; y < pos.y + dim.height; ++y) {
