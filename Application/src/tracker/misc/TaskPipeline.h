@@ -100,7 +100,7 @@ struct SegmentationData {
         float p;
     };
     
-    std::map<pv::bid, Assignment> predictions;
+    std::vector<Assignment> predictions;
     std::vector<std::vector<Vec2>> outlines;
     
     operator bool() const {

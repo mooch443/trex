@@ -326,11 +326,75 @@ class TRexYOLO8:
         global receive
         print("inference for ", im.shape)
         if self.segmentation_model is None and not self.model is None:
-            return
+            print("only object detection")
+            tensor = [i for i in im]#torch.from_numpy(np.transpose(im, (0,3,1,2))).to(self.device)
+            results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold)
+
+            Ns = []
+            boxes = []
+            for i, result in enumerate(results):
+                coords = result.boxes.data.cpu().numpy()
+                shape = im[i].shape
+                print("shape=", shape, " ", result.orig_img.shape)
+                print(result)
+                #coords[:, :4] = ops.scale_boxes(result.orig_shape, coords[:, :4], shape).round()
+
+                #coords[..., :2] = coords[..., :2] / np.array(result.orig_shape)[::-1]
+                #coords[..., 2:4] = coords[..., 2:4] / np.array(result.orig_shape)[::-1]
+                #coords[..., :2] *= np.array([im.shape[2], im.shape[1]])
+                #coords[..., 2:4] *= np.array([im.shape[2], im.shape[1]])
+                #print(result)
+                boxes.append(coords)
+
+                if not result.keypoints is None:
+                    print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
+                    print(result.keypoints.shape)
+                    print("orig_shape...=",result.orig_shape)
+                    keys = result.keypoints.cpu().numpy()[..., :2]
+                    #keys = result.keypoints.cpu().numpy()[..., :2]/np.array(result.orig_shape)[::-1]
+                    #keys *= np.array([im.shape[1], im.shape[2]])
+                    from_keys = []
+                    #print(keys)
+                    for x,y in keys[0]:
+                        from_keys.append((x - 5, y - 5, x + 5, y + 5, 0.5, 0))
+                    #print(keys)
+                    boxes.append(from_keys)
+                    Ns.append(coords.shape[0] + len(from_keys))
+                else:
+                    Ns.append(coords.shape[0])
+
+                if not result.masks is None:
+                    print("masks=", result.masks.xyn.shape)
+                    print("xyn=", result.masks.xyn)
+                
+                print("final coords=",coords)
+                
+            boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
+            Ns = np.array(Ns, dtype=int)
+            print("resulting boxes=", boxes.shape, "Ns=", Ns)
+            boxes = boxes.flatten()
+            receive(Ns, boxes)
+
         elif not self.segmentation_model is None and self.model is None:
             print("only inference segmentation")
             tensor = torch.from_numpy(np.transpose(im, (0,3,1,2))).to(self.device)
-            print("result: ",self.segmentation_model(tensor, imgsz=self.image_size))
+            results = self.model(tensor, imgsz=self.image_size)
+
+            Ns = []
+            boxes = []
+            for i, result in enumerate(results):
+                coords = result.boxes.data.cpu().numpy()
+                print(result)
+                print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
+                boxes.append(coords)
+                Ns.append(coords.shape[0])
+
+            #print(boxes)
+            boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
+            Ns = np.array(Ns, dtype=int)
+            print("resulting boxes=", boxes.shape, "Ns=", Ns)
+            boxes = boxes.flatten()
+            receive(Ns, boxes)
 
 def load_model():
     global model, model_path, segmentation_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model

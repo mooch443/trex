@@ -353,7 +353,7 @@ File::File(const file::Path& filename, FileMode mode)
         _mask.push_back(std::move(pair.lines));
         _pixels.push_back(std::move(pair.pixels));
         _flags.push_back(pair.extra_flags);
-        if(pair.pred.valid()) {
+        if(pair.pred.valid() or not _predictions.empty()) {
             _predictions.resize(_flags.size());
             _predictions.back() = std::move(pair.pred);
         }
