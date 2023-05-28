@@ -282,10 +282,63 @@ conf_threshold = 0.2
 
 seen, windows, dt = 0, [], None
 
+# a class that encapsulates the YOLOv8 model loading and inference
+class TRexYOLO8:
+    def __init__(self, model_path, segmentation_path, image_size=640):
+        if torch.backends.mps.is_available():
+            self.device = torch.device("cpu") # mps still has bugs, but you can try :-)
+        else:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        self.model = None
+        self.segmentation_model = None
+        if model_path == "":
+            model_path = None
+        if segmentation_path == "":
+            segmentation_path = None
+        
+        self.model_path = model_path
+        self.segmentation_path = segmentation_path
+        self.image_size = 640
+        self.segmentation_resolution = 128
+        self.load_models()
+
+        # log configuration and loaded models
+        TRex.log("TRexYOLO8 configuration: model={} segmentation={} image_size={}".format(self.model_path, self.segmentation_path, self.image_size))
+        TRex.log("Loaded models: model={} segmentation={}".format(self.model is not None, self.segmentation_model is not None))
+
+    def load_models(self):
+        from ultralytics import YOLO
+        import torch
+
+        TRex.log("Loading models: model={} segmentation={}".format(self.model_path, self.segmentation_path))
+        if not self.model_path is None:
+            TRex.log("Loading model from {}".format(self.model_path))
+            self.model = YOLO(self.model_path, task="detect")
+        if not self.segmentation_path is None:
+            TRex.log("Loading segmentation model from {}".format(self.segmentation_path))
+            self.segmentation_model = YOLO(self.segmentation_path, task="detect")
+
+        if self.model is None and self.segmentation_model is None:
+            raise Exception("No model loaded - please specify a model path or segmentation path for TRexYOLO8")
+
+    def inference(self, im, offsets, conf_threshold=0.15, iou_threshold=0.35):
+        global receive
+        print("inference for ", im.shape)
+        if self.segmentation_model is None and not self.model is None:
+            return
+        elif not self.segmentation_model is None and self.model is None:
+            print("only inference segmentation")
+            tensor = torch.from_numpy(np.transpose(im, (0,3,1,2))).to(self.device)
+            print("result: ",self.segmentation_model(tensor, imgsz=self.image_size))
+
 def load_model():
     global model, model_path, segmentation_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
     print("loading model type", model_type)
-    if model_type == "yolo7seg":
+    if model_type == "yolo8seg" or model_type == "yolo8":
+        model = TRexYOLO8(model_path, segmentation_path, image_size[0])
+        
+    elif model_type == "yolo7seg":
         from models.common import DetectMultiBackend
         if torch.backends.mps.is_available():
             device = torch.device("cpu")
@@ -736,6 +789,10 @@ def apply():
             results = predict_custom_yolo7_seg(offsets, im)
             print("sending: ", results[0].shape, results[1])
             receive(results[0], results[1], results[2])
+
+        elif model_type == "yolo8" or model_type == "yolo8seg":
+            im = np.array(image, copy=False)[..., :3]
+            model.inference(im, offsets=offsets, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
 
         elif model_type == "yolo7":
             #profiler = Profiler()

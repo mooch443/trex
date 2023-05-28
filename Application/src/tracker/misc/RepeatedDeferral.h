@@ -21,81 +21,83 @@ struct RepeatedDeferral {
     
     std::condition_variable _message, _new_item;
     mutable std::mutex _mutex;
-    std::unique_lock<std::mutex> _init_guard{_mutex};
-    std::thread _updater;
+    std::unique_ptr<std::thread> _updater{nullptr};
     std::atomic<bool> _terminate{ false };
     
-    RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn) : _threads(threads), _minimal_fill(minimal_fill), _fn(std::forward<F>(fn)), name(name),
-    _updater([this]() {
-        set_thread_name(this->name+"_update_thread");
-        std::unique_lock guard(_mutex);
-        _message.notify_all();
-        _message.wait(guard);
-        
-        Timer runtime;
-        
-        while (not _terminate) {
-            if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
-                //thread_print(this->name.c_str(), " #NEXT Sleeping at ", _next.size());
-                _message.wait(guard);
-                //thread_print(this->name.c_str(), " #NEXT Wake at ", _next.size());
-            }
-            
-            if (not _terminate and _next.size() < _threads)
-            {
-                _since_last += since_last.elapsed() * 1000;
-                _ssamples++;
-                
-                R r;
-                double e;
-                
-                guard.unlock();
-                try {
-                    runtime.reset();
-                    r = _fn();
-                    e = runtime.elapsed();
-                }
-                catch (...) {
-                    //p.set_exception(std::current_exception());
-                }
-                guard.lock();
-                
-                _next.push_back(std::move(r));
-                _new_item.notify_one();
-                
-                //thread_print(this->name.c_str(), " #NEXT Filled up to ", _next.size());
-                
-                //std::unique_lock guard(mtiming);
-                _runtime += e * 1000;
-                _rsamples++;
-                
-                {
-                    //std::unique_lock guard(mtiming);
-                    //++predicted;
-                    
-                    if (since_print.elapsed() > 5) {
-                        std::unique_lock guard(mtiming);
-                        //auto total = (_waiting / _samples);
-                        thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ",
-                                     (_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
-                        
-                        if (_rsamples > 1000) {
-                            _waiting = _samples = 0;
-                            _runtime = _rsamples = 0;
-                            _since_last = _ssamples = 0;
-                            _average_fill_state = _as = 0;
-                        }
-                        since_print.reset();
-                    }
-                }
-                
-                since_last.reset();
-            }
-        }
-    })
+    RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn) : _threads(threads), _minimal_fill(minimal_fill), _fn(std::forward<F>(fn)), name(name)
     {
-        _message.wait(_init_guard);
-        _init_guard = {};
+        std::condition_variable v;
+        auto tfn = [this, &v]() mutable {
+            set_thread_name(this->name+"_update_thread");
+            std::unique_lock guard(_mutex);
+            v.notify_all();
+            _message.wait(guard);
+            
+            Timer runtime;
+            
+            while (not _terminate) {
+                if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
+                    //thread_print(this->name.c_str(), " #NEXT Sleeping at ", _next.size());
+                    _message.wait(guard);
+                    //thread_print(this->name.c_str(), " #NEXT Wake at ", _next.size());
+                }
+                
+                if (not _terminate and _next.size() < _threads)
+                {
+                    _since_last += since_last.elapsed() * 1000;
+                    _ssamples++;
+                    
+                    R r;
+                    double e;
+                    
+                    guard.unlock();
+                    try {
+                        runtime.reset();
+                        r = _fn();
+                        e = runtime.elapsed();
+                    }
+                    catch (...) {
+                        //p.set_exception(std::current_exception());
+                    }
+                    guard.lock();
+                    
+                    _next.push_back(std::move(r));
+                    _new_item.notify_one();
+                    
+                    //thread_print(this->name.c_str(), " #NEXT Filled up to ", _next.size());
+                    
+                    //std::unique_lock guard(mtiming);
+                    _runtime += e * 1000;
+                    _rsamples++;
+                    
+                    {
+                        //std::unique_lock guard(mtiming);
+                        //++predicted;
+                        
+                        if (since_print.elapsed() > 5) {
+                            std::unique_lock guard(mtiming);
+                            //auto total = (_waiting / _samples);
+                            thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ",
+                                         (_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
+                            
+                            if (_rsamples > 1000) {
+                                _waiting = _samples = 0;
+                                _runtime = _rsamples = 0;
+                                _since_last = _ssamples = 0;
+                                _average_fill_state = _as = 0;
+                            }
+                            since_print.reset();
+                        }
+                    }
+                    
+                    since_last.reset();
+                }
+            }
+        };
+        _updater = std::make_unique<std::thread>(std::move(tfn));
+        
+        std::unique_lock guard(_mutex);
+        v.wait(guard);
     }
     
     void notify() {
@@ -108,7 +110,9 @@ struct RepeatedDeferral {
         //    _next_image.get();
         _terminate = true;
         notify();
-        _updater.join();
+        if(_updater->joinable())
+            _updater->join();
+        _updater = nullptr;
     }
     
     bool has_next() const {
