@@ -3070,7 +3070,10 @@ int main(int argc, char**argv) {
     base.platform()->set_icons({
         file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
         file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_32.png"),
-        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_64.png")
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_48.png"),
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_64.png"),
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_128.png"),
+        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_256.png")
     });
     
     file::cd(file::DataLocation::parse("app"));
