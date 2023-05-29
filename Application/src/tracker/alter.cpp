@@ -788,47 +788,134 @@ struct Yolo8InstanceSegmentation {
         }).get();
     }
     
-    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, const std::span<float>& mask_points) {
-        //thread_print("Received seg-data for frame ", data.frame.index());
+    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, 
+        const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns) 
+    {
         static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
-        for(size_t i=0; i<vector.size(); i+=4+2) {
+        static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+
+        const Vec2* ptr = (const Vec2*)mask_points.data();
+        const size_t N = mask_points.size() / 2u;
+        assert(mask_points.size() % 2u == 0);
+
+        // convert list of points to integer coordinates
+        std::vector<cv::Point> integer;
+        integer.reserve(N);
+        for (auto it = ptr, end = ptr + N; it != end; ++it) {
+            integer.emplace_back(roundf(saturate(it->x, 0.f, 1.f) * data.image->cols),
+                roundf(saturate(it->y, 0.f, 1.f) * data.image->rows));
+        }
+
+        size_t mask_index = 0;
+        cv::Mat r3;
+        if  (mode == ImageMode::R3G3B2)
+            convert_to_r3g3b2(data.image->get(), r3);
+        else if  (mode == ImageMode::GRAY)
+            cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
+
+        //thread_print("Received seg-data for frame ", data.frame.index());
+        for(size_t i=0, m = 0; i<vector.size(); i+=4+2, m++) {
             float conf = vector[i+4];
             float cls = vector[i+5];
-            
-            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
-                continue;
             
             Vec2 pos = Vec2(vector[i+0], vector[i+1]);
             Size2 dim = Size2(vector[i+2] - pos.x, vector[i+3] - pos.y).mul(scale_factor);
             pos = pos.mul(scale_factor);
             
-            std::vector<HorizontalLine> lines;
-            std::vector<uchar> pixels;
-            auto conversion = [&]<ImageMode mode>(){
-                const Vec2* ptr = (const Vec2*)mask_points.data();
-                const size_t N = mask_points.size() / 2u;
-                assert(mask_points.size() % 2u == 0);
-                
-                std::vector<cv::Point> integer;
-                integer.reserve(N);
-                Bounds boundaries(FLT_MAX, FLT_MAX, 0, 0);
-                for(auto it = ptr, end = ptr + N; it != end; ++it) {
-                    integer.emplace_back(saturate(it->x, 0.f, 1.f) * data.image->cols,
-                                         saturate(it->y, 0.f, 1.f) * data.image->rows);
-                    boundaries.insert_point(integer.back());
+            if (mask_Ns[m] == 0)
+                continue;
+
+            //std::vector<HorizontalLine> lines;
+            //std::vector<uchar> pixels;
+
+            thread_print("** ", i, " ", pos, " ", dim, " ", conf, " ", cls, " ", mask_Ns[m], " **");
+            thread_print("  getting integers from ", mask_index, " to ", mask_index + mask_Ns[m], " (", integer.size(), "/",N,")");
+            assert(mask_index + mask_Ns[m] <= integer.size());
+            std::vector<cv::Point> points{ integer.data() + mask_index, integer.data() + mask_index + mask_Ns[m] };
+            mask_index += mask_Ns[m];
+
+            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
+                continue;
+
+            Bounds boundaries(FLT_MAX, FLT_MAX, 0, 0);
+            for (auto& pt : points) {
+                boundaries.insert_point(pt);
+            }
+
+            boundaries.width -= boundaries.x;
+            boundaries.height -= boundaries.y;
+
+            boundaries.restrict_to(data.image->bounds());
+
+            // subtract boundary xy from all points
+            for (auto& p : points) {
+                p.x -= boundaries.x;
+                p.y -= boundaries.y;
+            }
+
+            print("Boundaries: ", boundaries);
+
+            cv::Mat mask = cv::Mat::zeros(boundaries.height + 1, boundaries.width + 1, CV_8UC1);
+            cv::fillPoly(mask, points, 255);
+            assert(mask.cols > 0 && mask.rows > 0);
+            //tf::imshow("current mask " + Meta::toStr(i), mask);
+
+            //cv::bitwise_and(r3, mask, r3);
+
+            auto blobs = CPULabeling::run(mask);
+            if (not blobs.empty()) {
+                size_t msize = 0, midx = 0;
+                for (size_t j = 0; j < blobs.size(); ++j) {
+                    if (blobs.at(j).pixels->size() > msize) {
+                        msize = blobs.at(j).pixels->size();
+                        midx = j;
+                    }
                 }
-                boundaries.width -= boundaries.x;
-                boundaries.height -= boundaries.y;
-                
-                print("Boundaries: ", boundaries);
-                
-                cv::Mat mask = cv::Mat::zeros(data.image->rows, data.image->cols, CV_8UC1);
-                cv::fillPoly(mask, integer, 255, 8, 0);
-                tf::imshow("current mask", mask);
-                
-                for(int y = pos.y; y < pos.y + dim.height; ++y) {
+
+                auto&& pair = blobs.at(midx);
+                size_t num_pixels{ 0u };
+                for (auto& line : *pair.lines) {
+                    line.x0 = saturate(coord_t(line.x0 + boundaries.x), coord_t(0), coord_t(r3.cols - 1));
+                    line.x1 = saturate(coord_t(line.x1 + boundaries.x), line.x0, coord_t(r3.cols - 1));
+                    line.y = saturate(coord_t(line.y + boundaries.y), coord_t(0), coord_t(r3.rows - 1));
+                    num_pixels += line.x1 - line.x0 + 1;
+                }
+
+                pair.pred = blob::Prediction{
+                    .clid = static_cast<uint8_t>(cls),
+                    .p = uint8_t(float(conf) * 255.f)
+                };
+                pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+
+                for (auto& line : *pair.lines) {
+                    if (line.x0 >= r3.cols
+                        || line.x1 >= r3.cols
+                        || line.y >= r3.rows)
+                        throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
+                }
+                pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+                //pair.pixels = (blob.calculate_pixels(r3));
+                pair.pixels = std::make_unique<std::vector<uchar>>(num_pixels);
+                std::fill(pair.pixels->begin(), pair.pixels->end(), 255);
+
+                auto points = pixel::find_outer_points(&blob, 0);
+                if (not points.empty()) {
+                    data.outlines.emplace_back(std::move(*points.front()));
+                }
+
+                data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
+                data.frame.add_object(std::move(pair));
+            }
+            //cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR);
+            //cv::rectangle(mask, boundaries, cv::Scalar(0, 0, 255), 1);
+
+
+            auto conversion = [&]<ImageMode mode>(){
+
+
+                /*for (int y = pos.y; y < pos.y + dim.height; ++y) {
                     // integer overflow deals with this, lol
-                    if(/*y < 0 || */uint(y) >= data.image->rows)
+                    if(uint(y) >= data.image->rows)
                         continue;
                     
                     HorizontalLine line{
@@ -848,7 +935,7 @@ struct Yolo8InstanceSegmentation {
                     }
                     
                     lines.emplace_back(std::move(line));
-                }
+                }*/
             };
             
             
@@ -865,11 +952,11 @@ struct Yolo8InstanceSegmentation {
             //tf::imshow("mat", full_image);
             //tf::imshow("back2", back);
             
-            if(not lines.empty()) {
+            /*if (not lines.empty()) {
                 pv::Blob blob(lines, 0);
                 data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
                 data.frame.add_object(lines, pixels, 0, blob::Prediction{ .clid = uint8_t(cls), .p = uint8_t(float(conf) * 255.f) });
-            }
+            }*/
         }
     }
     
@@ -957,26 +1044,38 @@ struct Yolo8InstanceSegmentation {
                 }
 
                 assert(Ns.size() == datas.size());
+                size_t mask_Ns_index{0};
                 for(size_t i=0; i<datas.size(); ++i) {
                     auto& data = datas.at(i);
                     auto& scale = scales.at(i);
                     
                     std::span<float> span(vector.data() + elements * 6u,
                                           vector.data() + (elements + Ns.at(i)) * 6u);
+                    std::span<uint64_t> Ns_span;
                     elements += Ns.at(i);
                     
                     std::span<float> mask_span;
                     if(not mask_Ns.empty()) {
+                        size_t e{0};
+                        for (size_t m = 0; m < Ns.at(i); ++m) {
+                            e += mask_Ns.at(mask_Ns_index + m);
+                        }
+
+                        Ns_span = {
+                            mask_Ns.data() + mask_Ns_index,
+                            mask_Ns.data() + mask_Ns_index + Ns.at(i)
+                        };
                         mask_span = {
                             mask_points.data() + outline_elements * 2u,
-                            mask_points.data() + (outline_elements + mask_Ns.at(i)) * 2u
+                            mask_points.data() + (outline_elements + e) * 2u
                         };
-                        thread_print("Data[",i,"] -> ", mask_span.size(), " elements.");
-                        outline_elements += mask_Ns.at(i);
+                        thread_print("Data[", i, "] -> ", mask_span.size(), " elements.");
+                        outline_elements += e;
+                        mask_Ns_index += Ns.at(i);
                     }
                     
                     try {
-                        receive(data, scale, span, mask_span);
+                        receive(data, scale, span, mask_span, Ns_span);
                         promises.at(i).set_value(std::move(data));
                     } catch(...) {
                         promises.at(i).set_exception(std::current_exception());
@@ -1353,13 +1452,13 @@ protected:
 public:
     AbstractBaseVideoSource(VideoInfo info)
     : info(info),
-    _source_frame(75u, 25u,
+    _source_frame(50u, 15u,
                   std::string("source.frame"),
                   [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>
                   {
         return fetch_next();
     }),
-    _resize_cvt(50u, 10u,
+    _resize_cvt(50u, 15u,
                 std::string("resize+cvtColor"),
                 [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
         return this->fetch_next_process();
@@ -2038,7 +2137,12 @@ private:
         } else {
             print("Loading from file...");
             bg = cv::imread(average_name().str());
-            cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+            if(bg.cols == tmp.size().width && bg.rows == tmp.size().height)
+                cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+            else {
+                tmp.generate_average(bg, 0);
+                cv::imwrite(average_name().str(), bg);
+            }
         }
         
         _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));

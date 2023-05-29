@@ -288,7 +288,7 @@ class TRexYOLO8:
         if torch.backends.mps.is_available():
             self.device = torch.device("cpu") # mps still has bugs, but you can try :-)
         else:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         
         self.model = None
         self.segmentation_model = None
@@ -314,7 +314,7 @@ class TRexYOLO8:
         TRex.log("Loading models: model={} segmentation={}".format(self.model_path, self.segmentation_path))
         if not self.model_path is None:
             TRex.log("Loading model from {}".format(self.model_path))
-            self.model = YOLO(self.model_path, task="detect")
+            self.model = YOLO(self.model_path, task="segment")
         if not self.segmentation_path is None:
             TRex.log("Loading segmentation model from {}".format(self.segmentation_path))
             self.segmentation_model = YOLO(self.segmentation_path, task="detect")
@@ -322,7 +322,7 @@ class TRexYOLO8:
         if self.model is None and self.segmentation_model is None:
             raise Exception("No model loaded - please specify a model path or segmentation path for TRexYOLO8")
 
-    def inference(self, im, offsets, conf_threshold=0.15, iou_threshold=0.35):
+    def inference(self, im, offsets, conf_threshold=0.15, iou_threshold=0.4):
         global receive
         print("inference for ", im.shape)
         if self.segmentation_model is None and not self.model is None:
@@ -338,8 +338,8 @@ class TRexYOLO8:
             for i, result in enumerate(results):
                 coords = result.boxes.data.cpu().numpy()
                 shape = im[i].shape
-                print("shape=", shape, " ", result.orig_img.shape)
-                print(result)
+                #print("shape=", shape, " ", result.orig_img.shape)
+                #print(result)
                 #coords[:, :4] = ops.scale_boxes(result.orig_shape, coords[:, :4], shape).round()
 
                 #coords[..., :2] = coords[..., :2] / np.array(result.orig_shape)[::-1]
@@ -392,17 +392,25 @@ class TRexYOLO8:
                     
                     TRex.imshow("mask",full)
                     #print("xyn=", result.masks.xyn)'''
+                    print("xyn[",i,"] = ", [points.shape for points in result.masks.xyn])
                     mask_Ns.append([points.shape[0] for points in result.masks.xyn])
                     mask_points.append(np.concatenate(result.masks.xyn, dtype=np.float32).flatten())
 
                     #print(mask_Ns)
                     #print("xyns=", flatter.shape)
-                
-            mask_Ns = np.concatenate(mask_Ns, axis=0, dtype=int)
-            mask_points = np.concatenate(mask_points, axis=0, dtype=np.float32)
-            receive_with_seg(mask_Ns, mask_points)
+            
+            if len(mask_Ns) > 0:
+                mask_Ns = np.concatenate(mask_Ns, axis=0, dtype=int)
+                mask_points = np.concatenate(mask_points, axis=0, dtype=np.float32)
 
-            boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
+                assert np.sum(mask_Ns.flatten()) == len(mask_points) // 2
+                receive_with_seg(mask_Ns, mask_points)
+
+            if len(boxes) > 0:
+                boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
+            else:
+                boxes = np.array([], dtype=np.float32)
+                Ns = []
             Ns = np.array(Ns, dtype=int)
             print("resulting boxes=", boxes.shape, "Ns=", Ns)
             boxes = boxes.flatten()
