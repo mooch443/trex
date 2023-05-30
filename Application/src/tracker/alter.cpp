@@ -894,9 +894,9 @@ struct Yolo8InstanceSegmentation {
                         throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
                 }
                 pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
-                //pair.pixels = (blob.calculate_pixels(r3));
-                pair.pixels = std::make_unique<std::vector<uchar>>(num_pixels);
-                std::fill(pair.pixels->begin(), pair.pixels->end(), 255);
+                pair.pixels = (blob.calculate_pixels(r3));
+                //pair.pixels = std::make_unique<std::vector<uchar>>(num_pixels);
+                //std::fill(pair.pixels->begin(), pair.pixels->end(), 255);
 
                 auto points = pixel::find_outer_points(&blob, 0);
                 if (not points.empty()) {
@@ -1765,6 +1765,7 @@ struct OverlayedVideo {
             
             Size2 original_size(use->cols, use->rows);
             
+            expected_size = original_size;
             Size2 new_size(expected_size);
             if(SETTING(tile_image).value<size_t>() > 1) {
                 size_t tiles = SETTING(tile_image).value<size_t>();

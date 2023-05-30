@@ -322,13 +322,33 @@ class TRexYOLO8:
         if self.model is None and self.segmentation_model is None:
             raise Exception("No model loaded - please specify a model path or segmentation path for TRexYOLO8")
 
-    def inference(self, im, offsets, conf_threshold=0.15, iou_threshold=0.4):
+    def inference(self, im, offsets, conf_threshold=0.4, iou_threshold=0.25):
         global receive
         print("inference for ", im.shape)
         if self.segmentation_model is None and not self.model is None:
-            print("only object detection")
-            tensor = [i for i in im]#torch.from_numpy(np.transpose(im, (0,3,1,2))).to(self.device)
-            results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=True)
+            print("only object detection ", im.shape)
+
+            # preprocess image
+            '''from ultralytics.yolo.data.augment import LetterBox
+            stride = max(int(self.model.model.stride.cpu().numpy().max()), 32)
+            print("stride = ", stride)
+            print(self.image_size)
+            print([(type(x), x.shape) for x in im])
+            tensor = [LetterBox(int(self.image_size), auto=True, stride=stride)(image=x) for x in im]
+            print([x.shape for x in tensor])
+            tensor = np.stack(tensor)
+            print(tensor.shape, tensor.dtype)
+            tensor = tensor.transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW, (n, 3, h, w)
+            print(tensor.shape, tensor.dtype)
+            tensor = np.ascontiguousarray(tensor)  # contiguous
+            tensor = torch.from_numpy(tensor)'''
+
+            #tensor = [i for i in im]
+            tensor = [cv2.cvtColor(i, cv2.COLOR_BGR2RGB) for i in im]
+            #tensor = np.ascontiguousarray(np.transpose(tensor, (0,3,1,2)))
+            #tensor = torch.from_numpy(tensor).to(self.device)#.float() / 255.0
+            #print("sending tensor to model: ", tensor.shape)
+            results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=False)
 
             Ns = []
             boxes = []
@@ -336,6 +356,11 @@ class TRexYOLO8:
             mask_Ns = []
             mask_points = []
             for i, result in enumerate(results):
+                #result = self.model(img[None, ...], imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=False)[0]
+                #r = result.cpu().plot(img=im[i])
+                #print("cpu results:", r)
+                #TRex.imshow("result", r)
+                
                 coords = result.boxes.data.cpu().numpy()
                 shape = im[i].shape
                 #print("shape=", shape, " ", result.orig_img.shape)
@@ -367,11 +392,12 @@ class TRexYOLO8:
                     Ns.append(coords.shape[0])
 
                 if not result.masks is None:
-                    '''print("masks=", result.masks.data.shape, result.masks.data.dtype, np.histogram(result.masks.data.numpy()))
+                    '''print("masks=", result.masks.data.shape, result.masks.data.dtype, np.histogram(result.masks.data.cpu().numpy()))
                     print("masks=", result.masks.data[0])
                     print("names=",[result.names[cli] for cli in coords[..., -1].astype(np.int)])
                     h,w = result.masks.data.shape[1:]
-                    full = np.copy(result.orig_img)
+                    full = np.copy(im[i])#np.copy(result.orig_img.cpu().numpy())
+                    print("full=",full.shape," ",full.dtype)
 
                     for k, points in enumerate(result.masks.xyn):
                         coord = coords[k, :4]
@@ -386,13 +412,15 @@ class TRexYOLO8:
                             prev = (x,y)
 
 
-                        kimg = np.copy(cp[int(coord[1]-1):int(coord[3]+1), int(coord[0]-1):int(coord[2]+1)])
-                        print("kimg=", kimg.shape, "points=", points.shape)
-                        TRex.imshow("sub"+str(k), kimg)
+                        #kimg = np.copy(cp[int(coord[1]-1):int(coord[3]+1), int(coord[0]-1):int(coord[2]+1)])
+                        #print("kimg=", kimg.shape, "points=", points.shape)
+                        #TRex.imshow("sub"+str(k), kimg)
                     
-                    TRex.imshow("mask",full)
-                    #print("xyn=", result.masks.xyn)'''
+                    TRex.imshow("mask"+str(i),full)
+                    #print("xyn=", result.masks.xyn)
                     print("xyn[",i,"] = ", [points.shape for points in result.masks.xyn])
+                    print("xyn=", result.masks.xyn)'''
+                    #print("xyn=", result.masks.orig_shape)
                     mask_Ns.append([points.shape[0] for points in result.masks.xyn])
                     mask_points.append(np.concatenate(result.masks.xyn, dtype=np.float32).flatten())
 
@@ -553,7 +581,6 @@ def clip_boxes(boxes, shape):
     #boxes[..., 1] = tf.clip_by_value(boxes[..., 1], 0, shape[0])
     #boxes[..., 2] = tf.clip_by_value(boxes[..., 2], 0, shape[1])
     #boxes[..., 3] = tf.clip_by_value(boxes[..., 3], 0, shape[0])
-
 
 def inference(model, im, size=(640,640)):
     im0 = im.shape
