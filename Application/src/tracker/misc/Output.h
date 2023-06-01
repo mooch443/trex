@@ -32,6 +32,9 @@ namespace Output {
     struct CompatibilityFrameProperties {
         float time;
         timestamp_t timestamp;
+        
+        std::string toStr() const { return "CompatibilityFrameProperties<"+std::to_string(time)+" "+timestamp.toStr()+">"; }
+        static std::string class_name() { return "CompatibilityFrameProperties"; }
     };
     
     //! Compatibility for float frame properties < V_8

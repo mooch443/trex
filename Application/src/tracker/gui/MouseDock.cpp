@@ -48,10 +48,10 @@ namespace gui {
 
         auto v = mp - instance->pos;
         auto mag = v.length();
-        v /= mag;
+        //v /= mag;
 
 
-        print("mag = ", mag, " (", sqrtf(mag) * dt * 40, ")");
+        //print("mag = ", mag, " (", sqrtf(mag) * dt * 40, ")");
 
         constexpr const char* animator = "mouse-dock-animator";
         if (mag > 5) {
