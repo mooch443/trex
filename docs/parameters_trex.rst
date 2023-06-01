@@ -2042,6 +2042,15 @@ TRex parameters
 
 
 
+.. function:: track_background_subtraction(bool)
+
+	**default value:** true
+
+
+	If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). ``track_enable_absolute_difference`` then decides whether this term is evaluated in an absolute or signed manner.
+
+
+
 .. function:: track_consistent_categories(bool)
 
 	**default value:** false
@@ -2097,6 +2106,15 @@ TRex parameters
 
 
 
+.. function:: track_label_confidence_threshold(float)
+
+	**default value:** 0.25
+
+
+	Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.
+
+
+
 .. function:: track_max_individuals(uint)
 
 	**default value:** 0
@@ -2140,6 +2158,15 @@ TRex parameters
 
 
 	If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.
+
+
+
+.. function:: track_only_segmentations(bool)
+
+	**default value:** false
+
+
+	If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.
 
 
 
@@ -2247,7 +2274,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-291-gc939b1da"
+	**default value:** "v1.1.9-369-g36e9a14_interface"
 
 
 	Current application version.

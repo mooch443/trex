@@ -76,6 +76,10 @@ ENUM_CLASS_DOCS(meta_encoding_t,
         CONFIG("cam_matrix", matrix, "");
         CONFIG("cam_scale", float(1.0), "Scales the image down or up by the given factor.");
         
+#if WITH_PYLON
+        CONFIG("cam_serial_number", std::string(), "Serial number of a Basler camera you want to choose, if multiple are present.");
+#endif
+        
 #if WITH_FFMPEG
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them with the ffmpeg API. It is not a critical component of the software, but mostly for convenience.");
         CONFIG("ffmpeg_crf", uint32_t(20), "Quality for crf (see ffmpeg documentation) used when encoding as libx264.");

@@ -58,6 +58,10 @@
 #include <X11/Xlib.h>
 #endif
 
+#if WITH_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 //-Functions-------------------------------------------------------------------
 
 ENUM_CLASS(Arguments,
