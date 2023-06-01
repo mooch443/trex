@@ -341,35 +341,53 @@ File::File(const file::Path& filename, FileMode mode)
 #ifndef NDEBUG
         HorizontalLine prev = pair.lines->empty() ? HorizontalLine() : pair.lines->front();
         
-        uint64_t count = 0;
+        uint64_t count = 0, pixel_count = 0;
         for (auto &line : *pair.lines) {
             if(!(prev == line) && !(prev < line))
                 FormatWarning("Lines not properly ordered, or overlapping in x [",prev.x0,"-",prev.x1,"] < [",line.x0,"-",line.x1,"] (",prev.y,"/",line.y,").");
             prev = line;
+            pixel_count += line.x1 - line.x0 + 1;
             ++count;
         }
+
+        assert(pixel_count == pair.pixels->size());
 #endif
         
         _mask.push_back(std::move(pair.lines));
         _pixels.push_back(std::move(pair.pixels));
         _flags.push_back(pair.extra_flags);
-        if(pair.pred.valid() or not _predictions.empty()) {
+        //if(pair.pred.valid() or not _predictions.empty()) {
             _predictions.resize(_flags.size());
             _predictions.back() = std::move(pair.pred);
-        }
+        //}
         
         _n++;
     }
 
 void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred) {
     assert(mask.size() < UINT16_MAX);
+#ifndef NDEBUG
+    HorizontalLine prev = mask.empty() ? HorizontalLine() : mask.front();
+
+    uint64_t count = 0, pixel_count = 0;
+    for (auto& line : mask) {
+        if (!(prev == line) && !(prev < line))
+            FormatWarning("Lines not properly ordered, or overlapping in x [", prev.x0, "-", prev.x1, "] < [", line.x0, "-", line.x1, "] (", prev.y, "/", line.y, ").");
+        prev = line;
+        pixel_count += line.x1 - line.x0 + 1;
+        ++count;
+    }
+
+    assert(pixel_count == pixels.size());
+#endif
+
     _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
     _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _flags.push_back(flags);
-    if(pred.valid()) {
+    //if(pred.valid()) {
         _predictions.resize(_flags.size());
         _predictions.back() = pred;
-    }
+    //}
     _n++;
 }
     
@@ -439,7 +457,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         for (auto &m : _pixels)
             bytes += m->size() * sizeof(char);
-        
+
+        bytes += sizeof(uint16_t) + sizeof(uint8_t) * 4u * _predictions.size();
         return bytes;
     }
 
@@ -476,13 +495,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         //! prediction information (if available)
         pack.write<uint16_t>(narrow_cast<uint16_t>(_predictions.size()));
-        if(not _predictions.empty()) {
+        //if(not _predictions.empty()) {
             assert(_predictions.size() == _mask.size());
 
             for(uint16_t i=0; i<_n; ++i) {
                 pack.write<cmn::blob::Prediction>(_predictions.at(i));
             }
-        }
+        //}
 
         // see whether this frame is worth compressing (size-threshold)
         if (pack.size() >= 1500) {

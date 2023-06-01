@@ -237,6 +237,10 @@ fish_index_t PairedProbabilities::add(
     size_t degree = 0;
     for(const auto & [col, p] : edges) {
         if(p >= matching_probability_threshold) {
+#ifndef NDEBUG
+            if(std::isinf(p))
+                throw U_EXCEPTION("Invalid probability: ", p, " for ", row, " -> ", col);
+#endif
             auto cdx = add(col);
             _probabilities.emplace_back(cdx, p);
             _col_edges[col].push_back(rdx);

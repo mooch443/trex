@@ -1691,10 +1691,16 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                         auto ptr = s.frame.bdx_to_ptr(blob);
                         assert(ptr != nullptr);
                         auto pos_blob = ptr->center();
-                        
-                        Match::prob_t p = Match::prob_t(1.0) / sqdistance(pos_fish.value().last_seen_px, pos_blob) / pos_fish.value().tdelta;
-                        
-                        for_this[blob] = p_threshold + p;
+                        Match::prob_t dist = sqdistance(pos_fish.value().last_seen_px, pos_blob);
+                        Match::prob_t p = dist > 0 ?
+                                Match::prob_t(1.0) / dist / pos_fish.value().tdelta
+                             :  Match::prob_t(1.0) / pos_fish.value().tdelta;
+#ifndef NDEBUG
+                        if (std::isinf(p)) {
+                            throw U_EXCEPTION("Probability is invalid for ", fish->identity(), " in ", frameIndex, " (", pos_fish.value().last_seen_px, " -> ", pos_blob, ", tdelta=", pos_fish.value().tdelta,") => ", p);
+                        }
+#endif
+                        for_this[blob] = p_threshold + p * (1 - p_threshold);
                         
                         //new_table.emplace_back(p, fish->identity().ID(), blob);
                         //new_pairings[fish->identity().ID()][blob] = p;

@@ -54,7 +54,24 @@ concept overlay_function = requires {
     //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::Ptr>;
 };
 
-static Size2 expected_size(640, 640);
+ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg, yolo8, customseg);
+static ObjectDetectionType::Class detection_type() {
+    return SETTING(detection_type).value<ObjectDetectionType::Class>();
+}
+
+Size2 get_model_image_size() {
+    auto image_width = Size2(SETTING(image_width).value<uint16_t>());
+    if (detection_type() == ObjectDetectionType::yolo8) {
+        const auto meta_video_size = SETTING(meta_video_size).value<Size2>();
+        auto size = Size2(image_width.width, meta_video_size.height / meta_video_size.width * image_width.width);
+        //print("Using a resolution of meta_video_size = ", meta_video_size, " and image_width = ", image_width, " gives a model image size of ", size);
+        return size;
+    }
+    else {
+        return Size2(image_width);
+    }
+}
+
 using namespace gui;
 
 struct TileImage {
@@ -159,14 +176,9 @@ struct TileImage {
     }
 };
 
-ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg, yolo8seg, customseg);
 static inline std::atomic<float> _fps{0}, _samples{0};
 static inline std::atomic<float> _network_fps{0}, _network_samples{0};
 static inline std::atomic<float> _video_fps{ 0 }, _video_samples{ 0 };
-
-static ObjectDetectionType::Class detection_type() {
-    return SETTING(detection_type).value<ObjectDetectionType::Class>();
-}
 
 template<typename T>
 concept MultiObjectDetection = requires (std::vector<TileImage> tiles) {
@@ -199,7 +211,7 @@ struct Yolo7ObjectDetection {
             proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
             proxy.set_variable("segmentation_resolution", (uint64_t)SETTING(segmentation_resolution).value<uint16_t>());
         }
-        proxy.set_variable("image_size", expected_size);
+        proxy.set_variable("image_size", get_model_image_size());
         proxy.run("load_model");
     }
     
@@ -774,7 +786,7 @@ struct Yolo8InstanceSegmentation {
         else
             proxy.set_variable("segmentation_path", "");
         
-        proxy.set_variable("image_size", expected_size);
+        proxy.set_variable("image_size", get_model_image_size());
         proxy.run("load_model");
     }
     
@@ -1248,7 +1260,7 @@ struct Yolo7InstanceSegmentation {
             throw U_EXCEPTION("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
         
         proxy.set_variable("model_path", SETTING(segmentation_model).value<file::Path>().str());
-        proxy.set_variable("image_size", expected_size);
+        proxy.set_variable("image_size", get_model_image_size());
         proxy.run("load_model");
     }
     
@@ -1764,18 +1776,18 @@ struct OverlayedVideo {
             image->set_index(nix.get());
             
             Size2 original_size(use->cols, use->rows);
-            
-            expected_size = original_size;
-            Size2 new_size(expected_size);
+            Size2 resized_size = get_model_image_size();
+
+            Size2 new_size(resized_size);
             if(SETTING(tile_image).value<size_t>() > 1) {
                 size_t tiles = SETTING(tile_image).value<size_t>();
                 float ratio = use->rows / float(use->cols);
-                new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
+                new_size = Size2(resized_size.width * tiles, resized_size.width * tiles * ratio).map(roundf);
                 while(use->cols < new_size.width
                       && use->rows < new_size.height
                       && tiles > 0)
                 {
-                    new_size = Size2(expected_size.width * tiles, expected_size.width * tiles * ratio).map(roundf);
+                    new_size = Size2(resized_size.width * tiles, resized_size.width * tiles * ratio).map(roundf);
                     tiles--;
                 }
             }
@@ -1788,7 +1800,7 @@ struct OverlayedVideo {
             i = nix + 1_f;
 
             //! tile image to make it ready for processing in the network
-            TileImage tiled(*use, std::move(image), expected_size, original_size);
+            TileImage tiled(*use, std::move(image), resized_size, original_size);
             tiled.callback = callback;
             source->move_back(std::move(buffer));
             
@@ -1849,7 +1861,7 @@ struct Detection {
                 Yolo7InstanceSegmentation::init();
                 break;
                 
-            case ObjectDetectionType::yolo8seg:
+            case ObjectDetectionType::yolo8:
                 Yolo8InstanceSegmentation::init();
                 break;
                 
@@ -1882,7 +1894,7 @@ struct Detection {
                 return p.get_future();
             }
                 
-            case ObjectDetectionType::yolo8seg: {
+            case ObjectDetectionType::yolo8: {
                 auto f = tiled.promise.get_future();
                 manager.enqueue(std::move(tiled));
                 return f;
@@ -1899,7 +1911,7 @@ struct Detection {
             tiled.clear();
             return;
             
-        } else if(type() == ObjectDetectionType::yolo8seg) {
+        } else if(type() == ObjectDetectionType::yolo8) {
             Yolo8InstanceSegmentation::apply(std::move(tiled));
             tiled.clear();
             return;
@@ -2110,6 +2122,7 @@ private:
         
         setDefaultSettings();
         _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+        SETTING(meta_video_size).value<Size2>() = video_base.size();
         SETTING(output_size) = _output_size;
         _video_info["resolution"] = _output_size;
         
@@ -2122,8 +2135,9 @@ private:
         );
         _video_info["length"] = _overlayed_video->source->length();
         SETTING(video_length) = uint64_t(_overlayed_video->source->length().get());
-        SETTING(meta_real_width) = float(expected_size.width * 10);
-        
+        SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
+        SETTING(meta_real_width) = float(get_model_image_size().width * 10);
+
         //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
         
         printDebugInformation();
@@ -2146,7 +2160,7 @@ private:
             }
         }
         
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
         static_assert(ObjectDetection<Detection>);
         
         _start_time = std::chrono::system_clock::now();
@@ -2182,7 +2196,8 @@ private:
         _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
         SETTING(output_size) = _output_size;
         _video_info["resolution"] = _output_size;
-        
+        SETTING(meta_video_size).value<Size2>() = camera.size();
+
         _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
                Detection{},
                std::move(camera),
@@ -2195,7 +2210,8 @@ private:
         
         _video_info["length"] = _overlayed_video->source->length();
         SETTING(video_length) = uint64_t(_overlayed_video->source->length().get());
-        SETTING(meta_real_width) = float(expected_size.width * 10);
+        SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
+        SETTING(meta_real_width) = float(get_model_image_size().width * 10);
         
         //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
         
@@ -2214,7 +2230,7 @@ private:
             cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
         }*/
         
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(expected_size.width * 10));
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
         static_assert(ObjectDetection<Detection>);
         
         _start_time = std::chrono::system_clock::now();
@@ -3532,8 +3548,6 @@ int main(int argc, char**argv) {
     _video_info.set_do_print(false);
     fish.set_do_print(false);
     
-    expected_size = Size2(SETTING(image_width).value<uint16_t>());
-    
     py::init();
     py::schedule([](){
         track::PythonIntegration::set_settings(GlobalSettings::instance());
@@ -3548,8 +3562,6 @@ int main(int argc, char**argv) {
     SETTING(app_name) = std::string("TRexA");
     SETTING(threshold) = int(100);
     SETTING(track_do_history_split) = false;
-    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
-    SETTING(meta_real_width) = float(expected_size.width * 10);
     SETTING(track_max_speed) = Settings::track_max_speed_t(300);
     SETTING(track_threshold) = Settings::track_threshold_t(0);
     SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);

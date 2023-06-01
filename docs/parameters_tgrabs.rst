@@ -96,6 +96,15 @@ TGrabs parameters
 
 
 
+.. function:: cam_serial_number(string)
+
+	**default value:** ""
+
+
+	Serial number of a Basler camera you want to choose, if multiple are present.
+
+
+
 .. function:: closing_size(int)
 
 	**default value:** 3
@@ -329,9 +338,18 @@ TGrabs parameters
 
 
 
+.. function:: meta_video_size(size)
+
+	**default value:** [0,0]
+
+
+	Resolution of the original video.
+
+
+
 .. function:: meta_write_these(array<string>)
 
-	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix","meta_video_scale","meta_classes","meta_encoding"]
+	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix","meta_video_scale","meta_video_size","meta_classes","meta_encoding"]
 
 
 	The given settings values will be written to the video file.
