@@ -3,7 +3,7 @@ from torchvision import transforms
 from torch.nn import functional as F
 import torchvision
 
-import tensorflow as tf
+#import tensorflow as tf
 import TRex
 import numpy as np
 #from tensorflow import keras
@@ -509,6 +509,7 @@ def load_model():
     else:
         image_size = np.array(image_size).astype(int)
         print("loading tensorflow model")
+        import tensorflow as tf
         model = tf.saved_model.load(model_path)
         full_model = tf.function(lambda x: model(images=x))
         full_model = full_model.get_concrete_function(
@@ -584,6 +585,7 @@ def clip_boxes(boxes, shape):
 
 def inference(model, im, size=(640,640)):
     im0 = im.shape
+    import tensorflow as tf
     im = tf.image.resize(im, size)
 
     def _xywh2xyxy(xywh):
@@ -644,6 +646,7 @@ def inference(model, im, size=(640,640)):
 
 def predict_yolov7(offsets, img, image_shape=(640,640)):
     #from utils.augmentations import augment_hsv, copy_paste, letterbox
+    import tensorflow as tf
 
     def perform_filtering(im0, im, y):
         global iou_threshold, conf_threshold
@@ -895,6 +898,7 @@ def apply():
     try:
         global model, image_size, segmentation_resolution, receive, image, oimages, model_type, offsets, t_predict, t_model, device
         if model_type == "yolo5":
+            import tensorflow as tf
             image = tf.constant(np.array(image, copy=False)[..., :3], dtype=tf.uint8)
             #print(image)
             results = inference(model, image, size=image_size)
