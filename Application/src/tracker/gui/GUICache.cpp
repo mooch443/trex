@@ -48,7 +48,7 @@ namespace gui {
     }
 
     GUICache::~GUICache() {
-        set_animating(nullptr, false);
+        clear_animators();
 
         std::lock_guard guard(percentile_mutex);
         if(percentile_ptr) {
@@ -99,23 +99,49 @@ namespace gui {
                 ? individuals.at(selected.front())
                 : nullptr;
     }
+
+    void GUICache::clear_animators() {
+        _animators.clear();
+
+        if (_graph) {
+            for (auto& [name, ptr] : _animator_map) {
+                auto handler = _delete_handles.at(ptr);
+                ptr->remove_delete_handler(handler);
+                _delete_handles.erase(ptr);
+            }
+        }
+        _animator_map.clear();
+    }
     
-    bool GUICache::is_animating(Drawable* obj) const {
+    bool GUICache::is_animating(std::string animator) const {
         if(GUI_SETTINGS(gui_happy_mode) && mode() == mode_t::tracking) {
             return true;
         }
         
-        if(!obj)
-            return !_animators.empty();
-        auto it = _animators.find(obj);
+        auto is_relevant = [this](const std::string& animator) {
+            auto it = _animator_map.find(animator);
+            if(it != _animator_map.end()) {
+                return it->second->rendered();
+			}
+            return true;
+        };
+
+        if (animator.empty()) {
+            for(auto& a : _animators)
+                if(is_relevant(a))
+					return true;
+            //return !_animators.empty();
+            return false;
+        }
+        auto it = _animators.find(animator);
         if(it != _animators.end())
             return true;
         
-        for(auto &o : _animators) {
+       /* for (auto& o : _animators) {
             if(o->is_child_of(obj)) {
                 return true;
             }
-        }
+        }*/
         
         return false;
     }
@@ -564,37 +590,45 @@ namespace gui {
         }
     }
     
-    void GUICache::set_animating(Drawable *obj, bool v) {
-        if (!obj && !v) {
-            for (auto& [_k, _v] : _delete_handles) {
-                _k->remove_delete_handler(_v);
-            }
-            _animators.clear();
-            _delete_handles.clear();
-            return;
-        }
+    void GUICache::set_animating(std::string animation, bool v, Drawable* parent) {
+        if (animation.empty())
+            throw std::invalid_argument("Empty animation.");
 
         if(v) {
-            auto it = _animators.find(obj);
+            auto it = _animators.find(animation);
             if(it == _animators.end()) {
-                _animators.insert(obj);
-                _delete_handles[obj] = obj->on_delete([this, obj](){
-                    if(!_graph)
-                        return;
-                    this->set_animating(obj, false);
-                });
+                _animators.insert(animation);
+                if (parent) {
+                    _animator_map[animation] = parent;
+                    _delete_handles[parent] = parent->on_delete([this, animation]() {
+                        if (!_graph)
+                            return;
+                        print("Animating object deleted (", animation,"). ", _animators);
+                        this->set_animating(animation, false);
+                    });
+                }
+                else if (_animator_map.contains(animation)) {
+                    _animator_map.erase(animation);
+                }
+                print("Animating object added: ", animation," (",parent,"). ", _animators);
             }
         } else {
-            auto it = _animators.find(obj);
+            auto it = _animators.find(animation);
             if(it != _animators.end()) {
-                if(_delete_handles.count(obj)) {
-                    auto handle = _delete_handles.at(obj);
-                    _delete_handles.erase(obj);
-                    obj->remove_delete_handler(handle);
-                    
-                } else
-                    FormatError("Cannot find delete handler in GUICache. Something went wrong?");
+                print("Animating object deleted.", _animators);
                 _animators.erase(it);
+                if(_animator_map.contains(animation)) {
+                    auto ptr = _animator_map.at(animation);
+                    if (_delete_handles.count(ptr)) {
+                        auto handle = _delete_handles.at(ptr);
+                        _delete_handles.erase(ptr);
+                        ptr->remove_delete_handler(handle);
+                    }
+                    else {
+                        FormatError("Cannot find delete handler in GUICache. Something went wrong?");
+                    }
+                    _animator_map.erase(animation);
+				}
             }
         }
     }
@@ -654,8 +688,7 @@ namespace gui {
 
     std::tuple<Vec2, Vec2> GUICache::scale_with_boundary(Bounds& boundary, bool recording, Base* base, DrawStructure& graph, Section* section, bool singular_boundary)
     {
-        //static Timer timer;
-        static Rect temporary;
+        constexpr const char* animation_name { "scale-boundaries-animation" };
         static Vec2 target_scale(1);
         static Vec2 target_pos(0, 0);
         static Size2 target_size(Tracker::average().dimensions());
@@ -678,7 +711,7 @@ namespace gui {
          */
         if (singular_boundary) {//SETTING(gui_auto_scale) && (singular_boundary || !SETTING(gui_auto_scale_focus_one))) {
             if (lost) {
-                GUICache::instance().set_animating(&temporary, false);
+                GUICache::instance().set_animating(animation_name, false);
             }
 
             if (boundary.x != FLT_MAX) {
@@ -721,7 +754,7 @@ namespace gui {
                 lost = true;
                 time_lost = GUICache::instance().gui_time();
                 lost_timer.reset();
-                GUICache::instance().set_animating(&temporary, true);
+                GUICache::instance().set_animating(animation_name, true);
             }
 
             if ((recording && GUICache::instance().gui_time() - time_lost >= 0.5)
@@ -731,7 +764,7 @@ namespace gui {
                 //target_pos = offset;//Vec2(0, 0);
                 target_size = Tracker::average().dimensions();
                 target_pos = screen_center - target_size * 0.5;
-                GUICache::instance().set_animating(&temporary, false);
+                GUICache::instance().set_animating(animation_name, false);
             }
         }
 
@@ -798,7 +831,7 @@ namespace gui {
         if (!section->scale().Equals(target_scale)
             || !section->pos().Equals(target_pos))
         {
-            GUICache::instance().set_animating(section, true);
+            GUICache::instance().set_animating(animation_name, true);
 
             auto playback_factor = max(1, sqrt(SETTING(gui_playback_speed).value<float>()));
             auto scale = check_target(section->scale(), target_scale, e * playback_factor);
@@ -812,7 +845,7 @@ namespace gui {
 
         }
         else {
-            GUICache::instance().set_animating(section, false);
+            GUICache::instance().set_animating(animation_name, false);
 
             section->set_scale(target_scale);
             section->set_bounds(Bounds(target_pos, target_size));

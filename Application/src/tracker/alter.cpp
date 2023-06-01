@@ -2248,7 +2248,18 @@ private:
                 open_video();
             
             auto size = _overlayed_video->source->size();
-            window()->set_window_size(Size2(1024, size.height / size.width * 1024));
+            auto work_area = ((const IMGUIBase*)window())->work_area();
+            print("work_area = ",work_area);
+            auto window_size = Size2(
+                (work_area.width - work_area.x) * 0.75, 
+                size.height / size.width * (work_area.width - work_area.x) * 0.75
+            );
+            Bounds bounds(
+                Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2, 
+                     work_area.height / 2 - window_size.height / 2 + work_area.y),
+                window_size);
+            print("setting bounds = ", bounds);
+            window()->set_window_bounds(bounds);
         
         } catch(const std::exception& e) {
             FormatExcept("Exception when switching scenes: ", e.what());

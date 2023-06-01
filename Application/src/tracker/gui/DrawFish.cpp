@@ -472,11 +472,12 @@ Fish::~Fish() {
             if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
 
+            constexpr const char* animator = "panic-button-animation";
             if(panic_button) {
                 _view.add<Line>(_posture.pos(), mp, White.alpha(50));
-                GUICache::instance().set_animating(&_view, true);
+                GUICache::instance().set_animating(animator, true);
             } else
-                GUICache::instance().set_animating(&_view, false);
+                GUICache::instance().set_animating(animator, false);
         
             _view.advance_wrap(_posture);
         
@@ -1197,18 +1198,19 @@ void Fish::updatePath(Frame_t to, Frame_t from) {
             float target_radius = 100;
             float percent = min(1, _recognition_circle->radius() / target_radius);
             
-            if(percent < 0.99) {
+            const std::string animator = "recognition-circle-"+Meta::toStr((uint64_t)this);
+            if(percent < 0.9) {
                 percent *= percent;
                 
                 _recognition_circle->set_pos(_fish_pos - _view.pos());
                 _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
                 _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
-                GUICache::instance().set_animating(&_view, true);
+                GUICache::instance().set_animating(animator, true);
                 
                 _view.advance_wrap(*_recognition_circle);
                 
             } else {
-                GUICache::instance().set_animating(&_view, false);
+                GUICache::instance().set_animating(animator, false);
             }
             
         } else if(_recognition_circle) {

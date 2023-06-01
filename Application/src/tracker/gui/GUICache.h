@@ -98,8 +98,9 @@ namespace gui {
         GETTER_I(float, dt, 0)
         std::atomic_bool _tracking_dirty = false;
         
-        std::map<Drawable*, Drawable::delete_function_handle_t> _delete_handles;
-        std::set<Drawable*> _animators;
+        std::map<std::string, gui::Drawable*> _animator_map;
+        std::map<gui::Drawable*, Drawable::delete_function_handle_t> _delete_handles;
+        GETTER(std::set<std::string>, animators)
         
     public:
         bool recognition_updated = false;
@@ -164,8 +165,9 @@ namespace gui {
         void set_blobs_dirty();
         void set_raw_blobs_dirty();
         void set_redraw();
-        void set_animating(Drawable* obj, bool v);
-        bool is_animating(Drawable* obj = nullptr) const;
+        void set_animating(std::string, bool v, Drawable* = nullptr);
+        void clear_animators();
+        bool is_animating(std::string = "") const;
         void set_dt(float dt);
         
         void set_mode(const gui::mode_t::Class&);

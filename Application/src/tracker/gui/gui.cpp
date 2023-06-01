@@ -698,11 +698,11 @@ void GUI::run_loop(gui::LoopStatus status) {
     if(!GUI::run()) {
         t = 0;
         
-        if(!GUI_SETTINGS(nowindow) && PD(cache).is_animating() &&  redraw_timer.elapsed() >= 0.2) {
-            redraw_timer.reset();
+        if(!GUI_SETTINGS(nowindow) && (PD(cache).is_animating() &&  redraw_timer.elapsed() >= 0.05)) {
+            //redraw_timer.reset();
             //set_redraw();
-            GUI::gui().set_dirty(base);
-            is_automatic = true;
+            //GUI::gui().set_dirty(base);
+            //is_automatic = true;
             
         } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.30) || recording()) {
             redraw_timer.reset();
@@ -765,10 +765,12 @@ void GUI::run_loop(gui::LoopStatus status) {
         GUI::run(false);
     }
     
+    const bool animating = PD(cache).is_animating();
     const bool changed = (base && (!GUI::gui().root().cached(base) || GUI::gui().root().cached(base)->changed())) || PD(cache).must_redraw() || status == LoopStatus::UPDATED;
-    PD(real_update) = changed && (!is_automatic || GUI::run() || recording());
+
+    PD(real_update) = changed && (!is_automatic || GUI::run() || recording() || animating);
     
-    if(changed || PD(last_frame_change).elapsed() < 0.5) {
+    if(changed) { //|| PD(last_frame_change).elapsed() < 5.5) {
         if(changed) {
             auto ptr = PD(gui).root().cached(base);
             if(base && !ptr) {
@@ -909,7 +911,7 @@ void GUI::redraw() {
     
     //const Mode mode = (Mode)VALUE(mode).value<int>();
     auto ptr = PD(gui).find("fishbowl");
-    if(ptr && (PD(cache).is_animating(ptr) || PD(cache).blobs_dirty() || PD(cache).is_tracking_dirty())) {
+    if(ptr && (PD(cache).is_animating() || PD(cache).blobs_dirty() || PD(cache).is_tracking_dirty())) {
         assert(dynamic_cast<Section*>(ptr));
         
         auto pos = static_cast<Section*>(ptr)->pos();
@@ -941,7 +943,7 @@ void GUI::draw(DrawStructure &base) {
     }
     
     PD(gui).section("show", [this, mode](DrawStructure &base, auto* section) {
-        if (!PD(real_update)) {
+        if (!PD(real_update) && not PD(cache).is_animating()) {
             section->reuse_objects();
             return;
         }
@@ -1351,8 +1353,7 @@ Size2 GUI::screen_dimensions() {
     
 std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* section, bool singular_boundary)
 {
-    //static Timer timer;
-    static Rect temporary;
+    constexpr const char* animator = "scale-boundary-gui.cpp";
     static Vec2 target_scale(1);
     static Vec2 target_pos(0,0);
     static Size2 target_size(_average_image.dimensions());
@@ -1375,7 +1376,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
      */
     if(singular_boundary) {//SETTING(gui_auto_scale) && (singular_boundary || !SETTING(gui_auto_scale_focus_one))) {
         if(lost) {
-            PD(cache).set_animating(&temporary, false);
+            //PD(cache).set_animating(animator, false);
         }
         
         if(boundary.x != FLT_MAX) {
@@ -1417,7 +1418,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
             lost = true;
             time_lost = PD(cache).gui_time();
             lost_timer.reset();
-            PD(cache).set_animating(&temporary, true);
+            PD(cache).set_animating(animator, true);
         }
         
         if((recording() && PD(cache).gui_time() - time_lost >= 0.5)
@@ -1427,7 +1428,15 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
             //target_pos = offset;//Vec2(0, 0);
             target_size = Size2(_average_image.cols, _average_image.rows);
             target_pos = screen_center - target_size * 0.5;
-            PD(cache).set_animating(&temporary, false);
+            if(PD(cache).is_animating(animator))
+                PD(cache).set_animating(animator, false);
+        }
+        else if(lost_timer.elapsed() < 0.5 || time_lost < 0.5) {
+            PD(cache).set_animating(animator, true);
+        }
+        else {
+            if (PD(cache).is_animating(animator))
+                PD(cache).set_animating(animator, false);
         }
     }
     
@@ -1491,10 +1500,11 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     target_pos.x = round(target_pos.x);
     target_pos.y = round(target_pos.y);
     
+    constexpr const char * zoom_animator = "zoom-animator";
     if(!section->scale().Equals(target_scale)
        || !section->pos().Equals(target_pos))
     {
-        PD(cache).set_animating(section, true);
+        PD(cache).set_animating(zoom_animator, true);
         
         auto playback_factor = max(1, sqrt(SETTING(gui_playback_speed).value<float>()));
         auto scale = check_target(section->scale(), target_scale, e * playback_factor);
@@ -1507,7 +1517,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         section->set_bounds(Bounds(next_pos, next_size));
         
     } else {
-        PD(cache).set_animating(section, false);
+        PD(cache).set_animating(zoom_animator, false);
         
         section->set_scale(target_scale);
         section->set_bounds(Bounds(target_pos, target_size));
@@ -1534,7 +1544,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                     ptr_pos = static_cast<Section*>(ptr)->pos();
                 }
                 
-                if(ptr && (PD(cache).is_animating(ptr) || PD(cache).is_tracking_dirty())) {
+                if(ptr && (PD(cache).is_animating() || PD(cache).is_tracking_dirty())) {
                     assert(dynamic_cast<Section*>(ptr));
                     s->set_scale(ptr_scale);
                     s->set_pos(ptr_pos);
@@ -1555,13 +1565,13 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 ptr_pos = static_cast<Section*>(ptr)->pos();
             }
             
-            if(ptr && (PD(cache).is_animating(ptr) || PD(cache).is_tracking_dirty())) {
+            if(ptr && (PD(cache).is_animating() || PD(cache).is_tracking_dirty())) {
                 assert(dynamic_cast<Section*>(ptr));
                 s->set_scale(ptr_scale);
                 s->set_pos(ptr_pos);
             }
             
-            if(!PD(cache).is_tracking_dirty() && !PD(cache).is_animating(s) && !PD(cache).is_animating(ptr)
+            if(!PD(cache).is_tracking_dirty() && !PD(cache).is_animating() //&& !PD(cache).is_animating(ptr)
                && !s->is_dirty()) {
                 s->reuse_objects();
                 return;
@@ -2766,7 +2776,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
         gui_scale_with_boundary(PD(cache).boundary, section, !shift && (GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && PD(cache).has_selection())));
         
         //if(((PD(cache).mode() == Mode::DEBUG && !PD(cache).blobs_dirty()) || (PD(cache).mode() == Mode::DEFAULT && !PD(cache).is_tracking_dirty()))
-        if(!PD(cache).raw_blobs_dirty() && !PD(cache).is_animating(section) //!PD(cache).is_animating(_setting_animation.display.get()))
+        if(!PD(cache).raw_blobs_dirty() && !PD(cache).is_animating() //!PD(cache).is_animating(_setting_animation.display.get()))
            //&& !_setting_animation.display
            )
         {

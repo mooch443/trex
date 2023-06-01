@@ -10,6 +10,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/GuiTypes.h>
 #include <gui/WorkProgress.h>
+#include <gui/MouseDock.h>
 
 using namespace gui;
 using namespace cmn;
@@ -248,12 +249,11 @@ void draw_blob_view(const DisplayParameters& parm)
     }*/
     
     parm.graph.section("blob_outers", [&, parm=parm](DrawStructure &base, Section* s) {
-        if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
+        if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
             s->set_scale(parm.scale);
             s->set_pos(parm.offset);
         }
-        
-        if(!parm.cache.blobs_dirty()) {
+        else {
             s->reuse_objects();
             return;
         }
@@ -316,6 +316,8 @@ void draw_blob_view(const DisplayParameters& parm)
             // move unused elements to unused list
             for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
                 if(!std::get<0>(it->second)) {
+                    auto ptr = std::get<2>(it->second).get();
+                    MouseDock::unregister_label(ptr);
                     _unused_labels.emplace_back(std::move(it->second));
                     it = _blob_labels.erase(it);
                 } else
@@ -331,6 +333,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 }
                 
                 auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos);
+                const auto od = saturate(d, 0.f, max_distance);
                 if(d <= max_distance * 2 && d > max_distance) {
                     d = (d - max_distance) / max_distance;
                     d = SQR(d);
@@ -387,6 +390,12 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 e.add<Rect>(blob->bounds(), FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
+
+                if(real_size > 0 && od <= blob->bounds().size().max()) {
+                    MouseDock::register_label(label.get(), blob->center());
+				} else {
+					MouseDock::unregister_label(label.get());
+				}
                 
                 if(d > 0 && real_size > 0) {
                     label->set_data(text, blob->bounds(), blob->center());
@@ -401,6 +410,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 for (auto&& [d, blob, active] : draw_order) {
                     draw_blob(e, blob, blob->recount(-1), active);
                 }
+                MouseDock::update(parm.ptr, e);
             });
 
             _collection.set_bounds(GUI::average().bounds());
@@ -529,7 +539,7 @@ void draw_blob_view(const DisplayParameters& parm)
     
     if(SETTING(gui_show_pixel_grid)) {
         parm.graph.section("collision_model", [&](auto&, auto s) {
-            if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
+            if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
                 s->set_scale(parm.scale);
                 s->set_pos(parm.offset);
             }
