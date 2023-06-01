@@ -240,11 +240,11 @@ File::File(const file::Path& filename, FileMode mode)
             ptr->read<uint64_t>(_timestamp);
         }
         
-        ptr->read(_n);
+        ptr->read<uint16_t>(_n);
         
         if(ref.header().version >= V_9) {
             int32_t original;
-            ptr->read(original);
+            ptr->read<int32_t>(original);
             if(original >= 0)
                 _source_index = Frame_t(original);
             else
