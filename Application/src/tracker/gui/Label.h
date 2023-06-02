@@ -15,7 +15,7 @@ class Label {
     GETTER(Bounds, source)
     GETTER(Vec2, center)
     Timer animation_timer;
-    std::string animator;
+    const std::string animator;
     GETTER(Frame_t, frame)
     
 public:

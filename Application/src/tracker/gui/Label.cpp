@@ -9,17 +9,16 @@
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-    : _text(std::make_shared<StaticText>(text)), _source(source), _center(center)
+    : _text(std::make_shared<StaticText>(text)), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
     _text->set_clickable(false);
-    //_text->set_default_font(Font(0.6));
 }
 
 Label::~Label() {
     MouseDock::unregister_label(this);
-    print("Label destroyed ", this);
+    //print("Label destroyed ", this);
 }
 
 void Label::set_data(Frame_t frame, const std::string &text, const Bounds &source, const Vec2 &center) {
@@ -27,7 +26,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
         if(not animator.empty())
             GUICache::instance().set_animating(animator, false);
         _text->set_txt(text);
-        animator = "label-animator-"+Meta::toStr((uint64_t)_text.get())+"-"+_text->text();
+        //+"-"+_text->text();
     }
     _source = source;
     _center = center;

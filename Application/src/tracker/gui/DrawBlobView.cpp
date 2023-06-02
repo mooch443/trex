@@ -394,7 +394,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75) 
                     && parm.cache.frame_idx == label->frame()) 
                 {
-                    print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center());
+                    //print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center());
                     MouseDock::register_label(label.get(), blob->center());
 				} else {
 					MouseDock::unregister_label(label.get());

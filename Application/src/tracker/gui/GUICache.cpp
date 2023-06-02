@@ -606,19 +606,19 @@ namespace gui {
                         if (!_graph)
                             return;
                         this->set_animating(animation, false);
-                        print("Animating object deleted (", animation, "). ", _animators);
+                        //print("Animating object deleted (", animation, "). ", _animators);
                     });
                 }
                 else if (_animator_map.contains(animation)) {
                     _animator_map.erase(animation);
                 }
-                print("Animating object added: ", animation," (",parent,"). ", _animators);
+                //print("Animating object added: ", animation," (",parent,"). ", _animators);
             }
         } else {
             auto it = _animators.find(animation);
             if(it != _animators.end()) {
                 _animators.erase(it);
-                print("Animating object deleted (", animation, ") ", _animators);
+                //print("Animating object deleted (", animation, ") ", _animators);
                 if(_animator_map.contains(animation)) {
                     auto ptr = _animator_map.at(animation);
                     if (_delete_handles.count(ptr)) {

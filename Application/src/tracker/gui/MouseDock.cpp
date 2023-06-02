@@ -59,7 +59,7 @@ namespace gui {
         if(instance->attached.empty())
 			return;
 
-        print("Current labels: ", instance->attached);
+        //print("Current labels: ", instance->attached);
         //std::vector<Bounds> boundses;
         //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
         
@@ -70,7 +70,7 @@ namespace gui {
         for (auto label : instance->attached) {
             auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos, true);
             graph.advance_wrap(*label->text());
-            print("distance = ", distance, " for ", label->text()->text());
+            //print("distance = ", distance, " for ", label->text()->text());
             //if (mag > 5)
             //    GUICache::instance().set_animating(label->text().get(), true);
             //else
@@ -92,7 +92,7 @@ namespace gui {
             Vec2 p = animate_position(instance->_rect.pos(), bounds.pos(), 10 * dt, InterpolationType::EASE_OUT);
             Size2 s = animate_position(p + instance->_rect.size(), p + bounds.size(), 2 * dt, InterpolationType::EASE_OUT);
             instance->_rect.set_bounds(Bounds(p, s - p));
-            print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
+            //print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
         }
 
         instance->attached.clear();
