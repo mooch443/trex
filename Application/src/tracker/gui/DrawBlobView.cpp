@@ -356,7 +356,7 @@ void draw_blob_view(const DisplayParameters& parm)
                         _unused_labels.resize(_unused_labels.size()-1);
                         
                         it = k;
-                        std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
+                        //std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
                         auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()) });
@@ -391,14 +391,17 @@ void draw_blob_view(const DisplayParameters& parm)
                 e.add<Rect>(blob->bounds(), FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
 
-                if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)) {
+                if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75) 
+                    && parm.cache.frame_idx == label->frame()) 
+                {
+                    print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center());
                     MouseDock::register_label(label.get(), blob->center());
 				} else {
 					MouseDock::unregister_label(label.get());
 				}
                 
                 if(d > 0 && real_size > 0) {
-                    label->set_data(text, blob->bounds(), blob->center());
+                    label->set_data(parm.cache.frame_idx, text, blob->bounds(), blob->center());
                     label->update(parm.base, parm.ptr, e, d, !active);
                     ++displayed;
                 }

@@ -1344,7 +1344,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
         _label = new Label(label_text, blob->calculate_bounds(), fish_pos());
     }
     else
-        _label->set_data(label_text, blob->calculate_bounds(), fish_pos());
+        _label->set_data(this->frame(), label_text, blob->calculate_bounds(), fish_pos());
 
     _label->update(base, bowl, e, 1, blob == nullptr);
 }

@@ -605,8 +605,8 @@ namespace gui {
                     _delete_handles[parent] = parent->on_delete([this, animation]() {
                         if (!_graph)
                             return;
-                        print("Animating object deleted (", animation,"). ", _animators);
                         this->set_animating(animation, false);
+                        print("Animating object deleted (", animation, "). ", _animators);
                     });
                 }
                 else if (_animator_map.contains(animation)) {
@@ -617,8 +617,8 @@ namespace gui {
         } else {
             auto it = _animators.find(animation);
             if(it != _animators.end()) {
-                print("Animating object deleted (", animation,") ", _animators);
                 _animators.erase(it);
+                print("Animating object deleted (", animation, ") ", _animators);
                 if(_animator_map.contains(animation)) {
                     auto ptr = _animator_map.at(animation);
                     if (_delete_handles.count(ptr)) {

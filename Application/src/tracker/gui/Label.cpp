@@ -22,7 +22,7 @@ Label::~Label() {
     print("Label destroyed ", this);
 }
 
-void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &center) {
+void Label::set_data(Frame_t frame, const std::string &text, const Bounds &source, const Vec2 &center) {
     if(text != _text->text()) {
         if(not animator.empty())
             GUICache::instance().set_animating(animator, false);
@@ -31,6 +31,7 @@ void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &
     }
     _source = source;
     _center = center;
+    _frame = frame;
 }
 
 void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, bool disabled) {
@@ -106,11 +107,17 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, bool dis
             text_pos = bds.pos() - o;
         }
 
-        update_positions(e, text_pos);
+        update_positions(e, text_pos, false);
     }
 }
 
-float Label::update_positions(Entangled& e, Vec2 text_pos) {
+float Label::update_positions(Entangled& e, Vec2 text_pos, bool do_animate) {
+    if (not do_animate) {
+        _text->set_pos(text_pos);
+        e.add<Line>(_center, _text->pos(), _color, 1);
+        return 0;
+    }
+
     auto dt = min(animation_timer.elapsed(), 0.5);
     animation_timer.reset();
     auto next = animate_position(_text->pos(), text_pos, dt * 2, InterpolationType::EASE_OUT);

@@ -834,7 +834,52 @@ struct Yolo8InstanceSegmentation {
             Size2 dim = Size2(vector[i+2] - pos.x, vector[i+3] - pos.y).mul(scale_factor);
             pos = pos.mul(scale_factor);
             
-            if (mask_Ns[m] == 0)
+            if (mask_Ns.empty()) {
+                std::vector<uchar> pixels;
+                std::vector<HorizontalLine> lines;
+
+                auto conversion = [&]<ImageMode mode>() {
+                    for (int y = pos.y; y < pos.y + dim.height; ++y) {
+                        // integer overflow deals with this, lol
+                        if(uint(y) >= data.image->rows)
+                            continue;
+
+                        HorizontalLine line{
+                            (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
+                            (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
+                            (coord_t)saturate(int(pos.x + dim.width), int(0), int(min(data.image->cols-1.f, pos.x + dim.width - 1)))
+                        };
+
+                        const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
+                        auto mat = data.image->get();
+                        for(int x = line.x0; x <= line.x1; ++x) {
+                            if constexpr (mode == ImageMode::R3G3B2) {
+                                pixels.emplace_back(vec_to_r3g3b2(mat.at<cv::Vec3b>(y, x)));
+                            } else {
+                                pixels.emplace_back(mat.at<cv::Vec3b>(y, x)[channel]);
+                            }
+                        }
+
+                        lines.emplace_back(std::move(line));
+                    }
+                };
+
+
+                if (meta_encoding == grab::default_config::meta_encoding_t::r3g3b2)
+                    conversion.operator() < ImageMode::R3G3B2 > ();
+                else
+                    conversion.operator() < ImageMode::GRAY > ();
+
+                if (not lines.empty()) {
+                    pv::Blob blob(lines, 0);
+                    data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
+                    data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(cls), .p = uint8_t(float(conf) * 255.f) });
+                }
+
+                continue;
+            }
+
+            if (not mask_Ns.empty() && mask_Ns[m] == 0)
                 continue;
 
             //std::vector<HorizontalLine> lines;
@@ -922,39 +967,7 @@ struct Yolo8InstanceSegmentation {
             //cv::rectangle(mask, boundaries, cv::Scalar(0, 0, 255), 1);
 
 
-            auto conversion = [&]<ImageMode mode>(){
-
-
-                /*for (int y = pos.y; y < pos.y + dim.height; ++y) {
-                    // integer overflow deals with this, lol
-                    if(uint(y) >= data.image->rows)
-                        continue;
-                    
-                    HorizontalLine line{
-                        (coord_t)saturate(int(y), int(0), int(y + dim.height - 1)),
-                        (coord_t)saturate(int(pos.x), int(0), int(pos.x + dim.width - 1)),
-                        (coord_t)saturate(int(pos.x + dim.width), int(0), int(min(data.image->cols-1.f, pos.x + dim.width - 1)))
-                    };
-                    
-                    const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
-                    auto mat = data.image->get();
-                    for(int x = line.x0; x <= line.x1; ++x) {
-                        if constexpr (mode == ImageMode::R3G3B2) {
-                            pixels.emplace_back(vec_to_r3g3b2(mat.at<cv::Vec3b>(y, x)));
-                        } else {
-                            pixels.emplace_back(mat.at<cv::Vec3b>(y, x)[channel]);
-                        }
-                    }
-                    
-                    lines.emplace_back(std::move(line));
-                }*/
-            };
             
-            
-            if(meta_encoding == grab::default_config::meta_encoding_t::r3g3b2)
-                conversion.operator() <ImageMode::R3G3B2>();
-            else
-                conversion.operator() <ImageMode::GRAY>();
             //cv::Mat full_image;
             //cv::Mat back;
             //convert_to_r3g3b2(data.image->get(), full_image);
@@ -964,11 +977,7 @@ struct Yolo8InstanceSegmentation {
             //tf::imshow("mat", full_image);
             //tf::imshow("back2", back);
             
-            /*if (not lines.empty()) {
-                pv::Blob blob(lines, 0);
-                data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
-                data.frame.add_object(lines, pixels, 0, blob::Prediction{ .clid = uint8_t(cls), .p = uint8_t(float(conf) * 255.f) });
-            }*/
+            /**/
         }
     }
     
@@ -1055,27 +1064,33 @@ struct Yolo8InstanceSegmentation {
                     return;
                 }
 
-                assert(Ns.size() == datas.size());
+                //assert(Ns.size() == datas.size());
                 size_t mask_Ns_index{0};
+                size_t Ns_index{ 0 };
                 for(size_t i=0; i<datas.size(); ++i) {
                     auto& data = datas.at(i);
                     auto& scale = scales.at(i);
                     
+                    size_t N = 0;
+                    for(size_t j=0; j<data.tiles.size(); ++j, ++Ns_index) {
+                        N += Ns.at(Ns_index);
+                    }
+
                     std::span<float> span(vector.data() + elements * 6u,
-                                          vector.data() + (elements + Ns.at(i)) * 6u);
+                                          vector.data() + (elements + N) * 6u);
                     std::span<uint64_t> Ns_span;
-                    elements += Ns.at(i);
+                    elements += N;
                     
                     std::span<float> mask_span;
                     if(not mask_Ns.empty()) {
                         size_t e{0};
-                        for (size_t m = 0; m < Ns.at(i); ++m) {
+                        for (size_t m = 0; m < N; ++m) {
                             e += mask_Ns.at(mask_Ns_index + m);
                         }
 
                         Ns_span = {
                             mask_Ns.data() + mask_Ns_index,
-                            mask_Ns.data() + mask_Ns_index + Ns.at(i)
+                            mask_Ns.data() + mask_Ns_index + N
                         };
                         mask_span = {
                             mask_points.data() + outline_elements * 2u,
@@ -1083,7 +1098,7 @@ struct Yolo8InstanceSegmentation {
                         };
                         thread_print("Data[", i, "] -> ", mask_span.size(), " elements.");
                         outline_elements += e;
-                        mask_Ns_index += Ns.at(i);
+                        mask_Ns_index += N;
                     }
                     
                     try {

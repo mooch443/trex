@@ -68,7 +68,7 @@ namespace gui {
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 15;
         for (auto label : instance->attached) {
-            auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos);
+            auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos, true);
             graph.advance_wrap(*label->text());
             print("distance = ", distance, " for ", label->text()->text());
             //if (mag > 5)

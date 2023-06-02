@@ -322,148 +322,132 @@ class TRexYOLO8:
         if self.model is None and self.segmentation_model is None:
             raise Exception("No model loaded - please specify a model path or segmentation path for TRexYOLO8")
 
-    def inference(self, im, offsets, conf_threshold=0.4, iou_threshold=0.25):
+    def inference(self, im, offsets, conf_threshold=0.4, iou_threshold=0.1):
         global receive
         print("inference for ", im.shape)
-        if self.segmentation_model is None and not self.model is None:
-            print("only object detection ", im.shape)
+        offsets = np.reshape(offsets, (-1, 2))
+        # preprocess image
+        '''from ultralytics.yolo.data.augment import LetterBox
+        stride = max(int(self.model.model.stride.cpu().numpy().max()), 32)
+        print("stride = ", stride)
+        print(self.image_size)
+        print([(type(x), x.shape) for x in im])
+        tensor = [LetterBox(int(self.image_size), auto=True, stride=stride)(image=x) for x in im]
+        print([x.shape for x in tensor])
+        tensor = np.stack(tensor)
+        print(tensor.shape, tensor.dtype)
+        tensor = tensor.transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW, (n, 3, h, w)
+        print(tensor.shape, tensor.dtype)
+        tensor = np.ascontiguousarray(tensor)  # contiguous
+        tensor = torch.from_numpy(tensor)'''
 
-            # preprocess image
-            '''from ultralytics.yolo.data.augment import LetterBox
-            stride = max(int(self.model.model.stride.cpu().numpy().max()), 32)
-            print("stride = ", stride)
-            print(self.image_size)
-            print([(type(x), x.shape) for x in im])
-            tensor = [LetterBox(int(self.image_size), auto=True, stride=stride)(image=x) for x in im]
-            print([x.shape for x in tensor])
-            tensor = np.stack(tensor)
-            print(tensor.shape, tensor.dtype)
-            tensor = tensor.transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW, (n, 3, h, w)
-            print(tensor.shape, tensor.dtype)
-            tensor = np.ascontiguousarray(tensor)  # contiguous
-            tensor = torch.from_numpy(tensor)'''
+        #tensor = [i for i in im]
+        tensor = [cv2.cvtColor(i, cv2.COLOR_BGR2RGB) for i in im]
+        #tensor = np.ascontiguousarray(np.transpose(tensor, (0,3,1,2)))
+        #tensor = torch.from_numpy(tensor).to(self.device)#.float() / 255.0
+        #print("sending tensor to model: ", tensor.shape)
+        results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=False)
 
-            #tensor = [i for i in im]
-            tensor = [cv2.cvtColor(i, cv2.COLOR_BGR2RGB) for i in im]
-            #tensor = np.ascontiguousarray(np.transpose(tensor, (0,3,1,2)))
-            #tensor = torch.from_numpy(tensor).to(self.device)#.float() / 255.0
-            #print("sending tensor to model: ", tensor.shape)
-            results = self.model(tensor, imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=False)
+        Ns = []
+        boxes = []
 
-            Ns = []
-            boxes = []
+        mask_Ns = []
+        mask_points = []
 
-            mask_Ns = []
-            mask_points = []
-            for i, result in enumerate(results):
-                #result = self.model(img[None, ...], imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=False)[0]
-                #r = result.cpu().plot(img=im[i])
-                #print("cpu results:", r)
-                #TRex.imshow("result", r)
-                
-                coords = result.boxes.data.cpu().numpy()
-                shape = im[i].shape
-                #print("shape=", shape, " ", result.orig_img.shape)
-                #print(result)
-                #coords[:, :4] = ops.scale_boxes(result.orig_shape, coords[:, :4], shape).round()
-
-                #coords[..., :2] = coords[..., :2] / np.array(result.orig_shape)[::-1]
-                #coords[..., 2:4] = coords[..., 2:4] / np.array(result.orig_shape)[::-1]
-                #coords[..., :2] *= np.array([im.shape[2], im.shape[1]])
-                #coords[..., 2:4] *= np.array([im.shape[2], im.shape[1]])
-                #print(result)
-                boxes.append(coords)
-
-                if not result.keypoints is None:
-                    print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
-                    print(result.keypoints.shape)
-                    print("orig_shape...=",result.orig_shape)
-                    keys = result.keypoints.cpu().numpy()[..., :2]
-                    #keys = result.keypoints.cpu().numpy()[..., :2]/np.array(result.orig_shape)[::-1]
-                    #keys *= np.array([im.shape[1], im.shape[2]])
-                    from_keys = []
-                    #print(keys)
-                    for x,y in keys[0]:
-                        from_keys.append((x - 5, y - 5, x + 5, y + 5, 0.5, 0))
-                    #print(keys)
-                    boxes.append(from_keys)
-                    Ns.append(coords.shape[0] + len(from_keys))
-                else:
-                    Ns.append(coords.shape[0])
-
-                if not result.masks is None:
-                    '''print("masks=", result.masks.data.shape, result.masks.data.dtype, np.histogram(result.masks.data.cpu().numpy()))
-                    print("masks=", result.masks.data[0])
-                    print("names=",[result.names[cli] for cli in coords[..., -1].astype(np.int)])
-                    h,w = result.masks.data.shape[1:]
-                    full = np.copy(im[i])#np.copy(result.orig_img.cpu().numpy())
-                    print("full=",full.shape," ",full.dtype)
-
-                    for k, points in enumerate(result.masks.xyn):
-                        coord = coords[k, :4]
-                        print("coord=", coord)
-                        
-                        # cp[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])])# = [0,0,255]
-                        cp = cv2.cvtColor((result.masks.data[k] * 255).cpu().numpy().astype(np.uint8), cv2.COLOR_GRAY2BGR)
-                        prev = points[-1]
-                        for x,y in points:
-                            cv2.circle(full, (int(x*w), int(y*h)), 1, (255,0,0), 1)
-                            cv2.line(full, (int(prev[0]*w), int(prev[1]*h)), (int(x*w), int(y*h)), (0,255,0), 2)
-                            prev = (x,y)
-
-
-                        #kimg = np.copy(cp[int(coord[1]-1):int(coord[3]+1), int(coord[0]-1):int(coord[2]+1)])
-                        #print("kimg=", kimg.shape, "points=", points.shape)
-                        #TRex.imshow("sub"+str(k), kimg)
-                    
-                    TRex.imshow("mask"+str(i),full)
-                    #print("xyn=", result.masks.xyn)
-                    print("xyn[",i,"] = ", [points.shape for points in result.masks.xyn])
-                    print("xyn=", result.masks.xyn)'''
-                    #print("xyn=", result.masks.orig_shape)
-                    mask_Ns.append([points.shape[0] for points in result.masks.xyn])
-                    mask_points.append(np.concatenate(result.masks.xyn, dtype=np.float32).flatten())
-
-                    #print(mask_Ns)
-                    #print("xyns=", flatter.shape)
+        for i, result in enumerate(results):
+            #result = self.model(img[None, ...], imgsz=self.image_size, device = self.device, verbose=False, iou=iou_threshold, conf=conf_threshold, classes=None, agnostic_nms=False)[0]
+            #r = result.cpu().plot(img=im[i])
+            #print("cpu results:", r)
+            #TRex.imshow("result", r)
             
-            if len(mask_Ns) > 0:
-                mask_Ns = np.concatenate(mask_Ns, axis=0, dtype=int)
-                mask_points = np.concatenate(mask_points, axis=0, dtype=np.float32)
+            offset = offsets[i]
+            #print(i, ": offset=", offset)
 
-                assert np.sum(mask_Ns.flatten()) == len(mask_points) // 2
-                receive_with_seg(mask_Ns, mask_points)
+            coords = result.boxes.data.cpu().numpy()
+            shape = im[i].shape
+            #print("shape=", shape, " ", result.orig_img.shape)
+            #print("coords=", coords.shape, coords)
+            #print(result)
+            #coords[:, :4] = ops.scale_boxes(result.orig_shape, coords[:, :4], shape).round()
 
-            if len(boxes) > 0:
-                boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
-            else:
-                boxes = np.array([], dtype=np.float32)
-                Ns = []
-            Ns = np.array(Ns, dtype=int)
-            print("resulting boxes=", boxes.shape, "Ns=", Ns)
-            boxes = boxes.flatten()
-            receive(Ns, boxes)
+            #coords[..., :2] = coords[..., :2] / np.array(result.orig_shape)[::-1]
+            #coords[..., 2:4] = coords[..., 2:4] / np.array(result.orig_shape)[::-1]
+            #coords[..., :2] *= np.array([im.shape[2], im.shape[1]])
+            #coords[..., 2:4] *= np.array([im.shape[2], im.shape[1]])
+            #print(result)
+            coords[:, :2] += offset#[::-1]
+            coords[:, 2:4] += offset#[::-1]
+            boxes.append(coords)
 
-        elif not self.segmentation_model is None and self.model is None:
-            print("only inference segmentation")
-            tensor = torch.from_numpy(np.transpose(im, (0,3,1,2))).to(self.device)
-            results = self.model(tensor, imgsz=self.image_size)
-
-            Ns = []
-            boxes = []
-            for i, result in enumerate(results):
-                coords = result.boxes.data.cpu().numpy()
-                print(result)
+            if not result.keypoints is None:
                 print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
-                boxes.append(coords)
+                print(result.keypoints.shape)
+                print("orig_shape...=",result.orig_shape)
+                keys = result.keypoints.cpu().numpy()[..., :2]
+                #keys = result.keypoints.cpu().numpy()[..., :2]/np.array(result.orig_shape)[::-1]
+                #keys *= np.array([im.shape[1], im.shape[2]])
+                from_keys = []
+                #print(keys)
+                for x,y in keys[0]:
+                    from_keys.append((x - 5, y - 5, x + 5, y + 5, 0.5, 0))
+                #print(keys)
+                boxes.append(from_keys)
+                Ns.append(coords.shape[0] + len(from_keys))
+            else:
                 Ns.append(coords.shape[0])
 
-            #print(boxes)
+            if not result.masks is None:
+                '''print("masks=", result.masks.data.shape, result.masks.data.dtype, np.histogram(result.masks.data.cpu().numpy()))
+                print("masks=", result.masks.data[0])
+                print("names=",[result.names[cli] for cli in coords[..., -1].astype(np.int)])
+                h,w = result.masks.data.shape[1:]
+                full = np.copy(im[i])#np.copy(result.orig_img.cpu().numpy())
+                print("full=",full.shape," ",full.dtype)
+
+                for k, points in enumerate(result.masks.xyn):
+                    coord = coords[k, :4]
+                    print("coord=", coord)
+                    
+                    # cp[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])])# = [0,0,255]
+                    cp = cv2.cvtColor((result.masks.data[k] * 255).cpu().numpy().astype(np.uint8), cv2.COLOR_GRAY2BGR)
+                    prev = points[-1]
+                    for x,y in points:
+                        cv2.circle(full, (int(x*w), int(y*h)), 1, (255,0,0), 1)
+                        cv2.line(full, (int(prev[0]*w), int(prev[1]*h)), (int(x*w), int(y*h)), (0,255,0), 2)
+                        prev = (x,y)
+
+
+                    #kimg = np.copy(cp[int(coord[1]-1):int(coord[3]+1), int(coord[0]-1):int(coord[2]+1)])
+                    #print("kimg=", kimg.shape, "points=", points.shape)
+                    #TRex.imshow("sub"+str(k), kimg)
+                
+                TRex.imshow("mask"+str(i),full)
+                #print("xyn=", result.masks.xyn)
+                print("xyn[",i,"] = ", [points.shape for points in result.masks.xyn])
+                print("xyn=", result.masks.xyn)'''
+                #print("xyn=", result.masks.orig_shape)
+                mask_Ns.append([points.shape[0] for points in result.masks.xyn])
+                mask_points.append(np.concatenate(result.masks.xyn, dtype=np.float32).flatten())
+
+                #print(mask_Ns)
+                #print("xyns=", flatter.shape)
+        
+        if len(mask_Ns) > 0:
+            mask_Ns = np.concatenate(mask_Ns, axis=0, dtype=int)
+            mask_points = np.concatenate(mask_points, axis=0, dtype=np.float32)
+
+            assert np.sum(mask_Ns.flatten()) == len(mask_points) // 2
+            receive_with_seg(mask_Ns, mask_points)
+
+        if len(boxes) > 0:
             boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
-            Ns = np.array(Ns, dtype=int)
-            print("resulting boxes=", boxes.shape, "Ns=", Ns)
-            boxes = boxes.flatten()
-            receive(Ns, boxes)
+        else:
+            boxes = np.array([], dtype=np.float32)
+            Ns = []
+        Ns = np.array(Ns, dtype=int)
+        print("resulting boxes=", boxes.shape, "Ns=", Ns, " ", Ns.shape)
+        boxes = boxes.flatten()
+        receive(Ns, boxes)
 
 def load_model():
     global model, model_path, segmentation_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
