@@ -336,15 +336,15 @@ void draw_blob_view(const DisplayParameters& parm)
                 const auto od = saturate(d, 0.f, max_distance);
                 if(d <= max_distance * 2 && d > max_distance) {
                     d = (d - max_distance) / max_distance;
-                    d = SQR(d);
+                    d = max(0.1, SQR(d));
                 } else if(d <= max_distance * 0.5 && d > max_distance * 0.1) {
                     d = (d - max_distance * 0.1) / (max_distance * 0.4);
-                    d = 1 - SQR(d);
+                    d = max(0.1, 1 - SQR(d));
                 }
                 else if(d > max_distance)
                     d = 1;
                 else if(d > max_distance * 0.5)
-                    d = 0;
+                    d = 0.1;
                 else d = 1;
                 
                 auto text = label_for_blob(parm, *blob, real_size, active, d);
@@ -391,7 +391,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 e.add<Rect>(blob->bounds(), FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
 
-                if(real_size > 0 && od <= blob->bounds().size().max()) {
+                if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)) {
                     MouseDock::register_label(label.get(), blob->center());
 				} else {
 					MouseDock::unregister_label(label.get());

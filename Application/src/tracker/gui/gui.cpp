@@ -784,6 +784,8 @@ void GUI::run_loop(gui::LoopStatus status) {
             SETTING(gui_frame) = image_index;
         }
         
+        //print(image_index, " ", animating, " ", GUICache::instance().animators());
+        
         //std::vector<std::string> changed_objects_str;
         size_t changed_objects = 0;
         if(!is_automatic && changed) {

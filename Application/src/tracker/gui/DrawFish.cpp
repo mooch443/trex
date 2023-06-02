@@ -45,10 +45,12 @@ CREATE_STRUCT(CachedGUIOptions,
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
 Fish::~Fish() {
+    if(GUICache::exists())
+        GUICache::instance().set_animating(circle_animator, false);
+    
     if (_label) {
         delete _label;
     }
-
 }
 
     Fish::Fish(Individual& obj)
@@ -1198,19 +1200,18 @@ void Fish::updatePath(Frame_t to, Frame_t from) {
             float target_radius = 100;
             float percent = min(1, _recognition_circle->radius() / target_radius);
             
-            const std::string animator = "recognition-circle-"+Meta::toStr((uint64_t)this);
             if(percent < 0.9) {
                 percent *= percent;
                 
                 _recognition_circle->set_pos(_fish_pos - _view.pos());
                 _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
                 _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
-                GUICache::instance().set_animating(animator, true);
+                GUICache::instance().set_animating(circle_animator, true);
                 
                 _view.advance_wrap(*_recognition_circle);
                 
             } else {
-                GUICache::instance().set_animating(animator, false);
+                GUICache::instance().set_animating(circle_animator, false);
             }
             
         } else if(_recognition_circle) {

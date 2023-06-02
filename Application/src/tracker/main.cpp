@@ -47,12 +47,12 @@
 #include <gui/gui.h>
 
 #include <tracking/DetectTag.h>
-#include <misc/default_settings.h>
 #include <misc/PixelTree.h>
 
 #include <misc/PVBlob.h>
 
 #include <misc/pretty.h>
+#include <grabber/misc/default_config.h>
 #include <misc/default_settings.h>
 
 #if WITH_GITSHA1
@@ -283,6 +283,8 @@ int main(int argc, char** argv)
      */
     using namespace Output;
     DebugHeader("LOADING DEFAULT SETTINGS");
+    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     GlobalSettings::map().dont_print("gui_frame");

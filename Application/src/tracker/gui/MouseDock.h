@@ -2,12 +2,23 @@
 #include <commons.pc.h>
 #include <gui/Label.h>
 #include <gui/types/Entangled.h>
+#include <gui/GuiTypes.h>
 
 namespace gui {
+
+
+enum InterpolationType {
+    EASE_IN,
+    EASE_OUT,
+    LINEAR
+};
+
+Vec2 animate_position(Vec2 pos, Vec2 target, float timeDiff, InterpolationType type);
 
 struct MouseDock {
     std::vector<Label*> attached;
     Vec2 pos;
+    Rect _rect;
     std::unordered_map<Label*, Vec2> centers;
     static inline std::mutex mutex;
     static inline std::unique_ptr<MouseDock> instance = std::make_unique<MouseDock>();

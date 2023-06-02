@@ -3,29 +3,20 @@
 #include <gui/GUICache.h>
 
 namespace gui {
-
-    enum InterpolationType {
-        EASE_IN,
-        EASE_OUT,
-        LINEAR
-    };
-
-    Vec2 updatePosition(Vec2 pos, Vec2 target, float timeDiff, InterpolationType type) {
+    Vec2 animate_position(Vec2 pos, Vec2 target, float timeDiff, InterpolationType type) {
+        auto d = target - pos;
         switch (type) {
-        case EASE_IN:
-            pos.x += (target.x - pos.x) * std::pow(timeDiff, 2);
-            pos.y += (target.y - pos.y) * std::pow(timeDiff, 2);
-            break;
-        case EASE_OUT:
-            pos.x += (target.x - pos.x) * (1 - std::pow(1 - timeDiff, 2));
-            pos.y += (target.y - pos.y) * (1 - std::pow(1 - timeDiff, 2));
-            break;
-        case LINEAR:
-            pos.x += (target.x - pos.x) * timeDiff;
-            pos.y += (target.y - pos.y) * timeDiff;
-            break;
-        default:
-            break;
+            case EASE_IN:
+                pos += d * std::pow(timeDiff, 2);
+                break;
+            case EASE_OUT:
+                pos += d * (1 - std::pow(1 - timeDiff, 2));
+                break;
+            case LINEAR:
+                pos += d * timeDiff;
+                break;
+            default:
+                break;
         }
 
         return pos;
@@ -55,7 +46,7 @@ namespace gui {
 
         constexpr const char* animator = "mouse-dock-animator";
         if (mag > 5) {
-            instance->pos = updatePosition(instance->pos, mp, dt * 2, InterpolationType::EASE_OUT);
+            instance->pos = animate_position(instance->pos, mp, dt * 2, InterpolationType::EASE_OUT);
             GUICache::instance().set_animating(animator, true, &graph);
             //GUICache::instance().set_blobs_dirty();
         }
@@ -70,28 +61,39 @@ namespace gui {
 
         print("Current labels: ", instance->attached);
         //std::vector<Bounds> boundses;
-        auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
+        //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
+        
+        instance->_rect.set_fillclr(Black.alpha(50));
+        graph.advance_wrap(instance->_rect);
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 15;
         for (auto label : instance->attached) {
-            label->update_positions(graph, Vec2(0, y) + instance->pos);
+            auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos);
             graph.advance_wrap(*label->text());
-
+            print("distance = ", distance, " for ", label->text()->text());
             //if (mag > 5)
             //    GUICache::instance().set_animating(label->text().get(), true);
             //else
             //    GUICache::instance().set_animating(label->text().get(), false);
             //GUICache::instance().set_animating(label->text().get(), true);
-
+            
             auto bds = label->text()->local_bounds();
-            bounds.combine(bds);
+            if(distance < 5) {
+                bounds.combine(bds);
+                y += bds.height;
+            }
             //boundses.push_back(label->text()->local_bounds());
             //graph.add<Rect>(boundses.back(), attr::FillClr(Red.alpha(125)));
-            y += bds.height;
+            
         }
-        print("MouseDock bounds: ", bounds);
-        //print("Added: ", boundses);
-        rect->set_bounds(bounds);
+        
+        if(bounds.width > 0) {
+            //print("Added: ", boundses);
+            Vec2 p = animate_position(instance->_rect.pos(), bounds.pos(), 10 * dt, InterpolationType::EASE_OUT);
+            Size2 s = animate_position(p + instance->_rect.size(), p + bounds.size(), 2 * dt, InterpolationType::EASE_OUT);
+            instance->_rect.set_bounds(Bounds(p, s - p));
+            print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
+        }
 
         instance->attached.clear();
         instance->centers.clear();

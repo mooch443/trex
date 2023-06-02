@@ -118,9 +118,11 @@ namespace gui {
             return true;
         }
         
+        //print(" ");
         auto is_relevant = [this](const std::string& animator) {
             auto it = _animator_map.find(animator);
             if(it != _animator_map.end()) {
+                //print(" * animator ", animator, " is ", it->second->rendered());
                 return it->second->rendered();
 			}
             return true;
@@ -615,7 +617,7 @@ namespace gui {
         } else {
             auto it = _animators.find(animation);
             if(it != _animators.end()) {
-                print("Animating object deleted.", _animators);
+                print("Animating object deleted (", animation,") ", _animators);
                 _animators.erase(it);
                 if(_animator_map.contains(animation)) {
                     auto ptr = _animator_map.at(animation);

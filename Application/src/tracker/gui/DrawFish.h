@@ -70,6 +70,7 @@ namespace gui {
         Color _previous_color;
         Output::Library::LibInfo _info;
         double _library_y = Graph::invalid();
+        std::string circle_animator{ "recognition-circle-"+Meta::toStr((uint64_t)this) };
         //ExternalImage _colored;
         
         Graph _graph;
