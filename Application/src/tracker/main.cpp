@@ -96,6 +96,9 @@ using namespace track;
 using namespace file;
 namespace py = Python;
 
+//! Combining grab::default settings and track::default settings
+SettingsMaps combined;
+
 std::mutex data_mutex;
 double data_sec = 0.0, data_kbytes = 0.0;
 double frames_sec = 0, frames_count = 0;
@@ -235,8 +238,6 @@ std::set<file::Path> parse_input(const cmn::CommandLine::Option& option) {
     return {path};
 }
 
-
-
 int main(int argc, char** argv)
 {
 #ifdef NDEBUG
@@ -283,8 +284,27 @@ int main(int argc, char** argv)
      */
     using namespace Output;
     DebugHeader("LOADING DEFAULT SETTINGS");
-    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
+    const auto set_combined_access_level = [](auto& name, AccessLevel level) {
+        combined.access_levels[name] = level;
+    };
+    
+    combined.map.set_do_print(false);
+    grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
+    //default_config::get(combined.map, combined.docs, set_combined_access_level);
+    
+    std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.get<std::vector<std::string>>("meta_write_these").value() : std::vector<std::string>{};
+    print("Have these keys:", combined.map.keys());
+    std::set<std::string> deleted_keys;
+    for(auto key : combined.map.keys()) {
+        if(not contains(save, key)) {
+            deleted_keys.insert(key);
+            combined.map.erase(key);
+        }
+    }
+    print("Deleted keys:", deleted_keys);
+    print("Remaining:", combined.map.keys());
+    
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     GlobalSettings::map().dont_print("gui_frame");
@@ -584,7 +604,7 @@ int main(int argc, char** argv)
     gui::VideoOpener::Result opening_result;
     
     if(SETTING(filename).value<Path>().empty()) {
-        cmd.load_settings();
+        cmd.load_settings(&combined);
         
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             SETTING(settings_file) = file::Path();
@@ -673,7 +693,7 @@ int main(int argc, char** argv)
     
     try {
         if(!video.header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata);
+            sprite::parse_values(GlobalSettings::map(), video.header().metadata, &combined);
     } catch(const UtilsException& e) {
         // dont do anything, has been printed already
     }
@@ -712,7 +732,7 @@ int main(int argc, char** argv)
      * Try to load Settings from the command-line that have been
      * ignored previously.
      */
-    cmd.load_settings();
+    cmd.load_settings(&combined);
     
     if(SETTING(settings_file).value<file::Path>().empty()) {
         auto output_settings = file::DataLocation::parse("output_settings");

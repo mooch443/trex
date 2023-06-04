@@ -431,7 +431,7 @@ void HeatmapController::sort_data_into_custom_grid() {
 void HeatmapController::frames_deleted_from(Frame_t frame) {
     _iterators.clear();
     _capacities.clear();
-    _grid.keep_only(Range<Frame_t>(0_f, max(0_f, frame - 1_f)));
+    _grid.keep_only(Range<Frame_t>(0_f, frame.try_sub(1_f)));
 }
 
 HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_frame) {
@@ -500,6 +500,8 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 }
                 
                 auto frame = max(Tracker::start_frame(), range.start);
+                if(fish->empty())
+                    return;
                 if(fish->end_frame() < frame)
                     return;
                 if(fish->start_frame() > range.end)
@@ -744,7 +746,7 @@ void HeatmapController::set_frame(Frame_t current_frame) {
     bool has_to_paint = update_variables();
     
     //! check if we have to update the data
-    if(current_frame != _frame) {
+    if(not _frame.valid() || current_frame != _frame) {
         auto updated = update_data(current_frame);
         if(updated.added != 0 || updated.removed != 0)
             has_to_paint = true;
@@ -995,7 +997,7 @@ std::string DataPoint::toStr() const {
 size_t Leaf::keep_only(const Range<Frame_t> &frames) {
     size_t count = _data.size();
     
-    auto it = std::upper_bound(_data.begin(), _data.end(), frames.start - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
+    auto it = std::upper_bound(_data.begin(), _data.end(), frames.start.try_sub(1_f), [](Frame_t frame, const DataPoint& A) -> bool
     {
         return frame < A.frame;
     });
@@ -1003,7 +1005,7 @@ size_t Leaf::keep_only(const Range<Frame_t> &frames) {
     if(_data.begin() != it)
         _data.erase(_data.begin(), it);
     
-    it = std::upper_bound(_data.begin(), _data.end(), frames.end - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
+    it = std::upper_bound(_data.begin(), _data.end(), frames.end.try_sub(1_f), [](Frame_t frame, const DataPoint& A) -> bool
     {
         return frame < A.frame;
     });
@@ -1068,7 +1070,7 @@ size_t Leaf::erase(const Range<Frame_t> &frames) {
             _data.erase(it, _data.end());
             update_ranges();
         } else {
-            auto end = std::upper_bound(it, _data.end(), frames.end - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
+            auto end = std::upper_bound(it, _data.end(), frames.end.try_sub(1_f), [](Frame_t frame, const DataPoint& A) -> bool
             {
                 return frame < A.frame;
             });
