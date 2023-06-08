@@ -9,6 +9,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #pragma clang diagnostic pop
 
 #include <misc/Image.h>
@@ -254,6 +255,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 #include <misc/SoftException.h>
 #include <misc/metastring.h>
 #include <misc/Timer.h>
+#include <file/DataLocation.h>
 
 namespace track {
 namespace py = pybind11;
@@ -302,8 +304,9 @@ std::map<std::string, pybind11::module> _modules;
 std::thread::id _saved_id;
 std::unique_ptr<py::scoped_interpreter> _interpreter;
 
-void PythonIntegration::set_settings(GlobalSettings* obj) {
+void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance) {
     GlobalSettings::set_instance(obj);
+    file::DataLocation::set_instance(instance);
     _settings = obj;
 }
 
@@ -637,6 +640,47 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m)
 {
     set_function_internal(name_, f, m);
+}
+
+void PythonIntegration::set_function(const char* name_, std::function<void(const std::vector<std::vector<cv::Mat>>&)> f, const std::string& m)
+{
+    auto fn = [f](py::list batch) {
+        std::vector<std::vector<cv::Mat>> batch_vector;
+        // Each item in the batch is a list of images
+        for (const py::handle& img_list_handle : batch) {
+            py::list img_list = py::cast<py::list>(img_list_handle);
+
+            std::vector<cv::Mat> image_vector;
+            for (const py::handle& np_img_handle : img_list) {
+                py::array_t<uint8_t> np_img = py::cast<py::array_t<uint8_t>>(np_img_handle);
+                py::buffer_info buf_info = np_img.request();
+
+                int nrows = buf_info.shape[0];
+                int ncols = buf_info.shape[1];
+                int nchannels = buf_info.ndim == 3 ? buf_info.shape[2] : 1;
+
+                cv::Mat img(nrows, ncols, nchannels == 1 ? CV_8UC1 : CV_8UC3, buf_info.ptr);
+
+                image_vector.push_back(img);
+            }
+            batch_vector.push_back(image_vector);
+        }
+		f(batch_vector);
+    };
+
+    set_function_internal(name_, fn, m);
+}
+
+void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uchar>&)> f, const std::string& m)
+{
+    auto fn = [f](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> input_array) {
+        py::buffer_info buf_info = input_array.request();
+        std::vector<uint8_t> vec(static_cast<uint8_t*>(buf_info.ptr),
+            static_cast<uint8_t*>(buf_info.ptr) + buf_info.size);
+        f(vec);
+    };
+
+    set_function_internal(name_, fn, m);
 }
 
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uint64_t>, std::vector<float>)> f, const std::string &m)

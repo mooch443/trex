@@ -495,7 +495,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
             // redundant with the counter, but OK:
             static std::once_flag flag2;
             std::call_once(flag2, [](){
-                track::PythonIntegration::set_settings(GlobalSettings::instance());
+                track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
                 track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
             });
             

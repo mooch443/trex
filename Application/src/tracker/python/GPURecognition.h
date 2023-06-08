@@ -7,6 +7,10 @@
 #include <misc/idx_t.h>
 #include <misc/PackLambda.h>
 
+namespace file {
+    class DataLocation;
+}
+
 namespace track {
     using namespace cmn;
 
@@ -26,7 +30,7 @@ namespace track {
         
     public:
         
-        static void set_settings(GlobalSettings*);
+        static void set_settings(GlobalSettings*, file::DataLocation*);
         static void set_display_function(std::function<void(const std::string&, const cv::Mat&)>);
         
         static bool exists(const std::string&, const std::string& m = "");
@@ -69,6 +73,8 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<float>)> f, const std::string& m = "");
+        static void set_function(const char* name_, std::function<void(std::vector<uchar>&)> f, const std::string& m = "");
+        static void set_function(const char* name_, std::function<void(const std::vector<std::vector<cv::Mat>>&)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>, std::vector<int>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uint64_t>, std::vector<float>)> f, const std::string& m = "");
@@ -93,17 +99,34 @@ namespace track {
         static void unset_function(const char* name_, const std::string &m = "");
         
         struct ModuleProxy {
+            bool _unset;
             std::string m;
-            ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit)
-                : m(name)
+            std::set<std::string> set_functions;
+            ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit, bool unset = false)
+                : m(name), _unset(unset)
             {
                 if(PythonIntegration::check_module("bbx_saved_model"))
                     reinit(*this);
             }
+            ~ModuleProxy() {
+                if (not _unset)
+                    return;
+
+                try {
+                    print("** unsetting functions ", set_functions);
+                    for (auto p : set_functions)
+                        unset_function(p.c_str());
+                }
+                catch (...) {
+                    FormatExcept("Unknown exception when unsetting functions ", set_functions, " in module ", m);
+                }
+            }
             void set_function(const char* name, auto &&fn) {
+                set_functions.insert(name);
                 PythonIntegration::set_function(name, std::forward<decltype(fn)>(fn), m);
             }
             void set_variable(const char* name, auto&& value) {
+                //set_functions.insert(name);
                 PythonIntegration::set_variable(name, std::forward<decltype(value)>(value), m);
             }
             void run(const char* name) {

@@ -65,7 +65,7 @@ Size2 get_model_image_size() {
         const auto meta_video_size = SETTING(meta_video_size).value<Size2>();
         auto size = Size2(image_width.width, meta_video_size.height / meta_video_size.width * image_width.width);
         //print("Using a resolution of meta_video_size = ", meta_video_size, " and image_width = ", image_width, " gives a model image size of ", size);
-        return size;
+        return meta_video_size.div(2);
     }
     else {
         return Size2(image_width);
@@ -785,6 +785,8 @@ struct Yolo8InstanceSegmentation {
             proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
         else
             proxy.set_variable("segmentation_path", "");
+
+        proxy.set_variable("box_detection_path", SETTING(box_model).value<file::Path>().str());
         
         proxy.set_variable("image_size", get_model_image_size());
         proxy.run("load_model");
@@ -814,8 +816,14 @@ struct Yolo8InstanceSegmentation {
         std::vector<cv::Point> integer;
         integer.reserve(N);
         for (auto it = ptr, end = ptr + N; it != end; ++it) {
-            integer.emplace_back(roundf(saturate(it->x, 0.f, 1.f) * data.image->cols),
-                roundf(saturate(it->y, 0.f, 1.f) * data.image->rows));
+            if(it->x * scale_factor.x > data.image->cols)
+                thread_print("Warning: point ", *it, " is outside image bounds ", data.image->cols, "x", data.image->rows);
+            if(it->y * scale_factor.y > data.image->rows)
+                thread_print("Warning: point ", *it, " is outside image bounds ", data.image->cols, "x", data.image->rows);
+            integer.emplace_back(
+                roundf(saturate(it->x * scale_factor.x, 0.f, (float)data.image->cols)),//roundf(saturate(it->x, 0.f, 1.f) * data.image->cols),
+                roundf(saturate(it->y * scale_factor.y, 0.f, (float)data.image->rows))//roundf(saturate(it->y, 0.f, 1.f) * data.image->rows)
+            );
         }
 
         size_t mask_index = 0;
@@ -885,8 +893,8 @@ struct Yolo8InstanceSegmentation {
             //std::vector<HorizontalLine> lines;
             //std::vector<uchar> pixels;
 
-            thread_print("** ", i, " ", pos, " ", dim, " ", conf, " ", cls, " ", mask_Ns[m], " **");
-            thread_print("  getting integers from ", mask_index, " to ", mask_index + mask_Ns[m], " (", integer.size(), "/",N,")");
+            //thread_print("** ", i, " ", pos, " ", dim, " ", conf, " ", cls, " ", mask_Ns[m], " **");
+            //thread_print("  getting integers from ", mask_index, " to ", mask_index + mask_Ns[m], " (", integer.size(), "/",N,")");
             assert(mask_index + mask_Ns[m] <= integer.size());
             std::vector<cv::Point> points{ integer.data() + mask_index, integer.data() + mask_index + mask_Ns[m] };
             mask_index += mask_Ns[m];
@@ -910,7 +918,7 @@ struct Yolo8InstanceSegmentation {
                 p.y -= boundaries.y;
             }
 
-            print("Boundaries: ", boundaries);
+            //print("Boundaries: ", boundaries);
 
             cv::Mat mask = cv::Mat::zeros(boundaries.height + 1, boundaries.width + 1, CV_8UC1);
             cv::fillPoly(mask, points, 255);
@@ -983,93 +991,109 @@ struct Yolo8InstanceSegmentation {
     
     static void apply(std::vector<TileImage>&& tiles) {
         namespace py = Python;
-        std::vector<Image::Ptr> images;
-        std::vector<Image::Ptr> oimages;
-        std::vector<SegmentationData> datas;
-        std::vector<Vec2> scales;
-        std::vector<Vec2> offsets;
-        std::vector<std::promise<SegmentationData>> promises;
-        std::vector<std::function<void()>> callbacks;
+
+        struct TransferData {
+            std::vector<Image::Ptr> images;
+            std::vector<Image::Ptr> oimages;
+            std::vector<SegmentationData> datas;
+            std::vector<Vec2> scales;
+            std::vector<Vec2> offsets;
+            std::vector<std::promise<SegmentationData>> promises;
+            std::vector<std::function<void()>> callbacks;
+
+            TransferData() {
+				thread_print("** creating ", (uint64_t)this);
+			}
+            TransferData(TransferData&&) = delete;
+            TransferData& operator=(TransferData&&) = delete;
+            
+            ~TransferData() {
+                for (auto&& img : images) {
+                    TileImage::move_back(std::move(img));
+                }
+                thread_print("** deleting ", (uint64_t)this);
+            }
+        } transfer;
         
         for(auto&& tiled : tiles) {
-            images.insert(images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
+            transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
             if(tiled.images.size() == 1)
-                oimages.emplace_back(Image::Make(*tiled.data.image));
+                transfer.oimages.emplace_back(Image::Make(*tiled.data.image));
+#ifndef NDEBUG
             else
                 FormatWarning("Cannot use oimages with tiled.");
+#endif
             
-            promises.push_back(std::move(tiled.promise));
+            transfer.promises.push_back(std::move(tiled.promise));
             
-            scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
+            transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
             //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
             
             for(auto p : tiled.offsets()) {
-                tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scales.back()));
+                tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(transfer.scales.back()));
             }
             
             auto o = tiled.offsets();
-            offsets.insert(offsets.end(), o.begin(), o.end());
-            datas.emplace_back(std::move(tiled.data));
-            callbacks.emplace_back(tiled.callback);
+            transfer.offsets.insert(transfer.offsets.end(), o.begin(), o.end());
+            transfer.datas.emplace_back(std::move(tiled.data));
+            transfer.callbacks.emplace_back(tiled.callback);
         }
+
+        tiles.clear();
         
-        py::schedule([datas = std::move(datas),
-                      images = std::move(images),
-                      oimages = std::move(oimages),
-                      scales = std::move(scales),
-                      offsets = std::move(offsets),
-                      callbacks = std::move(callbacks),
-                      promises = std::move(promises)]() mutable
+        py::schedule([&transfer]() mutable
         {
             Timer timer;
             using py = track::PythonIntegration;
+            thread_print("** transfer of ", (uint64_t)& transfer);
 
-            const size_t _N = datas.size();
-            py::ModuleProxy bbx("bbx_saved_model", Yolo8InstanceSegmentation::reinit);
-            bbx.set_variable("offsets", std::move(offsets));
-            bbx.set_variable("image", images);
-            bbx.set_variable("oimages", oimages);
+            const size_t _N = transfer.datas.size();
+            py::ModuleProxy bbx("bbx_saved_model", Yolo8InstanceSegmentation::reinit, true);
+            bbx.set_variable("offsets", std::move(transfer.offsets));
+            bbx.set_variable("image", transfer.images);
+            bbx.set_variable("oimages", transfer.oimages);
             
             std::vector<uint64_t> mask_Ns;
             std::vector<float> mask_points;
             
-            auto recv = [&](std::vector<uint64_t> Ns,
-                            std::vector<float> vector)
+            auto recv = [&transfer, &mask_Ns, &mask_points]
+                (std::vector<uint64_t> Ns, std::vector<float> vector)
+              mutable
             {
                 size_t elements{0};
                 size_t outline_elements{0};
                 //thread_print("Received a number of results: ", Ns);
                 //thread_print("For elements: ", datas);
                 
-                if(datas.empty() and not Ns.empty()) {
-                    FormatExcept("Empty datas with Ns being set: ", datas.size(), " / ", Ns.size());
+                if(transfer.datas.empty() and not Ns.empty()) {
+                    FormatExcept("Empty datas with Ns being set: ", transfer.datas.size(), " / ", Ns.size());
                     return;
                 }
 
                 if(Ns.empty()) {
-                    for(size_t i=0; i<datas.size(); ++i) {
+                    for(size_t i=0; i< transfer.datas.size(); ++i) {
                         try {
-                            promises.at(i).set_value(std::move(datas.at(i)));
+                            transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
                         } catch(...) {
-                            promises.at(i).set_exception(std::current_exception());
+                            transfer.promises.at(i).set_exception(std::current_exception());
                         }
                         
                         try {
-                            callbacks.at(i)();
+                            transfer.callbacks.at(i)();
                         } catch(...) {
                             FormatExcept("Exception in callback of element ", i," in python results.");
                         }
                     }
-                    FormatExcept("Empty data for ", datas);
+                    FormatExcept("Empty data for ", transfer.datas);
                     return;
                 }
 
                 //assert(Ns.size() == datas.size());
                 size_t mask_Ns_index{0};
                 size_t Ns_index{ 0 };
-                for(size_t i=0; i<datas.size(); ++i) {
-                    auto& data = datas.at(i);
-                    auto& scale = scales.at(i);
+                for(size_t i=0; i< transfer.datas.size(); ++i) {
+                    auto& data = transfer.datas.at(i);
+                    auto& scale = transfer.scales.at(i);
                     
                     size_t N = 0;
                     for(size_t j=0; j<data.tiles.size(); ++j, ++Ns_index) {
@@ -1103,19 +1127,29 @@ struct Yolo8InstanceSegmentation {
                     
                     try {
                         receive(data, scale, span, mask_span, Ns_span);
-                        promises.at(i).set_value(std::move(data));
+                        transfer.promises.at(i).set_value(std::move(data));
                     } catch(...) {
-                        promises.at(i).set_exception(std::current_exception());
+                        transfer.promises.at(i).set_exception(std::current_exception());
                     }
                     
                     try {
-                        callbacks.at(i)();
+                        transfer.callbacks.at(i)();
                     } catch(...) {
                         FormatExcept("Exception in callback of element ", i," in python results.");
                     }
                 }
             };
             
+            bbx.set_function("receive_masks", [](const std::vector<std::vector<cv::Mat>>& masks) {
+                thread_print("Received masks with ", masks.size(), " elements.");
+                for (auto& m : masks) {
+                    std::vector<Size2> dimensions;
+                    for(auto n : m) {
+						dimensions.emplace_back(n.cols, n.rows);
+					}
+					thread_print("Mask with ", m.size(), " elements and dimensions: ",dimensions,".");
+				}
+            });
             bbx.set_function("receive", recv);
             bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
                                                      std::vector<float> m_points)
@@ -1242,15 +1276,15 @@ struct Yolo8InstanceSegmentation {
             }
             catch (...) {
                 FormatWarning("Continue after exception...");
+
+                //bbx.unset_function("receive");
+                //bbx.unset_function("receive_with_seg");
+
                 throw;
             }
             
-            bbx.unset_function("receive");
-            bbx.unset_function("receive_with_seg");
-
-            for (auto&& img : images) {
-                TileImage::move_back(std::move(img));
-            }
+            //bbx.unset_function("receive");
+            //bbx.unset_function("receive_with_seg");
 
             if (_network_samples.load() > 10) {
                 _network_samples = _network_fps = 0;
@@ -1626,8 +1660,10 @@ public:
             //this->source.frame(index, cpuBuffer);
             cpuBuffer.get().copyTo(*buffer);
 
-            cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
-            std::swap(buffer, tmp);
+            if (detection_type() != ObjectDetectionType::yolo8) {
+                cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+                std::swap(buffer, tmp);
+            }
             return std::make_tuple(index, std::move(buffer));
         }
         catch (const std::exception& e) {
@@ -1686,8 +1722,11 @@ public:
             this->source.frame(index, cpuBuffer);
             cpuBuffer.copyTo(*buffer);
 
-            cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
-            std::swap(buffer, tmp);
+            //if (detection_type() != ObjectDetectionType::yolo8) 
+            {
+                cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
+                std::swap(buffer, tmp);
+            }
             return std::make_tuple(index, std::move(buffer));
         }
         catch (const std::exception& e) {
@@ -3521,6 +3560,7 @@ int main(int argc, char**argv) {
     SETTING(model) = file::Path("");
     SETTING(segmentation_resolution) = uint16_t(128);
     SETTING(segmentation_model) = file::Path("");
+    SETTING(box_model) = file::Path("");
     SETTING(image_width) = uint16_t(640);
     SETTING(filename) = file::Path("");
     SETTING(meta_classes) = std::vector<std::string>{ };
@@ -3549,6 +3589,9 @@ int main(int argc, char**argv) {
         if(a.name == "sm") {
             SETTING(segmentation_model) = file::Path(a.value);
         }
+        if (a.name == "bm") {
+            SETTING(box_model) = file::Path(a.value);
+        }
         if(a.name == "d") {
             SETTING(output_dir) = file::Path(a.value);
         }
@@ -3565,7 +3608,7 @@ int main(int argc, char**argv) {
     
     py::init();
     py::schedule([](){
-        track::PythonIntegration::set_settings(GlobalSettings::instance());
+        track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     });
     
