@@ -6,6 +6,12 @@
 
 //-Includes--------------------------------------------------------------------
 
+#include <commons.pc.h>
+
+#if WITH_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 #include <types.h>
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
@@ -56,10 +62,6 @@
 
 #if __linux__
 #include <X11/Xlib.h>
-#endif
-
-#if WITH_PYLON
-#include <pylon/PylonIncludes.h>
 #endif
 
 //-Functions-------------------------------------------------------------------

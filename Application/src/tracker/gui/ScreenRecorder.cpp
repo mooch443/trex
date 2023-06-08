@@ -178,15 +178,17 @@ struct ScreenRecorder::Data {
             }
         }
         
+        std::string clip_prefix = (std::string)SETTING(filename).value<file::Path>().filename()+"_";
+        
         size_t max_number = 0;
         try {
             for(auto &file : frames.find_files()) {
                 auto name = std::string(file.filename());
-                if(utils::beginsWith(name, "clip")) {
+                if(utils::beginsWith(name, clip_prefix)) {
                     try {
                         if(utils::endsWith(name, ".avi"))
                             name = name.substr(0, name.length() - 4);
-                        auto number = Meta::fromStr<size_t>(name.substr(std::string("clip").length()));
+                        auto number = Meta::fromStr<size_t>(name.substr(clip_prefix.length()));
                         if(number > max_number)
                             max_number = number;
                         
@@ -204,7 +206,7 @@ struct ScreenRecorder::Data {
         
         print("Clip index is ", max_number,". Starting at frame ",frame,".");
         
-        frames = frames / ("clip" + Meta::toStr(max_number));
+        frames = frames / (clip_prefix + Meta::toStr(max_number));
         cv::Size size(base
                     && dynamic_cast<IMGUIBase*>(base)
                     ? static_cast<IMGUIBase*>(base)->real_dimensions()

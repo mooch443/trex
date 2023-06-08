@@ -33,7 +33,7 @@ void ImageExtractor::filter_tasks() {
     
     for (auto it = _tasks.begin(); it != _tasks.end(); ++it) {
         if(it->second.size() < average) {
-            remove.insert(it->first);
+            //remove.insert(it->first);
         }
     }
     

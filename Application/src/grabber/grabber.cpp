@@ -450,7 +450,10 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
     //auto epoch = std::chrono::time_point<std::chrono::system_clock>();
-    _start_timing = _video && !_video->has_timestamps() ? 0 : UINT64_MAX;//Image::clock_::now();
+    if(_video && !_video->has_timestamps())
+        _start_timing = 0;
+    else
+        _start_timing = {};
     _real_timing = std::chrono::system_clock::now();
     
     _analysis = new std::decay<decltype(*_analysis)>::type(
@@ -2014,7 +2017,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     
     // make timestamp relative to _start_timing
     auto TS = current.timestamp();
-    if(_start_timing == UINT64_MAX)
+    if(not _start_timing.valid())
         _start_timing = TS;
     TS = TS - _start_timing;
     current.set_timestamp(TS);
