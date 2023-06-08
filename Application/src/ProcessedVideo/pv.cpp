@@ -1336,7 +1336,7 @@ void File::set_average(const cv::Mat& average) {
             // readable
             double average = 0;
             uint64_t samples = 0;
-            const Frame_t step = max(1_f, (length()-1_f) / 10_f);
+            const Frame_t step = max(1_f, (length().try_sub(1_f)) / 10_f);
             pv::Frame frame;
             for (Frame_t i=1_f; i<length(); i+=step) {
                 read_frame(frame, i);

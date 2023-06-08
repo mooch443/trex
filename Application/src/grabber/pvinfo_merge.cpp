@@ -261,7 +261,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         for(uint64_t vdx = 0; vdx < files.size(); ++vdx) {
             auto &file = files.at(vdx);
             file->read_frame(f, frame);
-            if(!vdx) o.set_timestamp(timestamp_offset.get() + f.timestamp());
+            if(!vdx) o.set_timestamp(timestamp_offset + f.timestamp());
             //o.set_timestamp(start_time + f.timestamp() - file->start_timestamp());
             
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
