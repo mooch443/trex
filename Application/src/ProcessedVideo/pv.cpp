@@ -473,7 +473,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         pack.resize(bytes);
         pack.reset_offset();
         
-        print(Image::now().get());
         assert(_timestamp.valid());
         pack.write<timestamp_t>(_timestamp);
         pack.write<uint16_t>(_n);
