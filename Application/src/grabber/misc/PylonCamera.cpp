@@ -158,7 +158,6 @@ namespace fg {
                 
                 current.set_timestamp(t);
                 //current.set_timestamp(Image::now());
-                //current.set_timestamp(<#const std::chrono::time_point<clock_> &value#>)
                 
                 return true;
                 

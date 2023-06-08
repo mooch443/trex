@@ -58,7 +58,7 @@ class ImagePair {
     GETTER_NCONST(Image, image)
     GETTER_PTR_I(Image*, mask, nullptr)
     GETTER_I(long_t, index, -1)
-    GETTER_I(timestamp_t, timestamp, 0)
+    GETTER(timestamp_t, timestamp)
     
 public:
     void set_mask(Image* mask) {

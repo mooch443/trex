@@ -72,7 +72,6 @@ File::File(const file::Path& filename, FileMode mode)
     : DataFormat(filename.add_extension("pv"), filename.str()),
         _header(filename.str()),
         _filename(filename),
-        _prev_frame_time(0),
         _mode(mode)
 {
     
@@ -110,7 +109,7 @@ File::File(const file::Path& filename, FileMode mode)
         }
     }
 
-    Frame::Frame(const uint64_t& timestamp, decltype(_n) n)
+    Frame::Frame(const timestamp_t& timestamp, decltype(_n) n)
         : _timestamp(timestamp)
     {
         _mask.reserve(n);
@@ -237,7 +236,7 @@ File::File(const file::Path& filename, FileMode mode)
         if(ref.header().version < V_4) {
             ptr->read_convert<uint32_t>(_timestamp);
         } else {
-            ptr->read<uint64_t>(_timestamp);
+            ptr->read<timestamp_t>(_timestamp);
         }
         
         ptr->read<uint16_t>(_n);
@@ -474,9 +473,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         pack.resize(bytes);
         pack.reset_offset();
         
-        assert(_timestamp < UINT64_MAX);
-        pack.write<uint64_t>(_timestamp); // force uint32_t because it should have been turned
-        pack.write<uint16_t>(_n);         // into a relative timestamp by now // V_4 use uint64_t anyway
+        print(Image::now().get());
+        assert(_timestamp.valid());
+        pack.write<timestamp_t>(_timestamp);
+        pack.write<uint16_t>(_n);
         static_assert(std::same_as<int32_t, Frame_t::number_t>, "Assuming int32_t here. Please fix.");
         pack.write<int32_t>(_source_index.valid() ? _source_index.get() : -1);
         
@@ -598,10 +598,11 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 //ns_l = std::chrono::microseconds(lastframe.timestamp());
 
                 if (idx >= 1) {
-                    uint64_t last = lastframe.timestamp();
-
-                    read_frame(lastframe, Frame_t(idx - 1));
-                    fps_l = last - lastframe.timestamp();
+                    auto last = lastframe.timestamp();
+                    if(last.valid()) {
+                        read_frame(lastframe, Frame_t(idx - 1));
+                        fps_l = last.get() - lastframe.timestamp().get();
+                    } else fps_l = 0;
                 }
             }
 
@@ -969,16 +970,21 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         std::unique_lock<std::mutex> lock(_lock);
 
         _header.num_frames++;
-        assert(!_prev_frame_time || frame._timestamp > _prev_frame_time);
+        assert(!_prev_frame_time.valid() || frame._timestamp > _prev_frame_time);
         //if(frame._timestamp >= _header.timestamp)
         //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
 
-        if (_prev_frame_time && frame._timestamp <= _prev_frame_time) {
+        if (_prev_frame_time.valid() && frame._timestamp <= _prev_frame_time) {
             throw U_EXCEPTION("Should be dropping frame because ",frame._timestamp," <= ",_prev_frame_time,".");
         }
 
-        _header._running_average_tdelta += frame._timestamp - _prev_frame_time;
-        _header.average_tdelta = _header._running_average_tdelta / (_header.num_frames > 0 ? double(_header.num_frames) : 1);
+        if(_prev_frame_time.valid()) {
+            _header._running_average_tdelta += frame._timestamp.get() - _prev_frame_time.get();
+            _header.average_tdelta = _header._running_average_tdelta / (_header.num_frames > 0 ? double(_header.num_frames) : 1);
+        } else {
+            _header._running_average_tdelta = 0;
+            _header.average_tdelta = 0;
+        }
         _prev_frame_time = frame._timestamp;
 
         // resets the offset and writes frame content to the pack
@@ -1113,8 +1119,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         copy.header().timestamp = file.header().timestamp;
         
-        uint64_t raw_prev_timestamp = 0;
-        uint64_t last_reset = 0;
+        timestamp_t raw_prev_timestamp;
+        timestamp_t last_reset;
         Frame_t last_reset_idx;
         uint64_t last_difference = 0;
         
@@ -1124,13 +1130,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             
             //frame.set_timestamp(file.header().timestamp + frame.timestamp());
             
-            if (frame.timestamp() < raw_prev_timestamp) {
-                last_reset = raw_prev_timestamp + last_difference;
+            if (raw_prev_timestamp.valid() && frame.timestamp() < raw_prev_timestamp) {
+                last_reset = raw_prev_timestamp.get() + last_difference;
                 last_reset_idx = idx;
                 
-                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp());
+                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
             } else {
-            	last_difference = frame.timestamp() - raw_prev_timestamp;
+            	last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
             }
             
             raw_prev_timestamp = frame.timestamp();
@@ -1335,10 +1341,10 @@ void File::set_average(const cv::Mat& average) {
             pv::Frame frame;
             for (Frame_t i=1_f; i<length(); i+=step) {
                 read_frame(frame, i);
-                double stamp = frame.timestamp();
+                double stamp = frame.timestamp().get();
                 if(i < length()-1_f) {
                     read_frame(frame, i+1_f);
-                    stamp = double(frame.timestamp()) - stamp;
+                    stamp = double(frame.timestamp().get()) - stamp;
                 }
                 average += stamp;
                 ++samples;

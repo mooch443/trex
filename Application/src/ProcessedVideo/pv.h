@@ -93,7 +93,7 @@ namespace pv {
         GETTER_SETTER(Frame_t, index)
         
         //! time since movie start in microseconds
-        GETTER_SETTER_I(uint64_t, timestamp, 0u)
+        GETTER_SETTER(timestamp_t, timestamp)
         //! number of mask/pixel arrays
         GETTER_I(uint16_t, n, 0u)
         GETTER_SETTER_I(float, loading_time, 0.f)
@@ -116,7 +116,7 @@ namespace pv {
         explicit Frame(const Frame&);
         
         //! create a new one from scratch
-        Frame(const uint64_t& timestamp, decltype(_n) n);
+        Frame(const timestamp_t& timestamp, decltype(_n) n);
         
         //! read from a file
         Frame(File& ref, Frame_t idx);
@@ -189,7 +189,7 @@ namespace pv {
         
         //! Timestamp in microseconds since 1970 of when the recording started
         //  (all following frames have delta-timestamps)
-        uint64_t timestamp{0u};
+        timestamp_t timestamp;
         
         //! Contains an index for each frame, pointing
         //  to its location in the file
@@ -282,7 +282,7 @@ namespace pv {
         Header _header;
         cv::Mat _average, _mask;
         GETTER(file::Path, filename)
-        uint64_t _prev_frame_time;
+        timestamp_t _prev_frame_time;
         
         // debug compression
         GETTER_I(std::atomic<double>, compression_ratio, 0.0)

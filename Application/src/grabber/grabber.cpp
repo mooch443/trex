@@ -271,7 +271,7 @@ Range<Frame_t> FrameGrabber::processing_range() const {
         ? Frame_t(GRAB_SETTINGS(video_conversion_range).second != -1
             ? Frame_t(GRAB_SETTINGS(video_conversion_range).second)
             : (_video->length() - 1_f))
-        : Frame_t();
+        : Frame_t(std::numeric_limits<Frame_t::number_t>::max());
 
     return Range<Frame_t>{ conversion_range_start, conversion_range_end };
 }
@@ -1019,7 +1019,8 @@ bool FrameGrabber::load_image(Image_t& current) {
             if (does_change_size) {
                 image.get().copyTo(m);
                 current.set_timestamp(image.timestamp());
-            }
+            } else
+                current.set_timestamp(current.image().timestamp());
         }
     }
     
@@ -2017,8 +2018,9 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     
     // make timestamp relative to _start_timing
     auto TS = current.timestamp();
-    if(not _start_timing.valid())
+    if(not _start_timing.valid()) {
         _start_timing = TS;
+    }
     TS = TS - _start_timing;
     current.set_timestamp(TS);
     
