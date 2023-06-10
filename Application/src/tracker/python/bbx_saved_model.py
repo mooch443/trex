@@ -21,20 +21,25 @@ import TRex
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-# Define a file-like class that redirects write calls to a logger
 class LoggerWriter:
     def __init__(self, logger, level):
         self.logger = logger
         self.level = level
+        self.message = ''  # Buffer for messages
 
     def write(self, message):
-        if message != '\n' and message != '':
-            import traceback
+        # Buffer the message
+        self.message += message
+        # If the message ends with a newline character
+        if message.endswith('\n'):
             # Fetch the current frame
+            import traceback
             frame = traceback.extract_stack()
             frame = frame[-2]
-            # Log the message with additional info
-            TRex.log(frame.filename, frame.lineno, f"{message}")
+            # Log the message with additional info, without the trailing newline character
+            TRex.log(frame.filename, frame.lineno, f"{self.message[:-1]}")
+            # Reset the message buffer
+            self.message = ''
 
     def flush(self):
         pass

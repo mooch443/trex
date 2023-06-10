@@ -10,7 +10,13 @@
 					{ "type":"button", "text":"Quit", "action":"QUIT" },
 					{ "type":"button", "text":"Filter", "action":"FILTER" },
 					{ "type":"button", "text":"Reset", "action":"RESET" },
-					{ "type":"text", "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75,"style":"regular"}, "color":[255,255,255] }
+					{
+						"type": "collection",
+						"children": [
+							{ "type":"text", "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75,"style":"regular"}, "color":[20,20,20] },
+							{ "type":"text", "pos":[2,2], "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75,"style":"regular"}, "color":[255,255,255] }
+						]
+					}
 				]
 			},
 
