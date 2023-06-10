@@ -172,17 +172,148 @@ MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 cmn::GlobalSettings* _settings{ nullptr };
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 
+#include "GPURecognition.h"
+#include <pybind11/stl.h>
+#include <gui/WorkProgress.h>
+#include <misc/SoftException.h>
+#include <misc/metastring.h>
+#include <misc/Timer.h>
+#include <file/DataLocation.h>
+
+namespace track::detect {
+    namespace py = pybind11;
+
+    template<typename T>
+    std::shared_ptr<T> transfer_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
+        py::buffer_info buf_info = input.request();
+        T* ptr = static_cast<T*>(buf_info.ptr);
+        std::size_t size = buf_info.size * sizeof(T);
+
+        // Increase reference count to prevent Python from garbage collecting the array
+        Py_INCREF(input.ptr());
+
+        // Create shared_ptr with custom deleter that decreases the Python object's reference count
+        return std::shared_ptr<T>(ptr, [cap = input.ptr()](T*) mutable {
+            Py_DECREF(cap);
+            });
+    }
+
+    class Mask {
+    public:
+        MaskData data;
+
+    public:
+        Mask(py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask) {
+            py::buffer_info buf_info = mask.request();
+            int rows = buf_info.shape[0];
+            int cols = buf_info.shape[1];
+            data = MaskData{
+                transfer_array<uint8_t>(mask),
+                rows,
+                cols
+            };
+        }
+    };
+
+    std::vector<MaskData> transfer_masks(py::list masks) {
+        std::vector<MaskData> result;
+        result.reserve(masks.size());
+
+        for (py::handle h : masks) {
+            py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask = h.cast<py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
+            result.emplace_back(std::move(Mask(mask).data));
+        }
+        return result;
+    }
+    
+}
+
+using namespace track::detect;
+
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
+
+    py::class_<Rect>(m, "Rect")
+        .def("__repr__", [](const Rect& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readonly("x0", &Rect::x0)
+        .def_readonly("y0", &Rect::y0)
+        .def_readonly("x1", &Rect::x1)
+        .def_readonly("y1", &Rect::y1);
+
+    py::class_<Row>(m, "Row")
+        .def("__repr__", [](const Row& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readonly("box", &Row::box)
+        .def_readonly("clid", &Row::clid)
+        .def_readonly("conf", &Row::conf);
+
+    py::class_<Boxes>(m, "Boxes")
+        .def(py::init([](py::array_t<float, py::array::c_style | py::array::forcecast> boxes_and_scores) -> Boxes {
+            return Boxes{
+                transfer_array<float>(boxes_and_scores),
+                    size_t(boxes_and_scores.request().size)
+            };
+        }))
+        .def("__repr__", [](const track::detect::Boxes& boxes) -> std::string {
+            return boxes.toStr();
+        })
+        .def("row", &Boxes::row, py::return_value_policy::reference_internal)
+        .def("num_rows", &Boxes::num_rows);
+
+    py::class_<track::detect::Result>(m, "Result")
+        .def(py::init([](int index,
+                         track::detect::Boxes boxes_and_scores,
+                         py::list masks)
+                -> Result 
+            {
+                auto _masks = transfer_masks(masks);
+                return track::detect::Result {
+                    index,
+                    std::move(boxes_and_scores),
+                    std::move(_masks)
+                };
+            })
+        )
+        .def("__repr__", [](const track::detect::Result& result) -> std::string {
+            return result.toStr();
+        })
+        .def("index", &Result::index)
+        .def("boxes_and_scores", &Result::boxes, py::return_value_policy::reference_internal)
+        .def("masks", &Result::masks);
+
+    py::class_<cmn::Vec2>(m, "Vec2")
+        .def(py::init<>())
+        .def("__repr__", [](const cmn::Vec2& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readwrite("x", &cmn::Vec2::x)
+        .def_readwrite("y", &cmn::Vec2::y);
+
+    py::class_<track::detect::YoloInput>(m, "YoloInput")
+        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&>())
+        .def("__repr__", [](const YoloInput& v) -> std::string {
+            return v.toStr();
+        })
+        .def("images", &track::detect::YoloInput::images)
+        .def("offsets", &track::detect::YoloInput::offsets)
+        .def("scales", &track::detect::YoloInput::scales);
 
     m.def("log", [](std::string text) {
         using namespace cmn;
         print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
-    });
+        });
+    m.def("log", [](std::string filename, int line, std::string text) {
+        using namespace cmn;
+        print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
+     });
+
     m.def("warn", [](std::string text) {
         using namespace cmn;
-        FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "),text.c_str());
-    });
+        FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
+        });
 
     m.def("video_size", []() -> pybind11::dict {
         using namespace pybind11::literals;
@@ -194,31 +325,33 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         d["width"] = w;
         d["height"] = h;
         return d;
-    });
-    
+        });
+
     m.def("setting", [](const std::string& name) -> std::string {
         using namespace pybind11::literals;
         using namespace cmn;
         return _settings->map().operator[](name).get().valueString();
-    });
-    
+        });
+
     m.def("setting", [](const std::string& name, const std::string& value) {
         using namespace pybind11::literals;
         using namespace cmn;
         try {
             constexpr auto accessLevel = default_config::AccessLevelType::PUBLIC;
-            if(!_settings->has_access(name, accessLevel))
-               FormatError("User cannot write setting ", name," (AccessLevel::",_settings->access_level(name).name(),").");
+            if (!_settings->has_access(name, accessLevel))
+                FormatError("User cannot write setting ", name, " (AccessLevel::", _settings->access_level(name).name(), ").");
             else {
-                if(_settings->has(name)) {
+                if (_settings->has(name)) {
                     _settings->map().operator[](name).get().set_value_from_string(value);
-                } else
-                    FormatError("Setting ",name," unknown.");
+                }
+                else
+                    FormatError("Setting ", name, " unknown.");
             }
-        } catch(...) {
-            FormatExcept("Failed to set setting ",name," to ",value,".");
         }
-    });
+        catch (...) {
+            FormatExcept("Failed to set setting ", name, " to ", value, ".");
+        }
+        });
 
     m.def("imshow", [](std::string name, pybind11::buffer b) {
 #if CMN_WITH_IMGUI_INSTALLED
@@ -240,7 +373,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             //tf::imshow(name, map);
         }
 #endif
-    }, pybind11::arg().none(), pybind11::arg().noconvert());
+        }, pybind11::arg().none(), pybind11::arg().noconvert());
 
     py::bind_vector<std::vector<cmn::Image::Ptr>>(m, "ImageVector", "Vector of images");
     py::bind_vector<std::vector<float>>(m, "FloatVector", "Float vector");
@@ -248,14 +381,6 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     py::bind_vector<std::vector<long_t>>(m, "LongVector", "Long vector");
     py::bind_vector<std::vector<uchar>>(m, "UcharVector", "Uchar vector");
 }
-
-#include "GPURecognition.h"
-#include <pybind11/stl.h>
-#include <gui/WorkProgress.h>
-#include <misc/SoftException.h>
-#include <misc/metastring.h>
-#include <misc/Timer.h>
-#include <file/DataLocation.h>
 
 namespace track {
 namespace py = pybind11;
@@ -614,6 +739,24 @@ bool PythonIntegration::exists(const std::string & name_, const std::string& m) 
     }
 }
 
+std::vector<track::detect::Result> PythonIntegration::predict(track::detect::YoloInput&& input, const std::string& m) {
+    PythonIntegration::check_correct_thread_id();
+
+    if (m.empty()) {
+        return _main.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
+    }
+    else {
+        if (_modules.count(m)) {
+            auto& mod = _modules[m];
+            if (!CHECK_NONE(mod)) {
+                return mod.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
+            }
+        }
+
+        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("predict"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
+    }
+}
+
 void PythonIntegration::set_function(const char* name_, std::function<bool()> f, const std::string &m) {
     set_function_internal(name_, f, m);
 }
@@ -639,6 +782,14 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m)
 {
+    set_function_internal(name_, f, m);
+}
+
+void PythonIntegration::set_function(const char* name_, std::function<void(const std::vector<track::detect::Result>&)> f, const std::string& m)
+{
+    auto fn = [f](track::detect::Result result) {
+
+    };
     set_function_internal(name_, f, m);
 }
 

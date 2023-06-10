@@ -14,6 +14,154 @@ namespace file {
 namespace track {
     using namespace cmn;
 
+    namespace detect {
+        struct TREX_EXPORT Rect {
+            float x0;
+            float y0;
+            float x1;
+            float y1;
+
+            operator cmn::Bounds() const {
+				return cmn::Bounds(x0, y0, x1 - x0, y1 - y0);
+			}
+            std::string toStr() const {
+                return "Rect<"+Meta::toStr(x0)+","+ Meta::toStr(y0)+" "+ Meta::toStr(x1)+","+ Meta::toStr(y1)+">";
+            }
+        };
+
+        struct TREX_EXPORT Row {
+            Rect box;
+            float conf;
+            float clid;
+            std::string toStr() const {
+                return "Row<" + Meta::toStr(box) + " " + Meta::toStr(conf) + " " + Meta::toStr(clid) + ">";
+            }
+        };
+
+        class TREX_EXPORT Boxes {
+        public:
+            const Row& row(size_t index) const {
+                if (index >= num_rows()) {
+                    throw SoftException("Index ", index, " out of bounds for array of size ", num_rows(), ".");
+                }
+                return reinterpret_cast<const Row*>(data.get())[index];
+            }
+
+            size_t num_rows() const {
+                return rows_count;
+            }
+
+            Boxes() = delete;
+            Boxes(const Boxes&) = default;
+            Boxes& operator=(const Boxes&) = default;
+            Boxes(Boxes&&) = default;
+            Boxes& operator=(Boxes&&) = default;
+
+            Boxes(std::shared_ptr<float> data, size_t size)
+                : data(data), rows_count(size / 6u)
+            {
+                if (size % 6u != 0u)
+                    throw std::invalid_argument("Invalid size for Boxes constructor. Please use a size that is divisible by 6 and is a flat float array.");
+                // expecting 6 floats per row, 4 for box, 1 for class id, 1 for confidence
+                assert(size % 6u == 0u);
+            }
+
+            std::string toStr() const {
+                return "Boxes<"+std::to_string(num_rows())+" rows>";
+            }
+            static std::string class_name() {
+                return "detect::Boxes";
+            }
+
+            // access operator []
+            const Row& operator[](size_t index) const {
+                if (index >= num_rows())
+                    throw SoftException("Index ", index, " out of bounds for array of size ", num_rows(), ".");
+				return row(index);
+			}
+
+            // begin and end functions for iterating data
+            const Row* begin() const {
+				return reinterpret_cast<const Row*>(data.get());
+			}
+            const Row* end() const {
+                return reinterpret_cast<const Row*>(data.get()) + num_rows();
+            }
+
+        private:
+            std::shared_ptr<float> data;
+            size_t rows_count;
+        };
+
+
+        class TREX_EXPORT MaskData {
+        private:
+            std::shared_ptr<uint8_t> ptr;
+            MaskData(std::shared_ptr<uint8_t> ptr, int rows, int cols, int dims = 1) : ptr(ptr), mat(rows, cols, CV_8UC(dims), ptr.get()) { }
+            friend class Mask;
+
+        public:
+            cv::Mat mat;
+
+            MaskData() = default;
+            MaskData(const MaskData&) = default;
+            MaskData& operator=(const MaskData&) = default;
+            MaskData(MaskData&&) = default;
+            MaskData& operator=(MaskData&&) = default;
+
+            std::string toStr() const {
+				return "MaskData<"+std::to_string(mat.rows)+"x"+std::to_string(mat.cols)+"x"+std::to_string(mat.channels())+">";
+			}
+            static std::string class_name() {
+                return "detect::MaskData";
+            }
+        };
+
+        class TREX_EXPORT Result {
+        public:
+            Result(int index, Boxes&& boxes, std::vector<MaskData> masks)
+                : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks))
+            {
+                if (not _boxes.num_rows() == 0) {
+                    if(not _masks.empty() && _masks.size() != _boxes.num_rows())
+                        throw std::invalid_argument("Number of masks must be equal to number of boxes.");
+                }
+            }
+
+            std::string toStr() const {
+                return "Result<"+std::to_string(index())+","+_boxes.toStr()+","+Meta::toStr(_masks)+ ">";
+            }
+            static std::string class_name() {
+                return "detect::Result";
+            }
+
+        protected:
+            GETTER(int, index)
+            GETTER(Boxes, boxes)
+            GETTER(std::vector<MaskData>, masks)
+        };
+
+        class TREX_EXPORT YoloInput {
+            GETTER(std::vector<Image::Ptr>, images)
+            GETTER(std::vector<Vec2>, offsets)
+            GETTER(std::vector<Vec2>, scales)
+
+        public:
+            YoloInput(std::vector<Image::Ptr>&& images, std::vector<Vec2> offsets, std::vector<Vec2> scales)
+				: _images(std::move(images)), _offsets(std::move(offsets)), _scales(std::move(scales))
+			{ }
+
+            YoloInput(const YoloInput&) = delete;
+            YoloInput(YoloInput&&) = default;
+            YoloInput& operator=(const YoloInput&) = delete;
+            YoloInput& operator=(YoloInput&&) = default;
+
+            std::string toStr() const {
+				return "YoloInput<"+Meta::toStr(_images)+","+Meta::toStr(_offsets)+","+Meta::toStr(_scales)+">";
+			}
+		};
+    }
+
     TREX_EXPORT std::atomic_bool& initialized();
     TREX_EXPORT std::atomic_bool& initializing();
     TREX_EXPORT std::atomic_bool& python_gpu_initialized();
@@ -66,6 +214,8 @@ namespace track {
             //static_assert(false, "Cant use without previously specified type.");
         }
 
+        static std::vector<track::detect::Result> predict(track::detect::YoloInput&&, const std::string &m = "");
+
         static void set_function(const char* name_, std::function<bool(void)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<float(void)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(float)> f, const std::string &m = "");
@@ -75,6 +225,7 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uchar>&)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(const std::vector<std::vector<cv::Mat>>&)> f, const std::string& m = "");
+        static void set_function(const char* name_, std::function<void(const std::vector<track::detect::Result>&)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>, std::vector<int>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uint64_t>, std::vector<float>)> f, const std::string& m = "");
