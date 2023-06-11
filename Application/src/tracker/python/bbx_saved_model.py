@@ -15,8 +15,10 @@ from enum import Enum
 
 from pathlib import Path
 import logging
+from functools import lru_cache
 
 import TRex
+from TRex import ModelTaskType
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -232,7 +234,6 @@ else:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")'''
 
 t_model = None
-print("------------ TEST --------------------")
 
 hyp = {
     "mask_resolution": 56,
@@ -342,27 +343,16 @@ def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
 
     return coords
 
-class ModelTaskType(Enum):
-    segment = "segment"
-    detect = "detect"
-    region = "region"
-
-class ModelConfig:
-    def __init__(self, task: ModelTaskType, model_path: str, min_image_size: int = 640, max_image_size: int = 640, device: torch.device = None):
+class Model:
+    def __init__(self, config):
         """
-        Initializes a ModelConfig object.
+        Initializes a Model object.
 
         Args:
-            task (ModelTaskType): The task for which the model is being used.
-            model_path (str): The path to the model file.
-            min_image_size (int): The minimum image size.
-            max_image_size (int): The maximum image size.
-            device (torch.device, optional): The device to use for inference. Defaults to None.
+            config (ModelConfig): An instance of the ModelConfig C++ class.
         """
-        self.task = task
-        self.model_path = model_path
-        self.min_image_size = min_image_size
-        self.max_image_size = max_image_size
+        assert isinstance(config, TRex.ModelConfig)
+        self.config = config
         self.ptr = None
 
         # if no device is specified, use cuda if available, otherwise use mps/cpu
@@ -374,30 +364,36 @@ class ModelConfig:
                 self.device = torch.device("cpu") #mps
             else:
                 self.device = torch.device("cpu")
-        
-        assert os.path.exists(model_path), f"Model path (for task '{task}') does not exist: '{model_path}'"
 
     def __str__(self) -> str:
-        return "ModelConfig<task={}, model_path='{}', min_image_size={}, max_image_size={}, device={}>".format(self.task, self.model_path, self.min_image_size, self.max_image_size, self.device)
+        return f"Model<{str(self.config)}>"
+
     def __repr__(self) -> str:
         return self.__str__()
     
+    @property
+    @lru_cache(maxsize=1)
+    def task(self) -> TRex.ModelTaskType:
+        print("task == ", self.config.task, type(self.config.task))
+        return self.config.task
+
     def load(self):
         from ultralytics import YOLO
-        self.ptr = YOLO(self.model_path)
+        self.ptr = YOLO(self.config.model_path)
         self.ptr.to(self.device)
         self.ptr.fuse()
 
-        if self.task == ModelTaskType.detect or self.task == ModelTaskType.segment:
+        if self.config.task == ModelTaskType.detect or self.config.task == ModelTaskType.segment:
             if self.ptr.task == "segment":
-                # if the model is a segmentation model but we're using it for detection, we need to change the task type
-                self.task = ModelTaskType.segment
+                self.config.task = ModelTaskType.segment
             elif self.ptr.task == "detect":
-                self.task = ModelTaskType.detect
+                self.config.task = ModelTaskType.detect
 
         TRex.log("Loaded model: {}".format(self))
 
     def predict(self, images : list[np.ndarray], **kwargs):
+        if len(images) == 0:
+            return []
         return self.ptr.predict(images, **kwargs)
 
 # a class that encapsulates the YOLOv8 model loading and inference
@@ -426,11 +422,51 @@ class TRexYOLO8:
     def has_segment_model(self) -> bool:
         return any(model.task == ModelTaskType.segment for model in self.models)
 
-    def region_proposal(self, **kwargs):
+    def region_proposal(self, images, **kwargs) -> list[list[tuple[np.ndarray[int], np.ndarray[np.uint8]]]]:
         # search the self.models array for any model with the property task
         # set to ModelTaskType.region and return that model:
         assert self.has_region_model(), "No region model found"
-        return next((model for model in self.models if model.task == ModelTaskType.region), None).predict(**kwargs)
+        
+        from ultralytics.yolo.utils.ops import scale_coords
+        # predict bounding boxes of areas of interest
+        model = next((model for model in self.models if model.task == ModelTaskType.region), None)
+        assert model is not None
+
+        scaled_size = model.config.trained_resolution
+        scaled_down_scales = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in images])
+        scaled_down = [cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
+        print(f"performing region proposals at {scaled_size}x{scaled_size} on {len(images)} images")
+        bboxes = model.predict(images = scaled_down, imgsz=scaled_size, conf=0.25, iou=0.3, verbose=False, **kwargs)
+        padding : int = 7
+        results : list[list[tuple[np.ndarray[int], np.ndarray[np.uint8]]]] = []
+        
+        # return a list per input image, with a list of bounding boxes (and their image regions) per image
+        for i, bb in enumerate([bb.boxes.xyxy.cpu().numpy() for bb in bboxes]):
+            mois = []
+            for box in bb:
+                box[:2] /= scaled_down_scales[i]
+                box[2:4] /= scaled_down_scales[i]
+
+                if padding > 0:
+                    box[:2] -= np.array([padding,padding])
+                    box[2:4] += np.array([padding,padding])
+
+                box = box.astype(int)
+                oi = images[i][box[1]:box[3], box[0]:box[2]]
+                if oi.shape[0] == 0 or oi.shape[1] == 0:
+                    continue
+
+                mois.append((box, oi))#cv2.cvtColor(oi, cv2.COLOR_BGR2RGB))
+
+            results.append(mois)
+
+        return results
+    
+    def detection_resolution(self):
+        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect or model.task == ModelTaskType.segment), None)
+        if detect_model is not None:
+            return detect_model.config.trained_resolution
+        raise Exception("No detect or segment model found")
 
     def detect_or_segment(self, **kwargs):
         # search the self.models array for any model with the property task
@@ -452,261 +488,99 @@ class TRexYOLO8:
         return [cv2.cvtColor(np.array(i, copy=False), cv2.COLOR_BGR2RGB) for i in images]
     
     def perform_region_proposal(self, tensor, offsets, scales, ious, confs) -> list[TRex.Result]:
-        from ultralytics.yolo.utils.ops import scale_coords
-        # predict bounding boxes of areas of interest
-        scaled_size = int(480)
-        scaled_down_scales = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in tensor])
-        scaled_down = [cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in tensor]
+        proposal = self.region_proposal(tensor)
 
-        bboxes = self.region_proposal(images = scaled_down, imgsz=scaled_size, conf=0.25, iou=0.3, verbose=False)
-        padding : int = 7
         rexsults = []
-        
-        for i, bb in enumerate([bb.boxes.xyxy.cpu().numpy() for bb in bboxes]):
-            offset = offsets[i]
+        all_images = []
+        for regions in proposal:
+            all_images.extend([region for _, region in regions])
+
+        results = self.detect_or_segment(
+            images = all_images, 
+            conf = confs, 
+            iou = ious, 
+            imgsz = self.detection_resolution(),
+            #offsets = offsets, 
+            classes=None, 
+            agnostic_nms=True,
+            verbose = False)
+
+        # arrange results list in the same dimensionality and order as the proposal list
+        cursor = 0
+        all_results = []
+        for regions in proposal:
+            end = cursor + len(regions)
+            all_results.append(results[cursor:end])
+            cursor = end
+
+        # now perform segmentation predictions for each identified region
+        for i, (regions, results) in enumerate(zip(proposal, all_results)):
             scale = scales[i]
-
-            mois = []
-            mois_with_nones = []
-            for j,box in enumerate(bb):
-                box[:2] /= scaled_down_scales[i]
-                box[2:4] /= scaled_down_scales[i]
-
-                if padding > 0:
-                    box[:2] -= np.array([padding,padding])
-                    box[2:4] += np.array([padding,padding])
-
-                box = box.astype(int)
-                oi = (tensor[i][box[1]:box[3], box[0]:box[2]])#[..., ::-1]
-                if oi.shape[0] == 0 or oi.shape[1] == 0:
-                    mois_with_nones.append(j)
-                    continue
-
-                mois.append(cv2.cvtColor(oi, cv2.COLOR_BGR2RGB))
-            
-            results = []
-            if len(mois) > 0:
-                start = time.time()
-                imgsz = 160
-                results = self.detect_or_segment(images = mois, 
-                                                 imgsz=imgsz, 
-                                                 verbose=False, 
-                                                 iou=ious, 
-                                                 conf=confs, 
-                                                 classes=None, 
-                                                 agnostic_nms=False, 
-                                                 stream=False)
-                end = time.time()
-                self.results_time += float(end - start) * 1000.0 / len(mois)
-                self.results_samples += 1
-
-                #print("results time = ", float(end - start) * 1000.0 / len(mois), "ms for ", len(mois), "mois")
-
-            for j in mois_with_nones:
-                results.insert(j, None)
-            
-            assert len(bb) == len(results)
+            offset = offsets[i]
 
             collected_boxes = []
             collected_masks = []
 
-            start = time.time()
-            for t, (box, result) in enumerate(zip(bb, results)):
-                if result is None or result.masks is None:
-                    continue
-
-                #r = result.cpu().plot(img=mois[t], line_width=1)
-                #TRex.imshow("segmentation"+str(t), r)
-
-                coords = result.boxes.data.cpu().numpy()
-                
-                unscaled = np.copy(coords)
-                unscaled[:, :2] *= scale[0]
-                unscaled[:, 2:4] *= scale[1]
-                
-                unscaled[..., :2] = unscale_coords(result.masks.data.shape[1:], unscaled[..., :2], result.orig_shape * scale).round().astype(int)
-                unscaled[..., 2:4] = unscale_coords(result.masks.data.shape[1:], unscaled[..., 2:4], result.orig_shape * scale).round().astype(int)
-                
-                coords[:, :2] = (coords[:, :2] + offset + np.array([box[0], box[1]])) * scale[0]
-                coords[:, 2:4] = (coords[:, 2:4] + offset + np.array([box[0], box[1]])) * scale[1]
+            for t, (result, (box, region)) in enumerate(zip(results, regions)):
+                #r = result.cpu().plot(img=region, line_width=1)
+                #TRex.imshow("segmentation"+str(i)+","+str(t), r)
+                coords, masks = self.postprocess_result(i, result, offset, scale, box)
                 collected_boxes.append(coords)
-
-                assert len(coords) == len(result.masks.data)
-                for scaled, coord, k in zip(coords.round().astype(int), unscaled, (result.masks.data * 255).byte()):
-                    sub = k[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])]
-                    # resize sub to scaled size using pytorch
-                    ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(scaled[3] - scaled[1], scaled[2] - scaled[0])).squeeze(0).squeeze(0)
-                    collected_masks.append(ssub.cpu().numpy())
-                    #TRex.imshow("mask", collected_masks[-1])
-                    assert collected_masks[-1].flags['C_CONTIGUOUS']
+                collected_masks.extend(masks)
 
             if len(collected_boxes) > 0:
                 collected_boxes = np.concatenate(collected_boxes, axis=0)
 
             assert len(collected_boxes) == len(collected_masks)
             rexsults.append(TRex.Result(i, TRex.Boxes(collected_boxes), collected_masks))
-            #end = time.time()
-            #print("time for big predict:", float(end - start) * 1000 / max(1, len(mois)), "ms/rect", float(end - start) * 1000, "ms per image")
 
         return rexsults
 
-    def perform_bbx_prediction(self, tensor, offsets, ious, confs):
-        global receive, receive_masks
-        self.image_size = 320
-        import time
-        from ultralytics.yolo.utils.ops import scale_coords
+    def postprocess_result(self, i, result, offset, scale, box = [0, 0, 0, 0]) -> tuple[np.ndarray, list[np.ndarray]]:
+        coords = result.boxes.data.cpu().numpy()
+        unscaled = np.copy(coords)
 
-        ostart = time.time()
-        Ns = []
-        boxes = []
+        coords[:, :2] = (coords[:, :2] + offset + np.array([box[0], box[1]])) * scale[0]
+        coords[:, 2:4] = (coords[:, 2:4] + offset + np.array([box[0], box[1]])) * scale[1]
 
-        mask_Ns = []
-        mask_points = []
+        # if coords has more than 6 columns, then it also contains tracking information
+        # remove that tracking information by deleting the id-column (at index 4)
+        if coords.shape[1] > 6:
+            coords = np.delete(coords, 4, axis=1)
 
-        # predict bounding boxes of areas of interest
-        scaled_size = int(480)
-        scaled_down_scales = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in tensor])
-        scaled_down = [cv2.cvtColor(cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))), cv2.COLOR_BGR2RGB) for im in tensor]
-        #scaled_down = [cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in tensor]
-        sstart = time.time()
-        ratios = [i.shape[0] / i.shape[1] for i in tensor]
-        scaled_offsets = np.array([(0,0) for ratio, k in zip(ratios, tensor)])
-        #print(scaled_offsets)
+        masks = []
 
-        #bboxes = [self.estimator.track(i, persist=True, imgsz=scaled_size, conf=0.1, iou=0.7, device=self.device, verbose=False)[0] for i in scaled_down]
-        bboxes = self.estimator.predict(scaled_down, imgsz=scaled_size, conf=0.25, iou=0.3, device=self.device, verbose=False)
+        if not result.keypoints is None:
+            print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
+            print(result.keypoints.shape)
+            print("orig_shape...=",result.orig_shape)
+            keys = result.keypoints.cpu().numpy()[..., :2]
+            #keys = result.keypoints.cpu().numpy()[..., :2]/np.array(result.orig_shape)[::-1]
+            #keys *= np.array([im.shape[1], im.shape[2]])
+            from_keys = []
+            #print(keys)
+            for x,y in keys[0]:
+                from_keys.append((x - 5, y - 5, x + 5, y + 5, 0.5, 0))
+            #print(keys)
+            #boxes.append(from_keys)
+            #Ns.append(coords.shape[0] + len(from_keys))
 
-        #for i, bb in enumerate(bboxes):
-        #    r = bb.cpu().plot(img=scaled_down[i], line_width=1)
-        #    TRex.imshow("bboxes", r)
-        segmentations = []
-        
-        for i, bb in enumerate([bb.boxes.xyxy.cpu().numpy() for bb in bboxes]):
-            offset = offsets[i]
-            mpoints = []
-            mboxes = []
-
-            mois = []
-            mois_with_nones = []
-            for j,box in enumerate(bb):
-                box[:2] /= scaled_down_scales[i]
-                box[2:4] /= scaled_down_scales[i]
-                box[:2] -= np.array([7,7])
-                box[2:4] += np.array([7,7])
-                #box[:2] -= scaled_offsets[i]/2
-                #box[2:4] += scaled_offsets[i]/2
-                box = box.astype(int)
-                oi = (tensor[i][box[1]:box[3], box[0]:box[2]])#[..., ::-1]
-                if oi.shape[0] == 0 or oi.shape[1] == 0:
-                    mpoints.append(np.zeros((0,2), dtype=np.float32))
-                    #if self.estimator.task == "segment" or True:
-                    #    mboxes.append(np.zeros((0,4), dtype=np.float32))
-                    #else:
-                    mboxes.append(np.zeros((0,6), dtype=np.float32))
-                    mois_with_nones.append(j)
-                    continue
-                mois.append(cv2.cvtColor(oi, cv2.COLOR_BGR2RGB))
+        if not result.masks is None:
+            unscaled[:, :2] *= scale[0]
+            unscaled[:, 2:4] *= scale[1]
             
-            results = []
-            if len(mois) > 0:
-                #print(cv2.resize(oi, (self.image_size, oi.shape[0] * self.image_size // oi.shape[1])).shape)
-                start = time.time()
-                #print("using image sizes ", [min(max(160, m.shape[1] / 1.5), self.image_size) for m in mois])
-                #results = [self.model.predict(m, imgsz=min(max(160, m.shape[1] // 2), self.image_size), device = self.device, verbose=False, iou=ious, conf=confs, classes=None, agnostic_nms=False, stream=False)[0] for m in mois]
-                imgsz = 160#int(np.max([min(max(160, m.shape[1] / 1.5), self.image_size) for m in mois]))
-                #print("imgsz = ", imgsz, " for ", len(mois), "mois")
-                results = self.model.predict(mois, imgsz=imgsz, device = self.device, verbose=False, iou=ious, conf=confs, classes=None, agnostic_nms=False, stream=False)
-                end = time.time()
-                self.results_time += float(end - start) * 1000.0 / len(mois)
-                self.results_samples += 1
-
-                print("results time = ", float(end - start) * 1000.0 / len(mois), "ms for ", len(mois), "mois")
-
-            for j in mois_with_nones:
-                results.insert(j, None)
+            unscaled[..., :2] = unscale_coords(result.masks.data.shape[1:], unscaled[..., :2], result.orig_shape * scale).round().astype(int)
+            unscaled[..., 2:4] = unscale_coords(result.masks.data.shape[1:], unscaled[..., 2:4], result.orig_shape * scale).round().astype(int)
             
-            assert len(bb) == len(results)
-            datas = []
-            import torch.nn.functional as F
-
-            start = time.time()
-            for t, (box, result) in enumerate(zip(bb, results)):
-                #print("shape: ", result.orig_shape)
-                #print(i, "r = ", r.cpu())
-
-                if not result is None and not result.masks is None:
-                    #r = result.cpu().plot(img=mois[t], line_width=1)
-                    #TRex.imshow("segmentation"+str(t), r)
-                    coords = result.boxes.data.cpu().numpy()#xyxy.cpu().numpy()
-                    unscaled = np.copy(coords)
-                    #print("before:", unscaled)
-                    unscaled[..., :2] = unscale_coords(result.masks.data.shape[1:], unscaled[..., :2], result.orig_shape).round().astype(int)
-                    unscaled[..., 2:4] = unscale_coords(result.masks.data.shape[1:], unscaled[..., 2:4], result.orig_shape).round().astype(int)
-                    
-                    coords[:, :2] += offset + np.array([box[0], box[1]])
-                    coords[:, 2:4] += offset + np.array([box[0], box[1]])
-                    print(coords.shape, unscaled)
-
-                    mboxes.append(coords)
-                    xy = []
-                    xy = result.masks.xy
-                    assert len(coords) == len(result.masks.data)
-                    
-                    for scaled, coord, k in zip(coords.round().astype(int), unscaled,(result.masks.data * 255).byte()):
-                        sub = k[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])]
-                        # resize sub to scaled size using pytorch
-                        ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(scaled[3] - scaled[1], scaled[2] - scaled[0])).squeeze(0).squeeze(0)
-                        #print(scaled, " != ", coord, " -> ", ssub.shape, " != ", sub.shape)
-                        datas.append(ssub.cpu().numpy())
-                        assert datas[-1].flags['C_CONTIGUOUS']
-
-                    for k, points in enumerate(xy):
-                        mpoints.append(points + offset + np.array([box[0], box[1]]))
-
-            end = time.time()
-            print("time for big predict:", float(end - start) * 1000 / max(1, len(mois)), "ms/rect", float(end - start) * 1000, "ms per image")
-            
-            if len(mboxes) > 0:
-                mboxes = np.concatenate(mboxes, axis=0)
-                boxes.append(mboxes)
-                Ns.append(mboxes.shape[0])
-                mask_Ns.append([points.shape[0] for points in mpoints])
-                mask_points.append(np.concatenate(mpoints, dtype=np.float32).flatten())
-            else:
-                #if self.estimator.task == "segment" or True:
-                #    boxes.append(np.zeros((0,4), dtype=np.float32))
-                #else:
-                boxes.append(np.zeros((0,6), dtype=np.float32))
-                Ns.append(0)
-                mask_Ns.append(np.zeros((0,), dtype=int))
-                mask_points.append(np.zeros((0,), dtype=np.float32))
-
-            segmentations.append(datas)
-
-        oend = time.time()
-        print("------- overall: ", float(oend - ostart) * 1000 / len(tensor), "ms/tensor")
-
-        receive_masks(segmentations)
-
-        if len(mask_Ns) > 0:
-            mask_Ns = np.concatenate(mask_Ns, axis=0, dtype=int)
-            mask_points = np.concatenate(mask_points, axis=0, dtype=np.float32)
-
-            assert np.sum(mask_Ns.flatten()) == len(mask_points) // 2
-            receive_with_seg(mask_Ns, mask_points)
-
-        if len(boxes) > 0:
-            print([np.shape(b) for b in boxes])
-            boxes = np.concatenate(boxes, axis=0, dtype=np.float32)
-        else:
-            boxes = np.array([], dtype=np.float32)
-            Ns = []
-        
-        Ns = np.array(Ns, dtype=int)
-        #print("resulting boxes=", boxes.shape, "Ns=", Ns, " ", Ns.shape)
-        boxes = boxes.flatten()
-
-        receive(Ns, boxes)
+            assert len(coords) == len(result.masks.data)
+            for scaled, coord, k in zip(coords.round().astype(int), unscaled, (result.masks.data * 255).byte()):
+                sub = k[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])]
+                # resize sub to scaled size using pytorch
+                ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(scaled[3] - scaled[1], scaled[2] - scaled[0])).squeeze(0).squeeze(0)
+                masks.append(ssub.cpu().numpy())
+                assert masks[-1].flags['C_CONTIGUOUS']
+    
+        return coords, masks
 
     def inference(self, im, offsets, scales, conf_threshold=0.1, iou_threshold=0.7):
         global receive
@@ -720,83 +594,40 @@ class TRexYOLO8:
         if self.has_region_model():
             return self.perform_region_proposal(tensor, offsets = offsets, scales = scales, ious = iou_threshold, confs = conf_threshold)
 
+        rexsults = []
+
         # otherwise, we need to segment the entire image
         results = self.detect_or_segment(images = tensor, 
                                          conf = conf_threshold, 
                                          iou = iou_threshold, 
-                                         offsets = offsets, 
+                                         #offsets = offsets, 
+                                         imgsz = self.detection_resolution(),
                                          classes=None, 
                                          agnostic_nms=True,
                                          verbose = False)
 
-        rexsults = []
-
         for i, result in enumerate(results):
             #r = result.cpu().plot(img=im[i], line_width=1)
             #TRex.imshow("result", r)
-            
-            offset = offsets[i]
-            scale = scales[i]
-
-            coords = result.boxes.data.cpu().numpy()
-            coords[:, :2] = (coords[:, :2] + offset) * scale[0]
-            coords[:, 2:4] = (coords[:, 2:4] + offset) * scale[1]
-
-            # if coords has more than 6 columns, then it also contains tracking information
-            # remove that tracking information by deleting the id-column (at index 4)
-            if coords.shape[1] > 6:
-                coords = np.delete(coords, 4, axis=1)
-
-            b = TRex.Boxes(coords)
-            masks = []
-
-            if not result.keypoints is None:
-                print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
-                print(result.keypoints.shape)
-                print("orig_shape...=",result.orig_shape)
-                keys = result.keypoints.cpu().numpy()[..., :2]
-                #keys = result.keypoints.cpu().numpy()[..., :2]/np.array(result.orig_shape)[::-1]
-                #keys *= np.array([im.shape[1], im.shape[2]])
-                from_keys = []
-                #print(keys)
-                for x,y in keys[0]:
-                    from_keys.append((x - 5, y - 5, x + 5, y + 5, 0.5, 0))
-                #print(keys)
-                #boxes.append(from_keys)
-                #Ns.append(coords.shape[0] + len(from_keys))
-            #else:
-                #Ns.append(coords.shape[0])
-
-            if not result.masks is None:
-                unscaled = np.copy(coords)
-                unscaled[..., :2] = unscale_coords(result.masks.data.shape[1:], unscaled[..., :2], result.orig_shape * scale).round().astype(int)
-                unscaled[..., 2:4] = unscale_coords(result.masks.data.shape[1:], unscaled[..., 2:4], result.orig_shape * scale).round().astype(int)
-                
-                assert len(coords) == len(result.masks.data)
-                for scaled, coord, k in zip(coords.round().astype(int), unscaled,(result.masks.data * 255).byte()):
-                    sub = k[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])]
-                    # resize sub to scaled size using pytorch
-                    ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(scaled[3] - scaled[1], scaled[2] - scaled[0])).squeeze(0).squeeze(0)
-                    masks.append(ssub.cpu().numpy())
-                    assert masks[-1].flags['C_CONTIGUOUS']
-        
-            rexsults.append(TRex.Result(i, b, masks))
+            coords, masks = self.postprocess_result(i, result, offset = offsets[i], scale = scales[i])
+            rexsults.append(TRex.Result(i, TRex.Boxes(coords), masks))
 
         return rexsults
+
+def load_yolo8(configs : list[TRex.ModelConfig]):
+    global model
+    models = []
+    for config in configs:
+        models.append(Model(config))
+    
+    print("Loaded models ", models)
+    model = TRexYOLO8(models)
 
 def load_model():
     global model, model_path, segmentation_path, region_path, image_size, t_model, imgsz, WEIGHTS_PATH, device, model_type, t_predict, q_model
     print("loading model type", model_type)
     if model_type == "yolo8seg" or model_type == "yolo8":
-        models = []
-        if model_path != "" and model_path is not None:
-            models.append(ModelConfig(ModelTaskType.detect, model_path))
-        if region_path != "" and region_path is not None:
-            models.append(ModelConfig(ModelTaskType.region, region_path))
-
-        print("Found models ", models)
-        model = TRexYOLO8(models)
-        
+        raise Exception("Please use the load_yolo8 method.")
     elif model_type == "yolo7seg":
         from models.common import DetectMultiBackend
         if torch.backends.mps.is_available():

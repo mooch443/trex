@@ -60,15 +60,27 @@ static ObjectDetectionType::Class detection_type() {
 }
 
 Size2 get_model_image_size() {
-    auto image_width = Size2(SETTING(image_width).value<uint16_t>());
+    auto detection_resolution = Size2(SETTING(detection_resolution).value<uint16_t>());
     if (detection_type() == ObjectDetectionType::yolo8) {
         const auto meta_video_size = SETTING(meta_video_size).value<Size2>();
-        auto size = Size2(image_width.width, meta_video_size.height / meta_video_size.width * image_width.width);
-        //print("Using a resolution of meta_video_size = ", meta_video_size, " and image_width = ", image_width, " gives a model image size of ", size);
-        return meta_video_size.div(2);
+		const auto detection_resolution = SETTING(detection_resolution).value<uint16_t>();
+        const auto region_resolution = SETTING(region_resolution).value<uint16_t>();
+
+        Size2 size;
+        const float ratio = meta_video_size.height / meta_video_size.width;
+        if (region_resolution > 0) {
+            const auto max_w = max((float)detection_resolution, (float)region_resolution * 2);
+            size = Size2(max_w, ratio * max_w);
+            size = meta_video_size.div(4);
+		} else
+            size = Size2(detection_resolution, ratio * detection_resolution);
+
+        print("Using a resolution of meta_video_size = ", meta_video_size, " and detection_resolution = ", detection_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
+        //return meta_video_size.div(2);
+        return size;
     }
     else {
-        return Size2(image_width);
+        return Size2(detection_resolution);
     }
 }
 
@@ -586,21 +598,32 @@ struct Yolo8InstanceSegmentation {
                 throw U_EXCEPTION("When using yolov8, please set model using command-line argument -sm <path> to set an instance segmentation model (pytorch), or -m <path> to set an object detection model, or both to use the segmentation model only for segmentation of cropped object detections.");
         } else if(not SETTING(segmentation_model).value<file::Path>().exists())
             FormatWarning("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
-        
-        if(SETTING(model).value<file::Path>().exists())
-            proxy.set_variable("model_path", SETTING(model).value<file::Path>().str());
-        else
-            proxy.set_variable("model_path", "");
-        
-        if(SETTING(segmentation_model).value<file::Path>().exists())
-            proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
-        else
-            proxy.set_variable("segmentation_path", "");
 
-        proxy.set_variable("region_path", SETTING(region_model).value<file::Path>().str());
-        
-        proxy.set_variable("image_size", get_model_image_size());
-        proxy.run("load_model");
+        using namespace track::detect;
+        std::vector<ModelConfig> models;
+
+        if (SETTING(model).value<file::Path>().exists()) {
+            models.emplace_back(
+                ModelTaskType::detect,
+                SETTING(model).value<file::Path>().str(),
+                SETTING(detection_resolution).value<uint16_t>()
+            );
+        }
+        else if (SETTING(segmentation_model).value<file::Path>().exists())
+            models.emplace_back(
+                ModelTaskType::detect,
+                SETTING(segmentation_model).value<file::Path>().str(),
+                SETTING(detection_resolution).value<uint16_t>()
+            );
+
+        if(SETTING(region_model).value<file::Path>().exists())
+            models.emplace_back(
+				ModelTaskType::region,
+				SETTING(region_model).value<file::Path>().str(),
+				SETTING(region_resolution).value<uint16_t>()
+			);
+
+        PythonIntegration::set_models(models, proxy.m);
     }
     
     static void init() {
@@ -2201,9 +2224,14 @@ private:
     void printDebugInformation() {
         DebugHeader("Starting tracking of");
         print("average at: ", average_name());
-        print("model: ",SETTING(model).value<file::Path>());
+        if (detection_type() != ObjectDetectionType::yolo8) {
+            print("model: ", SETTING(model).value<file::Path>());
+            print("segmentation model: ", SETTING(segmentation_path).value<file::Path>());
+        } else
+            print("model: ",SETTING(model).value<file::Path>() != "" ? SETTING(model).value<file::Path>() : SETTING(segmentation_path).value<file::Path>());
+        print("region model: ", SETTING(region_model).value<file::Path>());
         print("video: ", SETTING(source).value<std::string>());
-        print("model resolution: ", SETTING(image_width).value<uint16_t>());
+        print("model resolution: ", SETTING(detection_resolution).value<uint16_t>());
         print("output size: ", SETTING(output_size).value<Size2>());
         print("output path: ", SETTING(filename).value<file::Path>());
         print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
@@ -3356,11 +3384,15 @@ void launch_gui() {
     
     StartingScene start(base);
     manager.register_scene(&start);
-    manager.set_active(&start);
+
+    if(SETTING(source).value<std::string>() == "")
+        manager.set_active(&start);
     
     ConvertScene converting(base);
     manager.register_scene(&converting);
     //manager.set_active(&converting);
+    if (SETTING(source).value<std::string>() != "")
+        manager.set_active(&converting);
 
     LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
@@ -3420,7 +3452,8 @@ int main(int argc, char**argv) {
     SETTING(segmentation_resolution) = uint16_t(128);
     SETTING(segmentation_model) = file::Path("");
     SETTING(region_model) = file::Path("");
-    SETTING(image_width) = uint16_t(640);
+    SETTING(region_resolution) = uint16_t(320);
+    SETTING(detection_resolution) = uint16_t(640);
     SETTING(filename) = file::Path("");
     SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo8;
@@ -3455,7 +3488,7 @@ int main(int argc, char**argv) {
             SETTING(output_dir) = file::Path(a.value);
         }
         if(a.name == "dim") {
-            SETTING(image_width) = Meta::fromStr<uint16_t>(a.value);
+            SETTING(detection_resolution) = Meta::fromStr<uint16_t>(a.value);
         }
         if(a.name == "o") {
             SETTING(filename) = file::Path(a.value);

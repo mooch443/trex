@@ -15,6 +15,51 @@ namespace track {
     using namespace cmn;
 
     namespace detect {
+        enum class TREX_EXPORT ModelTaskType {
+            segment,
+            detect,
+            region
+        };
+
+        struct TREX_EXPORT ModelConfig {
+            ModelConfig(ModelTaskType task, 
+                        std::string model_path, 
+                        int trained_resolution = 640, 
+                        int min_image_size = -1,
+                        int max_image_size = -1)
+                :   task(task), 
+                    model_path(model_path), 
+                    trained_resolution(trained_resolution),
+                    min_image_size(min_image_size != -1 ? min_image_size : trained_resolution), 
+                    max_image_size(max_image_size != -1 ? max_image_size : min_image_size)
+            {
+                // check if model path exists
+                std::ifstream f(model_path.c_str());
+                if (!f.good()) {
+                    throw std::invalid_argument("Model path (for task) does not exist: " + model_path);
+                }
+                f.close();
+            }
+
+            std::string toStr() const {
+                std::ostringstream os;
+                os << "ModelConfig<task=" << static_cast<int>(task)
+                    << " model_path='" << model_path << "' trained_resolution=" << trained_resolution
+                    << "' min_image_size=" << min_image_size
+                    << " max_image_size=" << max_image_size << ">";
+                return os.str();
+            }
+            static std::string class_name() {
+                return "detect::ModelConfig";
+            }
+
+            ModelTaskType task;
+            std::string model_path;
+            int trained_resolution;
+            int min_image_size;
+            int max_image_size;
+        };
+
         struct TREX_EXPORT Rect {
             float x0;
             float y0;
@@ -215,6 +260,7 @@ namespace track {
         }
 
         static std::vector<track::detect::Result> predict(track::detect::YoloInput&&, const std::string &m = "");
+        static void set_models(const std::vector<track::detect::ModelConfig>&, const std::string& m = "");
 
         static void set_function(const char* name_, std::function<bool(void)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<float(void)> f, const std::string &m = "");

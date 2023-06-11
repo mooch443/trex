@@ -232,6 +232,30 @@ using namespace track::detect;
 
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
+    using namespace track::detect;
+
+    py::enum_<track::detect::ModelTaskType>(m, "ModelTaskType")
+        .value("segment", track::detect::ModelTaskType::segment)
+        .value("detect", track::detect::ModelTaskType::detect)
+        .value("region", track::detect::ModelTaskType::region)
+        .export_values();
+
+    py::class_<ModelConfig>(m, "ModelConfig")
+        .def(py::init<ModelTaskType, std::string, int, int, int>(),
+            py::arg("task"),
+            py::arg("model_path"),
+            py::arg("trained_resolution") = 640,
+            py::arg("min_image_size") = -1,
+            py::arg("max_image_size") = -1)
+        .def_readwrite("task", &ModelConfig::task)
+        .def_readonly("model_path", &ModelConfig::model_path)
+        .def_readonly("trained_resolution", &ModelConfig::trained_resolution)
+        .def_readonly("min_image_size", &ModelConfig::min_image_size)
+        .def_readonly("max_image_size", &ModelConfig::max_image_size)
+        .def("__repr__", &ModelConfig::toStr)
+        .def("__str__", &ModelConfig::toStr)
+        .def_static("class_name", &ModelConfig::class_name);
+
 
     py::class_<Rect>(m, "Rect")
         .def("__repr__", [](const Rect& v) -> std::string {
@@ -736,6 +760,26 @@ bool PythonIntegration::exists(const std::string & name_, const std::string& m) 
         }
         
         throw SoftException("Cannot define function ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str()),"::", fmt::clr<FormatColor::CYAN>(name_)," because the module ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str())," does not exist (you should probably have a look at previous error messages).");
+    }
+}
+
+void PythonIntegration::set_models(const std::vector<ModelConfig>& config, const std::string& m) {
+    PythonIntegration::check_correct_thread_id();
+
+    if (m.empty()) {
+        _main.attr("load_yolo8")(config);
+        return;
+    }
+    else {
+        if (_modules.count(m)) {
+            auto& mod = _modules[m];
+            if (!CHECK_NONE(mod)) {
+                mod.attr("load_yolo8")(config);
+                return;
+            }
+        }
+
+        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("load_yolo8"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
     }
 }
 

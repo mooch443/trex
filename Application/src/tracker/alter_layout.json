@@ -14,13 +14,18 @@
 						"type": "collection",
 						"children": [
 							{ "type":"text", "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75,"style":"regular"}, "color":[20,20,20] },
-							{ "type":"text", "pos":[2,2], "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75,"style":"regular"}, "color":[255,255,255] }
+							{ "type":"text", "pos":[1.5,1.5], "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75,"style":"regular"}, "color":[255,255,255] }
 						]
 					}
 				]
 			},
-
-			{ "type":"text", "text":"  resolution: {video:resolution} | processed resolution: {global:image_width} | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[100,230,255] }
+			{
+				"type": "collection",
+				"children": [
+					{ "type":"text", "text":"  resolution: {video:resolution} | processed resolution: {global:detection_resolution} | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[0,0,0] },
+					{ "type":"text", "pos":[1,1], "text":"  resolution: {video:resolution} | processed resolution: {global:detection_resolution} | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[150,240,255] }
+				]
+			}
 		]
 	},
 
