@@ -2001,10 +2001,11 @@ class ConvertScene : public Scene {
         ind::option::BarWidth{50},
         ind::option::Start{"["},
         ind::option::Fill{"█"},
-        ind::option::Lead{"▙"},
-        ind::option::Remainder{"-"},
+        ind::option::Lead{"▂"},
+        ind::option::Remainder{"▁"},
         ind::option::End{"]"},
         ind::option::PostfixText{"Converting video..."},
+        ind::option::ShowPercentage{true},
         ind::option::ForegroundColor{ind::Color::grey},
         //ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::re}}
     };
@@ -2081,6 +2082,8 @@ private:
     }
     
     void open_video() {
+        bar.set_option(ind::option::ShowPercentage{true});
+        
         VideoSource video_base(SETTING(source).value<std::string>());
         video_base.set_colors(ImageMode::RGB);
         
@@ -3579,6 +3582,9 @@ void init_signals() {
 int main(int argc, char**argv) {
     using namespace gui;
     init_signals();
+#ifdef WIN32
+    SetConsoleOutputCP( 65001 );
+#endif
     
     default_config::register_default_locations();
     
