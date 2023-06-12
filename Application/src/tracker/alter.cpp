@@ -32,6 +32,8 @@
 #include <indicators/progress_bar.hpp>
 #include <indicators/progress_spinner.hpp>
 
+#include <signal.h>
+
 using namespace cmn;
 
 struct TileImage;
@@ -2002,16 +2004,16 @@ class ConvertScene : public Scene {
         ind::option::Lead{"▙"},
         ind::option::Remainder{"-"},
         ind::option::End{"]"},
-        ind::option::PostfixText{"Extracting Archive"},
-        ind::option::ForegroundColor{ind::Color::green},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+        ind::option::PostfixText{"Converting video..."},
+        ind::option::ForegroundColor{ind::Color::grey},
+        //ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::re}}
     };
     
     ind::ProgressSpinner spinner{
-        ind::option::PostfixText{"Checking credentials"},
-        ind::option::ForegroundColor{ind::Color::yellow},
+        ind::option::PostfixText{"Recording..."},
+        ind::option::ForegroundColor{ind::Color::grey},
         ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+        //ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
 public:
@@ -2154,6 +2156,9 @@ private:
     }
 
     void open_camera() {
+        spinner.set_option(ind::option::PrefixText{"Recording..."});
+        spinner.set_option(ind::option::ShowPercentage{false});
+        
         using namespace grab;
         fg::Webcam camera;
         camera.set_color_mode(ImageMode::RGB);
@@ -2225,8 +2230,6 @@ private:
     
     void activate() override {
         _should_terminate = false;
-        spinner.set_option(ind::option::PrefixText{"Converting video..."});
-        spinner.set_option(ind::option::ShowPercentage{false});
         
         try {
             print("Loading source = ", SETTING(source).value<std::string>());
@@ -3490,8 +3493,92 @@ void launch_gui() {
     Detection::manager.~PipelineManager<TileImage>();
 }
 
+void panic(const char *fmt, ...) {
+    CrashProgram::crash_pid = std::this_thread::get_id();
+    
+    printf("\033[%02d;%dmPanic ", 0, 0);
+
+    char buf[50];
+    va_list argptr;
+    va_start(argptr, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, argptr);
+    va_end(argptr);
+    fprintf(stderr, "%s", buf);
+    exit(-1);
+}
+
+//#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
+/*static void dumpstack(void) {
+    void *array[20];
+    auto size = backtrace(array, 20);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+}*/
+
+struct sigaction sigact;
+
+static void signal_handler(int sig) {
+    if (sig == SIGHUP) panic("FATAL: Program hanged up\n");
+    if (sig == SIGSEGV || sig == SIGBUS){
+        //dumpstack();
+        panic("FATAL: %s Fault. Logged StackTrace\n", (sig == SIGSEGV) ? "Segmentation" : ((sig == SIGBUS) ? "Bus" : "Unknown"));
+    }
+    if (sig == SIGQUIT) panic("QUIT signal ended program\n");
+    if (sig == SIGKILL) panic("KILL signal ended program\n");
+    if(sig == SIGINT) {
+        if(!SETTING(terminate_error))
+            SETTING(terminate_error) = true;
+        if(!SETTING(terminate)) {
+            SETTING(terminate) = true;
+            print("Waiting for video to close.");
+        }
+            //std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+/*#elif defined(WIN32)
+BOOL WINAPI consoleHandler(DWORD signal_code) {
+    if (signal_code == CTRL_C_EVENT) {
+        if (!SETTING(terminate)) {
+            SETTING(terminate) = true;
+            print("Waiting for video to close.");
+            return TRUE;
+        }
+        else
+            FormatExcept("Pressing CTRL+C twice immediately stops the program in an undefined state.");
+    }
+
+    return FALSE;
+}
+#endif*/
+
+void init_signals() {
+    CrashProgram::main_pid = std::this_thread::get_id();
+    
+//#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
+    sigact.sa_handler = signal_handler;
+    sigemptyset(&sigact.sa_mask);
+    sigact.sa_flags = 0;
+    sigaction(SIGINT, &sigact, (struct sigaction *)NULL);
+    
+    sigaddset(&sigact.sa_mask, SIGSEGV);
+    sigaction(SIGSEGV, &sigact, (struct sigaction *)NULL);
+    
+    sigaddset(&sigact.sa_mask, SIGBUS);
+    sigaction(SIGBUS, &sigact, (struct sigaction *)NULL);
+    
+    sigaddset(&sigact.sa_mask, SIGQUIT);
+    sigaction(SIGQUIT, &sigact, (struct sigaction *)NULL);
+    
+    sigaddset(&sigact.sa_mask, SIGHUP);
+    sigaction(SIGHUP, &sigact, (struct sigaction *)NULL);
+    
+    sigaddset(&sigact.sa_mask, SIGKILL);
+    sigaction(SIGKILL, &sigact, (struct sigaction *)NULL);
+//#endif
+}
+
 int main(int argc, char**argv) {
     using namespace gui;
+    init_signals();
     
     default_config::register_default_locations();
     
