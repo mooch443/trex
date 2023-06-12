@@ -68,14 +68,14 @@ Size2 get_model_image_size() {
 
         Size2 size;
         const float ratio = meta_video_size.height / meta_video_size.width;
-        if (region_resolution > 0) {
+        if (region_resolution > 0 && not SETTING(region_model).value<file::Path>().empty()) {
             const auto max_w = max((float)detection_resolution, (float)region_resolution * 2);
             size = Size2(max_w, ratio * max_w);
-            size = meta_video_size.div(4);
+            size = meta_video_size;//.div(4);
 		} else
             size = Size2(detection_resolution, ratio * detection_resolution);
 
-        print("Using a resolution of meta_video_size = ", meta_video_size, " and detection_resolution = ", detection_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
+        //print("Using a resolution of meta_video_size = ", meta_video_size, " and detection_resolution = ", detection_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
         //return meta_video_size.div(2);
         return size;
     }
@@ -904,9 +904,7 @@ struct Yolo8InstanceSegmentation {
             std::vector<std::promise<SegmentationData>> promises;
             std::vector<std::function<void()>> callbacks;
 
-            TransferData() {
-				thread_print("** creating ", (uint64_t)this);
-			}
+            TransferData() = default;
             TransferData(TransferData&&) = delete;
             TransferData& operator=(TransferData&&) = delete;
             
@@ -914,7 +912,7 @@ struct Yolo8InstanceSegmentation {
                 for (auto&& img : images) {
                     TileImage::move_back(std::move(img));
                 }
-                thread_print("** deleting ", (uint64_t)this);
+                //thread_print("** deleting ", (uint64_t)this);
             }
         } transfer;
         
@@ -929,10 +927,10 @@ struct Yolo8InstanceSegmentation {
             
             transfer.promises.push_back(std::move(tiled.promise));
             
-            transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
             //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
             
             for(auto p : tiled.offsets()) {
+                transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
                 tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(transfer.scales.back()));
             }
             
@@ -2496,7 +2494,7 @@ private:
                 
                 auto result = _overlayed_video->generate();
                 if(not result) {
-                    _overlayed_video->reset(0_f);
+                    //_overlayed_video->reset(0_f);
                 } else {
                     items.push_back(std::move(result.value()));
                 }

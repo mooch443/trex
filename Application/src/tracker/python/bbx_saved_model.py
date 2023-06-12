@@ -573,10 +573,17 @@ class TRexYOLO8:
             unscaled[..., 2:4] = unscale_coords(result.masks.data.shape[1:], unscaled[..., 2:4], result.orig_shape * scale).round().astype(int)
             
             assert len(coords) == len(result.masks.data)
-            for scaled, coord, k in zip(coords.round().astype(int), unscaled, (result.masks.data * 255).byte()):
-                sub = k[int(coord[1]):int(coord[3]), int(coord[0]):int(coord[2])]
+            for orig, unscale, k in zip(coords.round().astype(int), unscaled, (result.masks.data * 255).byte()):
+                sub = k[max(0, int(unscale[1])):max(0, int(unscale[3])), max(0,int(unscale[0])):max(0, int(unscale[2]))]
+                if orig[3] - orig[1] <= 0 or orig[2] - orig[0] <= 0 or sub.shape[0] <= 0 or sub.shape[1] <= 0:
+                    print(f"WARNING: invalid mask size: orig={orig[3] - orig[1]}x{orig[2] - orig[0]} \n\
+                          => sub={sub.shape[0]}x{sub.shape[1]} \n\
+                          => unscale={unscale} \n\
+                          => k={k.shape}\n\
+                          => orig={orig}")
+                    #TRex.imshow("sub", sub.cpu().numpy())
                 # resize sub to scaled size using pytorch
-                ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(scaled[3] - scaled[1], scaled[2] - scaled[0])).squeeze(0).squeeze(0)
+                ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(orig[3] - orig[1], orig[2] - orig[0])).squeeze(0).squeeze(0)
                 masks.append(ssub.cpu().numpy())
                 assert masks[-1].flags['C_CONTIGUOUS']
     
@@ -607,10 +614,14 @@ class TRexYOLO8:
                                          verbose = False)
 
         for i, result in enumerate(results):
-            #r = result.cpu().plot(img=im[i], line_width=1)
-            #TRex.imshow("result", r)
-            coords, masks = self.postprocess_result(i, result, offset = offsets[i], scale = scales[i])
-            rexsults.append(TRex.Result(i, TRex.Boxes(coords), masks))
+            try:
+                coords, masks = self.postprocess_result(i, result, offset = offsets[i], scale = scales[i])
+                rexsults.append(TRex.Result(i, TRex.Boxes(coords), masks))
+            except Exception as e:
+                print("Exception when postprocessing result", e," at ",i, "with", result)
+                print("result.boxes.data.cpu().numpy() = ", result.boxes.data.cpu().numpy())
+                r = result.cpu().plot(img=im[i], line_width=1)
+                TRex.imshow("result", r)
 
         return rexsults
 
