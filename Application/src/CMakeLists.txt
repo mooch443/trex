@@ -21,6 +21,18 @@ endif()
 #add_subdirectory(frugally)
 #add_subdirectory(cnpy)
 
+FetchContent_Declare(
+  indicators
+  GIT_REPOSITORY https://github.com/p-ranav/indicators.git
+  GIT_TAG        master
+)
+
+FetchContent_GetProperties(indicators)
+if(NOT indicators_POPULATED)
+  FetchContent_Populate(indicators)
+  include_directories(${indicators_SOURCE_DIR}/include)
+endif()
+
 include_directories(.)
 
 add_subdirectory(ProcessedVideo)

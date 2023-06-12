@@ -29,6 +29,8 @@
 
 #include <misc/TaskPipeline.h>
 #include <Scene.h>
+#include <indicators/progress_bar.hpp>
+#include <indicators/progress_spinner.hpp>
 
 using namespace cmn;
 
@@ -946,7 +948,7 @@ struct Yolo8InstanceSegmentation {
         {
             Timer timer;
             using py = track::PythonIntegration;
-            thread_print("** transfer of ", (uint64_t)& transfer);
+            //thread_print("** transfer of ", (uint64_t)& transfer);
 
             const size_t _N = transfer.datas.size();
             py::ModuleProxy bbx("bbx_saved_model", Yolo8InstanceSegmentation::reinit, true);
@@ -1689,8 +1691,8 @@ struct OverlayedVideo {
     
     tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*> retrieve_next(const std::function<void()>& callback)
     {
-        static Timing timing("retrieve_next");
-        TakeTiming take(timing);
+        //static Timing timing("retrieve_next");
+        //TakeTiming take(timing);
         
         std::scoped_lock guard(index_mutex);
         TileImage tiled;
@@ -1706,7 +1708,7 @@ struct OverlayedVideo {
             static double _average = 0, _samples = 0;
             _average += _timer.elapsed() * 1000;
             ++_samples;
-            if ((size_t)_samples % 100 == 0) {
+            if ((size_t)_samples % 1000 == 0) {
                 print("Waited for source frame for ", _average / _samples,"ms");
                 _samples = 0;
                 _average = 0;
@@ -1880,6 +1882,8 @@ std::string window_title() {
         + (output_prefix.empty() ? "" : (" ["+output_prefix+"]"));
 }
 
+namespace ind = indicators;
+
 class ConvertScene : public Scene {
     // condition variables and mutexes for thread synchronization
     std::condition_variable _cv_messages, _cv_ready_for_tracking;
@@ -1991,6 +1995,25 @@ class ConvertScene : public Scene {
         
     };
     
+    ind::ProgressBar bar{
+        ind::option::BarWidth{50},
+        ind::option::Start{"["},
+        ind::option::Fill{"█"},
+        ind::option::Lead{"▙"},
+        ind::option::Remainder{"-"},
+        ind::option::End{"]"},
+        ind::option::PostfixText{"Extracting Archive"},
+        ind::option::ForegroundColor{ind::Color::green},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
+    ind::ProgressSpinner spinner{
+        ind::option::PostfixText{"Checking credentials"},
+        ind::option::ForegroundColor{ind::Color::yellow},
+        ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
 public:
     ConvertScene(Base& window) : Scene(window, "converting", [this](Scene&, DrawStructure& graph){
         _draw(graph);
@@ -2008,6 +2031,13 @@ public:
 private:
     void deactivate() override {
         _should_terminate = true;
+        bar.mark_as_completed();
+        
+        spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+        spinner.set_option(ind::option::PrefixText{"✔"});
+        spinner.set_option(ind::option::ShowSpinner{false});
+        spinner.set_option(ind::option::PostfixText{"Done."});
+        spinner.mark_as_completed();
         
         {
             std::unique_lock guard(_mutex_general);
@@ -2195,6 +2225,8 @@ private:
     
     void activate() override {
         _should_terminate = false;
+        spinner.set_option(ind::option::PrefixText{"Converting video..."});
+        spinner.set_option(ind::option::ShowPercentage{false});
         
         try {
             print("Loading source = ", SETTING(source).value<std::string>());
@@ -2216,6 +2248,7 @@ private:
                 window_size);
             print("setting bounds = ", bounds);
             window()->set_window_bounds(bounds);
+            bar.set_progress(0);
         
         } catch(const std::exception& e) {
             FormatExcept("Exception when switching scenes: ", e.what());
@@ -2540,9 +2573,9 @@ private:
             PPFrame pp;
             Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
             _tracker->add(pp);
-            if (pp.index().get() % 100 == 0) {
+            /*if (pp.index().get() % 100 == 0) {
                 print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-            }
+            }*/
         }
 
         {
@@ -2568,7 +2601,7 @@ private:
             std::unique_lock g(mFPS);
             num_frames++;
             
-            if(frame_counter.elapsed() > 1) {
+            if(frame_counter.elapsed() > 30) {
                 FPS = num_frames / frame_counter.elapsed();
                 num_frames = 0;
                 _fps = FPS;
@@ -2579,7 +2612,7 @@ private:
             
         }
         
-        if(samples > 100) {
+        if(samples > 1000) {
             print("Average time since last frame: ", average / samples * 1000.0,"ms (",c * 1000,"ms)");
             
             average /= samples;
@@ -2603,6 +2636,24 @@ private:
                 }
                 //guard.unlock();
                 //try {
+                if(_overlayed_video->source->is_finite()) {
+                    auto L = _overlayed_video->source->length();
+                    auto C = _progress_data.original_index();
+                    
+                    if(L.valid() && C.valid()) {
+                        size_t percent = float(C.get()) / float(L.get()) * 100;
+                        //print(C, " / ", L, " => ", percent);
+                        static size_t last_progress = 0;
+                        //if(abs(float(percent) - float(last_progress)) > 1)
+                        {
+                            bar.set_progress(percent);
+                            last_progress = percent;
+                        }
+                    }
+                } else {
+                    spinner.tick();
+                }
+                
                     perform_tracking();
                     //guard.lock();
                 //} catch(...) {

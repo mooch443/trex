@@ -23,6 +23,9 @@
 
 #include <misc/format.h>
 
+#include <signal.h>
+typedef void (*sighandler_t)(int);
+
 //#define TREX_PYTHON_DEBUG true
 
 namespace py = pybind11;
@@ -502,8 +505,13 @@ void PythonIntegration::init() {
         GetEnvironmentVariable("PATH", path, buffSize);
         print("Inherited path: ", std::string(path));
 #endif
-
+        
+        // Store the old SIGINT handler for non-Windows systems
+        sighandler_t old_sigint_handler = signal(SIGINT, SIG_DFL);
         _interpreter = std::make_unique<py::scoped_interpreter>();
+        
+        // Restore the old SIGINT handler
+        signal(SIGINT, old_sigint_handler);
         
         _main = py::module::import("__main__");
         _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {

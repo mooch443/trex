@@ -310,7 +310,7 @@ namespace track {
                     return;
 
                 try {
-                    print("** unsetting functions ", set_functions);
+                    //print("** unsetting functions ", set_functions);
                     for (auto p : set_functions)
                         unset_function(p.c_str());
                 }

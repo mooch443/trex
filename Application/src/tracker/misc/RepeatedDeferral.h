@@ -71,7 +71,7 @@ struct RepeatedDeferral {
                     //std::unique_lock guard(mtiming);
                     //++predicted;
                     
-                    if (since_print.elapsed() > 5) {
+                    if (since_print.elapsed() > 30) {
                         std::unique_lock guard(mtiming);
                         //auto total = (_waiting / _samples);
                         thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ",
