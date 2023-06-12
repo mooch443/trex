@@ -361,7 +361,7 @@ class Model:
             if torch.cuda.is_available():
                 self.device = torch.device("cuda")
             elif torch.backends.mps.is_available():
-                self.device = torch.device("cpu") #mps
+                self.device = torch.device("mps") #mps
             else:
                 self.device = torch.device("cpu")
 
@@ -394,7 +394,7 @@ class Model:
     def predict(self, images : list[np.ndarray], **kwargs):
         if len(images) == 0:
             return []
-        return self.ptr.predict(images, **kwargs)
+        return self.ptr.predict(images, device=self.device, **kwargs)
 
 # a class that encapsulates the YOLOv8 model loading and inference
 class TRexYOLO8:
@@ -422,7 +422,7 @@ class TRexYOLO8:
     def has_segment_model(self) -> bool:
         return any(model.task == ModelTaskType.segment for model in self.models)
 
-    def region_proposal(self, images, **kwargs) -> list[list[tuple[np.ndarray[int], np.ndarray[np.uint8]]]]:
+    def region_proposal(self, images, **kwargs) -> list[list[tuple[np.ndarray, np.ndarray]]]:
         # search the self.models array for any model with the property task
         # set to ModelTaskType.region and return that model:
         assert self.has_region_model(), "No region model found"

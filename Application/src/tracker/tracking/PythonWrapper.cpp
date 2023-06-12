@@ -156,14 +156,17 @@ std::shared_future<void> init() {
         return _init_future;
     }
     
-    if(_thread) {
+    if(_thread && not _thread->joinable()) {
         throw U_EXCEPTION("There is already a thread running. Cannot initialize Python twice.");
         //Python::_terminate = true;
         //_thread->join();
         //_thread = nullptr;
+    } else if(_thread) {
+        _thread->join();
     }
     
     std::promise<void> init_promise;
+    python_init_error() = "";
     _init_future = init_promise.get_future().share();
     Python::_terminate = false;
     _initializing = true;

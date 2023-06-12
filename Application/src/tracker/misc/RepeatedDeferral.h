@@ -61,6 +61,7 @@ struct RepeatedDeferral {
                     }
                     guard.lock();
                     
+                    assert(r);
                     _next.push_back(std::move(r));
                     _new_item.notify_one();
                     
@@ -94,9 +95,9 @@ struct RepeatedDeferral {
                 }
             }
         };
-        _updater = std::make_unique<std::thread>(std::move(tfn));
         
         std::unique_lock guard(_mutex);
+        _updater = std::make_unique<std::thread>(std::move(tfn));
         v.wait(guard);
     }
     

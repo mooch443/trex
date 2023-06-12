@@ -61,8 +61,6 @@ requirements:
     - cmake >=3.20
     - git # [not win]
     - git <2.34|>=2.35 # [win]
-    - {{ cdt('mesa-libgl-devel') }}  # [linux]
-    - {{ cdt('mesa-dri-drivers') }}  # [linux]
     - {{ cdt('libselinux') }}  # [linux]
     - {{ cdt('libxdamage') }}  # [linux]
     - {{ cdt('libxxf86vm') }}  # [linux]
@@ -101,12 +99,12 @@ requirements:
     - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
-    - pytorch # [win or linux]
+    - pytorch # [win or linux or (osx and not arm64)]
     - torchvision
     - pandas
     - seaborn
     - cloudpickle
-    - tensorflow-deps # [osx]
+    - tensorflow-deps # [osx and arm64]
     - git
     - cudatoolkit =10.1 # [linux]
     - cudatoolkit =11 # [win]

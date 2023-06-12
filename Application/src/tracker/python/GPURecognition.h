@@ -45,7 +45,7 @@ namespace track {
                 std::ostringstream os;
                 os << "ModelConfig<task=" << static_cast<int>(task)
                     << " model_path='" << model_path << "' trained_resolution=" << trained_resolution
-                    << "' min_image_size=" << min_image_size
+                    << " min_image_size=" << min_image_size
                     << " max_image_size=" << max_image_size << ">";
                 return os.str();
             }

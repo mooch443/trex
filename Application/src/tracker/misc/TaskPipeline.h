@@ -166,13 +166,25 @@ class PipelineManager {
     std::shared_mutex _mutex;
     std::future<void> _future;
     const double _weight_limit{0};
+    std::function<void()> _create;
+    
+    template <typename... Args>
+    auto bind_arguments_to_lambda(Args&&... args) {
+        auto tup = std::make_tuple(std::forward<Args>(args)...);
+        auto func = [this](auto&&... args) {
+            print("Creating a new ImageArray");
+            _c = std::make_unique<ImageArray<Data>>(std::forward<decltype(args)>(args)...);
+        };
+        return [tup = std::move(tup), func = std::move(func)]() mutable {
+            std::apply(func, tup);
+        };
+    }
 
 public:
     template<typename... Args>
     PipelineManager(double weight_limit, Args... args)
-        : _c(new ImageArray<Data>(std::forward<Args>(args)...)), _weight_limit(weight_limit)
-    {
-    }
+        : _weight_limit(weight_limit), _create(bind_arguments_to_lambda(std::forward<Args>(args)...))
+    { }
 
     ~PipelineManager() {
         /*std::unique_lock guard(_mutex);
@@ -184,8 +196,6 @@ public:
         } else
             printf("Not executing since object is nullptr\n");*/
         //clean_up();
-        std::unique_lock guard(_mutex);
-        _c = nullptr;
     }
     
     void clean_up() {
@@ -196,14 +206,16 @@ public:
             guard.lock();
             _future = {};
         }
-        
+        _c = nullptr;
     }
 
     void enqueue(std::vector<Data>&& v) {
         {
             std::shared_lock guard(_mutex);
-            if(not _c)
-                return;
+            if(not _c) {
+                _create();
+                assert(_c != nullptr);
+            }
             
             {
                 for (auto&& ptr : v)
@@ -217,8 +229,10 @@ public:
     void enqueue(Data&& ptr) {
         {
             std::shared_lock guard(_mutex);
-            if(not _c)
-                return;
+            if(not _c) {
+                _create();
+                assert(_c != nullptr);
+            }
             
             {
                 assert(_c != nullptr);

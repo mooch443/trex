@@ -661,22 +661,27 @@ struct Yolo8InstanceSegmentation {
         //! the pixels that are inside the mask.
         if (result.masks().empty()) {
             for (auto& row : boxes) {
+                if (SETTING(do_filter).value<bool>()
+                    && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+                    continue;
+                
                 Bounds bounds = row.box;
-                bounds = bounds.mul(scale_factor);
-
+                //bounds = bounds.mul(scale_factor);
+                bounds.restrict_to(Bounds(0, 0, w, h));
+                
                 std::vector<uchar> pixels;
                 std::vector<HorizontalLine> lines;
 
                 for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
                     // integer overflow deals with this, lol
-                    assert(uint(y) < data.image->rows);
+                    //assert(uint(y) < data.image->rows);
 
                     HorizontalLine line{
                         saturate(coord_t(y), coord_t(0), coord_t(h)),
                         saturate(coord_t(bounds.x), coord_t(0), coord_t(w)),
                         saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w))
                     };
-                    pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1));
+                    pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
                     lines.emplace_back(std::move(line));
                 }
 
@@ -692,6 +697,8 @@ struct Yolo8InstanceSegmentation {
         else {
             for (size_t i = 0; i < N_rows; ++i) {
                 auto& row = boxes[i];
+                if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+                    continue;
                 Bounds bounds = row.box;
                 //bounds = bounds.mul(scale_factor);
                 auto& mask = result.masks()[i];
@@ -811,7 +818,7 @@ struct Yolo8InstanceSegmentation {
 
             //thread_print("** ", i, " ", pos, " ", dim, " ", conf, " ", cls, " ", mask_Ns[m], " **");
             //thread_print("  getting integers from ", mask_index, " to ", mask_index + mask_Ns[m], " (", integer.size(), "/",N,")");
-            assert(mask_index + mask_Ns[m] <= integer.size());
+            assert(mask_index + mask_Ns[i] <= integer.size());
             std::vector<cv::Point> points{ integer.data() + mask_index, integer.data() + mask_index + mask_Ns[i] };
             mask_index += mask_Ns[i];
 
@@ -1381,6 +1388,7 @@ protected:
     using gpuMatPtr = std::unique_ptr<useMat>;
     std::mutex buffer_mutex;
     std::vector<gpuMatPtr> buffers;
+    gpuMatPtr tmp = std::make_unique<useMat>();
     
     VideoInfo info;
     
@@ -1402,7 +1410,7 @@ public:
         return this->fetch_next_process();
     })
     {
-        notify();
+        //notify();
     }
     virtual ~AbstractBaseVideoSource() = default;
     void notify() {
@@ -1433,7 +1441,6 @@ public:
             auto result = _source_frame.next();
             if(result) {
                 auto& [index, buffer] = result.value();
-                static gpuMatPtr tmp = std::make_unique<useMat>();
                 if (not index.valid())
                     throw U_EXCEPTION("Invalid index");
                 
@@ -1509,7 +1516,9 @@ public:
                                    .finite = false,
                                    .length = Frame_t{}}),
           source(std::move(source))
-    { }
+    {
+        notify();
+    }
 
     tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() override {
         try {
@@ -1537,7 +1546,8 @@ public:
             //this->source.frame(index, cpuBuffer);
             cpuBuffer.get().copyTo(*buffer);
 
-            if (detection_type() != ObjectDetectionType::yolo8) {
+            //if (detection_type() != ObjectDetectionType::yolo8)
+            {
                 cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
                 std::swap(buffer, tmp);
             }
@@ -2476,8 +2486,10 @@ private:
                         _cv_ready_for_tracking.notify_one();
                         
                         items.erase(items.begin());
+                        
                     } else if(not std::get<1>(items.front()).valid()) {
                         FormatExcept("Invalid future ", std::get<0>(items.front()));
+                        
                         items.erase(items.begin());
                     }
                 }
