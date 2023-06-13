@@ -187,15 +187,10 @@ public:
     { }
 
     ~PipelineManager() {
-        /*std::unique_lock guard(_mutex);
-        if(_c && _c->weight() > 0) {
-            printf("Executing upon destruction with weight %f\n", _c->weight());
-            (*_c)();
-        } else if(_c) {
-            printf("Not executing since weight == %f\n", _c->weight());
-        } else
-            printf("Not executing since object is nullptr\n");*/
-        //clean_up();
+        clean_up();
+
+        std::unique_lock guard(_mutex);
+        _create = {};
     }
     
     void clean_up() {

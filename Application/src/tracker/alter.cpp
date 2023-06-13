@@ -2000,21 +2000,27 @@ class ConvertScene : public Scene {
     ind::ProgressBar bar{
         ind::option::BarWidth{50},
         ind::option::Start{"["},
+#ifndef _WIN32
         ind::option::Fill{"█"},
         ind::option::Lead{"▂"},
         ind::option::Remainder{"▁"},
+#else
+        ind::option::Fill{"="},
+        ind::option::Lead{">"},
+        ind::option::Remainder{" "},
+#endif
         ind::option::End{"]"},
         ind::option::PostfixText{"Converting video..."},
         ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::grey},
-        //ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::re}}
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{"Recording..."},
-        ind::option::ForegroundColor{ind::Color::grey},
+        ind::option::ForegroundColor{ind::Color::white},
         ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
-        //ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
 public:
@@ -2650,7 +2656,7 @@ private:
                         size_t percent = float(C.get()) / float(L.get()) * 100;
                         //print(C, " / ", L, " => ", percent);
                         static size_t last_progress = 0;
-                        //if(abs(float(percent) - float(last_progress)) > 1)
+                        if(abs(float(percent) - float(last_progress)) > 1)
                         {
                             bar.set_progress(percent);
                             last_progress = percent;
@@ -3510,7 +3516,7 @@ void panic(const char *fmt, ...) {
     exit(-1);
 }
 
-//#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 /*static void dumpstack(void) {
     void *array[20];
     auto size = backtrace(array, 20);
@@ -3537,7 +3543,7 @@ static void signal_handler(int sig) {
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
-/*#elif defined(WIN32)
+#elif defined(WIN32)
 BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
         if (!SETTING(terminate)) {
@@ -3551,12 +3557,12 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
 
     return FALSE;
 }
-#endif*/
+#endif
 
 void init_signals() {
     CrashProgram::main_pid = std::this_thread::get_id();
     
-//#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     sigact.sa_handler = signal_handler;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -3564,7 +3570,7 @@ void init_signals() {
     
     sigaddset(&sigact.sa_mask, SIGSEGV);
     sigaction(SIGSEGV, &sigact, (struct sigaction *)NULL);
-    
+
     sigaddset(&sigact.sa_mask, SIGBUS);
     sigaction(SIGBUS, &sigact, (struct sigaction *)NULL);
     
@@ -3576,7 +3582,9 @@ void init_signals() {
     
     sigaddset(&sigact.sa_mask, SIGKILL);
     sigaction(SIGKILL, &sigact, (struct sigaction *)NULL);
-//#endif
+#elif defined(WIN32)
+    SetConsoleCtrlHandler(consoleHandler, TRUE);
+#endif
 }
 
 int main(int argc, char**argv) {

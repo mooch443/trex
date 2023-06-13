@@ -469,6 +469,22 @@ void PythonIntegration::set_display_function(std::function<void(const std::strin
     _mat_display = fn;
 }
 
+#ifdef _WIN32
+BOOL WINAPI consoleHandler(DWORD signal_code) {
+    if (signal_code == CTRL_C_EVENT) {
+        if (!SETTING(terminate)) {
+            SETTING(terminate) = true;
+            print("Waiting for video to close.");
+            return TRUE;
+        }
+        else
+            FormatExcept("Pressing CTRL+C twice immediately stops the program in an undefined state.");
+    }
+
+    return FALSE;
+}
+#endif
+
 void PythonIntegration::init() {
     initialized() = false;
     initializing() = true;
@@ -505,14 +521,18 @@ void PythonIntegration::init() {
         GetEnvironmentVariable("PATH", path, buffSize);
         print("Inherited path: ", std::string(path));
 #endif
-        
+      
+#if !defined(WIN32)
         // Store the old SIGINT handler for non-Windows systems
         sighandler_t old_sigint_handler = signal(SIGINT, SIG_DFL);
+#endif
+
         _interpreter = std::make_unique<py::scoped_interpreter>();
-        
+#if !defined(WIN32)
         // Restore the old SIGINT handler
         signal(SIGINT, old_sigint_handler);
-        
+#endif
+
         _main = py::module::import("__main__");
         _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
@@ -632,7 +652,11 @@ bool PythonIntegration::check_module(const std::string& name) {
 
         _module_contents[name] = c;
     }
-    
+
+#ifdef _WIN32
+    SetConsoleCtrlHandler(consoleHandler, TRUE);
+#endif
+
     return result;
 }
 

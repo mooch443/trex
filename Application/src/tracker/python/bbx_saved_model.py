@@ -359,7 +359,7 @@ class Model:
         self.device = device
         if device is None:
             if torch.cuda.is_available():
-                self.device = torch.device("cuda")
+                self.device = torch.device("cuda:0")
             elif torch.backends.mps.is_available():
                 self.device = torch.device("mps") #mps
             else:
@@ -374,7 +374,7 @@ class Model:
     @property
     @lru_cache(maxsize=1)
     def task(self) -> TRex.ModelTaskType:
-        print("task == ", self.config.task, type(self.config.task))
+        #print("task == ", self.config.task, type(self.config.task))
         return self.config.task
 
     def load(self):
@@ -435,7 +435,7 @@ class TRexYOLO8:
         scaled_size = model.config.trained_resolution
         scaled_down_scales = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in images])
         scaled_down = [cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
-        print(f"performing region proposals at {scaled_size}x{scaled_size} on {len(images)} images")
+        #print(f"performing region proposals at {scaled_size}x{scaled_size} on {len(images)} images")
         bboxes = model.predict(images = scaled_down, imgsz=scaled_size, conf=0.25, iou=0.3, verbose=False, **kwargs)
         padding : int = 7
         results : list[list[tuple[np.ndarray[int], np.ndarray[np.uint8]]]] = []
