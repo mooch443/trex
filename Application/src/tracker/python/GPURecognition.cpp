@@ -320,13 +320,14 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readwrite("y", &cmn::Vec2::y);
 
     py::class_<track::detect::YoloInput>(m, "YoloInput")
-        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&>())
+        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&, std::vector<size_t>&&>())
         .def("__repr__", [](const YoloInput& v) -> std::string {
             return v.toStr();
         })
         .def("images", &track::detect::YoloInput::images)
         .def("offsets", &track::detect::YoloInput::offsets)
-        .def("scales", &track::detect::YoloInput::scales);
+        .def("scales", &track::detect::YoloInput::scales)
+        .def("orig_id", &track::detect::YoloInput::orig_id);
 
     m.def("log", [](std::string text) {
         using namespace cmn;

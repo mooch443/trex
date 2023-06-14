@@ -583,6 +583,7 @@ class TRexYOLO8:
                           => unscale={unscale} \n\
                           => k={k.shape}\n\
                           => orig={orig}")
+                    raise Exception("Invalid mask size")
                     #TRex.imshow("sub", sub.cpu().numpy())
                 # resize sub to scaled size using pytorch
                 ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(orig[3] - orig[1], orig[2] - orig[0])).squeeze(0).squeeze(0)
@@ -591,11 +592,22 @@ class TRexYOLO8:
     
         return coords, masks
 
-    def inference(self, im, offsets, scales, conf_threshold=0.1, iou_threshold=0.7):
+    def inference(self, input, conf_threshold=0.1, iou_threshold=0.7):
         global receive
+
+        offsets = input.offsets()
+        offsets = np.array([(o.x, o.y) for o in offsets], dtype=np.float32)
+
+        scales = input.scales()
+        scales = np.array([(o.x, o.y) for o in scales], dtype=np.float32)
+
         offsets = np.reshape(offsets, (-1, 2))
         scales = np.reshape(scales, (-1, 2)).astype(np.float32)
 
+        orig_id = np.array(input.orig_id(), copy=False, dtype=np.uint64)
+        print(f"Received orig_id = {orig_id}")
+
+        im = input.images()
         tensor = self.preprocess(im)
 
         # if we have a box detection model, we can focus on parts of the image
@@ -613,17 +625,43 @@ class TRexYOLO8:
                                          imgsz = self.detection_resolution(),
                                          classes=None, 
                                          agnostic_nms=True,
-                                         verbose = False)
+                                         verbose = False,
+                                         max_det = 1000)
+        
+        from itertools import groupby
 
-        for i, result in enumerate(results):
+        # use groupby to group the list elements by id
+        results = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, results)), lambda x: x[0])]
+        offsets = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, offsets)), lambda x: x[0])]
+        scales = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, scales)), lambda x: x[0])]
+        print(f"len(results) = {len(results)} len(offsets) = {len(offsets)} len(scales) = {len(scales)}")
+
+        index = 0
+        for i, (tiles, scale, offset) in enumerate(zip(results, scales, offsets)):
             try:
-                coords, masks = self.postprocess_result(i, result, offset = offsets[i], scale = scales[i])
-                rexsults.append(TRex.Result(i, TRex.Boxes(coords), masks))
+                coords = []
+                masks = []
+                for j, (tile, s, o) in enumerate(zip(tiles, scale, offset)):
+                    try:
+                        c, m = self.postprocess_result(index, tile, offset = o, scale = s)
+                        #print("c.shape= ",c.shape, " len(m)=", len(m))
+                        coords.append(c)
+                        masks.extend(m)
+
+                        #r = result.cpu().plot(img=im[i], line_width=1)
+                        #TRex.imshow("result"+str(i), r)
+                    except Exception as e:
+                        print("Exception when postprocessing result", e," at ",index, "with", tile)
+                        #print("result.boxes.data.cpu().numpy() = ", result.boxes.data.cpu().numpy())
+                        r = tile.cpu().plot(img=im[i], line_width=1)
+                        TRex.imshow("result"+str(i), r)
+                    finally:
+                        index += 1
+                #print(masks)
+                coords = np.concatenate(coords, axis=0)
+                rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks))
             except Exception as e:
-                print("Exception when postprocessing result", e," at ",i, "with", result)
-                print("result.boxes.data.cpu().numpy() = ", result.boxes.data.cpu().numpy())
-                r = result.cpu().plot(img=im[i], line_width=1)
-                TRex.imshow("result", r)
+                print("Exception when postprocessing result", e," at ",index)
 
         return rexsults
 
@@ -1058,15 +1096,8 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
 
 def predict(input : TRex.YoloInput) -> list[TRex.Result]:
     global model, conf_threshold, iou_threshold
-    offsets = input.offsets()
-    offsets = np.array([(o.x, o.y) for o in offsets], dtype=np.float32)
 
-    scales = input.scales()
-    scales = np.array([(o.x, o.y) for o in scales], dtype=np.float32)
-
-    return model.inference(input.images(), 
-                           offsets = offsets, 
-                           scales = scales, 
+    return model.inference(input, 
                            conf_threshold = conf_threshold, 
                            iou_threshold = iou_threshold)
 

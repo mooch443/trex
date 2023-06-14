@@ -905,6 +905,7 @@ struct Yolo8InstanceSegmentation {
             std::vector<SegmentationData> datas;
             std::vector<Vec2> scales;
             std::vector<Vec2> offsets;
+            std::vector<size_t> orig_id;
             std::vector<std::promise<SegmentationData>> promises;
             std::vector<std::function<void()>> callbacks;
 
@@ -920,6 +921,7 @@ struct Yolo8InstanceSegmentation {
             }
         } transfer;
         
+        size_t i = 0;
         for(auto&& tiled : tiles) {
             transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
             if(tiled.images.size() == 1)
@@ -934,6 +936,7 @@ struct Yolo8InstanceSegmentation {
             //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
             
             for(auto p : tiled.offsets()) {
+                transfer.orig_id.push_back(i);
                 transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
                 tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(transfer.scales.back()));
             }
@@ -942,6 +945,8 @@ struct Yolo8InstanceSegmentation {
             transfer.offsets.insert(transfer.offsets.end(), o.begin(), o.end());
             transfer.datas.emplace_back(std::move(tiled.data));
             transfer.callbacks.emplace_back(tiled.callback);
+            
+            ++i;
         }
 
         tiles.clear();
@@ -954,9 +959,9 @@ struct Yolo8InstanceSegmentation {
 
             const size_t _N = transfer.datas.size();
             py::ModuleProxy bbx("bbx_saved_model", Yolo8InstanceSegmentation::reinit, true);
-            bbx.set_variable("offsets", std::move(transfer.offsets));
-            bbx.set_variable("image", transfer.images);
-            bbx.set_variable("oimages", transfer.oimages);
+            //bbx.set_variable("offsets", std::move(transfer.offsets));
+            //bbx.set_variable("image", transfer.images);
+            //bbx.set_variable("oimages", transfer.oimages);
             
             std::vector<uint64_t> mask_Ns;
             std::vector<float> mask_points;
@@ -1150,7 +1155,7 @@ struct Yolo8InstanceSegmentation {
                 for (auto& img : transfer.images) {
 					copy.emplace_back(Image::Make(*img));
 				}
-                track::detect::YoloInput input(std::move(copy), transfer.offsets, transfer.scales);
+                track::detect::YoloInput input(std::move(copy), (transfer.offsets), (transfer.scales), (transfer.orig_id));
                 //auto results = py::predict(std::move(input), bbx.m);
                 //print("C++ results = ", results);
                 recv(py::predict(std::move(input), bbx.m));
@@ -1664,7 +1669,7 @@ struct OverlayedVideo {
         requires _clean_same<SourceType, VideoSource>
     OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
         : source(std::make_unique<VideoSourceVideoSource>(std::move(s))), overlay(std::move(fn)),
-            apply_net(10u,
+            apply_net(6u,
                 5u,
                 "ApplyNet",
                 [this, callback = std::move(callback)](){
@@ -1678,7 +1683,7 @@ struct OverlayedVideo {
         requires _clean_same<SourceType, fg::Webcam>
     OverlayedVideo(F&& fn, SourceType&& s, Callback&& callback)
         : source(std::make_unique<WebcamVideoSource>(std::move(s))), overlay(std::move(fn)),
-            apply_net(10u,
+            apply_net(6u,
                 5u,
                 "ApplyNet",
                 [this, callback = std::move(callback)](){
@@ -1864,7 +1869,7 @@ struct Detection {
         throw U_EXCEPTION("Unknown detection type: ", type());
     }
     
-    inline static auto manager = PipelineManager<TileImage>(10.0, [](std::vector<TileImage>&& images) {
+    inline static auto manager = PipelineManager<TileImage>(3.0, [](std::vector<TileImage>&& images) {
         // do what has to be done when the queue is full
         // i.e. py::execute()
         Detection::apply(std::move(images));

@@ -167,7 +167,7 @@ namespace track {
             Result(int index, Boxes&& boxes, std::vector<MaskData> masks)
                 : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks))
             {
-                if (not _boxes.num_rows() == 0) {
+                if (_boxes.num_rows() != 0) {
                     if(not _masks.empty() && _masks.size() != _boxes.num_rows())
                         throw std::invalid_argument("Number of masks must be equal to number of boxes.");
                 }
@@ -190,10 +190,11 @@ namespace track {
             GETTER(std::vector<Image::Ptr>, images)
             GETTER(std::vector<Vec2>, offsets)
             GETTER(std::vector<Vec2>, scales)
+            GETTER(std::vector<size_t>, orig_id)
 
         public:
-            YoloInput(std::vector<Image::Ptr>&& images, std::vector<Vec2> offsets, std::vector<Vec2> scales)
-				: _images(std::move(images)), _offsets(std::move(offsets)), _scales(std::move(scales))
+            YoloInput(std::vector<Image::Ptr>&& images, std::vector<Vec2> offsets, std::vector<Vec2> scales, std::vector<size_t> orig_id)
+				: _images(std::move(images)), _offsets(std::move(offsets)), _scales(std::move(scales)), _orig_id(std::move(orig_id))
 			{ }
 
             YoloInput(const YoloInput&) = delete;
@@ -202,7 +203,7 @@ namespace track {
             YoloInput& operator=(YoloInput&&) = default;
 
             std::string toStr() const {
-				return "YoloInput<"+Meta::toStr(_images)+","+Meta::toStr(_offsets)+","+Meta::toStr(_scales)+">";
+				return "YoloInput<images="+Meta::toStr(_images)+" offsets="+Meta::toStr(_offsets)+" scales="+Meta::toStr(_scales)+" belongs=",Meta::toStr(_orig_id),">";
 			}
 		};
     }
