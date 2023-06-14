@@ -153,6 +153,13 @@ struct PrivateData {
     struct Footer {
         Dropdown _settings_dropdown = Dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
         Textfield _value_input = Textfield(Bounds(0, 0, 300, 33));
+        
+        Footer()
+        {
+            auto keys = GlobalSettings::map().keys();
+            keys.push_back("$");
+            _settings_dropdown.set_items(std::vector<gui::Dropdown::TextItem>(keys.begin(), keys.end()));
+        }
     } _footer;
 
     std::mutex _analyis_mutex;
@@ -2033,7 +2040,12 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
     if(index != -1) {
         //auto name = settings_dropdown.items().at(index);
         auto val = GlobalSettings::get(name);
-        if(val.get().is_enum() || val.is_type<bool>()) {
+        if(not val.get().valid()) {
+            FormatExcept("Cannot find property: ", name);
+            _settings_choice = nullptr;
+            textfield.set_text("");
+            
+        } else if(val.get().is_enum() || val.is_type<bool>()) {
             auto options = val.get().is_enum() ? val.get().enum_values()() : std::vector<std::string>{ "true", "false" };
             auto index = val.get().is_enum() ? val.get().enum_index()() : (val ? 0 : 1);
             
@@ -2096,26 +2108,6 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         else if(settings_dropdown.text() == "trainingdata_stats") {
             //TrainingData::print_pointer_stats();
         }
-#if !COMMONS_NO_PYTHON
-        else if(utils::beginsWith(settings_dropdown.text(), "$ ")) {
-            auto code = settings_dropdown.text().substr(2);
-            print("Code: ",code);
-            code = utils::find_replace(code, "\\n", "\n");
-            code = utils::find_replace(code, "\\t", "\t");
-            
-            py::schedule(py::PackagedTask{
-                ._task = py::PromisedTask([code]() -> void {
-                    using py = PythonIntegration;
-                    try {
-                        py::execute(code);
-                    } catch(const SoftExceptionImpl& e) {
-                        FormatExcept("Python runtime exception: ", e.what());
-                    }
-                }),
-                ._can_run_before_init = true
-            });
-        }
-#endif
         else if(settings_dropdown.text() == "dont panic") {
             if(GlobalSettings::has("panic_button")
                && SETTING(panic_button).value<int>() != 0)
@@ -2449,7 +2441,28 @@ void GUI::draw_footer(DrawStructure& base) {
         PD(footer)._value_input.on_enter([&](){
             try {
                 auto key = PD(footer)._settings_dropdown.items().at(PD(footer)._settings_dropdown.selected_id()).name();
-                if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
+#if !COMMONS_NO_PYTHON
+            if(key == "$") {
+                auto code = utils::trim(PD(footer)._value_input.text());
+                print("Code: ",code);
+                code = utils::find_replace(code, "\\n", "\n");
+                code = utils::find_replace(code, "\\t", "\t");
+                
+                py::schedule(py::PackagedTask{
+                    ._task = py::PromisedTask([code]() -> void {
+                        using py = PythonIntegration;
+                        try {
+                            py::execute(code);
+                        } catch(const SoftExceptionImpl& e) {
+                            FormatExcept("Python runtime exception: ", e.what());
+                        }
+                    }),
+                    ._can_run_before_init = true
+                });
+            
+            } else
+#endif
+            if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
                     GlobalSettings::get(key).get().set_value_from_string(PD(footer)._value_input.text());
                     if(GlobalSettings::get(key).is_type<Color>())
                         this->selected_setting(PD(footer)._settings_dropdown.selected_id(), key, PD(footer)._value_input, PD(footer)._settings_dropdown, layout, base);

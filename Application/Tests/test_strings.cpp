@@ -471,6 +471,15 @@ TEST(TextSearchTest, HandlesSingleWord) {
     ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus);
 }
 
+TEST(TextSearchTest, HandlesSingleCharacter) {
+    std::vector<std::string> corpus = {"$"};
+
+    // Test case: search for "apples", should return "apples" (index 0) and "apples_oranges" (index 2)
+    auto result = text_search("$", corpus);
+    decltype(result) expected{0};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus);
+}
+
 TEST(TextSearchTest, HandlesMisspelledWord) {
     std::vector<std::string> corpus = {"apple", "oranges", "apples_oranges"};
 

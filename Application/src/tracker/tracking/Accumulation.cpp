@@ -726,7 +726,7 @@ std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqu
 }
 
 float Accumulation::good_uniqueness() {
-    return max(0.8, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
+    return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
 Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337) {
@@ -1262,8 +1262,15 @@ bool Accumulation::start() {
                     }
                     
                 } catch(...) {
-                    auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
-                    auto str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", p, " vs. ", best_uniqueness, ").");
+                    std::string str;
+                    try {
+                        auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
+                        str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", p, " vs. ", best_uniqueness, ").");
+                        
+                    } catch(...) {
+                        str = format<FormatterType::NONE>("Adding range ", range, " failed.");
+                    }
+                    
                     print(str.c_str());
                     
                     if(gui::WorkProgress::item_custom_triggered()) {

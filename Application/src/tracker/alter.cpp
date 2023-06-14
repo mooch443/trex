@@ -2040,12 +2040,14 @@ public:
 private:
     void deactivate() override {
         _should_terminate = true;
+        bar.set_progress(100);
         bar.mark_as_completed();
         
         spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
         spinner.set_option(ind::option::PrefixText{"✔"});
         spinner.set_option(ind::option::ShowSpinner{false});
         spinner.set_option(ind::option::PostfixText{"Done."});
+        spinner.set_progress(100);
         spinner.mark_as_completed();
         
         {
@@ -2656,7 +2658,7 @@ private:
                         size_t percent = float(C.get()) / float(L.get()) * 100;
                         //print(C, " / ", L, " => ", percent);
                         static size_t last_progress = 0;
-                        if(abs(float(percent) - float(last_progress)) > 1)
+                        if(abs(float(percent) - float(last_progress)) >= 1)
                         {
                             bar.set_progress(percent);
                             last_progress = percent;

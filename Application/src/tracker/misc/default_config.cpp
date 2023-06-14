@@ -113,6 +113,7 @@ namespace default_config {
 
 ENUM_CLASS_DOCS(visual_identification_version_t,
     "This always points to the current version.",
+    "Using mobilenetv2 as a test",
     "The order of Max-Pooling layers was changed, along with some other minor changes.",
     "Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.",
     "The original layout."

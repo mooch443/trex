@@ -4,6 +4,7 @@
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
 #include <tracker/misc/default_config.h>
+#include <grabber/misc/default_config.h>
 #include <misc/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/Timer.h>
@@ -63,7 +64,12 @@ std::tuple<Image::Ptr, Vec2> normalize_image(
     image.copyTo(image, mask);
     //tf::imshow("before", image);
     
-    cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+    //TODO: if larger?
+    using namespace grab::default_config;
+    if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2)
+       cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_NEAREST, cv::BORDER_CONSTANT);
+    else
+       cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
     //resize_image(padded, SETTING(individual_image_scale).value<float>());
     
     //tf::imshow("after", padded);

@@ -9,6 +9,7 @@
 #include <file/Path.h>
 #include <tracking/TrainingData.h>
 #include <tracking/Stuffs.h>
+#include <misc/format.h>
 
 namespace Python {
 
@@ -118,6 +119,9 @@ public:
             }
         });
         
+        if(not future.valid()) {
+            throw cmn::SoftException("Invalid future.");
+        }
         return future.get();
     }
     

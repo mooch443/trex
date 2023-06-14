@@ -380,15 +380,17 @@ class Model:
     def load(self):
         from ultralytics import YOLO
         self.ptr = YOLO(self.config.model_path)
-        self.ptr.to(self.device)
-        self.ptr.fuse()
 
         if self.config.task == ModelTaskType.detect or self.config.task == ModelTaskType.segment:
             if self.ptr.task == "segment":
                 self.config.task = ModelTaskType.segment
+                if self.device == torch.device("mps"):
+                    self.device = torch.device("cpu")
             elif self.ptr.task == "detect":
                 self.config.task = ModelTaskType.detect
 
+        self.ptr.to(self.device)
+        self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))
 
     def predict(self, images : list[np.ndarray], **kwargs):

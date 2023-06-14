@@ -187,10 +187,12 @@ public:
     { }
 
     ~PipelineManager() {
+#ifdef _WIN32
         clean_up();
 
         std::unique_lock guard(_mutex);
         _create = {};
+#endif
     }
     
     void clean_up() {
