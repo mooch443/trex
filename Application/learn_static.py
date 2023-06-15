@@ -98,7 +98,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             description += " -- worst acc/class: {0:.3f}".format(self.worst_values[-1])
 
         if self.best_result["unique"] > -1:
-            description = description + " current best: "+str(float(int(self.best_result["unique"] * 10000)) / 100) + "%"
+            description = description + " best: "+str(float(int(self.best_result["unique"] * 10000)) / 100) + "%"
         if self.compare_acc > 0:
             description += " compare_acc: " + str(float(int(self.compare_acc * 10000)) / 100)+"%"
         if len(self.losses) >= 5:
@@ -569,9 +569,9 @@ def start_learning():
                                           #class_weight = per_class
                                           )'''
 
-            model_json = model.to_json()
-            with open(output_path+".json", "w") as f:
-                f.write(model_json)
+            #model_json = model.to_json()
+            #with open(output_path+".json", "w") as f:
+            #    f.write(model_json)
             
             if callback.best_result["unique"] != -1:
                 weights = callback.best_result["weights"]

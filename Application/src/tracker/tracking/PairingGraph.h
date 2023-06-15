@@ -154,6 +154,23 @@ namespace Match {
         
     public:
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
+        void clear() {
+            _row_index.clear();
+            _col_index.clear();
+            _col_edges.clear();
+            _offsets.clear();
+            _degree.clear();
+            _row_max_probs.clear();
+            _probabilities.clear();
+            _num_rows = fish_index_t(0);
+            _num_cols = blob_index_t(0);
+            _rows.clear();
+            _cols.clear();
+        }
+        void reserve(size_t N) {
+            if(_probabilities.capacity() < N)
+                _probabilities.reserve(N);
+        }
         
         using ordered_assign_map_t = robin_hood::unordered_node_map<col_t::value_type, prob_t>;
         fish_index_t add(row_t::value_type, const ordered_assign_map_t&);
@@ -266,7 +283,7 @@ namespace Match {
     protected:
         GETTER(Frame_t, frame)
         GETTER(float, time)
-        GETTER(PairedProbabilities, paired)
+        GETTER_NCONST(PairedProbabilities, paired)
         
         std::vector<prob_t> _ordered_max_probs;
         GETTER_PTR(Result*, optimal_pairing)

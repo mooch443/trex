@@ -469,6 +469,11 @@ class TRexYOLO8:
         if detect_model is not None:
             return detect_model.config.trained_resolution
         raise Exception("No detect or segment model found")
+    def detection_model(self):
+        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect or model.task == ModelTaskType.segment), None)
+        if detect_model is not None:
+            return detect_model
+        raise Exception("No detect or segment model found")
 
     def detect_or_segment(self, **kwargs):
         # search the self.models array for any model with the property task
@@ -592,7 +597,7 @@ class TRexYOLO8:
     
         return coords, masks
 
-    def inference(self, input, conf_threshold=0.1, iou_threshold=0.7):
+    def inference(self, input, max_det = 1000, conf_threshold=0.1, iou_threshold=0.7):
         global receive
 
         offsets = input.offsets()
@@ -618,16 +623,58 @@ class TRexYOLO8:
         rexsults = []
 
         # otherwise, we need to segment the entire image
-        results = self.detect_or_segment(images = tensor, 
-                                         conf = conf_threshold, 
-                                         iou = iou_threshold, 
-                                         #offsets = offsets, 
-                                         imgsz = self.detection_resolution(),
-                                         classes=None, 
-                                         agnostic_nms=True,
-                                         verbose = False,
-                                         max_det = 1000)
+        if len(tensor) == 0:
+            return rexsults
         
+        w, h = tensor[0].shape[2], tensor[0].shape[1]
+        print("tensor[0].shape = ",tensor[0].shape)
+        print("resolution = ",self.detection_resolution())
+
+        # get total memory of the gpu:
+        if self.detection_model().device.type == "cuda":
+            total_memory = torch.cuda.get_device_properties(0).total_memory * 0.75 # assume 75% of the memory is available
+            # divide by size of float32:
+            total_memory /= 4
+        else:
+            total_memory = 640 * 640 * 32 # assume 32 images of 640x640 pixels
+
+        # if the total memory is not enough, we need to send the images in packages
+        normal_res = int(w * h)
+        max_len = total_memory // normal_res
+        print(f"Calculated max_len = {max_len} based on total_memory = {total_memory} and normal_res = {normal_res} and {w}x{h} pixels / image")
+
+        if len(tensor) >= max_len:
+            # send data in packages of X images
+            #print(f"Sending images in packages of {X} images, total {len(tensor)} images, {w}x{h} pixels, based on normal_res = {normal_res}")
+            print(f"Sending images in packages of {max_len} images, total {len(tensor)} images, {w}x{h} pixels / image")
+
+            results = []
+            for i in range(0, len(tensor), max_len):
+                print(f"Sending images {i} to {i+max_len}")
+                rs = self.detect_or_segment(images = tensor[i:i+max_len], 
+                                                conf = conf_threshold, 
+                                                iou = iou_threshold, 
+                                                #offsets = offsets, 
+                                                imgsz = self.detection_resolution(),
+                                                classes=None, 
+                                                agnostic_nms=True,
+                                                verbose = False,
+                                                max_det = max_det)
+                results.extend(rs)
+
+        else:
+            print(f"Sending all {len(tensor)} images at once, given {w}x{h} pixels, amounting to {len(tensor) * w * h} pixels")
+            results = self.detect_or_segment(images = tensor, 
+                                            conf = conf_threshold, 
+                                            iou = iou_threshold, 
+                                            #offsets = offsets, 
+                                            imgsz = self.detection_resolution(),
+                                            classes=None, 
+                                            agnostic_nms=True,
+                                            verbose = False,
+                                            max_det = max_det)
+        
+        torch.cuda.empty_cache()
         from itertools import groupby
 
         # use groupby to group the list elements by id

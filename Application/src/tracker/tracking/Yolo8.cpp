@@ -1,0 +1,602 @@
+#include "Yolo8.h"
+#include <misc/AbstractVideoSource.h>
+#include <misc/PixelTree.h>
+#include <tracking/PythonWrapper.h>
+#include <grabber/misc/default_config.h>
+#include <video/Video.h>
+
+namespace track {
+
+void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
+    proxy.set_variable("model_type", detection_type().toStr());
+    
+    if(SETTING(segmentation_model).value<file::Path>().empty()) {
+        if(SETTING(model).value<file::Path>().empty())
+            throw U_EXCEPTION("When using yolov8, please set model using command-line argument -sm <path> to set an instance segmentation model (pytorch), or -m <path> to set an object detection model, or both to use the segmentation model only for segmentation of cropped object detections.");
+    } else if(not SETTING(segmentation_model).value<file::Path>().exists())
+        FormatWarning("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
+
+    using namespace track::detect;
+    std::vector<ModelConfig> models;
+
+    if (SETTING(model).value<file::Path>().exists()) {
+        models.emplace_back(
+            ModelTaskType::detect,
+            SETTING(model).value<file::Path>().str(),
+            SETTING(detection_resolution).value<uint16_t>()
+        );
+    }
+    else if (SETTING(segmentation_model).value<file::Path>().exists())
+        models.emplace_back(
+            ModelTaskType::detect,
+            SETTING(segmentation_model).value<file::Path>().str(),
+            SETTING(detection_resolution).value<uint16_t>()
+        );
+
+    if(SETTING(region_model).value<file::Path>().exists())
+        models.emplace_back(
+            ModelTaskType::region,
+            SETTING(region_model).value<file::Path>().str(),
+            SETTING(region_resolution).value<uint16_t>()
+        );
+
+    PythonIntegration::set_models(models, proxy.m);
+}
+
+void Yolo8::init() {
+    Python::schedule([](){
+        using py = track::PythonIntegration;
+        py::ModuleProxy proxy{
+            "bbx_saved_model",
+            Yolo8::reinit
+        };
+    }).get();
+}
+
+void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result) {
+    static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
+    static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+
+    const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
+    size_t mask_index = 0;
+    cv::Mat r3;
+    if (mode == ImageMode::R3G3B2)
+        convert_to_r3g3b2(data.image->get(), r3);
+    else if (mode == ImageMode::GRAY)
+        cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
+
+    auto image_dims = data.image->bounds() - Size2(1, 1);
+    size_t N_rows = result.boxes().num_rows();
+
+    auto& boxes = result.boxes();
+    const coord_t w = max(0, r3.cols - 1);
+    const coord_t h = max(0, r3.rows - 1);
+
+    //! decide on whether to use masks (if available), or bounding boxes
+    //! if masks are not available. for the boxes we simply copy over all
+    //! of the pixels in the bounding box, for the masks we copy over only
+    //! the pixels that are inside the mask.
+    if (result.masks().empty()) {
+        for (auto& row : boxes) {
+            if (SETTING(do_filter).value<bool>()
+                && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+                continue;
+            
+            Bounds bounds = row.box;
+            //bounds = bounds.mul(scale_factor);
+            bounds.restrict_to(Bounds(0, 0, w, h));
+            
+            std::vector<uchar> pixels;
+            std::vector<HorizontalLine> lines;
+
+            for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
+                // integer overflow deals with this, lol
+                //assert(uint(y) < data.image->rows);
+
+                HorizontalLine line{
+                    saturate(coord_t(y), coord_t(0), coord_t(h)),
+                    saturate(coord_t(bounds.x), coord_t(0), coord_t(w)),
+                    saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w))
+                };
+                pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+                lines.emplace_back(std::move(line));
+            }
+
+            if (not lines.empty()) {
+                pv::Blob blob(lines, 0);
+                data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
+                data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(row.clid), .p = uint8_t(float(row.conf) * 255.f) });
+            }
+        }
+        
+        return;
+    }
+    else {
+        for (size_t i = 0; i < N_rows; ++i) {
+            auto& row = boxes[i];
+            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+                continue;
+            Bounds bounds = row.box;
+            //bounds = bounds.mul(scale_factor);
+            auto& mask = result.masks()[i];
+
+            auto blobs = CPULabeling::run(mask.mat);
+            if (not blobs.empty()) {
+                size_t msize = 0, midx = 0;
+                for (size_t j = 0; j < blobs.size(); ++j) {
+                    if (blobs.at(j).pixels->size() > msize) {
+                        msize = blobs.at(j).pixels->size();
+                        midx = j;
+                    }
+                }
+
+                auto&& pair = blobs.at(midx);
+                size_t num_pixels{ 0u };
+                for (auto& line : *pair.lines) {
+                    line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
+                    line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
+                    line.y = saturate(coord_t(line.y + bounds.y), coord_t(0), h);
+                    num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+                    
+                    if (line.x0 >= r3.cols
+                        || line.x1 >= r3.cols
+                        || line.y >= r3.rows)
+                        throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
+                }
+
+                pair.pred = blob::Prediction{
+                    .clid = static_cast<uint8_t>(row.clid),
+                    .p = uint8_t(float(row.conf) * 255.f)
+                };
+                pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+
+                pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+                pair.pixels = (blob.calculate_pixels(r3));
+
+                auto points = pixel::find_outer_points(&blob, 0);
+                if (not points.empty()) {
+                    data.outlines.emplace_back(std::move(*points.front()));
+                }
+
+                data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
+                data.frame.add_object(std::move(pair));
+            }
+        }
+    }
+}
+
+void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, 
+    const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns) 
+{
+    static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
+    static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+
+    const Vec2* ptr = (const Vec2*)mask_points.data();
+    const size_t N = mask_points.size() / 2u;
+    assert(mask_points.size() % 2u == 0);
+
+    // convert list of points to integer coordinates
+    std::vector<cv::Point> integer;
+    integer.reserve(N);
+    for (auto it = ptr, end = ptr + N; it != end; ++it) {
+        if(it->x * scale_factor.x > data.image->cols)
+            thread_print("Warning: point ", *it, " is outside image bounds ", data.image->cols, "x", data.image->rows);
+        if(it->y * scale_factor.y > data.image->rows)
+            thread_print("Warning: point ", *it, " is outside image bounds ", data.image->cols, "x", data.image->rows);
+        integer.emplace_back(
+            roundf(saturate(it->x * scale_factor.x, 0.f, (float)data.image->cols)),//roundf(saturate(it->x, 0.f, 1.f) * data.image->cols),
+            roundf(saturate(it->y * scale_factor.y, 0.f, (float)data.image->rows))//roundf(saturate(it->y, 0.f, 1.f) * data.image->rows)
+        );
+    }
+
+    const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
+    size_t mask_index = 0;
+    cv::Mat r3;
+    if  (mode == ImageMode::R3G3B2)
+        convert_to_r3g3b2(data.image->get(), r3);
+    else if  (mode == ImageMode::GRAY)
+        cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
+
+    auto rows = reinterpret_cast<const track::detect::Row*>(vector.data());
+    const size_t N_rows = vector.size() * sizeof(float) / sizeof(track::detect::Row);
+    auto image_dims = data.image->bounds() - Size2(1, 1);
+
+    //thread_print("Received seg-data for frame ", data.frame.index());
+    for(size_t i=0; i< N_rows; ++i) {
+        const auto & row = rows[i];
+        auto bounds = (Bounds)row.box;
+        bounds = bounds.mul(scale_factor);
+        bounds.restrict_to(image_dims);
+        
+        if (mask_Ns.empty()) {
+            std::vector<uchar> pixels;
+            std::vector<HorizontalLine> lines;
+
+            for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
+                // integer overflow deals with this, lol
+                assert(uint(y) < data.image->rows);
+
+                HorizontalLine line{ (coord_t)y, (coord_t)bounds.x, coord_t(bounds.x + bounds.width) };
+                pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1));
+                lines.emplace_back(std::move(line));
+            }
+
+            if (not lines.empty()) {
+                pv::Blob blob(lines, 0);
+                data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
+                data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(row.clid), .p = uint8_t(float(row.conf) * 255.f) });
+            }
+
+            continue;
+        }
+
+        if (not mask_Ns.empty() && mask_Ns[i] == 0)
+            continue;
+
+        //thread_print("** ", i, " ", pos, " ", dim, " ", conf, " ", cls, " ", mask_Ns[m], " **");
+        //thread_print("  getting integers from ", mask_index, " to ", mask_index + mask_Ns[m], " (", integer.size(), "/",N,")");
+        assert(mask_index + mask_Ns[i] <= integer.size());
+        std::vector<cv::Point> points{ integer.data() + mask_index, integer.data() + mask_index + mask_Ns[i] };
+        mask_index += mask_Ns[i];
+
+        if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), row.clid))
+            continue;
+
+        Bounds boundaries(FLT_MAX, FLT_MAX, 0, 0);
+        for (auto& pt : points) {
+            boundaries.insert_point(pt);
+        }
+
+        boundaries.width -= boundaries.x;
+        boundaries.height -= boundaries.y;
+
+        boundaries.restrict_to(data.image->bounds());
+
+        // subtract boundary xy from all points
+        for (auto& p : points) {
+            p.x -= boundaries.x;
+            p.y -= boundaries.y;
+        }
+
+        cv::Mat mask = cv::Mat::zeros(boundaries.height + 1, boundaries.width + 1, CV_8UC1);
+        cv::fillPoly(mask, points, 255);
+        assert(mask.cols > 0 && mask.rows > 0);
+
+        auto blobs = CPULabeling::run(mask);
+        if (not blobs.empty()) {
+            size_t msize = 0, midx = 0;
+            for (size_t j = 0; j < blobs.size(); ++j) {
+                if (blobs.at(j).pixels->size() > msize) {
+                    msize = blobs.at(j).pixels->size();
+                    midx = j;
+                }
+            }
+
+            auto&& pair = blobs.at(midx);
+            size_t num_pixels{ 0u };
+            for (auto& line : *pair.lines) {
+                line.x0 = saturate(coord_t(line.x0 + boundaries.x), coord_t(0), coord_t(r3.cols - 1));
+                line.x1 = saturate(coord_t(line.x1 + boundaries.x), line.x0, coord_t(r3.cols - 1));
+                line.y = saturate(coord_t(line.y + boundaries.y), coord_t(0), coord_t(r3.rows - 1));
+                num_pixels += line.x1 - line.x0 + 1;
+            }
+
+            pair.pred = blob::Prediction{
+                .clid = static_cast<uint8_t>(row.clid),
+                .p = uint8_t(float(row.conf) * 255.f)
+            };
+            pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+
+            for (auto& line : *pair.lines) {
+                if (line.x0 >= r3.cols
+                    || line.x1 >= r3.cols
+                    || line.y >= r3.rows)
+                    throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
+            }
+            pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+            pair.pixels = (blob.calculate_pixels(r3));
+            //pair.pixels = std::make_unique<std::vector<uchar>>(num_pixels);
+            //std::fill(pair.pixels->begin(), pair.pixels->end(), 255);
+
+            auto points = pixel::find_outer_points(&blob, 0);
+            if (not points.empty()) {
+                data.outlines.emplace_back(std::move(*points.front()));
+            }
+
+            data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
+            data.frame.add_object(std::move(pair));
+        }
+    }
+}
+
+void Yolo8::apply(std::vector<TileImage>&& tiles) {
+    namespace py = Python;
+
+    struct TransferData {
+        std::vector<Image::Ptr> images;
+        std::vector<Image::Ptr> oimages;
+        std::vector<SegmentationData> datas;
+        std::vector<Vec2> scales;
+        std::vector<Vec2> offsets;
+        std::vector<size_t> orig_id;
+        std::vector<std::promise<SegmentationData>> promises;
+        std::vector<std::function<void()>> callbacks;
+
+        TransferData() = default;
+        TransferData(TransferData&&) = delete;
+        TransferData& operator=(TransferData&&) = delete;
+        
+        ~TransferData() {
+            for (auto&& img : images) {
+                TileImage::move_back(std::move(img));
+            }
+            //thread_print("** deleting ", (uint64_t)this);
+        }
+    } transfer;
+    
+    size_t i = 0;
+    for(auto&& tiled : tiles) {
+        transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
+        if(tiled.images.size() == 1)
+            transfer.oimages.emplace_back(Image::Make(*tiled.data.image));
+#ifndef NDEBUG
+        else
+            FormatWarning("Cannot use oimages with tiled.");
+#endif
+        
+        transfer.promises.push_back(std::move(tiled.promise));
+        
+        //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        
+        for(auto p : tiled.offsets()) {
+            transfer.orig_id.push_back(i);
+            transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
+            tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(transfer.scales.back()));
+        }
+        
+        auto o = tiled.offsets();
+        transfer.offsets.insert(transfer.offsets.end(), o.begin(), o.end());
+        transfer.datas.emplace_back(std::move(tiled.data));
+        transfer.callbacks.emplace_back(tiled.callback);
+        
+        ++i;
+    }
+
+    tiles.clear();
+    
+    py::schedule([&transfer]() mutable
+    {
+        Timer timer;
+        using py = track::PythonIntegration;
+        //thread_print("** transfer of ", (uint64_t)& transfer);
+
+        const size_t _N = transfer.datas.size();
+        py::ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
+        //bbx.set_variable("offsets", std::move(transfer.offsets));
+        //bbx.set_variable("image", transfer.images);
+        //bbx.set_variable("oimages", transfer.oimages);
+        
+        std::vector<uint64_t> mask_Ns;
+        std::vector<float> mask_points;
+        
+        auto recv = [&transfer](std::vector<track::detect::Result>&& results)
+            mutable
+        {
+            size_t elements{0};
+            size_t outline_elements{0};
+            //thread_print("Received a number of results: ", results.size());
+            //thread_print("For elements: ", datas);
+            
+
+            if(results.empty()) {
+                for(size_t i=0; i< transfer.datas.size(); ++i) {
+                    try {
+                        transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
+                    } catch(...) {
+                        transfer.promises.at(i).set_exception(std::current_exception());
+                    }
+                    
+                    try {
+                        transfer.callbacks.at(i)();
+                    } catch(...) {
+                        FormatExcept("Exception in callback of element ", i," in python results.");
+                    }
+                }
+                FormatExcept("Empty data for ", transfer.datas);
+                return;
+            }
+
+            for (size_t i = 0; i < transfer.datas.size(); ++i) {
+                auto&& result = results.at(i); 
+                auto& data = transfer.datas.at(i);
+                auto& scale = transfer.scales.at(i);
+
+                try {
+                    receive(data, scale, std::move(result));
+                    transfer.promises.at(i).set_value(std::move(data));
+                }
+                catch (...) {
+                    transfer.promises.at(i).set_exception(std::current_exception());
+                }
+
+                try {
+                    transfer.callbacks.at(i)();
+                }
+                catch (...) {
+                    FormatExcept("Exception in callback of element ", i, " in python results.");
+                }
+            }
+        };
+
+        /*bbx.set_function("receive_results", [](const std::vector<track::detect::Result>& results) {
+            print("Found a couple results: ", results);
+        });
+        
+        bbx.set_function("receive_masks", [](const std::vector<std::vector<cv::Mat>>& masks) {
+            thread_print("Received masks with ", masks.size(), " elements.");
+            for (auto& m : masks) {
+                std::vector<Size2> dimensions;
+                for(auto n : m) {
+                    dimensions.emplace_back(n.cols, n.rows);
+                }
+                thread_print("Mask with ", m.size(), " elements and dimensions: ",dimensions,".");
+            }
+        });
+        //bbx.set_function("receive", recv);
+        bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
+                                                    std::vector<float> m_points)
+        {
+            thread_print("Received seg masks with:", Ns);
+            thread_print("and ", m_points.size() / 2, " mask points.");
+            
+            mask_Ns = std::move(Ns);
+            mask_points = std::move(m_points);
+        });*/
+        /*bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
+                                    std::vector<float> vector,
+                                    std::vector<float> masks,
+                                    std::vector<float> meta,
+                                    std::vector<int> indexes,
+                                    std::vector<int> segNs)
+        {
+            thread_print("Received masks:", masks.size(), " -> ", double(masks.size()) / 56.0 / 56.0);
+            thread_print("Received meta:", meta.size());
+            thread_print("Received indexes:", indexes);
+            thread_print("Received segNs:", segNs);
+
+            std::unordered_map<size_t, std::unique_ptr<cv::Mat>> converted_images;
+            const auto threshold = saturate(float(SETTING(threshold).value<int>()), 0.f, 255.f) / 255.0;
+            
+            //size_t offset = 0;
+            for(size_t offset = 0; offset < indexes.size(); ++offset) {
+                auto idx = indexes.at(offset);
+                
+                auto &data = datas.at(idx);
+                const cv::Mat* full_image;
+                if(not converted_images.contains(idx)) {
+                    converted_images[idx] = std::make_unique<cv::Mat>();
+                    convert_to_r3g3b2(data.image->get(), *converted_images[idx]);
+                    full_image = converted_images[idx].get();
+                } else {
+                    full_image = converted_images.at(idx).get();
+                }
+                
+                auto scale_factor = scales.at(idx);
+                
+                assert(meta.size() >= (offset + 1) * 6u);
+                assert(masks.size() >= (offset + 1) * 56u * 56u);
+                std::span<float> m(meta.data() + offset * 6, (offset + 1) * 6);
+                std::span<float> s(masks.data() + offset * 56u * 56u, (offset + 1) * 56u * 56u);
+                
+                thread_print(" * working mask for frame ", data.original_index(), " (", m.size()," and images ",s.size(),")");
+                
+                Vec2 pos(m[0], m[1]);
+                Size2 dim = Size2(m[2] - pos.x, m[3] - pos.y).map(roundf);
+                
+                float conf = m[4];
+                float cls = m[5];
+                
+                pos += offsets.at(idx);
+                
+                if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
+                    continue;
+                if (dim.min() < 1)
+                    continue;
+                
+                //if(dim.height + pos.y > full_image.rows
+                //   || dim.width + pos.x > full_image.cols)
+                //    continue;
+                {
+                    cv::Mat m(56, 56, CV_32FC1, s.data());
+                    
+                    cv::Mat tmp;
+                    cv::resize(m, tmp, dim);
+                    
+                    cv::threshold(tmp, tmp, threshold, 1.0, cv::THRESH_BINARY);
+                    
+                    cv::Mat d;// = full_image(Bounds(pos, dim));
+                    auto restricted = Bounds(pos, dim);
+                    restricted.restrict_to(Bounds(*full_image));
+                    if(restricted.width <= 0 || restricted.height <= 0)
+                        continue;
+                    
+                    (*full_image)(restricted).convertTo(d, CV_32FC1);
+                    
+                    cv::multiply(d, tmp(Bounds(restricted.size())), d);
+                    d.convertTo(tmp, CV_8UC1);
+                    
+                    auto blobs = CPULabeling::run(tmp);
+                    if (not blobs.empty()) {
+                        size_t msize = 0, midx = 0;
+                        for (size_t j = 0; j < blobs.size(); ++j) {
+                            if (blobs.at(j).pixels->size() > msize) {
+                                msize = blobs.at(j).pixels->size();
+                                midx = j;
+                            }
+                        }
+                        
+                        auto&& pair = blobs.at(midx);
+                        for (auto& line : *pair.lines) {
+                            line.x1 += pos.x;
+                            line.x0 += pos.x;
+                            line.y += pos.y;
+                        }
+                        
+                        pair.pred = blob::Prediction{
+                            .clid = static_cast<uint8_t>(cls),
+                            .p = uint8_t(float(conf) * 255.f)
+                        };
+                        pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+                        
+                        pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+                        auto points = pixel::find_outer_points(&blob, 0);
+                        if (not points.empty()) {
+                            data.outlines.emplace_back(std::move(*points.front()));
+                        }
+                        
+                        data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
+                        data.frame.add_object(std::move(pair));
+                    }
+                }
+            }
+            
+            recv(Ns, vector);
+        });*/
+
+        try {
+            std::vector<Image::Ptr> copy;
+            for (auto& img : transfer.images) {
+                copy.emplace_back(Image::Make(*img));
+            }
+            track::detect::YoloInput input(std::move(copy), (transfer.offsets), (transfer.scales), (transfer.orig_id));
+            //auto results = py::predict(std::move(input), bbx.m);
+            //print("C++ results = ", results);
+            recv(py::predict(std::move(input), bbx.m));
+            //bbx.run("apply");
+        }
+        catch (const std::exception& ex) {
+            FormatError("Exception: ", ex.what());
+            throw SoftException(std::string(ex.what()));
+        }
+        catch (...) {
+            FormatWarning("Continue after exception...");
+
+            //bbx.unset_function("receive");
+            //bbx.unset_function("receive_with_seg");
+
+            throw;
+        }
+        
+        //bbx.unset_function("receive");
+        //bbx.unset_function("receive_with_seg");
+
+        if (AbstractBaseVideoSource::_network_samples.load() > 10) {
+            AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_fps = 0;
+        }
+        AbstractBaseVideoSource::_network_fps = AbstractBaseVideoSource::_network_fps.load() + (double(_N) / timer.elapsed());
+        AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_samples.load() + 1;
+        
+    }).get();
+}
+
+}

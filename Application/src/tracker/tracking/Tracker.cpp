@@ -1667,7 +1667,14 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             std::map<Individual*, Match::prob_t> max_probs;
             const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
             
-            PairedProbabilities pairs;
+            static PairedProbabilities pairs;
+            pairs.clear();
+
+            if (pairs.probabilities().capacity() < IndividualManager::num_individuals() * unassigned_blobs.size()) {
+                print("Reserving ", IndividualManager::num_individuals() * unassigned_blobs.size(), " pairs...");
+                pairs.reserve(IndividualManager::num_individuals() * unassigned_blobs.size());
+            }
+
             auto previous = Tracker::properties(frameIndex - 1_f);
             
             IndividualManager::transform_inactive([&](auto fish)
@@ -1709,11 +1716,13 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 }
                 
                 //print(fish->identity(), " -> ", for_this);
-                pairs.add(fish->identity().ID(), for_this);
+                pairs.add(fish->identity().ID(), std::move(for_this));
             });
             
+            //print("Ended up with ", pairs.probabilities().size(), "pairs.");
+
             PairingGraph g(*s.props, s.frame.index(), std::move(pairs));
-            auto& optimal = g.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
+            auto& optimal = g.get_optimal_pairing(false, (s.match_mode == default_config::matching_mode_t::automatic) ? default_config::matching_mode_t::approximate : s.match_mode);
             
             //std::sort(new_table.begin(), new_table.end());
             
@@ -1741,6 +1750,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
                 throw U_EXCEPTION(frameIndex, ": Cannot assign individual ", fdx," to blob ", bdx, ". Reason: ", error);
             });
+
+            pairs = std::move(g.paired());
         }
     }
     
