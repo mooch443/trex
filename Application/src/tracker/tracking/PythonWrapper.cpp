@@ -166,7 +166,7 @@ std::shared_future<void> init() {
     }
     
     std::promise<void> init_promise;
-    python_init_error() = "";
+    //python_init_error() = "";
     _init_future = init_promise.get_future().share();
     Python::_terminate = false;
     _initializing = true;

@@ -152,7 +152,7 @@ def create_vit_classifier(num_classes,input_shape = (32, 32, 3)):
     weight_decay = 0.0001
     batch_size = 256
     num_epochs = 100
-    image_size = 80  # We'll resize input images to this size
+    image_size = input_shape[0]  # We'll resize input images to this size
     patch_size = 6  # Size of the patches to be extract from the input images
     num_patches = (image_size // patch_size) ** 2
     projection_dim = 64
@@ -196,7 +196,8 @@ def create_vit_classifier(num_classes,input_shape = (32, 32, 3)):
     # Add MLP.
     features = mlp(representation, hidden_units=mlp_head_units, dropout_rate=0.5)
     # Classify outputs.
-    logits = layers.Dense(num_classes)(features)
+    #flat = layers.Flatten()(features)
+    logits = layers.Dense(num_classes, activation="softmax")(features)
     # Create the Keras model.
     model = keras.Model(inputs=inputs, outputs=logits)
     return model
@@ -206,30 +207,58 @@ class Network:
         self.versions = {}
 
         def v119(model, image_width, image_height, classes, channels):
-            model = create_vit_classifier(num_classes=len(classes), input_shape=(int(image_width),int(image_height),int(channels)))
-            return model
+            #model = create_vit_classifier(num_classes=len(classes), input_shape=(int(image_width),int(image_height),int(channels)))
+
+            
+            #model.add(Flatten())
+            #model.add(Dense(len(classes), activation='softmax'))
+            #return model
         
             model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),int(channels))))
+            #model.add(Lambda(lambda x: tf.keras.applications.mobilenet.preprocess_input(tf.repeat(tf.cast(x, tf.float32), 3, axis=-1)),
+            #                 input_shape=(int(image_width),int(image_height),int(channels))))
+            #from tensorflow.keras.applications import MobileNetV2, MobileNetV3Small, MobileNetV3Large
+            #base_model = MobileNetV3Small(weights='imagenet', input_shape=(int(image_width),int(image_height),3), include_top=False,
+            ##                              include_preprocessing=False, classes=len(classes))
 
-            model.add(Convolution2D(16, kernel_size=3, strides=2, padding='same'))
+            # Freeze the pre-trained weights
+            #for layer in base_model.layers:
+            #    layer.trainable = False
+
+            #model.add(base_model)
+
+            model.add(Convolution2D(256, 5, padding='same'))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            model.add(MaxPooling2D(pool_size=(2,2)))
+            model.add(SpatialDropout2D(0.05))
+
+            model.add(Convolution2D(128, 5, padding='same'))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            model.add(MaxPooling2D(pool_size=(2,2)))
+            model.add(SpatialDropout2D(0.05))
+
+            '''model.add(Convolution2D(32, 5, strides=2, padding='same'))
             model.add(BatchNormalization())
             model.add(Activation('relu'))
             #model.add(MaxPooling2D(pool_size=(2,2)))
-            #model.add(SpatialDropout2D(0.05))
+            model.add(SpatialDropout2D(0.05))'''
 
-            model.add(Convolution2D(64, 5))
+            model.add(Convolution2D(32, 5, padding='same'))
             model.add(BatchNormalization())
             model.add(Activation('relu'))
             model.add(MaxPooling2D(pool_size=(2,2)))
-            #model.add(SpatialDropout2D(0.05))
+            model.add(SpatialDropout2D(0.05))
 
-            model.add(Convolution2D(100, 5))
+            model.add(Convolution2D(128, 5, padding='same'))
             model.add(BatchNormalization())
             model.add(Activation('relu'))
             model.add(MaxPooling2D(pool_size=(2,2)))
-            ##model.add(SpatialDropout2D(0.05))
+            model.add(SpatialDropout2D(0.05))
 
-            model.add(Dense(100))
+
+            model.add(Dense(1024))
             model.add(BatchNormalization())
             model.add(Activation('relu'))
             #model.add(SpatialDropout2D(0.05))
@@ -303,6 +332,8 @@ class Network:
             
             model.add(Flatten())
             model.add(Dense(len(classes), activation='softmax'))
+
+            return model
 
         self.versions["v118_3"] = v118_3
 

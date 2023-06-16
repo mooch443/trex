@@ -374,10 +374,34 @@ void ConvertScene::activate()  {
             (work_area.width - work_area.x) * 0.75,
             size.height / size.width * (work_area.width - work_area.x) * 0.75
         );
+        print("prelim window size = ", window_size);
+        if (window_size.height > work_area.height - work_area.y) {
+            auto ratio = window_size.width / window_size.height;
+            window_size = Size2(
+                ratio * (work_area.height - work_area.y),
+                work_area.height - work_area.y
+            );
+            print("Restricting window size to ", window_size, " based on ratio ", ratio);
+        }
+        if (window_size.width > work_area.width - work_area.x) {
+            auto ratio = window_size.height / window_size.width;
+            auto h = min(ratio * (work_area.width - work_area.x), window_size.height);
+            window_size = Size2(
+                h / ratio,
+                h
+            );
+            print("Restricting window size to width ", window_size, " based on ratio ", ratio);
+        }
+
         Bounds bounds(
             Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
                 work_area.height / 2 - window_size.height / 2 + work_area.y),
             window_size);
+        print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
+        bounds.restrict_to(work_area);
+        print("Restricting bounds to work area: ", work_area, " -> ", bounds);
+
+
         print("setting bounds = ", bounds);
         window()->set_window_bounds(bounds);
         bar.set_progress(0);
