@@ -7,7 +7,7 @@ add_subdirectory(misc)
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
-
+if(TREX_WITH_TESTS)
 add_executable(test_network network.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
 target_link_libraries(test_network tracker_tracking tracker_python tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
@@ -53,6 +53,8 @@ else()
         COMMAND ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
             "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+endif()
+
 endif()
 
 if(APPLE)

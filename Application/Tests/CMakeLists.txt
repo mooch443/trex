@@ -1,3 +1,5 @@
+if(TREX_WITH_TESTS)
+
 FetchContent_Declare(
   googletest
   DOWNLOAD_EXTRACT_TIMESTAMP true
@@ -52,3 +54,5 @@ target_link_libraries(test_pixels PUBLIC
 add_test(NAME test-matching COMMAND test_matching)
 add_test(NAME test-strings COMMAND test_strings)
 add_test(NAME test-pixels COMMAND test_pixels)
+
+endif()
