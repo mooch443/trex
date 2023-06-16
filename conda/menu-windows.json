@@ -1,0 +1,12 @@
+{
+    "menu_name": "TRex-beta ${PY_VER} ${PLATFORM}",
+    "menu_items":[  
+    {  
+      "name": "TRexA",
+      "system": "%windir%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "scriptarguments": ["-ExecutionPolicy", "ByPass", "-NoExit", "-Command", "\"& '${ROOT_PREFIX}\\shell\\condabin\\conda-hook.ps1' ; conda activate '{PREFIX}' \""],
+      "icon": "${MENU_DIR}/TRexA.ico"
+    }
+    ]
+  }
+  

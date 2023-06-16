@@ -5,6 +5,15 @@ cd build
 @setlocal enableextensions enabledelayedexpansion
 @echo off
 
+set MENU_DIR=%PREFIX%\Menu
+mkdir %MENU_DIR%
+
+copy %RECIPE_DIR%\Application\src\tracker\gfx\TRexA.ico %MENU_DIR%
+if errorlevel 1 exit 1
+
+copy %RECIPE_DIR%\menu-windows.json %MENU_DIR%\trex.json
+if errorlevel 1 exit 1
+
 for /f %%w in ('%PREFIX%\python -c "from shutil import which; print(which(\"python\"))"') do set var=%%w
 echo var is %var%
 
