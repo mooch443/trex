@@ -1,0 +1,25 @@
+# meta.yaml
+
+name: my_env_installer
+version: 1.0
+
+channels:
+  - defaults # [not arm64]
+  - conda-forge # [arm64]
+  - apple # [arm64]
+  - pytorch    # [linux or win or osx]
+  - nvidia     # [linux or win]
+  - pytorch-nightly # [arm64]
+  - trex-beta
+
+specs:
+  - trex
+  - pytorch-cuda=11.7 # [linux or win]
+
+installer_type: pkg # [osx]
+installer_type: exe # [win]
+installer_type: deb # [linux]
+
+keep_pkgs: True
+
+

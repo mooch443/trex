@@ -103,7 +103,6 @@ requirements:
     - torchvision
     - pandas
     - seaborn
-    - cloudpickle
     - tensorflow-deps # [osx and arm64]
     - git
     - cudatoolkit =10.1 # [linux]
