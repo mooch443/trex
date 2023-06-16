@@ -33,7 +33,7 @@ readme_text: |
 
 installer_type: pkg # [osx]
 installer_type: exe # [win]
-installer_type: deb # [linux]
+installer_type: sh # [linux]
 
 keep_pkgs: True
 
