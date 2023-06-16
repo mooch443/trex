@@ -135,7 +135,7 @@ if(WIN32 OR UNIX AND NOT APPLE)
 endif()
 
 add_executable(${TREXA_EXEC_NAME} ${TREXA_SRCS})
-target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_tracking tracker_misc framegrabber_misc pv commons Commons::OpenCV)
+target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_gui tracker_tracking tracker_misc framegrabber_misc pv commons Commons::OpenCV)
 
 add_executable(${TREX_EXEC_NAME} ${SRCS})
 add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
