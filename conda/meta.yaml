@@ -29,7 +29,7 @@ source:
 
 app:
   entry: trex
-  icon: ${PREFIX}/usr/share/trex/gfx/TRexA_1024.png
+  icon: ../Application/src/tracker/gfx/TRexA_1024.png
   summary: TRex
   type: console
   own_environment: True
