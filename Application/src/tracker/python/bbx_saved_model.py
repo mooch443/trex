@@ -472,8 +472,8 @@ class StrippedYolo8Results:
                 assert self.masks[-1].flags['C_CONTIGUOUS']
                 #TRex.imshow("mask"+str(len(self.masks)),self.masks[-1])
 
-BBox = np.ndarray[int]
-Image = np.ndarray[np.uint8]
+BBox = np.ndarray#[int]
+Image = np.ndarray#[np.uint8]
 
 from typing import List, Tuple
 
