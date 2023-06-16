@@ -209,7 +209,7 @@ if(NOT APPLE)
 endif()
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/TRexIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-#set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcons.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     set(RESOURCE_COPY_FILES
