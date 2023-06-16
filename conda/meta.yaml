@@ -27,6 +27,13 @@ source:
     git_depth: 1
     git_tag: {{ git_tag }}
 
+app:
+  entry: trex
+  icon: ${PREFIX}/usr/share/trex/gfx/TRexA_1024.png
+  summary: TRex
+  type: console
+  own_environment: True
+
 build:
     script_env:
       - GITHUB_WORKFLOW
