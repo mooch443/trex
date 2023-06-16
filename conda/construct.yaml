@@ -1,7 +1,7 @@
 # meta.yaml
 
-name: my_env_installer
-version: 1.0
+name: TRex-beta
+version: 1.1.9
 
 channels:
   - defaults # [not arm64]
@@ -18,7 +18,8 @@ specs:
   - powershell_shortcut # [win]
   - conda
 
-welcome_image: ../docs/TRexA_installer.png
+welcome_image: ../docs/TRexA_installer.png # [not win]
+welcome_image: ../docs/TRexA_1024.bmp # [win]
 icon_image: ../Application/src/tracker/gfx/TRexA_256.png
 welcome_text: |
   TRex is a cross-platform, open-source, and free software for tracking and analyzing animal behavior.
