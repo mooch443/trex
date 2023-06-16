@@ -402,6 +402,24 @@ TRex parameters
 
 
 
+.. function:: detect_conf_threshold(float)
+
+	**default value:** 0.1
+
+
+	Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.
+
+
+
+.. function:: detect_iou_threshold(float)
+
+	**default value:** 0.7
+
+
+	Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.
+
+
+
 .. function:: error_terminate(bool)
 
 	**default value:** false
@@ -562,6 +580,15 @@ TRex parameters
 
 
 	Minimum number of iterations per epoch for training a recognition network.
+
+
+
+.. function:: gpu_torch_device(string)
+
+	**default value:** ""
+
+
+	If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/[...]orch.cuda.device <https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device>`_.
 
 
 
