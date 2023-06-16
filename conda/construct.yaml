@@ -14,7 +14,9 @@ channels:
 
 specs:
   - trex
-  - pytorch-cuda=11.7 # [linux or win]
+  - console_shortcut # [osx or linux]
+  - powershell_shortcut # [win]
+  - conda
 
 installer_type: pkg # [osx]
 installer_type: exe # [win]
