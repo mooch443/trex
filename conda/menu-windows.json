@@ -4,7 +4,7 @@
     {  
       "name": "TRexA",
       "system": "%windir%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-      "scriptarguments": ["-ExecutionPolicy", "ByPass", "-NoExit", "-Command", "\"& '${ROOT_PREFIX}\\shell\\condabin\\conda-hook.ps1' ; conda activate '{PREFIX}' \""],
+      "scriptarguments": ["-ExecutionPolicy", "ByPass", "-NoExit", "-Command", "\"& '${ROOT_PREFIX}\\shell\\condabin\\conda-hook.ps1' ; conda activate '${ROOT_PREFIX}' \""],
       "icon": "${MENU_DIR}/TRexA.ico"
     }
     ]
