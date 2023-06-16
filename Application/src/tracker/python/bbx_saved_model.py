@@ -357,8 +357,14 @@ class Model:
         self.use_tracking = use_tracking
 
         # if no device is specified, use cuda if available, otherwise use mps/cpu
-        self.device = device
-        if device is None:
+        self.device = eval(TRex.setting("gpu_torch_device"))
+        if self.device == "":
+            self.device = None
+        else:
+            print(f"Using device {self.device} from settings.")
+            self.device = torch.device(self.device)
+
+        if self.device is None:
             if torch.cuda.is_available():
                 self.device = torch.device("cuda:0")
             elif torch.backends.mps.is_available():
@@ -381,6 +387,11 @@ class Model:
     def load(self):
         from ultralytics import YOLO
         self.ptr = YOLO(self.config.model_path)
+
+        device_from_settings = eval(TRex.setting("gpu_torch_device"))
+        if device_from_settings != "":
+            print(f"Using device {device_from_settings} from settings.")
+            self.device = torch.device(device_from_settings)
 
         if self.config.task == ModelTaskType.detect or self.config.task == ModelTaskType.segment:
             if self.ptr.task == "segment":
@@ -414,13 +425,7 @@ class StrippedYolo8Results:
         self.scale = scale
         self.offset = offset
 
-        device = torch.device("cpu")#"cuda:0")
-        #offset = torch.Tensor(offset).to(device)
-        #scale = torch.Tensor(scale).to(device)
-
-        #box = torch.Tensor([box[0], box[1]]).to(device)
         box = np.array([box[0],box[1]])
-        #box = torch.Tensor(box).to(device)
         
         if results.keypoints is not None:
             self.keypoints = results.keypoints.cpu().numpy()[..., :2]
@@ -1417,7 +1422,9 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
     return [], np.array([], dtype=np.float32)
 
 def predict(input : TRex.YoloInput) -> list[TRex.Result]:
-    global model, conf_threshold, iou_threshold
+    global model
+    conf_threshold = float(TRex.setting("detect_conf_threshold"))
+    iou_threshold = float(TRex.setting("detect_iou_threshold"))
 
     return model.inference(input, 
                            conf_threshold = conf_threshold, 
