@@ -18,10 +18,22 @@ specs:
   - powershell_shortcut # [win]
   - conda
 
+welcome_image: ../docs/TRexA_installer.png
+icon_image: ../Application/src/tracker/gfx/TRexA_256.png
+welcome_text: |
+  TRex is a cross-platform, open-source, and free software for tracking and analyzing animal behavior.
+  TRex is developed by Tristan Walter at the Max-Planck Institute of Animal Behavior.
+  For more information, please visit: https://trex.run
+
+readme_text: |
+  TRex is a cross-platform, open-source, and free software for tracking and analyzing animal behavior.
+  TRex is developed by the Mankowski Lab at the University of California, San Francisco.
+  For more information, please visit: https://trex.run
+
 installer_type: pkg # [osx]
 installer_type: exe # [win]
 installer_type: deb # [linux]
 
 keep_pkgs: True
 
-
+license_file: ../LICENSE
