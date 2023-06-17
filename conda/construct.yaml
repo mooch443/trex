@@ -15,6 +15,9 @@ specs:
   - console_shortcut # [osx or linux]
   - powershell_shortcut # [win]
   - conda
+  - pytorch-cuda=11.7 # [linux or win]
+  - torchvision # [linux or win]
+  - pytorch=2 # [linux or win]
 
 menu_packages:
   - trex
