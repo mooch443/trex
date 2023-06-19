@@ -102,7 +102,11 @@ struct RepeatedDeferral {
     ~RepeatedDeferral() {
         //if(_next_image.valid())
         //    _next_image.get();
-        {
+        quit();
+    }
+    
+    void quit() {
+        if(not _terminate){
             std::unique_lock guard(_mutex);
             _terminate = true;
             notify();

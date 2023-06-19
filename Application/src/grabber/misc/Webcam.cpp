@@ -3,6 +3,7 @@
 
 namespace fg {
     Webcam::Webcam() {
+        std::unique_lock guard(_mutex);
         if (SETTING(cam_framerate).value<int>() > 0)
             _capture.set(cv::CAP_PROP_FPS, SETTING(cam_framerate).value<int>());
         if(SETTING(cam_resolution).value<cv::Size>().width != -1)
@@ -10,11 +11,14 @@ namespace fg {
         if(SETTING(cam_resolution).value<cv::Size>().height != -1)
             _capture.set(cv::CAP_PROP_FRAME_HEIGHT, SETTING(cam_resolution).value<cv::Size>().height);
 
-        if(!open())
-            _capture.open(0);
-		if (!open())
+        try {
+            if(!_capture.isOpened())
+                _capture.open(0);
+        } catch(...) {
+            throw U_EXCEPTION("OpenCV cannot open the webcam.");
+        }
+        if(!_capture.isOpened())
             throw U_EXCEPTION("Cannot open webcam.");
-
 
         cv::Mat test;
         _capture >> test;
@@ -24,10 +28,22 @@ namespace fg {
     int Webcam::frame_rate() {
         if (!open())
             return -1;
+        std::unique_lock guard(_mutex);
         return _capture.get(cv::CAP_PROP_FPS);
     }
 
+    bool Webcam::open() {
+        std::unique_lock guard(_mutex);
+        return _capture.isOpened();
+    }
+
+    void Webcam::close() {
+        std::unique_lock guard(_mutex);
+        _capture.release();
+    }
+
     bool Webcam::next(cmn::Image &image) {
+        std::unique_lock guard(_mutex);
         cv::Mat tmp;
         _capture >> tmp;
         

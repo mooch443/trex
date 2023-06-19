@@ -396,7 +396,7 @@ class Model:
         if self.config.task == ModelTaskType.detect or self.config.task == ModelTaskType.segment:
             if self.ptr.task == "segment":
                 self.config.task = ModelTaskType.segment
-                if self.device == torch.device("mps"):
+                if self.device == torch.device("mps") and device_from_settings == "":
                     self.device = torch.device("cpu")
             elif self.ptr.task == "detect":
                 self.config.task = ModelTaskType.detect

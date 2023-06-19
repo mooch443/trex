@@ -3,12 +3,17 @@
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <gui/types/ListItemTypes.h>
+#include <JSON.h>
 
 namespace gui {
 
 StartingScene::StartingScene(Base& window)
 : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
     _image_path(file::DataLocation::parse("app", "gfx/" + SETTING(app_name).value<std::string>() + "_1024.png")),
+    _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
+    _recent_items(std::make_shared<ScrollableList<>>(Bounds(0, 10, 310, 500))),
+    _video_file_button(std::make_shared<Button>("Open file", attr::Size(150, 50))),
+    _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50))),
     context ({
         .variables = {
             {
@@ -18,11 +23,7 @@ StartingScene::StartingScene(Base& window)
                 }))
             }
         }
-    }),
-    _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
-    _recent_items(std::make_shared<ScrollableList<>>(Bounds(0, 10, 310, 500))),
-    _video_file_button(std::make_shared<Button>("Open file", attr::Size(150, 50))),
-    _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50)))
+    })
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     print(window.window_dimensions().mul(dpi), " and logo ", _logo_image->size());
@@ -35,6 +36,8 @@ StartingScene::StartingScene(Base& window)
 
     // Callback for camera button
     _camera_button->on_click([](auto){
+        RecentItems::open("webcam", GlobalSettings::map());
+        
         // Implement logic to start recording from camera
         SETTING(source).value<std::string>() = "webcam";
         SceneManager::getInstance().set_active("converting");
@@ -66,13 +69,84 @@ StartingScene::StartingScene(Base& window)
     //_main_layout.set_origin(Vec2(1, 0));
 }
 
+RecentItems RecentItems::read() {
+    auto path = file::DataLocation::parse("output", ".trex_recent_files");
+    RecentItems items;
+    
+    if(path.exists())
+    {
+        try {
+            auto str = path.read_file();
+            auto obj = nlohmann::json::parse(str);
+            for(auto key : obj) {
+                auto name = (std::string)key.at("name");
+                print("key:",name);
+                if(key.is_object()) {
+                    auto settings = key.at("settings");
+                    
+                } else {
+                    throw U_EXCEPTION("Key ", name, " should have been an object.");
+                }
+            }
+            
+        } catch(const std::exception& e) {
+            FormatWarning("Cannot open recent files file: ", e.what());
+        }
+    }
+    return items;
+}
+
+bool RecentItems::has(std::string name) const {
+    for(auto &item : _items)
+        if(item._name == name)
+            return true;
+    return false;
+}
+
+void RecentItems::add(std::string name) {
+    auto recent = RecentItems::read();
+    if(not recent.has(name)) {
+        recent.add(name);
+        recent.write();
+    }
+}
+
+nlohmann::json RecentItems::Item::to_object() const {
+    auto obj = nlohmann::json::object();
+    obj["name"] = _name;
+    
+    auto settings = nlohmann::json::object();
+    for(auto key : _options.keys())
+        settings[key] = _options[key].toStr();
+    obj["settings"] = settings;
+    return obj;
+}
+
+void RecentItems::write() {
+    auto path = file::DataLocation::parse("output", ".trex_recent_files");
+    if(path.exists())
+    {
+        try {
+            auto array = nlohmann::json::array();
+            for(auto &item : items()) {
+                array.push_back(item.to_object());
+            }
+            
+            auto f = path.fopen("wb");
+            auto dump = array.dump();
+            fwrite(dump.c_str(), sizeof(uchar), dump.length(), f);
+            print("Updated recent files: ", dump.c_str());
+            
+        } catch(...) {
+            FormatWarning("Cannot open recent files file.");
+        }
+    }
+}
+
 void StartingScene::activate() {
     // Fill the recent items list
-    _recent_items->set_items({
-        TextItem("olivia_momo-carrot_t4t_041822.mp4", 0),
-        TextItem("DJI_0268.MOV", 1),
-        TextItem("8guppies_20s", 2)
-    });
+    auto items = RecentItems::read();
+    items.show(*_recent_items);
 }
 
 void StartingScene::deactivate() {

@@ -50,7 +50,7 @@ void Yolo8::init() {
             "bbx_saved_model",
             Yolo8::reinit
         };
-    }).get();
+    });//.get();
 }
 
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result) {

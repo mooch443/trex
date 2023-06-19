@@ -10,9 +10,18 @@ namespace fg {
         Size2 _size;
         cv::VideoCapture _capture;
         GETTER_SETTER_I(ImageMode, color_mode, ImageMode::GRAY)
+        mutable std::mutex _mutex;
         
     public:
         Webcam();
+        Webcam(const Webcam&) = delete;
+        Webcam& operator=(const Webcam&) = delete;
+        Webcam(Webcam&& other) :
+            _size(std::move(other._size)),
+            _capture(std::move(other._capture)),
+            _color_mode(std::move(other._color_mode))
+        { }
+        Webcam& operator=(Webcam&&) = default;
         ~Webcam() {
             if(open())
                 close();
@@ -20,8 +29,8 @@ namespace fg {
         
         virtual Size2 size() const override { return _size; }
         virtual bool next(Image& image) override;
-        virtual bool open() override { return _capture.isOpened(); }
-        virtual void close() override { _capture.release(); }
+        [[nodiscard]] virtual bool open() override;
+        virtual void close() override;
         int frame_rate();
         
         std::string toStr() const override { return "Webcam"; }
