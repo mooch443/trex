@@ -55,6 +55,8 @@ class ConvertScene : public Scene {
 
     // Threads for tracking and generation
     std::thread _tracking_thread, _generator_thread;
+    std::shared_future<void> _scene_active;
+    std::promise<void> _scene_promise;
 
     // Frame data
     Frame_t _actual_frame, _video_frame;

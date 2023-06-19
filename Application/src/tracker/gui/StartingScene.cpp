@@ -197,7 +197,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     };
     item._options.set_do_print(false);
     config.write_to(item._options);
-	_items.emplace_back(name, options);
+	_items.emplace_back(std::move(item));
 }
 
 nlohmann::json RecentItems::Item::to_object() const {

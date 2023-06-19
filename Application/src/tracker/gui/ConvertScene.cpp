@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -153,57 +153,89 @@ spinner{
 ConvertScene::~ConvertScene() {
     if (not _should_terminate)
         deactivate();
+    else if(_scene_active.valid()) {
+        auto status = _scene_active.wait_for(std::chrono::seconds(0));
+        if (status == std::future_status::deferred) {
+            std::cout << "Task has been deferred.\n";
+        } else if (status == std::future_status::ready) {
+            std::cout << "Task has finished.\n";
+        } else {
+            std::cout << "Task is still running.\n";
+            _scene_active.wait();
+        }
+    }
 }
 
 void ConvertScene::deactivate() {
     _should_terminate = true;
-    bar.set_progress(100);
-    bar.mark_as_completed();
-
-    spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
-    spinner.set_option(ind::option::PrefixText{"✔"});
-    spinner.set_option(ind::option::ShowSpinner{false});
-    spinner.set_option(ind::option::PostfixText{"Done."});
-    spinner.set_progress(100);
-    spinner.mark_as_completed();
-
-    {
+    
+    try {
+        bar.set_progress(100);
+        bar.mark_as_completed();
+        
+        spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+        spinner.set_option(ind::option::PrefixText{"✔"});
+        spinner.set_option(ind::option::ShowSpinner{false});
+        spinner.set_option(ind::option::PostfixText{"Done."});
+        spinner.set_progress(100);
+        spinner.mark_as_completed();
+        
+        {
+            std::unique_lock guard(_mutex_general);
+            _cv_ready_for_tracking.notify_all();
+            _cv_messages.notify_all();
+        }
+        
+        try {
+            if (_tracking_thread.joinable()) {
+                _tracking_thread.join();
+            }
+        } catch(const std::exception& e) {
+            FormatExcept("Exception when joining tracking thread: ", e.what());
+        }
+        
+        try {
+            Detection::manager().clean_up();
+        } catch(const std::exception& e) {
+            FormatExcept("Exception when joining detection thread: ", e.what());
+        }
+        
+        try {
+            if (_generator_thread.joinable()) {
+                _generator_thread.join();
+            }
+        } catch(const std::exception& e) {
+            FormatExcept("Exception when joining generator thread: ", e.what());
+        }
+        
         std::unique_lock guard(_mutex_general);
-        _cv_ready_for_tracking.notify_all();
-        _cv_messages.notify_all();
+        if (_output_file) {
+            _output_file->close();
+        }
+        
+        _overlayed_video = nullptr;
+        _tracker = nullptr;
+        
+        if (_output_file) {
+            pv::File test(_output_file->filename(), pv::FileMode::READ);
+            test.print_info();
+        }
+        
+        _output_file = nullptr;
+        _next_frame_data = {};
+        _progress_data = {};
+        _current_data = {};
+        _transferred_blobs.clear();
+        _object_blobs.clear();
+        _progress_blobs.clear();
+        _transferred_current_data = {};
+        
+        _scene_promise.set_value();
+        
+    } catch(const std::exception& e){
+        FormatExcept(e.what());
+        _scene_promise.set_exception(std::current_exception());
     }
-
-    if (_tracking_thread.joinable()) {
-        _tracking_thread.join();
-    }
-
-    Detection::manager().clean_up();
-
-    if (_generator_thread.joinable()) {
-        _generator_thread.join();
-    }
-
-    std::unique_lock guard(_mutex_general);
-    if (_output_file) {
-        _output_file->close();
-    }
-
-    _overlayed_video = nullptr;
-    _tracker = nullptr;
-
-    if (_output_file) {
-        pv::File test(_output_file->filename(), pv::FileMode::READ);
-        test.print_info();
-    }
-
-    _output_file = nullptr;
-    _next_frame_data = {};
-    _progress_data = {};
-    _current_data = {};
-    _transferred_blobs.clear();
-    _object_blobs.clear();
-    _progress_blobs.clear();
-    _transferred_current_data = {};
 }
 
 void ConvertScene::open_video() {
@@ -358,6 +390,8 @@ void ConvertScene::open_camera() {
 }
 
 void ConvertScene::activate()  {
+    _scene_promise = {};
+    _scene_active = _scene_promise.get_future().share();
     _should_terminate = false;
 
     try {
@@ -409,6 +443,8 @@ void ConvertScene::activate()  {
     }
     catch (const std::exception& e) {
         FormatExcept("Exception when switching scenes: ", e.what());
+        //_scene_promise.set_value();
+        //deactivate();
         SceneManager::getInstance().set_active("starting-scene");
     }
 }
