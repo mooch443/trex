@@ -131,7 +131,7 @@ void launch_gui() {
     manager.set_active(nullptr);
     manager.update_queue();
     graph.root().set_stage(nullptr);
-    Detection::manager().~PipelineManager<TileImage>();
+    Detection::manager().clean_up();
 }
 
 void panic(const char *fmt, ...) {
