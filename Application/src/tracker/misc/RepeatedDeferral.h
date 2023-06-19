@@ -106,11 +106,12 @@ struct RepeatedDeferral {
     }
     
     void quit() {
-        if(not _terminate){
+        {
             std::unique_lock guard(_mutex);
             _terminate = true;
             notify();
         }
+
         if(_updater && _updater->joinable())
             _updater->join();
         _updater = nullptr;
@@ -132,7 +133,10 @@ struct RepeatedDeferral {
         }
         
         if(_next.empty())
-            _new_item.wait(guard, [this]() {return not _next.empty(); });
+            _new_item.wait(guard, [this]() {return not _next.empty() or _terminate; });
+
+        if(_terminate)
+            throw std::runtime_error("Terminated");
         
         auto e = timer.elapsed();
         {
