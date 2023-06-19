@@ -4184,7 +4184,7 @@ std::string GUI::info(bool escape) {
 
 void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suffix) {
     auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
-    auto text = default_config::generate_delta_config();
+    auto text = default_config::generate_delta_config().to_settings();
     
     if(filename.exists() && !overwrite) {
         if(type == GUIType::GRAPHICAL) {

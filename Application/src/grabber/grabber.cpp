@@ -733,7 +733,7 @@ FrameGrabber::~FrameGrabber() {
             
             auto filename = file::Path(file::DataLocation::parse("output_settings").str());
             if(!filename.exists() || SETTING(grabber_force_settings)) {
-                auto text = default_config::generate_delta_config(false, additional_exclusions);
+                auto text = default_config::generate_delta_config(false, additional_exclusions).to_settings();
                 
                 FILE *f = fopen(filename.str().c_str(), "wb");
                 if(f) {

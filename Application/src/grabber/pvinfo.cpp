@@ -368,7 +368,7 @@ int main(int argc, char**argv) {
         }
         
         if(SETTING(write_settings)) {
-            auto text = default_config::generate_delta_config();
+            auto text = default_config::generate_delta_config().to_settings();
             auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
             
             if(filename.exists() && !be_quiet)

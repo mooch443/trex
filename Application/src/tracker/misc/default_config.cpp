@@ -693,10 +693,26 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         config.set_do_print(old);
     }
-    
-    std::string generate_delta_config(bool include_build_number, std::vector<std::string> additional_exclusions) {
-        auto keys = GlobalSettings::map().keys();
+
+    std::string Config::to_settings() const {
         std::stringstream ss;
+        for (auto& [key, value] : map) {
+            ss << key << " = " << value->valueString() << "\n";
+        }
+        return ss.str();
+    }
+    void Config::write_to(sprite::Map& other) {
+        for (auto& [key, value] : this->map) {
+            value->copy_to(&other);
+        }
+    }
+
+    const sprite::PropertyType*& Config::operator[](const std::string& key) {
+		return map[key];
+    }
+    
+    Config generate_delta_config(bool include_build_number, std::vector<std::string> additional_exclusions) {
+        auto keys = GlobalSettings::map().keys();
         
         static sprite::Map config;
         static GlobalSettings::docs_map_t docs;
@@ -780,6 +796,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         /**
          * Write the remaining settings.
          */
+        Config result;
+
         for(auto &key : keys) {
             // dont write meta variables. this could be confusing if those
             // are loaded from the video file as well
@@ -795,12 +813,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
-                    ss << key << " = " << GlobalSettings::get(key).get().valueString() << "\n";
+                    result[key] = &GlobalSettings::get(key).get();
                 }
             }
         }
         
-        return ss.str();
+        return result;
     }
     
     void register_default_locations() {

@@ -18,7 +18,14 @@ namespace default_config {
     bool is_deprecated(const std::string& key);
     const std::map<std::string, std::string>& deprecations();
     std::string replacement(const std::string& key);
-    std::string generate_delta_config(bool include_build_number = false, std::vector<std::string> additional_exclusions = {});
+
+    struct Config {
+        std::map<std::string, const sprite::PropertyType*> map;
+        std::string to_settings() const;
+        void write_to(sprite::Map& other);
+        const sprite::PropertyType*& operator[](const std::string& key);
+    };
+    Config generate_delta_config(bool include_build_number = false, std::vector<std::string> additional_exclusions = {});
     void register_default_locations();
     void load_string_with_deprecations(const file::Path& source, const std::string& content, sprite::Map& map, AccessLevel, bool quiet = false);
 
