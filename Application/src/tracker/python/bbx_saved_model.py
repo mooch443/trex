@@ -17,6 +17,8 @@ from pathlib import Path
 import logging
 from functools import lru_cache
 
+from typing import List, Tuple
+
 import TRex
 from TRex import ModelTaskType
 
@@ -405,7 +407,7 @@ class Model:
         self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))
 
-    def predict(self, images : list[np.ndarray], **kwargs):
+    def predict(self, images : List[np.ndarray], **kwargs):
         if len(images) == 0:
             return []
         
@@ -542,7 +544,7 @@ class TRexYOLO8:
         """
         return any(model.task == ModelTaskType.segment for model in self.models)
 
-    def region_proposal(self, images: list[Image], **kwargs) -> list[list[tuple[BBox, Image]]]:
+    def region_proposal(self, images: List[Image], **kwargs) -> List[List[Tuple[BBox, Image]]]:
         """
         Performs region proposals on a list of input images using the region model.
         These regions are focus points for where segmentation and detection models will be applied.
@@ -565,11 +567,11 @@ class TRexYOLO8:
         
         scaled_size: int = model.config.trained_resolution
         scaled_down_scales: np.ndarray = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in images])
-        scaled_down: list[Image] = [cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
+        scaled_down: List[Image] = [cv2.resize(im, (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
         #print(f"performing region proposals at {scaled_size}x{scaled_size} on {len(images)} images")
         bboxes: list = model.predict(images = scaled_down, imgsz=scaled_size, conf=0.25, iou=0.3, verbose=False, **kwargs)
         padding: int = 7
-        results: list[list[tuple[BBox, Image]]] = []
+        results: List[List[Tuple[BBox, Image]]] = []
         
         #for i, bb in enumerate(bboxes):
         #    p = bb.cpu().plot(line_width=1)
@@ -663,7 +665,7 @@ class TRexYOLO8:
         for model in self.models:
             model.load()
 
-    def preprocess(self, images : list[Image]):
+    def preprocess(self, images : List[Image]):
         """
         Preprocesses an input list of images by converting each image from BGR color space to RGB.
 
@@ -675,7 +677,7 @@ class TRexYOLO8:
         """
         return [cv2.cvtColor(np.array(i, copy=False), cv2.COLOR_BGR2RGB) for i in images]
     
-    def perform_region_proposal(self, tensor, offsets, scales, ious, confs) -> list[TRex.Result]:
+    def perform_region_proposal(self, tensor, offsets, scales, ious, confs) -> List[TRex.Result]:
         """
         This function applies the region proposal to a given tensor, performing object detection and segmentation 
         on the proposed regions. It then collects and returns the results.
@@ -754,7 +756,7 @@ class TRexYOLO8:
         return rexsults
 
 
-    def postprocess_result(self, i, result, offset, scale, box = [0, 0, 0, 0]) -> tuple[np.ndarray, list[np.ndarray]]:
+    def postprocess_result(self, i, result, offset, scale, box = [0, 0, 0, 0]) -> Tuple[np.ndarray, List[np.ndarray]]:
         """
         This function postprocesses the result of the object detection and segmentation for a proposed region.
 
@@ -992,7 +994,7 @@ class TRexYOLO8:
         
         return rexsults
 
-def load_yolo8(configs : list[TRex.ModelConfig]):
+def load_yolo8(configs : List[TRex.ModelConfig]):
     global model
     models = []
     for config in configs:
@@ -1421,7 +1423,7 @@ def predict_yolov7(offsets, img, image_shape=(640,640)):
         return _Ns, np.concatenate(rs, axis=0)
     return [], np.array([], dtype=np.float32)
 
-def predict(input : TRex.YoloInput) -> list[TRex.Result]:
+def predict(input : TRex.YoloInput) -> List[TRex.Result]:
     global model
     conf_threshold = float(TRex.setting("detect_conf_threshold"))
     iou_threshold = float(TRex.setting("detect_iou_threshold"))
