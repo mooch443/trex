@@ -105,7 +105,8 @@ void launch_gui() {
         });
     manager.register_scene(&loading);
 
-    graph.set_size(Size2(1024, converting.output_size().height / converting.output_size().width * 1024));
+    if(not converting.output_size().empty())
+        graph.set_size(Size2(1024, converting.output_size().height / converting.output_size().width * 1024));
     
     base.platform()->set_icons({
         //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),

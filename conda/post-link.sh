@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # if arm or linux, or macos, check for pip
-if [ "$(uname -p)" == "arm" ] || [ "${OSTYPE}" == "linux-gnu" ] || [ "$(uname)" == "Darwin" ]; then
+if [ "$(uname -p)" == "arm" ] || [ "${OSTYPE}" == "linux-gnu" ] || "$(uname)" == "Linux" || [ "$(uname)" == "Darwin" ]; then
 	# Ensure pip is installed
 	if ! command -v pip &> /dev/null
 	then
@@ -16,8 +16,8 @@ if [ "$(uname -p)" == "arm" ]; then
 
 	echo "" >> $PREFIX/.messages.txt;
 
-elif [ "${OSTYPE}" == "linux-gnu" ]; then
-	python -m pip install opencv-python ultralytics 'numpy>=1.23,<1.24'  >> $PREFIX/.messages.txt;
+elif [ "${OSTYPE}" == "linux-gnu" || "$(uname)" == "Linux" ]; then
+	{ python -m pip install opencv-python ultralytics 'numpy>=1.23,<1.24' 2>&1; }  >> $PREFIX/.messages.txt;
 
 	echo "" >> $PREFIX/.messages.txt;
 else
