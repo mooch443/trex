@@ -94,23 +94,26 @@ requirements:
 
   host:
     - pthread-stubs  # [linux]
-    - python =3.10 # [osx]
+    - python =3 # [osx]
     - python =3.9 # [win]
     - python =3.7 # [linux]
+    - openblas
     - ffmpeg =4
+    - numpy =1.23.5 # [arm64]
+    - numpy >=1.19,<1.22 # [linux]
+    - numpy >=1.21,<1.22 # [win]
     
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }}
     - tensorflow-gpu =2 # [win]
     - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
-    - pytorch =2 # [win or linux or (osx and not arm64)]
+    - pytorch # [win or linux or (osx and not arm64)]
     - torchvision
-    - pandas
-    - seaborn
-    - tensorflow-deps # [osx and arm64]
     - git
     - cudatoolkit =10.1 # [linux]
     - cudatoolkit =11 # [win]
@@ -119,9 +122,6 @@ requirements:
     - scikit-learn
     - pip
     - requests
-    - numpy >=1.19,<1.22 # [linux]
-    - numpy >=1.21,<1.22 # [win]
-    - numpy >=1.23,<1.24 # [arm64]
 
 about:
   home: https://trex.run

@@ -12,7 +12,7 @@ fi
 
 if [ "$(uname -p)" == "arm" ]; then
 	# Install pip package
-	python -m pip install 'tensorflow-macos==2.12' 'tensorflow-metal==0.8.0' opencv-python ultralytics 'numpy>=1.23,<1.24'  >> $PREFIX/.messages.txt;
+	python -m pip install 'tensorflow-macos' 'tensorflow-metal' opencv-python ultralytics  >> $PREFIX/.messages.txt;
 
 	echo "" >> $PREFIX/.messages.txt;
 
