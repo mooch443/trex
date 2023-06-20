@@ -33,7 +33,7 @@ else
 
     if [ "${ARCH}" == "arm64" ]; then
         echo "Using up-to-date sysroot for arm64 arch."
-        export MACOSX_DEPLOYMENT_TARGET="11.0"
+        export MACOSX_DEPLOYMENT_TARGET="11.1"
 
         export CONDA_BUILD_SYSROOT=$(ls -d $SDKS | tail -n1)
         export SDKROOT="${CONDA_BUILD_SYSROOT}"
@@ -51,7 +51,7 @@ else
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
             export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk"
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
-            export MACOSX_DEPLOYMENT_TARGET="11.0"
+            export MACOSX_DEPLOYMENT_TARGET="11.1"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         else
             echo "No GITHUB_WORKFLOW detected."
@@ -59,7 +59,7 @@ else
             #export CONDA_BUILD_SYSROOT="/opt/MacOSX10.15.sdk"
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
             #export MACOSX_DEPLOYMENT_TARGET="10.15"
-            export MACOSX_DEPLOYMENT_TARGET="11.0"
+            export MACOSX_DEPLOYMENT_TARGET="11.1"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         fi
     fi

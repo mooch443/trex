@@ -17,11 +17,11 @@ if [ "$(uname -p)" == "arm" ]; then
 	echo "" >> $PREFIX/.messages.txt;
 
 elif [ "${OSTYPE}" == "linux-gnu" || "$(uname)" == "Linux" ]; then
-	{ python -m pip install opencv-python ultralytics 'numpy>=1.23,<1.24' 2>&1; }  >> $PREFIX/.messages.txt;
+	{ python -m pip install opencv-python ultralytics 2>&1; }  >> $PREFIX/.messages.txt;
 
 	echo "" >> $PREFIX/.messages.txt;
 else
-	python -m pip install opencv-python ultralytics 'numpy>=1.23,<1.24'  >> $PREFIX/.messages.txt;
+	python -m pip install opencv-python ultralytics  >> $PREFIX/.messages.txt;
 
 	echo "" >> $PREFIX/.messages.txt;
 fi

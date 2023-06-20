@@ -14,8 +14,8 @@ CXX:
 #  - $BUILD_PREFIX/bin/clang++ # [osx and not arm64]
 
 MACOSX_DEPLOYMENT_TARGET:
-  - 11.0 # [osx and not arm64]
-  - 11.0 # [osx and arm64]
+  - 11.1 # [osx and not arm64]
+  - 11.1 # [osx and arm64]
   #- 10.15 # [osx and not arm64]
 
 c_compiler:
