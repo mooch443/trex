@@ -96,9 +96,10 @@ requirements:
     - pthread-stubs  # [linux]
     - python =3 # [osx]
     - python =3.9 # [win]
-    - python =3.7 # [linux]
-    - openblas
+    - python =3.9 # [linux]
+    - openblas # [arm64]
     - ffmpeg =4
+    - numpy =1.23 # [osx]
     - numpy =1.23.5 # [arm64]
     - numpy >=1.19,<1.22 # [linux]
     - numpy >=1.21,<1.22 # [win]
@@ -107,12 +108,13 @@ requirements:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }}
-    - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - tensorflow-gpu =2 # [win]
     - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
     - pytorch # [win or linux or (osx and not arm64)]
+    - pytorch-cuda =11.7 # [linux or win]
     - torchvision
     - git
     - cudatoolkit =10.1 # [linux]

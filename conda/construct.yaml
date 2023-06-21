@@ -12,7 +12,7 @@ channels:
 
 specs:
   - trex
-  - console_shortcut # [osx or linux]
+  - console_shortcut # [linux]
   - powershell_shortcut # [win]
   - conda
   - pytorch-cuda=11.7 # [linux or win]
