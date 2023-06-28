@@ -69,7 +69,6 @@ static_assert(ObjectDetection<Yolo8>);
 
 namespace ind = indicators;
 
-
 void launch_gui() {
     DrawStructure graph(1024, 768);
     IMGUIBase base(window_title(), graph, [&, ptr = &base]()->bool {
@@ -133,6 +132,7 @@ void launch_gui() {
     manager.update_queue();
     graph.root().set_stage(nullptr);
     Detection::manager().clean_up();
+    Detection::deinit();
 }
 
 void panic(const char *fmt, ...) {

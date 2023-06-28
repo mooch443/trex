@@ -7,6 +7,10 @@
 
 namespace track {
 
+std::mutex running_mutex;
+std::shared_future<void> running_prediction;
+std::promise<void> running_promise;
+
 void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
@@ -51,6 +55,15 @@ void Yolo8::init() {
             Yolo8::reinit
         };
     });//.get();
+}
+
+void Yolo8::deinit() {
+    std::unique_lock guard(running_mutex);
+    if(running_prediction.valid()) {
+        print("Still have an active prediction running, waiting...");
+        running_prediction.wait();
+        print("Got it.");
+    }
 }
 
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result) {
@@ -311,7 +324,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
 
 void Yolo8::apply(std::vector<TileImage>&& tiles) {
     namespace py = Python;
-
+    
     struct TransferData {
         std::vector<Image::Ptr> images;
         std::vector<Image::Ptr> oimages;
@@ -364,239 +377,114 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
 
     tiles.clear();
     
-    py::schedule([&transfer]() mutable
-    {
-        Timer timer;
-        using py = track::PythonIntegration;
-        //thread_print("** transfer of ", (uint64_t)& transfer);
-
-        const size_t _N = transfer.datas.size();
-        py::ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
-        //bbx.set_variable("offsets", std::move(transfer.offsets));
-        //bbx.set_variable("image", transfer.images);
-        //bbx.set_variable("oimages", transfer.oimages);
-        
-        std::vector<uint64_t> mask_Ns;
-        std::vector<float> mask_points;
-        
-        auto recv = [&transfer](std::vector<track::detect::Result>&& results)
-            mutable
+    try {
         {
-            size_t elements{0};
-            size_t outline_elements{0};
-            //thread_print("Received a number of results: ", results.size());
-            //thread_print("For elements: ", datas);
-            
+            std::unique_lock guard(running_mutex);
+            if(running_prediction.valid())
+                running_prediction.get();
+            running_promise = {};
+            running_prediction = running_promise.get_future().share();
+        }
 
-            if(results.empty()) {
-                for(size_t i=0; i< transfer.datas.size(); ++i) {
+        py::schedule([&transfer]() mutable
+                     {
+            Timer timer;
+            using py = track::PythonIntegration;
+            //thread_print("** transfer of ", (uint64_t)& transfer);
+            
+            const size_t _N = transfer.datas.size();
+            py::ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
+            //bbx.set_variable("offsets", std::move(transfer.offsets));
+            //bbx.set_variable("image", transfer.images);
+            //bbx.set_variable("oimages", transfer.oimages);
+            
+            std::vector<uint64_t> mask_Ns;
+            std::vector<float> mask_points;
+            
+            auto recv = [&transfer](std::vector<track::detect::Result>&& results)
+            mutable
+            {
+                //size_t elements{0};
+                //size_t outline_elements{0};
+                //thread_print("Received a number of results: ", results.size());
+                //thread_print("For elements: ", datas);
+                
+                
+                if(results.empty()) {
+                    for(size_t i=0; i< transfer.datas.size(); ++i) {
+                        try {
+                            transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
+                        } catch(...) {
+                            transfer.promises.at(i).set_exception(std::current_exception());
+                        }
+                        
+                        try {
+                            transfer.callbacks.at(i)();
+                        } catch(...) {
+                            FormatExcept("Exception in callback of element ", i," in python results.");
+                        }
+                    }
+                    FormatExcept("Empty data for ", transfer.datas);
+                    return;
+                }
+                
+                for (size_t i = 0; i < transfer.datas.size(); ++i) {
+                    auto&& result = results.at(i);
+                    auto& data = transfer.datas.at(i);
+                    auto& scale = transfer.scales.at(i);
+                    
                     try {
-                        transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
-                    } catch(...) {
+                        receive(data, scale, std::move(result));
+                        transfer.promises.at(i).set_value(std::move(data));
+                    }
+                    catch (...) {
                         transfer.promises.at(i).set_exception(std::current_exception());
                     }
                     
                     try {
                         transfer.callbacks.at(i)();
-                    } catch(...) {
-                        FormatExcept("Exception in callback of element ", i," in python results.");
+                    }
+                    catch (...) {
+                        FormatExcept("Exception in callback of element ", i, " in python results.");
                     }
                 }
-                FormatExcept("Empty data for ", transfer.datas);
-                return;
-            }
-
-            for (size_t i = 0; i < transfer.datas.size(); ++i) {
-                auto&& result = results.at(i); 
-                auto& data = transfer.datas.at(i);
-                auto& scale = transfer.scales.at(i);
-
-                try {
-                    receive(data, scale, std::move(result));
-                    transfer.promises.at(i).set_value(std::move(data));
-                }
-                catch (...) {
-                    transfer.promises.at(i).set_exception(std::current_exception());
-                }
-
-                try {
-                    transfer.callbacks.at(i)();
-                }
-                catch (...) {
-                    FormatExcept("Exception in callback of element ", i, " in python results.");
-                }
-            }
-        };
-
-        /*bbx.set_function("receive_results", [](const std::vector<track::detect::Result>& results) {
-            print("Found a couple results: ", results);
-        });
-        
-        bbx.set_function("receive_masks", [](const std::vector<std::vector<cv::Mat>>& masks) {
-            thread_print("Received masks with ", masks.size(), " elements.");
-            for (auto& m : masks) {
-                std::vector<Size2> dimensions;
-                for(auto n : m) {
-                    dimensions.emplace_back(n.cols, n.rows);
-                }
-                thread_print("Mask with ", m.size(), " elements and dimensions: ",dimensions,".");
-            }
-        });
-        //bbx.set_function("receive", recv);
-        bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
-                                                    std::vector<float> m_points)
-        {
-            thread_print("Received seg masks with:", Ns);
-            thread_print("and ", m_points.size() / 2, " mask points.");
+            };
             
-            mask_Ns = std::move(Ns);
-            mask_points = std::move(m_points);
-        });*/
-        /*bbx.set_function("receive_with_seg", [&](std::vector<uint64_t> Ns,
-                                    std::vector<float> vector,
-                                    std::vector<float> masks,
-                                    std::vector<float> meta,
-                                    std::vector<int> indexes,
-                                    std::vector<int> segNs)
-        {
-            thread_print("Received masks:", masks.size(), " -> ", double(masks.size()) / 56.0 / 56.0);
-            thread_print("Received meta:", meta.size());
-            thread_print("Received indexes:", indexes);
-            thread_print("Received segNs:", segNs);
-
-            std::unordered_map<size_t, std::unique_ptr<cv::Mat>> converted_images;
-            const auto threshold = saturate(float(SETTING(threshold).value<int>()), 0.f, 255.f) / 255.0;
-            
-            //size_t offset = 0;
-            for(size_t offset = 0; offset < indexes.size(); ++offset) {
-                auto idx = indexes.at(offset);
-                
-                auto &data = datas.at(idx);
-                const cv::Mat* full_image;
-                if(not converted_images.contains(idx)) {
-                    converted_images[idx] = std::make_unique<cv::Mat>();
-                    convert_to_r3g3b2(data.image->get(), *converted_images[idx]);
-                    full_image = converted_images[idx].get();
-                } else {
-                    full_image = converted_images.at(idx).get();
+            try {
+                std::vector<Image::Ptr> copy;
+                for (auto& img : transfer.images) {
+                    copy.emplace_back(Image::Make(*img));
                 }
+                track::detect::YoloInput input(std::move(copy), (transfer.offsets), (transfer.scales), (transfer.orig_id));
+                //auto results = py::predict(std::move(input), bbx.m);
+                //print("C++ results = ", results);
+                recv(py::predict(std::move(input), bbx.m));
+                //bbx.run("apply");
+            }
+            catch (const std::exception& ex) {
+                FormatError("Exception: ", ex.what());
+                throw SoftException(std::string(ex.what()));
+            }
+            catch (...) {
+                FormatWarning("Continue after exception...");
                 
-                auto scale_factor = scales.at(idx);
-                
-                assert(meta.size() >= (offset + 1) * 6u);
-                assert(masks.size() >= (offset + 1) * 56u * 56u);
-                std::span<float> m(meta.data() + offset * 6, (offset + 1) * 6);
-                std::span<float> s(masks.data() + offset * 56u * 56u, (offset + 1) * 56u * 56u);
-                
-                thread_print(" * working mask for frame ", data.original_index(), " (", m.size()," and images ",s.size(),")");
-                
-                Vec2 pos(m[0], m[1]);
-                Size2 dim = Size2(m[2] - pos.x, m[3] - pos.y).map(roundf);
-                
-                float conf = m[4];
-                float cls = m[5];
-                
-                pos += offsets.at(idx);
-                
-                if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
-                    continue;
-                if (dim.min() < 1)
-                    continue;
-                
-                //if(dim.height + pos.y > full_image.rows
-                //   || dim.width + pos.x > full_image.cols)
-                //    continue;
-                {
-                    cv::Mat m(56, 56, CV_32FC1, s.data());
-                    
-                    cv::Mat tmp;
-                    cv::resize(m, tmp, dim);
-                    
-                    cv::threshold(tmp, tmp, threshold, 1.0, cv::THRESH_BINARY);
-                    
-                    cv::Mat d;// = full_image(Bounds(pos, dim));
-                    auto restricted = Bounds(pos, dim);
-                    restricted.restrict_to(Bounds(*full_image));
-                    if(restricted.width <= 0 || restricted.height <= 0)
-                        continue;
-                    
-                    (*full_image)(restricted).convertTo(d, CV_32FC1);
-                    
-                    cv::multiply(d, tmp(Bounds(restricted.size())), d);
-                    d.convertTo(tmp, CV_8UC1);
-                    
-                    auto blobs = CPULabeling::run(tmp);
-                    if (not blobs.empty()) {
-                        size_t msize = 0, midx = 0;
-                        for (size_t j = 0; j < blobs.size(); ++j) {
-                            if (blobs.at(j).pixels->size() > msize) {
-                                msize = blobs.at(j).pixels->size();
-                                midx = j;
-                            }
-                        }
-                        
-                        auto&& pair = blobs.at(midx);
-                        for (auto& line : *pair.lines) {
-                            line.x1 += pos.x;
-                            line.x0 += pos.x;
-                            line.y += pos.y;
-                        }
-                        
-                        pair.pred = blob::Prediction{
-                            .clid = static_cast<uint8_t>(cls),
-                            .p = uint8_t(float(conf) * 255.f)
-                        };
-                        pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
-                        
-                        pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
-                        auto points = pixel::find_outer_points(&blob, 0);
-                        if (not points.empty()) {
-                            data.outlines.emplace_back(std::move(*points.front()));
-                        }
-                        
-                        data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
-                        data.frame.add_object(std::move(pair));
-                    }
-                }
+                throw;
             }
             
-            recv(Ns, vector);
-        });*/
-
-        try {
-            std::vector<Image::Ptr> copy;
-            for (auto& img : transfer.images) {
-                copy.emplace_back(Image::Make(*img));
+            if (AbstractBaseVideoSource::_network_samples.load() > 10) {
+                AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_fps = 0;
             }
-            track::detect::YoloInput input(std::move(copy), (transfer.offsets), (transfer.scales), (transfer.orig_id));
-            //auto results = py::predict(std::move(input), bbx.m);
-            //print("C++ results = ", results);
-            recv(py::predict(std::move(input), bbx.m));
-            //bbx.run("apply");
-        }
-        catch (const std::exception& ex) {
-            FormatError("Exception: ", ex.what());
-            throw SoftException(std::string(ex.what()));
-        }
-        catch (...) {
-            FormatWarning("Continue after exception...");
-
-            //bbx.unset_function("receive");
-            //bbx.unset_function("receive_with_seg");
-
-            throw;
-        }
+            AbstractBaseVideoSource::_network_fps = AbstractBaseVideoSource::_network_fps.load() + (double(_N) / timer.elapsed());
+            AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_samples.load() + 1;
+            
+        }).get();
         
-        //bbx.unset_function("receive");
-        //bbx.unset_function("receive_with_seg");
-
-        if (AbstractBaseVideoSource::_network_samples.load() > 10) {
-            AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_fps = 0;
-        }
-        AbstractBaseVideoSource::_network_fps = AbstractBaseVideoSource::_network_fps.load() + (double(_N) / timer.elapsed());
-        AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_samples.load() + 1;
+        running_promise.set_value();
         
-    }).get();
+    } catch(...) {
+        running_promise.set_value();
+        throw;
+    }
 }
 
 }

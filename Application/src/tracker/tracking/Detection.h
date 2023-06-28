@@ -35,6 +35,7 @@ struct Detection {
     static std::future<SegmentationData> apply(TileImage&& tiled);
     
     static void apply(std::vector<TileImage>&& tiled);
+    static void deinit();
 
     static auto& manager() {
         static auto instance = PipelineManager<TileImage>(max(1u, SETTING(batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {

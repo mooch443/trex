@@ -11,6 +11,7 @@ struct Yolo8 {
     static void reinit(track::PythonIntegration::ModuleProxy& proxy);
     
     static void init();
+    static void deinit();
 
     static void receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result);
     

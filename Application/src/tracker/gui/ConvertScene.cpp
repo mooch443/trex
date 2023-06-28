@@ -194,8 +194,16 @@ void ConvertScene::deactivate() {
             FormatExcept("Exception when joining tracking thread: ", e.what());
         }
         
+        {
+            std::unique_lock guard(_mutex_general);
+            if (_output_file) {
+                _output_file->close();
+            }
+        }
+        
         try {
             Detection::manager().clean_up();
+            Detection::deinit();
         } catch(const std::exception& e) {
             FormatExcept("Exception when joining detection thread: ", e.what());
         }
@@ -209,10 +217,6 @@ void ConvertScene::deactivate() {
         }
         
         std::unique_lock guard(_mutex_general);
-        if (_output_file) {
-            _output_file->close();
-        }
-        
         _overlayed_video = nullptr;
         _tracker = nullptr;
         

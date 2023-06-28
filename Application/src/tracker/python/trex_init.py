@@ -11,8 +11,8 @@ import numpy as np
 #    sys.argv = [""]
 #    print("avoiding tensorflow bug")
 
-import tensorflow as tf
-print("TensorFlow version:", tf.__version__)
+#import tensorflow as tf
+#print("TensorFlow version:", tf.__version__)
 
 try:
     import torch

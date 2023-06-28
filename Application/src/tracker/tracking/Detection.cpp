@@ -51,6 +51,11 @@ Detection::Detection() {
     }
 }
 
+void Detection::deinit() {
+    if(type() == ObjectDetectionType::yolo8)
+        Yolo8::deinit();
+}
+
 ObjectDetectionType::Class Detection::type() {
     return SETTING(detection_type).value<ObjectDetectionType::Class>();
 }
