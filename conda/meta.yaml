@@ -1,6 +1,6 @@
 {% set git_cmd = "git describe --tags --always --abbrev=0" %}
 {% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
-{% set git_tag = "main" %}
+{% set git_tag = "interface" %}
 
 {% if git_tag != 'main' %}
 {% set version_prefix = '_' + git_tag %}
@@ -113,15 +113,17 @@ requirements:
     - tensorflow-gpu =2.4.1 # [linux]
     - tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
-    - pytorch=2
+    - pytorch =*=py3.9_cuda11.7_cudnn8_0 # [win]
+    - pytorch =*=py3.9_cuda11.7_cudnn8.5.0_0 # [linux]
     - pytorch-cuda =11.7 # [linux or win]
-    - torchvision
-    - git
+    - torchvision # [not linux and not win]
+    - torchvision =*=py39_cu117 # [linux or win]
     - cudatoolkit =10.1 # [linux]
     - cudatoolkit =11 # [win]
     - cudnn # [win]
     - cudnn =7.6 # [linux]
     - scikit-learn
+    - seaborn
     - pip
     - requests
 
