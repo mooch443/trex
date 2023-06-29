@@ -101,7 +101,9 @@ requirements:
     - python =3.9 # [win]
     - python =3.9 # [linux]
     - openblas # [arm64]
-    - ffmpeg =4
+    - ffmpeg =4 # [arm64 or not osx]
+    - defaults::ffmpeg =4 # [osx and not arm64]
+    - openh264 # [osx] 
     - numpy =1.23 # [osx]
     - numpy =1.23.5 # [arm64]
     - numpy >=1.19,<1.22 # [linux]
@@ -110,6 +112,7 @@ requirements:
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
     - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - tensorflow-gpu =2 # [win]
