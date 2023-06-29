@@ -95,13 +95,11 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
 void Detection::apply(std::vector<TileImage>&& tiled) {
     if (type() == ObjectDetectionType::yolo7) {
         Yolo7ObjectDetection::apply(std::move(tiled));
-        tiled.clear();
         return;
 
     }
     else if (type() == ObjectDetectionType::yolo8) {
         Yolo8::apply(std::move(tiled));
-        tiled.clear();
         return;
     }
 

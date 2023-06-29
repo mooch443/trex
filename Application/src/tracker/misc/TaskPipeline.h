@@ -138,7 +138,7 @@ public:
             static std::mutex _mu;
             static decltype(_images) packet;
             {
-                std::unique_lock guard(_mutex);
+                std::scoped_lock guard(_mutex, _mu);
                 std::swap(_images, packet);
                 _images.clear();
                 BaseTask<Data>::_weight = 0;
@@ -225,7 +225,7 @@ public:
 
     void enqueue(Data&& ptr) {
         {
-            std::shared_lock guard(_mutex);
+            std::unique_lock guard(_mutex);
             if(not _c) {
                 _create();
                 assert(_c != nullptr);
@@ -255,7 +255,7 @@ private:
         {
             _future = std::async(std::launch::async, [this]() {
                 set_thread_name("pipeline_async");
-                std::shared_lock guard(_mutex);
+                std::unique_lock guard(_mutex);
                 (*_c)();
             });
         }
