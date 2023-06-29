@@ -474,7 +474,7 @@ class StrippedYolo8Results:
                 #print("sub.shape=",sub.shape, " orig=",orig, (orig[3] - orig[1], orig[2] - orig[0]))
                 #sub = cv2.resize(sub, (orig[2] - orig[0], orig[3] - orig[1]), interpolation=cv2.INTER_LINEAR)
                 #self.masks.append(sub)
-                ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(orig[3] - orig[1], orig[2] - orig[0])).squeeze(0).squeeze(0)
+                ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(int(orig[3] - orig[1]), int(orig[2] - orig[0]))).squeeze(0).squeeze(0)
                 self.masks.append(ssub.cpu().numpy())
                 assert self.masks[-1].flags['C_CONTIGUOUS']
                 #TRex.imshow("mask"+str(len(self.masks)),self.masks[-1])
