@@ -1,6 +1,8 @@
 {% set git_cmd = "git describe --tags --always --abbrev=0" %}
 {% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
 {% set git_tag = "main" %}
+{% set version_postfix = "" %}
+#{% set version_postfix = "i" %} # for installer packages
 
 {% if git_tag != 'main' %}
 {% set version_prefix = '_' + git_tag %}
@@ -8,7 +10,7 @@
 {% set version_prefix = '' %}
 {% endif %}
 
-{% set version = ((latest_tag if latest_tag else '-failed') + version_prefix)[1:] %}
+{% set version = ((latest_tag if latest_tag else '-failed') + version_prefix + version_postfix)[1:] %}
 
 {% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
 {% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
@@ -104,7 +106,7 @@ requirements:
     - numpy =1.23.5 # [arm64]
     - numpy >=1.19,<1.22 # [linux]
     - numpy >=1.21,<1.22 # [win]
-    
+
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
