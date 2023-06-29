@@ -93,6 +93,7 @@ requirements:
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
     - python =3.9 # [win]
+    - nasm
 
   host:
     - pthread-stubs  # [linux]
