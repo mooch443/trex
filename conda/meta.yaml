@@ -112,8 +112,8 @@ requirements:
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - tensorflow-gpu =2 # [win]
     # disable tensorflow packages for install builds
-    - tensorflow-gpu =2.4.1 # [linux]
-    - tensorflow-estimator =2.4.1 # [linux]
+    #- tensorflow-gpu =2.4.1 # [linux]
+    #- tensorflow-estimator =2.4.1 # [linux]
     - tensorflow >=2,<3   # [osx and not arm64]
     - pytorch =*=py3.9_cuda11.7_cudnn8_0 # [win]
     - pytorch =*=py3.9_cuda11.7_cudnn8.5.0_0 # [linux]
@@ -121,11 +121,11 @@ requirements:
     - torchvision # [not linux and not win]
     - torchvision =*=py39_cu117 # [linux or win]
     # disable this for install builds
-    - cudatoolkit =10.1 # [linux]
-    - cudatoolkit =11 # [win]
+    #- cudatoolkit =10.1 # [linux]
+    #- cudatoolkit =11 # [win]
     - cudnn # [win]
     # disable this for install builds
-    - cudnn =7.6 # [linux]
+    #- cudnn =7.6 # [linux]
     - scikit-learn
     - seaborn
     - pip
