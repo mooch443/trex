@@ -10,15 +10,16 @@ if [ "$(uname -p)" == "arm" ] || [ "${OSTYPE}" == "linux-gnu" ] || "$(uname)" ==
 	fi
 fi
 
+# install pip packages
 if [ "$(uname -p)" == "arm" ]; then
-	# Install pip package
 	{ python -m pip install 'tensorflow-macos' 'tensorflow-metal' opencv-python ultralytics 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
 
-elif [ "${OSTYPE}" == "linux-gnu" || "$(uname)" == "Linux" ]; then
-	{ python -m pip install opencv-python ultralytics tensorflow-gpu==2.10 tensorflow-estimator==2.10 2>&1; }  >> $PREFIX/.messages.txt;
-	echo "" >> $PREFIX/.messages.txt;
+elif [ "$(uname)" == "Darwin" ]; then
+        { python -m pip install opencv-python ultralytics 2>&1; } >> $PREFIX/.messages.txt;
+        echo "" >> $PREFIX/.messages.txt;
+
 else
-	{ python -m pip install opencv-python ultralytics 2>&1; } >> $PREFIX/.messages.txt;
+	{ python -m pip install opencv-python ultralytics tensorflow-gpu==2.10 tensorflow-estimator==2.10 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
 fi
