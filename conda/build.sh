@@ -122,16 +122,20 @@ else
     echo "Processors on macOS: $PROCS"
 fi
 
-make -j${PROCS} Z_LIB
-make -j${PROCS} libzip
-make -j${PROCS} libpng_custom
-make -j${PROCS} CustomOpenCV
+echo "Choose processor number = ${PROCS}"
+
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target Z_LIB --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libzip --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libpng_custom --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target CustomOpenCV --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS}
+
 if [ "$(uname)" == "Linux" ]; then
-    make -j${PROCS} gladex
+	CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS}
 fi
-make -j${PROCS} imgui
 
 cmake ..
 
-make -j${PROCS} && make install
-make -j${PROCS} && make install
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
+
+#make -j${PROCS} && make install
