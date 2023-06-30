@@ -454,6 +454,7 @@ std::mutex module_mutex;
 std::map<std::string, std::string> _module_contents;
 std::map<std::string, pybind11::module> _modules;
 
+std::shared_mutex initialize_mutex;
 std::thread::id _saved_id;
 std::unique_ptr<py::scoped_interpreter> _interpreter;
 
@@ -487,9 +488,6 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
 #endif
 
 void PythonIntegration::init() {
-    initialized() = false;
-    initializing() = true;
-    
     auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
         python_init_error() = e.what();
         initializing() = false;
@@ -498,6 +496,10 @@ void PythonIntegration::init() {
         initialized() = false;
         initializing() = false;
     };
+    
+    std::unique_lock guard(initialize_mutex);
+    initialized() = false;
+    initializing() = true;
     
     //! set new thread ID. we expect everything to happen from this thread now.
     _saved_id = std::this_thread::get_id();
@@ -556,7 +558,7 @@ void PythonIntegration::init() {
         _locals = new pybind11::dict();
         print("# imported TRex module");
         
-        PythonIntegration::execute("import sys\nset_version(sys.version, False, '')");
+        PythonIntegration::execute("import sys\nset_version(sys.version, False, '')", false);
         
         try {
             auto cmd = trex_init.read_file();
@@ -1130,6 +1132,7 @@ void PythonIntegration::set_variable(const std::string & name, const std::vector
 }
 
 bool PythonIntegration::is_correct_thread_id() {
+    std::shared_lock guard(initialize_mutex);
     return std::this_thread::get_id() == _saved_id;
 }
 
@@ -1140,8 +1143,9 @@ void PythonIntegration::check_correct_thread_id() {
     throw U_EXCEPTION("Executing python code in wrong thread (",get_thread_name(),").");
 }
 
-void PythonIntegration::execute(const std::string& cmd)  {
-    check_correct_thread_id();
+void PythonIntegration::execute(const std::string& cmd, bool safety_check)  {
+    if(safety_check)
+        check_correct_thread_id();
     
     try {
         pybind11::exec(cmd, pybind11::globals(), *_locals);

@@ -8,6 +8,7 @@
 #include <grabber/misc/PylonCamera.h>
 #include <grabber/misc/default_config.h>
 #include <tracking/IndividualManager.h>
+#include <misc/ThreadManager.h>
 
 namespace gui {
 
@@ -27,6 +28,8 @@ sprite::Map ConvertScene::_video_info = []() {
     fish["resolution"] = Size2();
     return fish;
 }();
+
+constexpr int thread_id = 42;
 
 file::Path average_name() {
     auto path = file::DataLocation::parse("output", "average_" + (std::string)SETTING(filename).value<file::Path>().filename() + ".png");
@@ -148,6 +151,35 @@ spinner{
     menu.context.variables.emplace("fishes", new Variable([this](std::string) -> std::vector<std::shared_ptr<VarBase_t>>&{
         return _gui_objects;
     }));
+    
+    ThreadManager::getInstance().registerGroup(thread_id, "ConvertScene");
+    
+    ThreadManager::getInstance().addThread(thread_id, "generator-thread", ManagedThread{
+        [this](){ generator_thread(); }
+    });
+    
+    ThreadManager::getInstance().registerGroup(thread_id+1, "ConvertSceneTracking");
+    ThreadManager::getInstance().addThread(thread_id+1, "tracking-thread", ManagedThread{
+        [this](){ tracking_thread(); }
+    });
+    
+    ThreadManager::getInstance().addOnEndCallback(thread_id+1, OnEndMethod{
+        [this](){
+            if (std::unique_lock guard(_mutex_general);
+                _output_file != nullptr)
+            {
+                _output_file->close();
+            }
+            
+            try {
+                Detection::manager().clean_up();
+                Detection::deinit();
+            } catch(const std::exception& e) {
+                FormatExcept("Exception when joining detection thread: ", e.what());
+            }
+            
+        }
+    });
 }
 
 ConvertScene::~ConvertScene() {
@@ -186,35 +218,8 @@ void ConvertScene::deactivate() {
             _cv_messages.notify_all();
         }
         
-        try {
-            if (_tracking_thread.joinable()) {
-                _tracking_thread.join();
-            }
-        } catch(const std::exception& e) {
-            FormatExcept("Exception when joining tracking thread: ", e.what());
-        }
-        
-        {
-            std::unique_lock guard(_mutex_general);
-            if (_output_file) {
-                _output_file->close();
-            }
-        }
-        
-        try {
-            Detection::manager().clean_up();
-            Detection::deinit();
-        } catch(const std::exception& e) {
-            FormatExcept("Exception when joining detection thread: ", e.what());
-        }
-        
-        try {
-            if (_generator_thread.joinable()) {
-                _generator_thread.join();
-            }
-        } catch(const std::exception& e) {
-            FormatExcept("Exception when joining generator thread: ", e.what());
-        }
+        ThreadManager::getInstance().terminateGroup(thread_id+1);
+        ThreadManager::getInstance().terminateGroup(thread_id);
         
         std::unique_lock guard(_mutex_general);
         _overlayed_video = nullptr;
@@ -312,12 +317,9 @@ void ConvertScene::open_video() {
     _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     _output_file->set_average(bg);
 
-    _generator_thread = std::thread([this]() {
-        generator_thread();
-        });
-    _tracking_thread = std::thread([this]() {
-        tracking_thread();
-        });
+    
+    ThreadManager::getInstance().startGroup(thread_id);
+    ThreadManager::getInstance().startGroup(thread_id+1);
 }
 
 void ConvertScene::open_camera() {
@@ -384,13 +386,9 @@ void ConvertScene::open_camera() {
 
     _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
     _output_file->set_average(bg);
-
-    _generator_thread = std::thread([this]() {
-        generator_thread();
-        });
-    _tracking_thread = std::thread([this]() {
-        tracking_thread();
-        });
+    
+    ThreadManager::getInstance().startGroup(thread_id);
+    ThreadManager::getInstance().startGroup(thread_id+1);
 }
 
 void ConvertScene::activate()  {

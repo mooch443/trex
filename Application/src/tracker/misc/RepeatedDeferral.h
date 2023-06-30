@@ -1,12 +1,17 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/ThreadManager.h>
+#include <misc/Timer.h>
 
 namespace cmn {
+
+std::atomic<uint32_t>& thread_index();
 
 template<typename F, typename R = typename cmn::detail::return_type<F>::type>
 struct RepeatedDeferral {
     size_t _threads{ 1 }, _minimal_fill { 0 };
+    uint32_t _index;
     std::vector<R> _next;
     //std::future<R> _next_image;
     F _fn;
@@ -21,11 +26,18 @@ struct RepeatedDeferral {
     
     std::condition_variable _message, _new_item;
     mutable std::mutex _mutex;
-    std::unique_ptr<std::thread> _updater{nullptr};
+    //std::unique_ptr<std::thread> _updater{nullptr};
     std::atomic<bool> _terminate{ false };
     
-    RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn) : _threads(threads), _minimal_fill(minimal_fill), _fn(std::forward<F>(fn)), name(name)
-    { }
+    RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn,
+                     cmn::source_location loc = cmn::source_location::current()) : _threads(threads), _minimal_fill(minimal_fill), _index ( thread_index().fetch_add(1) ), _fn(std::forward<F>(fn)), name(name)
+    {
+        thread_print("Instance of RepeatedDeferral(", name,") with ID ", _index, " with ", &thread_index());
+        ThreadManager::getInstance().registerGroup(_index, name, loc);
+        ThreadManager::getInstance().addThread(_index, name, ManagedThread{
+            [this](){ updater(); }
+        });
+    }
     
     void updater() {
         set_thread_name(this->name+"_update_thread");
@@ -112,9 +124,10 @@ struct RepeatedDeferral {
             notify();
         }
 
-        if(_updater && _updater->joinable())
-            _updater->join();
-        _updater = nullptr;
+        //if(_updater && _updater->joinable())
+        //    _updater->join();
+        ThreadManager::getInstance().terminateGroup(_index);
+        //_updater = nullptr;
     }
     
     bool has_next() const {
@@ -125,13 +138,11 @@ struct RepeatedDeferral {
     R get_next() {
         Timer timer;
         
-        std::unique_lock guard(_mutex);
-        if(not _updater and not _terminate) {
-            _updater = std::make_unique<std::thread>([this]() {
-                this->updater();
-            });
+        if(not ThreadManager::getInstance().groupStarted(_index) and not _terminate) {
+            ThreadManager::getInstance().startGroup(_index);
         }
         
+        std::unique_lock guard(_mutex);
         if(_next.empty())
             _new_item.wait(guard, [this]() {return not _next.empty() or _terminate; });
 

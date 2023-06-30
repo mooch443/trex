@@ -248,7 +248,7 @@ namespace track {
         static void set_variable(const std::string&, const char*, const std::string& m = "");
         static void set_variable(const std::string&, auto, const std::string& m = "") = delete;
 
-        static void execute(const std::string&);
+        static void execute(const std::string&, bool safety_check = true);
         static void import_module(const std::string&);
         static bool check_module(const std::string&);
         static bool is_none(const std::string& name, const std::string& attribute);
