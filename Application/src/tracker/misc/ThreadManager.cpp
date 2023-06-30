@@ -19,12 +19,14 @@ void ThreadManager::addThread(int group, const std::string& name, ManagedThread&
     cmn::thread_print("Added thread", name, "to group", group);
 }
 
-void ThreadManager::registerGroup(int group, const std::string& name, source_location loc) {
+const ThreadGroup* ThreadManager::registerGroup(int group, const std::string& name, source_location loc) {
     std::lock_guard<std::mutex> lock(mtx);
     if(name.empty())
         throw std::invalid_argument("Name cannot be empty.");
-    groups[group].name = name;
+    auto& g = groups[group];
+    g.name = name;
     thread_print("Registered group ", group, " with name ", name, " from ", loc.file_name(),":", loc.line());
+    return &g;
 }
 
 void ThreadManager::addOnEndCallback(int group, OnEndMethod onEndMethod) {
@@ -33,7 +35,21 @@ void ThreadManager::addOnEndCallback(int group, OnEndMethod onEndMethod) {
     thread_print("Added on end callback to group ", group, " (", groups.at(group).name,")");
 }
 
-void ThreadManager::ThreadGroup::terminate() {
+void ManagedThread::loop(const ThreadGroup &group) {
+    try {
+        std::unique_lock guard(mutex);
+        while (!terminationSignal.load()) {
+            lambda(group);
+            variable.wait(guard);
+        }
+    } catch(...) {
+        terminationProof.set_exception(std::current_exception());
+        throw;
+    }
+    terminationProof.set_value();
+}
+
+void ThreadGroup::terminate() {
     //! TODO: maybe exchange_strong?
     if(not started)
         return;
@@ -59,7 +75,7 @@ void ThreadManager::ThreadGroup::terminate() {
     }
 }
 
-void ThreadManager::ThreadGroup::notify() {
+void ThreadGroup::notify() {
     for(auto &t : threads)
         t.m.notify();
 }
@@ -84,10 +100,11 @@ void ThreadManager::terminateGroup(int group) {
 
 void ThreadManager::startGroup(int group) {
     std::lock_guard<std::mutex> lock(mtx);
-    for(auto& wrapper : groups.at(group).threads) {
+    auto& g = groups.at(group);
+    for(auto& wrapper : g.threads) {
         if(not wrapper.t) {
-            wrapper.t = std::make_unique<std::thread>([&wrapper] {
-                wrapper.m.loop();
+            wrapper.t = std::make_unique<std::thread>([&wrapper, &g] {
+                wrapper.m.loop(g);
             });
             thread_print("Started thread in group ", group);
         } else {
@@ -97,13 +114,13 @@ void ThreadManager::startGroup(int group) {
     groups.at(group).started = true;
 }
 
-bool ThreadManager::groupStarted(int group) const {
+/*bool ThreadManager::groupStarted(int group) const {
     std::lock_guard<std::mutex> lock(mtx);
     if(groups.contains(group)) {
         return groups.at(group).started;
     }
     return false;
-}
+}*/
 
 void ThreadManager::terminate() {
     std::lock_guard<std::mutex> lock(mtx);

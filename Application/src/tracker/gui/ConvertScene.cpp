@@ -155,12 +155,12 @@ spinner{
     ThreadManager::getInstance().registerGroup(thread_id, "ConvertScene");
     
     ThreadManager::getInstance().addThread(thread_id, "generator-thread", ManagedThread{
-        [this](){ generator_thread(); }
+        [this](auto&){ generator_thread(); }
     });
     
     ThreadManager::getInstance().registerGroup(thread_id+1, "ConvertSceneTracking");
     ThreadManager::getInstance().addThread(thread_id+1, "tracking-thread", ManagedThread{
-        [this](){ tracking_thread(); }
+        [this](auto&){ tracking_thread(); }
     });
     
     ThreadManager::getInstance().addOnEndCallback(thread_id+1, OnEndMethod{

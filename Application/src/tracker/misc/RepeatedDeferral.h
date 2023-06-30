@@ -28,14 +28,15 @@ struct RepeatedDeferral {
     mutable std::mutex _mutex;
     //std::unique_ptr<std::thread> _updater{nullptr};
     std::atomic<bool> _terminate{ false };
+    const ThreadGroup* group{nullptr};
     
     RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn,
                      cmn::source_location loc = cmn::source_location::current()) : _threads(threads), _minimal_fill(minimal_fill), _index ( thread_index().fetch_add(1) ), _fn(std::forward<F>(fn)), name(name)
     {
         thread_print("Instance of RepeatedDeferral(", name,") with ID ", _index, " with ", &thread_index());
-        ThreadManager::getInstance().registerGroup(_index, name, loc);
+        group = ThreadManager::getInstance().registerGroup(_index, name, loc);
         ThreadManager::getInstance().addThread(_index, name, ManagedThread{
-            [this](){ updater(); }
+            [this](auto&){ updater(); }
         });
     }
     
@@ -138,11 +139,11 @@ struct RepeatedDeferral {
     R get_next() {
         Timer timer;
         
-        if(not ThreadManager::getInstance().groupStarted(_index) and not _terminate) {
+        std::unique_lock guard(_mutex);
+        if(not group->started and not _terminate) {
             ThreadManager::getInstance().startGroup(_index);
         }
         
-        std::unique_lock guard(_mutex);
         if(_next.empty())
             _new_item.wait(guard, [this]() {return not _next.empty() or _terminate; });
 

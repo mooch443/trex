@@ -13,14 +13,36 @@ struct OnEndMethod {
     std::function<void()> lambda;
 };
 
+/**
+ * @struct ManagedThreadWrapper
+ *
+ * @brief Structure for holding an instance of a managed thread and the std::thread it runs in.
+ */
+struct ManagedThreadWrapper;
+
+/**
+ * @struct ThreadGroup
+ *
+ * @brief Structure for grouping ManagedThreadWrappers and their associated on-end-callbacks.
+ */
+struct ThreadGroup {
+    std::list<ManagedThreadWrapper> threads;
+    std::list<OnEndMethod> onEndCallbacks;
+    std::string name;
+    std::atomic<bool> started{false};
+    
+    void terminate();
+    void notify();
+};
+
 class ManagedThread {
-    std::function<void()> lambda;
+    std::function<void(const ThreadGroup&)> lambda;
     std::condition_variable variable;
     std::mutex mutex;
     std::atomic<bool> terminationSignal{false};
     std::promise<void> terminationProof;
 public:
-    ManagedThread(std::function<void()> fn) : lambda(fn) {}
+    ManagedThread(std::function<void(const ThreadGroup&)> fn) : lambda(fn) {}
     ManagedThread(ManagedThread&& other)
         : lambda(std::move(other.lambda)),
           terminationSignal(other.terminationSignal.load()),
@@ -33,19 +55,7 @@ public:
             cmn::thread_print("Ending thread.");
     }
     
-    void loop() {
-        try {
-            std::unique_lock guard(mutex);
-            while (!terminationSignal.load()) {
-                lambda();
-                variable.wait(guard);
-            }
-        } catch(...) {
-            terminationProof.set_exception(std::current_exception());
-            throw;
-        }
-        terminationProof.set_value();
-    }
+    void loop(const ThreadGroup& group);
 
     std::future<void> terminate() {
         std::future<void> future;
@@ -65,6 +75,11 @@ public:
     }
 };
 
+struct ManagedThreadWrapper {
+    std::unique_ptr<std::thread> t;
+    ManagedThread m;
+};
+
 /**
  * @class ThreadManager
  * 
@@ -79,30 +94,6 @@ public:
  */
 class ThreadManager {
 private:
-    /**
-     * @struct ManagedThreadWrapper
-     * 
-     * @brief Structure for holding an instance of a managed thread and the std::thread it runs in.
-     */
-    struct ManagedThreadWrapper {
-        std::unique_ptr<std::thread> t;
-        ManagedThread m;
-    };
-
-    /**
-     * @struct ThreadGroup
-     * 
-     * @brief Structure for grouping ManagedThreadWrappers and their associated on-end-callbacks.
-     */
-    struct ThreadGroup {
-        std::list<ManagedThreadWrapper> threads;
-        std::list<OnEndMethod> onEndCallbacks;
-        std::string name;
-        std::atomic<bool> started{false};
-        
-        void terminate();
-        void notify();
-    };
 
     std::map<int, ThreadGroup> groups;
     mutable std::mutex mtx;
@@ -135,7 +126,7 @@ public:
      * @param group The group id to be assigned to the new thread group.
      * @param name  The name to be assigned to the new thread group.
      */
-    void registerGroup(int group, const std::string& name, cmn::source_location loc = cmn::source_location::current());
+    const ThreadGroup* registerGroup(int group, const std::string& name, cmn::source_location loc = cmn::source_location::current());
 
     /**
      * @brief Signals termination to all threads within a specific group and joins them.
@@ -167,7 +158,7 @@ public:
      * @param group The group id of the group whose threads are to be started.
      */
     void startGroup(int group);
-    bool groupStarted(int group) const;
+    //bool groupStarted(int group) const;
     void notify(int group);
 
     /**
