@@ -128,10 +128,10 @@ CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target Z_LIB --parallel ${
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libzip --parallel ${PROCS}
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libpng_custom --parallel ${PROCS}
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target CustomOpenCV --parallel ${PROCS}
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS}
 
 if [ "$(uname)" == "Linux" ]; then
-	CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS}
+    CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS}
 fi
 
 cmake ..
