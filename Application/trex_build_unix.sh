@@ -26,8 +26,8 @@ if [ "$(uname)" == "Linux" ]; then
     echo "Setting up for Linux."
     echo ""
     
-    CC=$(which gcc)
-    CXX=$(which g++)
+    #CC=$(which gcc)
+    #CXX=$(which g++)
 
     if [ $(printenv CC) ]; then
         CC=$(printenv CC)
@@ -138,10 +138,13 @@ else
     fi
 fi
 
-cmake --build . --target Z_LIB --config Release
-cmake --build . --target libzip --config Release
-cmake --build . --target libpng_custom --config Release
+NPROC=$(nproc)
+echo "NPROC=$NPROC"
+
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config Release --parallel ${NPROC}
 cmake ..
-cmake --build . --target CustomOpenCV --config Release
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target CustomOpenCV --config Release --parallel ${NPROC}
 cmake ..
-cmake --build . --config Release
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config Release --parallel ${NPROC}
