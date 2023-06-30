@@ -243,8 +243,8 @@ public:
 private:
     bool update() {
         // wait for enough tasks
-        std::shared_lock guard(_mutex);
-        if(not _c || _c->weight() < _weight_limit) {
+        
+        if(std::shared_lock guard(_mutex); not _c || _c->weight() < _weight_limit) {
             return true;
         }
 
