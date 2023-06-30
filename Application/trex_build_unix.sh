@@ -26,8 +26,8 @@ if [ "$(uname)" == "Linux" ]; then
     echo "Setting up for Linux."
     echo ""
     
-    #CC=$(which gcc)
-    #CXX=$(which g++)
+    CC=$(which gcc)
+    CXX=$(which g++)
 
     if [ $(printenv CC) ]; then
         CC=$(printenv CC)
