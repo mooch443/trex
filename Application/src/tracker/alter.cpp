@@ -226,6 +226,8 @@ int main(int argc, char**argv) {
 #ifdef WIN32
     SetConsoleOutputCP( 65001 );
 #endif
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
     
     default_config::register_default_locations();
     

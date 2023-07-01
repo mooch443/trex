@@ -57,6 +57,9 @@ std::string conda_environment_path(const char* argv) {
 }
 
 int main(int argc, char** argv) {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
     std::stringstream ss;
     std::string target_path = "";
     auto conda_prefix = conda_environment_path(argv[0]);

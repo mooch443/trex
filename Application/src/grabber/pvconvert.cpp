@@ -101,6 +101,9 @@ int main(int argc, char**argv) {
     //static_assert(std::is_trivial<pv::bid>::value, "pv::bid has to be trivial.");
     static_assert(std::is_standard_layout<pv::bid>::value, "pv::bid has to be standard layout.");
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
     file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         using namespace file;
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;

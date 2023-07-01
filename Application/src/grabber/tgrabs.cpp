@@ -13,6 +13,9 @@
 #endif
 
 std::string conda_environment_path(const char* argv) {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifdef COMMONS_PYTHON_EXECUTABLE
     auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();
     if(compiled_path == "CONDA_PREFIX")

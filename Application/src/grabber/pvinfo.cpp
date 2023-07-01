@@ -137,6 +137,9 @@ int main(int argc, char**argv) {
 #endif
     set_runtime_quiet(true);
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifndef NDEBUG
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
     if(OS_ACTIVITY_DT_MODE) {

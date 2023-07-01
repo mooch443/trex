@@ -12,6 +12,9 @@ namespace py = pybind11;
 #include <cstdio>
 
 int main(int , char**) {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifndef NDEBUG
     printf("trex_check_python\n");
 #endif

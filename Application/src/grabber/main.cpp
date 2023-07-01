@@ -230,6 +230,9 @@ int main(int argc, char** argv)
     XInitThreads();
 #endif
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifdef __APPLE__
 //char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
 //    putenv(env);

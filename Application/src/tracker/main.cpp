@@ -244,6 +244,9 @@ int main(int argc, char** argv)
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 #endif
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #if __APPLE__
     std::string PATH = (std::string)getenv("PATH");
     if(!utils::contains(PATH, "/usr/local/bin")) {

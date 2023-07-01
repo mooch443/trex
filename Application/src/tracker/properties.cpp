@@ -348,6 +348,9 @@ void async_main(void*) {
 
 int main(int argc, char**argv) {
 	using namespace track;
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 	default_config::register_default_locations();
 	GlobalSettings::map().set_do_print(true);
 
