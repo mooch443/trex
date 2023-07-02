@@ -172,7 +172,6 @@ class PipelineManager {
     auto bind_arguments_to_lambda(Args&&... args) {
         auto tup = std::make_tuple(std::forward<Args>(args)...);
         auto func = [this](auto&&... args) {
-            print("Creating a new ImageArray");
             _c = std::make_unique<ImageArray<Data>>(std::forward<decltype(args)>(args)...);
         };
         return [tup = std::move(tup), func = std::move(func)]() mutable {
@@ -187,11 +186,13 @@ public:
     { }
 
     ~PipelineManager() {
+        {
+            std::unique_lock guard(_mutex);
+            _create = {};
+        }
+        
 #ifdef _WIN32
         clean_up();
-
-        std::unique_lock guard(_mutex);
-        _create = {};
 #endif
     }
     
@@ -203,12 +204,16 @@ public:
             guard.lock();
             _future = {};
         }
+        _create = {};
         _c = nullptr;
     }
 
     void enqueue(std::vector<Data>&& v) {
         {
             std::shared_lock guard(_mutex);
+            if(not _create)
+                return;
+            
             if(not _c) {
                 _create();
                 assert(_c != nullptr);
@@ -226,6 +231,9 @@ public:
     void enqueue(Data&& ptr) {
         {
             std::unique_lock guard(_mutex);
+            if(not _create)
+                return;
+            
             if(not _c) {
                 _create();
                 assert(_c != nullptr);
@@ -247,9 +255,19 @@ private:
         if(std::shared_lock guard(_mutex); not _c || _c->weight() < _weight_limit) {
             return true;
         }
-
-        if (_future.valid())
-            _future.get();
+        
+        std::unique_lock guard(_mutex);
+        if (_future.valid()) {
+            guard.unlock();
+            try {
+                _future.get();
+                guard.lock();
+                
+            } catch(...) {
+                guard.lock();
+                throw;
+            }
+        }
 
         //if (not _future.valid()) 
         {
