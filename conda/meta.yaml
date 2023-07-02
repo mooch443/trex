@@ -116,7 +116,7 @@ requirements:
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
     - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
-    - tensorflow-gpu =2 # [win]
+    #- tensorflow-gpu =2 # [win]
     # disable tensorflow packages for install builds
     #- tensorflow-gpu =2.4.1 # [linux]
     #- tensorflow-estimator =2.4.1 # [linux]
@@ -129,7 +129,7 @@ requirements:
     # disable this for install builds
     #- cudatoolkit =10.1 # [linux]
     #- cudatoolkit =11 # [win]
-    - cudnn # [win]
+    #- cudnn # [win]
     # disable this for install builds
     #- cudnn =7.6 # [linux]
     - scikit-learn

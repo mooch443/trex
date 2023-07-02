@@ -13,7 +13,7 @@ SET PREFIX=.
 SET MESSAGES_FILE=%PREFIX%\.messages.txt
 
 REM Install pip packages and write messages to messages.txt
-python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" >> %MESSAGES_FILE%
+python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" 'tensorflow-gpu>=2,<3' >> %MESSAGES_FILE%
 
 echo. >> %MESSAGES_FILE%
 echo ============ TRex ============ >> %MESSAGES_FILE%
