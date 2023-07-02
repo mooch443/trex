@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <locale>
 #include <sstream>
 #include <misc/GlobalSettings.h>
 #include <misc/create_struct.h>

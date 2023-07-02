@@ -10,6 +10,7 @@
 namespace py = pybind11;
 
 #include <cstdio>
+#include <locale>
 
 int main(int , char**) {
     const char* locale = "C";

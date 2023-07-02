@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <locale>
 #include <sstream>
 
 #define LIBCNPY_H_
