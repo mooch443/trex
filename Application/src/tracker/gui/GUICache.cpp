@@ -57,6 +57,8 @@ namespace gui {
         }
 
         cache() = nullptr;
+        
+        _pool.force_stop();
     }
     
     void SimpleBlob::convert() {

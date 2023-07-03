@@ -67,7 +67,6 @@
 #include <gui/DrawCVBase.h>
 #include <gui/GUICache.h>
 #include "VideoOpener.h"
-#include <gui/GUICache.h>
 #include <tracking/PythonWrapper.h>
 
 #if WIN32
@@ -1748,6 +1747,7 @@ int main(int argc, char** argv)
         delete imgui_base;
     analysis.terminate();
     analysis.~ConnectedTasks();
+    gui::WorkProgress::stop();
     
     tracker.prepare_shutdown();
     

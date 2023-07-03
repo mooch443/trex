@@ -300,8 +300,10 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 return;
             GUI::instance()->set_info_visible(b);
         }, []() {
-            if(GUI::instance())
+            if(GUI::instance()) {
+                std::unique_lock guard(GUI::instance()->gui().lock());
                 GUI::instance()->update_recognition_rect();
+            }
         }, _frameinfo);
 
     PD(gui).root().insert_cache(_base, std::make_unique<CacheObject>());
@@ -625,6 +627,7 @@ gui::DrawStructure& GUI::gui() {
 }
 
 gui::FrameInfo& GUI::frameinfo() {
+    std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
     return instance()->_frameinfo;
 }
 

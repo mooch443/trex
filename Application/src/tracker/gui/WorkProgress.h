@@ -33,6 +33,7 @@ private:
     
 public:
     static WorkProgress& instance();
+    static void stop();
     
 public:
     ~WorkProgress();

@@ -699,7 +699,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             //! Update the cached data
             if(GUICache::exists() && Tracker::instance()) {
                 {
-                    LockGuard guard(ro_t{}, "Timeline::update_thread", 100);
+                    LockGuard guard(w_t{}, "Timeline::update_thread", 100);
                     if (guard.locked()) {
                         Timer timer;
 

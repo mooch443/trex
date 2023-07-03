@@ -156,11 +156,17 @@ WorkProgress::WorkProgress() {
 }
 
 WorkProgress::~WorkProgress() {
-    _terminate_threads = true;
-    _condition.notify_all();
-    
-    _thread->join();
-    delete _thread;
+    stop();
+}
+
+void WorkProgress::stop() {
+    // strong exchange, since we want to make sure that the thread is not running anymore
+    if(!_terminate_threads.exchange(true)) {
+        _condition.notify_all();
+        
+        _thread->join();
+        delete _thread;
+    }
 }
 
 void WorkProgress::set_item(const std::string &item) {
