@@ -8,11 +8,13 @@ namespace cmn {
     ConnectedTasks::ConnectedTasks(std::vector<std::function<bool(Type&&, const Stage&)>>&& tasks)
         : _stop(false), _tasks(std::move(tasks)), _stages(_tasks.size()), _paused(false)
     {
+        std::vector<std::unique_lock<std::mutex>> guards;
         for(uint32_t i=0; i<(uint32_t)_tasks.size(); i++) {
             _stages.at(i).id = i;
             _stages.at(i).timings = 0;
             _stages.at(i).samples = 0;
             
+            guards.emplace_back(_stages.at(i).mutex);
             for(int j=0; j<(i == 0 ? 2 : 1); ++j) {
                 _thread_paused.emplace_back(false);
                 _threads.push_back(new std::thread([this](size_t i, size_t j) {

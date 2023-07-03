@@ -1650,7 +1650,7 @@ int main(int argc, char** argv)
             });
         }
         
-        static bool already_pausing = false;
+        static std::atomic<bool> already_pausing = false;
         if(please_stop_analysis && !already_pausing) {
             already_pausing = true;
             please_stop_analysis = false;

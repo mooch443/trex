@@ -14,6 +14,8 @@
 #include <tracking/IndividualManager.h>
 
 namespace gui {
+    IMPLEMENT(Timeline::_mutex);
+
     //! NeighborDistances drawn out
     struct ProximityBar {
         Size2 _dimensions;
@@ -300,12 +302,14 @@ namespace gui {
     
     std::tuple<Vec2, float> Timeline::timeline_offsets(Base* base) {
         //const float max_w = Tracker::average().cols;
+        std::unique_lock guard(_mutex);
         const float max_w = _instance && !_terminate && base ? base->window_dimensions().width * gui::interface_scale() : Tracker::average().cols;
         Vec2 offset(0);
         return {offset, max_w};
     }
 
-    Timeline& instance() {
+    Timeline& Timeline::instance() {
+        std::unique_lock guard(Timeline::_mutex);
         if (!_instance)
             throw U_EXCEPTION("No timeline has been created.");
         return *_instance;
@@ -319,6 +323,7 @@ namespace gui {
         _updated_recognition_rect(updated_rec_rect),
         _hover_status_text(hover_status)
     {
+        std::unique_lock guard(_mutex);
         _instance = this;
         //_gui = &gui;
         _tracker = Tracker::instance();
@@ -423,43 +428,11 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 }
     
     void Timeline::draw(gui::DrawStructure &base) {
-        Interface::get(this).draw(base);
-    }
-    
-    void Timeline::update_fois() {
-        static Timing timing("update_fois", 10);
-        TakeTiming take(timing);
-        
-        const Vec2 use_scale = _bar ? _bar->stage_scale() : Vec2(1);
-        auto && [offset, max_w] = timeline_offsets(_base);
-        //const float max_h = Tracker::average().rows;
-        
-        // initialize and check FOI status
-        {
-            uint64_t last_change = FOI::last_change();
-            auto name = SETTING(gui_foi_name).value<std::string>();
-
-            if (last_change != _foi_state.last_change || name != _foi_state.name) {
-                _foi_state.name = name;
-
-                if (!_foi_state.name.empty()) {
-                    long_t id = FOI::to_id(_foi_state.name);
-                    if (id != -1) {
-                        _foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
-                        _foi_state.color = FOI::color(_foi_state.name);
-                    }
-                }
-
-                _foi_state.last_change = last_change;
-            }
-        }
-        
-        // initialize the bar if not yet done
         if (_bar == NULL) {
             _bar = std::make_unique<ExternalImage>(Image::Make(), Vec2());
             _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_clickable(true);
-            _bar->on_hover([this](Event e) 
+            _bar->on_hover([this](Event e)
                 {
                 if (!GUICache::exists())
                     return;
@@ -523,6 +496,59 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             });
         }
 
+        if(std::unique_lock g(bar_mutex); foi_update_scheduled && bar_image)
+        {
+            if(not _bar->source()
+               || _bar->source()->dimensions() != bar_image->dimensions())
+            {
+                _bar->set_source(Image::Make(*bar_image));
+            } else {
+                _bar->update_with(*bar_image);
+            }
+            foi_update_scheduled = false;
+        }
+        
+        bar_size = _bar && _bar->source() ? _bar->source()->bounds().size() : Size2();
+        use_scale = _bar ? _bar->stage_scale().y : 1.f;
+        auto && [offset, max_w] = timeline_offsets(_base);
+        timeline_max_w = max_w;
+        timeline_offset = offset;
+        
+        Interface::get(this).draw(base);
+    }
+    
+    void Timeline::update_fois() {
+        static Timing timing("update_fois", 10);
+        TakeTiming take(timing);
+        
+        const auto use_scale = Vec2(this->use_scale.load());
+        const auto bar_size = this->bar_size.load();
+        //const auto offset = this->timeline_offset.load();
+        const auto max_w = this->timeline_max_w.load();
+        //const float max_h = Tracker::average().rows;
+        
+        // initialize and check FOI status
+        {
+            uint64_t last_change = FOI::last_change();
+            auto name = SETTING(gui_foi_name).value<std::string>();
+
+            if (last_change != _foi_state.last_change || name != _foi_state.name) {
+                _foi_state.name = name;
+
+                if (!_foi_state.name.empty()) {
+                    long_t id = FOI::to_id(_foi_state.name);
+                    if (id != -1) {
+                        _foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
+                        _foi_state.color = FOI::color(_foi_state.name);
+                    }
+                }
+
+                _foi_state.last_change = last_change;
+            }
+        }
+        
+        // initialize the bar if not yet done
+        
         bool changed = false;
         
         if(use_scale.y > 0) {
@@ -534,9 +560,9 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 _proximity_bar.end.invalidate();
             last_name = _foi_state.name;
             
-            if(!_bar
-               || (uint)max_w != _bar->source()->cols
-               || (uint)1 != _bar->source()->rows
+            if(bar_size.empty()
+               || (uint)max_w != bar_size.width
+               || (uint)1 != bar_size.height
                || !_proximity_bar.end.valid())
             {
                 auto image = Image::Make(1, max_w, 4);
@@ -548,29 +574,19 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 changed = true;
                 _proximity_bar.changed_frames.clear();
 
-                if (_bar->parent() && _bar->parent()->stage()) {
-                    guard.unlock();
-                    try {
-                        std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                        _bar->set_source(std::move(image));
-                    }
-                    catch (...) {}
-                    guard.lock();
-                    
-                } else
-                    return;
+                std::unique_lock g(bar_mutex);
+                bar_image = std::move(image);
             }
         }
         
         if(not _proximity_bar.end.valid()
            or (tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()))
         {
-            cv::Mat img;
-            if (_bar->parent() && _bar->parent()->stage()) {
-                std::lock_guard lock(_bar->parent()->stage()->lock());
-                img = _bar->source()->get();
-            } else
+            std::unique_lock g(bar_mutex);
+            if(not this->bar_image)
                 return;
+            
+            cv::Mat img = this->bar_image->get();
 
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
@@ -655,6 +671,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                         }
                     }
                 }
+                
+                foi_update_scheduled = true;
             }
             
             /*if(!_bar || !_bar->source()->operator==(_proximity_bar.image)) {
@@ -802,16 +820,18 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
     }
 
     void Timeline::set_visible(bool v) {
-        if(instance()._visible != v) {
+        std::unique_lock guard(_mutex);
+        if(_instance->_visible != v) {
             GUICache::instance().set_tracking_dirty();
             GUICache::instance().set_redraw();
             //_gui->set_redraw();
-            instance()._visible = v;
+            _instance->_visible = v;
         }
     }
 
     bool Timeline::visible() {
-        return instance()._visible;
+        std::unique_lock guard(_mutex);
+        return _instance->_visible;
     }
     
     void Timeline::next_poi(Idx_t _s_fdx) {

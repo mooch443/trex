@@ -5,6 +5,7 @@
 #include <misc/ranges.h>
 #include <misc/idx_t.h>
 #include <misc/vec2.h>
+#include <misc/Image.h>
 
 class GUI;
 
@@ -41,6 +42,17 @@ namespace gui {
     
     class Timeline {
         //Size2 size;
+        static std::mutex _mutex;
+        static Timeline& instance();
+        std::atomic<bool> foi_update_scheduled{false};
+        std::atomic<float> use_scale{1.f};
+        std::atomic<Size2> bar_size;
+        std::atomic<float> timeline_max_w;
+        std::atomic<Vec2> timeline_offset;
+        
+        std::mutex bar_mutex;
+        Image::Ptr bar_image;
+        
     public:
         inline static std::mutex _frame_info_mutex;
         
