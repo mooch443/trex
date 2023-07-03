@@ -229,6 +229,10 @@ int main(int argc, char**argv) {
     const char* locale = "C";
     std::locale::global(std::locale(locale));
     
+#ifndef WIN32
+    setenv("LC_ALL", "C", 1);
+#endif
+    
     using namespace gui;
     init_signals();
 #ifdef WIN32
