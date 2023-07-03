@@ -29,7 +29,7 @@ All rights reserved.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>CFBundleIconFile</key>
-	<string>gfx/AlterIcons.xcassets</string>
+	<string>gfx/AlterIcons</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app requires to access your camera 
             to retrieve images and perform the demo</string>
