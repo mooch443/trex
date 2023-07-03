@@ -25,6 +25,7 @@
 #include "Alterface.h"
 #include <GitSHA1.h>
 #include <grabber/misc/Webcam.h>
+#include <opencv2/core/utils/logger.hpp>
 
 #include <misc/TaskPipeline.h>
 #include <Scene.h>
@@ -221,14 +222,18 @@ void init_signals() {
 }
 
 int main(int argc, char**argv) {
+#ifdef NDEBUG
+    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
+#endif
+    
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
     using namespace gui;
     init_signals();
 #ifdef WIN32
     SetConsoleOutputCP( 65001 );
 #endif
-    const char* locale = "C";
-    std::locale::global(std::locale(locale));
-    
     default_config::register_default_locations();
     
     ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);

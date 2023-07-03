@@ -1,3 +1,6 @@
+import locale
+locale.setlocale(locale.LC_ALL, 'C')
+
 import sys
 import numpy as np
 
