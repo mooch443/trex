@@ -16,10 +16,11 @@ namespace cmn {
         typedef std::unique_ptr<track::PPFrame> Type;
         
         struct Stage {
-            std::mutex mutex;
+            mutable std::mutex mutex;
             std::condition_variable condition;
             std::queue<Type> queue;
             uint32_t id;
+            std::vector<bool> paused;
             
             Timer timer;
             float timings;
@@ -32,7 +33,7 @@ namespace cmn {
         
         std::vector<std::function<bool(Type&&, const Stage&)>> _tasks;
         std::vector<std::thread*> _threads;
-        std::vector<bool> _thread_paused;
+        //std::vector<bool> _thread_paused;
         std::vector<Stage> _stages;
         
         std::thread *_main_thread;
