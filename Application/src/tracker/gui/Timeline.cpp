@@ -579,8 +579,9 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             }
         }
         
-        if(not _proximity_bar.end.valid()
+        if((not _proximity_bar.end.valid()
            or (tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()))
+           and max_w > 0)
         {
             std::unique_lock g(bar_mutex);
             if(not this->bar_image)
