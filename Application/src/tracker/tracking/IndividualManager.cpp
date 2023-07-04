@@ -64,12 +64,12 @@ void IndividualManager::clear_blob_assigned() noexcept {
 }
 
 bool IndividualManager::blob_assigned(pv::bid blob) const {
-    //std::shared_lock guard(assign_mutex);
+    std::shared_lock guard(assign_mutex);
     return _blob_assigned.contains(blob);
 }
 
 bool IndividualManager::fish_assigned(Idx_t fish) const {
-    //std::shared_lock guard(assign_mutex);
+    std::shared_lock guard(assign_mutex);
     return _fish_assigned.contains(fish);
 }
 
@@ -79,7 +79,7 @@ void IndividualManager::clear_fish_assigned() noexcept {
 }
 
 void IndividualManager::_assign(Idx_t fish, pv::bid bdx) {
-    //std::scoped_lock guard(assign_mutex);
+    std::scoped_lock guard(assign_mutex);
     _fish_assigned.insert(fish);
     _blob_assigned.insert(bdx);
 }

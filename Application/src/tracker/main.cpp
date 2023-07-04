@@ -1155,7 +1155,7 @@ int main(int argc, char** argv)
 
                 {
                     std::lock_guard<std::mutex> lock(data_mutex);
-                    data_kbytes += ptr->N_blobs() / 1024.0;
+                    data_kbytes += ptr->num_pixels() / 1024.0;
                 }
 
                 double elapsed = fps_timer.elapsed();
@@ -1220,8 +1220,10 @@ int main(int argc, char** argv)
                         }
                     } 
 
-                    if(gui_instance)
-                        gui.frameinfo().current_fps = narrow_cast<int>(frames_sec);
+                    gui::WorkProgress::add_queue("", [fs = frames_sec, &gui](){
+                        assert(gui_instance);
+                        gui.frameinfo().current_fps = narrow_cast<int>(fs);
+                    });
                 }
 
                 frames_count++;
@@ -1739,15 +1741,16 @@ int main(int argc, char** argv)
     Categorize::terminate();
 #endif
     
+    analysis.terminate();
+    analysis.~ConnectedTasks();
+    gui::WorkProgress::stop();
+    
     {
         delete gui_instance;
         gui_instance = nullptr;
     }
     if(imgui_base)
         delete imgui_base;
-    analysis.terminate();
-    analysis.~ConnectedTasks();
-    gui::WorkProgress::stop();
     
     tracker.prepare_shutdown();
     

@@ -751,11 +751,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                         //if(FAST_SETTING(calculate_posture))
                         //    changed = EventAnalysis::update_events(_frame_info->frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info->frameIndex) : std::set<Individual*>{});
 
-                        // needs Tracker lock
-                        if (_updated_recognition_rect)
-                            _updated_recognition_rect();
-
-
                         _update_thread_updated_once = true;
 
                         if (timer.elapsed() > 0.1 && !FAST_SETTING(analysis_paused)) {
@@ -774,6 +769,10 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                         }
                     }
                 }
+                
+                // needs Tracker lock
+                if (_updated_recognition_rect)
+                    _updated_recognition_rect();
 
                 //! TODO: Need to implement thread-safety for the GUI here. Currently very unsafe, for example when the GUI is deleted.
                 update_fois();
