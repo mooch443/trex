@@ -105,8 +105,8 @@ requirements:
     - conda-forge::ffmpeg =4 # [arm64]
     - defaults::ffmpeg =4 # [not arm64]
     - openh264 # [osx] 
-    - numpy >=1.23,<=1.24 # [osx]
-    - numpy >=1.23.5,<=1.24 # [arm64]
+    - numpy =1.23 # [osx]
+    - numpy =1.23 # [arm64]
     - numpy >=1.19,<=1.24 # [linux]
     - numpy >=1.21,<=1.24 # [win]
 

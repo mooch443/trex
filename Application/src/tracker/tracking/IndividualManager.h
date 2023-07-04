@@ -68,7 +68,7 @@ public:
         for(auto it = map.begin(); it != map.end();) {
             //auto&& blob = *bit;
             
-            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            std::scoped_lock scoped(_global_mutex(), current_mutex);
             auto result = retrieve_inactive();
             auto bdx = *it;
             
@@ -109,8 +109,14 @@ public:
         //blobs.reserve(map.size());
         //individuals.reserve(map.size());
         
-        auto assigned_bdx = _blob_assigned;
-        auto assigned_fdx = _fish_assigned;
+        decltype(_blob_assigned) assigned_bdx;
+        decltype(_fish_assigned) assigned_fdx;
+        
+        {
+            std::shared_lock guard(assign_mutex);
+            assigned_bdx = _blob_assigned;
+            assigned_fdx = _fish_assigned;
+        }
         
         for(auto&& [bdx, fdx] : map) {
             if(not bdx.valid()) {
