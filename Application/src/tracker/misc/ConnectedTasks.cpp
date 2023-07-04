@@ -10,12 +10,11 @@ namespace cmn {
     {
         std::vector<std::unique_lock<std::mutex>> guards;
         for(uint32_t i=0; i<(uint32_t)_tasks.size(); i++) {
-            std::unique_lock<std::mutex> lock(_stages.at(i).mutex);
+            guards.emplace_back(_stages.at(i).mutex);
             _stages.at(i).id = i;
             _stages.at(i).timings = 0;
             _stages.at(i).samples = 0;
             
-            guards.emplace_back(_stages.at(i).mutex);
             for(int j=0; j<(i == 0 ? 2 : 1); ++j) {
                 _stages.at(i).paused.push_back(false);
                 _threads.push_back(new std::thread([this](size_t i, size_t j) {
@@ -72,7 +71,7 @@ namespace cmn {
                             break;
                     }
                     
-                }, i, _threads.size()));
+                }, i, _stages.at(i).paused.size() - 1u));
             }
         }
     }
