@@ -36,6 +36,10 @@ namespace gui {
 
         auto mp = graph.stage()->mouse_position();
         mp = (mp - ptr->pos()).div(ptr->scale());
+        
+        std::sort(instance->attached.begin(), instance->attached.end(), [&mp](Label* A, Label* B){
+            return sqdistance(A->center(), mp) < sqdistance(B->center(), mp);
+        });
 
         auto v = mp - instance->pos;
         auto mag = v.length();

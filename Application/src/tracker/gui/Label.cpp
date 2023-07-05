@@ -33,8 +33,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
     _frame = frame;
 }
 
-void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, bool disabled) {
-    auto distance_to_mouse = alpha;
+void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d, bool disabled) {
     alpha = saturate(alpha, 0.5, 1.0);
     
     Vec2 offset;
@@ -63,10 +62,10 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, bool dis
     _text->set_scale(scale);
     _text->set_alpha(alpha);
 
-    auto mp = e.stage()->mouse_position();
-    mp = (mp - ptr->pos()).div(ptr->scale());
+    //auto mp = e.stage()->mouse_position();
+    //mp = (mp - ptr->pos()).div(ptr->scale());
 
-    auto d = euclidean_distance(mp, _center);
+    //auto d = euclidean_distance(mp, _center);
     const bool is_in_mouse_dock = MouseDock::is_registered(this);
 
     if(not is_in_mouse_dock)
@@ -74,7 +73,7 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, bool dis
     
     float distance = (_text->global_bounds().height + _source.height * scale.y); // scale.y;
     auto text_pos = _center - offset * (distance + 5 * scale.y);
-    _color = (disabled ? Gray : Cyan).alpha(255 * alpha);
+    _color = (disabled ? (is_in_mouse_dock ? LightGray : Gray) : Cyan).alpha(255 * alpha);
 
     if (is_in_mouse_dock) 
     {

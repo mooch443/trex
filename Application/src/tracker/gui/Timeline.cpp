@@ -579,17 +579,15 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             }
         }
         
-        if((not _proximity_bar.end.valid()
+        if(std::scoped_lock guard(bar_mutex, _proximity_bar.mutex);
+           (not _proximity_bar.end.valid()
            or (tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()))
            and max_w > 0)
         {
-            std::unique_lock g(bar_mutex);
             if(not this->bar_image)
                 return;
             
             cv::Mat img = this->bar_image->get();
-
-            std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
                 LockGuard guard(ro_t{}, "Timeline::individual_coverage", 100);
                 float count = 0;

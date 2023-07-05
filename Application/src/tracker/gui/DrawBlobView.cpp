@@ -313,6 +313,8 @@ void draw_blob_view(const DisplayParameters& parm)
             const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / parm.scale.x) + SQR((_average_image.rows * 0.25) / parm.scale.y));
             size_t displayed = 0;
             
+            //base.circle(attr::Loc(mpos), attr::Radius(10), attr::FillClr(Red));
+            
             // move unused elements to unused list
             for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
                 if(!std::get<0>(it->second)) {
@@ -332,7 +334,12 @@ void draw_blob_view(const DisplayParameters& parm)
                     return;
                 }
                 
-                auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos);
+                auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos) * sca.x;
+                /*if(active) {
+                    base.line(mpos, blob->bounds().center(), 2, Red);
+                    base.text(Meta::toStr(d), attr::Loc(blob->bounds().center() + (mpos - blob->bounds().center()) * 0.5), Blue, Font(0.75));
+                }*/
+                
                 const auto od = saturate(d, 0.f, max_distance);
                 if(d <= max_distance * 2 && d > max_distance) {
                     d = (d - max_distance) / max_distance;
@@ -402,7 +409,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 if(d > 0 && real_size > 0) {
                     label->set_data(parm.cache.frame_idx, text, blob->bounds(), blob->center());
-                    label->update(parm.base, parm.ptr, e, d, !active);
+                    label->update(parm.base, parm.ptr, e, d,od, !active);
                     ++displayed;
                 }
             };
