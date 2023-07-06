@@ -22,6 +22,9 @@ namespace gui {
         return pos;
     }
 
+void MouseDock::draw_background(Entangled &graph) {
+}
+
     void MouseDock::update(Drawable* ptr, Entangled& graph) {
         std::unique_lock lock_guard(mutex);
         if (not graph.stage()) {
@@ -68,12 +71,14 @@ namespace gui {
         //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
         
         instance->_rect.set_fillclr(Black.alpha(50));
-        graph.advance_wrap(instance->_rect);
+        
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 15;
         for (auto label : instance->attached) {
             auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos, true);
-            graph.advance_wrap(*label->text());
+            
+            //label->text()->set_alpha(1);
+            //label->text()->set_txt(Meta::toStr(euclidean_distance(instance->pos, label->center())));
             //print("distance = ", distance, " for ", label->text()->text());
             //if (mag > 5)
             //    GUICache::instance().set_animating(label->text().get(), true);
@@ -82,7 +87,7 @@ namespace gui {
             //GUICache::instance().set_animating(label->text().get(), true);
             
             auto bds = label->text()->local_bounds();
-            if(distance < 5) {
+            if(distance < 50) {
                 bounds.combine(bds);
                 y += bds.height;
             }
@@ -96,7 +101,12 @@ namespace gui {
             Vec2 p = animate_position(instance->_rect.pos(), bounds.pos(), 10 * dt, InterpolationType::EASE_OUT);
             Size2 s = animate_position(p + instance->_rect.size(), p + bounds.size(), 2 * dt, InterpolationType::EASE_OUT);
             instance->_rect.set_bounds(Bounds(p, s - p));
+            graph.advance_wrap(instance->_rect);
             //print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
+        }
+        
+        for (auto label : instance->attached) {
+            graph.advance_wrap(*label->text());
         }
 
         instance->attached.clear();

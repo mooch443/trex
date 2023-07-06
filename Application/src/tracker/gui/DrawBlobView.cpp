@@ -108,13 +108,13 @@ public:
     return gimage;
 }*/
 
-std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d)
+std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d, bool register_label)
 {
     
     std::stringstream ss;
-    if(not active)
-        ss << "<ref>";
-    if(d == 1)
+    //if(not active)
+    //    ss << "<ref>";
+    if(register_label || d==1)
         ss << blob.name() << " ";
     if (active)
         ss << "<a>";
@@ -132,7 +132,7 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
     if(blob.is_instance_segmentation())
         ss << " instance";
     
-    if(d == 1 && blob.reason() != FilterReason::Unknown) {
+    if(register_label && blob.reason() != FilterReason::Unknown) {
         static const std::unordered_map<FilterReason, const char*> reasons {
             { FilterReason::Unknown, "unkown" },
             { FilterReason::Category, "Category" },
@@ -156,9 +156,9 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
         ss << " [" << text << "]";
     }
     
-    if (not active)
-        ss << "</ref>";
-    else
+    if (active)
+     //   ss << "</ref>";
+    //else
         ss << "</a>";
     
     {
@@ -334,7 +334,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     return;
                 }
                 
-                auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos) * sca.x;
+                auto d = euclidean_distance(blob->bounds().center(), mpos) * sca.x;
                 /*if(active) {
                     base.line(mpos, blob->bounds().center(), 2, Red);
                     base.text(Meta::toStr(d), attr::Loc(blob->bounds().center() + (mpos - blob->bounds().center()) * 0.5), Blue, Font(0.75));
@@ -354,7 +354,23 @@ void draw_blob_view(const DisplayParameters& parm)
                     d = 0.1;
                 else d = 1;
                 
-                auto text = label_for_blob(parm, *blob, real_size, active, d);
+                bool found = false;
+                auto search_distance = SQR(125.0);
+                for(auto &line : *blob->lines())
+                {
+                    if(sqdistance(Vec2(line.x0, line.y), mpos) < search_distance) {
+                        found = true;
+                        break;
+                    }
+                    if(sqdistance(Vec2(line.x1, line.y), mpos) < search_distance) {
+                        found = true;
+                        break;
+                    }
+                }
+                
+                bool register_label = (real_size > 0 && found );
+                
+                auto text = label_for_blob(parm, *blob, real_size, active, d, register_label);
                 
                 decltype(_blob_labels)::iterator it = _blob_labels.find(blob);
                 if(it == _blob_labels.end()) {
@@ -398,10 +414,20 @@ void draw_blob_view(const DisplayParameters& parm)
                 e.add<Rect>(blob->bounds(), FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
 
-                if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75) 
-                    && parm.cache.frame_idx == label->frame()) 
+                /*auto results = parm.cache.processed_frame.blob_grid().query(mpos, max_distance);
+                bool found = false;
+                for(auto &[d, id] : results) {
+                    if(id == blob->blob_id() || id == blob->parent_id()) {
+                        found = true;
+                        break;
+                    }
+                }*/
+                
+                if(register_label && parm.cache.frame_idx == label->frame())
+                //if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)
+                //    && parm.cache.frame_idx == label->frame())
                 {
-                    //print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center());
+                    //print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center(), " with distance ", od);
                     MouseDock::register_label(label.get(), blob->center());
 				} else {
 					MouseDock::unregister_label(label.get());
@@ -416,6 +442,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             static Entangled _collection;
             _collection.update([&](auto& e) {
+                MouseDock::draw_background(e);
                 displayed = 0;
                 for (auto&& [d, blob, active] : draw_order) {
                     draw_blob(e, blob, blob->recount(-1), active);

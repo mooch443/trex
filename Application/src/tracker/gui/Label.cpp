@@ -36,6 +36,9 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
 void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d, bool disabled) {
     alpha = saturate(alpha, 0.5, 1.0);
     
+    if(disabled)
+        alpha *= 0.5;
+    
     Vec2 offset;
     Vec2 scale(1);
     Bounds screen;
@@ -60,7 +63,6 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d
 
     //scale = scale.mul(0.75);
     _text->set_scale(scale);
-    _text->set_alpha(alpha);
 
     //auto mp = e.stage()->mouse_position();
     //mp = (mp - ptr->pos()).div(ptr->scale());
@@ -71,9 +73,19 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d
     if(not is_in_mouse_dock)
         e.advance_wrap(*_text);
     
+    if(not is_in_mouse_dock) {
+        _text->set_alpha(alpha);
+    } else
+        _text->set_alpha(1);
+    
     float distance = (_text->global_bounds().height + _source.height * scale.y); // scale.y;
     auto text_pos = _center - offset * (distance + 5 * scale.y);
-    _color = (disabled ? (is_in_mouse_dock ? LightGray : Gray) : Cyan).alpha(255 * alpha);
+    _color = (disabled ? (is_in_mouse_dock ? White : Gray) : Cyan).alpha(255 * alpha);
+
+    if(disabled)
+        _text->set_text_color(LightGray);
+    else
+        _text->set_text_color(White);
 
     if (is_in_mouse_dock) 
     {
@@ -116,18 +128,20 @@ float Label::update_positions(Entangled& e, Vec2 text_pos, bool do_animate) {
         return 0;
     }
 
-    auto dt = min(animation_timer.elapsed(), 0.5);
+    auto dt = min(animation_timer.elapsed(), 0.5) * 2;
     animation_timer.reset();
     auto next = animate_position(_text->pos(), text_pos, dt * 2, InterpolationType::EASE_OUT);
+    //if(next.Equals(_text->pos()) && not text_pos.Equals(_text->pos()))
+    //    FormatWarning("Next: ", next, " equals ", _text->pos(), " but not ", text_pos);
     float d = 0;
-    if(not next.Equals(_text->pos())) {
-        d = euclidean_distance(_text->pos(), next);
+    if(not text_pos.Equals(_text->pos())) {
+        d = euclidean_distance(_text->pos(), text_pos);
         if(not animator.empty())
             GUICache::instance().set_animating(animator, true, _text.get());
         _text->set_pos(next);
     } else {
         if(not animator.empty() && GUICache::instance().is_animating(animator)) {
-            print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
+            //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
             GUICache::instance().set_animating(animator, false);
         }
     }

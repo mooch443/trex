@@ -448,6 +448,10 @@ void ConvertScene::activate()  {
         //_scene_promise.set_value();
         //deactivate();
         SceneManager::getInstance().set_active("starting-scene");
+        
+        if(SETTING(scene_crash_is_fatal)) {
+            throw U_EXCEPTION("Aborting since an exception here is considered a fatal error.");
+        }
     }
 }
 

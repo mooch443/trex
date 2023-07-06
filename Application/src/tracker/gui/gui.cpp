@@ -708,10 +708,12 @@ void GUI::run_loop(gui::LoopStatus status) {
     if(!GUI::run()) {
         t = 0;
         
-        if(!GUI_SETTINGS(nowindow) && (PD(cache).is_animating() &&  redraw_timer.elapsed() >= 0.05)) {
-            //redraw_timer.reset();
-            //set_redraw();
-            //GUI::gui().set_dirty(base);
+        if(!GUI_SETTINGS(nowindow) && (/*PD(cache).is_animating() &&*/  redraw_timer.elapsed() >= 0.5)) {
+            redraw_timer.reset();
+            set_redraw();
+            GUI::gui().set_dirty(base);
+            PD(cache).set_raw_blobs_dirty();
+            PD(cache).set_blobs_dirty();
             //is_automatic = true;
             
         } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.30) || recording()) {

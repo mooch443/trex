@@ -267,6 +267,7 @@ int main(int argc, char**argv) {
     SETTING(batch_size) = uchar(10);
     SETTING(track_do_history_split) = false;
     SETTING(track_background_subtraction) = false;
+    SETTING(scene_crash_is_fatal) = false;
     
     SETTING(do_filter) = false;
     SETTING(filter_classes) = std::vector<uint8_t>{};
@@ -350,6 +351,9 @@ int main(int argc, char**argv) {
     SETTING(meta_encoding) = grab::default_config::meta_encoding_t::r3g3b2;
 
     cmd.load_settings();
+    
+    if(not SETTING(source).value<std::string>().empty())
+        SETTING(scene_crash_is_fatal) = true;
     
     launch_gui();
     

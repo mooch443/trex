@@ -24,6 +24,7 @@ struct MouseDock {
     static inline std::unique_ptr<MouseDock> instance = std::make_unique<MouseDock>();
 
     static void update(Drawable* ptr, Entangled& graph);
+    static void draw_background(Entangled&graph);
 
     static void register_label(Label* label, Vec2 center) {
         std::unique_lock lock_guard(mutex);
