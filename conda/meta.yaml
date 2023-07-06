@@ -99,7 +99,7 @@ requirements:
     - pthread-stubs  # [linux]
     - python >=3 # [osx and arm64]
     - python >=3.10 # [osx and not arm64]
-    - python >=3.9 # [win]
+    - python =3.9 # [win]
     - python =3.10 # [linux]
     - openblas # [arm64]
     - conda-forge::ffmpeg =4 # [arm64]
