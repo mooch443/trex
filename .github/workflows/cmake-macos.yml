@@ -59,7 +59,7 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build .
+        conda build . --override-channels -c pytorch -c defaults
         echo "::endgroup::"
         echo "::group::Test"
         echo $CONDA_PREFIX
