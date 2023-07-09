@@ -447,7 +447,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 for (auto&& [d, blob, active] : draw_order) {
                     draw_blob(e, blob, blob->recount(-1), active);
                 }
-                MouseDock::update(parm.ptr, e);
+                MouseDock::update(parm.cache.dt(), parm.ptr, e);
             });
 
             _collection.set_bounds(GUI::average().bounds());

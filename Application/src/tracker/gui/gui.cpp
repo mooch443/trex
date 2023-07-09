@@ -707,10 +707,9 @@ void GUI::run_loop(gui::LoopStatus status) {
     
     if(!GUI::run()) {
         t = 0;
-        
-        if(!GUI_SETTINGS(nowindow) && (/*PD(cache).is_animating() &&*/  redraw_timer.elapsed() >= 0.5)) {
+        if(!GUI_SETTINGS(nowindow) && (/*PD(cache).is_animating() &&*/  redraw_timer.elapsed() >= 0.2)) {
             redraw_timer.reset();
-            set_redraw();
+            //set_redraw();
             GUI::gui().set_dirty(base);
             PD(cache).set_raw_blobs_dirty();
             PD(cache).set_blobs_dirty();
@@ -720,6 +719,8 @@ void GUI::run_loop(gui::LoopStatus status) {
             redraw_timer.reset();
             //set_redraw();
             GUI::gui().set_dirty(base);
+            PD(cache).set_raw_blobs_dirty();
+            PD(cache).set_blobs_dirty();
             is_automatic = true;
         }
         
@@ -746,6 +747,9 @@ void GUI::run_loop(gui::LoopStatus status) {
             redraw_timer.reset();
             //set_redraw();
             PD(gui).set_dirty(base);
+            PD(cache).set_raw_blobs_dirty();
+            PD(cache).set_blobs_dirty();
+            
             if(!is_required)
                 is_automatic = true;
         }

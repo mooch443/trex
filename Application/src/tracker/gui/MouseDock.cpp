@@ -25,7 +25,7 @@ namespace gui {
 void MouseDock::draw_background(Entangled &graph) {
 }
 
-    void MouseDock::update(Drawable* ptr, Entangled& graph) {
+    void MouseDock::update(double dt, Drawable* ptr, Entangled& graph) {
         std::unique_lock lock_guard(mutex);
         if (not graph.stage()) {
             instance->attached.clear();
@@ -34,7 +34,8 @@ void MouseDock::draw_background(Entangled &graph) {
         }
 
         static Timer timer;
-        auto dt = min(0.5, timer.elapsed());
+        //auto dt = min(0.1, timer.elapsed());
+        dt = min(0.1, dt);
         timer.reset();
 
         auto mp = graph.stage()->mouse_position();
