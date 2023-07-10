@@ -240,11 +240,26 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     if(largest.valid()) {
         track::last_active = all_frames.at(largest).get();
         
+#ifndef NDEBUG
+        std::unordered_set<const Individual*> allfishes;
+#endif
         //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
         for(auto& [id, fish] : _individuals) {
             if(not track::last_active->contains(fish.get()))
                 track::inactive_individuals[fish->identity().ID()] = (fish.get());
+#ifndef NDEBUG
+            allfishes.insert(fish.get());
+#endif
         }
+        
+#ifndef NDEBUG
+        for(auto fish : *track::last_active) {
+            if(not allfishes.contains(fish)) {
+                throw U_EXCEPTION("Individual ", fish, " is gone from the global map, but still in last_active.");
+            }
+        }
+#endif
+        
     } else
         track::last_active = nullptr;
     
