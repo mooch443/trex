@@ -355,7 +355,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 else d = 1;
                 
                 bool found = false;
-                auto search_distance = SQR(125.0);
+                auto search_distance = FAST_SETTING(track_max_speed) * SQR(sca.x);
                 for(auto &line : *blob->lines())
                 {
                     if(sqdistance(Vec2(line.x0, line.y), mpos) < search_distance) {

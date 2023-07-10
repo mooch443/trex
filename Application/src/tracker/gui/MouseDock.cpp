@@ -71,7 +71,7 @@ void MouseDock::draw_background(Entangled &graph) {
         //std::vector<Bounds> boundses;
         //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
         
-        instance->_rect.set_fillclr(Black.alpha(50));
+        instance->_rect.set_fillclr(Black.alpha(150));
         
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 15;

@@ -271,27 +271,25 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                         overall_percent = overall_percent / (float)all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
                 }
                 
+                // synchronize with debug messages
+                //std::lock_guard<std::mutex> lock(DEBUG::debug_mutex());
+                static std::mutex _mutex;
+                if(std::lock_guard guard(_mutex);
+                   cmn::abs(last_percent - overall_percent) >= 0.05)
                 {
-                    // synchronize with debug messages
-                    //std::lock_guard<std::mutex> lock(DEBUG::debug_mutex());
-                    if(cmn::abs(last_percent - overall_percent) >= 0.05) {
-                        static std::mutex _mutex;
-                        std::lock_guard guard(_mutex);
-                        
-                        last_percent = overall_percent;
-                        overall_percent *= 100;
-                        
-                        size_t i;
-                        printf("[");
-                        for(i=0; i<overall_percent * 0.5; ++i) {
-                            printf("=");
-                        }
-                        for(; i<100 * 0.5; ++i) {
-                            printf(" ");
-                        }
-                        printf("] %.2f%% exported (to '%s/...)\r", overall_percent, fishdata.str().c_str());
-                        fflush(stdout);
+                    last_percent = overall_percent;
+                    overall_percent *= 100;
+                    
+                    size_t i;
+                    printf("[");
+                    for(i=0; i<overall_percent * 0.5; ++i) {
+                        printf("=");
                     }
+                    for(; i<100 * 0.5; ++i) {
+                        printf(" ");
+                    }
+                    printf("] %.2f%% exported (to '%s/...)\r", overall_percent, fishdata.str().c_str());
+                    fflush(stdout);
                 }
             };
             

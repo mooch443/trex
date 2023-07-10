@@ -12,9 +12,9 @@
 #include <misc/ThreadPool.h>
 
 //#ifndef NDEBUG
-//#define TREX_ENABLE_HISTORY_LOGS true
+#define TREX_ENABLE_HISTORY_LOGS true
 //#else
-#define TREX_ENABLE_HISTORY_LOGS false
+//#define TREX_ENABLE_HISTORY_LOGS false
 //#endif
 
 namespace track {
@@ -199,6 +199,8 @@ public:
     {
 #ifndef NDEBUG
         std::set<pv::bid> bdxes;
+        auto name = Meta::name<T>();
+        Log("extract_from_single_range<", name.c_str(),">: ", owner, " objects:",objects);
 #endif
         for(auto it = owner.begin(); it != owner.end(); ) {
             auto&& own = *it;

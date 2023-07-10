@@ -51,7 +51,7 @@ fi
 
 CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" -enable_live_tracking -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {}"
 echo "Running TGrabs... ${CMD}"
-if ! { ${CMD} 2>&1; } > /dev/null; then
+if ! { ${CMD} 2>&1; } ; then
     cat "${PWD}/tgrabs.log"
     echo "TGrabs could not be executed."
     exit_code=1
@@ -65,13 +65,13 @@ else
         exit_code=1
     else
         f="test_fish0"
-        echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv"
+        echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data_automatic/${f}.csv"
         echo "${PWD}/data: $(ls ${PWD}/data)"
         for f in ${FILES}; do
             f=$(basename $f .csv)
 
             echo -e -n "\tChecking $f ..."
-            if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
+            if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data_automatic/${f}.csv; then
                 echo "FAIL"
                 echo "[ERROR] file $f differs from baseline"
                 exit_code=1
@@ -110,14 +110,14 @@ for MODE in ${MODES}; do
             exit_code=1
         else
             f="test_fish0"
-            echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv"
+            echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv"
             echo "${PWD}/corrected/data: $FILES"
 
             for f in ${FILES}; do
                 f=$(basename $f .csv)
 
                 echo -e -n "\tChecking $f ..."
-                if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
+                if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv; then
                     echo "FAIL"
                     echo "[ERROR] corrected file $f differs from baseline"
                     exit_code=1

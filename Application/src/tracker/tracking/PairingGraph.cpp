@@ -5,6 +5,7 @@
 #include <file/Path.h>
 #include <misc/Timer.h>
 #include "Hungarian.h"
+#include <misc/pretty.h>
 
 /**
  Essentially, the algorithm may be thought of as competing paths through a weighted directed acyclic graph. The paths are all possible permutations of object-identity combinations, taking into account that not all combinations are possible / have edges connecting them. A paths' performance is measured by its accumulative probability score, adding up edge-weights along the path. Paths, which are "lagging behind" in performance, are discarded as soon as the best accumulative probability score they can achieve becomes smaller than the best currently known alternative.
@@ -1031,8 +1032,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 std::sort(blob_index.begin(), blob_index.end(), std::less{});
-                std::sort(individual_index.begin(), individual_index.end(), std::greater{});
+                std::sort(individual_index.begin(), individual_index.end(), std::less{});
                 assert(individual_index.size() == (size_t)int(_paired.n_rows()));
+                
+                PPFrame::Log("* individual_index = ", individual_index);
+                PPFrame::Log("* blob_index = ", blob_index);
                 
                 std::map<blob_index_t, size_t> bdi_to_i;
                 std::map<size_t, blob_index_t> i_to_bdi;
@@ -1150,8 +1154,15 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
                 Timer timer;
                 robin_hood::unordered_flat_set<Fish_t> used_blobs;
-                
+                std::map<Blob_t, std::vector<fish_index_t>> sorted_col_edges;
                 for(auto && [blob, edges] : _paired.col_edges()) {
+                    sorted_col_edges[blob] = edges;
+                    std::sort(sorted_col_edges[blob].begin(), sorted_col_edges[blob].end());
+                }
+                
+                PPFrame::Log("sorted_col_edges = ", prettify_array(Meta::toStr(sorted_col_edges)));
+                
+                for(auto && [blob, edges] : sorted_col_edges) {
                     prob_t max_p = 0;
                     Fish_t max_fish{};
                     

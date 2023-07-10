@@ -1220,7 +1220,11 @@ int main(int argc, char** argv)
                         }
                     } 
 
-                    gui::WorkProgress::add_queue("", [fs = frames_sec, &gui](){
+                    gui::WorkProgress::add_queue("", [fs = frames_sec, &gui
+#ifndef NDEBUG
+                                                      ,&gui_instance
+#endif
+                                                     ](){
                         assert(gui_instance);
                         gui.frameinfo().current_fps = narrow_cast<int>(fs);
                     });

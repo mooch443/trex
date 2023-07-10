@@ -1720,10 +1720,11 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             });
             
             //print("Ended up with ", pairs.probabilities().size(), "pairs.");
-
+            PPFrame::Log("Ended up with ", pairs.probabilities().size(), "pairs.");
+            PPFrame::Log(pairs);
             PairingGraph g(*s.props, s.frame.index(), std::move(pairs));
             auto& optimal = g.get_optimal_pairing(false, (s.match_mode == default_config::matching_mode_t::automatic) ? default_config::matching_mode_t::approximate : s.match_mode);
-            
+            PPFrame::Log("Got optimal.pairings = ", prettify_array(Meta::toStr(optimal.pairings)));
             //std::sort(new_table.begin(), new_table.end());
             
             s._manager.assign(AssignInfo{
@@ -1745,7 +1746,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                     new_pairings.erase(it);
                 }*/
                 
-                //print("\t *accepting ", bdx, " -> ", fdx);
+                PPFrame::Log("\t *accepting ", bdx, " -> ", fdx);
                 
             }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
                 throw U_EXCEPTION(frameIndex, ": Cannot assign individual ", fdx," to blob ", bdx, ". Reason: ", error);

@@ -33,6 +33,9 @@ void PPFrame::UpdateLogs() {
                 row.header { \
                 background-color: #EEE; \
                 } \
+                warning { \
+                color:rgb(193, 134, 23); display:inline; \
+                } \
                 key, value, doc { \
                 border: 1px solid #999999; \
                 display: table-cell; \
@@ -50,9 +53,14 @@ void PPFrame::UpdateLogs() {
                 display: table-footer-group; \
                 font-weight: bold; \
                 } \
+                line { \
+                display: block; \
+                padding-left: 1.5em; \
+                text-indent: -1.5em; \
+                } \
                 string { display:inline; color: red; font-style: italic; }    \
                 ref { display:inline; font-weight:bold; } ref:hover { color: gray; } \
-                number { display:inline; color: green; } \
+                number,nr { display:inline; color: green; } \
                 keyword { display:inline; color: purple; } \
                 .body { \
                 display: table-row-group; \
@@ -84,7 +92,11 @@ void PPFrame::write_log(std::string str) {
     if(!history_log)
         return;
     
-    str = settings::htmlify(str) + "</br>";
+    const auto tname = get_thread_name();
+    if(not utils::beginsWith(tname, "ConnectedTasks::stage_1_"))
+        return;
+    
+    str = "<line>[<warning>"+tname+"</warning>] "+ settings::htmlify(str) + "</line>";
     
     std::lock_guard guard(log_mutex);
     *history_log << str << std::endl;

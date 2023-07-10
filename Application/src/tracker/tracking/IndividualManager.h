@@ -175,6 +175,7 @@ public:
         }
         
         assert(ptrs.size() == individuals.size());*/
+        PPFrame::Log("Got pointers: ", ptrs, " for map: ", blob_map);
         for(size_t i=0; i<ptrs.size(); ++i) {
             if(ptrs.at(i) == nullptr)
                 continue;
