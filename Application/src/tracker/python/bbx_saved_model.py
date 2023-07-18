@@ -481,6 +481,7 @@ class StrippedYolo8Results:
 
 BBox = np.ndarray#[int]
 Image = np.ndarray#[np.uint8]
+printed_warning = False
 
 from typing import List, Tuple
 
@@ -863,7 +864,10 @@ class TRexYOLO8:
             free_memory = total_memory - reserved_memory
             return int(free_memory)
         else:
-            print("Memory profiling is supported only for cuda devices, assuming 640x640x3x32x8 bytes")
+            global printed_warning
+            if not printed_warning:
+                print("Memory profiling is supported only for cuda devices, assuming 640x640x3x32x8 bytes")
+                printed_warning = True
             return 640 * 640 * 3 * 32 * 8
 
 

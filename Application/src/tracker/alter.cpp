@@ -93,20 +93,30 @@ void launch_gui() {
     if(SETTING(source).value<std::string>() == "")
         manager.set_active(&start);
     
-    ConvertScene converting(base);
+    static std::unique_ptr<Segmenter> segmenter;
+    ConvertScene converting(base, [&](ConvertScene& scene){
+        segmenter = std::make_unique<Segmenter>();
+        scene.set_segmenter(segmenter.get());
+        
+        // on activate
+        if(not segmenter->output_size().empty())
+            graph.set_size(Size2(1024, segmenter->output_size().height / segmenter->output_size().width * 1024));
+        
+    }, [](auto&){
+        // on deactivate
+        segmenter = nullptr;
+    });
     manager.register_scene(&converting);
     //manager.set_active(&converting);
-    if (SETTING(source).value<std::string>() != "")
+    if (SETTING(source).value<std::string>() != "") {
         manager.set_active(&converting);
+    }
 
     LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
 
         });
     manager.register_scene(&loading);
-
-    if(not converting.output_size().empty())
-        graph.set_size(Size2(1024, converting.output_size().height / converting.output_size().width * 1024));
     
     base.platform()->set_icons({
         //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
@@ -355,7 +365,77 @@ int main(int argc, char**argv) {
     if(not SETTING(source).value<std::string>().empty())
         SETTING(scene_crash_is_fatal) = true;
     
-    launch_gui();
+    if(SETTING(nowindow)) {
+        Segmenter segmenter;
+        print("Loading source = ", SETTING(source).value<std::string>());
+        
+        ind::ProgressBar bar{
+            ind::option::BarWidth{50},
+                ind::option::Start{"["},
+        #ifndef _WIN32
+                ind::option::Fill{"█"},
+                ind::option::Lead{"▂"},
+                ind::option::Remainder{"▁"},
+        #else
+                ind::option::Fill{"="},
+                ind::option::Lead{">"},
+                ind::option::Remainder{" "},
+        #endif
+                ind::option::End{"]"},
+                ind::option::PostfixText{"Converting video..."},
+                ind::option::ShowPercentage{true},
+                ind::option::ForegroundColor{ind::Color::white},
+                ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+        };
+
+        ind::ProgressSpinner spinner{
+            ind::option::PostfixText{"Recording..."},
+                ind::option::ForegroundColor{ind::Color::white},
+                ind::option::SpinnerStates{std::vector<std::string>{
+                    //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
+                    //"◢","◣","◤","◥",
+                    //"◜◞", "◟◝", "◜◞", "◟◝"
+                    " ◴"," ◷"," ◶"," ◵"
+                    //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
+                }},
+                ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+        };
+        
+        Timer last_tick;
+        segmenter.set_progress_callback([&](float percent){
+            if(percent >= 0)
+                bar.set_progress(percent);
+            else if(last_tick.elapsed() > 1) {
+                spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
+                spinner.set_option(ind::option::ShowPercentage{false});
+                spinner.tick();
+                last_tick.reset();
+            }
+        });
+        
+        if (SETTING(source).value<std::string>() == "webcam")
+            segmenter.open_camera();
+        else
+            segmenter.open_video();
+        
+        auto finite = segmenter.is_finite();
+        
+        while(not SETTING(terminate))
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        
+        if(finite) {
+            bar.set_progress(100);
+            bar.mark_as_completed();
+        } else {
+            spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+            spinner.set_option(ind::option::PrefixText{"✔"});
+            spinner.set_option(ind::option::ShowSpinner{false});
+            spinner.set_option(ind::option::PostfixText{"Done."});
+            spinner.mark_as_completed();
+        }
+        
+    } else
+        launch_gui();
     
     py::deinit();
     return 0;

@@ -1,8 +1,63 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/OverlayedVideo.h>
+#include <tracking/Tracker.h>
+#include <misc/frame_t.h>
+#include <misc/TaskPipeline.h>
+#include <pv.h>
+
+namespace track {
 
 class Segmenter {
-public:
+    // condition variables and mutexes for thread synchronization
+    std::condition_variable _cv_messages, _cv_ready_for_tracking;
+    std::mutex _mutex_general, _mutex_current;
+    std::atomic<bool> _should_terminate{false};
     
+    // Overlayed video with detections and tracker for object tracking
+    std::unique_ptr<OverlayedVideo<Detection>> _overlayed_video;
+    std::unique_ptr<Tracker> _tracker;
+    
+    // File for output
+    std::unique_ptr<pv::File> _output_file;
+    
+    // Size of output and start time for timing operations
+    GETTER(Size2, output_size)
+    std::chrono::time_point<std::chrono::system_clock> _start_time;
+    
+    // Segmentation data for the next frame
+    SegmentationData _next_frame_data;
+
+    // Progress and current data for tracking
+    SegmentationData _progress_data, _transferred_current_data;
+    
+    std::vector<pv::BlobPtr> _progress_blobs, _transferred_blobs;
+    
+    std::function<void(float)> progress_callback;
+    
+public:
+    Segmenter();
+    ~Segmenter();
+    void reset(Frame_t);
+    void open_video();
+    void open_camera();
+    
+    void set_progress_callback(std::function<void(float)>);
+    
+    Frame_t video_length() const;
+    Size2 size() const;
+    bool is_finite() const;
+    
+    std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
+    
+private:
+    void generator_thread();
+    void perform_tracking();
+    void tracking_thread();
+
+    void setDefaultSettings();
+    void printDebugInformation();
 };
+
+}
