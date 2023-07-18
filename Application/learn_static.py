@@ -491,12 +491,12 @@ def start_learning():
 
     cvalues = np.array(cvalues)
 
-    if len(X_train) > 0 and channels == 3:
+    if len(X_train) > 0 and (channels == 3 or channels == 1):
         # Initialize the batch counter and the numpy array
         grid_shape = (2, 10)
         image_shape = X_train.shape[1:3]  # shape of a single image
         print(image_shape)
-        grid = np.zeros((grid_shape[0]*image_shape[0], grid_shape[1]*image_shape[1], 3))
+        grid = np.zeros((grid_shape[0]*image_shape[0], grid_shape[1]*image_shape[1], channels))
 
         _input = X_train
         for y in range(grid_shape[0]):
@@ -515,7 +515,10 @@ def start_learning():
         
         print(grid.shape, grid.dtype)
         import cv2 as cv
-        grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_RGB2RGBA)
+        if channels == 1:
+            grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_GRAY2RGBA)
+        else:
+            grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_RGB2RGBA)
         TRex.imshow("grid", grid.astype(np.uint8))
 
     TRex.log("# [init] weights per class "+str(per_class))
