@@ -1042,7 +1042,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         cache_size = cache.size();
         if(!info.rec_depth && (cache_size & 1) && cache.size() >= 50) {
             for(auto it=cache.begin(), ite=cache.end(); it!=ite;) {
-                if(it->first < frame - 25_f || it->first > frame+25_f)
+                if(it->first < frame.try_sub(25_f) || it->first > frame+25_f)
                     it = cache.erase(it);
                 else
                     ++it;

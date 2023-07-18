@@ -9,7 +9,6 @@
 				"children": [
 					{ "type":"button", "text":"Quit", "action":"QUIT" },
 					{ "type":"button", "text":"Filter", "action":"FILTER" },
-					{ "type":"button", "text":"Reset", "action":"RESET" },
 					{
 						"type": "collection",
 						"children": [
