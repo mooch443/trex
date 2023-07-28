@@ -5,6 +5,7 @@
 namespace track {
 
 constexpr int thread_id = 42;
+Timer start_timer;
 
 file::Path average_name() {
     auto path = file::DataLocation::parse("output", "average_" + (std::string)SETTING(filename).value<file::Path>().filename() + ".png");
@@ -12,6 +13,8 @@ file::Path average_name() {
 }
 
 Segmenter::Segmenter() {
+    start_timer.reset();
+
     ThreadManager::getInstance().registerGroup(thread_id, "Segmenter");
     
     ThreadManager::getInstance().addThread(thread_id, "generator-thread", ManagedThread{
@@ -43,6 +46,9 @@ Segmenter::Segmenter() {
 }
 
 Segmenter::~Segmenter() {
+    auto time = start_timer.elapsed();
+    print("Total time: ", time, "s");
+
     _should_terminate = true;
     
     {
