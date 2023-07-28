@@ -10,6 +10,7 @@ public:
     
 public:
     VideoSourceVideoSource(VideoSource&& source);
+    ~VideoSourceVideoSource();
     
     tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char*> fetch_next() override;
 

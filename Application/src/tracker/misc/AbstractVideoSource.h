@@ -39,6 +39,7 @@ public:
     AbstractBaseVideoSource(VideoInfo info);
     virtual ~AbstractBaseVideoSource();
     void notify();
+    void quit();
     
     Size2 size() const;
     

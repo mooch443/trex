@@ -60,13 +60,17 @@ Segmenter::~Segmenter() {
     ThreadManager::getInstance().terminateGroup(thread_id+1);
     ThreadManager::getInstance().terminateGroup(thread_id);
     
-    std::unique_lock guard(_mutex_general);
+    std::scoped_lock guard(_mutex_general, _mutex_video);
     _overlayed_video = nullptr;
     _tracker = nullptr;
     
     if (_output_file) {
-        pv::File test(_output_file->filename(), pv::FileMode::READ);
-        test.print_info();
+        try {
+            pv::File test(_output_file->filename(), pv::FileMode::READ);
+            test.print_info();
+        } catch(...) {
+            // we are not interested in open-errors
+        }
     }
     
     _output_file = nullptr;
@@ -78,16 +82,19 @@ Segmenter::~Segmenter() {
 }
 
 Size2 Segmenter::size() const {
+    std::unique_lock vlock(_mutex_video);
     return _overlayed_video->source->size();
 }
 
 Frame_t Segmenter::video_length() const {
+    std::unique_lock vlock(_mutex_video);
     if(not _overlayed_video || not _overlayed_video->source)
         throw U_EXCEPTION("No video was opened.");
     return _overlayed_video->source->length();
 }
 
 bool Segmenter::is_finite() const {
+    std::unique_lock vlock(_mutex_video);
     if(not _overlayed_video || not _overlayed_video->source)
         throw U_EXCEPTION("No video was opened.");
     return _overlayed_video->source->is_finite();
@@ -110,14 +117,17 @@ void Segmenter::open_video() {
     SETTING(meta_video_size).value<Size2>() = video_base.size();
     SETTING(output_size) = _output_size;
 
-    _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
-        Detection{},
-        std::move(video_base),
-        [this]() {
-            _cv_messages.notify_one();
-        }
-    );
-    SETTING(video_length) = uint64_t(_overlayed_video->source->length().get());
+    {
+        std::unique_lock vlock(_mutex_video);
+        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+           Detection{},
+           std::move(video_base),
+           [this]() {
+               _cv_messages.notify_one();
+           }
+        );
+    }
+    SETTING(video_length) = uint64_t(video_length().get());
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
     SETTING(meta_real_width) = float(get_model_image_size().width * 10);
 
@@ -178,17 +188,20 @@ void Segmenter::open_camera() {
     SETTING(output_size) = _output_size;
     SETTING(meta_video_size).value<Size2>() = camera.size();
 
-    _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
-        Detection{},
-        std::move(camera),
-        [this]() {
-            _cv_messages.notify_one();
-        }
-    );
-
-    _overlayed_video->source->notify();
+    {
+        std::unique_lock vlock(_mutex_video);
+        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+           Detection{},
+           std::move(camera),
+           [this]() {
+               _cv_messages.notify_one();
+           }
+        );
+        
+        _overlayed_video->source->notify();
+    }
     
-    SETTING(video_length) = uint64_t(_overlayed_video->source->length().get());
+    SETTING(video_length) = uint64_t(video_length().get());
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
     SETTING(meta_real_width) = float(get_model_image_size().width * 10);
 
@@ -255,7 +268,18 @@ void Segmenter::generator_thread() {
                 }
             }
 
-            auto result = _overlayed_video->generate();
+            guard.unlock();
+            
+            decltype(_overlayed_video->generate()) result;
+            try {
+                std::unique_lock vlock(_mutex_video);
+                result = _overlayed_video->generate();
+            } catch(...) {
+                guard.lock();
+                throw;
+            }
+            guard.lock();
+            
             if (not result) {
                 //_overlayed_video->reset(0_f);
             }
@@ -369,6 +393,8 @@ void Segmenter::tracking_thread() {
             }
             //guard.unlock();
             //try {
+            
+            std::unique_lock vlock(_mutex_video);
             if (_overlayed_video->source->is_finite()) {
                 auto L = _overlayed_video->source->length();
                 auto C = _progress_data.original_index();
@@ -428,6 +454,7 @@ std::tuple<SegmentationData, std::vector<pv::BlobPtr>> Segmenter::grab() {
 }
 
 void Segmenter::reset(Frame_t frame) {
+    std::unique_lock vlock(_mutex_video);
     if(not _overlayed_video)
         throw U_EXCEPTION("No overlayed_video set.");
     _overlayed_video->reset(frame);

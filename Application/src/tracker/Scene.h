@@ -48,82 +48,35 @@ class SceneManager {
     // Private constructor to prevent external instantiation
     SceneManager() {}
 
+    static read_once<std::string> _switching_error;
+    
+public:
+    static auto& switching_error() {
+        return _switching_error;
+    }
+    
+    static void set_switching_error(const std::string& str) {
+        switching_error().set(str);
+    }
+
 public:
     // Deleted copy constructor and assignment operator
     SceneManager(const SceneManager&) = delete;
     SceneManager& operator=(const SceneManager&) = delete;
 
-    static SceneManager& getInstance() {
-        static SceneManager instance;  // Singleton instance
-        return instance;
-    }
+    static SceneManager& getInstance();
 
-    void set_active(Scene* scene) {
-        auto fn = [this, scene]() {
-            if (active_scene && active_scene != scene) {
-                active_scene->deactivate();
-            }
-            active_scene = scene;
-            if (scene)
-                scene->activate();
-        };
-        enqueue(fn);
-    }
+    void set_active(Scene* scene);
 
-    void register_scene(Scene* scene) {
-        std::unique_lock guard{_mutex};
-        _scene_registry[scene->name()] = scene;
-    }
+    void register_scene(Scene* scene);
 
-    void set_active(std::string name) {
-        if (name.empty()) {
-            set_active(nullptr);
-            return;
-        }
+    void set_active(std::string name);
 
-        Scene* ptr{ nullptr };
+    ~SceneManager();
 
-        if (std::unique_lock guard{_mutex};
-            _scene_registry.contains(name))
-        {
-            ptr = _scene_registry.at(name);
-        }
+    void update(DrawStructure& graph);
 
-        if (ptr) {
-            set_active(ptr);
-        }
-        else {
-            throw std::invalid_argument("Cannot find the given Scene name.");
-        }
-    }
-
-    ~SceneManager() {
-        update_queue();
-        if (active_scene)
-            active_scene->deactivate();
-    }
-
-    void update(DrawStructure& graph) {
-        update_queue();
-        if (active_scene)
-            active_scene->draw(graph);
-    }
-
-    void update_queue() {
-        std::unique_lock guard{_mutex};
-        while (not _queue.empty()) {
-            auto f = std::move(_queue.front());
-            _queue.pop();
-            guard.unlock();
-            try {
-                f();
-            }
-            catch (...) {
-                // pass
-            }
-            guard.lock();
-        }
-    }
+    void update_queue();
 
 private:
     void enqueue(auto&& task) {

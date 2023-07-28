@@ -18,6 +18,9 @@ _resize_cvt(10u, 5u,
     //notify();
 }
 AbstractBaseVideoSource::~AbstractBaseVideoSource() {
+    quit();
+}
+void AbstractBaseVideoSource::quit() {
     _source_frame.quit();
     _resize_cvt.quit();
 }

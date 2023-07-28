@@ -292,6 +292,9 @@ int main(int argc, char**argv) {
     print("CWD: ", file::cwd());
     
     for(auto a : cmd) {
+        if(a.name == "s") {
+            SETTING(settings_file) = file::Path(a.value).add_extension("settings");
+        }
         if(a.name == "i") {
             SETTING(source) = std::string(a.value);
         }
@@ -437,7 +440,11 @@ int main(int argc, char**argv) {
     } else
         launch_gui();
     
-    py::deinit();
+    try {
+        py::deinit();
+    } catch(const std::exception& e) {
+        FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+    }
     return 0;
 }
 

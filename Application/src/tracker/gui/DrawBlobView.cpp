@@ -355,16 +355,43 @@ void draw_blob_view(const DisplayParameters& parm)
                 else d = 1;
                 
                 bool found = false;
-                auto search_distance = FAST_SETTING(track_max_speed) * SQR(sca.x);
-                for(auto &line : *blob->lines())
-                {
-                    if(sqdistance(Vec2(line.x0, line.y), mpos) < search_distance) {
-                        found = true;
-                        break;
-                    }
-                    if(sqdistance(Vec2(line.x1, line.y), mpos) < search_distance) {
-                        found = true;
-                        break;
+                const auto search_distance = (1 + FAST_SETTING(track_max_speed)) * SQR(sca.x);
+                if(blob->bounds().contains(mpos)) {
+                    found = true;
+                    
+                } else {
+                    for(auto &line : *blob->lines()) {
+                        auto d = abs(float(line.y) - float(mpos.y));
+                        if(d < search_distance) {
+                            d = abs(float(line.x0) - float(mpos.x));
+                            if((line.x0 >= mpos.x && line.x0 <= mpos.x)
+                               || d < search_distance)
+                            {
+                                found = true;
+                                break;
+                            }
+                            d = abs(float(line.x1) - float(mpos.x));
+                            if(d < search_distance) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        
+                        /*e.add<Circle>(attr::Loc(line.x0, line.y), attr::Radius{5}, attr::LineClr{Red});
+                        if(sqdistance(Vec2(line.x0, line.y), mpos) < search_distance) {
+                            found = true;
+                            break;
+                        }
+                        e.add<Circle>(attr::Loc(line.x1, line.y), attr::Radius{5}, attr::LineClr{Red});
+                        if(sqdistance(Vec2(line.x1, line.y), mpos) < search_distance) {
+                            found = true;
+                            break;
+                        }
+                        e.add<Circle>(attr::Loc(line.x0 + (line.x1-line.x0) * 0.5, line.y), attr::Radius{5}, attr::LineClr{Red});
+                        if(sqdistance(Vec2(line.x0 + (line.x1-line.x0) * 0.5, line.y), mpos) < search_distance) {
+                            found = true;
+                            break;
+                        }*/
                     }
                 }
                 
