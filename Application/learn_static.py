@@ -476,11 +476,11 @@ def start_learning():
         return np.clip(images, 0, 255).astype(dtype)
 
     datagen = ImageDataGenerator(#rescale = 1.0/255.0,
-                                 rotation_range = 180,
-                                 #zoom_range = 0.1,
-                                 #horizontal_flip = True,
-                                 #vertical_flip = True,
-                                 #brightness_range=(0.5,1.5),
+                                 rotation_range = 359,
+                                 zoom_range = 0.1,
+                                 horizontal_flip = False,
+                                 vertical_flip = False,
+                                 brightness_range=(0.75,1.25),
                                  width_shift_range=move_range,
                                  height_shift_range=move_range,
                                  cval = 0,

@@ -561,6 +561,7 @@ void PythonIntegration::init() {
         PythonIntegration::execute("import sys\nset_version(sys.version, False, '')", false);
         
         try {
+            py::exec("import sys; sys.executable = '"+std::string(COMMONS_PYTHON_EXECUTABLE)+"'");
             auto cmd = trex_init.read_file();
             py::exec(cmd);
             python_gpu_initialized() = true;

@@ -11,6 +11,10 @@ WebcamVideoSource::WebcamVideoSource(fg::Webcam&& source)
     notify();
 }
 
+WebcamVideoSource::~WebcamVideoSource() {
+    quit();
+}
+
 tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char*> WebcamVideoSource::fetch_next() {
     try {
         if (not i.valid()) {

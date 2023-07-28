@@ -281,6 +281,7 @@ void ConvertScene::activate()  {
         FormatExcept("Exception when switching scenes: ", e.what());
         //_scene_promise.set_value();
         //deactivate();
+        SceneManager::set_switching_error(e.what());
         SceneManager::getInstance().set_active("starting-scene");
         
         if(SETTING(scene_crash_is_fatal)) {
@@ -425,7 +426,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
 // Main _draw function
 void ConvertScene::_draw(DrawStructure& graph) {
     fetch_new_data();
-
+    
     const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
     graph.section("video", [&](auto&, Section* section) {
         auto output_size = SETTING(output_size).value<Size2>();

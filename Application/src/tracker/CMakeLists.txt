@@ -128,6 +128,7 @@ endif()
 # add actual executable
 set(TREXA_SRCS alter.cpp Alterface.cpp Alterface.h
     Scene.h
+    Scene.cpp
     FileOpenerScene.cpp
     FileOpenerScene.h
     VideoOpenerScene.cpp

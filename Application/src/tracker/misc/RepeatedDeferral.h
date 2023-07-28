@@ -104,7 +104,7 @@ struct RepeatedDeferral {
             }
         }
         
-        thread_print("Ending.");
+        thread_print("Task ",name.c_str(), " ending.");
     }
     
     void notify() {
@@ -121,6 +121,8 @@ struct RepeatedDeferral {
     void quit() {
         {
             std::unique_lock guard(_mutex);
+            if(_terminate)
+                return;
             _terminate = true;
             notify();
         }

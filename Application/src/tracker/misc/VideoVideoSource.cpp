@@ -9,6 +9,10 @@ VideoSourceVideoSource::VideoSourceVideoSource(VideoSource&& source)
         source(std::move(source))
 { }
 
+VideoSourceVideoSource::~VideoSourceVideoSource() {
+    quit();
+}
+
 tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char*> VideoSourceVideoSource::fetch_next() {
     if (i >= this->source.length()) {
         if(not SETTING(terminate))
