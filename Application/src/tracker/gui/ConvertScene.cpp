@@ -9,6 +9,7 @@
 #include <grabber/misc/default_config.h>
 #include <tracking/IndividualManager.h>
 #include <misc/ThreadManager.h>
+#include <misc/RecentItems.h>
 
 namespace gui {
 
@@ -237,6 +238,8 @@ void ConvertScene::activate()  {
             open_camera();
         else
             open_video();
+
+        RecentItems::open(SETTING(source).value<std::string>(), GlobalSettings::map());
 
         auto size = segmenter().size();
         auto work_area = ((const IMGUIBase*)window())->work_area();

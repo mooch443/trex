@@ -6,32 +6,8 @@
 #include <gui/types/Layout.h>
 #include <gui/DynamicGUI.h>
 #include <gui/DrawBase.h>
-#include <nlohmann/json.hpp>
 
 namespace gui {
-class RecentItems {
-    struct Item {
-        std::string _name;
-        sprite::Map _options;
-        
-        nlohmann::json to_object() const;
-        std::string toStr() const;
-        static std::string class_name() { return "RecentItems::Item"; }
-    };
-    GETTER(std::vector<Item>, items)
-    
-    void add(std::string name, const sprite::Map& options);
-    void write();
-    
-    std::string toStr() const;
-    static std::string class_name() { return "RecentItems"; }
-    
-public:
-    static void open(std::string name, const sprite::Map& settings);
-    bool has(std::string) const;
-    void show(ScrollableList<>& list);
-    static RecentItems read();
-};
 
 class StartingScene : public Scene {
     file::Path _image_path;
