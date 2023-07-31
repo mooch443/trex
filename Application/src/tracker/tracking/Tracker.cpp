@@ -382,7 +382,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
         cmn::GlobalSettings::map().register_callback(ptr, variable_changed);
         for(auto &n : Settings :: names())
             variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
-        
+        callback_registered = true;
     }
 }
 
@@ -407,6 +407,12 @@ Tracker::~Tracker() {
     
     IndividualManager::clear();
     emergency_finish();
+
+    if (callback_registered) {
+        auto ptr = "Tracker::Settings";
+        cmn::GlobalSettings::map().unregister_callback(ptr);
+        callback_registered = false;
+    }
 }
 
 void Tracker::emergency_finish() {

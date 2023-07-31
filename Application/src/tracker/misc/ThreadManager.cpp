@@ -24,7 +24,14 @@ const ThreadGroup* ThreadManager::registerGroup(int group, const std::string& na
     if(name.empty())
         throw std::invalid_argument("Name cannot be empty.");
     auto& g = groups[group];
+    if (g.started) {
+        FormatExcept("Thread ", g.name, " was already started.");
+        g.terminate();
+    }
     g.name = name;
+    g.threads.clear();
+    g.onEndCallbacks.clear();
+    g.started = false;
     thread_print("Registered group ", group, " with name ", name, " from ", loc.file_name(),":", loc.line());
     return &g;
 }
@@ -36,6 +43,10 @@ void ThreadManager::addOnEndCallback(int group, OnEndMethod onEndMethod) {
 }
 
 void ManagedThread::loop(const ThreadGroup &group) {
+    set_thread_name(group.name);
+    thread_print("Starting loop ", group.name);
+    terminationProof = {};
+    terminationSignal = false;
     try {
         std::unique_lock guard(mutex);
         while (!terminationSignal.load()) {

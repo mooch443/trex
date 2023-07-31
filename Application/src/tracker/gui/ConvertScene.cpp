@@ -52,7 +52,7 @@ menu{
             {
                 "QUIT", [](auto) {
                     auto& manager = SceneManager::getInstance();
-                    manager.set_active("");
+                    manager.set_active("starting-scene");
                 }
             },
             {
