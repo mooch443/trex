@@ -257,7 +257,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wthread-safety -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -DNDEBUG -std=c++2a -mcpu=apple-m1 -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing -Werror=return-stack-address -Wthread-safety -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -DNDEBUG -std=c++2a -mcpu=apple-m1 -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -1876,7 +1876,7 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex_yolo/bin/python3.10"
+	**default value:** "/Users/tristan/miniforge3/envs/trex_yolo_test/bin/python3.10"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -2301,7 +2301,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-369-g36e9a14_interface"
+	**default value:** "v1.1.9-488-gdcd75562_interface"
 
 
 	Current application version.
