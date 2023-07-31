@@ -561,7 +561,9 @@ void PythonIntegration::init() {
         PythonIntegration::execute("import sys\nset_version(sys.version, False, '')", false);
         
         try {
-            py::exec("import sys; sys.executable = '"+std::string(COMMONS_PYTHON_EXECUTABLE)+"'");
+#ifdef __APPLE__
+            py::exec("import sys; sys.executable = '"+std::string(default_config::conda_environment_path() / "bin" / "python")+"'");
+#endif
             auto cmd = trex_init.read_file();
             py::exec(cmd);
             python_gpu_initialized() = true;
