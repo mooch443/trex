@@ -562,7 +562,14 @@ void PythonIntegration::init() {
         
         try {
 #ifdef __APPLE__
-            py::exec("import sys; sys.executable = '"+std::string(default_config::conda_environment_path() / "bin" / "python")+"'");
+            // this is only in here because of cpuinfo being used in YOLO>= and it calls the "python executable" of our embedded program. meaning it spawns another process of our program. not great!
+            // https://github.com/ultralytics/ultralytics/blame/c20d2654e95d4d8f1a42e106118f21ddb2762115/ultralytics/utils/torch_utils.py#L55
+            // and https://github.com/workhorsy/py-cpuinfo/blob/f3f0fec58335b9699b9b294267c15f516045b1fe/cpuinfo/cpuinfo.py#L2753C18-L2753C18
+            try {
+                py::exec("import sys; sys.executable = '"+std::string(default_config::conda_environment_path() / "bin" / "python")+"'");
+            } catch(...) {
+                // catch problems here, but the problem is likely elsewhere so we continue...
+            }
 #endif
             auto cmd = trex_init.read_file();
             py::exec(cmd);

@@ -26,10 +26,10 @@ void RecentItems::open(std::string name, const sprite::Map& options) {
     recent.write();
 }
 
-void RecentItems::show(ScrollableList<>& list) {
-    std::vector<std::string> items;
+void RecentItems::show(ScrollableList<DetailItem>& list) {
+    std::vector<DetailItem> items;
     for (auto& item : _items) {
-        items.emplace_back(item._name);
+        items.emplace_back(item);
     }
 
     if (list.set_items(items) != 0) {
@@ -37,12 +37,12 @@ void RecentItems::show(ScrollableList<>& list) {
             auto recent = RecentItems::read();
             if (recent._items.size() > i) {
                 auto& item = recent._items.at(i);
-                if (item._name == name) {
+                if (item._name == name.detail()) {
                     item._options.set_do_print(true);
                     for (auto& key : item._options.keys())
                         item._options[key].get().copy_to(&GlobalSettings::map());
 
-                    RecentItems::open(name, GlobalSettings::map());
+                    RecentItems::open(name.detail(), GlobalSettings::map());
                     SceneManager::getInstance().set_active("converting");
                     return;
                 }

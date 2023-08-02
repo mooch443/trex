@@ -6,6 +6,7 @@
 #include <gui/types/Layout.h>
 #include <gui/DynamicGUI.h>
 #include <gui/DrawBase.h>
+#include <gui/types/ListItemTypes.h>
 
 namespace gui {
 
@@ -17,7 +18,7 @@ class StartingScene : public Scene {
     std::shared_ptr<Entangled> _title = std::make_shared<Entangled>();
 
     // The list of recent items
-    std::shared_ptr<ScrollableList<>> _recent_items;
+    std::shared_ptr<ScrollableList<DetailItem>> _recent_items;
     std::shared_ptr<VerticalLayout> _buttons_and_items = std::make_shared<VerticalLayout>();
     
     std::shared_ptr<VerticalLayout> _logo_title_layout = std::make_shared<VerticalLayout>();

@@ -204,7 +204,7 @@ public:
             guard.lock();
             _future = {};
         }
-        _create = {};
+        //_create = {};
         _c = nullptr;
     }
 
@@ -231,8 +231,10 @@ public:
     void enqueue(Data&& ptr) {
         {
             std::unique_lock guard(_mutex);
-            if(not _create)
+            if(not _create) {
+                thread_print("[WARNING] _create method not set.");
                 return;
+            }
             
             if(not _c) {
                 _create();

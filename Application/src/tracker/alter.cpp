@@ -131,12 +131,6 @@ void launch_gui() {
     
     gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
         manager.update(graph);
-        
-        if (graph.is_key_pressed(Keyboard::Right)) {
-            SETTING(do_filter) = true;
-        } else if (graph.is_key_pressed(Keyboard::Left)) {
-            SETTING(do_filter) = false;
-        }
     });
     
     manager.set_active(nullptr);

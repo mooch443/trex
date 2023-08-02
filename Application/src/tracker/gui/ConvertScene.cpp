@@ -234,6 +234,7 @@ void ConvertScene::activate()  {
             _on_activate(*this);
         
         print("Loading source = ", SETTING(source).value<std::string>());
+        SETTING(meta_source_path) = SETTING(source).value<std::string>();
         if (SETTING(source).value<std::string>() == "webcam")
             open_camera();
         else
@@ -277,6 +278,7 @@ void ConvertScene::activate()  {
 
         print("setting bounds = ", bounds);
         window()->set_window_bounds(bounds);
+        window()->set_title(window_title());
         bar.set_progress(0);
 
     }
@@ -397,6 +399,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         tmp["pos"] = bds.pos().mul(scale);
         tmp["size"] = Size2(bds.size().mul(scale));
         tmp["type"] = std::string(cname);
+        tmp["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
 
         if (contains(visible_bdx, blob->blob_id())) {
             auto id = visible_bdx.at(blob->blob_id());

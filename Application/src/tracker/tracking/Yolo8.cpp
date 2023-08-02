@@ -415,6 +415,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
                         try {
                             transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
                         } catch(...) {
+                            FormatExcept("A promise failed for ", transfer.datas.at(i));
                             transfer.promises.at(i).set_exception(std::current_exception());
                         }
                         
@@ -438,6 +439,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
                         transfer.promises.at(i).set_value(std::move(data));
                     }
                     catch (...) {
+                        FormatExcept("A promise failed for ", transfer.datas.at(i));
                         transfer.promises.at(i).set_exception(std::current_exception());
                     }
                     

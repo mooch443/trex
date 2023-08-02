@@ -337,7 +337,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("meta_classes", std::vector<std::string>{}, "Class names for object classification in video during conversion.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
-        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.", STARTUP);
+        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
         CONFIG("video_length", uint64_t(0), "The length of the video in frames", STARTUP);
         CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", SYSTEM);
         CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
@@ -503,7 +503,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
         CONFIG("track_only_labels", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
-        CONFIG("track_label_confidence_threshold", float(0.25), "Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.");
+        CONFIG("track_label_confidence_threshold", float(0.1), "Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");

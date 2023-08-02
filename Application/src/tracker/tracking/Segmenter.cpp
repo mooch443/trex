@@ -32,6 +32,7 @@ Segmenter::Segmenter() {
                 _output_file != nullptr)
             {
                 _output_file->close();
+                _output_file = nullptr;
             }
             
             try {
@@ -48,7 +49,7 @@ Segmenter::Segmenter() {
 Segmenter::~Segmenter() {
     auto time = start_timer.elapsed();
     print("Total time: ", time, "s");
-
+    
     _should_terminate = true;
     
     {
@@ -60,7 +61,7 @@ Segmenter::~Segmenter() {
     ThreadManager::getInstance().terminateGroup(thread_id+1);
     ThreadManager::getInstance().terminateGroup(thread_id);
     
-    std::scoped_lock guard(_mutex_general, _mutex_video);
+    std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
     _overlayed_video = nullptr;
     _tracker = nullptr;
     
@@ -79,6 +80,11 @@ Segmenter::~Segmenter() {
     _transferred_blobs.clear();
     _progress_blobs.clear();
     _transferred_current_data = {};
+    
+    SETTING(is_writing) = false;
+    SETTING(source) = std::string();
+    SETTING(filename) = file::Path();
+    SETTING(frame_rate) = uint32_t(-1);
 }
 
 Size2 Segmenter::size() const {
@@ -154,7 +160,10 @@ void Segmenter::open_video() {
         }
     }
 
-    _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+    {
+        std::unique_lock guard(_mutex_tracker);
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+    }
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
@@ -166,10 +175,12 @@ void Segmenter::open_video() {
         path.create_folder();
     }
 
-    _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-    _output_file->set_average(bg);
+    {
+        std::unique_lock vlock(_mutex_general);
+        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file->set_average(bg);
+    }
 
-    
     ThreadManager::getInstance().startGroup(thread_id);
     ThreadManager::getInstance().startGroup(thread_id+1);
 }
@@ -222,7 +233,10 @@ void Segmenter::open_camera() {
         cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
     }*/
 
-    _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+    {
+        std::unique_lock guard(_mutex_tracker);
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+    }
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
@@ -234,8 +248,11 @@ void Segmenter::open_camera() {
         path.create_folder();
     }
 
-    _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-    _output_file->set_average(bg);
+    {
+        std::unique_lock vlock(_mutex_general);
+        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file->set_average(bg);
+    }
     
     ThreadManager::getInstance().startGroup(thread_id);
     ThreadManager::getInstance().startGroup(thread_id+1);
@@ -249,22 +266,31 @@ void Segmenter::generator_thread() {
     while (not _should_terminate) {
         try {
             if (not _next_frame_data and not items.empty()) {
-                if (std::get<1>(items.front()).valid()
-                    && std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                if (std::get<1>(items.front()).valid())
                 {
-                    auto data = std::get<1>(items.front()).get();
-                    //thread_print("Got data for item ", data.frame.index());
-
-                    _next_frame_data = std::move(data);
-                    _cv_ready_for_tracking.notify_one();
-
-                    items.erase(items.begin());
+                    if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                    {
+                        auto data = std::get<1>(items.front()).get();
+                        //thread_print("Got data for item ", data.frame.index());
+                        
+                        _next_frame_data = std::move(data);
+                        _cv_ready_for_tracking.notify_one();
+                        
+                        items.erase(items.begin());
+                    }
 
                 }
-                else if (not std::get<1>(items.front()).valid()) {
-                    FormatExcept("Invalid future ", std::get<0>(items.front()));
-
+                else {
+                    thread_print("Invalid future ", std::get<0>(items.front()));
                     items.erase(items.begin());
+                    
+                    /*auto status = std::get<1>(items.front()).wait_for(std::chrono::seconds(0));
+                    if(status == std::future_status::ready) {
+                        thread_print("ready");
+                    } else if(status == std::future_status::timeout) {
+                        thread_print("timeout");
+                    } else
+                        thread_print("deferred");*/
                 }
             }
 
@@ -284,6 +310,7 @@ void Segmenter::generator_thread() {
                 //_overlayed_video->reset(0_f);
             }
             else {
+                assert(std::get<1>(result.value()).valid());
                 items.push_back(std::move(result.value()));
             }
 
@@ -317,7 +344,7 @@ void Segmenter::perform_tracking() {
         _progress_blobs.emplace_back(_progress_data.frame.blob_at(i));
     }
 
-    if (SETTING(is_writing)) {
+    if (SETTING(is_writing) && _output_file) {
         if (not _output_file->is_open()) {
             _output_file->set_start_time(_start_time);
             _output_file->set_resolution(_output_size);
@@ -325,6 +352,7 @@ void Segmenter::perform_tracking() {
         _output_file->add_individual(pv::Frame(_progress_data.frame));
     }
 
+    if(std::unique_lock guard(_mutex_tracker); _tracker != nullptr)
     {
         PPFrame pp;
         Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
@@ -464,6 +492,7 @@ void Segmenter::setDefaultSettings() {
     SETTING(do_filter) = false;
     SETTING(filter_classes) = std::vector<uint8_t>{};
     SETTING(is_writing) = true;
+    SETTING(track_label_confidence_threshold) = SETTING(detect_conf_threshold).value<float>();
 }
 
 void Segmenter::printDebugInformation() {

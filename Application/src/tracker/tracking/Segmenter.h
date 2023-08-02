@@ -12,7 +12,7 @@ namespace track {
 class Segmenter {
     // condition variables and mutexes for thread synchronization
     std::condition_variable _cv_messages, _cv_ready_for_tracking;
-    mutable std::mutex _mutex_general, _mutex_current, _mutex_video;
+    mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
     
     // Overlayed video with detections and tracker for object tracking

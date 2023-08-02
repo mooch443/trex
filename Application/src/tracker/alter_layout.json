@@ -51,8 +51,8 @@
 				{
 					"type":"condition",
 					"var":"{i:tracked}",
-					"then": {"type":"stext","text":"<b><nr>{i:id}</nr></b>: <c>{i:type}</c> (<i>{i:p}</i>)","font":{"size":0.5},"origin":[0,1]},
-					"else": {"type":"stext","text":"<ref><b>{i:id}</b>: <c>{i:type}</c> (<i>{i:p}</i>)</ref>","font":{"size":0.5},"origin":[0,1]}
+					"then": {"type":"stext","text":"<b><nr>{i:id}</nr></b>: <c>{i:type}</c> (p=<i>{i:p} s={i:px}</i>)","font":{"size":0.5},"origin":[0,1]},
+					"else": {"type":"stext","text":"<ref><b>{i:id}</b>: <c>{i:type}</c> (p=<i>{i:p} s={i:px}</i>)</ref>","font":{"size":0.5},"origin":[0,1]}
 				},
 				{
 					"type":"condition",

@@ -12,7 +12,7 @@ StartingScene::StartingScene(Base& window)
 : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
     _image_path(file::DataLocation::parse("app", "gfx/" + SETTING(app_name).value<std::string>() + "_1024.png")),
     _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
-    _recent_items(std::make_shared<ScrollableList<>>(Bounds(0, 10, 310, 500))),
+    _recent_items(std::make_shared<ScrollableList<DetailItem>>(Bounds(0, 10, 310, 500))),
     _video_file_button(std::make_shared<Button>("Open file", attr::Size(150, 50))),
     _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50))),
     context ({

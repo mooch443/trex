@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <gui/types/ScrollableList.h>
 #include <misc/SpriteMap.h>
+#include <gui/types/ListItemTypes.h>
 
 class RecentItems {
     struct Item {
@@ -12,6 +13,13 @@ class RecentItems {
         nlohmann::json to_object() const;
         std::string toStr() const;
         static std::string class_name() { return "RecentItems::Item"; }
+        
+        operator gui::DetailItem() const {
+            gui::DetailItem item;
+            item.set_name(std::string(file::Path(_name).filename()));
+            item.set_detail(_name);
+            return item;
+        }
     };
     GETTER(std::vector<Item>, items)
 
@@ -24,6 +32,6 @@ class RecentItems {
 public:
     static void open(std::string name, const cmn::sprite::Map& settings);
     bool has(std::string) const;
-    void show(gui::ScrollableList<>& list);
+    void show(gui::ScrollableList<gui::DetailItem>& list);
     static RecentItems read();
 };
