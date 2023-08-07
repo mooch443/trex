@@ -35,10 +35,11 @@ Size2 ConvertScene::output_size() const {
 }
 
 std::string window_title() {
+    auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
     auto output_prefix = SETTING(output_prefix).value<std::string>();
     return SETTING(app_name).value<std::string>()
         + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
-        + " (" + (std::string)SETTING(filename).value<file::Path>().filename() + ")"
+        + (not filename.empty() ? " (" + filename + ")" : "")
         + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
 }
 

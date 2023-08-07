@@ -8,6 +8,14 @@
 using namespace gui;
 using namespace cmn;
 
+std::mutex _recent_select_mutex;
+std::function<void(RecentItems::Item)> _recent_select_callback;
+
+void RecentItems::set_select_callback(std::function<void (RecentItems::Item)> fn) {
+    std::unique_lock guard(_recent_select_mutex);
+    _recent_select_callback = fn;
+}
+
 std::string RecentItems::toStr() const {
     return "RecentItems<" + Meta::toStr(_items) + ">";
 }
@@ -38,12 +46,10 @@ void RecentItems::show(ScrollableList<DetailItem>& list) {
             if (recent._items.size() > i) {
                 auto& item = recent._items.at(i);
                 if (item._name == name.detail()) {
-                    item._options.set_do_print(true);
-                    for (auto& key : item._options.keys())
-                        item._options[key].get().copy_to(&GlobalSettings::map());
-
-                    RecentItems::open(name.detail(), GlobalSettings::map());
-                    SceneManager::getInstance().set_active("converting");
+                    std::unique_lock guard(_recent_select_mutex);
+                    if(_recent_select_callback) {
+                        _recent_select_callback(item);
+                    }
                     return;
                 }
                 else {
@@ -58,7 +64,7 @@ void RecentItems::show(ScrollableList<DetailItem>& list) {
 }
 
 RecentItems RecentItems::read() {
-    auto path = file::DataLocation::parse("output", ".trex_recent_files");
+    auto path = file::DataLocation::parse("app", ".trex_recent_files");
     RecentItems items;
 
     print("Searching for ", path, ": ", path.exists());
@@ -159,7 +165,7 @@ nlohmann::json RecentItems::Item::to_object() const {
 }
 
 void RecentItems::write() {
-    auto path = file::DataLocation::parse("output", ".trex_recent_files");
+    auto path = file::DataLocation::parse("app", ".trex_recent_files");
     try {
         auto array = nlohmann::json::array();
         for (auto& item : items()) {

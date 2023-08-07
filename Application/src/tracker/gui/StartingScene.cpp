@@ -72,10 +72,21 @@ void StartingScene::activate() {
     // Fill the recent items list
     auto items = RecentItems::read();
     items.show(*_recent_items);
+    
+    RecentItems::set_select_callback([](RecentItems::Item item){
+        item._options.set_do_print(true);
+        for (auto& key : item._options.keys())
+            item._options[key].get().copy_to(&GlobalSettings::map());
+        
+        //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
+        //SceneManager::getInstance().set_active("converting");
+        SceneManager::getInstance().set_active("settings-scene");
+    });
 }
 
 void StartingScene::deactivate() {
     // Logic to clear or save state if needed
+    RecentItems::set_select_callback(nullptr);
 }
 
 void StartingScene::_draw(DrawStructure& graph) {
@@ -87,7 +98,7 @@ void StartingScene::_draw(DrawStructure& graph) {
     auto scale = Vec2(max_w * 0.4 / _logo_image->width());
     _logo_image->set_scale(scale);
     _title->set_size(Size2(max_w, 25));
-    _recent_items->set_size(Size2(_recent_items->width(), max_h));
+    _recent_items->set_size(Size2((window()->window_dimensions().width - max_w - 50), max_h));
     
     graph.wrap_object(_main_layout);
     

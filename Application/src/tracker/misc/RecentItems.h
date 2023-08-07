@@ -6,6 +6,7 @@
 #include <gui/types/ListItemTypes.h>
 
 class RecentItems {
+public:
     struct Item {
         std::string _name;
         cmn::sprite::Map _options;
@@ -21,9 +22,11 @@ class RecentItems {
             return item;
         }
     };
+    
+protected:
     GETTER(std::vector<Item>, items)
 
-        void add(std::string name, const cmn::sprite::Map& options);
+    void add(std::string name, const cmn::sprite::Map& options);
     void write();
 
     std::string toStr() const;
@@ -31,6 +34,7 @@ class RecentItems {
 
 public:
     static void open(std::string name, const cmn::sprite::Map& settings);
+    static void set_select_callback(std::function<void(Item)>);
     bool has(std::string) const;
     void show(gui::ScrollableList<gui::DetailItem>& list);
     static RecentItems read();
