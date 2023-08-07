@@ -1,8 +1,9 @@
 {"objects":[
 	{ 
 		"type":"vlayout",
-		"pos":[20,0],
+		"pos":[20,10],
 		"scale":[1.0,1.0],
+		"margins":[0,0,0,0],
 		"children": [
 			{ 
 				"type":"hlayout", 
@@ -35,15 +36,15 @@
 				"then": {
 					"type": "collection",
 					"children": [
-						{ "type":"text", "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | region @ {global:region_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[0,0,0] },
-						{ "type":"text", "pos":[1,1], "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | region @ {global:region_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[150,240,255] }
+						{ "type":"text", "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | region @ {global:region_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.55}, "color":[0,0,0] },
+						{ "type":"text", "pos":[1,1], "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | region @ {global:region_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.75}, "color":[150,240,255] }
 					]
 				},
 				"else": {
 					"type": "collection",
 					"children": [
-						{ "type":"text", "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[0,0,0] },
-						{ "type":"text", "pos":[1,1], "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.5}, "color":[150,240,255] }
+						{ "type":"text", "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.55}, "color":[0,0,0] },
+						{ "type":"text", "pos":[1,1], "text":"  resolution: {video:resolution} | detection @ {global:detection_resolution}px | actual: {actual_frame}/{global:video_length} | written: {video:frame}", "font":{"size":0.55}, "color":[150,240,255] }
 					]
 				}
 			}
