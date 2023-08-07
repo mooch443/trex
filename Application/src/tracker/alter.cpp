@@ -38,6 +38,7 @@
 #include <gui/LoadingScene.h>
 #include <gui/ConvertScene.h>
 #include <gui/StartingScene.h>
+#include <gui/SettingsScene.h>
 
 #include <tracking/Yolo8.h>
 #include <tracking/Yolo7InstanceSegmentation.h>
@@ -107,6 +108,10 @@ void launch_gui() {
         segmenter = nullptr;
     });
     manager.register_scene(&converting);
+    
+    SettingsScene settings_scene(base);
+    manager.register_scene(&settings_scene);
+    
     //manager.set_active(&converting);
     if (SETTING(source).value<std::string>() != "") {
         manager.set_active(&converting);

@@ -1,0 +1,189 @@
+{"objects":[
+    {
+        "type":"vlayout",
+        "children":[
+            {
+                "type":"stext",
+                "text":"<h2>Settings</h2>Please choose how you want to process the video you provided.",
+                "font":{
+                    "size":0.8
+                }
+            },
+            {
+                "type":"hlayout",
+                "pos":[0,0],
+                "children":[
+                    {   "type":"vlayout",
+                        "pos":[0,0],
+                        "children": [
+                            {
+                                "type":"stext",
+                                "text":"source",
+                                "size":[100,50]
+                            },
+                            {
+                                "type":"stext",
+                                "text":"target",
+                                "size":[100,50]
+                            },
+
+                            {
+                                "type":"collection",
+                                "size":[100,25]
+                            },
+
+                            {
+                                "type":"condition",
+                                "var":"{global:track_background_subtraction}",
+                                "then": {
+                                    "type":"vlayout",
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"model",
+                                            "size":[100,50]
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"region",
+                                            "size":[100,50]
+                                        }
+                                    ]
+                                },
+                                "else": { 
+                                    "type":"vlayout",
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"averaging",
+                                            "size":[100,50]
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"threshold",
+                                            "size":[100,50]
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    {   "type":"vlayout",
+                        "pos":[0,0],
+                        "children": [
+                            {   "type":"button",
+                                "text":"\"{global:source}\"",
+                                "fill":[50,50,50],
+                                "size":[500,45],
+                                "font":{
+                                    "align":"left",
+                                    "size":0.65
+                                },
+                                "action": "choose-source"
+                            },
+                            {   "type":"button",
+                                "text":"{global:output_dir}",
+                                "fill":[50,50,50],
+                                "size":[500,45],
+                                "font":{
+                                    "align":"left",
+                                    "size":0.65
+                                },
+                                "action": "choose-target"
+                            },
+
+                            {
+                                "type":"checkbox",
+                                "action":"toggle-background-subtraction",
+                                "text":"Use machine learning to detect animals",
+                                "checked":true,
+                                "size":[100,50],
+                                "font":{
+                                    "align":"left",
+                                    "size":0.75
+                                }
+                            },
+
+                            {
+                                "type":"condition",
+                                "var":"{global:track_background_subtraction}",
+                                "then": {
+                                    "type":"vlayout",
+                                    "children":[
+                                        {   "type":"button",
+                                            "text":"{global:model}",
+                                            "fill":[50,50,50],
+                                            "size":[500,45],
+                                            "font":{
+                                                "align":"left",
+                                                "size":0.65
+                                            },
+                                            "action": "choose-model"
+                                        },
+                                        {   "type":"button",
+                                            "text":"{global:region_model}",
+                                            "fill":[50,50,50],
+                                            "size":[500,45],
+                                            "font":{
+                                                "align":"left",
+                                                "size":0.65
+                                            },
+                                            "action": "choose-region"
+                                        }
+                                    ]
+                                },
+                                "else": { 
+                                    "type":"vlayout",
+                                    "children":[
+                                        {   "type":"button",
+                                            "text":"{global:averaging_method}",
+                                            "fill":[50,50,50],
+                                            "size":[500,45],
+                                            "font":{
+                                                "align":"left",
+                                                "size":0.65
+                                            },
+                                            "action": "choose-model"
+                                        },
+                                        {   "type":"textfield",
+                                            "text":"{global:threshold}",
+                                            "fill":[50,50,50],
+                                            "size":[500,45],
+                                            "color":[255,255,255],
+                                            "font":{
+                                                "align":"left",
+                                                "size":0.65
+                                            },
+                                            "action": "choose-region"
+                                        }
+                                    ]
+                                }
+                            }
+
+                            
+                        ]
+                    }
+                ]
+            },
+            {
+                "type":"stext",
+                "size":[100,100],
+                "color":[250,250,250],
+                "text":"<h2>Advanced Settings</h2>{settings_summary}\ndetect_iou_threshold={global:detect_iou_threshold} detect_conf_threshold={global:detect_conf_threshold}\ntrack_threshold={global:track_threshold} track_posture_threshold={global:track_posture_threshold}\ntrack_background_subtraction={global:track_background_subtraction}","font":{
+                    "size":0.8
+                }
+            },
+            {   "type":"button",
+                "text":"Edit",
+                "fill":[50,50,50],
+                "size":[50,40],
+                "font":{
+                    "align":"center",
+                    "size":0.65
+                },
+                "action": "choose-settings"
+            }
+        ]
+    }
+    
+]}

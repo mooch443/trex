@@ -106,6 +106,13 @@ bool Segmenter::is_finite() const {
     return _overlayed_video->source->is_finite();
 }
 
+bool Segmenter::is_average_generating() const {
+    if(average_generator.valid()) {
+        return true;
+    }
+    return false;
+}
+
 void Segmenter::open_video() {
     VideoSource video_base(SETTING(source).value<std::string>());
     video_base.set_colors(ImageMode::RGB);
@@ -144,26 +151,20 @@ void Segmenter::open_video() {
     cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
     bg.setTo(255);
 
-    VideoSource tmp(SETTING(source).value<std::string>());
+    bool do_generate_average { SETTING(reset_average).value<bool>() };
     if (not average_name().exists()) {
-        tmp.generate_average(bg, 0);
-        cv::imwrite(average_name().str(), bg);
+        do_generate_average = true;
     }
     else {
         print("Loading from file...");
         bg = cv::imread(average_name().str());
-        if (bg.cols == tmp.size().width && bg.rows == tmp.size().height)
+        if (bg.cols == video_base.size().width && bg.rows == video_base.size().height)
             cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
         else {
-            tmp.generate_average(bg, 0);
-            cv::imwrite(average_name().str(), bg);
+            do_generate_average = true;
         }
     }
-
-    {
-        std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
-    }
+    
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
@@ -175,10 +176,36 @@ void Segmenter::open_video() {
         path.create_folder();
     }
 
-    {
-        std::unique_lock vlock(_mutex_general);
-        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
-        _output_file->set_average(bg);
+    auto callback_after_generating = [this, filename](cv::Mat& bg){
+        {
+            std::unique_lock guard(_mutex_tracker);
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+        }
+        
+        {
+            std::unique_lock vlock(_mutex_general);
+            _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+            _output_file->set_average(bg);
+        }
+    };
+    
+    // procrastinate on generating the average async because
+    // otherwise the GUI stops responding...
+    if(do_generate_average) {
+        average_generator = std::async(std::launch::async, [callback_after_generating, size = _output_size](){
+            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC1);
+            bg.setTo(255);
+            
+            VideoSource tmp(SETTING(source).value<std::string>());
+            tmp.generate_average(bg, 0);
+            cv::imwrite(average_name().str(), bg);
+            
+            print("** generated average");
+            callback_after_generating(bg);
+        });
+        
+    } else {
+        callback_after_generating(bg);
     }
 
     ThreadManager::getInstance().startGroup(thread_id);
@@ -409,6 +436,27 @@ void Segmenter::tracking_thread() {
     set_thread_name("Tracking thread");
     std::unique_lock guard(_mutex_general);
     while (not _should_terminate) {
+        if(average_generator.valid()) {
+            guard.unlock();
+            try {
+                Timer timer;
+                while(average_generator.valid() && average_generator.wait_for(std::chrono::milliseconds(1)) != std::future_status::ready)
+                {
+                    if(timer.elapsed() > 1) {
+                        auto loc = cmn::source_location::current();
+                        FormatExcept("Dead-lock possible in ", loc.file_name(),":", loc.line(), " with ", timer.elapsed(),"s");
+                    }
+                }
+                
+                average_generator.get();
+                guard.lock();
+                
+            } catch(...) {
+                guard.lock();
+                throw;
+            }
+        }
+        
         if (_next_frame_data) {
             try {
                 _progress_data = std::move(_next_frame_data);
@@ -447,7 +495,7 @@ void Segmenter::tracking_thread() {
                     progress_callback(-1);
                 //spinner.tick();
             }
-
+            
             perform_tracking();
             //guard.lock();
         //} catch(...) {

@@ -94,6 +94,12 @@ menu{
                 }))
             },
             {
+                "average_is_generating",
+                std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
+                    return _segmenter->is_average_generating();
+                }))
+            },
+            {
                 "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
                     return _actual_frame;
                 }))
@@ -400,7 +406,10 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         tmp["pos"] = bds.pos().mul(scale);
         tmp["size"] = Size2(bds.size().mul(scale));
         tmp["type"] = std::string(cname);
-        tmp["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
+        if(Tracker::instance() && Tracker::background())
+            tmp["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
+        else
+            tmp["px"] = -1;
 
         if (contains(visible_bdx, blob->blob_id())) {
             auto id = visible_bdx.at(blob->blob_id());
@@ -426,7 +435,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         _individual_properties.push_back(std::move(tmp));
         _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](std::string) -> sprite::Map& {
             return _individual_properties.at(i);
-            }));
+        }));
     }
 }
 
@@ -445,7 +454,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         auto scale = wdim.div(output_size);
         section->set_scale(scale);
 
-        LockGuard lguard(ro_t{}, "drawing", 10);
+        LockGuard lguard(w_t{}, "drawing", 10);
         if (not lguard.locked()) {
             section->reuse_objects();
             return;
@@ -509,7 +518,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
             return;
 
         drawBlobs(meta_classes, scale, visible_bdx);
-        });
+    });
 
     graph.section("menus", [&](auto&, Section* section) {
         section->set_scale(graph.scale().reciprocal());

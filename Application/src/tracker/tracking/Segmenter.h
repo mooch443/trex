@@ -35,6 +35,7 @@ class Segmenter {
     std::vector<pv::BlobPtr> _progress_blobs, _transferred_blobs;
     
     std::function<void(float)> progress_callback;
+    std::future<void> average_generator;
     
 public:
     Segmenter();
@@ -42,6 +43,8 @@ public:
     void reset(Frame_t);
     void open_video();
     void open_camera();
+    
+    bool is_average_generating() const;
     
     void set_progress_callback(std::function<void(float)>);
     
