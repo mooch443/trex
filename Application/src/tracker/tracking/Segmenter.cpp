@@ -442,9 +442,10 @@ void Segmenter::tracking_thread() {
                 Timer timer;
                 while(average_generator.valid() && average_generator.wait_for(std::chrono::milliseconds(1)) != std::future_status::ready)
                 {
-                    if(timer.elapsed() > 1) {
+                    if(timer.elapsed() > 30) {
                         auto loc = cmn::source_location::current();
                         FormatExcept("Dead-lock possible in ", loc.file_name(),":", loc.line(), " with ", timer.elapsed(),"s");
+                        timer.reset();
                     }
                 }
                 
