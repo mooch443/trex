@@ -47,7 +47,7 @@ void VideoOpener::CustomFileChooser::set_update(std::function<void(float,float)>
 
 VideoOpener::LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
-      _checkbox(std::make_shared<gui::Checkbox>(Vec2(), name)),
+      _checkbox(std::make_shared<gui::Checkbox>(attr::Loc(), name)),
       _ref(gui::temp_settings[name])
 {
     _docs = gui::temp_docs[name];
@@ -953,7 +953,7 @@ void VideoOpener::select_file(const file::Path &p) {
             start = tmp[name].get().valueString();
         
         if(tmp[name].is_type<bool>()) {
-            children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), name, tmp[name].get().value<bool>(), gui::Font(0.7f))) );
+            children.push_back( Layout::Ptr(std::make_shared<Checkbox>(attr::Loc(), name, attr::Checked(tmp[name].get().value<bool>()), gui::Font(0.7f))) );
         } else if(name == "output_prefix") {
             std::vector<std::string> folders;
             for(auto &p : _selected.remove_filename().find_files()) {
@@ -1023,7 +1023,7 @@ void VideoOpener::select_file(const file::Path &p) {
     _load_results_checkbox = nullptr;
     auto path = Output::TrackingResults::expected_filename();
     if(path.exists()) {
-        children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), "load results", false, gui::Font(0.7f))) );
+        children.push_back( Layout::Ptr(std::make_shared<Checkbox>(std::string("load results"), attr::Checked(false), gui::Font(0.7f))) );
         _load_results_checkbox = dynamic_cast<Checkbox*>(children.back().get());
     } else
         children.push_back( Layout::Ptr(std::make_shared<Text>("No loadable results found.", Gray, gui::Font(0.7f, Style::Bold))) );

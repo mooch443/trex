@@ -1,6 +1,7 @@
 {"objects":[
     {
         "type":"vlayout",
+        "align":"left",
         "children":[
             {
                 "type":"stext",
@@ -12,95 +13,117 @@
             {
                 "type":"hlayout",
                 "pos":[0,0],
+                "margins":[6,6,6,6],
+                "align":"top",
                 "children":[
                     {   "type":"vlayout",
                         "pos":[0,0],
+                        "align":"right",
                         "children": [
                             {
                                 "type":"stext",
                                 "text":"source",
-                                "size":[100,50]
+                                "margins": [0,6.5,0,10],
+                                "line":[255,0,0]
                             },
                             {
                                 "type":"stext",
                                 "text":"target",
-                                "size":[100,50]
-                            },
-
-                            {
-                                "type":"collection",
-                                "size":[100,25]
+                                "margins": [0,6.5,0,43]
                             },
 
                             {
                                 "type":"condition",
                                 "var":"{global:track_background_subtraction}",
-                                "then": {
-                                    "type":"vlayout",
-                                    "children":[
-                                        {
-                                            "type":"stext",
-                                            "text":"model",
-                                            "size":[100,50]
-                                        },
-                                        {
-                                            "type":"stext",
-                                            "text":"region",
-                                            "size":[100,50]
-                                        }
-                                    ]
+                                "then": 
+                                {
+                                    "type":"stext",
+                                    "text":"model",
+                                    "margins": [0,6.5,0,10]
                                 },
-                                "else": { 
-                                    "type":"vlayout",
-                                    "children":[
-                                        {
-                                            "type":"stext",
-                                            "text":"averaging",
-                                            "size":[100,50]
-                                        },
-                                        {
-                                            "type":"stext",
-                                            "text":"threshold",
-                                            "size":[100,50]
-                                        }
-                                    ]
+                                "else": 
+                                {
+                                    "type":"stext",
+                                    "text":"averaging",
+                                    "margins": [0,6.5,0,10]
+                                }
+                            },
+
+                            {
+                                "type":"condition",
+                                "var":"{global:track_background_subtraction}",
+                                "then": 
+                                {
+                                    "type":"stext",
+                                    "text":"region",
+                                    "margins": [0,6.5,0,10]
+                                },
+                                "else":
+                                {
+                                    "type":"stext",
+                                    "text":"threshold",
+                                    "margins": [0,6.5,0,10]
                                 }
                             }
                         ]
                     },
                     {   "type":"vlayout",
                         "pos":[0,0],
+                        "align":"left",
                         "children": [
-                            {   "type":"button",
-                                "text":"\"{global:source}\"",
+                            {
+                                "type":"settings",
+                                "var":"source",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
                                 "fill":[50,50,50],
-                                "size":[500,45],
-                                "font":{
-                                    "align":"left",
-                                    "size":0.65
-                                },
-                                "action": "choose-source"
+                                "line":[75,75,75],
+                                "size":[500,40],
+                                "desc":""
                             },
-                            {   "type":"button",
-                                "text":"{global:output_dir}",
+                            {
+                                "type":"settings",
+                                "var":"output_dir",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
                                 "fill":[50,50,50],
-                                "size":[500,45],
-                                "font":{
-                                    "align":"left",
-                                    "size":0.65
-                                },
-                                "action": "choose-target"
+                                "line":[75,75,75],
+                                "size":[500,40],
+                                "desc":""
+                            },
+                            {
+                                "type":"settings",
+                                "var":"track_background_subtraction",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[200,50],
+                                "desc":"Use machine learning to detect animals"
                             },
 
                             {
-                                "type":"checkbox",
-                                "action":"toggle-background-subtraction",
-                                "text":"Use machine learning to detect animals",
-                                "checked":true,
-                                "size":[100,50],
-                                "font":{
-                                    "align":"left",
-                                    "size":0.75
+                                "type":"condition",
+                                "var":"{global:track_background_subtraction}",
+                                "then": {
+                                    "type":"settings",
+                                    "var":"model",
+                                    "font":{"size":0.75},
+                                    "color":[225,225,225],
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[500,40],
+                                    "desc":""
+                                },
+                                "else": {
+                                    "type":"settings",
+                                    "var":"averaging_method",
+                                    "font":{"size":0.75},
+                                    "color":[225,225,225],
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[500,40],
+                                    "desc":""
                                 }
                             },
 
@@ -108,55 +131,24 @@
                                 "type":"condition",
                                 "var":"{global:track_background_subtraction}",
                                 "then": {
-                                    "type":"vlayout",
-                                    "children":[
-                                        {   "type":"button",
-                                            "text":"{global:model}",
-                                            "fill":[50,50,50],
-                                            "size":[500,45],
-                                            "font":{
-                                                "align":"left",
-                                                "size":0.65
-                                            },
-                                            "action": "choose-model"
-                                        },
-                                        {   "type":"button",
-                                            "text":"{global:region_model}",
-                                            "fill":[50,50,50],
-                                            "size":[500,45],
-                                            "font":{
-                                                "align":"left",
-                                                "size":0.65
-                                            },
-                                            "action": "choose-region"
-                                        }
-                                    ]
+                                    "type":"settings",
+                                    "var":"region_model",
+                                    "font":{"size":0.75},
+                                    "color":[225,225,225],
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[500,40],
+                                    "desc":""
                                 },
-                                "else": { 
-                                    "type":"vlayout",
-                                    "children":[
-                                        {   "type":"button",
-                                            "text":"{global:averaging_method}",
-                                            "fill":[50,50,50],
-                                            "size":[500,45],
-                                            "font":{
-                                                "align":"left",
-                                                "size":0.65
-                                            },
-                                            "action": "choose-model"
-                                        },
-                                        {   "type":"textfield",
-                                            "text":"{global:threshold}",
-                                            "fill":[50,50,50],
-                                            "size":[500,45],
-                                            "color":[255,255,255],
-                                            "font":{
-                                                "align":"left",
-                                                "size":0.65
-                                            },
-                                            "action": "choose-region"
-                                        }
-                                    ]
+                                "else": {
+                                    "type":"settings",
+                                    "var":"threshold",
+                                    "font":{"size":0.75},
+                                    "color":[225,225,225],
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[500,40],
+                                    "desc":""
                                 }
                             }
 

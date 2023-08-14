@@ -71,7 +71,7 @@ struct LabeledCheckbox : public LabeledField {
 
 LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
-      _checkbox(std::make_shared<gui::Checkbox>(Vec2(), name)),
+      _checkbox(std::make_shared<gui::Checkbox>(attr::Loc(), name)),
       _ref(GlobalSettings::map()[name])
 {
     _docs = GlobalSettings::docs()[name];

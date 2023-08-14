@@ -16,7 +16,7 @@
 						"then":{
 							"type": "collection",
 							"children": [
-								{ "type":"text", "text":"waiting for the average to generate...", "font":{"size":0.75,"style":"regular"}, "color":[220,220,220] }
+								{ "type":"text", "text":"detecting the background...", "font":{"size":0.75,"style":"regular"}, "color":[220,220,220] }
 							]
 						},
 						"else":{
