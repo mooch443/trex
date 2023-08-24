@@ -5,7 +5,7 @@
         "children":[
             {
                 "type":"stext",
-                "text":"<h2>Settings</h2>Please choose how you want to process the video you provided.",
+                "text":"<h2>Segmentation Settings</h2>Please choose how you want to process the video you provided.",
                 "font":{
                     "size":0.8
                 }
