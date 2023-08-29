@@ -118,7 +118,7 @@ void SettingsScene::_draw(DrawStructure& graph) {
     std::vector<Layout::Ptr> _objs{objects.begin(), objects.end()};
     _objs.push_back(Layout::Ptr(_preview_image));
     _logo_title_layout->set_children(_objs);
-    _logo_title_layout->set_policy(VerticalLayout::Policy::CENTER);
+    //_logo_title_layout->set_policy(VerticalLayout::Policy::CENTER);
     
     for(auto &obj : objects) {
         dyn::update_objects(graph, obj, context, state);

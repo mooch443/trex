@@ -729,6 +729,22 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             return 0;
         });
 
+        _cache_func["detection_class"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob && blob->pred.valid()) {
+                return blob->pred.clid;
+            }
+            return gui::Graph::invalid();
+        });
+        
+        _cache_func["detection_p"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob && blob->pred.valid()) {
+                return blob->pred.probability();
+            }
+            return gui::Graph::invalid();
+        });
+        
 #if !COMMONS_NO_PYTHON
         _cache_func["category"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
