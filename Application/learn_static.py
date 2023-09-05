@@ -94,7 +94,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
     
     def update_status(self, print_out = False, logs = {}):
         description = "epoch "+str(min(self.epoch+1, self.epochs))+"/"+str(self.epochs)
-        if np.shape(self.X_test)[-1] > 0 and len(self.worst_values) > 0:
+        if len(self.X_test) > 0 and len(self.worst_values) > 0:
             description += " -- worst acc/class: {0:.3f}".format(self.worst_values[-1])
 
         if self.best_result["unique"] > -1:
@@ -120,7 +120,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         
         self.epoch = min(epoch + 1, self.epochs)
 
-        if np.shape(self.X_test)[-1] > 0:
+        if len(self.X_test) > 0:
             result, predictions = self.plot_comparison_raw(do_plot = False, length = -1)
             
             for i in range(0, len(result[:, 3])):

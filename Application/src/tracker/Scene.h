@@ -41,9 +41,10 @@ public:
 
 class SceneManager {
     Scene* active_scene{ nullptr };
+    Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
     std::queue<std::function<void()>> _queue;
-    std::mutex _mutex;
+    mutable std::mutex _mutex;
 
     // Private constructor to prevent external instantiation
     SceneManager() {}
@@ -69,8 +70,10 @@ public:
     void set_active(Scene* scene);
 
     void register_scene(Scene* scene);
+    void unregister_scene(Scene* scene);
 
     void set_active(std::string name);
+    Scene* last_active() const;
 
     ~SceneManager();
 

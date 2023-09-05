@@ -14,6 +14,21 @@ SettingsScene::SettingsScene(Base& window)
 _preview_image(std::make_shared<ExternalImage>()),
 context ({
     .actions = {
+        {
+            "go-back",
+            [](Event){
+                auto prev = SceneManager::getInstance().last_active();
+                if(prev)
+                    SceneManager::getInstance().set_active(prev);
+                print("Going back");
+            }
+        },
+        {
+            "convert",
+            [](Event){
+                SceneManager::getInstance().set_active("convert-scene");
+            }
+        },
         { "choose-source",
             [](Event){
                 print("choose-source");
@@ -94,7 +109,7 @@ void SettingsScene::activate() {
      item._options[key].get().copy_to(&GlobalSettings::map());
      
      //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
-     //SceneManager::getInstance().set_active("converting");
+     //SceneManager::getInstance().set_active("convert-scene");
      SceneManager::getInstance().set_active("settings-menu");
      });*/
 }

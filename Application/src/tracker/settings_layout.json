@@ -11,6 +11,17 @@
                 }
             },
             {
+                "type":"button",
+                "text":"Back",
+                "fill":[50,50,50],
+                "size":[50,40],
+                "font":{
+                    "align":"center",
+                    "size":0.65
+                },
+                "action": "go-back"
+            },
+            {
                 "type":"hlayout",
                 "pos":[0,0],
                 "margins":[6,6,6,6],

@@ -43,7 +43,7 @@ std::string window_title() {
         + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
 }
 
-ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate) : Scene(window, "converting",
+ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate) : Scene(window, "convert-scene",
     [this](Scene&, DrawStructure& graph) {
         _draw(graph);
     }),

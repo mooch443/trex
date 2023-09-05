@@ -32,14 +32,14 @@ StartingScene::StartingScene(Base& window)
     // Callback for video file button
     _video_file_button->on_click([](auto){
         // Implement logic to handle the video file
-        SceneManager::getInstance().set_active("converting");
+        SceneManager::getInstance().set_active("convert-scene");
     });
 
     // Callback for camera button
     _camera_button->on_click([](auto){
         // Implement logic to start recording from camera
         SETTING(source).value<std::string>() = "webcam";
-        SceneManager::getInstance().set_active("converting");
+        SceneManager::getInstance().set_active("convert-scene");
     });
     
     // Create a new HorizontalLayout for the buttons
@@ -79,7 +79,7 @@ void StartingScene::activate() {
             item._options[key].get().copy_to(&GlobalSettings::map());
         
         //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
-        //SceneManager::getInstance().set_active("converting");
+        //SceneManager::getInstance().set_active("convert-scene");
         SceneManager::getInstance().set_active("settings-scene");
     });
 }

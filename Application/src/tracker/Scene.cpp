@@ -15,6 +15,7 @@ void SceneManager::set_active(Scene* scene) {
         if (active_scene && active_scene != scene) {
             active_scene->deactivate();
         }
+        last_active_scene = active_scene;
         active_scene = scene;
         if (scene)
             scene->activate();
@@ -22,9 +23,24 @@ void SceneManager::set_active(Scene* scene) {
     enqueue(fn);
 }
 
+Scene* SceneManager::last_active() const {
+    std::unique_lock guard{_mutex};
+    return last_active_scene;
+}
+
 void SceneManager::register_scene(Scene* scene) {
     std::unique_lock guard{_mutex};
     _scene_registry[scene->name()] = scene;
+}
+
+void SceneManager::unregister_scene(Scene* scene) {
+    std::unique_lock guard{_mutex};
+    for(auto&[name, s] : _scene_registry) {
+        if(s == scene) {
+            _scene_registry.erase(name);
+            break;
+        }
+    }
 }
 
 void SceneManager::set_active(std::string name) {
