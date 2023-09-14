@@ -175,6 +175,7 @@ void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
         ADD_FIELD(LabeledTextField, "individual_image_size");
         ADD_FIELD(LabeledTextField, "individual_image_scale");
         ADD_FIELD(LabeledDropDown, "individual_image_normalization");
+        ADD_FIELD(LabeledCheckbox, "track_background_subtraction");
         
         std::vector<Layout::Ptr> objects;
         for(auto &[key, obj] : fields)

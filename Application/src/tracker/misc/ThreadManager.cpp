@@ -1,5 +1,6 @@
 #include "ThreadManager.h"
 #include <misc/format.h>
+#include <file/Path.h>
 
 using namespace cmn;
 
@@ -16,7 +17,7 @@ void ThreadManager::addThread(int group, const std::string& name, ManagedThread&
     std::lock_guard<std::mutex> lock(mtx);
     ManagedThreadWrapper wrapper{nullptr, std::move(managedThread)};
     groups.at(group).threads.push_back(std::move(wrapper));
-    cmn::thread_print("Added thread", name, "to group", group);
+    cmn::thread_print("Added thread ", name, " to group ", group);
 }
 
 const ThreadGroup* ThreadManager::registerGroup(int group, const std::string& name, source_location loc) {
@@ -32,7 +33,7 @@ const ThreadGroup* ThreadManager::registerGroup(int group, const std::string& na
     g.threads.clear();
     g.onEndCallbacks.clear();
     g.started = false;
-    thread_print("Registered group ", group, " with name ", name, " from ", loc.file_name(),":", loc.line());
+    thread_print("Registered group ", group, " with name ", name, " from ", file::Path(loc.file_name()).filename(),":", loc.line());
     return &g;
 }
 
