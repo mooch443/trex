@@ -375,10 +375,13 @@ int main(int argc, char**argv) {
     if(not SETTING(source).value<std::string>().empty())
         SETTING(scene_crash_is_fatal) = true;
     
+    std::string last_error;
+    
     if(SETTING(nowindow)) {
-        Segmenter segmenter([](std::string error) {
+        Segmenter segmenter([&last_error](std::string error) {
             SETTING(error_terminate) = true;
             SETTING(terminate) = true;
+            last_error = error;
         });
         print("Loading source = ", SETTING(source).value<std::string>());
         
@@ -461,6 +464,13 @@ int main(int argc, char**argv) {
     } catch(const std::exception& e) {
         FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
     }
-    return SETTING(error_terminate) ? 1 : 0;
+    
+    if(SETTING(error_terminate)) {
+        if(not last_error.empty())
+            FormatError(last_error.c_str());
+        return 1;
+    }
+    
+    return 0;
 }
 
