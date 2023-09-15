@@ -376,7 +376,10 @@ int main(int argc, char**argv) {
         SETTING(scene_crash_is_fatal) = true;
     
     if(SETTING(nowindow)) {
-        Segmenter segmenter;
+        Segmenter segmenter([](std::string error) {
+            SETTING(error_terminate) = true;
+            SETTING(terminate) = true;
+        });
         print("Loading source = ", SETTING(source).value<std::string>());
         
         ind::ProgressBar bar{
@@ -436,11 +439,17 @@ int main(int argc, char**argv) {
         if(finite) {
             bar.set_progress(100);
             bar.mark_as_completed();
-        } else {
+        } else if(not SETTING(error_terminate)) {
             spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
             spinner.set_option(ind::option::PrefixText{"✔"});
             spinner.set_option(ind::option::ShowSpinner{false});
             spinner.set_option(ind::option::PostfixText{"Done."});
+            spinner.mark_as_completed();
+        } else {
+            spinner.set_option(ind::option::ForegroundColor{ind::Color::red});
+            spinner.set_option(ind::option::PrefixText{"X"});
+            spinner.set_option(ind::option::ShowSpinner{false});
+            spinner.set_option(ind::option::PostfixText{"Failed."});
             spinner.mark_as_completed();
         }
         
@@ -452,6 +461,6 @@ int main(int argc, char**argv) {
     } catch(const std::exception& e) {
         FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
     }
-    return 0;
+    return SETTING(error_terminate) ? 1 : 0;
 }
 

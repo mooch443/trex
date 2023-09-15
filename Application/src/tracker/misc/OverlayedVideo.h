@@ -134,8 +134,17 @@ struct OverlayedVideo {
             return std::make_tuple(nix, this->overlay.apply(std::move(tiled)));
             
         } catch(const std::exception& e) {
+            // print out the entire error to terminal:
             FormatExcept("Error loading frame ", loaded, " from video ", *source, ": ", e.what());
-            return tl::unexpected("Error loading frame.");
+            
+            // potentially shorten the error:
+            auto what = std::string(e.what());
+            constexpr size_t max_len = 300u;
+            if(what.length() > max_len) {
+                what = what.substr(0u, max_len / 2u) + "[...]" + what.substr(what.length() - max_len / 2u - 1u);
+            }
+            static std::string error = "Error loading frame " + Meta::toStr(loaded) + " from video " + Meta::toStr(*source) + ": "+what;
+            return tl::unexpected(error.c_str());
         }
     }
     
