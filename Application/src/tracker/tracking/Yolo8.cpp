@@ -11,6 +11,9 @@ std::mutex running_mutex;
 std::shared_future<void> running_prediction;
 std::promise<void> running_promise;
 
+std::mutex init_mutex;
+std::future<void> init_future;
+
 void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
@@ -44,11 +47,22 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
             SETTING(region_resolution).value<uint16_t>()
         );
 
+    if(models.empty()) {
+        if(not SETTING(model).value<file::Path>().empty())
+            throw U_EXCEPTION("Cannot find model ", SETTING(model).value<file::Path>());
+        
+        throw U_EXCEPTION("Please provide at least one model to use for segmentation.");
+    }
+    
     PythonIntegration::set_models(models, proxy.m);
 }
 
 void Yolo8::init() {
-    Python::schedule([](){
+    std::unique_lock guard(init_mutex);
+    if(init_future.valid())
+        init_future.get();
+    
+    init_future = Python::schedule([](){
         using py = track::PythonIntegration;
         py::ModuleProxy proxy{
             "bbx_saved_model",
@@ -323,6 +337,12 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
 }
 
 void Yolo8::apply(std::vector<TileImage>&& tiles) {
+    if(std::unique_lock guard(init_mutex);
+       init_future.valid() /*&& init_future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready*/)
+    {
+        init_future.get();
+    }
+    
     namespace py = Python;
     
     struct TransferData {

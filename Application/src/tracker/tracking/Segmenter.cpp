@@ -12,7 +12,9 @@ file::Path average_name() {
     return path;
 }
 
-Segmenter::Segmenter() {
+Segmenter::Segmenter(std::function<void(std::string)> error_callback)
+    : error_callback(error_callback)
+{
     start_timer.reset();
 
     ThreadManager::getInstance().registerGroup(thread_id, "Segmenter");
@@ -335,6 +337,8 @@ void Segmenter::generator_thread() {
             
             if (not result) {
                 //_overlayed_video->reset(0_f);
+                if(error_callback)
+                    error_callback("Cannot generate results: "+std::string(result.error()));
             }
             else {
                 assert(std::get<1>(result.value()).valid());

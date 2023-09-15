@@ -1,5 +1,5 @@
 #include "Scene.h"
-
+#include <misc/default_settings.h>
 
 namespace gui {
 
@@ -78,7 +78,7 @@ void SceneManager::update(DrawStructure& graph) {
     
     auto str = switching_error().read();
     if(not str.empty()) {
-        graph.dialog(str);
+        graph.dialog(settings::htmlify(str), "Error");
     }
 }
 

@@ -96,7 +96,15 @@ void launch_gui() {
     
     static std::unique_ptr<Segmenter> segmenter;
     ConvertScene converting(base, [&](ConvertScene& scene){
-        segmenter = std::make_unique<Segmenter>();
+        segmenter = std::make_unique<Segmenter>([&manager](std::string error) {
+            if(SETTING(nowindow))
+                throw U_EXCEPTION("Error converting: ", error);
+            
+            manager.set_switching_error(error);
+            if(manager.last_active())
+                manager.set_active(manager.last_active());
+            else manager.set_active("starting-scene");
+        });
         scene.set_segmenter(segmenter.get());
         
         // on activate

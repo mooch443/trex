@@ -36,9 +36,10 @@ class Segmenter {
     
     std::function<void(float)> progress_callback;
     std::future<void> average_generator;
+    std::function<void(std::string)> error_callback;
     
 public:
-    Segmenter();
+    Segmenter(std::function<void(std::string)> error = nullptr);
     ~Segmenter();
     void reset(Frame_t);
     void open_video();
