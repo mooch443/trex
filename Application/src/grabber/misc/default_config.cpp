@@ -25,8 +25,7 @@ const char *homedir = getenv("USERPROFILE");
 #endif
 
 using namespace file;
-#define CONFIG adding.add
-
+#define CONFIG adding.add<ParameterCategoryType::TRACKING>
 namespace default_config {
 
 ENUM_CLASS_DOCS(meta_encoding_t,

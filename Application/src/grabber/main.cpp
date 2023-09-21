@@ -362,7 +362,7 @@ int main(int argc, char** argv)
         
         // switch working directory
         DebugHeader("LOADING COMMANDLINE");
-        CommandLine cmd(argc, argv, true, grab::default_config::deprecations());
+        CommandLine::init(argc, argv, true, grab::default_config::deprecations());
         file::cd(file::DataLocation::parse("app"));
         
         auto default_path = file::DataLocation::parse("default.settings");
@@ -372,6 +372,7 @@ int main(int argc, char** argv)
             DebugHeader("LOADED ",default_path);
         }
         
+        auto& cmd = CommandLine::instance();
         for(auto &option : cmd) {
             if(Arguments::has(option.name)) {
                 switch (Arguments::get(option.name)) {

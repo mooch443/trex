@@ -136,12 +136,13 @@ int main(int argc, char**argv) {
     
     GlobalSettings::map().set_do_print(true);
     
-    CommandLine cmd(argc, argv, true);
+    CommandLine::init(argc, argv, true);
     
     /**
      * Try to load Settings from the command-line that have been
      * ignored previously.
      */
+    auto &cmd = CommandLine::instance();
     cmd.load_settings();
     
     for(auto &option : cmd) {

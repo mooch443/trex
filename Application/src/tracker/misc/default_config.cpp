@@ -36,7 +36,7 @@ const auto homedir = []() {
 #include <misc/OutputLibrary.h>
 
 using namespace file;
-#define CONFIG adding.add
+#define CONFIG adding.add<ParameterCategoryType::CONVERTING>
 
 namespace default_config {
     ENUM_CLASS_DOCS(recognition_border_t,
@@ -308,7 +308,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         using namespace settings;
         Adding adding(config, docs, fn);
         
-        CONFIG<std::string>("app_name", "TRex", "Name of the application.", SYSTEM);
+        CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
         CONFIG("app_last_update_check", uint64_t(0), "Time-point of when the application has last checked for an update.", SYSTEM);
         CONFIG("app_last_update_version", std::string(), "");
@@ -372,7 +372,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
-        CONFIG<std::pair<pv::bid, Frame_t>>("gui_show_fish", {pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
+        CONFIG("gui_show_fish", std::pair<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
         config.dont_print("gui_source_video_frame");
         CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");

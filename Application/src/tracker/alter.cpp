@@ -294,11 +294,11 @@ int main(int argc, char**argv) {
     namespace py = Python;
     print("CWD: ", file::cwd());
     DebugHeader("LOADING COMMANDLINE");
-    CommandLine cmd(argc, argv, true);
+    CommandLine::init(argc, argv, true);
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    for(auto a : cmd) {
+    for(auto a : CommandLine::instance()) {
         if(a.name == "s") {
             SETTING(settings_file) = file::Path(a.value).add_extension("settings");
         }
@@ -370,7 +370,7 @@ int main(int argc, char**argv) {
     SETTING(meta_conversion_time) = std::string(date_time());
     SETTING(meta_encoding) = grab::default_config::meta_encoding_t::r3g3b2;
 
-    cmd.load_settings();
+    CommandLine::instance().load_settings();
     
     if(not SETTING(source).value<std::string>().empty())
         SETTING(scene_crash_is_fatal) = true;
@@ -439,22 +439,23 @@ int main(int argc, char**argv) {
         while(not SETTING(terminate))
             std::this_thread::sleep_for(std::chrono::seconds(1));
         
-        if(finite) {
-            bar.set_progress(100);
-            bar.mark_as_completed();
-        } else if(not SETTING(error_terminate)) {
+        if(not SETTING(error_terminate)) {
             spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
             spinner.set_option(ind::option::PrefixText{"✔"});
             spinner.set_option(ind::option::ShowSpinner{false});
             spinner.set_option(ind::option::PostfixText{"Done."});
-            spinner.mark_as_completed();
         } else {
             spinner.set_option(ind::option::ForegroundColor{ind::Color::red});
             spinner.set_option(ind::option::PrefixText{"X"});
             spinner.set_option(ind::option::ShowSpinner{false});
             spinner.set_option(ind::option::PostfixText{"Failed."});
-            spinner.mark_as_completed();
         }
+            
+        if(finite) {
+            bar.set_progress(100);
+            bar.mark_as_completed();
+        } else
+            spinner.mark_as_completed();
         
     } else
         launch_gui();

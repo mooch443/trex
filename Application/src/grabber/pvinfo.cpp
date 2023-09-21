@@ -174,7 +174,8 @@ int main(int argc, char**argv) {
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
-    CommandLine cmd(argc, argv, true);
+    CommandLine::init(argc, argv, true);
+    auto &cmd = CommandLine::instance();
     file::cd(file::DataLocation::parse("app"));
     
     std::map<std::string, std::string> updated_settings;

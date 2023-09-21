@@ -5,6 +5,7 @@
 #include <gui/types/ListItemTypes.h>
 #include <nlohmann/json.hpp>
 #include <misc/RecentItems.h>
+#include <misc/CommandLine.h>
 
 namespace gui {
 
@@ -77,6 +78,8 @@ void StartingScene::activate() {
         item._options.set_do_print(true);
         for (auto& key : item._options.keys())
             item._options[key].get().copy_to(&GlobalSettings::map());
+        
+        CommandLine::instance().load_settings();
         
         //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
         //SceneManager::getInstance().set_active("convert-scene");

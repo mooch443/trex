@@ -354,7 +354,7 @@ int main(int argc, char**argv) {
 	default_config::register_default_locations();
 	GlobalSettings::map().set_do_print(true);
 
-	CommandLine cmd(argc, argv);
+	CommandLine::init(argc, argv);
     file::cd(file::DataLocation::parse("app"));
 
 	gui::init_errorlog();

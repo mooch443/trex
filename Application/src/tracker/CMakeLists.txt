@@ -91,12 +91,7 @@ endif()
 if(NOT WIN32 AND TREX_WITH_TESTS)
     #windows does not support large cpp files
     add_subdirectory(tests)
-    
-    if(APPLE)
-        add_executable(test_imgui program.cpp)
-    else()
-        add_executable(test_imgui program.cpp)
-    endif(APPLE)
+    add_executable(test_imgui program.cpp)
 
     target_link_libraries(test_imgui PUBLIC
         framegrabber_misc

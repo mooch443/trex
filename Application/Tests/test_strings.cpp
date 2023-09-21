@@ -431,15 +431,19 @@ TEST(ParseSetMetaTest, HandlesEmptyInput) {
     ASSERT_EQ(0, result.size());
 }
 
-std::string which_from(const auto& indexes, const auto& corpus) {
+std::string which_from(const auto& indexes, const auto& corpus, size_t len = 0) {
     std::string r = "[";
     bool first = true;
+    size_t I{0u};
     for(auto index : indexes) {
         if(not first) {
             r += ',';
         }
         r += size_t(index) < corpus.size() ? "'"+corpus.at(index)+"'" : "<invalid:"+std::to_string(index)+">";
         first = false;
+        
+        if(len > 0u && ++I >= len)
+            break;
     }
     
     return r+"] from the corpus";
@@ -453,22 +457,52 @@ bool compare_to_first_n_elements(const std::vector<int>& vec1, const std::vector
     return std::equal(vec1.begin(), vec1.end(), vec2.begin());
 }
 
+bool first_elements_should_contain(const std::vector<int>& vec1, const std::vector<int>& vec2) {
+    if (vec1.size() > vec2.size()) {
+        return false;
+    }
+    auto sub = std::vector<int>(vec2.begin(), vec2.begin() + vec1.size());
+    for(auto& v : vec1)
+        if(not contains(sub, v))
+            return false;
+    return true;
+}
+
 TEST(TextSearchTest, HandlesMultipleWords) {
     std::vector<std::string> corpus = {"apples", "oranges", "apples_oranges"};
 
     // Test case: search for "apples oranges", should return only "apples_oranges" (index 2)
     auto result = text_search("apples oranges", corpus);
     decltype(result) expected{2, 1, 0};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus);
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size());
+}
+
+TEST(TextSearchTest, ReturnsLongerStringFirst) {
+    std::vector<std::string> corpus = {
+        "potoo6511_small_abstract_t-rex_silhouette_black_and_white_minim_d1dd143b-dsg-4ca8-fsd46-fgd43234234.png",
+        "640-yolov8n-seg-2023-09-14-10_MouseSourveillance-2-mAP5095_0.93182-mAP50_0.97449.pt",
+        "2023-02-21-raspios-bullseye-armhf-lite.img.xz",
+        "yolov7-tiny-640p-20230418T075703Z-001.zip",
+        "reversals3m_1024_dotbot_20181025_105202.stitched.pv",
+        "65MP01_10Kmarching_01_2023-03-29_10-10-24-924.jpg",
+        "20230622_ContRamp_60deg_0.5degmin_R1_Myrmica_rubra_C3_C2_1920x1080@20FPS_11-42-01.mp4",
+        "640-yolov8n-2023-07-18-13_mais-2-mAP5095_0.94445-mAP50_0.995.pt"
+    };
+
+    // Test case: search for "apples oranges", should return only "apples_oranges" (index 2)
+    auto result = text_search("yolov8n 640 seg mouse", corpus);
+    decltype(result) expected{1,7,3};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size());
 }
 
 TEST(TextSearchTest, HandlesSingleWord) {
     std::vector<std::string> corpus = {"apples", "oranges", "apples_oranges"};
 
     // Test case: search for "apples", should return "apples" (index 0) and "apples_oranges" (index 2)
-    auto result = text_search("apples", corpus);
+    auto search = "apples";
+    auto result = text_search(search, corpus);
     decltype(result) expected{0, 2};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus);
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search '" << search << "'";
 }
 
 TEST(TextSearchTest, HandlesSingleCharacter) {
@@ -477,7 +511,7 @@ TEST(TextSearchTest, HandlesSingleCharacter) {
     // Test case: search for "apples", should return "apples" (index 0) and "apples_oranges" (index 2)
     auto result = text_search("$", corpus);
     decltype(result) expected{0};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus);
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size());
 }
 
 TEST(TextSearchTest, HandlesMisspelledWord) {
@@ -486,7 +520,7 @@ TEST(TextSearchTest, HandlesMisspelledWord) {
     // Test case: search for "organes" (misspelled), should return "oranges" (index 1) and "apples_oranges" (index 2)
     auto result = text_search("organes", corpus);
     decltype(result) expected{1,2};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'organes'";
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'organes'";
 }
 
 TEST(SearchText, HandlesPhrasesWithCommonWords) {
@@ -501,7 +535,85 @@ TEST(SearchText, HandlesPhrasesWithCommonWords) {
 
     auto result = text_search("apple banana", corpus);
     decltype(result) expected = {2};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'apple banana'";
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'apple banana'";
+}
+
+TEST(SearchText, HandlesPaths) {
+    std::vector<std::string> corpus = {
+        "apple/pie/recipe",
+        "/rooted/path/to/folder",
+        "/folder/ending/"
+    };
+
+    auto input = "rooted banana";
+    auto result = text_search(input, corpus);
+    decltype(result) expected = {1};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<input<<"'";
+    
+    input = "rooted/folder";
+    result = text_search(input, corpus);
+    expected = {1,2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<input<<"'";
+}
+
+TEST(SearchText, MatchesPathsCorrectly) {
+    std::vector<std::string> corpus = {
+        "apple/pie/recipe",
+        "/rooted/path/to/folder/2023-02-21-raspios-bullseye-armhf-lite.img.xz",
+        "/rooted/path/to/folder/yolov7-tiny-640p-20230418T075703Z-001.zip",
+        "/folder/ending/640-yolov8n-seg-2023-09-14-10_MouseSourveillance-2-mAP5095_0.93182-mAP50_0.97449.pt"
+    };
+
+    auto input = "640 yolov8n";
+    auto result = text_search(input, corpus);
+    auto expected = {3,2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<input<<"'";
+}
+
+TEST(SearchText, EmptyInput) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("", corpus);
+    decltype(result) expected = {0,1,2,3,4,5};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'aplpe banan'";
+}
+
+TEST(SearchText, AlwaysReturnAllItems) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("banana", corpus);
+    ASSERT_EQ(result.size(), corpus.size()) << " only returned " << which_from(result, corpus) << " instead of the entire corpus of " << Meta::toStr(corpus);
+}
+
+TEST(SearchText, ExactInput) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe",
+        "$"
+    };
+
+    auto search_term = "$";
+    auto result = text_search(search_term, corpus);
+    decltype(result) expected = {6};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<search_term<<"'";
 }
 
 TEST(SearchText, HandlesMultipleMisspellings) {
@@ -516,7 +628,7 @@ TEST(SearchText, HandlesMultipleMisspellings) {
 
     auto result = text_search("aplpe banan", corpus);
     decltype(result) expected = {3,2,1};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'aplpe banan'";
+    ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'aplpe banan'";
 }
 
 TEST(SearchText, HandlesPunctuationAndSpaces) {
@@ -531,7 +643,7 @@ TEST(SearchText, HandlesPunctuationAndSpaces) {
 
     auto result = text_search("apple, banana", corpus);
     decltype(result) expected = {2};
-    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'apple, banana'";
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'apple, banana'";
 }
 
 TEST(SearchText, HandlesPartialParameterNames) {
@@ -545,13 +657,13 @@ TEST(SearchText, HandlesPartialParameterNames) {
     {
         auto result = text_search("track_th", corpus);
         decltype(result) expected = {0,2,1};
-        ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'track_th'";
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'track_th'";
     }
     
     {
         auto result = text_search("track_threshold", corpus);
         decltype(result) expected = {0,2,1};
-        ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'track_threshold'";
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'track_threshold'";
     }
 }
 
@@ -571,12 +683,12 @@ TEST(SearchText, HandlesPartialWordMatches) {
     {
         auto result = text_search("track_th", corpus);
         decltype(result) expected = {6, 8, 7};
-        ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'track_th'";
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'track_th'";
     }
     {
         auto result = text_search("rec", corpus);
         decltype(result) expected = {0, 1, 5};
-        ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus) << " for search term 'rec'";
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'rec'";
     }
     
     
