@@ -1184,4 +1184,22 @@ void PythonIntegration::import_module(const std::string& name) {
     }
 }
 
+void PythonIntegration::unload_module(const std::string& name) {
+    check_correct_thread_id();
+    
+    std::lock_guard<std::mutex> guard(module_mutex);
+    if(_module_contents.contains(name))
+        _module_contents.erase(name);
+
+    try {
+        if(_modules.contains(name)) {
+            _modules[name].release();
+            _modules.erase(name);
+        }
+    }
+    catch (pybind11::error_already_set & e) {
+        throw SoftException(e.what());
+    }
+}
+
 }

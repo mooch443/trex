@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.11)
 if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
     message(STATUS "* Please consider to switch to CMake 3.11.0")
 endif()

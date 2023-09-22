@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <misc/RecentItems.h>
 #include <misc/CommandLine.h>
+#include <file/PathArray.h>
 
 namespace gui {
 
@@ -39,7 +40,7 @@ StartingScene::StartingScene(Base& window)
     // Callback for camera button
     _camera_button->on_click([](auto){
         // Implement logic to start recording from camera
-        SETTING(source).value<std::string>() = "webcam";
+        SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
         SceneManager::getInstance().set_active("convert-scene");
     });
     

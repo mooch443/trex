@@ -1,6 +1,7 @@
 #include "Segmenter.h"
 #include <file/DataLocation.h>
 #include <grabber/misc/default_config.h>
+#include <file/PathArray.h>
 
 namespace track {
 
@@ -84,7 +85,7 @@ Segmenter::~Segmenter() {
     _transferred_current_data = {};
     
     SETTING(is_writing) = false;
-    SETTING(source) = std::string();
+    SETTING(source) = file::PathArray();
     SETTING(filename) = file::Path();
     SETTING(frame_rate) = uint32_t(-1);
 }
@@ -116,7 +117,7 @@ bool Segmenter::is_average_generating() const {
 }
 
 void Segmenter::open_video() {
-    VideoSource video_base(SETTING(source).value<std::string>());
+    VideoSource video_base(SETTING(source).value<file::PathArray>());
     video_base.set_colors(ImageMode::RGB);
 
     SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
@@ -198,7 +199,7 @@ void Segmenter::open_video() {
             cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC1);
             bg.setTo(255);
             
-            VideoSource tmp(SETTING(source).value<std::string>());
+            VideoSource tmp(SETTING(source).value<file::PathArray>());
             tmp.generate_average(bg, 0);
             cv::imwrite(average_name().str(), bg);
             
@@ -558,7 +559,7 @@ void Segmenter::printDebugInformation() {
     else
         print("model: ", SETTING(model).value<file::Path>() != "" ? SETTING(model).value<file::Path>() : SETTING(segmentation_path).value<file::Path>());
     print("region model: ", SETTING(region_model).value<file::Path>());
-    print("video: ", SETTING(source).value<std::string>());
+    print("video: ", SETTING(source).value<file::PathArray>());
     print("model resolution: ", SETTING(detection_resolution).value<uint16_t>());
     print("output size: ", SETTING(output_size).value<Size2>());
     print("output path: ", SETTING(filename).value<file::Path>());

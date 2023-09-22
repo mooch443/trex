@@ -10,6 +10,7 @@
 #include <tracking/IndividualManager.h>
 #include <misc/ThreadManager.h>
 #include <misc/RecentItems.h>
+#include <file/PathArray.h>
 
 namespace gui {
 
@@ -240,14 +241,14 @@ void ConvertScene::activate()  {
         if(_on_activate)
             _on_activate(*this);
         
-        print("Loading source = ", SETTING(source).value<std::string>());
-        SETTING(meta_source_path) = SETTING(source).value<std::string>();
-        if (SETTING(source).value<std::string>() == "webcam")
+        print("Loading source = ", SETTING(source).value<file::PathArray>());
+        SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
+        if (SETTING(source).value<file::PathArray>() == file::PathArray({file::Path("webcam")}))
             open_camera();
         else
             open_video();
 
-        RecentItems::open(SETTING(source).value<std::string>(), GlobalSettings::map());
+        RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::map());
 
         auto size = segmenter().size();
         auto work_area = ((const IMGUIBase*)window())->work_area();

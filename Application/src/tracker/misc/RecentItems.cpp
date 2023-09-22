@@ -24,13 +24,13 @@ std::string RecentItems::Item::toStr() const {
     return _name;
 }
 
-void RecentItems::open(std::string name, const sprite::Map& options) {
+void RecentItems::open(const file::PathArray& name, const sprite::Map& options) {
     auto recent = RecentItems::read();
     //if (recent.has(name)) {
     //    return;
     //}
 
-    recent.add(name, options);
+    recent.add(name.source(), options);
     recent.write();
 }
 
@@ -81,7 +81,7 @@ RecentItems RecentItems::read() {
                         ._name = name
                     };
                     item._options.set_do_print(false);
-                    print("key:", name);
+                    print("RecentItem<", name,">");
 
                     auto settings = key.at("settings");
                     for (auto& i : settings.items()) {

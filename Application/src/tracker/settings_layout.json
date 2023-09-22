@@ -12,9 +12,9 @@
             },
             {
                 "type":"button",
-                "text":"Back",
+                "text":"< Back",
                 "fill":[50,50,50],
-                "size":[50,40],
+                "size":[150,40],
                 "font":{
                     "align":"center",
                     "size":0.65
@@ -49,13 +49,13 @@
                                 "then": 
                                 {
                                     "type":"stext",
-                                    "text":"model",
+                                    "text":"averaging",
                                     "margins": [0,6.5,0,10]
                                 },
                                 "else": 
                                 {
                                     "type":"stext",
-                                    "text":"averaging",
+                                    "text":"model",
                                     "margins": [0,6.5,0,10]
                                 }
                             },
@@ -66,13 +66,13 @@
                                 "then": 
                                 {
                                     "type":"stext",
-                                    "text":"region",
+                                    "text":"threshold",
                                     "margins": [0,6.5,0,10]
                                 },
                                 "else":
                                 {
                                     "type":"stext",
-                                    "text":"threshold",
+                                    "text":"region",
                                     "margins": [0,6.5,0,10]
                                 }
                             }
@@ -89,8 +89,17 @@
                                 "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
-                                "size":[500,40],
+                                "size":[800,40],
                                 "desc":""
+                            },
+                            {
+                                "type":"stext",
+                                "text":"{#global:source}",
+                                "max_size":[800,-1],
+                                "color":[150,150,150],
+                                "font":{
+                                    "size":0.35
+                                }
                             },
                             {
                                 "type":"settings",
@@ -99,12 +108,13 @@
                                 "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
-                                "size":[500,40],
+                                "size":[800,40],
                                 "desc":""
                             },
                             {
                                 "type":"settings",
                                 "var":"track_background_subtraction",
+                                "invert":true,
                                 "font":{"size":0.75},
                                 "color":[225,225,225],
                                 "fill":[50,50,50],
@@ -118,22 +128,22 @@
                                 "var":"{global:track_background_subtraction}",
                                 "then": {
                                     "type":"settings",
-                                    "var":"model",
-                                    "font":{"size":0.75},
-                                    "color":[225,225,225],
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[500,40],
-                                    "desc":""
-                                },
-                                "else": {
-                                    "type":"settings",
                                     "var":"averaging_method",
                                     "font":{"size":0.75},
                                     "color":[225,225,225],
                                     "fill":[50,50,50],
                                     "line":[75,75,75],
-                                    "size":[500,40],
+                                    "size":[800,40],
+                                    "desc":""
+                                },
+                                "else": {
+                                    "type":"settings",
+                                    "var":"model",
+                                    "font":{"size":0.75},
+                                    "color":[225,225,225],
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[800,40],
                                     "desc":""
                                 }
                             },
@@ -143,22 +153,22 @@
                                 "var":"{global:track_background_subtraction}",
                                 "then": {
                                     "type":"settings",
-                                    "var":"region_model",
-                                    "font":{"size":0.75},
-                                    "color":[225,225,225],
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[500,40],
-                                    "desc":""
-                                },
-                                "else": {
-                                    "type":"settings",
                                     "var":"threshold",
                                     "font":{"size":0.75},
                                     "color":[225,225,225],
                                     "fill":[50,50,50],
                                     "line":[75,75,75],
-                                    "size":[500,40],
+                                    "size":[800,40],
+                                    "desc":""
+                                },
+                                "else": {
+                                    "type":"settings",
+                                    "var":"region_model",
+                                    "font":{"size":0.75},
+                                    "color":[225,225,225],
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[800,40],
                                     "desc":""
                                 }
                             }
@@ -171,6 +181,7 @@
             {
                 "type":"stext",
                 "size":[100,100],
+                "max_size":[1000,-1],
                 "color":[250,250,250],
                 "text":"<h2>Advanced Settings</h2>{#settings_summary}\ndetect_iou_threshold={#global:detect_iou_threshold} detect_conf_threshold={#global:detect_conf_threshold}\ntrack_threshold={#global:track_threshold} averaging_method={#global:averaging_method} track_posture_threshold={#global:track_posture_threshold}\ntrack_background_subtraction={#global:track_background_subtraction}\nmodel=<str>{global:model}</str>\nregion_model=<str>{global:region_model}</str>",
                 "font":{
@@ -188,12 +199,30 @@
                 "action": "choose-settings"
             },
             {
-                "type":"settings",
-                "var":"",
-                "font":{"size":0.75},
-                "line":[75,75,75],
-                "size":[500,40],
-                "desc":""
+                "type":"hlayout",
+                "align":"center",
+                "line":[255,0,0],
+                "children":[
+                    {
+                        "type":"settings",
+                        "var":"",
+                        "font":{"size":0.75},
+                        "line":[75,75,75],
+                        "size":[840,40],
+                        "desc":""
+                    },
+                    {
+                        "type":"button",
+                        "text":"Next >",
+                        "fill":[50,50,50],
+                        "size":[150,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "convert"
+                    }
+                ]
             }
         ]
     }

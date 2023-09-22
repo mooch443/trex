@@ -44,6 +44,8 @@
 #include <tracking/Yolo7InstanceSegmentation.h>
 #include <tracking/Yolo7ObjectDetection.h>
 
+#include <file/PathArray.h>
+
 #include <signal.h>
 
 using namespace cmn;
@@ -91,7 +93,7 @@ void launch_gui() {
     StartingScene start(base);
     manager.register_scene(&start);
 
-    if(SETTING(source).value<std::string>() == "")
+    if(SETTING(source).value<file::PathArray>().empty())
         manager.set_active(&start);
     
     static std::unique_ptr<Segmenter> segmenter;
@@ -121,7 +123,7 @@ void launch_gui() {
     manager.register_scene(&settings_scene);
     
     //manager.set_active(&converting);
-    if (SETTING(source).value<std::string>() != "") {
+    if (not SETTING(source).value<file::PathArray>().empty()) {
         manager.set_active(&converting);
     }
 
@@ -270,7 +272,7 @@ int main(int argc, char**argv) {
      * object detection
      */
     SETTING(meta_video_scale) = float(1);
-    SETTING(source) = std::string("");
+    SETTING(source) = file::PathArray();
     SETTING(model) = file::Path("");
     SETTING(segmentation_resolution) = uint16_t(128);
     SETTING(segmentation_model) = file::Path("");
@@ -303,7 +305,7 @@ int main(int argc, char**argv) {
             SETTING(settings_file) = file::Path(a.value).add_extension("settings");
         }
         if(a.name == "i") {
-            SETTING(source) = std::string(a.value);
+            SETTING(source) = file::PathArray(a.value);
         }
         if(a.name == "m") {
             SETTING(model) = file::Path(a.value);
@@ -350,7 +352,7 @@ int main(int argc, char**argv) {
     SETTING(terminate) = false;
     SETTING(calculate_posture) = false;
     SETTING(gui_interface_scale) = float(1);
-    SETTING(meta_source_path) = SETTING(source).value<std::string>();
+    SETTING(meta_source_path) = Meta::toStr(SETTING(source).value<file::PathArray>());
     
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
@@ -372,7 +374,7 @@ int main(int argc, char**argv) {
 
     CommandLine::instance().load_settings();
     
-    if(not SETTING(source).value<std::string>().empty())
+    if(not SETTING(source).value<file::PathArray>().empty())
         SETTING(scene_crash_is_fatal) = true;
     
     std::string last_error;
@@ -383,7 +385,7 @@ int main(int argc, char**argv) {
             SETTING(terminate) = true;
             last_error = error;
         });
-        print("Loading source = ", SETTING(source).value<std::string>());
+        print("Loading source = ", SETTING(source).value<file::PathArray>());
         
         ind::ProgressBar bar{
             ind::option::BarWidth{50},
@@ -429,7 +431,7 @@ int main(int argc, char**argv) {
             }
         });
         
-        if (SETTING(source).value<std::string>() == "webcam")
+        if (SETTING(source).value<file::PathArray>() == file::PathArray({file::Path("webcam")}))
             segmenter.open_camera();
         else
             segmenter.open_video();

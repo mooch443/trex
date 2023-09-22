@@ -4,6 +4,7 @@
 #include <gui/types/ScrollableList.h>
 #include <misc/SpriteMap.h>
 #include <gui/types/ListItemTypes.h>
+#include <file/PathArray.h>
 
 class RecentItems {
 public:
@@ -33,7 +34,7 @@ protected:
     static std::string class_name() { return "RecentItems"; }
 
 public:
-    static void open(std::string name, const cmn::sprite::Map& settings);
+    static void open(const file::PathArray&, const cmn::sprite::Map& settings);
     static void set_select_callback(std::function<void(Item)>);
     bool has(std::string) const;
     void show(gui::ScrollableList<gui::DetailItem>& list);

@@ -78,6 +78,9 @@ void Yolo8::deinit() {
         running_prediction.wait();
         print("Got it.");
     }
+    Python::schedule([](){
+        track::PythonIntegration::unload_module("bbx_saved_model");
+    }).get();
 }
 
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result) {
