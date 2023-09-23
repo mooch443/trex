@@ -18,7 +18,8 @@ struct Tmp {
 };
 
 int main(int argc, char**argv) {
-    CommandLine cmd(argc, argv);
+    CommandLine::init(argc, argv);
+    auto&cmd = CommandLine::instance();
     cmd.cd_home();
     
     print("Sizeof transform = ", sizeof(gui::Transform));
@@ -35,8 +36,7 @@ int main(int argc, char**argv) {
     SETTING(filename) = path.remove_extension("pv");
     
     pv::File video(path, pv::FileMode::READ);
-    if(!video.is_open())
-        throw U_EXCEPTION("Cannot open video file ",path,".");
+    video.print_info();
     
     file::Path settings_file(path.replace_extension("settings"));
     GlobalSettings::map().set_do_print(true);
