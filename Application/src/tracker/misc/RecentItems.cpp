@@ -177,8 +177,7 @@ void RecentItems::write() {
 
         auto f = path.fopen("wb");
         auto dump = obj.dump();
-        fwrite(dump.c_str(), sizeof(uchar), dump.length(), f);
-        fclose(f);
+        fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
 
         print("Updated recent files: ", dump.c_str());
 

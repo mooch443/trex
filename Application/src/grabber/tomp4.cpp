@@ -60,7 +60,7 @@ const char *codec_name = "h264_nvenc";
 const AVCodec *codec;
 AVCodecContext *c= NULL;
 int i, ret, x, y;
-FILE *f;
+file::FilePtr f;
 AVFrame *frame;
 AVPacket *pkt;
 AVFrame* input_frame;
@@ -493,13 +493,11 @@ void FFMPEGQueue::open_video() {
 
 void FFMPEGQueue::close_video() {
     /* flush the encoder */
-    encode(c, NULL, pkt, f);
-    
+    encode(c, NULL, pkt, f.get());
     /* add sequence end code to have a real MPEG file */
     if (codec->id == AV_CODEC_ID_MPEG1VIDEO || codec->id == AV_CODEC_ID_MPEG2VIDEO)
-        fwrite(endcode, 1, sizeof(endcode), f);
-    
-    fclose(f);
+        fwrite(endcode, 1, sizeof(endcode), f.get());
+    f.reset();
     
     avcodec_free_context(&c);
     av_frame_free(&frame);
@@ -568,7 +566,7 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
     pkt->pts = AV_NOPTS_VALUE;
     
     // have to do muxing https://ffmpeg.org/doxygen/trunk/doc_2examples_2muxing_8c-example.html
-    encode(c, frame, pkt, f);
+    encode(c, frame, pkt, f.get());
 }
 
 void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size) {

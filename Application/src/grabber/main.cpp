@@ -434,8 +434,7 @@ int main(int argc, char** argv)
                             auto f = path.fopen("wb");
                             if(!f)
                                 throw U_EXCEPTION("Cannot open ",path.str());
-                            fwrite(rst.data(), sizeof(char), rst.length(), f);
-                            fclose(f);
+                            fwrite(rst.data(), sizeof(char), rst.length(), f.get());
                             
                             //printf("%s\n", rst.c_str());
                             print("Saved at ", path.str(),".");

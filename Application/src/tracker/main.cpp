@@ -498,8 +498,7 @@ int main(int argc, char** argv)
                         auto f = path.fopen("wb");
                         if(!f)
                             throw U_EXCEPTION("Cannot open ",path.str());
-                        fwrite(rst.data(), sizeof(char), rst.length(), f);
-                        fclose(f);
+                        fwrite(rst.data(), sizeof(char), rst.length(), f.get());
                         
                         //printf("%s\n", rst.c_str());
                         print("Saved at ",path,".");
@@ -760,8 +759,7 @@ int main(int argc, char** argv)
         if(contains(cmd.options(), "y")) {
             print("-y is set, so you accept the default output_dir choice:");
             print("\toutput_dir = ", SETTING(output_dir).value<file::Path>());
-            auto f = first_time_setup.fopen("wb");
-            fclose(f);
+            first_time_setup.fopen("wb"); // opening suffices to write it
         } else {
             
         }

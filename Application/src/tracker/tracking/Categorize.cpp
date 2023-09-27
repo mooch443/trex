@@ -877,8 +877,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
         
         auto f = file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+"_categorize.log")).fopen("ab");
         text += "\n";
-        fwrite(text.c_str(), sizeof(char), text.length(), f);
-        fclose(f);
+        fwrite(text.c_str(), sizeof(char), text.length(), f.get());
     }
 }
 #endif
