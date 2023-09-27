@@ -1,13 +1,13 @@
 SDKROOT:
-  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [osx]
+  - /Applications/Xcode_15.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk # [osx]
 
 CONDA_BUILD_SYSROOT:
-  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [osx]
+  - /Applications/Xcode_15.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk # [osx]
 
 CC:
-  - /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang # [osx]
+  - /Applications/Xcode_15.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang # [osx]
 CXX:
-  - /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ # [osx]
+  - /Applications/Xcode_15.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ # [osx]
 #CC:
 #  - $BUILD_PREFIX/bin/clang # [osx and not arm64]
 #CXX:
