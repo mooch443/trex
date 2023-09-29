@@ -22,67 +22,21 @@
                 "action": "go-back"
             },
             {
-                "type":"hlayout",
-                "pos":[0,0],
-                "margins":[6,6,6,6],
-                "align":"top",
-                "children":[
-                    {   "type":"vlayout",
-                        "pos":[0,0],
-                        "align":"right",
-                        "children": [
-                            {
+                "type":"condition",
+                "var":"{global:track_background_subtraction}",
+                "else": 
+                {
+                    "type":"gridlayout",
+                    "vertical_clr":[0,0,0,0],
+                    "clickable":true,
+                    "children":[
+                        [
+                            [{
                                 "type":"stext",
                                 "text":"source",
-                                "margins": [0,6.5,0,10],
-                                "line":[255,0,0]
-                            },
-                            {
-                                "type":"stext",
-                                "text":"target",
-                                "margins": [0,6.5,0,43]
-                            },
-
-                            {
-                                "type":"condition",
-                                "var":"{global:track_background_subtraction}",
-                                "then": 
-                                {
-                                    "type":"stext",
-                                    "text":"averaging",
-                                    "margins": [0,6.5,0,10]
-                                },
-                                "else": 
-                                {
-                                    "type":"stext",
-                                    "text":"model",
-                                    "margins": [0,6.5,0,10]
-                                }
-                            },
-
-                            {
-                                "type":"condition",
-                                "var":"{global:track_background_subtraction}",
-                                "then": 
-                                {
-                                    "type":"stext",
-                                    "text":"threshold",
-                                    "margins": [0,6.5,0,10]
-                                },
-                                "else":
-                                {
-                                    "type":"stext",
-                                    "text":"region",
-                                    "margins": [0,6.5,0,10]
-                                }
-                            }
-                        ]
-                    },
-                    {   "type":"vlayout",
-                        "pos":[0,0],
-                        "align":"left",
-                        "children": [
-                            {
+                                "margins": [0,6.5,0,10]
+                            }],
+                            [{
                                 "type":"settings",
                                 "var":"source",
                                 "font":{"size":0.75},
@@ -95,13 +49,21 @@
                             {
                                 "type":"stext",
                                 "text":"{#global:source}",
-                                "max_size":[800,-1],
-                                "color":[150,150,150],
-                                "font":{
-                                    "size":0.35
-                                }
-                            },
-                            {
+                                "pos":[0,40],
+                                "font":{"size":0.5},
+                                "color":[125,125,125],
+                                "max_size":[800,20]
+                            }]
+                        ],
+    
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"target",
+                                "margins": [0,6.5,0,10],
+                                "line":[255,0,0]
+                            }],
+                            [{
                                 "type":"settings",
                                 "var":"output_dir",
                                 "font":{"size":0.75},
@@ -110,8 +72,15 @@
                                 "line":[75,75,75],
                                 "size":[800,40],
                                 "desc":""
-                            },
-                            {
+                            }]
+                        ],
+
+                        [
+                            [{
+                                "type":"rect",
+                                "size":[0,0]
+                            }],
+                            [{
                                 "type":"settings",
                                 "var":"track_background_subtraction",
                                 "invert":true,
@@ -121,62 +90,145 @@
                                 "line":[75,75,75],
                                 "size":[200,50],
                                 "desc":"Use machine learning to detect animals"
-                            },
+                            }]
+                        ],
 
-                            {
-                                "type":"condition",
-                                "var":"{global:track_background_subtraction}",
-                                "then": {
-                                    "type":"settings",
-                                    "var":"averaging_method",
-                                    "font":{"size":0.75},
-                                    "color":[225,225,225],
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[800,40],
-                                    "desc":""
-                                },
-                                "else": {
-                                    "type":"settings",
-                                    "var":"model",
-                                    "font":{"size":0.75},
-                                    "color":[225,225,225],
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[800,40],
-                                    "desc":""
-                                }
-                            },
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"model",
+                                "margins": [0,6.5,0,10]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"model",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[800,40],
+                                "desc":""
+                            }]
+                        ],
 
-                            {
-                                "type":"condition",
-                                "var":"{global:track_background_subtraction}",
-                                "then": {
-                                    "type":"settings",
-                                    "var":"threshold",
-                                    "font":{"size":0.75},
-                                    "color":[225,225,225],
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[800,40],
-                                    "desc":""
-                                },
-                                "else": {
-                                    "type":"settings",
-                                    "var":"region_model",
-                                    "font":{"size":0.75},
-                                    "color":[225,225,225],
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[800,40],
-                                    "desc":""
-                                }
-                            }
-
-                            
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"region model",
+                                "margins": [0,6.5,0,10]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"region_model",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[800,40],
+                                "desc":""
+                            }]
                         ]
-                    }
-                ]
+                    ]
+                },
+                "then":{
+                    "type":"gridlayout",
+                    "vertical_clr":[0,0,0,0],
+                    "clickable":true,
+                    "children":[
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"source",
+                                "margins": [0,6.5,0,10],
+                                "line":[255,0,0]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"source",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[800,40],
+                                "desc":""
+                            }]
+                        ],
+
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"target",
+                                "margins": [0,6.5,0,10],
+                                "line":[255,0,0]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"output_dir",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[800,40],
+                                "desc":""
+                            }]
+                        ],
+
+
+                        [
+                            [{
+                                "type":"rect",
+                                "size":[0,0]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"track_background_subtraction",
+                                "invert":true,
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[200,50],
+                                "desc":"Use machine learning to detect animals"
+                            }]
+                        ],
+                        
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"averaging",
+                                "margins": [0,6.5,0,10]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"averaging_method",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[200,50],
+                                "desc":""
+                            }]
+                        ],
+
+                        [
+                            [{
+                                "type":"stext",
+                                "text":"threshold",
+                                "margins": [0,6.5,0,10]
+                            }],
+                            [{
+                                "type":"settings",
+                                "var":"threshold",
+                                "font":{"size":0.75},
+                                "color":[225,225,225],
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[800,40],
+                                "desc":""
+                            }]
+                        ]
+                    ]
+                }
             },
             {
                 "type":"stext",
