@@ -117,6 +117,8 @@ void SettingsScene::activate() {
 void SettingsScene::deactivate() {
     // Logic to clear or save state if needed
     //RecentItems::set_select_callback(nullptr);
+    state = dyn::State{};
+    objects.clear();
 }
 
 void SettingsScene::_draw(DrawStructure& graph) {
