@@ -205,6 +205,9 @@ void ConvertScene::deactivate() {
         _object_blobs.clear();
         _current_data = {};
         
+        menu.state = dyn::State{};
+        menu.objects.clear();
+        
         if(_on_deactivate)
             _on_deactivate(*this);
         

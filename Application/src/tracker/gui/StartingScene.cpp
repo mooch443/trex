@@ -91,6 +91,8 @@ void StartingScene::activate() {
 void StartingScene::deactivate() {
     // Logic to clear or save state if needed
     RecentItems::set_select_callback(nullptr);
+    state = dyn::State{};
+    objects.clear();
 }
 
 void StartingScene::_draw(DrawStructure& graph) {
