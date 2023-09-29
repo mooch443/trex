@@ -240,7 +240,7 @@ std::set<file::Path> parse_input(const cmn::CommandLine::Option& option) {
 int main(int argc, char** argv)
 {
     // set environment variable KMP_DUPLICATE_LIB_OK to "TRUE"
-    SetEnvironmentVariable("KMP_DUPLICATE_LIB_OK", "TRUE");
+    //SetEnvironmentVariable("KMP_DUPLICATE_LIB_OK", "TRUE");
 
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
