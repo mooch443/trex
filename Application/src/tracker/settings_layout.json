@@ -45,11 +45,9 @@
                                 "line":[75,75,75],
                                 "size":[800,40],
                                 "desc":""
-                            }]
-                        ],
-    
-                        [
-                            [{
+                            },
+                        
+                            {
                                 "type":"stext",
                                 "text":"{#global:source}",
                                 "pos":[0,40],
