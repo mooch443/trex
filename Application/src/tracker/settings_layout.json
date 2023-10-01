@@ -27,17 +27,6 @@
                 }
             },
             {
-                "type":"button",
-                "text":"< Back",
-                "fill":[50,50,50],
-                "size":[150,40],
-                "font":{
-                    "align":"center",
-                    "size":0.65
-                },
-                "action": "go-back"
-            },
-            {
                 "type":"condition",
                 "var":"{global:track_background_subtraction}",
                 "else": 
@@ -239,10 +228,21 @@
                         "font":{"size":0.75,"align":"center"},
                         "fill":[50,50,50],
                         "line":[75,75,75],
-                        "size":[700,40],
+                        "size":[600,40],
                         "color":[225,225,225],
                         "desc":"",
                         "highlight_clr":[75,75,75,255]
+                    },
+                    {
+                        "type":"button",
+                        "text":"< Back",
+                        "fill":[50,50,50],
+                        "size":[150,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "go-back"
                     },
                     {
                         "type":"button",
