@@ -4,10 +4,15 @@
             "size": 0.75,
             "align": "left"
         },
-        "color":[225,225,225],
-        "highlight_clr":[50,50,50,255]
+        "color":[225,225,225,255],
+        "highlight_clr":[50,50,75]
     },
     "objects":[
+    {
+        "type":"image",
+        "path":"/Users/tristan/Downloads/average_test_pmoc_pupa_05JUN23_0_MV-CH430-90XM-F-NF.mp4_fixed-s1.png",
+        "scale":[0.5,0.1]
+    },
     {
         "type":"vlayout",
         "align":"left",
@@ -51,7 +56,6 @@
                                 "type":"settings",
                                 "var":"source",
                                 "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
@@ -71,8 +75,6 @@
                             [{
                                 "type":"settings",
                                 "var":"output_dir",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
@@ -86,12 +88,9 @@
                                 "type":"settings",
                                 "var":"track_background_subtraction",
                                 "invert":true,
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
-                                "highlight_clr":[50,50,75],
-                                "size":[200,35],
+                                "size":[200,40],
                                 "desc":"Use machine learning to detect animals"
                             }]
                         ],
@@ -104,8 +103,6 @@
                             [{
                                 "type":"settings",
                                 "var":"model",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
@@ -121,8 +118,6 @@
                             [{
                                 "type":"settings",
                                 "var":"region_model",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
@@ -138,16 +133,12 @@
                     "children":[
                         [
                             [{
-                                "type":"stext",
-                                "text":"source",
-                                "margins": [0,6.5,0,10],
-                                "line":[255,0,0]
+                                "type":"text",
+                                "text":"source"
                             }],
                             [{
                                 "type":"settings",
                                 "var":"source",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
@@ -157,16 +148,12 @@
 
                         [
                             [{
-                                "type":"stext",
-                                "text":"target",
-                                "margins": [0,6.5,0,10],
-                                "line":[255,0,0]
+                                "type":"text",
+                                "text":"target"
                             }],
                             [{
                                 "type":"settings",
                                 "var":"output_dir",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
@@ -176,52 +163,41 @@
 
 
                         [
-                            [{
-                                "type":"rect",
-                                "size":[0,0]
-                            }],
+                            [],
                             [{
                                 "type":"settings",
                                 "var":"track_background_subtraction",
                                 "invert":true,
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
-                                "size":[200,50],
+                                "size":[200,40],
                                 "desc":"Use machine learning to detect animals"
                             }]
                         ],
                         
                         [
                             [{
-                                "type":"stext",
-                                "text":"averaging",
-                                "margins": [0,6.5,0,10]
+                                "type":"text",
+                                "text":"averaging"
                             }],
                             [{
                                 "type":"settings",
                                 "var":"averaging_method",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
-                                "size":[200,50],
+                                "size":[200,40],
                                 "desc":""
                             }]
                         ],
 
                         [
                             [{
-                                "type":"stext",
-                                "text":"threshold",
-                                "margins": [0,6.5,0,10]
+                                "type":"text",
+                                "text":"threshold"
                             }],
                             [{
                                 "type":"settings",
                                 "var":"threshold",
-                                "font":{"size":0.75},
-                                "color":[225,225,225],
                                 "fill":[50,50,50],
                                 "line":[75,75,75],
                                 "size":[800,40],
