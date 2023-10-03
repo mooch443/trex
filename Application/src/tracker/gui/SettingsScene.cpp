@@ -11,71 +11,7 @@ namespace gui {
 
 SettingsScene::SettingsScene(Base& window)
 : Scene(window, "settings-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
-_preview_image(std::make_shared<ExternalImage>()),
-context ({
-    .actions = {
-        {
-            "go-back",
-            [](Event){
-                auto prev = SceneManager::getInstance().last_active();
-                if(prev)
-                    SceneManager::getInstance().set_active(prev);
-                print("Going back");
-            }
-        },
-        {
-            "convert",
-            [](Event){
-                SceneManager::getInstance().set_active("convert-scene");
-            }
-        },
-        { "choose-source",
-            [](Event){
-                print("choose-source");
-                
-            }
-        },
-        { "choose-target",
-            [](Event){
-                print("choose-target");
-            }
-        },
-        { "choose-model",
-            [](Event){
-                print("choose-detection");
-            }
-        },
-        { "choose-region",
-            [](Event){
-                print("choose-region");
-            }
-        },
-        { "choose-settings",
-            [](Event){
-                print("choose-settings");
-            }
-        },
-        { "toggle-background-subtraction",
-            [](Event){
-                SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
-            }
-        }
-    },
-        .variables = {
-            {
-                "global",
-                std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
-                    return GlobalSettings::map();
-                }))
-            },
-            {
-                "settings_summary",
-                std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> std::string {
-                    return std::string(GlobalSettings::map().toStr());
-                }))
-            }
-        }
-})
+_preview_image(std::make_shared<ExternalImage>())
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     print(window.window_dimensions().mul(dpi), " and logo ", _preview_image->size());
@@ -112,17 +48,95 @@ void SettingsScene::activate() {
      //SceneManager::getInstance().set_active("convert-scene");
      SceneManager::getInstance().set_active("settings-menu");
      });*/
+    
+    dyn::Modules::add(dyn::Modules::Module{
+        ._name = "follow",
+        ._apply = [](size_t index, dyn::State& state, const Layout::Ptr& o) {
+            state.display_fns[index] = [o = o.get()](DrawStructure& g){
+                o->set_pos(g.mouse_position() + Vec2(5));
+            };
+        }
+    });
 }
 
 void SettingsScene::deactivate() {
     // Logic to clear or save state if needed
     //RecentItems::set_select_callback(nullptr);
-    state = dyn::State{};
-    objects.clear();
+    dynGUI.clear();
+    dyn::Modules::remove("follow");
 }
 
 void SettingsScene::_draw(DrawStructure& graph) {
-    dyn::update_layout("settings_layout.json", context, state, objects);
+    if(not dynGUI)
+        dynGUI = dyn::DynamicGUI{
+            .path = "settings_layout.json",
+            .graph = &graph,
+            .base = nullptr,
+            .context = {
+                .actions = {
+                    {
+                        "go-back",
+                        [](Event){
+                            auto prev = SceneManager::getInstance().last_active();
+                            if(prev)
+                                SceneManager::getInstance().set_active(prev);
+                            print("Going back");
+                        }
+                    },
+                    {
+                        "convert",
+                        [](Event){
+                            SceneManager::getInstance().set_active("convert-scene");
+                        }
+                    },
+                    { "choose-source",
+                        [](Event){
+                            print("choose-source");
+                            
+                        }
+                    },
+                    { "choose-target",
+                        [](Event){
+                            print("choose-target");
+                        }
+                    },
+                    { "choose-model",
+                        [](Event){
+                            print("choose-detection");
+                        }
+                    },
+                    { "choose-region",
+                        [](Event){
+                            print("choose-region");
+                        }
+                    },
+                    { "choose-settings",
+                        [](Event){
+                            print("choose-settings");
+                        }
+                    },
+                    { "toggle-background-subtraction",
+                        [](Event){
+                            SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
+                        }
+                    }
+                },
+                    .variables = {
+                        {
+                            "global",
+                            std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
+                                return GlobalSettings::map();
+                            }))
+                        },
+                        {
+                            "settings_summary",
+                            std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> std::string {
+                                return std::string(GlobalSettings::map().toStr());
+                            }))
+                        }
+                    }
+            }
+        };
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
     auto max_w = window()->window_dimensions().width * 0.65;
@@ -132,17 +146,9 @@ void SettingsScene::_draw(DrawStructure& graph) {
     
     graph.wrap_object(_main_layout);
     
-    std::vector<Layout::Ptr> _objs{objects.begin(), objects.end()};
-    _objs.push_back(Layout::Ptr(_preview_image));
-    _logo_title_layout->set_children(_objs);
-    //_logo_title_layout->set_policy(VerticalLayout::Policy::CENTER);
-    
-    for(auto &obj : objects) {
-        dyn::update_objects(graph, obj, context, state);
-        //graph.wrap_object(*obj);
-    }
-    
-    dyn::update_tooltips(graph, state);
+    dynGUI.update(_logo_title_layout.get(), [this](auto &objs){
+        objs.push_back(Layout::Ptr(_preview_image));
+    });
     
     _buttons_and_items->auto_size(Margin{0,0});
     _logo_title_layout->auto_size(Margin{0,0});

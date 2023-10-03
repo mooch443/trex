@@ -2444,12 +2444,12 @@ void GUI::draw_footer(DrawStructure& base) {
         pie.link(load_idx, "back", base_idx);
 #endif
             
-        PD(footer)._settings_dropdown.on_select([&](long_t index, const std::string& name) {
-            this->selected_setting(index, name, PD(footer)._value_input, PD(footer)._settings_dropdown, layout, base);
+        PD(footer)._settings_dropdown.on_select([&](auto index, const std::string& name) {
+            this->selected_setting(index.value, name, PD(footer)._value_input, PD(footer)._settings_dropdown, layout, base);
         });
         PD(footer)._value_input.on_enter([&](){
             try {
-                auto key = PD(footer)._settings_dropdown.items().at(PD(footer)._settings_dropdown.selected_id()).name();
+                auto key = PD(footer)._settings_dropdown.selected_item().name();
 #if !COMMONS_NO_PYTHON
             if(key == "$") {
                 auto code = utils::trim(PD(footer)._value_input.text());
@@ -2474,7 +2474,7 @@ void GUI::draw_footer(DrawStructure& base) {
             if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
                     GlobalSettings::get(key).get().set_value_from_string(PD(footer)._value_input.text());
                     if(GlobalSettings::get(key).is_type<Color>())
-                        this->selected_setting(PD(footer)._settings_dropdown.selected_id(), key, PD(footer)._value_input, PD(footer)._settings_dropdown, layout, base);
+                        this->selected_setting(PD(footer)._settings_dropdown.selected_item().ID(), key, PD(footer)._value_input, PD(footer)._settings_dropdown, layout, base);
                     if((std::string)key == "auto_apply" || (std::string)key == "auto_train")
                     {
                         SETTING(auto_train_on_startup) = false;

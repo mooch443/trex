@@ -87,6 +87,9 @@ RecentItems RecentItems::read() {
                     for (auto& i : settings.items()) {
                         auto key = i.key();
                         auto value = i.value().dump();
+                        if(key == "source") {
+                            value = name;
+                        }
 
                         try {
                             if (not value.empty() && value.front() == '"') {

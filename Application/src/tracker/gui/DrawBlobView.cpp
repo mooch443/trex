@@ -500,7 +500,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     GUI::set_redraw();
                 }
             });
-            list->on_select([parm](long_t, auto& item) {
+            list->on_select([parm](auto, auto& item) {
                 pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
                 if(item.ID() == 0) /* SPLIT */ {
                     auto copy = FAST_SETTING(manual_splits);
@@ -640,7 +640,7 @@ void draw_blob_view(const DisplayParameters& parm)
 }
 
 void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key, Dropdown& settings_dropdown, Textfield& value_input) {
-    const std::string chosen = settings_dropdown.selected_id() > -1 ? settings_dropdown.items().at(settings_dropdown.selected_id()).name() : "";
+    const std::string chosen = settings_dropdown.has_selection() ? settings_dropdown.selected_item().name() : "";
     if (key.empty())
         key = chosen;
     
@@ -923,7 +923,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                         "track_include",
                         "recognition_shapes"
                     });
-                    dropdown->on_select([&](long_t, const Dropdown::TextItem & item){
+                    dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name(), settings_dropdown, value_input);
                     });
                     dropdown->textfield()->set_placeholder("append to...");

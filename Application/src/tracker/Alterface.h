@@ -10,9 +10,7 @@ namespace gui {
 
 struct Alterface {
     Image::Ptr next;
-    dyn::Context context;
-    dyn::State state;
-    std::vector<Layout::Ptr> objects;
+    dyn::DynamicGUI dynGUI;
     SettingsDropdown settings;
     
     Alterface() = delete;

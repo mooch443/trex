@@ -152,7 +152,7 @@ _on_deactivate(on_deactivate)
     _video_info.set_do_print(false);
     fish.set_do_print(false);
 
-    menu.context.variables.emplace("fishes", new Variable([this](std::string) -> std::vector<std::shared_ptr<VarBase_t>>&{
+    menu.dynGUI.context.variables.emplace("fishes", new Variable([this](std::string) -> std::vector<std::shared_ptr<VarBase_t>>&{
         return _gui_objects;
     }));
 }
@@ -204,9 +204,7 @@ void ConvertScene::deactivate() {
         _segmenter = nullptr;
         _object_blobs.clear();
         _current_data = {};
-        
-        menu.state = dyn::State{};
-        menu.objects.clear();
+        menu.dynGUI.clear();
         
         if(_on_deactivate)
             _on_deactivate(*this);

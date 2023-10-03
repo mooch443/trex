@@ -23,27 +23,28 @@ inline static sprite::Map _video_info = [](){
 }();
 
 Alterface::Alterface(dyn::Context&& context, std::function<void(const std::string&)>&& settings_update)
-    : context(std::move(context)),
+    : dynGUI{
+        .path = "alter_layout.json",
+        .graph = nullptr,
+        .context = std::move(context)
+      },
       settings(std::move(settings_update))
 {
 }
 
 Alterface::~Alterface() {
-    context = {};
-    state = {};
-    
-    objects.clear();
+    dynGUI.clear();
 }
 
 void Alterface::draw(IMGUIBase& base, DrawStructure& g) {
-    dyn::update_layout("alter_layout.json", context, state, objects);
+    if(not dynGUI) {
+        dynGUI.graph = &g;
+        dynGUI.base = (Base*)&base;
+    }
     
     g.section("buttons", [&](auto&, Section* section) {
         section->set_scale(g.scale().reciprocal());
-        for(auto &obj : objects) {
-            dyn::update_objects(g, obj, context, state);
-            g.wrap_object(*obj);
-        }
+        dynGUI.update(nullptr);
     });
     
     settings.draw(base, g);

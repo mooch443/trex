@@ -17,16 +17,16 @@ struct SettingsDropdown {
         _settings_dropdown.set_origin(Vec2(0, 1));
         _value_input.set_origin(Vec2(0, 1));
         
-        _settings_dropdown.on_select([&](long_t index, const std::string& name) {
-            this->selected_setting(index, name, _value_input);
+        _settings_dropdown.on_select([&](auto index, const std::string& name) {
+            this->selected_setting(index.value, name, _value_input);
         });
         _value_input.on_enter([this, on_enter = std::move(on_enter)](){
             try {
-                auto key = _settings_dropdown.items().at(_settings_dropdown.selected_id()).name();
+                auto key = _settings_dropdown.selected_item().name();
                 if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
                     GlobalSettings::get(key).get().set_value_from_string(_value_input.text());
                     if(GlobalSettings::get(key).is_type<Color>())
-                        this->selected_setting(_settings_dropdown.selected_id(), key, _value_input);
+                        this->selected_setting(_settings_dropdown.selected_item().ID(), key, _value_input);
                     if((std::string)key == "auto_apply" || (std::string)key == "auto_train")
                     {
                         SETTING(auto_train_on_startup) = false;
@@ -41,11 +41,11 @@ struct SettingsDropdown {
                     FormatError("User cannot write setting ", key," (",GlobalSettings::access_level(key).name(),").");
             } catch(const std::logic_error&) {
 #ifndef NDEBUG
-                FormatExcept("Cannot set ",_settings_dropdown.items().at(_settings_dropdown.selected_id())," to value ",_value_input.text()," (invalid).");
+                FormatExcept("Cannot set ",_settings_dropdown.selected_item()," to value ",_value_input.text()," (invalid).");
 #endif
             } catch(const UtilsException&) {
 #ifndef NDEBUG
-                FormatExcept("Cannot set ",_settings_dropdown.items().at(_settings_dropdown.selected_id())," to value ",_value_input.text()," (invalid).");
+                FormatExcept("Cannot set ",_settings_dropdown.selected_item()," to value ",_value_input.text()," (invalid).");
 #endif
             }
         });

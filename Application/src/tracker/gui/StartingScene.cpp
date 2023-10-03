@@ -16,20 +16,13 @@ StartingScene::StartingScene(Base& window)
     _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
     _recent_items(std::make_shared<ScrollableList<DetailItem>>(Bounds(0, 10, 310, 500))),
     _video_file_button(std::make_shared<Button>("Open file", attr::Size(150, 50))),
-    _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50))),
-    context ({
-        .variables = {
-            {
-                "global",
-                std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
-                    return GlobalSettings::map();
-                }))
-            }
-        }
-    })
+    _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50)))
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     print(window.window_dimensions().mul(dpi), " and logo ", _logo_image->size());
+    
+    _recent_items->set(LineClr{Red});
+    _recent_items->set(Font(0.75, Align::Center));
     
     // Callback for video file button
     _video_file_button->on_click([](auto){
@@ -91,12 +84,25 @@ void StartingScene::activate() {
 void StartingScene::deactivate() {
     // Logic to clear or save state if needed
     RecentItems::set_select_callback(nullptr);
-    state = dyn::State{};
-    objects.clear();
+    dynGUI.clear();
 }
 
 void StartingScene::_draw(DrawStructure& graph) {
-    dyn::update_layout("welcome_layout.json", context, state, objects);
+    if(not dynGUI)
+        dynGUI = {
+            .path = "welcome_layout.json",
+            .graph = &graph,
+            .context = {
+                .variables = {
+                    {
+                        "global",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
+                            return GlobalSettings::map();
+                        }))
+                    }
+                }
+            }
+        };
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
     auto max_w = window()->window_dimensions().width * 0.65;
@@ -107,18 +113,12 @@ void StartingScene::_draw(DrawStructure& graph) {
     _recent_items->set_size(Size2((window()->window_dimensions().width - max_w - 50), max_h));
     
     graph.wrap_object(_main_layout);
-    
-    std::vector<Layout::Ptr> _objs{objects.begin(), objects.end()};
-    _objs.insert(_objs.begin(), Layout::Ptr(_title));
-    _objs.push_back(Layout::Ptr(_logo_image));
-    _logo_title_layout->set_children(_objs);
     _logo_title_layout->set_policy(VerticalLayout::Policy::CENTER);
     
-    
-    for(auto &obj : objects) {
-        dyn::update_objects(graph, obj, context, state);
-        //graph.wrap_object(*obj);
-    }
+    dynGUI.update(_logo_title_layout.get(), [this](auto& objs) {
+        objs.insert(objs.begin(), Layout::Ptr(_title));
+        objs.push_back(Layout::Ptr(_logo_image));
+    });
     
     _buttons_and_items->auto_size(Margin{0,0});
     _logo_title_layout->auto_size(Margin{0,0});

@@ -133,15 +133,15 @@ LabeledDropDown::LabeledDropDown(const std::string& name)
         items.push_back(Dropdown::TextItem(name, index++));
     }
     _dropdown->set_items(items);
-    _dropdown->select_item(narrow_cast<long>(_ref.get().enum_index()()));
+    _dropdown->select_item(Dropdown::RawIndex{narrow_cast<long>(_ref.get().enum_index()())});
     _dropdown->textfield()->set_text(_ref.get().valueString());
     
     _dropdown->on_select([this](auto index, auto) {
-        if(index < 0)
+        if(not index.valid())
             return;
         
         try {
-            _ref.get().set_value_from_string(_ref.get().enum_values()().at((size_t)index));
+            _ref.get().set_value_from_string(_ref.get().enum_values()().at((size_t)index.value));
         } catch(...) {}
         
         _dropdown->set_opened(false);
@@ -149,7 +149,7 @@ LabeledDropDown::LabeledDropDown(const std::string& name)
 }
 
 void LabeledDropDown::update() {
-    _dropdown->select_item(narrow_cast<long>(_ref.get().enum_index()()));
+    _dropdown->select_item(Dropdown::RawIndex{narrow_cast<long>(_ref.get().enum_index()())});
 }
 
 }
