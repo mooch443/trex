@@ -35,6 +35,48 @@ There is no official tensorflow package yet, which is why |trex| will not allow 
 
 Now |trex|, if installed within the same environment, has the full power of your Mac at its disposal. Have fun!
 
+Installing the Beta Version
+***************************
+The beta version of TRex, known as TRexA, is currently under development aiming to consolidate the functionalities of TRex and TGrabs into a single streamlined tool. While it's capable of performing segmentation, tracking, and additional machine learning tasks, it's still in the beta phase and may not be stable for production use.
+
+However, it may contain some bug fixes for issues that are present in the latest stable release. If you're experiencing issues with the stable version, you may want to try the beta version to see if it resolves your issue.
+
+Using Beta Installers
+---------------------
+Installers for the beta version are provided for Windows, Linux, and MacOS. `These <https://drive.google.com/drive/folders/1TNGnDQP4gqPwCBvAgBRDlJ_U4CCdPSAx>`_ installers set up a minimal portable version of conda and TRexA. 
+
+- On MacOS, after installation to `~/trex-beta`, open a new terminal and type:
+
+    .. code-block:: bash
+
+        eval "$(~/trex-beta/condabin/conda shell.bash hook)"
+
+- On Windows and Linux, an icon will be created on your desktop or in your start-menu to launch TRexA.
+
+Installing via Conda
+--------------------
+Alternatively, you can install the beta version using Conda. Create an environment named `beta` and use the following commands based on your operating system:
+
+- **Linux, Windows**:
+
+    .. code-block:: bash
+
+        conda create -n beta --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex pytorch-cuda=11.7
+        conda activate beta
+        python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" 'tensorflow-gpu>=2,<3'
+
+- **MacOS**:
+
+    .. code-block:: bash
+
+        conda create -n beta --override-channels -c trex-beta -c pytorch-nightly -c conda-forge trex
+
+Once installed, you can access TRexA by typing `trexa` in the terminal, you can still access the other programs like `trex` and `tgrabs` as well, of course.
+
+.. warning::
+    The beta version is under development and may not be stable. It is not recommended for use in a production environment without thorough testing.
+
+
 Compile it yourself
 *******************
 
@@ -99,11 +141,14 @@ The easiest way to ensure that all requirements are met, is by using conda to cr
 	conda create -n trex git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler
 
 	# Linux (graphics) - if compilation is missing graphics driver things, try recreating the environment like this and start over:
-	conda create -n trex git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+	conda create -n trex gcc git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
 
-	# on linux you may also need this, if it's not already installed elsewhere:
+	# on linux you may also need this, so that you don't need to set LD_LIBRARY_PATH every time you want to run trex:
 	conda activate trex
-	conda install -c conda-forge pkg-config libxcursor-devel-cos6-x86_64 libxrender-devel-cos6-x86_64 libx11-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libxcb-cos6-x86_64 libxrandr-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libXxf86vm-devel-cos6-x86_64 xorg-x11-proto-devel-cos6-x86_64 libxext-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxinerama-devel-cos6-x86_64 libselinux-cos6-x86_64 libXau-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 libdc1394
+	conda install -c conda-forge gcc pkg-config libxcursor-devel-cos6-x86_64 libxrender-devel-cos6-x86_64 libx11-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libxcb-cos6-x86_64 libxrandr-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libXxf86vm-devel-cos6-x86_64 xorg-x11-proto-devel-cos6-x86_64 libxext-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxinerama-devel-cos6-x86_64 libselinux-cos6-x86_64 libXau-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 libdc1394
+
+
+	conda create -n track -c pytorch-nightly -c nvidia pytorch-cuda=11.7 torchvision torchaudio cmake ffmpeg=4 git scikit-learn requests python 'tensorflow-gpu>=2.4,<3' pip pandas seaborn 'numpy=1.19'
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
