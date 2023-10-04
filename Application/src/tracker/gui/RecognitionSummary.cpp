@@ -99,7 +99,7 @@ namespace gui {
                 auto pos = Vec2(margin + sidebar_width, margin + title_height);
                 auto bounds = Box(pos, image->bounds().size());
                 base.add<ExternalImage>(std::move(image), pos);
-                base.add<Rect>(bounds, FillClr{Transparent}, LineClr{White.alpha(200)});
+                base.add<Rect>(Box(bounds), FillClr{Transparent}, LineClr{White.alpha(200)});
                 
                 // draw vertical bar (active fish)
                 pos = Vec2(margin) + Vec2(sidebar_width - 10 / interface_scale, bar_width * 0.5f - Base::default_line_spacing(font) * 0.5f + title_height);
@@ -114,7 +114,7 @@ namespace gui {
                 // draw horizontal bar (matched fish from network)
                 pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5f, bounds.height + margin + Base::default_line_spacing(font) * 0.5f + title_height);
                 for(size_t idx = 0; idx < output_size; ++idx) {
-                    base.add<Text>(Str(Meta::toStr(idx)), Loc(pos), White, bottom_font);
+                    base.add<Text>(Str(Meta::toStr(idx)), Loc(pos), TextClr(White), bottom_font);
                     pos += Vec2(bar_width, 0);
                 }
             });
