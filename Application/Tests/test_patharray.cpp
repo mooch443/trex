@@ -11,6 +11,7 @@
 #endif
 
 using namespace file;
+bool matched;
 
 TEST(PathArrayTest, AddPath) {
     file::_PathArray<> pa;
@@ -80,7 +81,7 @@ TEST(PathArrayTest, ParsePath) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%0.2d");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%0.2d", matched);
     EXPECT_EQ(parsed_paths.size(), 3);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file00");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file01");
@@ -108,7 +109,7 @@ TEST(PathArrayTest, ParsePath_ConsecutiveFiles_10_100) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%10.100.6d");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%10.100.6d", matched);
     EXPECT_EQ(parsed_paths.size(), 91); // 100 - 10 + 1 = 91 files
 
     for (size_t i = 0; i < parsed_paths.size(); ++i) {
@@ -137,7 +138,7 @@ TEST(PathArrayTest, ParsePath_From10ToEnd) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%10.3d");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%10.3d", matched);
     EXPECT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file010");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file011");
@@ -157,7 +158,7 @@ TEST(PathArrayTest, ParsePath_3DigitsPadded) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%3d");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%3d", matched);
     EXPECT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file000");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file001");
@@ -177,7 +178,7 @@ TEST(PathArrayTest, ParsePath_03DigitsPadded) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%03d");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%03d", matched);
     EXPECT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file000");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file001");
@@ -197,7 +198,7 @@ TEST(PathArrayTest, ParsePath_FilenamesWithSpaces) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path to/file %3d");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path to/file %3d", matched);
     EXPECT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path to/file 000");
     EXPECT_EQ(parsed_paths[1].str(), "/path to/file 001");
@@ -217,7 +218,7 @@ TEST(PathArrayTest, ParsePath_Array) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%[10,20,30]");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file%[10,20,30]", matched);
     EXPECT_EQ(parsed_paths.size(), 3);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file010");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file020");
@@ -259,7 +260,7 @@ TEST(PathArrayTest, ParsePath_Star) {
         }
     };
 
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file*");
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::parse_path("/path/to/file*", matched);
     EXPECT_EQ(parsed_paths.size(), 3);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file1");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file2");

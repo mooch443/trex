@@ -1196,8 +1196,8 @@ public:
                 if(idx >= example_frames.size())
                     idx = 0;
                 
-                base.text("order:"+Meta::toStr(order), Vec2(100), Red, Font(scale / 2 * 0.8));
-                base.text("frame:"+Meta::toStr(current_index)+"/"+Meta::toStr(example_frames.at(idx).points.size()), Vec2(100, 150), Red, Font(scale / 2 * 0.8));
+                base.text(Str("order:"+Meta::toStr(order)), Loc(100), TextClr(Red), Font(scale / 2 * 0.8));
+                base.text(Str("frame:"+Meta::toStr(current_index)+"/"+Meta::toStr(example_frames.at(idx).points.size())), Loc(100, 150), TextClr(Red), Font(scale / 2 * 0.8));
                 
                 {
                     static Timing timing("ieft");

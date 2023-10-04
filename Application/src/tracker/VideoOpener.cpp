@@ -47,7 +47,7 @@ void VideoOpener::CustomFileChooser::set_update(std::function<void(float,float)>
 
 VideoOpener::LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
-      _checkbox(std::make_shared<gui::Checkbox>(name)),
+      _checkbox(std::make_shared<gui::Checkbox>(Str(name))),
       _ref(gui::temp_settings[name])
 {
     _docs = gui::temp_docs[name];
@@ -69,7 +69,7 @@ void VideoOpener::LabeledCheckbox::update() {
 
 VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>(Bounds(0, 0, video_chooser_column_width, 28))),
+      _text_field(std::make_shared<gui::Textfield>(Box(0, 0, video_chooser_column_width, 28))),
       _ref(gui::temp_settings[name])
 {
     _text_field->set_placeholder(name);
@@ -96,7 +96,7 @@ void VideoOpener::LabeledTextField::update() {
 
 VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
     : LabeledField(name),
-      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, video_chooser_column_width, 28))),
+      _dropdown(std::make_shared<gui::Dropdown>(Box(0, 0, video_chooser_column_width, 28))),
       _ref(gui::temp_settings[name])
 {
     _docs = gui::temp_docs[name];
@@ -185,7 +185,7 @@ VideoOpener::VideoOpener()
     
     _horizontal = std::make_shared<gui::HorizontalLayout>();
     _extra = std::make_shared<gui::VerticalLayout>();
-    _infos = std::make_shared<gui::VerticalLayout>(Bounds(10, 10, 10, 10));
+    _infos = std::make_shared<gui::VerticalLayout>(Box(10, 10, 10, 10));
     _infos->set_background(DarkCyan.alpha(25), DarkCyan.alpha(125));
     _horizontal->set_policy(gui::HorizontalLayout::TOP);
     _extra->set_policy(gui::VerticalLayout::LEFT);
@@ -205,7 +205,7 @@ VideoOpener::VideoOpener()
     _recording_panel->set_clickable(true);
     _camera = std::make_shared<gui::ExternalImage>(Image::Make(32, 32, 4));
     _raw_settings = std::make_shared<gui::VerticalLayout>();
-    _raw_info = std::make_shared<gui::VerticalLayout>(Bounds(10,10,10,10));
+    _raw_info = std::make_shared<gui::VerticalLayout>(Box(10,10,10,10));
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
@@ -230,7 +230,7 @@ VideoOpener::VideoOpener()
     });
     
     _recording_panel->set_children(std::vector<Layout::Ptr>{
-        Layout::Ptr(std::make_shared<Text>("Camera", gui::Font(0.9f, Style::Bold))),
+        Layout::Ptr(std::make_shared<Text>(Str("Camera"), gui::Font(0.9f, Style::Bold))),
         _camera
     });
     _recording_panel->set_name("RecordingPanel");
@@ -243,7 +243,7 @@ VideoOpener::VideoOpener()
     _text_fields["cmd_parameters"] = std::make_unique<LabeledTextField>("cmd_parameters");
     
     std::vector<Layout::Ptr> objects{
-        Layout::Ptr(std::make_shared<Text>("Settings", White, gui::Font(0.9f, Style::Bold)))
+        Layout::Ptr(std::make_shared<Text>(Str("Settings"), White, gui::Font(0.9f, Style::Bold)))
     };
     for(auto &[key, ptr] : _text_fields) {
         ptr->add_to(objects);
@@ -256,7 +256,7 @@ VideoOpener::VideoOpener()
     _raw_description = std::make_shared<gui::StaticText>("Info", SizeLimit(video_chooser_column_width, -1), Font(0.5f));
     _raw_description->set_background(Transparent, Transparent);
     _raw_info->set_children({
-        Layout::Ptr(std::make_shared<Text>("Preview", White, gui::Font(0.9f, Style::Bold))),
+        Layout::Ptr(std::make_shared<Text>(Str("Preview"),TextClr( White), gui::Font(0.9f, Style::Bold))),
         _screenshot,
         _raw_description
     });
@@ -399,7 +399,7 @@ VideoOpener::VideoOpener()
         _screenshot_previous_size = Size2(0);
         
         if(_horizontal) {
-            _horizontal->auto_size(Margin{0, 0});
+            _horizontal->auto_size();
             _horizontal->update_layout();
         }
         
@@ -498,10 +498,10 @@ VideoOpener::VideoOpener()
                 if(scale != _screenshot_previous_size) {
                     _screenshot->set_scale(scale);
                     
-                    _raw_info->auto_size(Margin{0, 0});
-                    _raw_settings->auto_size(Margin{0, 0});
-                    _horizontal_raw->auto_size(Margin{0, 0});
-                    _recording_panel->auto_size(Margin{0, 0});
+                    _raw_info->auto_size();
+                    _raw_settings->auto_size();
+                    _horizontal_raw->auto_size();
+                    _recording_panel->auto_size();
                     
                     if(_screenshot_previous_size.empty()) {
                         {
@@ -940,7 +940,7 @@ void VideoOpener::select_file(const file::Path &p) {
     }
     
     std::vector<Layout::Ptr> children {
-        Layout::Ptr(std::make_shared<Text>("Settings", White, gui::Font(0.9f, Style::Bold)))
+        Layout::Ptr(std::make_shared<Text>(Str("Settings"),TextClr( White), gui::Font(0.9f, Style::Bold)))
     };
     
     constexpr double settings_width = 240;
@@ -953,7 +953,7 @@ void VideoOpener::select_file(const file::Path &p) {
             start = tmp[name].get().valueString();
         
         if(tmp[name].is_type<bool>()) {
-            children.push_back( Layout::Ptr(std::make_shared<Checkbox>(name, attr::Checked{tmp[name].get().value<bool>()}, gui::Font(0.7f))) );
+            children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Str(name), attr::Checked{tmp[name].get().value<bool>()}, gui::Font(0.7f))) );
         } else if(name == "output_prefix") {
             std::vector<std::string> folders;
             for(auto &p : _selected.remove_filename().find_files()) {
@@ -968,13 +968,13 @@ void VideoOpener::select_file(const file::Path &p) {
                 }
             }
             
-            children.push_back( Layout::Ptr(std::make_shared<Text>(name, White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, settings_width, 28), folders)) );
+            children.push_back( Layout::Ptr(std::make_shared<Text>(Str{name}, TextClr{White}, gui::Font(0.7f))) );
+            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Box(0, 0, settings_width, 28), folders)) );
             ((Dropdown*)children.back().get())->textfield()->set_font(Font(0.7f));
             
         } else {
-            children.push_back( Layout::Ptr(std::make_shared<Text>(name, White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Textfield>(Content(start), Bounds(0, 0, settings_width, 28))));
+            children.push_back( Layout::Ptr(std::make_shared<Text>(Str{name}, TextClr{White}, gui::Font(0.7f))) );
+            children.push_back( Layout::Ptr(std::make_shared<Textfield>(Str(start), Box(0, 0, settings_width, 28))));
             ((Textfield*)children.back().get())->set_font(Font(0.7f));
         }
         
@@ -1023,13 +1023,13 @@ void VideoOpener::select_file(const file::Path &p) {
     _load_results_checkbox = nullptr;
     auto path = Output::TrackingResults::expected_filename();
     if(path.exists()) {
-        children.push_back( Layout::Ptr(std::make_shared<Checkbox>(std::string("load results"), attr::Checked{false}, gui::Font(0.7f))) );
+        children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Str("load results"), attr::Checked{false}, gui::Font(0.7f))) );
         _load_results_checkbox = dynamic_cast<Checkbox*>(children.back().get());
     } else
-        children.push_back( Layout::Ptr(std::make_shared<Text>("No loadable results found.", Gray, gui::Font(0.7f, Style::Bold))) );
+        children.push_back( Layout::Ptr(std::make_shared<Text>(Str("No loadable results found."),TextClr( Gray), gui::Font(0.7f, Style::Bold))) );
     
     _extra->set_children(children);
-    _extra->auto_size(Margin{5,0});
+    _extra->auto_size();
     _extra->update_layout();
     
     try {
@@ -1061,8 +1061,8 @@ void VideoOpener::select_file(const file::Path &p) {
         
         _mini_bowl->auto_size(Margin{0, 0});
         
-        gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", gui::White, gui::Font(0.9f, gui::Style::Bold));
-        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text),  SizeLimit(_screenshot_max_size.div(_file_chooser->graph()->scale()).width * 0.25, _screenshot_max_size.div(_file_chooser->graph()->scale()).height), gui::Font(0.7f));
+        gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>(Str("Selected"), TextClr{White}, gui::Font(0.9f, gui::Style::Bold));
+        _info_description = std::make_shared<gui::StaticText>(Str(settings::htmlify(text)),  SizeLimit(_screenshot_max_size.div(_file_chooser->graph()->scale()).width * 0.25, _screenshot_max_size.div(_file_chooser->graph()->scale()).height), gui::Font(0.7f));
         //gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Preview", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
         
         _infos->set_children({
@@ -1072,7 +1072,7 @@ void VideoOpener::select_file(const file::Path &p) {
             _mini_bowl
         });
         
-        _infos->auto_size(Margin{0, 0});
+        _infos->auto_size();
         _infos->update_layout();
         
         _infos->remove_event_handler(EventType::HOVER, NULL);
@@ -1134,7 +1134,7 @@ void VideoOpener::select_file(const file::Path &p) {
         FormatExcept{ "Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),"." };
     }
     
-    _horizontal->auto_size(Margin{5, 5});
+    _horizontal->auto_size();
     _horizontal->update_layout();
     
     SETTING(filename) = file::Path();

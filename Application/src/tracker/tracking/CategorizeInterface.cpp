@@ -100,7 +100,7 @@ Cell::Cell() :
     _selected(false),
     _image(std::make_shared<ExternalImage>(Image::Make(50,50,1))),
     _text(std::make_shared<StaticText>(Font(0.5))),
-    _cat_border(std::make_shared<Rect>(Bounds(50,50))),
+    _cat_border(std::make_shared<Rect>(Box(50,50))),
     _block(std::make_shared<Entangled>([this](Entangled& e){
         /**
          * This is the block that contains all display-elements of a Cell.
@@ -115,7 +115,7 @@ Cell::Cell() :
         
         auto labels = DataStore::label_names();
         for(auto &c : labels) {
-            auto b = Layout::Make<Button>(c, Bounds(Size2(Base::default_text_bounds(c, nullptr, Font(0.75)).width + 10, 33)));
+            auto b = Layout::Make<Button>(Str(c), Box(Size2(Base::default_text_bounds(c, nullptr, Font(0.75)).width + 10, 33)));
             
             b->on_click([this, c, ptr = &e](auto){
                 if(_sample && _row) {
@@ -134,7 +134,7 @@ Cell::Cell() :
             add(b);
         }
         
-        auto b = Layout::Make<Button>("Skip", Bounds(Vec2(), Size2(50,33)));
+        auto b = Layout::Make<Button>(Str("Skip"), Box(Vec2(), Size2(50,33)));
         b->on_click([this](Event e) {
             if(_row) {
                 if(_sample) {
@@ -146,7 +146,7 @@ Cell::Cell() :
         });
         add(b);
         
-        _button_layout->auto_size(Margin{0, 0});
+        _button_layout->auto_size();
     }))
 {
     _image->set_clickable(true);
@@ -306,7 +306,7 @@ void Cell::update(float s) {
     _cat_border->set_size(bds.size() + 10 / _cat_border->scale().x);
     
     //_text->set_base_text_color(White.alpha(100 + 155 * s));
-    _button_layout->auto_size(Margin{0, 0});
+    _button_layout->auto_size();
     _text->set_pos(Vec2(10, _block->height() - 15));
 }
 
@@ -447,7 +447,7 @@ void Row::update(size_t cell_index, const Sample::Ptr& sample) {
     auto &cell = this->cell(cell_index);
     cell.set_sample(sample);
     
-    layout->auto_size(Margin{0, 0});
+    layout->auto_size();
 }
 
 bool Row::empty() const {
@@ -521,13 +521,12 @@ void Interface::init(DrawStructure& base) {
         layout.set_pos(Size2(base.width(), base.height()) * 0.5);
 
         stext = Layout::Make<StaticText>(
-            "<h2>Categorizing types of individuals</h2>"
-            "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
+            Str("<h2>Categorizing types of individuals</h2>"
+            "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below)."),
             SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.7)
             );
 
         layout.add_child(stext);
-        //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
 
         apply->on_click([](auto) {
             Work::set_state(Work::State::APPLY);
@@ -602,7 +601,7 @@ void Interface::init(DrawStructure& base) {
             layout.add_child(buttons);
         }
 
-        layout.auto_size(Margin{ 0,0 });
+        layout.auto_size();
         layout.set_z_index(1);
     }
 
@@ -642,7 +641,7 @@ void Interface::draw(DrawStructure& base) {
 
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
-                textfield = Layout::Make<Textfield>(Content("W,S"), Bounds(Size2(d->layout().width() * 0.75, 33)));
+                textfield = Layout::Make<Textfield>(Str("W,S"), Box(Size2(d->layout().width() * 0.75, 33)));
                 textfield->set_size(Size2(d->layout().width() * 0.75, 33));
                 d->set_custom_element(textfield);
                 d->layout().Layout::update_layout();
@@ -652,7 +651,7 @@ void Interface::draw(DrawStructure& base) {
     }
 
     using namespace gui;
-    static Rect rect(Bounds(0, 0, 0, 0), FillClr{Black.alpha(125)});
+    static Rect rect(FillClr{Black.alpha(125)});
 
     auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
     auto center = window * 0.5;
@@ -665,7 +664,7 @@ void Interface::draw(DrawStructure& base) {
 
     init(base);
 
-    layout.auto_size(Margin{ 0,0 });
+    layout.auto_size();
     base.wrap_object(layout);
 
     static Timer timer;

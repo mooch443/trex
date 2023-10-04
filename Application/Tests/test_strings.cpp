@@ -729,3 +729,68 @@ TEST(NarrowCastTest, NoTags) {
     result = narrow_cast<short>(value);
     EXPECT_EQ(result, static_cast<short>(value));
 }
+
+// Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
+TEST(ToStrFromStrRoundTripTest, BasicTest) {
+    std::string original1 = "hello";
+    std::string original2 = R"(world)";
+    std::string original3 = R"(\n\t\\)";
+    
+    std::string intermediate1 = Meta::toStr<std::string>(original1);
+    std::string intermediate2 = Meta::toStr<std::string>(original2);
+    std::string intermediate3 = Meta::toStr<std::string>(original3);
+    
+    std::string result1 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate1));
+    std::string result2 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate2));
+    std::string result3 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate3));
+    
+    EXPECT_EQ(result1, intermediate1);
+    EXPECT_EQ(result2, intermediate2);
+    EXPECT_EQ(result3, intermediate3);
+}
+
+// Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
+TEST(ToStrFromStrRoundTripTest, EscapingTest) {
+    std::vector<std::string> testStrings = {
+        R"(\\\test\\)",
+        R"(\)",
+        R"(testwithend\)",
+        R"("trailing spaces beyond end"    )",
+        R"(hello)",
+        R"(world)",
+        R"('single quotes')",
+        R"("double quotes")",
+        R"(\"escaped double quotes\")",
+        R"('\'escaped single quotes\'')",
+        R"(\\)",
+        R"(\\\")",
+        R"(\\\\)",
+        R"(\n\t\b\r\f\a)",
+        R"(\\n\\t\\b\\r\\f\\a)",
+        R"(   leading spaces)",
+        R"(trailing spaces   )",
+        R"("trailing spaces beyond end"    )",
+        R"(    "leading spaces beyond start")"
+    };
+    
+    for (const auto& original : testStrings) {
+        std::string intermediate = Meta::toStr<std::string>(original);
+        print("original ", original.c_str());
+        print("intermed ", intermediate.c_str());
+        
+        // Assuming your fromStr function trims spaces beyond the enclosing quotes
+        std::string trimmed_intermediate = intermediate;
+        
+        std::string result = Meta::toStr<std::string>(Meta::fromStr<std::string>(trimmed_intermediate));
+        
+        print("result   ", result.c_str());
+        
+        EXPECT_EQ(result, intermediate) << "Failed round-trip test for string: " << original;
+        
+        std::string fully_reversed = Meta::fromStr<std::string>(result);
+        print("fully r  ", fully_reversed.c_str());
+        EXPECT_EQ(fully_reversed, original) << "Failed round-trip test for string: " << original;
+    }
+}
+
+

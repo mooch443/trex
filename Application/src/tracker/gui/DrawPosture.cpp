@@ -61,7 +61,7 @@ namespace gui {
         //advance_wrap(_background);
         
         Vec2 topleft = Vec2(5);
-        Loc zero = topleft + this->zero;
+        Loc zero{topleft + this->zero};
         
         auto &scale = _scale[_fish->identity().ID()];
         
@@ -97,11 +97,11 @@ namespace gui {
                 fx *= fish_scale;
                 fy *= fish_scale;
                 
-                return Vec2(fx, fy) + zero;
+                return Loc{Vec2(fx, fy) + zero};
                 
             } else {
                 pt = (pt - outline.front()) * fish_scale;
-                return pt + zero;
+                return Loc{pt + zero};
             }
         };
         
@@ -125,7 +125,7 @@ namespace gui {
             std::vector<Vertex> midline_vertices;
             for (size_t i=0; i<midline_points.size(); i++) {
                 auto &pt = midline_points.at(i);
-                Loc current = Vec2(pt.pos) * fish_scale + zero;
+                Loc current{Vec2(pt.pos) * fish_scale + zero};
                 
                 add<Circle>(current, Radius{2}, LineClr(0, 255, 255, 255));
                 
@@ -140,7 +140,7 @@ namespace gui {
             midline_vertices.clear();
             for (size_t i=0; i<midline->segments().size(); i++) {
                 auto pt = midline->segments().at(i);
-                Loc current = Vec2(pt.pos) * fish_scale + zero;
+                Loc current{(pt.pos) * fish_scale + zero};
                 
                 add<Circle>(current, Radius{1}, LineClr{White});
                 midline_vertices.push_back(Vertex(current, Color(225, 125, 0, 255)));
@@ -226,8 +226,8 @@ namespace gui {
                 ss << "no midline";
             
             //midline_points.back().pos.y; //"segments: " << midline->segments().size();
-            add<Text>(ss.str(), Loc(Vec2(10, 10) + topleft), gui::Color(0, 255, 255, 255), Font(0.75));
-            add<Text>(Meta::toStr(_fish->blob(_frameIndex)->bounds().size()), Loc(Vec2(10,30) + topleft), DarkCyan, Font(0.75));
+            add<Text>(Str(ss.str()), Loc(Vec2(10, 10) + topleft), TextClr(0, 255, 255, 255), Font(0.75));
+            add<Text>(Str(Meta::toStr(_fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
         }
         
         end();

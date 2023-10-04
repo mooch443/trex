@@ -20,7 +20,7 @@ struct LabeledField {
     //gui::derived_ptr<gui::HorizontalLayout> _joint;
     
     LabeledField(const std::string& name = "")
-        : _text(std::make_shared<gui::Text>(name))
+        : _text(std::make_shared<gui::Text>(Str(name)))
           //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
     {
         _text->set_font(Font(0.6f, Style::Bold));
@@ -71,7 +71,7 @@ struct LabeledCheckbox : public LabeledField {
 
 LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
-      _checkbox(std::make_shared<gui::Checkbox>(attr::Loc(), name)),
+      _checkbox(std::make_shared<gui::Checkbox>(Str{name})),
       _ref(GlobalSettings::map()[name])
 {
     _docs = GlobalSettings::docs()[name];
@@ -93,7 +93,7 @@ void LabeledCheckbox::update() {
 
 LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>(Bounds(0, 0, default_element_width, 28))),
+      _text_field(std::make_shared<gui::Textfield>(Box(0, 0, default_element_width, 28))),
       _ref(GlobalSettings::map()[name])
 {
     _text_field->set_placeholder(name);
@@ -120,7 +120,7 @@ void LabeledTextField::update() {
 
 LabeledDropDown::LabeledDropDown(const std::string& name)
     : LabeledField(name),
-      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, default_element_width, 28))),
+      _dropdown(std::make_shared<gui::Dropdown>(Box(0, 0, default_element_width, 28))),
       _ref(GlobalSettings::map()[name])
 {
     _docs = GlobalSettings::docs()[name];
@@ -213,13 +213,13 @@ void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     auto size = graph.dialog_window_size();
     
     static StaticText text("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details.", Loc(offset), SizeLimit(240, -1), Font(0.65));
-    static Button button("x", Bounds(5, 5, 25, 25));
+    static Button button(Str("x"), Box(5, 5, 25, 25));
     button.set_scale(graph.scale().reciprocal());
     offset.x += button.local_bounds().width + 10;
     
     preview.update([&](Entangled& e) {
         ExternalImage *ptr{nullptr};
-        auto bds = e.add<Text>("Image settings", offset, White.alpha(200), Font(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
+        auto bds = e.add<Text>(Str("Image settings"), offset, TextClr(White.alpha(200)), Font(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
         
         offset.y += bds.height + 10;
         offset.x = 5;
@@ -276,7 +276,7 @@ void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
             } else
                 ptr = e.add<ExternalImage>(std::move(image), offset, scale);
             
-            e.add<Text>(fish->identity().name(), Loc(offset + Vec2(5, 2)), White.alpha(200), Font(0.5), Scale(graph.scale().reciprocal()));
+            e.add<Text>(Str(fish->identity().name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font(0.5), Scale(graph.scale().reciprocal()));
             
             offset.x += ptr->local_bounds().width + 5;
             if(offset.x >= size.width * 0.25) {

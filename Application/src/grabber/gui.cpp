@@ -233,7 +233,7 @@ void GUI::draw(gui::DrawStructure &base) {
             }
         }
 
-        Scale scale = guard._section->scale().mul(base.scale()).reciprocal();
+        Scale scale{guard._section->scale().mul(base.scale()).reciprocal()};
 
         Color text_color(255, 255, 255, 255);
         if (_image && _image->cols > 20 && _image->rows > 20) {
@@ -337,7 +337,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     pv::Blob blob(*m, *_frame->pixels().at(i), _frame->flags().at(i), _frame->predictions().empty() ? blob::Prediction{} : blob::Prediction{_frame->predictions().at(i)});
                     auto pos = blob.bounds().pos();
                     auto clr = wheel.next();
-                    base.rect(Bounds(pos + offset, blob.bounds().size()), FillClr{Transparent}, LineClr{clr.alpha(150)});
+                    base.rect(Box(pos + offset, blob.bounds().size()), FillClr{Transparent}, LineClr{clr.alpha(150)});
                     
                     //! only display images if there arent too many of them.
                     if(_frame->mask().size() < 100) {
@@ -359,13 +359,13 @@ void GUI::draw(gui::DrawStructure &base) {
                         base.image(pos + offset, std::move(image), Vec2(1.0), clr.alpha(150));
                     }
                     
-                    base.text(Meta::toStr(i), Loc(pos + offset), Yellow, Font(0.5), scale);
+                    base.text(Str(Meta::toStr(i)), Loc(pos + offset), TextClr(Yellow), Font(0.5), scale);
                 }
             }
 
             if (!_grabber.is_recording()) {
-                base.text("waiting for commands", Loc(_size.width / 2, _size.height / 2), Red, Font(0.8, Align::Center), scale);
-                base.rect(Bounds(Vec2(8, 14), Size2(7, 7)), FillClr{White.alpha(125)}, LineClr{Black.alpha(125)});
+                base.text(Str("waiting for commands"), Loc(_size.width / 2, _size.height / 2), TextClr(Red), Font(0.8, Align::Center), scale);
+                base.rect(Box(Vec2(8, 14), Size2(7, 7)), FillClr{White.alpha(125)}, LineClr{Black.alpha(125)});
             }
             else {
                 const float speed = 0.5;
@@ -387,8 +387,8 @@ void GUI::draw(gui::DrawStructure &base) {
 
                 float alpha = min(0.8f, max(0.25f, _record_alpha));
                 if (_grabber.is_paused()) {
-                    base.rect(Bounds(Vec2(8, 14).mul(scale), Vec2(2, 7).mul(scale)), FillClr{White.alpha(alpha * 255)}, LineClr{Black.alpha(alpha * 255)});
-                    base.rect(Bounds(Vec2(12, 14).mul(scale), Vec2(2, 7).mul(scale)), FillClr{White.alpha(255 * alpha)}, LineClr{Black.alpha(255 * alpha)});
+                    base.rect(Box(Vec2(8, 14).mul(scale), Vec2(2, 7).mul(scale)), FillClr{White.alpha(alpha * 255)}, LineClr{Black.alpha(alpha * 255)});
+                    base.rect(Box(Vec2(12, 14).mul(scale), Vec2(2, 7).mul(scale)), FillClr{White.alpha(255 * alpha)}, LineClr{Black.alpha(255 * alpha)});
 
                 }
                 else {
@@ -422,10 +422,16 @@ void GUI::draw(gui::DrawStructure &base) {
                     base.wrap_object(*background);
                 }
 
-                base.text("generating average (" + std::to_string(_grabber.average_samples()) + "/" + std::to_string(SETTING(average_samples).value<uint32_t>()) + ")", Loc(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), scale);
+                base.text(Str{
+                            "generating average (" + std::to_string(_grabber.average_samples()) + "/" + std::to_string(SETTING(average_samples).value<uint32_t>()) + ")"
+                          },
+                          Loc(_size.width / 2, _size.height / 2),
+                          TextClr{Red},
+                          Font(0.8f, Align::Center),
+                          scale);
             }
             else {
-                base.text("waiting for frame...", Loc(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), scale);
+                base.text(Str{"waiting for frame..."}, Loc(_size.width / 2, _size.height / 2), TextClr{Red}, Font(0.8f, Align::Center), scale);
             }
         }
 
@@ -434,9 +440,9 @@ void GUI::draw(gui::DrawStructure &base) {
             {
                 // shadow
                 if(shadow)
-                    base.text(text, Loc((pos + Vec2(0.5, 0.5)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
+                    base.text(Str{text}, Loc((pos + Vec2(0.5, 0.5)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
                 // text
-                return base.text(text, Loc(pos.mul(scale)), color, Font(font_size, Align::VerticalCenter), scale)->width();
+                return base.text(Str{text}, Loc(pos.mul(scale)), color, Font(font_size, Align::VerticalCenter), scale)->width();
             };
 
             auto frame = _grabber.last_index().load();
@@ -614,7 +620,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                         continue;
                     
                     //auto p = bounds.pos() + bounds.size() * 0.5;
-                    Loc p = basic->centroid.pos<Units::PX_AND_SECONDS>();
+                    Loc p{basic->centroid.pos<Units::PX_AND_SECONDS>()};
                     positions.push_back(p);
 
                     //! if this is the last frame, also add the outline to the drawing
@@ -668,15 +674,15 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
                 
                 base.line(positions, 1, color.alpha(alpha));
-                base.text(Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")", Loc(positions.back() + Vec2(10, 0)), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
+                base.text(Str{Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")"}, Loc(positions.back() + Vec2(10, 0)), TextClr{color.alpha(alpha)}, is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
             }
         }
         
         Loc pos(_grabber.average().cols + 100, 120);
         for (auto& [k, tup] : speeds) {
             //auto w =
-            base.text(Meta::toStr(k) + ":", pos, Color(150, 150, 150, 255), Font(0.5, Style::Bold), scale);//->local_bounds().width;
-            base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", Loc(pos + Vec2(70, 0)), White, Font(0.5), scale);
+            base.text(Str{Meta::toStr(k) + ":"}, pos, TextClr(150, 150, 150, 255), Font(0.5, Style::Bold), scale);//->local_bounds().width;
+            base.text(Str{Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s"}, Loc(pos + Vec2(70, 0)), TextClr{White}, Font(0.5), scale);
             pos += Vec2(0, 50);
         }
         

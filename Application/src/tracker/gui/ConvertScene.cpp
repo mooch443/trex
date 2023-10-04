@@ -356,7 +356,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 // Helper function to draw outlines
 void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale) {
     if (not _current_data.outlines.empty()) {
-        graph.text(Meta::toStr(_current_data.outlines.size()) + " lines", attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
+        graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
         ColorWheel wheel;
         for (const auto& v : _current_data.outlines) {
@@ -469,7 +469,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         }
 
         for (auto box : _current_data.tiles)
-            graph.rect(box, attr::FillClr{Transparent}, attr::LineClr{Red});
+            graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
 
         static Frame_t last_frame;
         bool dirty{ false };

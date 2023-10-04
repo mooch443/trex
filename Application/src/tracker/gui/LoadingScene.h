@@ -106,7 +106,7 @@ public:
         std::function<void(const file::Path&, std::string)> callback,
         std::function<void(const file::Path&, std::string)> on_select_callback)
         : Scene(window, "loading-scene", [this](auto&, DrawStructure& graph) { _draw(graph); }),
-        _description(std::make_shared<Text>("Please choose a file in order to continue.", Loc(10, 10), Font(0.75))),
+        _description(std::make_shared<Text>(Str("Please choose a file in order to continue."), Loc(10, 10), Font(0.75))),
         _columns(std::make_shared<HorizontalLayout>()),
         _overall(std::make_shared<VerticalLayout>()),
         _path(start),
@@ -161,9 +161,9 @@ public:
 
         //auto overall_width = _list->width() + (_extra ? _extra->width() : 0);
 
-        _button = Button::MakePtr("Open", Bounds(_list->pos() + Vec2(0, _list->height() + 40), attr::Size(100, 30)));
+        _button = Button::MakePtr(Str{"Open"}, Box(_list->pos() + Vec2(0, _list->height() + 40), attr::Size(100, 30)));
 
-        _textfield = std::make_shared<Dropdown>(Bounds(0, 0, _list->width(), 30));
+        _textfield = std::make_shared<Dropdown>(Box(0, 0, _list->width(), 30));
         //_textfield = std::make_shared
         _textfield->on_select([this](auto, const Dropdown::TextItem& item) {
             file::Path path;

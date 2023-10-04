@@ -44,21 +44,21 @@ int main() {
         graph.circle(Loc(100, 100), Radius{50}, FillClr{Blue}, LineClr{Red});
         
         graph.section("tmp", [](DrawStructure&base, auto section) {
-            static Button button("test", Bounds(300, 300, 100, 35));
+            static Button button(Str{"test"}, Box(300, 300, 100, 35));
             section->set_scale(Vec2(1));
             button.set_line_clr(White);
             //static Circle button(Vec2(300, 30), 50, Blue, Blue);
             base.wrap_object(button);
             
-            static Rect rect(Bounds(), FillClr{Transparent}, LineClr{White});
+            static Rect rect(FillClr{Transparent}, LineClr{White});
             base.wrap_object(rect);
-            auto text = base.text("boundary_text", Loc(50, 150));
+            auto text = base.text(Str("boundary_text"), Loc(50, 150));
             rect.set_bounds(text->bounds());
         });
         
         graph.wrap_object(g);
         
-        static Checkbox checkbox(Loc(50, 250), std::string("Hi"));
+        static Checkbox checkbox(Loc(50, 250), Str("Hi"));
         graph.wrap_object(checkbox);
         
         auto str = format<FormatterType::NONE>("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);

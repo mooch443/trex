@@ -37,9 +37,9 @@ struct InfoCard::ShadowIndividual {
 InfoCard::InfoCard(std::function<void(Frame_t)> reanalyse)
     :
 _shadow(new ShadowIndividual{}),
-prev(Button::MakePtr("prev", Bounds(10, 0, 90, 25), FillClr(100, 100, 100, 200))),
-next(Button::MakePtr("next", Bounds(105, 0, 90, 25), FillClr(100, 100, 100, 200))),
-detail_button(Button::MakePtr("detail", Bounds(Vec2(), Size2(50,20)), FillClr(100, 100, 100, 200))),
+prev(Button::MakePtr(Str{"prev"}, Box(10, 0, 90, 25), FillClr(100, 100, 100, 200))),
+next(Button::MakePtr(Str{"next"}, Box(105, 0, 90, 25), FillClr(100, 100, 100, 200))),
+detail_button(Button::MakePtr(Str{"detail"}, Box(Vec2(), Size2(50,20)), FillClr(100, 100, 100, 200))),
 _reanalyse(reanalyse)
 {
 }
@@ -182,18 +182,18 @@ void InfoCard::update() {
     //auto layout = std::make_shared<VerticalLayout>(Vec2(10, 10));
     const auto font = Font(0.8f, Style::Bold);
     float y = 10;
-    add<Text>(_shadow->identity.name(), Loc(11,y + 1), White.alpha(clr.a * 0.7f), font);
-    auto text = add<Text>(_shadow->identity.name(), Loc(10, y), _shadow->has_frame ? clr : Color::blend(clr, Gray), font);
+    add<Text>(Str(_shadow->identity.name()), Loc(11,y + 1), TextClr(White.alpha(clr.a * 0.7f)), font);
+    auto text = add<Text>(Str(_shadow->identity.name()), Loc(10, y), TextClr(_shadow->has_frame ? clr : Color::blend(clr, Gray)), font);
     
     if(!_shadow->has_frame) {
-        text = add<Text>("inactive", Loc(width() - 5, text->pos().y + 5), Gray.alpha(clr.a * 0.5), Font(font.size * 0.8, Style::Monospace, Align::Right));
+        text = add<Text>(Str("inactive"), Loc(width() - 5, text->pos().y + 5), TextClr(Gray.alpha(clr.a * 0.5)), Font(font.size * 0.8, Style::Monospace, Align::Right));
     }
     
     segment_texts.clear();
     
     auto add_segments = [&font, y, this](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
     {
-        auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), White, Font(0.8f));
+        auto text = add<Text>(Str(Meta::toStr(segments.size())+" segments"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -237,9 +237,10 @@ void InfoCard::update() {
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
             
-            text = add<Text>(str, Loc(p), _shadow->frame != range.start()
-                             ? White.alpha(alpha)
-                             : Color(200,235,255).alpha(alpha),
+            text = add<Text>(Str(str), Loc(p),
+                             TextClr{_shadow->frame != range.start()
+                                        ? White.alpha(alpha)
+                                        : Color(200,235,255).alpha(alpha)},
                              Font(0.8f), Origin(1, 0.5f));
             text->set_clickable(true);
             //text = advance(text);
@@ -348,7 +349,7 @@ void InfoCard::update() {
     auto fprobs = cache.probs(fdx);
     
     bool detail = SETTING(gui_show_detailed_probabilities);
-    Bounds tmp(0, y - 10, 200, 0);
+    Box tmp(0, y - 10, 200, 0);
     
     //auto idx = index();
     //if(idx < children().size() && children().at(idx)->type() == Type::RECT)
@@ -360,7 +361,7 @@ void InfoCard::update() {
     
     
     auto rect = add<Rect>(tmp, FillClr{bg.alpha(detail ? 50 : bg.a)});
-    text = add<Text>("matching", Loc(10, y), White, Font(0.8f, Style::Bold));
+    text = add<Text>(Str("matching"), Loc(10, y), TextClr(White), Font(0.8f, Style::Bold));
     
     /*if(!detail_button->parent()) {
         detail_button->set_toggleable(true);
@@ -380,11 +381,11 @@ void InfoCard::update() {
     
     if(_shadow->is_automatic_match) {
         y += text->height();
-        text = add<Text>("(automatic match)", Loc(10, y), White.alpha(150), Font(0.8f, Style::Italic));
+        text = add<Text>(Str("(automatic match)"), Loc(10, y), TextClr{White.alpha(150)}, Font(0.8f, Style::Italic));
         y += text->height();
         
         if(!automatic_button) {
-            automatic_button = Button::MakePtr("delete", Bounds(10, y, 50, 20), FillClr(100, 200));
+            automatic_button = Button::MakePtr(Str("delete"), Box(10, y, 50, 20), FillClr(100, 200));
             automatic_button->on_click([this](auto){
                 if(!_shadow->fdx.valid())
                     return;
@@ -409,10 +410,10 @@ void InfoCard::update() {
     
     std::string speed_str = _shadow->speed < 0 ? "(none)" : (Meta::toStr(_shadow->speed) + "cm/s");
     
-    y += add<Text>(speed_str, Loc(10, y), White.alpha(125), Font(0.8f))->height();
+    y += add<Text>(Str(speed_str), Loc(10, y), TextClr{White.alpha(125)}, Font(0.8f))->height();
     if (!_shadow->current_range.empty()) {
         if (_shadow->qrcode.valid()) {
-            y += add<Text>("QR:" + Meta::toStr(_shadow->qrcode.id) + " (" + dec<2>(_shadow->qrcode.p).toStr() + ")", Loc(10, y), White.alpha(125), Font(0.8))->height();
+            y += add<Text>(Str("QR:" + Meta::toStr(_shadow->qrcode.id) + " (" + dec<2>(_shadow->qrcode.p).toStr() + ")"), Loc(10, y), TextClr(White.alpha(125)), Font(0.8))->height();
         }
     }
     
@@ -445,8 +446,8 @@ void InfoCard::update() {
                 /*if(detail)
                     probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";*/
                 
-                auto text = add<Text>(Meta::toStr(blob)+": ", Loc(10, y), White, Font(0.8f));
-                auto second = add<Text>(probs_str, Loc(text->pos() + Vec2(text->width(), 0)), color, Font(0.8f));
+                auto text = add<Text>(Str(Meta::toStr(blob)+": "), Loc(10, y), TextClr(White), Font(0.8f));
+                auto second = add<Text>(Str(probs_str), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), Font(0.8f));
                 y += text->height();
                 
                 auto w = second->pos().x + second->width() + 10;
@@ -464,7 +465,7 @@ void InfoCard::update() {
     y += 30;
     
     if(fish_has_frame) {
-        Bounds tmp(0, y-10, 200, 0);
+        Box tmp(0, y-10, 200, 0);
         auto rect = add<Rect>(tmp, FillClr{bg.alpha(bg.a)});
         
         //auto idx = index();
@@ -476,11 +477,11 @@ void InfoCard::update() {
             p_sum = max(p_sum, value);
         
         float max_w = 200;
-        auto text = add<Text>(_shadow->recognition_str, Loc(10, y), Font(0.8f, Style::Bold));
+        auto text = add<Text>(Str(_shadow->recognition_str), Loc(10, y), Font(0.8f, Style::Bold));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
-        text = add<Text>(Meta::toStr(_shadow->recognition_segment), Loc(10, y), Color(220,220,220,255), Font(0.8f, Style::Italic));
+        text = add<Text>(Str(Meta::toStr(_shadow->recognition_segment)), Loc(10, y), TextClr(220,220,220,255), Font(0.8f, Style::Italic));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
@@ -507,7 +508,7 @@ void InfoCard::update() {
             std::string str = Meta::toStr(fdx) + ": " + Meta::toStr(p);
             
             Color color = White * (1 - p/p_sum) + Red * (p / p_sum);
-            auto text = add<Text>(str, Loc(current_pos), color, Font(0.8f));
+            auto text = add<Text>(Str(str), Loc(current_pos), TextClr(color), Font(0.8f));
             
             auto w = text->pos().x + text->width() + 10;
             if(w > max_w)

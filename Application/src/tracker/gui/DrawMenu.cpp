@@ -120,11 +120,12 @@ protected:
     
 public:
     DrawMenuPrivate() {
-        layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{}, Vec2(), Bounds(5, 5));
+        layout = std::make_shared<HorizontalLayout>(Size(5, 5));
             
         _list = std::make_shared<gui::List>(
-            Bounds(GUI::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
-            "match", std::vector<std::shared_ptr<List::Item>>{},
+            Box(GUI::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
+            Str("match"),
+            std::vector<std::shared_ptr<List::Item>>{},
             [this](gui::List*, const List::Item& item){
                 if(item == _list->selected_item()) {
                     
@@ -145,7 +146,7 @@ public:
         });
         
         
-        second_list = std::make_shared<gui::List>(Bounds(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), "blobs", std::vector<std::shared_ptr<List::Item>>{},
+        second_list = std::make_shared<gui::List>(Box(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), Str("blobs"), std::vector<std::shared_ptr<List::Item>>{},
           [this](List*, const List::Item& item) {
               print(item.ID()," ",item.selected());
               if(!item.selected() && item.ID() >= 0) {
@@ -157,7 +158,7 @@ public:
         second_list->set_toggle(true);
         second_list->set_foldable(false);
         
-        menu = std::make_shared<gui::List>(Bounds(Vec2(), Size2(200,33)), "menu", std::vector<std::shared_ptr<List::Item>>{
+        menu = std::make_shared<gui::List>(Box(Vec2(), Size2(200,33)), Str("menu"), std::vector<std::shared_ptr<List::Item>>{
             std::make_shared<TextItem>("load state [L]", LOAD),
             std::make_shared<TextItem>("save state [Z]", SAVE),
             std::make_shared<TextItem>("save config", CONFIG),
@@ -310,12 +311,12 @@ public:
         
         menu->set_folded(true);
         
-        foi_list = std::make_shared<gui::List>(Bounds(0, 0, 150, 33), "foi type", std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
+        foi_list = std::make_shared<gui::List>(Box(0, 0, 150, 33), Str("foi type"), std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
             SETTING(gui_foi_name) = ((TextItem)item).text();
             foi_list->set_folded(true);
         });
         
-        reanalyse = std::make_shared<Button>("reanalyse", Bounds(0, 0, 100, 33));
+        reanalyse = std::make_shared<Button>(Str("reanalyse"), Box(0, 0, 100, 33));
         reanalyse->on_click([&](auto){
             GUI::reanalyse_from(GUI::frame());
             SETTING(analysis_paused) = false;
@@ -529,11 +530,11 @@ public:
                     for(auto && [name, size] : overall.sizes) {
                         auto color = wheel.next();
                         float h = float((size - mi) / float(ma - mi)) * bars.height;
-                        base.add<Rect>(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), FillClr{color});
+                        base.add<Rect>(Box(x + margin, margin + bars.height - h, bars.width - margin * 2, h), FillClr{color});
                         auto text = elements.at(i);
                         auto pos = Vec2(x + bars.width * 0.5f, margin + bars.height + margin);
                         if(!text) {
-                            text = std::make_shared<StaticText>(utils::trim(utils::find_replace(name, "_", " ")) + "\n<ref>" + Meta::toStr(FileSize{size})+"</ref>", Loc(pos), SizeLimit(bars.width, 20));
+                            text = std::make_shared<StaticText>(Str(utils::trim(utils::find_replace(name, "_", " ")) + "\n<ref>" + Meta::toStr(FileSize{size})+"</ref>"), Loc(pos), SizeLimit(bars.width, 20));
                             elements.at(i) = text;
                             text->set_origin(Vec2(0.5, 0));
                             text->set_background(Transparent, Transparent);
@@ -590,7 +591,7 @@ public:
                     }
                     
                     auto str = Meta::toStr(FileSize{overall.bytes});
-                    base.add<Text>(str, Loc(10, 10), White, Font(0.75));
+                    base.add<Text>(Str(str), Loc(10, 10), TextClr(White), Font(0.75));
                     
                 });
                 

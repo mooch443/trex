@@ -272,9 +272,9 @@ void draw_blob_view(const DisplayParameters& parm)
                 Loc pos(10, GUI::timeline().bar()->global_bounds().height + GUI::timeline().bar()->global_bounds().y + 10);
                 auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(parm.cache.processed_frame.N_blobs())+").";
                 
-                Scale scale = base.scale().reciprocal();
-                base.rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), FillClr{Black.alpha(125)}, LineClr{Transparent}, scale);
-                base.text(text, Loc(pos + Vec2(2)), White, Font(0.5), scale);
+                Scale scale{base.scale().reciprocal()};
+                base.rect(Box(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), FillClr{Black.alpha(125)}, LineClr{Transparent}, scale);
+                base.text(Str(text), Loc(pos + Vec2(2)), TextClr(White), Font(0.5), scale);
             }
             
             static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
@@ -438,7 +438,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 circ->set_pos(blob->center());
                 circ->set_scale(parm.scale.reciprocal());
                 
-                e.add<Rect>(blob->bounds(), FillClr{Transparent}, LineClr{White.alpha(100)});
+                e.add<Rect>(Box{blob->bounds()}, FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
 
                 /*auto results = parm.cache.processed_frame.blob_grid().query(mpos, max_distance);
@@ -492,7 +492,7 @@ void draw_blob_view(const DisplayParameters& parm)
         static std::shared_ptr<Dropdown> list;
         if(popup == nullptr) {
             popup = std::make_shared<Entangled>();
-            list = std::make_shared<Dropdown>(Bounds(0, 0, 200, 35));
+            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35));
             list->on_open([list=list.get()](bool opened) {
                 if(!opened) {
                     //list->set_items({});
@@ -815,7 +815,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             s->set_pos(bowl->pos());
             
             const Font font(0.75);
-            Scale sca = base.scale().reciprocal().mul(s->scale().reciprocal());
+            Scale sca{base.scale().reciprocal().mul(s->scale().reciprocal())};
 
             Vec2 top_left(FLT_MAX, FLT_MAX);
             Vec2 bottom_right(0, 0);
@@ -846,7 +846,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     
                     a = atan2(v);
                     base.text(
-                        Meta::toStr(D)+" px", 
+                        Str(Meta::toStr(D)+" px"),
                         Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                         Cyan.alpha(200), 
                         font, 
@@ -855,7 +855,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                         Rotation(a));
                     
                     base.text(
-                        Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", 
+                        Str(Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm"), 
                         Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                         Cyan.alpha(200), 
                         font, 
@@ -907,7 +907,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 bds.width = text_bounds.width + 10;
                 
                 if(!button) {
-                    button = std::make_shared<Button>(name, Bounds(Vec2(), bds.size()));
+                    button = std::make_shared<Button>(Str(name), Box(Vec2(), bds.size()));
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "", settings_dropdown, value_input);
                     });
@@ -918,7 +918,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 }
                 
                 if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Bounds(Vec2(0, button->local_bounds().height), bds.size()), std::vector<std::string>{
+                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), std::vector<std::string>{
                         "track_ignore",
                         "track_include",
                         "recognition_shapes"

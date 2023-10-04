@@ -297,7 +297,7 @@ void async_main(void*) {
 			 * 
 			 */
 			static Entangled menu([&graph, &tracker](Entangled& menu) {
-				static Button reanalyse("reanalyse", Bounds{ Size2(100, 33) }, [&]() {
+                static Button reanalyse(Str{"reanalyse"}, Box{ Size2(100, 33) }, [&]() {
 					auto index = SETTING(gui_frame).value<Frame_t>();
 					std::lock_guard guard(graph.lock());
 					if(index.valid() && tracker.end_frame().valid()

@@ -150,9 +150,9 @@ void SettingsScene::_draw(DrawStructure& graph) {
         objs.push_back(Layout::Ptr(_preview_image));
     });
     
-    _buttons_and_items->auto_size(Margin{0,0});
-    _logo_title_layout->auto_size(Margin{0,0});
-    _main_layout.auto_size(Margin{0,0});
+    _buttons_and_items->auto_size();
+    _logo_title_layout->auto_size();
+    _main_layout.auto_size();
 }
 
 }

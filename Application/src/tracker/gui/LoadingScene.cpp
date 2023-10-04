@@ -11,7 +11,7 @@ void LoadingScene::set_tabs(const std::vector<Settings>& tabs) {
             tab.extension = _default_tab.extension;
         _tabs[tab.name] = tab;
 
-        auto button = new Button(tab.name, attr::Size(Base::default_text_bounds(tab.name).width + 20, 40));
+        auto button = new Button(Str{tab.name}, attr::Size(Base::default_text_bounds(tab.name).width + 20, 40));
         button->set_fill_clr(Color(100, 100, 100, 255));
         button->set_toggleable(true);
         button->on_click([this, button](auto) {
@@ -239,7 +239,7 @@ void LoadingScene::file_selected(size_t, file::Path p) {
         }
         else {
             if (!_selected_text)
-                _selected_text = std::make_shared<StaticText>("Selected: " + _selected_file.str(), SizeLimit(700, 0), Font(0.6f));
+                _selected_text = std::make_shared<StaticText>(Str("Selected: " + _selected_file.str()), SizeLimit(700, 0), Font(0.6f));
             else
                 _selected_text->set_txt("Selected: " + _selected_file.str());
 
@@ -274,7 +274,7 @@ void LoadingScene::update_size(DrawStructure& graph) {
         _selected_text->set_max_size(Size2(graph.width() / s, -1));
     }
 
-    //if(_tabs_bar) _tabs_bar->auto_size(Margin{0,0});
+    //if(_tabs_bar) _tabs_bar->auto_size();
     //if(_tabs_bar) _tabs_bar->update_layout();
 
     if (_current_tab.display == Settings::Display::None) {
@@ -303,13 +303,13 @@ void LoadingScene::update_size(DrawStructure& graph) {
     _list->set_bounds(Bounds(0, 0, left_column_width, left_column_height));
     _textfield->set_bounds(Bounds(0, 0, left_column_width, 30));
 
-    /*if (_rows) _rows->auto_size(Margin{0,0});
+    /*if (_rows) _rows->auto_size();
     if(_rows) _rows->update_layout();
 
-    _columns->auto_size(Margin{0,0});
+    _columns->auto_size();
     _columns->update_layout();*/
 
-    _overall->auto_size(Margin{ 0,0 });
+    _overall->auto_size();
     _overall->update_layout();
 }
 

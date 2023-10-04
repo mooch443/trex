@@ -1980,8 +1980,8 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
                 }
                 
                 e.add<Circle>(offset, Radius{5}, LineClr{color}, FillClr{color.alpha(50)});
-                auto text = e.add<Text>(Meta::toStr(i), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), White, font);
-                text = e.add<Text>(Meta::toStr(int(d * 10000) / 100.0)+"%", Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), White, font);
+                auto text = e.add<Text>(Str(Meta::toStr(i)), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), TextClr(White), font);
+                text = e.add<Text>(Str(Meta::toStr(int(d * 10000) / 100.0)+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(White), font);
                 offset += Vec2(max(12, text->width() + 10), 0);
                 
                 ++i;
@@ -1999,8 +1999,8 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     _layout_rows->set_children(objects);
     
     e.advance_wrap(*_layout_rows);
-    _layout->auto_size(Margin{0,0});
-    _layout_rows->auto_size(Margin{0,0});
+    _layout->auto_size();
+    _layout_rows->auto_size();
     
     //_layout->set_background(Transparent, Red);
 }

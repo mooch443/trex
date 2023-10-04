@@ -173,11 +173,11 @@ namespace gui {
         float y = 10, max_w = 0;
         Font font(0.75);
         
-        y += add<Text>("Identities", Loc(10, y), White, Font(0.8f, Style::Bold))->height();
+        y += add<Text>(Str("Identities"), Loc(10,y), TextClr(White), Font(0.8f, Style::Bold))->height();
         y += 10;
         
         for(auto && [id, tup] : _cache) {
-            auto text = add<Text>(_names.at(id)+": ", Loc(10, y), White, Font(font.size, Style::Bold));
+            auto text = add<Text>(Str(_names.at(id)+": "), Loc(10, y), TextClr(White), Font(font.size, Style::Bold));
             auto && [samples, max_id, max_p] = max_identity.at(id);
             
             Color color = White.alpha(200);
@@ -188,9 +188,9 @@ namespace gui {
             
             Drawable *secondary;
             if(max_id.valid())
-                secondary = add<Text>(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", Loc(text->pos() + Vec2(text->width(), 0)), color, font);
+                secondary = add<Text>(Str(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)"), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), font);
             else
-                secondary = add<Text>("N/A ("+Meta::toStr(samples)+" samples)", Loc(text->pos() + Vec2(text->width(), 0)), DarkCyan.exposureHSL(1.5).alpha(200), font);
+                secondary = add<Text>(Str("N/A ("+Meta::toStr(samples)+" samples)"), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(DarkCyan.exposureHSL(1.5).alpha(200)), font);
             
             fish_offset[id] = { y, text->height() };
             
@@ -246,11 +246,11 @@ namespace gui {
         };
         
         if(_last_current_frames.start.valid() && !_meta_current.empty()) {
-            h = add<Text>("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Loc(x, 10), White, Font(0.8f, Style::Bold))->height();
+            h = add<Text>(Str("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")"), Loc(x, 10), TextClr(White), Font(0.8f, Style::Bold))->height();
             display_dataset(_meta_current, 0);
             
             if(!_meta.empty()) {
-                h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Loc(x, 10 + y + 5), White, Font(0.8f, Style::Bold))->height();
+                h = add<Text>(Str("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10 + y + 5), TextClr(White), Font(0.8f, Style::Bold))->height();
             
                 float cy = y + 5 + 10 + 10 + h;
                 
@@ -259,14 +259,14 @@ namespace gui {
                 
                 for(auto && [id, offsets] : fish_offset) {
                     //auto [offy, h] = offsets;
-                    cy += add<Text>(_names.at(id), Loc(x - 20, cy), White, Font(font.size, Style::Bold, Align::Right))->height();
+                    cy += add<Text>(Str(_names.at(id)), Loc(x - 20, cy), TextClr(White), Font(font.size, Style::Bold, Align::Right))->height();
                 }
             
                 display_dataset(_meta, y + 5);
             }
             
         } else if(!_meta.empty()) {
-            h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Loc(x, 10), White, Font(0.8f, Style::Bold))->height();
+            h = add<Text>(Str("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10), TextClr(White), Font(0.8f, Style::Bold))->height();
             display_dataset(_meta, 0);
         }
         

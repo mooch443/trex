@@ -9,9 +9,9 @@
 #include <file/DataLocation.h>
 
 namespace gui {
-    constexpr Radius radius = 100;
-    constexpr FillClr inner_color = White.alpha(200);
-    constexpr LineClr outer_color = White.alpha(200);
+    constexpr Radius radius{100};
+    constexpr FillClr inner_color{White.alpha(200)};
+    constexpr LineClr outer_color{White.alpha(200)};
     
     CropWindow::CropWindow(FrameGrabber& grabber) : circles({
         std::make_shared<Circle>(Radius{radius}, outer_color, inner_color),
@@ -45,7 +45,7 @@ namespace gui {
         
         _rect = std::make_shared<Rect>(FillClr{Cyan.alpha(125)});
         
-        Button okay("apply >", Bounds(_video_size * 0.5, Size2(150, 50)));
+        Button okay(Str("apply >"), Box(_video_size * 0.5, Size2(150, 50)));
         okay.set_origin(Vec2(0.5));
         
         CropOffsets fo = GlobalSettings::has("crop_offsets") ? SETTING(crop_offsets) : CropOffsets();

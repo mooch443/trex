@@ -9,7 +9,7 @@
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-    : _text(std::make_shared<StaticText>(text)), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
+    : _text(std::make_shared<StaticText>(Str(text))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));

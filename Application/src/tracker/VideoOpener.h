@@ -107,7 +107,7 @@ public:
         //gui::derived_ptr<gui::HorizontalLayout> _joint;
         
         LabeledField(const std::string& name = "")
-            : _text(std::make_shared<gui::Text>(name))
+            : _text(std::make_shared<gui::Text>(Str(name)))
               //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
         {
             _text->set_font(Font(0.6f));
