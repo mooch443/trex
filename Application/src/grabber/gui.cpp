@@ -440,9 +440,9 @@ void GUI::draw(gui::DrawStructure &base) {
             {
                 // shadow
                 if(shadow)
-                    base.text(Str{text}, Loc((pos + Vec2(0.5, 0.5)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
+                    base.text(Str{text}, Loc((pos + Vec2(0.5, 0.5)).mul(scale)), TextClr{Black}, Font(font_size, Align::VerticalCenter), scale);
                 // text
-                return base.text(Str{text}, Loc(pos.mul(scale)), color, Font(font_size, Align::VerticalCenter), scale)->width();
+                return base.text(Str{text}, Loc(pos.mul(scale)), TextClr{color}, Font(font_size, Align::VerticalCenter), scale)->width();
             };
 
             auto frame = _grabber.last_index().load();

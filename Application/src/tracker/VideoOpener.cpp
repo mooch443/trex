@@ -243,7 +243,7 @@ VideoOpener::VideoOpener()
     _text_fields["cmd_parameters"] = std::make_unique<LabeledTextField>("cmd_parameters");
     
     std::vector<Layout::Ptr> objects{
-        Layout::Ptr(std::make_shared<Text>(Str("Settings"), White, gui::Font(0.9f, Style::Bold)))
+        Layout::Ptr(std::make_shared<Text>(Str("Settings"), TextClr{White}, gui::Font(0.9f, Style::Bold)))
     };
     for(auto &[key, ptr] : _text_fields) {
         ptr->add_to(objects);
@@ -251,7 +251,7 @@ VideoOpener::VideoOpener()
     
     _raw_settings->set_children(objects);
     
-    _loading_text = std::make_shared<gui::Text>("generating average", Loc(100,0), Cyan, gui::Font(0.6f));
+    _loading_text = std::make_shared<gui::Text>("generating average", Loc(100,0), TextClr{Cyan}, gui::Font(0.6f));
     
     _raw_description = std::make_shared<gui::StaticText>("Info", SizeLimit(video_chooser_column_width, -1), Font(0.5f));
     _raw_description->set_background(Transparent, Transparent);

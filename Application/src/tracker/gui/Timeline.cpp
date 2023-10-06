@@ -54,7 +54,7 @@ namespace gui {
              _status_text2{ Font(0.8f) },
              _status_text3{ Font(0.8f) };
         Text _raw_text{ Str{"[RAW]"}, TextClr{Black}, Font(0.8f, Style::Bold) },
-             _auto_text{Black, Font(0.8f, Style::Bold) };
+             _auto_text{TextClr{Black}, Font(0.8f, Style::Bold) };
         Button _pause{ Str{"pause"}, Box(0, 0, 100, 27) };
         Timeline* _ptr;
 
