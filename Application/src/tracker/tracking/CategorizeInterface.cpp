@@ -275,7 +275,7 @@ void Cell::update(float s) {
     }
     
     _image->set_color(White.alpha(200 + 55 * s));
-    _text->set_alpha(0.25 + s * 0.75);
+    _text->set_alpha(Alpha{0.25 + s * 0.75});
     
     auto rscale = _button_layout->parent() ? _button_layout->parent()->stage()->scale().reciprocal().mul(_block->scale().reciprocal()) : Vec2(1);
     _text->set_scale(rscale);

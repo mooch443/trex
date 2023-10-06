@@ -7,30 +7,25 @@
 #include <gui/DynamicGUI.h>
 #include <gui/DrawBase.h>
 #include <gui/types/ListItemTypes.h>
+#include <gui/DynamicVariable.h>
+#include <misc/RecentItems.h>
 
 namespace gui {
 
 class StartingScene : public Scene {
+    RecentItems _recents;
     file::Path _image_path;
-
-    // The image of the logo
-    std::shared_ptr<ExternalImage> _logo_image;
-    std::shared_ptr<Entangled> _title = std::make_shared<Entangled>();
-
-    // The list of recent items
-    std::shared_ptr<ScrollableList<DetailItem>> _recent_items;
-    std::shared_ptr<VerticalLayout> _buttons_and_items = std::make_shared<VerticalLayout>();
-    
-    std::shared_ptr<VerticalLayout> _logo_title_layout = std::make_shared<VerticalLayout>();
-    std::shared_ptr<HorizontalLayout> _button_layout;
-    
-    // The two buttons for user interactions, now as Layout::Ptr
-    std::shared_ptr<Button> _video_file_button;
-    std::shared_ptr<Button> _camera_button;
+    Image::Ptr _logo_image;
+    std::vector<std::shared_ptr<dyn::VarBase_t>> _recents_list;
+    std::vector<sprite::Map> _data;
 
     // The HorizontalLayout for the two buttons and the image
-    HorizontalLayout _main_layout;
     dyn::DynamicGUI dynGUI;
+    
+    Vec2 image_scale{1.f};
+    Size2 window_size;
+    Size2 element_size;
+    Vec2 left_center;
 
 public:
     StartingScene(Base& window);

@@ -26,16 +26,14 @@ namespace gui {
         
         Vec2 scale = size.div(Size2(grabber.video()->size()));
         
-        _graph = std::make_shared<DrawStructure>(size.width, size.height);
-        _base = std::make_shared<IMGUIBase>("FrameGrabber ["+source+"]", *_graph, [&](){
+        _base = std::make_shared<IMGUIBase>("FrameGrabber ["+source+"]", size, [&](auto&){
             //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
             if(SETTING(terminate))
                 return false;
             
             return true;
-        }, [](gui::Event) {
             
-        });
+        }, [](auto&, gui::Event) { });
         
         _base->platform()->set_icons({
             file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png"),
@@ -54,8 +52,8 @@ namespace gui {
             circles[i]->set_pos(offsets[i]);
         update_rectangle();
         
-        SFLoop loop(*_graph, _base.get(),
-        [this, &grabber, &scale, &okay](SFLoop& loop, LoopStatus){
+        SFLoop loop(*_base->graph(), _base.get(),
+        [this, &grabber, &scale, &okay, _graph = _base->graph().get()](SFLoop& loop, LoopStatus){
             std::unique_lock<std::recursive_mutex> guard(_graph->lock());
             auto desktop = _base->window_dimensions();
             auto size = _video_size;

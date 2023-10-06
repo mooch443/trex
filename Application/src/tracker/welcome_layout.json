@@ -1,16 +1,70 @@
 {"objects":[
     {
-        "type":"stext",
-        "text":"<b>Welcome</b> to {global:app_name}.",
-        "color":[255,255,255],
-        "font":{"size":1.25},
-        "origin":[0.5, 0.5]
+        "type":"vlayout",
+        "align":"center",
+        "origin":[0.5,0.5],
+        "pos":"{left_center}",
+        "children":[
+            {
+                "type":"image",
+                "path":"gfx/TRexA_1024.png",
+                "scale":"{image_scale}"
+            },
+            {
+                "type":"stext",
+                "text":"<b>Welcome</b> to {global:app_name}.",
+                "color":[255,255,255],
+                "font":{"size":1.25},
+                "origin":[0.5, 0.5]
+            },
+            {
+                "type":"stext",
+                "text":"please select a task from the list on the right",
+                "color":[255,255,255],
+                "font":{"size":0.75},
+                "origin":[0.5, 0.5]
+            }
+        ]
     },
     {
-        "type":"stext",
-        "text":"please select a task from the list on the right",
-        "color":[255,255,255],
-        "font":{"size":0.75},
-        "origin":[0.5, 0.5]
+        "type":"vlayout",
+        "align":"center",
+        "pos":"{top_right}",
+        "origin":[1,0],
+        "children":[
+            {
+                "type":"list",
+                "var":"recent_items",
+                "size":"{list_size}",
+                "line":[255,0,0,125],
+                "font":{
+                    "size":0.75,
+                    "align":"center"
+                },
+                "template": {
+                    "text":"{i:name}",
+                    "detail":"{i:detail}",
+                    "action":"open_recent"
+                }
+            },
+            {
+                "type":"hlayout",
+                "align":"center",
+                "children":[
+                    {
+                        "type":"button",
+                        "text":"Open file",
+                        "action":"open_file",
+                        "size":[120,50]
+                    },
+                    {
+                        "type":"button",
+                        "text":"Webcam",
+                        "action":"open_camera",
+                        "size":[120,50]
+                    }
+                ]
+            }
+        ]
     }
 ]}

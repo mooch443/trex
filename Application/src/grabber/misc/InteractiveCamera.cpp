@@ -105,12 +105,7 @@ bool InteractiveCamera::next(cmn::Image &image) {
     if(timer.elapsed() < 1 / float(SETTING(frame_rate).value<uint32_t>()))
         return false;
     
-    Vec2 target;
-    {
-        std::lock_guard<std::recursive_mutex> guard(grab::GUI::instance()->gui().lock());
-        target = grab::GUI::instance()->gui().mouse_position();
-    }
-    
+    Vec2 target = mouse_position();
     if constexpr(use_dynamic) {
         auto dt = timer.elapsed();
         for(auto &fish : _fishies) {

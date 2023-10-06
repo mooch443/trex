@@ -652,7 +652,8 @@ int main(int argc, char** argv)
 #endif
         }
             
-        auto gui = std::make_unique<GUI>(grabber);
+        auto graph = std::make_unique<DrawStructure>();
+        auto gui = std::make_unique<GUI>(graph.get(), grabber);
 #if WITH_MHD
         Httpd httpd([&](Httpd::Session*, const std::string& url){
             cv::Mat image;
@@ -702,8 +703,11 @@ int main(int argc, char** argv)
             }
             
             
-            if(!SETTING(nowindow) && !imgui_base && grabber.task()._complete) {
-                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui->gui(), [&](){
+            if(not SETTING(nowindow)
+               && not imgui_base
+               && grabber.task()._complete)
+            {
+                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", std::move(graph), [&](auto&){
                     //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
                     if(SETTING(terminate))
                         return false;
@@ -728,8 +732,9 @@ int main(int argc, char** argv)
                 std::this_thread::sleep_for(ms);
             }
         }
-
+            
         gui = nullptr;
+        graph = nullptr;
         imgui_base = nullptr;
         print("Ending the program.");
         

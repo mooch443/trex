@@ -28,7 +28,6 @@ void async_main(void*) {
 
 	//throw U_EXCEPTION("End of program");
 
-	DrawStructure graph(1024, 1024);
 	Timer timer;
 	Vec2 last_mouse_pos;
 	Entangled e;
@@ -86,7 +85,6 @@ void async_main(void*) {
 
 		Tracker::auto_calculate_parameters(file);
 
-		GUICache cache{ &graph, &file };
 
 		std::atomic<double> fps{ 0.0 };
 
@@ -143,9 +141,10 @@ void async_main(void*) {
 
 		FrameInfo frameinfo;
 		InfoCard card(nullptr);
-		cache.set_redraw();
 		
-		IMGUIBase base("TRex platik version", graph, [&]() -> bool {
+		IMGUIBase base("TRex platik version", Size2(1024,1024), [&](DrawStructure& graph) -> bool 
+        {
+            static GUICache cache{ &graph, &file };
 			static Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
 			timeline.set_base(ptr);
 
@@ -316,7 +315,7 @@ void async_main(void*) {
 
 			return !terminate;
 
-		}, [&](const Event& e) {
+		}, [&](DrawStructure& graph, const Event& e) {
 			if (e.type == EventType::KEY && !e.key.pressed) {
 				if (e.key.code == Codes::F && graph.is_key_pressed(Codes::LControl)) {
 					ptr->toggle_fullscreen(graph);

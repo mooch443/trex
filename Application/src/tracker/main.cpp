@@ -1070,7 +1070,8 @@ int main(int argc, char** argv)
     print("BasicStuff:",sizeof(BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob), " pv::bid:", sizeof(pv::bid));
     print("Midline:",sizeof(Midline)," MinimalOutline:",sizeof(MinimalOutline));
     
-    GUI *gui_instance = new GUI(video, tracker.average(), tracker);
+    auto graph = std::make_unique<gui::DrawStructure>();
+    GUI *gui_instance = new GUI(graph.get(), video, tracker.average(), tracker);
     std::unique_lock<std::recursive_mutex> gui_lock(gui_instance->gui().lock());
     
     //try {
@@ -1448,8 +1449,11 @@ int main(int argc, char** argv)
         FormatWarning("Application is going to quit after analysing and exporting data.");
     
     gui::IMGUIBase *imgui_base = nullptr;
-    if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
-        imgui_base = new gui::IMGUIBase(gui.window_title(), gui.gui(), [&](){
+    if(not (GlobalSettings::map().has("nowindow") 
+            ? SETTING(nowindow).value<bool>()
+            : false))
+    {
+        imgui_base = new gui::IMGUIBase(gui.window_title(), std::move(graph), [&](auto&){
             //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
             if(SETTING(terminate))
                 return false;

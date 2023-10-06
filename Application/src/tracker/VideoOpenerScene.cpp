@@ -30,6 +30,7 @@ VideoOpener::CustomFileChooser::CustomFileChooser(
 void VideoOpener::CustomFileChooser::update_size() {
     FileChooser::update_size();
     
+    auto _graph = _base.graph().get();
     float s = _graph->scale().x / gui::interface_scale();
     auto column = Size2(
         _graph->width() * 0.9 - 50,
@@ -466,7 +467,7 @@ VideoOpener::VideoOpener()
         if(found && ref) {
             _settings_tooltip.set_parameter(name);
             _settings_tooltip.set_other(found);
-            _file_chooser->graph()->wrap_object(_settings_tooltip);
+            _file_chooser->base().graph()->wrap_object(_settings_tooltip);
         } else
             _settings_tooltip.set_other(nullptr);
 
@@ -835,15 +836,16 @@ Image::Ptr VideoOpener::BufferedVideo::next() {
 }
 
 void VideoOpener::select_file(const file::Path &p) {
-    const double max_width = _file_chooser->graph()->width() * 0.25;
-    std::lock_guard guard(_file_chooser->graph()->lock());
+    auto _graph = _file_chooser->base().graph().get();
+    const double max_width = _graph->width() * 0.25;
+    std::lock_guard guard(_graph->lock());
     _end_frames_thread = true;
     
     if(_file_chooser->current_tab().extension != "pv") {
-        auto callback = [this, p, max_width](const bool success){
+        auto callback = [this, p, max_width, _graph](const bool success){
             if(!success) {
                 // immediately move to stale
-                std::lock_guard gui_lock(_file_chooser->graph()->lock());
+                std::lock_guard gui_lock(_graph->lock());
                 std::lock_guard guard(_video_mutex);
                 FormatExcept("Could not open file ",p.str(),".");
                 
@@ -1062,7 +1064,7 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->auto_size(Margin{0, 0});
         
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", gui::White, gui::Font(0.9f, gui::Style::Bold));
-        _info_description = std::make_shared<gui::StaticText>(Str(settings::htmlify(text)),  SizeLimit(_screenshot_max_size.div(_file_chooser->graph()->scale()).width * 0.25, _screenshot_max_size.div(_file_chooser->graph()->scale()).height), gui::Font(0.7f));
+        _info_description = std::make_shared<gui::StaticText>(Str(settings::htmlify(text)),  SizeLimit(_screenshot_max_size.div(_graph->scale()).width * 0.25, _screenshot_max_size.div(_graph->scale()).height), gui::Font(0.7f));
         //gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Preview", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
         
         _infos->set_children({

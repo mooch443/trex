@@ -74,13 +74,11 @@ static_assert(ObjectDetection<Yolo8>);
 namespace ind = indicators;
 
 void launch_gui() {
-    DrawStructure graph(1024, 768);
-    IMGUIBase base(window_title(), graph, [&, ptr = &base]()->bool {
+    IMGUIBase base(window_title(), {1024,768}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
         graph.draw_log_messages();
-        
         return true;
-    }, [](Event e) {
+    }, [](auto&, Event e) {
         if(e.type == EventType::KEY) {
             if(e.key.code == Keyboard::Escape) {
                 SETTING(terminate) = true;
@@ -111,7 +109,7 @@ void launch_gui() {
         
         // on activate
         if(not segmenter->output_size().empty())
-            graph.set_size(Size2(1024, segmenter->output_size().height / segmenter->output_size().width * 1024));
+            base.graph()->set_size(Size2(1024, segmenter->output_size().height / segmenter->output_size().width * 1024));
         
     }, [](auto&){
         // on deactivate
@@ -144,13 +142,13 @@ void launch_gui() {
     
     file::cd(file::DataLocation::parse("app"));
     
-    gui::SFLoop loop(graph, &base, [&](gui::SFLoop&, LoopStatus) {
-        manager.update(graph);
+    gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
+        manager.update(*base.graph());
     });
     
     manager.set_active(nullptr);
     manager.update_queue();
-    graph.root().set_stage(nullptr);
+    base.graph()->root().set_stage(nullptr);
     Detection::manager().clean_up();
     Detection::deinit();
 }

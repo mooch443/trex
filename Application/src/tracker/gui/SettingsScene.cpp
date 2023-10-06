@@ -74,7 +74,7 @@ void SettingsScene::_draw(DrawStructure& graph) {
                 .actions = {
                     {
                         "go-back",
-                        [](Event){
+                        [](auto){
                             auto prev = SceneManager::getInstance().last_active();
                             if(prev)
                                 SceneManager::getInstance().set_active(prev);
@@ -83,38 +83,38 @@ void SettingsScene::_draw(DrawStructure& graph) {
                     },
                     {
                         "convert",
-                        [](Event){
+                        [](auto){
                             SceneManager::getInstance().set_active("convert-scene");
                         }
                     },
                     { "choose-source",
-                        [](Event){
+                        [](auto){
                             print("choose-source");
                             
                         }
                     },
                     { "choose-target",
-                        [](Event){
+                        [](auto){
                             print("choose-target");
                         }
                     },
                     { "choose-model",
-                        [](Event){
+                        [](auto){
                             print("choose-detection");
                         }
                     },
                     { "choose-region",
-                        [](Event){
+                        [](auto){
                             print("choose-region");
                         }
                     },
                     { "choose-settings",
-                        [](Event){
+                        [](auto){
                             print("choose-settings");
                         }
                     },
                     { "toggle-background-subtraction",
-                        [](Event){
+                        [](auto){
                             SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
                         }
                     }

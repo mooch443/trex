@@ -23,6 +23,8 @@ namespace fg {
         
         std::vector<Fish> _fishies;
         
+        GETTER_SETTER(Vec2, mouse_position)
+        
     public:
         InteractiveCamera();
         ~InteractiveCamera() {

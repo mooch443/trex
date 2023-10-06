@@ -26,7 +26,7 @@ GUI* GUI::instance() {
     return _instance;
 }
 
-GUI::GUI(FrameGrabber& grabber)
+GUI::GUI(DrawStructure* graph, FrameGrabber& grabber)
 : _grabber(grabber),
     _crop_offsets(SETTING(crop_offsets).value<CropOffsets>()),
     _size(grabber.cam_size().width, grabber.cam_size().height),
@@ -38,9 +38,10 @@ GUI::GUI(FrameGrabber& grabber)
     _record_direction(true),
     _pulse_direction(false),
     _pulse(0),
-    _gui(max(150, _cropped_size.width), max(150, _cropped_size.height)),
+    _gui(graph),
     _sf_base(NULL)
 {
+    _gui->set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
     _instance = this;
     
     GlobalSettings::map().register_callback(callback, [this](sprite::Map::Signal signal, sprite::Map&map, const std::string& name, const sprite::PropertyType& value)
@@ -76,7 +77,7 @@ void GUI::set_base(gui::Base *base) {
         _crop_offsets = (SETTING(crop_offsets).value<CropOffsets>());
         _size = cv::Size(_grabber.cam_size().width, _grabber.cam_size().height);
         _cropped_size = (_grabber.cropped_size());
-        _gui.set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
+        gui().set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
         if(base && dynamic_cast<gui::IMGUIBase*>(base))
             ((gui::IMGUIBase*)base)->init(base->title(), true);
         
@@ -149,16 +150,15 @@ void GUI::update_loop() {
         update();
         
         {
-            _gui.lock().lock();
-            draw(_gui);
-            _gui.lock().unlock();
+            std::unique_lock guard(gui().lock());
+            draw(gui());
         }
         //_gui.print(&_sf_base);
         
         if(_sf_base)
-            _sf_base->paint(_gui);
+            _sf_base->paint(gui());
         else
-            _gui.before_paint(_sf_base);
+            gui().before_paint(_sf_base);
         
         {
             std::lock_guard<std::mutex> guard(_display_queue_lock);
@@ -197,7 +197,7 @@ void GUI::draw(gui::DrawStructure &base) {
     {
         gui::DrawStructure::SectionGuard guard(base, "draw()");
         if (_sf_base) {
-            Size2 size(_gui.width(), _gui.height());
+            Size2 size(gui().width(), gui().height());
             float scale = min(size.width / float(_cropped_size.width),
                 size.height / float(_cropped_size.height));
             guard._section->set_scale(Vec2(scale).div(base.scale()));//.div();
@@ -771,7 +771,7 @@ std::string GUI::info_text() const {
     return ss.str();
 }
 
-void GUI::static_event(const gui::Event& e) {
+void GUI::static_event(DrawStructure&, const gui::Event& e) {
     _instance->event(e);
 }
 
@@ -788,8 +788,8 @@ void GUI::event(const gui::Event &event) {
         float scale = min(size.width / float(_cropped_size.width),
                           size.height / float(_cropped_size.height));
         //_gui.set_scale(scale * gui::interface_scale()); // SETTING(cam_scale).value<float>());
-        _gui.set_size(size);
-        _gui.set_dirty(NULL);
+        gui().set_size(size);
+        gui().set_dirty(NULL);
         //_gui.event(event);
         
         Vec2 real_size(_cropped_size.width * scale,

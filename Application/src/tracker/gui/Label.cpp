@@ -74,9 +74,9 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d
         e.advance_wrap(*_text);
     
     if(not is_in_mouse_dock) {
-        _text->set_alpha(alpha);
+        _text->set_alpha(Alpha{alpha});
     } else
-        _text->set_alpha(1);
+        _text->set_alpha(Alpha{1});
     
     float distance = (_text->global_bounds().height + _source.height * scale.y); // scale.y;
     auto text_pos = _center - offset * (distance + 5 * scale.y);

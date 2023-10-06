@@ -21,7 +21,7 @@ struct MouseDock {
     Rect _rect;
     std::unordered_map<Label*, Vec2> centers;
     static inline std::mutex mutex;
-    static inline std::unique_ptr<MouseDock> instance = std::make_unique<MouseDock>();
+    static std::unique_ptr<MouseDock> instance;
 
     static void update(double dt, Drawable* ptr, Entangled& graph);
     static void draw_background(Entangled&graph);

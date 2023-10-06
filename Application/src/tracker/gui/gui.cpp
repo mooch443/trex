@@ -146,7 +146,7 @@ struct PrivateData {
     gui::Posture _posture_window;
 
     gui::WorkProgress* _work_progress = nullptr;
-    gui::DrawStructure _gui;
+    gui::DrawStructure* _gui;
 
     GUICache _cache;
     
@@ -173,12 +173,13 @@ struct PrivateData {
 
     std::function<void(const Vec2&, bool, std::string)> _clicked_background;
 
-    PrivateData(pv::File& video) 
-        : _video_source(& video ), 
+    PrivateData(pv::File& video, DrawStructure* gui)
+        : _video_source(& video ),
         _info_card([](Frame_t frame) {
             GUI::reanalyse_from(frame);
         }),
-        _cache(& _gui, _video_source )
+        _gui(gui),
+        _cache( _gui, _video_source )
     { }
 };
 
@@ -263,7 +264,7 @@ void drawOptFlowMap (const cv::Mat& flow, cv::Mat& map) {
     }
 }
 
-GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
+GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tracker& tracker)
   :
     _average_image(average),
     _direction_change(false), _play_direction(1),
@@ -281,7 +282,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         });
     }),
     _properties_visible(false),
-    _private_data(new PrivateData{ video_source }),
+    _private_data(new PrivateData{ video_source, graph }),
 #if WITH_MHD
     _http_gui(NULL),
 #endif
@@ -574,22 +575,24 @@ GUI::~GUI() {
     _private_data->_timeline = nullptr;
     set_base(nullptr);
     
+    //! cannot use PD(gui) below because GUI::instance(), which is used in PD, is
+    //! not available anymore at this point!
     {
-        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui.lock());
+        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui->lock());
         GUI::_instance = NULL;
     }
     
     delete _private_data->_work_progress;
         
     {
-        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui.lock());
+        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui->lock());
         for(auto d : _static_pointers) {
             d->clear_parent_dont_check();
         }
     }
     
     if(_private_data->_recorder.recording()) {
-        std::lock_guard<std::recursive_mutex> guard(_private_data->_gui.lock());
+        std::lock_guard<std::recursive_mutex> guard(_private_data->_gui->lock());
         _private_data->_recorder.stop_recording(nullptr, nullptr);
     }
 
@@ -3039,7 +3042,7 @@ void GUI::local_event(const gui::Event &event) {
 void GUI::toggle_fullscreen() {
     if(base()) {
         auto e = _base->toggle_fullscreen(PD(gui));
-        this->event(e);
+        this->event(PD(gui), e);
     }
 }
 

@@ -13,60 +13,38 @@ namespace gui {
 StartingScene::StartingScene(Base& window)
 : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
     _image_path(file::DataLocation::parse("app", "gfx/" + SETTING(app_name).value<std::string>() + "_1024.png")),
-    _logo_image(std::make_shared<ExternalImage>(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))),
-    _recent_items(std::make_shared<ScrollableList<DetailItem>>(Bounds(0, 10, 310, 500))),
-    _video_file_button(std::make_shared<Button>("Open file", attr::Size(150, 50))),
-    _camera_button(std::make_shared<Button>("Camera", attr::Size(150, 50)))
+    _logo_image(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     print(window.window_dimensions().mul(dpi), " and logo ", _logo_image->size());
-    
-    _recent_items->set(LineClr{Red});
-    _recent_items->set(Font(0.75, Align::Center));
-    
-    // Callback for video file button
-    _video_file_button->on_click([](auto){
-        // Implement logic to handle the video file
-        SceneManager::getInstance().set_active("convert-scene");
-    });
-
-    // Callback for camera button
-    _camera_button->on_click([](auto){
-        // Implement logic to start recording from camera
-        SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
-        SceneManager::getInstance().set_active("convert-scene");
-    });
-    
-    // Create a new HorizontalLayout for the buttons
-    _button_layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{
-        Layout::Ptr(_video_file_button),
-        Layout::Ptr(_camera_button)
-    });
-    //_button_layout->set_pos(Vec2(1024 - 10, 550));
-    //_button_layout->set_origin(Vec2(1, 0));
-
-    _buttons_and_items->set_children({
-        Layout::Ptr(_recent_items),
-        Layout::Ptr(_button_layout)
-    });
-    
-    _logo_title_layout->set_children({
-        Layout::Ptr(_title),
-        Layout::Ptr(_logo_image)
-    });
-    
-    // Set the list and button layout to the main layout
-    _main_layout.set_children({
-        Layout::Ptr(_logo_title_layout),
-        Layout::Ptr(_buttons_and_items)
-    });
-    //_main_layout.set_origin(Vec2(1, 0));
 }
 
 void StartingScene::activate() {
     // Fill the recent items list
-    auto items = RecentItems::read();
-    items.show(*_recent_items);
+    _recents = RecentItems::read();
+    //_recents.show(*_recent_items);
+    
+    // Fill list variable
+    _recents_list.clear();
+    _data.clear();
+    
+    size_t i=0;
+    for(auto& item : _recents.items()) {
+        auto detail = (DetailItem)item;
+        sprite::Map tmp;
+        tmp["name"] = detail.name();
+        tmp["detail"] = detail.detail();
+        tmp["index"] = i;
+        _data.push_back(std::move(tmp));
+        
+        _recents_list.emplace_back(new dyn::Variable{
+            [i, this](std::string) -> sprite::Map& {
+                return _data[i];
+            }
+        });
+        
+        ++i;
+    }
     
     RecentItems::set_select_callback([](RecentItems::Item item){
         item._options.set_do_print(true);
@@ -95,10 +73,110 @@ void StartingScene::_draw(DrawStructure& graph) {
             .context = {
                 .variables = {
                     {
+                        "recent_items",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
+                            [this](std::string)
+                                -> std::vector<std::shared_ptr<dyn::VarBase_t>>&
+                            {
+                                return _recents_list;
+                            }
+                        })
+                    },
+                    {
+                        "image_scale",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
+                            [this](std::string)
+                                -> Vec2
+                            {
+                                return image_scale;
+                            }
+                        })
+                    },
+                    {
+                        "window_size",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
+                            [this](std::string)
+                                -> Vec2
+                            {
+                                return window_size;
+                            }
+                        })
+                    },
+                    {
+                        "top_right",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
+                            [this](std::string)
+                                -> Vec2
+                            {
+                                return Vec2(window_size.width, 0);
+                            }
+                        })
+                    },
+                    {
+                        "left_center",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
+                            [this](std::string)
+                                -> Vec2
+                            {
+                                return Vec2(window_size.width * 0.4,
+                                            window_size.height * 0.4);
+                            }
+                        })
+                    },
+                    {
+                        "list_size",
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
+                            [this](std::string)
+                                -> Size2
+                            {
+                                return element_size;
+                            }
+                        })
+                    },
+                    {
                         "global",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
                             return GlobalSettings::map();
                         }))
+                    }
+                },
+                .actions = {
+                    {
+                        "open_recent",
+                        [this](std::string str){
+                            print("open_recent got ", str);
+                            //auto &vars = dynGUI.context.variables.at("recent_items")->value<std::vector<std::shared_ptr<dyn::VarBase_t>>&>("");
+                            auto index = Meta::fromStr<size_t>(str);
+                            if(_recents.items().size() > index) {
+                                auto& item = _recents.items().at(index);
+                                DetailItem details{item};
+                                
+                                //item._options.set_do_print(true);
+                                for (auto& key : item._options.keys())
+                                    item._options[key].get().copy_to(&GlobalSettings::map());
+                                
+                                CommandLine::instance().load_settings();
+                                
+                                //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
+                                //SceneManager::getInstance().set_active("convert-scene");
+                                SceneManager::getInstance().set_active("settings-scene");
+                            }
+                        }
+                    },
+                    {
+                        "open_file",
+                        [](auto){
+                            // Implement logic to handle the video file
+                            SceneManager::getInstance().set_active("convert-scene");
+                        }
+                    },
+                    {
+                        "open_camera",
+                        [](auto){
+                            // Implement logic to start recording from camera
+                            SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
+                            SceneManager::getInstance().set_active("convert-scene");
+                        }
                     }
                 }
             }
@@ -106,23 +184,12 @@ void StartingScene::_draw(DrawStructure& graph) {
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
     auto max_w = window()->window_dimensions().width * 0.65;
-    auto max_h = window()->window_dimensions().height - _button_layout->height() - 25;
-    auto scale = Vec2(max_w * 0.4 / _logo_image->width());
-    _logo_image->set_scale(scale);
-    _title->set_size(Size2(max_w, 25));
-    _recent_items->set_size(Size2((window()->window_dimensions().width - max_w - 50), max_h));
+    window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height);
+    auto scale = Vec2(max_w * 0.4 / _logo_image->bounds().width);
+    image_scale = scale;
+    element_size = Size2((window()->window_dimensions().width - max_w - 50), window()->window_dimensions().height - 25 - 50);
     
-    graph.wrap_object(_main_layout);
-    _logo_title_layout->set_policy(VerticalLayout::Policy::CENTER);
-    
-    dynGUI.update(_logo_title_layout.get(), [this](auto& objs) {
-        objs.insert(objs.begin(), Layout::Ptr(_title));
-        objs.push_back(Layout::Ptr(_logo_image));
-    });
-    
-    _buttons_and_items->auto_size();
-    _logo_title_layout->auto_size();
-    _main_layout.auto_size();
+    dynGUI.update(nullptr);
 }
 
 }

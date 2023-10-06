@@ -37,8 +37,7 @@ int main() {
     }));
     g.set_draggable();
     
-    DrawStructure graph(1024, 768);
-    IMGUIBase base("Test", graph, [&](){
+    IMGUIBase base("Test", {1024,768}, [&](DrawStructure& graph){
         std::lock_guard<std::recursive_mutex> lock(graph.lock());
         //graph.image(Vec2(10, 10), image);
         graph.circle(Loc(100, 100), Radius{50}, FillClr{Blue}, LineClr{Red});
@@ -68,7 +67,7 @@ int main() {
             return false;
         
         return true;
-    }, [&](const gui::Event& e) {
+    }, [&](DrawStructure& graph, const gui::Event& e) {
         graph.event(e);
     });
     

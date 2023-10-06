@@ -819,7 +819,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
 
             Vec2 top_left(FLT_MAX, FLT_MAX);
             Vec2 bottom_right(0, 0);
-            Rotation a = 0;
+            Rotation a{0};
             
             for(auto &boundary : _current_boundary) {
                 if(boundary.size() > 2) {

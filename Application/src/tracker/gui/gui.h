@@ -95,7 +95,7 @@ protected:
     GETTER_SETTER(bool, info_visible)
     
 public:
-    GUI(pv::File &video_source, const Image& average, Tracker& tracker);
+    GUI(gui::DrawStructure* graph, pv::File &video_source, const Image& average, Tracker& tracker);
     ~GUI();
 
     static bool recording();
@@ -103,7 +103,7 @@ public:
     static void set_analysis(ConnectedTasks*);
     static gui::FrameInfo& frameinfo();
     
-    static inline void event(const gui::Event& event) {
+    static inline void event(gui::DrawStructure&, const gui::Event& event) {
         instance()->local_event(event);
     }
     static inline const Image& background_image() {
