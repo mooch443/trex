@@ -4,6 +4,7 @@
         "align":"center",
         "origin":[0.5,0.5],
         "pos":"{left_center}",
+        "pad":[10,0,10,5],
         "children":[
             {
                 "type":"image",
@@ -14,12 +15,12 @@
                 "type":"stext",
                 "text":"<b>Welcome</b> to {global:app_name}.",
                 "color":[255,255,255],
-                "font":{"size":1.25},
-                "origin":[0.5, 0.5]
+                "font":{"size":1.25}
             },
             {
                 "type":"stext",
-                "text":"please select a task from the list on the right",
+                "text":"please select a task from the list on the right >",
+                "fade_out":0.5,
                 "color":[255,255,255],
                 "font":{"size":0.75},
                 "origin":[0.5, 0.5]
@@ -31,6 +32,7 @@
         "align":"center",
         "pos":"{top_right}",
         "origin":[1,0],
+        "pad":[10,8,10,0],
         "children":[
             {
                 "type":"list",
@@ -50,6 +52,7 @@
             {
                 "type":"hlayout",
                 "align":"center",
+                "pad":[0,0,10,0],
                 "children":[
                     {
                         "type":"button",
