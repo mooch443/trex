@@ -1,8 +1,11 @@
 #include "MouseDock.h"
 #include <misc/Timer.h>
 #include <gui/GUICache.h>
+#include <expected>
 
 namespace gui {
+IMPLEMENT(MouseDock::instance) = std::make_unique<MouseDock>();
+
     Vec2 animate_position(Vec2 pos, Vec2 target, float timeDiff, InterpolationType type) {
         auto d = target - pos;
         switch (type) {
