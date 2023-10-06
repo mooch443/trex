@@ -3,7 +3,7 @@
 		"type":"vlayout",
 		"pos":[20,10],
 		"scale":[1.0,1.0],
-		"margins":[0,0,0,0],
+		"pad":[0,0,0,0],
 		"children": [
 			{ 
 				"type":"hlayout", 
