@@ -139,45 +139,6 @@ void StartingScene::_draw(DrawStructure& graph) {
                             return GlobalSettings::map();
                         }))
                     }
-                },
-                .actions = {
-                    {
-                        "open_recent",
-                        [this](std::string str){
-                            print("open_recent got ", str);
-                            //auto &vars = dynGUI.context.variables.at("recent_items")->value<std::vector<std::shared_ptr<dyn::VarBase_t>>&>("");
-                            auto index = Meta::fromStr<size_t>(str);
-                            if(_recents.items().size() > index) {
-                                auto& item = _recents.items().at(index);
-                                DetailItem details{item};
-                                
-                                //item._options.set_do_print(true);
-                                for (auto& key : item._options.keys())
-                                    item._options[key].get().copy_to(&GlobalSettings::map());
-                                
-                                CommandLine::instance().load_settings();
-                                
-                                //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
-                                //SceneManager::getInstance().set_active("convert-scene");
-                                SceneManager::getInstance().set_active("settings-scene");
-                            }
-                        }
-                    },
-                    {
-                        "open_file",
-                        [](auto){
-                            // Implement logic to handle the video file
-                            SceneManager::getInstance().set_active("convert-scene");
-                        }
-                    },
-                    {
-                        "open_camera",
-                        [](auto){
-                            // Implement logic to start recording from camera
-                            SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
-                            SceneManager::getInstance().set_active("convert-scene");
-                        }
-                    }
                 }
             }
         };

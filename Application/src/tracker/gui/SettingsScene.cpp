@@ -70,6 +70,7 @@ void SettingsScene::_draw(DrawStructure& graph) {
     if(not dynGUI)
         dynGUI = dyn::DynamicGUI{
             .path = "settings_layout.json",
+            .graph = &graph,
             .context = {
                 .actions = {
                     {
@@ -133,9 +134,7 @@ void SettingsScene::_draw(DrawStructure& graph) {
                             }))
                         }
                     }
-            },
-            .graph = &graph,
-            .base = nullptr
+            }
         };
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
