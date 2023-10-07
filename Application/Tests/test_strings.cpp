@@ -3,7 +3,7 @@
 #include <misc/parse_parameter_lists.h>
 #include <misc/format.h>
 #include <misc/Timer.h>
-
+#include <file/Path.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -793,4 +793,60 @@ TEST(ToStrFromStrRoundTripTest, EscapingTest) {
     }
 }
 
+bool isWindowsOS() {
+#if defined(_WIN32) || defined(_WIN64)
+    return true;
+#else
+    return false;
+#endif
+}
 
+TEST(PathSerializationTest, CrossOSPath) {
+    file::Path path("/unix/style/path");
+    
+    std::string serialized = Meta::toStr(path);
+    
+    // Debug output
+    print("Debug Info: Path = ", path.str());
+    print("Serialized: ", serialized);
+    
+    if (isWindowsOS()) {
+        EXPECT_EQ(serialized, "\"\\unix\\style\\path\"");
+    } else {
+        EXPECT_EQ(serialized, "\"/unix/style/path\"");
+    }
+}
+
+TEST(PathSerializationTest, WindowsPath) {
+    file::Path path("C:\\windows\\style\\path");
+    
+    std::string serialized = Meta::toStr(path);
+    
+    // Debug output
+    print("Debug Info: Path = ", path.str());
+    print("Serialized: ", serialized);
+    
+    if (isWindowsOS()) {
+        EXPECT_EQ(serialized, "\"C:\\\\windows\\\\style\\\\path\"");
+    } else {
+        EXPECT_EQ(serialized, "\"C:/windows/style/path\"");
+    }
+}
+
+TEST(PathSerializationTest, RoundTripCrossOS) {
+    file::Path original_path("/unix/or/windows/path");
+    
+    std::string serialized = Meta::toStr(original_path);
+    file::Path deserialized_path = Meta::fromStr<file::Path>(serialized);
+    
+    // Debug output
+    print("Debug Info: Original Path = ", original_path.str());
+    print("Serialized: ", serialized);
+    print("Debug Info: Deserialized Path = ", deserialized_path.str());
+    
+    if (isWindowsOS()) {
+        EXPECT_EQ(deserialized_path.str(), "\\unix\\or\\windows\\path");
+    } else {
+        EXPECT_EQ(deserialized_path.str(), "/unix/or/windows/path");
+    }
+}
