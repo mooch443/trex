@@ -6,7 +6,7 @@
 namespace track {
 
 ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg, yolo8, customseg);
-static ObjectDetectionType::Class detection_type() {
+static inline ObjectDetectionType::Class detection_type() {
     return SETTING(detection_type).value<ObjectDetectionType::Class>();
 }
 

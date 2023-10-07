@@ -252,9 +252,9 @@ VideoOpener::VideoOpener()
     
     _raw_settings->set_children(objects);
     
-    _loading_text = std::make_shared<gui::Text>("generating average", Loc(100,0), TextClr{Cyan}, gui::Font(0.6f));
+    _loading_text = std::make_shared<gui::Text>(Str{"generating average"}, Loc(100,0), TextClr{Cyan}, gui::Font(0.6f));
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", SizeLimit(video_chooser_column_width, -1), Font(0.5f));
+    _raw_description = std::make_shared<gui::StaticText>(Str{"Info"}, SizeLimit(video_chooser_column_width, -1), Font(0.5f));
     _raw_description->set_background(Transparent, Transparent);
     _raw_info->set_children({
         Layout::Ptr(std::make_shared<Text>(Str("Preview"), TextClr(White), gui::Font(0.9f, Style::Bold))),
@@ -1063,7 +1063,7 @@ void VideoOpener::select_file(const file::Path &p) {
         
         _mini_bowl->auto_size(Margin{0, 0});
         
-        gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", TextClr{gui::White}, gui::Font(0.9f, gui::Style::Bold));
+        gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>(Str{"Selected"}, TextClr{gui::White}, gui::Font(0.9f, gui::Style::Bold));
         _info_description = std::make_shared<gui::StaticText>(Str(settings::htmlify(text)),  SizeLimit(_screenshot_max_size.div(_graph->scale()).width * 0.25, _screenshot_max_size.div(_graph->scale()).height), gui::Font(0.7f));
         //gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Preview", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
         

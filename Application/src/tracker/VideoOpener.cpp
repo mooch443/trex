@@ -251,9 +251,9 @@ VideoOpener::VideoOpener()
     
     _raw_settings->set_children(objects);
     
-    _loading_text = std::make_shared<gui::Text>("generating average", Loc(100,0), TextClr{Cyan}, gui::Font(0.6f));
+    _loading_text = std::make_shared<gui::Text>(Str("generating average"), Loc(100,0), TextClr{Cyan}, gui::Font(0.6f));
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", SizeLimit(video_chooser_column_width, -1), Font(0.5f));
+    _raw_description = std::make_shared<gui::StaticText>(Str("Info"), SizeLimit(video_chooser_column_width, -1), Font(0.5f));
     _raw_description->set_background(Transparent, Transparent);
     _raw_info->set_children({
         Layout::Ptr(std::make_shared<Text>(Str("Preview"),TextClr( White), gui::Font(0.9f, Style::Bold))),
