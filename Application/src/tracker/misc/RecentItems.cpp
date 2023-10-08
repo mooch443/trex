@@ -158,12 +158,12 @@ nlohmann::json RecentItems::Item::to_object() const {
     for (auto& key : _options.keys()) {
         auto& prop = _options[key].get();
         auto json = prop.to_json();
-        std::cout << "Converted " << key << " to json: " << json << " vs " << json.dump() << std::endl;
+        //std::cout << "Converted " << key << " to json: " << json << " vs " << json.dump() << std::endl;
         settings[key] = json;
     }
     obj["settings"] = settings;
 
-    std::cout << "Output:" << obj.dump() << std::endl;
+    //std::cout << "Output:" << obj.dump() << std::endl;
     return obj;
 }
 
@@ -182,7 +182,7 @@ void RecentItems::write() {
         auto dump = obj.dump();
         fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
 
-        print("Updated recent files: ", dump.c_str());
+        //print("Updated recent files: ", dump.c_str());
 
     }
     catch (...) {
