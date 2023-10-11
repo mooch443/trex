@@ -107,7 +107,8 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
     //! of the pixels in the bounding box, for the masks we copy over only
     //! the pixels that are inside the mask.
     if (result.masks().empty()) {
-        for (auto& row : boxes) {
+        for (size_t i = 0; i < N_rows; ++i) {
+            auto& row = boxes[i];
             if (SETTING(do_filter).value<bool>()
                 && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
                 continue;
@@ -135,64 +136,77 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
             if (not lines.empty()) {
                 pv::Blob blob(lines, 0);
                 data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
-                data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(row.clid), .p = uint8_t(float(row.conf) * 255.f) });
+                
+                blob::Pose pose;
+                if(not result.keypoints().empty()) {
+                    auto p = result.keypoints()[i];
+                    print("pose ",i, " = ", p);
+                    
+                    pose = p;
+                    data.keypoints.push_back(std::move(p));
+                }
+                data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(row.clid), .p = uint8_t(float(row.conf) * 255.f), .pose = std::move(pose) });
+                
             }
         }
         
         return;
     }
-    else {
-        for (size_t i = 0; i < N_rows; ++i) {
-            auto& row = boxes[i];
-            if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
-                continue;
-            Bounds bounds = row.box;
-            //bounds = bounds.mul(scale_factor);
-            auto& mask = result.masks()[i];
+    
+    for (size_t i = 0; i < N_rows; ++i) {
+        auto& row = boxes[i];
+        if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+            continue;
+        Bounds bounds = row.box;
+        //bounds = bounds.mul(scale_factor);
+        auto& mask = result.masks()[i];
 
-            auto blobs = CPULabeling::run(mask.mat);
-            if (not blobs.empty()) {
-                size_t msize = 0, midx = 0;
-                for (size_t j = 0; j < blobs.size(); ++j) {
-                    if (blobs.at(j).pixels->size() > msize) {
-                        msize = blobs.at(j).pixels->size();
-                        midx = j;
-                    }
+        auto blobs = CPULabeling::run(mask.mat);
+        if (not blobs.empty()) {
+            size_t msize = 0, midx = 0;
+            for (size_t j = 0; j < blobs.size(); ++j) {
+                if (blobs.at(j).pixels->size() > msize) {
+                    msize = blobs.at(j).pixels->size();
+                    midx = j;
                 }
-
-                auto&& pair = blobs.at(midx);
-                size_t num_pixels{ 0u };
-                for (auto& line : *pair.lines) {
-                    line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
-                    line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
-                    line.y = saturate(coord_t(line.y + bounds.y), coord_t(0), h);
-                    num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
-                    
-                    if (line.x0 >= r3.cols
-                        || line.x1 >= r3.cols
-                        || line.y >= r3.rows)
-                        throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
-                }
-
-                pair.pred = blob::Prediction{
-                    .clid = static_cast<uint8_t>(row.clid),
-                    .p = uint8_t(float(row.conf) * 255.f)
-                };
-                pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
-
-                pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
-                pair.pixels = (blob.calculate_pixels(r3));
-
-                auto points = pixel::find_outer_points(&blob, 0);
-                if (not points.empty()) {
-                    data.outlines.emplace_back(std::move(*points.front()));
-                }
-
-                data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
-                data.frame.add_object(std::move(pair));
             }
+
+            auto&& pair = blobs.at(midx);
+            size_t num_pixels{ 0u };
+            for (auto& line : *pair.lines) {
+                line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
+                line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
+                line.y = saturate(coord_t(line.y + bounds.y), coord_t(0), h);
+                num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+                
+                if (line.x0 >= r3.cols
+                    || line.x1 >= r3.cols
+                    || line.y >= r3.rows)
+                    throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
+            }
+
+            pair.pred = blob::Prediction{
+                .clid = static_cast<uint8_t>(row.clid),
+                .p = uint8_t(float(row.conf) * 255.f)
+            };
+            pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+
+            pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+            pair.pixels = (blob.calculate_pixels(r3));
+
+            auto points = pixel::find_outer_points(&blob, 0);
+            if (not points.empty()) {
+                data.outlines.emplace_back(std::move(*points.front()));
+            }
+
+            data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
+            data.frame.add_object(std::move(pair));
         }
     }
+}
+
+void Yolo8::receive(SegmentationData &data, Vec2 scale_factor, const std::span<float> &vector, const std::span<float> &keypoints, uint64_t bones) {
+    
 }
 
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, 

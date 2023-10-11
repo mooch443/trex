@@ -18,6 +18,9 @@ struct Yolo8 {
     static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector,
         const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns);
     
+    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector,
+        const std::span<float>& keypoints, uint64_t bones);
+    
     static void apply(std::vector<TileImage>&& tiles);
 };
 

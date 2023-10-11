@@ -60,6 +60,7 @@ namespace gui {
         std::shared_ptr<Circle> _recognition_circle;
         std::vector<Vec2> points;
         
+        blob::Pose _average_pose;
         pv::CompressedBlob *_blob;
         Bounds _blob_bounds;
         int _match_mode;

@@ -161,11 +161,86 @@ namespace track {
                 return "detect::MaskData";
             }
         };
+    
+        struct TREX_EXPORT Bone {
+            float x;
+            float y;
+            float conf;
+            std::string toStr() const {
+                return "Bone<" + Meta::toStr(x) + "," + Meta::toStr(y) + " " + Meta::toStr(conf) + ">";
+            }
+        };
+    
+        struct TREX_EXPORT Keypoint {
+            std::vector<Bone> bones;
+            std::string toStr() const {
+                return "Keypoint<" + Meta::toStr(bones) + ">";
+            }
+            
+            const Bone& bone(size_t index) const {
+                if (index >= bones.size()) {
+                    throw SoftException("Index ", index, " out of bounds for array of size ", bones.size(), ".");
+                }
+                return bones[index];
+            }
+            
+            operator blob::Pose() const {
+                std::vector<blob::Pose::Point> coords;
+                for(auto& b : bones)
+                    coords.push_back(blob::Pose::Point(b.x, b.y));
+                return blob::Pose{
+                    .points = std::move(coords)
+                };
+            }
+        };
+    
+        class TREX_EXPORT KeypointData {
+            GETTER(uint64_t, num_bones)
+            GETTER(std::vector<float>, xy_conf)
+            
+        public:
+            KeypointData(std::vector<float>&& data, size_t bones)
+                : _num_bones(bones), _xy_conf(std::move(data))
+            {
+                if (data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) != 0u)
+                    throw InvalidArgumentException("Invalid size for KeypointData constructor. Please use a size that is divisible by ",sizeof(Bone) / sizeof(decltype(Bone::x))," and is a flat ", Meta::name<decltype(Bone::x)>()," array.");
+                // expecting 3 floats per row, 2 for xy, 1 for conf
+                assert(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) == 0u);
+                assert(data.size() % _num_bones == 0);
+            }
+            
+            KeypointData() = default;
+            KeypointData(const KeypointData&) = default;
+            KeypointData& operator=(const KeypointData&) = default;
+            KeypointData(KeypointData&&) = default;
+            KeypointData& operator=(KeypointData&&) = default;
+            
+            Keypoint operator[](size_t index) const {
+                if(index * num_bones() * 3u >= xy_conf().size())
+                    throw std::out_of_range("The index "+Meta::toStr(index)+" is outside the keypoints arrays dimensions of "+Meta::toStr(size()));
+                return Keypoint{
+                    .bones = std::vector<Bone>{
+                        reinterpret_cast<const Bone*>(xy_conf().data())  + num_bones() * index,
+                        reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * (index + 1)
+                    }
+                };
+            }
+            
+            [[nodiscard]] bool empty() const { return _xy_conf.empty(); }
+            [[nodiscard]] size_t size() const { return _xy_conf.size() / _num_bones / 3u; }
+
+            std::string toStr() const {
+                return "KeypointData<"+std::to_string(_num_bones)+" "+(not _xy_conf.empty() ? Meta::toStr(_xy_conf.size() / 3u) : "null")+" triplets>";
+            }
+            static std::string class_name() {
+                return "detect::KeypointData";
+            }
+        };
 
         class TREX_EXPORT Result {
         public:
-            Result(int index, Boxes&& boxes, std::vector<MaskData> masks)
-                : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks))
+            Result(int index, Boxes&& boxes, std::vector<MaskData> masks, KeypointData&& keypoints)
+                : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks)), _keypoints(std::move(keypoints))
             {
                 if (_boxes.num_rows() != 0) {
                     if(not _masks.empty() && _masks.size() != _boxes.num_rows())
@@ -174,7 +249,7 @@ namespace track {
             }
 
             std::string toStr() const {
-                return "Result<"+std::to_string(index())+","+_boxes.toStr()+","+Meta::toStr(_masks)+ ">";
+                return "Result<"+std::to_string(index())+","+_boxes.toStr()+","+Meta::toStr(_masks)+ ","+Meta::toStr(_keypoints)+">";
             }
             static std::string class_name() {
                 return "detect::Result";
@@ -184,6 +259,7 @@ namespace track {
             GETTER(int, index)
             GETTER(Boxes, boxes)
             GETTER(std::vector<MaskData>, masks)
+            GETTER(KeypointData, keypoints)
         };
 
         class TREX_EXPORT YoloInput {

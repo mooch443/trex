@@ -948,6 +948,31 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
+blob::Pose Individual::pose_window(Frame_t start, Frame_t end) const {
+    start = saturate(start, start_frame(), end_frame());
+    end = saturate(end, start_frame(), end_frame()) + 1_f;
+    
+    FrameRange range(Range<Frame_t>(start, end));
+    std::vector<const blob::Pose*> collection;
+    collection.reserve(range.length().get());
+    
+    iterate_frames(range.range, [&](Frame_t, const std::shared_ptr<SegmentInformation> &, const BasicStuff * basic, const PostureStuff *)
+    {
+        collection.push_back(&basic->blob.pred.pose);
+        return true;
+    });
+    
+    print("Poses:", collection);
+    
+    if(collection.empty())
+        return blob::Pose{};
+    
+    using namespace blob;
+    return Pose::mean<GaussianTemporalWeighting<Focus::Center>>([&](size_t index){
+        return *collection.at(index);
+    }, collection.size());
+}
+
 int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t current_prob)
 {
     const auto frameIndex = info.frame->index();

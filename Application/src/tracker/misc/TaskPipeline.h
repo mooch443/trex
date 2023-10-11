@@ -3,6 +3,7 @@
 #include <misc/PackLambda.h>
 #include <misc/Image.h>
 #include <pv.h>
+#include <python/GPURecognition.h>
 
 namespace cmn {
 
@@ -102,6 +103,7 @@ struct SegmentationData {
     
     std::vector<Assignment> predictions;
     std::vector<std::vector<Vec2>> outlines;
+    std::vector<track::detect::Keypoint> keypoints;
     
     operator bool() const {
         return image != nullptr;

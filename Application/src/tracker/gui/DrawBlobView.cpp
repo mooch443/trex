@@ -450,6 +450,11 @@ void draw_blob_view(const DisplayParameters& parm)
                     }
                 }*/
                 
+                if(not blob->prediction().pose.points.empty()) {
+                    for(auto& p : blob->prediction().pose.points)
+                        e.add<Circle>(Loc(p.x, p.y), FillClr{Red.alpha(50)}, Radius{5});
+                }
+                
                 if(register_label && parm.cache.frame_idx == label->frame())
                 //if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)
                 //    && parm.cache.frame_idx == label->frame())

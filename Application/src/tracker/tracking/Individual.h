@@ -405,6 +405,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void update_midlines(const CacheHints*);
         Midline::Ptr calculate_midline_for(const BasicStuff& basic, const PostureStuff& posture_stuff) const;
         
+        blob::Pose pose_window(Frame_t start, Frame_t end) const;
+        
     private:
         friend class gui::Fish;
         friend struct SegmentInformation;

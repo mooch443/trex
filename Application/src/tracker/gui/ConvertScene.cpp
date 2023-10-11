@@ -470,6 +470,16 @@ void ConvertScene::_draw(DrawStructure& graph) {
 
         for (auto box : _current_data.tiles)
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
+        ColorWheel wheel;
+        for (auto& keypoint : _current_data.keypoints) {
+            auto clr = wheel.next();
+            auto last = keypoint.bones.back();
+            for(auto& bone : keypoint.bones) {
+                graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{10}, FillClr{clr.alpha(50)});
+                graph.line(Vec2{last.x, last.y}, {bone.x, bone.y}, 5, LineClr{clr.exposureHSL(0.5)});
+                last = bone;
+            }
+        }
 
         static Frame_t last_frame;
         bool dirty{ false };

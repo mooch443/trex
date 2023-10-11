@@ -34,8 +34,17 @@ Segmenter::Segmenter(std::function<void(std::string)> error_callback)
             if (std::unique_lock guard(_mutex_general);
                 _output_file != nullptr)
             {
+                auto filename = _output_file->filename();
                 _output_file->close();
                 _output_file = nullptr;
+                
+                
+                try {
+                    pv::File test(filename, pv::FileMode::READ);
+                    test.print_info();
+                } catch(...) {
+                    // we are not interested in open-errors
+                }
             }
             
             try {
@@ -67,15 +76,6 @@ Segmenter::~Segmenter() {
     std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
     _overlayed_video = nullptr;
     _tracker = nullptr;
-    
-    if (_output_file) {
-        try {
-            pv::File test(_output_file->filename(), pv::FileMode::READ);
-            test.print_info();
-        } catch(...) {
-            // we are not interested in open-errors
-        }
-    }
     
     _output_file = nullptr;
     _next_frame_data = {};

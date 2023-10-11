@@ -218,6 +218,25 @@ namespace track::detect {
         }
     };
 
+class KeypointArray {
+public:
+    KeypointData data;
+
+public:
+    KeypointArray(py::array_t<float, py::array::c_style | py::array::forcecast> keypoint) {
+        py::buffer_info buf_info = keypoint.request();
+        size_t points = buf_info.shape[0];
+        size_t bones = buf_info.shape[1];
+        size_t dims = buf_info.shape[2];
+        assert(dims == 3u);
+        auto array = transfer_array<float>(keypoint);
+        data = KeypointData{
+            std::vector<float>(array.get(), array.get() + points * bones * dims),
+            bones
+        };
+    }
+};
+
     std::vector<MaskData> transfer_masks(py::list masks) {
         std::vector<MaskData> result;
         result.reserve(masks.size());
@@ -228,6 +247,17 @@ namespace track::detect {
         }
         return result;
     }
+
+std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
+    std::vector<KeypointData> result;
+    result.reserve(keypoints.size());
+
+    for (py::handle h : keypoints) {
+        py::array_t<float, py::array::c_style | py::array::forcecast> keypoint = h.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>();
+        result.emplace_back(std::move(KeypointArray(keypoint).data));
+    }
+    return result;
+}
     
 }
 
@@ -276,6 +306,20 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readonly("box", &Row::box)
         .def_readonly("clid", &Row::clid)
         .def_readonly("conf", &Row::conf);
+    
+    py::class_<Bone>(m, "Bone")
+        .def("__repr__", [](const Bone& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readonly("x", &Bone::x)
+        .def_readonly("y", &Bone::y)
+        .def_readonly("conf", &Bone::conf);
+    
+    py::class_<Keypoint>(m, "Keypoint")
+        .def("__repr__", [](const Keypoint& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readonly("bones", &Keypoint::bones);
 
     py::class_<Boxes>(m, "Boxes")
         .def(py::init([](py::array_t<float, py::array::c_style | py::array::forcecast> boxes_and_scores) -> Boxes {
@@ -289,18 +333,29 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("row", &Boxes::row, py::return_value_policy::reference_internal)
         .def("num_rows", &Boxes::num_rows);
+    
+    py::class_<KeypointData>(m, "KeypointData")
+        .def(py::init([](py::array_t<float, py::array::c_style | py::array::forcecast> xy_and_scores) -> KeypointData {
+            return KeypointArray(xy_and_scores).data;
+        }))
+        .def("__repr__", [](const track::detect::KeypointData& keypoint) -> std::string {
+            return keypoint.toStr();
+        })
+        .def("at", &KeypointData::operator[], py::return_value_policy::reference_internal)
+        .def("num_bones", &KeypointData::num_bones);
 
     py::class_<track::detect::Result>(m, "Result")
         .def(py::init([](int index,
                          track::detect::Boxes boxes_and_scores,
-                         py::list masks)
-                -> Result 
+                         py::list masks, track::detect::KeypointData keypoints)
+                -> Result
             {
                 auto _masks = transfer_masks(masks);
                 return track::detect::Result {
                     index,
                     std::move(boxes_and_scores),
-                    std::move(_masks)
+                    std::move(_masks),
+                    std::move(keypoints)
                 };
             })
         )
@@ -309,7 +364,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("index", &Result::index)
         .def("boxes_and_scores", &Result::boxes, py::return_value_policy::reference_internal)
-        .def("masks", &Result::masks);
+        .def("masks", &Result::masks)
+        .def("keypoints", &Result::keypoints);
 
     py::class_<cmn::Vec2>(m, "Vec2")
         .def(py::init<>())

@@ -93,7 +93,8 @@ void Yolo7ObjectDetection::receive(SegmentationData& data, Vec2 scale_factor, co
         if(not lines.empty()) {
             pv::Blob blob(lines, 0);
             data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
-            data.frame.add_object(lines, pixels, 0, blob::Prediction{ .clid = uint8_t(cls), .p = uint8_t(float(conf) * 255.f) });
+            data.frame.add_object(lines, pixels, 0, 
+                                  blob::Prediction{ .clid = uint8_t(cls), .p = uint8_t(float(conf) * 255.f) });
         }
     }
 }

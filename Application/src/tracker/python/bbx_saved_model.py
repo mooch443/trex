@@ -430,7 +430,7 @@ class StrippedYolo8Results:
         box = np.array([box[0],box[1]])
         
         if results.keypoints is not None:
-            self.keypoints = results.keypoints.cpu().numpy()[..., :2]
+            self.keypoints = results.keypoints.cpu().numpy()#[..., :2]
         self.masks = None
 
         if results.masks is not None:
@@ -733,31 +733,38 @@ class TRexYOLO8:
 
             collected_boxes = []
             collected_masks = []
+            collected_keypoints = []
 
             # For each result, perform postprocessing and gather the boxes and masks
             for t, (result, (box, region)) in enumerate(zip(results, regions)):
                 result = StrippedYolo8Results(result, scale=scale, offset=offset)
                 #r = result.cpu().plot(img=region, line_width=1)
                 #TRex.imshow("segmentation"+str(i)+","+str(t), r)
-                coords, masks = self.postprocess_result(i, result, offset, scale, box)
+                coords, masks, keypoints = self.postprocess_result(i, result, offset, scale, box)
                 collected_boxes.append(coords)
                 collected_masks.extend(masks)
+                if len(keypoints) > 0:
+                    collected_keypoints.extend(keypoints)
 
             # Concatenate all collected boxes
             if len(collected_boxes) > 0:
                 collected_boxes = np.concatenate(collected_boxes, axis=0)
 
+            if len(collected_keypoints) > 0:
+                collected_keypoints = np.concatenate(collected_keypoints, axis=0)
+
             # Check if the number of boxes is equal to the number of masks
-            assert len(collected_boxes) == len(collected_masks)
+            assert len(collected_masks) == 0 or len(collected_boxes) == len(collected_masks)
+            assert len(collected_keypoints) == 0 or len(collected_boxes) == len(collected_keypoints)
 
             # Append the result to the list of results
-            rexsults.append(TRex.Result(i, TRex.Boxes(collected_boxes), collected_masks))
+            rexsults.append(TRex.Result(i, TRex.Boxes(collected_boxes), collected_masks, TRex.KeypointData(collected_keypoints)))
 
         # Return the final list of results
         return rexsults
 
 
-    def postprocess_result(self, i, result, offset, scale, box = [0, 0, 0, 0]) -> Tuple[np.ndarray, List[np.ndarray]]:
+    def postprocess_result(self, i, result, offset, scale, box = [0, 0, 0, 0]) -> Tuple[np.ndarray, List[np.ndarray], List[np.ndarray]]:
         """
         This function postprocesses the result of the object detection and segmentation for a proposed region.
 
@@ -787,6 +794,7 @@ class TRexYOLO8:
 
         # Initialize the list of masks
         masks = []
+        keypoints = []
 
         # If result contains keypoints, process them
         if result.keypoints is not None:
@@ -794,22 +802,23 @@ class TRexYOLO8:
             print(result.keypoints.shape)
             print("orig_shape...=",result.orig_shape)
 
-            keys = result.keypoints.cpu().numpy()[..., :2]
-            #keys = result.keypoints.cpu().numpy()[..., :2]/np.array(result.orig_shape)[::-1]
-            #keys *= np.array([im.shape[1], im.shape[2]])
-            from_keys = []
-            #print(keys)
-            for x, y in keys[0]:
-                from_keys.append((x - 5, y - 5, x + 5, y + 5, 0.5, 0))
-            #print(keys)
-            #boxes.append(from_keys)
-            #Ns.append(coords.shape[0] + len(from_keys))
+            keys = result.keypoints.cpu().data
+            #print("keys=",keys.shape, result.keypoints.cpu())
+            if len(keys) > 0 and len(keys[0]):
+                print(result.keypoints.cpu().xy, scale)
+                #keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
+                #keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
+                keys[..., 0] = (keys[..., 0] * scale[0]) #+ coords[..., 0]).T
+                keys[..., 1] = (keys[..., 1] * scale[1]) #+ coords[..., 1]).T
+                keypoints.append(keys) # bones * 3 elements
+
+        print("collected ", len(keypoints), keypoints)
 
         # If result contains masks, add them to the output
         if result.masks is not None:
-            return coords, result.masks
+            return coords, result.masks, keypoints
 
-        return coords, masks
+        return coords, masks, keypoints
 
     @staticmethod
     def calculate_memory(num_images, h, w, c, dtype):
@@ -975,12 +984,16 @@ class TRexYOLO8:
         for i, (tiles, scale, offset) in enumerate(zip(results, scales, offsets)):
             coords = []
             masks = []
+            keypoints = []
             for j, (tile, s, o) in enumerate(zip(tiles, scale, offset)):
                 try:
-                    c, m = self.postprocess_result(index, tile, offset = o, scale = s)
+                    c, m, k = self.postprocess_result(index, tile, offset = o, scale = s)
                     #print("c.shape= ",c.shape, " len(m)=", len(m))
                     coords.append(c)
                     masks.extend(m)
+                    keypoints.extend(k)
+
+                    #print("appended keypoints: ", len(keypoints), " at ", index, "with", tile)
 
                     #r = result.cpu().plot(img=im[i], line_width=1)
                     #TRex.imshow("result"+str(i), r)
@@ -993,8 +1006,14 @@ class TRexYOLO8:
                 finally:
                     index += 1
             
+            print("keypoints = ",len(keypoints))
+            print("shape = ", np.shape(keypoints))
             coords = np.concatenate(coords, axis=0)
-            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks))
+            if len(keypoints) > 0:
+                keypoints = np.concatenate(keypoints, axis=0, dtype=np.float32)
+            print("shortened = ", np.shape(keypoints), " ", keypoints.dtype)
+            
+            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints)))
         
         return rexsults
 

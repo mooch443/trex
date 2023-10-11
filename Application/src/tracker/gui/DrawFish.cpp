@@ -199,6 +199,8 @@ Fish::~Fish() {
 
             //check_tags();
             
+            _average_pose = _obj.pose_window(frameIndex.try_sub(10_f), frameIndex + 10_f);
+            
             auto [_basic, _posture] = _obj.all_stuff(_safe_frame);
             _basic_stuff = _basic;
             _posture_stuff = _posture;
@@ -850,10 +852,25 @@ Fish::~Fish() {
                     _view.advance_wrap(_graph);
                 }
             }
+            
         });
 
         
         parent.advance_wrap(_view);
+        
+        if(_blob != nullptr && _blob->pred.pose.size() > 0) {
+            for(size_t i=0; i<_blob->pred.pose.size(); ++i) {
+                auto bone = _blob->pred.pose.bone(i);
+                parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(15)}, LineClr{Gray.alpha(50)}, Radius{5}, Scale{bowl->scale().reciprocal()});
+                parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(25)});
+            }
+            
+            for(size_t i=0; i<_average_pose.size(); ++i) {
+                auto bone = _average_pose.bone(i);
+                parent.add<Circle>(Loc{bone.A}, FillClr{_color.alpha(20)}, LineClr{_color.alpha(100)}, Radius{5}, Scale{bowl->scale().reciprocal()});
+                parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{_color.alpha(25)});
+            }
+        }
         
         _label_parent.update([&](auto&){
             label(base, bowl, _label_parent);

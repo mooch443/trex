@@ -8,6 +8,7 @@
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
 #include <file/DataLocation.h>
+#include <regex>
 
 /**
  * =============================
@@ -19,18 +20,41 @@ using namespace file;
 
 namespace cmn {
 template<> void Data::read(blob::Prediction& pred) {
+    auto version = (pv::Version)pred.clid;
+    
     read<uint8_t>(pred.clid);
     read<uint8_t>(pred.p);
-    read<uint8_t>(pred._reserved0);
-    read<uint8_t>(pred._reserved1);
+    
+    if(version >= pv::Version::V_10) {
+        uint8_t N{0u};
+        read<uint8_t>(N);
+        assert(N % 2u == 0);
+        print("pose::N = ", N / 2u);
+        pred.pose.points.resize(N / 2u);
+        for(size_t i=0; i<N / 2u; i++) {
+            read<uint16_t>(pred.pose.points[i].x);
+            read<uint16_t>(pred.pose.points[i].y);
+        }
+        
+    } else {
+        uint8_t trash;
+        read<uint8_t>(trash);
+        read<uint8_t>(trash); // trash
+    }
 }
 
 template<> uint64_t Data::write(const blob::Prediction& val) {
     uint64_t pos =
     write<uint8_t>(val.clid);
     write<uint8_t>(val.p);
-    write<uint8_t>(val._reserved0);
-    write<uint8_t>(val._reserved1);
+    //write<uint8_t>(val._reserved0);
+    //write<uint8_t>(val._reserved1);
+    
+    write<uint8_t>(val.pose.size() * 2);
+    for(auto &pt : val.pose.points) {
+        write<uint16_t>(pt.x);
+        write<uint16_t>(pt.y);
+    }
     return pos;
 }
 
@@ -325,8 +349,10 @@ File::File(const file::Path& filename, FileMode mode)
             
             if(n_predictions > 0) {
                 _predictions.resize(_n);
-                for(int i=0; i<_n; ++i)
+                for(int i=0; i<_n; ++i) {
+                    _predictions[i].clid = (uint8_t)ref.header().version;
                     ptr->read<blob::Prediction>(_predictions[i]);
+                }
             }
         }
         
@@ -363,7 +389,8 @@ File::File(const file::Path& filename, FileMode mode)
         _n++;
     }
 
-void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred) {
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred)
+{
     assert(mask.size() < UINT16_MAX);
 #ifndef NDEBUG
     HorizontalLine prev = mask.empty() ? HorizontalLine() : mask.front();
@@ -387,6 +414,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         _predictions.resize(_flags.size());
         _predictions.back() = pred;
     //}
+    
     _n++;
 }
     
@@ -616,8 +644,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.read<std::string>(version_str);
         
         if(version_str.length() > 2) {
-            auto nr = version_str.at(version_str.length()-1u) - uchar('0');
-            version = (Version)(nr-1);
+            std::regex re("PV(\\d+)");
+            std::smatch match;
+            if (std::regex_search(version_str, match, re)) {
+                int nr = std::stoi(match[1]);
+                version = static_cast<Version>(nr - 1);
+            } else {
+                version = Version::V_1;
+            }
             
         } else {
             version = Version::V_1;
@@ -1035,6 +1069,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             throw U_EXCEPTION("Do not stop writing on a file that was not open for writing (",_filename,").");
         write(uint64_t(0));
         _header.update(*this);
+        print_info();
     }
     
     void File::read_frame(Frame& frame, Frame_t frameIndex) {

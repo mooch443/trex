@@ -40,6 +40,7 @@ SegmentationData& SegmentationData::operator=(SegmentationData&& other)
     tiles = std::move(other.tiles);
     predictions = std::move(other.predictions);
     outlines = std::move(other.outlines);
+    keypoints = std::move(other.keypoints);
 
     if (image) {
         OverlayBuffers::put_back(std::move(image));

@@ -84,8 +84,11 @@ namespace pv {
         /** Added source frame index */
         V_9,
         
+        /** Adding Prediction + Pose */
+        V_10,
+        
         //! current
-        current = V_9
+        current = V_10
     };
     
     class Frame {
