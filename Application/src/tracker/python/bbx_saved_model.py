@@ -1011,7 +1011,7 @@ class TRexYOLO8:
             coords = np.concatenate(coords, axis=0)
             if len(keypoints) > 0:
                 keypoints = np.concatenate(keypoints, axis=0, dtype=np.float32)
-            print("shortened = ", np.shape(keypoints), " ", keypoints.dtype)
+                print("shortened = ", np.shape(keypoints), " ", keypoints.dtype)
             
             rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints)))
         
