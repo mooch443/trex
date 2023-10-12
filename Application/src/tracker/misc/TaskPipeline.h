@@ -166,6 +166,7 @@ template<typename Data>
 class PipelineManager {
     typename BaseTask<Data>::Ptr _c;
     std::shared_mutex _mutex;
+    std::mutex _future_mutex;
     std::future<void> _future;
     const double _weight_limit{0};
     std::function<void()> _create;
@@ -199,14 +200,14 @@ public:
     }
     
     void clean_up() {
-        std::unique_lock guard(_mutex);
-        if(_future.valid()) {
-            guard.unlock();
-            _future.get();
-            guard.lock();
+        {
+            std::scoped_lock guard(_future_mutex);
+            if(_future.valid())
+                _future.get();
             _future = {};
         }
-        //_create = {};
+        
+        std::unique_lock g(_mutex);
         _c = nullptr;
     }
 
@@ -260,31 +261,17 @@ private:
             return true;
         }
         
-        std::unique_lock guard(_mutex);
+        std::unique_lock guard(_future_mutex);
         if (_future.valid()) {
-            guard.unlock();
-            try {
-                _future.get();
-                guard.lock();
-                
-            } catch(...) {
-                guard.lock();
-                throw;
-            }
+            _future.get();
         }
-
-        //if (not _future.valid()) 
-        {
-            _future = std::async(std::launch::async, [this]() {
-                set_thread_name("pipeline_async");
-                std::unique_lock guard(_mutex);
-                (*_c)();
-            });
-        }
-        //else {//if (_future.wait_for(std::chrono::microseconds(0)) == std::future_status::ready) {
-        //    _future.get();
-        //    assert(not _future.valid());
-        //}
+        
+        _future = std::async(std::launch::async, [this]() {
+            set_thread_name("pipeline_async");
+            std::unique_lock guard(_mutex);
+            (*_c)();
+        });
+        
         return false;
     }
 };

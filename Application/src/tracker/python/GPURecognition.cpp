@@ -226,9 +226,12 @@ public:
     KeypointArray(py::array_t<float, py::array::c_style | py::array::forcecast> keypoint) {
         py::buffer_info buf_info = keypoint.request();
         size_t points = buf_info.shape[0];
+        if(points == 0)
+            return;
+        
         size_t bones = buf_info.shape[1];
         size_t dims = buf_info.shape[2];
-        assert(dims == 3u);
+        assert(dims == 2u);
         auto array = transfer_array<float>(keypoint);
         data = KeypointData{
             std::vector<float>(array.get(), array.get() + points * bones * dims),
@@ -312,8 +315,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             return v.toStr();
         })
         .def_readonly("x", &Bone::x)
-        .def_readonly("y", &Bone::y)
-        .def_readonly("conf", &Bone::conf);
+        .def_readonly("y", &Bone::y);
+        //.def_readonly("conf", &Bone::conf);
     
     py::class_<Keypoint>(m, "Keypoint")
         .def("__repr__", [](const Keypoint& v) -> std::string {

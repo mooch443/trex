@@ -165,9 +165,9 @@ namespace track {
         struct TREX_EXPORT Bone {
             float x;
             float y;
-            float conf;
+            //float conf;
             std::string toStr() const {
-                return "Bone<" + Meta::toStr(x) + "," + Meta::toStr(y) + " " + Meta::toStr(conf) + ">";
+                return "Bone<" + Meta::toStr(x) + "," + Meta::toStr(y) + ">";
             }
         };
     
@@ -216,8 +216,8 @@ namespace track {
             KeypointData& operator=(KeypointData&&) = default;
             
             Keypoint operator[](size_t index) const {
-                if(index * num_bones() * 3u >= xy_conf().size())
-                    throw std::out_of_range("The index "+Meta::toStr(index)+" is outside the keypoints arrays dimensions of "+Meta::toStr(size()));
+                if(index * num_bones() * 2u >= xy_conf().size())
+                    throw OutOfRangeException("The index ", index," is outside the keypoints arrays dimensions of ",size());
                 return Keypoint{
                     .bones = std::vector<Bone>{
                         reinterpret_cast<const Bone*>(xy_conf().data())  + num_bones() * index,
@@ -227,10 +227,10 @@ namespace track {
             }
             
             [[nodiscard]] bool empty() const { return _xy_conf.empty(); }
-            [[nodiscard]] size_t size() const { return _xy_conf.size() / _num_bones / 3u; }
+            [[nodiscard]] size_t size() const { return _xy_conf.size() / _num_bones / 2u; }
 
             std::string toStr() const {
-                return "KeypointData<"+std::to_string(_num_bones)+" "+(not _xy_conf.empty() ? Meta::toStr(_xy_conf.size() / 3u) : "null")+" triplets>";
+                return "KeypointData<"+std::to_string(_num_bones)+" "+(not _xy_conf.empty() ? Meta::toStr(_xy_conf.size() / 2u) : "null")+" triplets>";
             }
             static std::string class_name() {
                 return "detect::KeypointData";

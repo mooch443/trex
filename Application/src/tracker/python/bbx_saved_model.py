@@ -802,7 +802,7 @@ class TRexYOLO8:
             print(result.keypoints.shape)
             print("orig_shape...=",result.orig_shape)
 
-            keys = result.keypoints.cpu().data
+            keys = result.keypoints.cpu().data[..., :2]
             #print("keys=",keys.shape, result.keypoints.cpu())
             if len(keys) > 0 and len(keys[0]):
                 print(result.keypoints.cpu().xy, scale)
