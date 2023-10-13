@@ -140,7 +140,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
                 blob::Pose pose;
                 if(not result.keypoints().empty()) {
                     auto p = result.keypoints()[i];
-                    print("pose ",i, " = ", p);
+                    //print("pose ",i, " = ", p);
                     
                     pose = p;
                     data.keypoints.push_back(std::move(p));

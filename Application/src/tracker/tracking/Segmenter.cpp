@@ -144,8 +144,6 @@ void Segmenter::open_video() {
         );
     }
     SETTING(video_length) = uint64_t(video_length().get());
-    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
-    SETTING(meta_real_width) = float(get_model_image_size().width * 10);
 
     //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
 

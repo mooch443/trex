@@ -798,21 +798,21 @@ class TRexYOLO8:
 
         # If result contains keypoints, process them
         if result.keypoints is not None:
-            print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
-            print(result.keypoints.shape)
-            print("orig_shape...=",result.orig_shape)
+            #print(i, ": x1 y1 x1 y1 conf clid =",coords.shape, coords)
+            #print(result.keypoints.shape)
+            #print("orig_shape...=",result.orig_shape)
 
             keys = result.keypoints.cpu().data[..., :2]
             #print("keys=",keys.shape, result.keypoints.cpu())
             if len(keys) > 0 and len(keys[0]):
-                print(result.keypoints.cpu().xy, scale)
+                #print(result.keypoints.cpu().xy, scale)
                 #keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
                 #keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
                 keys[..., 0] = (keys[..., 0] * scale[0]) #+ coords[..., 0]).T
                 keys[..., 1] = (keys[..., 1] * scale[1]) #+ coords[..., 1]).T
                 keypoints.append(keys) # bones * 3 elements
 
-        print("collected ", len(keypoints), keypoints)
+        #print("collected ", len(keypoints), keypoints)
 
         # If result contains masks, add them to the output
         if result.masks is not None:
@@ -1006,12 +1006,9 @@ class TRexYOLO8:
                 finally:
                     index += 1
             
-            print("keypoints = ",len(keypoints))
-            print("shape = ", np.shape(keypoints))
             coords = np.concatenate(coords, axis=0)
             if len(keypoints) > 0:
                 keypoints = np.concatenate(keypoints, axis=0, dtype=np.float32)
-                print("shortened = ", np.shape(keypoints), " ", keypoints.dtype)
             
             rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints)))
         

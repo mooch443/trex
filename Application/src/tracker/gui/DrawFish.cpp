@@ -861,13 +861,13 @@ Fish::~Fish() {
         if(_blob != nullptr && _blob->pred.pose.size() > 0) {
             for(size_t i=0; i<_blob->pred.pose.size(); ++i) {
                 auto bone = _blob->pred.pose.bone(i);
-                parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(15)}, LineClr{Gray.alpha(50)}, Radius{5}, Scale{bowl->scale().reciprocal()});
+                parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(15)}, LineClr{Gray.alpha(50)}, Radius{5});
                 parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(25)});
             }
             
             for(size_t i=0; i<_average_pose.size(); ++i) {
                 auto bone = _average_pose.bone(i);
-                parent.add<Circle>(Loc{bone.A}, FillClr{_color.alpha(20)}, LineClr{_color.alpha(100)}, Radius{5}, Scale{bowl->scale().reciprocal()});
+                parent.add<Circle>(Loc{bone.A}, FillClr{_color.alpha(20)}, LineClr{_color.alpha(100)}, Radius{5});
                 parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{_color.alpha(25)});
             }
         }
