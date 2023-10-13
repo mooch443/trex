@@ -161,37 +161,15 @@ namespace track {
                 return "detect::MaskData";
             }
         };
-    
-        struct TREX_EXPORT Bone {
-            float x;
-            float y;
-            //float conf;
-            std::string toStr() const {
-                return "Bone<" + Meta::toStr(x) + "," + Meta::toStr(y) + ">";
-            }
-        };
-    
-        struct TREX_EXPORT Keypoint {
-            std::vector<Bone> bones;
-            std::string toStr() const;
-            const Bone& bone(size_t index) const;
-            operator blob::Pose() const;
-        };
+
+        class Keypoint;
     
         class TREX_EXPORT KeypointData {
             GETTER(uint64_t, num_bones)
             GETTER(std::vector<float>, xy_conf)
             
         public:
-            KeypointData(std::vector<float>&& data, size_t bones)
-                : _num_bones(bones), _xy_conf(std::move(data))
-            {
-                if (data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) != 0u)
-                    throw InvalidArgumentException("Invalid size for KeypointData constructor. Please use a size that is divisible by ",sizeof(Bone) / sizeof(decltype(Bone::x))," and is a flat ", Meta::name<decltype(Bone::x)>()," array.");
-                // expecting 3 floats per row, 2 for xy, 1 for conf
-                assert(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) == 0u);
-                assert(data.size() % _num_bones == 0);
-            }
+            KeypointData(std::vector<float>&& data, size_t bones);
             
             KeypointData() = default;
             KeypointData(const KeypointData&) = default;
@@ -199,16 +177,7 @@ namespace track {
             KeypointData(KeypointData&&) = default;
             KeypointData& operator=(KeypointData&&) = default;
             
-            Keypoint operator[](size_t index) const {
-                if(index * num_bones() * 2u >= xy_conf().size())
-                    throw OutOfRangeException("The index ", index," is outside the keypoints arrays dimensions of ",size());
-                return Keypoint{
-                    .bones = std::vector<Bone>{
-                        reinterpret_cast<const Bone*>(xy_conf().data())  + num_bones() * index,
-                        reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * (index + 1)
-                    }
-                };
-            }
+            Keypoint operator[](size_t index) const;
             
             [[nodiscard]] bool empty() const { return _xy_conf.empty(); }
             [[nodiscard]] size_t size() const { return _xy_conf.size() / _num_bones / 2u; }

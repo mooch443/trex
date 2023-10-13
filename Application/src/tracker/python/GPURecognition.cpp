@@ -21,6 +21,8 @@
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 
+#include <misc/DetectionTypes.h>
+
 #include <misc/format.h>
 
 #include <signal.h>
@@ -218,26 +220,6 @@ namespace track::detect {
         }
     };
 
-    std::string Keypoint::toStr() const {
-        return "Keypoint<" + Meta::toStr(bones) + ">";
-    }
-
-    const Bone& Keypoint::bone(size_t index) const {
-        if (index >= bones.size()) {
-            throw SoftException("Index ", index, " out of bounds for array of size ", bones.size(), ".");
-        }
-        return bones[index];
-    }
-
-    Keypoint::operator blob::Pose() const {
-        std::vector<blob::Pose::Point> coords;
-        for (auto& b : bones)
-            coords.push_back(blob::Pose::Point(b.x, b.y));
-        return blob::Pose{
-            .points = std::move(coords)
-        };
-    }
-
 class KeypointArray {
 public:
     KeypointData data;
@@ -281,7 +263,28 @@ std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     }
     return result;
 }
+
+KeypointData::KeypointData(std::vector<float>&& data, size_t bones)
+    : _num_bones(bones), _xy_conf(std::move(data))
+{
+    if (data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) != 0u)
+        throw InvalidArgumentException("Invalid size for KeypointData constructor. Please use a size that is divisible by ", sizeof(Bone) / sizeof(decltype(Bone::x)), " and is a flat ", Meta::name<decltype(Bone::x)>(), " array.");
+    // expecting 3 floats per row, 2 for xy, 1 for conf
+    assert(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) == 0u);
+    assert(data.size() % _num_bones == 0);
+}
     
+Keypoint KeypointData::operator[](size_t index) const {
+    if (index * num_bones() * 2u >= xy_conf().size())
+        throw OutOfRangeException("The index ", index, " is outside the keypoints arrays dimensions of ", size());
+    return Keypoint{
+        .bones = std::vector<Bone>{
+            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * index,
+            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * (index + 1)
+        }
+    };
+}
+
 }
 
 using namespace track::detect;

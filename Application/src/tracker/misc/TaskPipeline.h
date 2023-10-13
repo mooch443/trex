@@ -3,7 +3,7 @@
 #include <misc/PackLambda.h>
 #include <misc/Image.h>
 #include <pv.h>
-#include <python/GPURecognition.h>
+#include <misc/DetectionTypes.h>
 
 namespace cmn {
 
