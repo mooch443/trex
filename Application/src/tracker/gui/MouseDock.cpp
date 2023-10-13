@@ -1,7 +1,6 @@
 #include "MouseDock.h"
 #include <misc/Timer.h>
 #include <gui/GUICache.h>
-#include <expected>
 
 namespace gui {
 IMPLEMENT(MouseDock::instance) = std::make_unique<MouseDock>();

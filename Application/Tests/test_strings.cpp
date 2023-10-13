@@ -811,7 +811,7 @@ TEST(PathSerializationTest, CrossOSPath) {
     print("Serialized: ", serialized);
     
     if (isWindowsOS()) {
-        EXPECT_EQ(serialized, "\"\\unix\\style\\path\"");
+        EXPECT_EQ(serialized, "\"\\\\unix\\\\style\\\\path\"");
     } else {
         EXPECT_EQ(serialized, "\"/unix/style/path\"");
     }

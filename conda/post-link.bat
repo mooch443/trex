@@ -17,5 +17,5 @@ python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" 'tensorflow-
 
 echo. >> %MESSAGES_FILE%
 echo ============ TRex ============ >> %MESSAGES_FILE%
-echo     conda activate %PREFIX% ^&^& python -m pip install opencv-python >> %MESSAGES_FILE%
+echo     conda activate %PREFIX% ^&^& python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" "tensorflow-gpu>=2,<3" >> %MESSAGES_FILE%
 echo ============ /TRex ============ >> %MESSAGES_FILE%

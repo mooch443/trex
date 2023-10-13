@@ -207,7 +207,7 @@ if(NOT APPLE)
         set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
     endif()
 
-    if(TREX_WITH_TESTS)
+    if(NOT WIN32 AND TREX_WITH_TESTS)
         set_target_properties(test_imgui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
     endif()
 endif()

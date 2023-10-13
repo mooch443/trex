@@ -173,25 +173,9 @@ namespace track {
     
         struct TREX_EXPORT Keypoint {
             std::vector<Bone> bones;
-            std::string toStr() const {
-                return "Keypoint<" + Meta::toStr(bones) + ">";
-            }
-            
-            const Bone& bone(size_t index) const {
-                if (index >= bones.size()) {
-                    throw SoftException("Index ", index, " out of bounds for array of size ", bones.size(), ".");
-                }
-                return bones[index];
-            }
-            
-            operator blob::Pose() const {
-                std::vector<blob::Pose::Point> coords;
-                for(auto& b : bones)
-                    coords.push_back(blob::Pose::Point(b.x, b.y));
-                return blob::Pose{
-                    .points = std::move(coords)
-                };
-            }
+            std::string toStr() const;
+            const Bone& bone(size_t index) const;
+            operator blob::Pose() const;
         };
     
         class TREX_EXPORT KeypointData {
