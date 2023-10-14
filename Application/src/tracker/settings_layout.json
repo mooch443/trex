@@ -111,6 +111,73 @@
                             "size":[850,40],
                             "desc":""
                         }]
+                    ],
+
+                    [
+                        [{
+                            "type":"text",
+                            "text":"#individuals",
+                            "pos":[0,6]
+                        }],
+                        [{
+                            "type":"settings",
+                            "var":"track_max_individuals",
+                            "fill":[50,50,50],
+                            "line":[75,75,75],
+                            "size":[850,40],
+                            "desc":""
+                        }]
+                    ],
+
+                    [
+                        [{
+                            "type":"stext",
+                            "text":"<b>kinematics</b>",
+                            "pos":[0,11]
+                        }],
+                        [{
+                            "type":"hlayout",
+                            "pad":[0,0,10,0],
+                            "children":[
+                            { "type":"hlayout",
+                              "pad":[0,0,10,0],
+                              "children":[
+                                {
+                                    "type":"stext",
+                                    "text":"max speed (cm/s)",
+                                    "pos":[0,0]
+                                },
+                                {
+                                    "type":"settings",
+                                    "var":"track_max_speed",
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[200,45],
+                                    "desc":""
+                                },
+                                {
+                                    "type":"stext",
+                                    "text":"conversion\n(cm/pixel)",
+                                    "pos":[0,0]
+                                },
+                                {
+                                    "type":"settings",
+                                    "var":"cm_per_pixel",
+                                    "fill":[50,50,50],
+                                    "line":[75,75,75],
+                                    "size":[200,45],
+                                    "desc":""
+                                },
+                                {
+                                    "type":"button",
+                                    "text":"Calibrate",
+                                    "fill":[50,90,50],
+                                    "size":[150,45],
+                                    "action":"calibrate"
+                                }
+                             ]
+                           }]
+                        }]
                     ]
                 ]
             },
