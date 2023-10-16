@@ -86,16 +86,12 @@ RecentItems RecentItems::read() {
                     auto settings = key.at("settings");
                     for (auto& i : settings.items()) {
                         auto key = i.key();
-                        auto value = i.value().dump();
+                        auto value = Meta::fromStr<std::string>(i.value().dump());
                         if(key == "source") {
                             value = name;
                         }
 
                         try {
-                            if (not value.empty() && value.front() == '"') {
-                                value = value.substr(1, value.size() - 2);
-                            }
-
                             if (not item._options.has(key)) {
                                 if (GlobalSettings::map().has(key)) {
                                     GlobalSettings::map()[key].get().copy_to(&item._options);
