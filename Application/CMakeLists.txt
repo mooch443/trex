@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 3.11)
-if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
-    message(STATUS "* Please consider to switch to CMake 3.11.0")
-endif()
-
+cmake_minimum_required(VERSION 3.17)
 message("-- USER environment variable is set to: " $ENV{USER})
 
 project(TRex LANGUAGES CXX C)
@@ -16,9 +12,7 @@ endif()
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
-    include(FetchContent)
-endif()
+include(FetchContent)
 
 enable_testing()
 
