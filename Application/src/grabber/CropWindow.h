@@ -14,7 +14,7 @@ namespace gui {
         Size2 _video_size;
         
     public:
-        CropWindow(FrameGrabber& grabber);
+        CropWindow();
         void update_rectangle();
     };
 }

@@ -646,9 +646,11 @@ int main(int argc, char** argv)
             exec_main_queue([&](){}).get();
         });
             
-        if (SETTING(crop_window) && grabber.video() && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
+        if (SETTING(crop_window) 
+            //&& grabber.video() 
+            && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
 #if CMN_WITH_IMGUI_INSTALLED
-            gui::CropWindow cropwindow(grabber);
+            gui::CropWindow cropwindow;
 #endif
         }
             
