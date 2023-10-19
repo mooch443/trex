@@ -248,7 +248,7 @@ struct RootMockFilesystem : public file::FilesystemInterface {
             return { file::Path("C:\\file1.txt"), file::Path("C:\\folder1") };
         }
 #else
-        if (path.str() == file::Path("/")) {
+        if (path == file::Path("/")) {
             return { file::Path("/file1.txt"), file::Path("/folder1") };
         }
 #endif

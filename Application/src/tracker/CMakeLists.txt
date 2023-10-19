@@ -89,8 +89,6 @@ if(WIN32 OR UNIX AND NOT APPLE)
 endif()
 
 if(NOT WIN32 AND TREX_WITH_TESTS)
-    #windows does not support large cpp files
-    add_subdirectory(tests)
     add_executable(test_imgui program.cpp)
 
     target_link_libraries(test_imgui PUBLIC
