@@ -122,14 +122,8 @@ void SettingsScene::_draw(DrawStructure& graph) {
                 },
                     .variables = {
                         {
-                            "global",
-                            std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
-                                return GlobalSettings::map();
-                            }))
-                        },
-                        {
                             "settings_summary",
-                            std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> std::string {
+                            std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](dyn::VarProps) -> std::string {
                                 return std::string(GlobalSettings::map().toStr());
                             }))
                         }

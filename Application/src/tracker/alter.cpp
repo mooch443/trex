@@ -22,7 +22,6 @@
 #include <grabber/misc/default_config.h>
 #include <gui/DynamicGUI.h>
 #include <gui/SettingsDropdown.h>
-#include "Alterface.h"
 #include <GitSHA1.h>
 #include <grabber/misc/Webcam.h>
 #include <opencv2/core/utils/logger.hpp>
@@ -39,6 +38,7 @@
 #include <gui/ConvertScene.h>
 #include <gui/StartingScene.h>
 #include <gui/SettingsScene.h>
+#include <gui/TrackingScene.h>
 
 #include <tracking/Yolo8.h>
 #include <tracking/Yolo7InstanceSegmentation.h>
@@ -76,7 +76,7 @@ namespace ind = indicators;
 void launch_gui() {
     IMGUIBase base(window_title(), {1024,768}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
-        graph.draw_log_messages();
+        graph.draw_log_messages(Bounds(graph.dialog_window_size()));
         return true;
     }, [](auto&, Event e) {
         if(e.type == EventType::KEY) {
@@ -90,9 +90,6 @@ void launch_gui() {
     
     StartingScene start(base);
     manager.register_scene(&start);
-
-    if(SETTING(source).value<file::PathArray>().empty())
-        manager.set_active(&start);
     
     static std::unique_ptr<Segmenter> segmenter;
     ConvertScene converting(base, [&](ConvertScene& scene){
@@ -117,19 +114,24 @@ void launch_gui() {
     });
     manager.register_scene(&converting);
     
+    TrackingScene tracking_scene(base);
+    manager.register_scene(&tracking_scene);
+    
     SettingsScene settings_scene(base);
     manager.register_scene(&settings_scene);
-    
-    //manager.set_active(&converting);
-    if (not SETTING(source).value<file::PathArray>().empty()) {
-        manager.set_active(&converting);
-    }
 
     LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
 
         });
     manager.register_scene(&loading);
+    
+    /*if(SETTING(source).value<file::PathArray>().empty())
+        manager.set_active(&start);
+    if (not SETTING(source).value<file::PathArray>().empty()) {
+        manager.set_active(&converting);
+    }*/
+    manager.set_active(&tracking_scene);
     
     base.platform()->set_icons({
         //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),

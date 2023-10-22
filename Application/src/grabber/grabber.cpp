@@ -1110,7 +1110,7 @@ void FrameGrabber::update_tracker_queue() {
         for(auto &a : array) {
             a = utils::uppercase(utils::trim(a));
             if(CLFeature::has(a)) {
-                auto feature = CLFeature::get(a);
+                auto feature = CLFeature::get((std::string)a);
                 selected_features.insert(feature);
                 print("Feature ", std::string(feature.name())," will be sent to python.");
             } else

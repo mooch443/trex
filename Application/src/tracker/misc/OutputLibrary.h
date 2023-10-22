@@ -163,7 +163,7 @@ namespace Output {
         
     public:
         static const Calculation parse_calculation(const std::string& calculation);
-        static bool parse_modifiers(const std::string& str, Options_t& modifiers);
+        static bool parse_modifiers(const std::string_view& str, Options_t& modifiers);
         
     private:
         static float tailbeats(Frame_t frame, LibInfo info);

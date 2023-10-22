@@ -1,0 +1,32 @@
+{ "objects": [
+    {
+        "type":"button",
+        "text":"Test",
+        "size":[100,40],
+        "action":"change_scene:'starting-scene'"
+    },
+    {
+        "type":"button",
+        "text":"{window_size} {global.app_name}",
+        "pos":"{addVector:{global.gui_zoom_limit}:[10,20]}",
+        "size":"{addSize:{global.gui_zoom_limit}:0}"
+    },
+    {
+        "type":"stext",
+        "text":"<sym>↑▶⏸⏹📁❤⚖️⚠✓✂😉☁</sym> <key><c>Привет</c></key> up",
+        "font":{ "size":1 },
+        "color":[255,255,0],
+        "pos":[100,0]
+    },
+    {
+        "type":"each",
+        "pos":[0,0],
+        "size":[100,100],
+        "var":"fishes",
+        "do": {
+            "type":"text",
+            "pos":"{minVector:{i.pos}:[500,500]}",
+            "text":"{i.name} => {i.detail}"
+        }
+    }
+]}

@@ -56,7 +56,7 @@ struct DrawExportOptions::Data {
             search(Box(Vec2(5, close.height() + 15), Size2(parent.width() - 10, 30))),
             export_options(Box(
                search.pos() + Vec2(0, search.height() + 10),
-               Size2(search.width(), parent.height() - (search.pos().y + search.height() + 20))), {}, Font(0.5, Align::Left))
+               Size2(search.width(), parent.height() - (search.pos().y + search.height() + 20))), Font(0.5, Align::Left))
     {
         close.set_font(Font(0.5, Align::Center));
         search.set_placeholder("Type to search...");

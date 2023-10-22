@@ -68,6 +68,7 @@ public:
     static SceneManager& getInstance();
 
     void set_active(Scene* scene);
+    bool is_scene_registered(std::string) const;
 
     void register_scene(Scene* scene);
     void unregister_scene(Scene* scene);

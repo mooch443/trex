@@ -13,7 +13,7 @@
             },
             {
                 "type":"stext",
-                "text":"<b>Welcome</b> to {global:app_name}.",
+                "text":"<b>Welcome</b> to {global.app_name}.",
                 "color":[255,255,255],
                 "font":{"size":1.25}
             },
@@ -44,8 +44,8 @@
                     "align":"center"
                 },
                 "template": {
-                    "text":"{i:name}",
-                    "detail":"{i:detail}",
+                    "text":"{i.name}",
+                    "detail":"{i.detail}",
                     "action":"open_recent"
                 }
             },

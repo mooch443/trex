@@ -44,7 +44,7 @@ std::string current_version() {
     auto v = SETTING(version).value<std::string>();
     if(v.empty() || v[0] != 'v')
         return "0";
-    return utils::split(utils::split(v, 'v').back(), '-').front();
+    return (std::string)utils::split(utils::split(v, 'v').back(), '-').front();
 }
 
 std::string last_asked_version() {
@@ -81,9 +81,9 @@ void init() {
             file::Path("update_check").delete_file();
             throw U_EXCEPTION("Array does not have the right amount of elements ('",contents,"', ",array.size(),"). Deleting file.");
         }
-        SETTING(app_last_update_check) = Meta::fromStr<uint64_t>(array.front());
-        SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.at(1));
-        SETTING(app_last_update_version) = array.back();
+        SETTING(app_last_update_check) = Meta::fromStr<uint64_t>((std::string)array.front());
+        SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>((std::string)array.at(1));
+        SETTING(app_last_update_version) = (std::string)array.back();
         
     } catch(const UtilsException& ex) {
         FormatExcept("Utils Exception: '", ex.what(),"'");

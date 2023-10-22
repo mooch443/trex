@@ -68,45 +68,39 @@ menu{
 
         .variables = {
             {
-                "fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                "fps", std::unique_ptr<VarBase_t>(new Variable([](VarProps) {
                     return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
                 }))
             },
             {
-                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](VarProps) {
                     return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
                 }))
             },
             {
-                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](std::string) {
+                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](VarProps) {
                     return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
                 }))
             },
             {
                 "fish",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                std::unique_ptr<VarBase_t>(new Variable([](VarProps) -> sprite::Map& {
                     return fish;
                 }))
             },
             {
-                "global",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
-                    return GlobalSettings::map();
-                }))
-            },
-            {
                 "average_is_generating",
-                std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
+                std::unique_ptr<VarBase_t>(new Variable([this](VarProps) {
                     return _segmenter->is_average_generating();
                 }))
             },
             {
-                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](std::string) {
+                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](VarProps) {
                     return _actual_frame;
                 }))
             },
             {
-                "video", std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                "video", std::unique_ptr<VarBase_t>(new Variable([](VarProps) -> sprite::Map& {
                     return _video_info;
                 }))
             }
@@ -152,7 +146,7 @@ _on_deactivate(on_deactivate)
     _video_info.set_do_print(false);
     fish.set_do_print(false);
 
-    menu.dynGUI.context.variables.emplace("fishes", new Variable([this](std::string) -> std::vector<std::shared_ptr<VarBase_t>>&{
+    menu.dynGUI.context.variables.emplace("fishes", new Variable([this](dyn::VarProps) -> std::vector<std::shared_ptr<VarBase_t>>&{
         return _gui_objects;
     }));
 }
@@ -435,7 +429,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         }
         tmp["p"] = Meta::toStr(assign.p);
         _individual_properties.push_back(std::move(tmp));
-        _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](std::string) -> sprite::Map& {
+        _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](VarProps) -> sprite::Map& {
             return _individual_properties.at(i);
         }));
     }

@@ -1223,39 +1223,39 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         return func;
     }
     
-    bool Library::parse_modifiers(const std::string& e, Options_t& modifiers) {
-        if (utils::lowercase(e) == "smooth") {
+    bool Library::parse_modifiers(const std::string_view& e, Options_t& modifiers) {
+        if (utils::lowercase_equal_to(e, "smooth")) {
             modifiers.push(Modifiers::SMOOTH);
             
-        } else if(utils::lowercase(e) == "raw") {
+        } else if(utils::lowercase_equal_to(e, "raw")) {
             modifiers.remove(Modifiers::SMOOTH);
         
-        } else if(utils::lowercase(e) == "centroid") {
+        } else if(utils::lowercase_equal_to(e, "centroid")) {
             modifiers.remove(Modifiers::POSTURE_CENTROID);
             modifiers.remove(Modifiers::WEIGHTED_CENTROID);
             
             modifiers.push(Modifiers::CENTROID);
             
-        } else if(utils::lowercase(e) == "head") {
+        } else if(utils::lowercase_equal_to(e, "head")) {
             modifiers.remove(Modifiers::CENTROID);
             modifiers.remove(Modifiers::POSTURE_CENTROID);
             modifiers.remove(Modifiers::WEIGHTED_CENTROID);
             
-        } else if(utils::lowercase(e) == "pcentroid") {
+        } else if(utils::lowercase_equal_to(e, "pcentroid")) {
             modifiers.remove(Modifiers::CENTROID);
             modifiers.remove(Modifiers::WEIGHTED_CENTROID);
             
             modifiers.push(Modifiers::POSTURE_CENTROID);
             
-        } else if(utils::lowercase(e) == "wcentroid") {
+        } else if(utils::lowercase_equal_to(e, "wcentroid")) {
             modifiers.remove(Modifiers::CENTROID);
             modifiers.remove(Modifiers::POSTURE_CENTROID);
             
             modifiers.push(Modifiers::WEIGHTED_CENTROID);
             
-        } else if(utils::lowercase(e) == "points") {
+        } else if(utils::lowercase_equal_to(e, "points")) {
             modifiers.push(Modifiers::POINTS);
-        } else if(utils::lowercase(e) == "pm") {
+        } else if(utils::lowercase_equal_to(e, "pm")) {
             modifiers.push(Modifiers::PLUSMINUS);
         } else
             return false;

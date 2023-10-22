@@ -10,6 +10,16 @@ IF(WIN32)
 	else()
 		set( PYLON_LIBRARY "$ENV{PYLON_ROOT}/lib/Win32" )
 	endif()
+ELSEIF(APPLE)
+	find_library(PYLON_LIBRARY
+				NAMES pylonbase
+				HINTS
+				$ENV{PYLON_ROOT}
+				$ENV{PYLON_ROOT}/lib64
+				/Library/Frameworks/pylon.framework/Libraries
+				PATHS
+				/Library/Frameworks/pylon.framework/Libraries
+	)
 ELSE()
 		if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
 			set( PYLON_LIBRARY "/opt/pylon6/lib64" )

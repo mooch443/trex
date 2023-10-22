@@ -92,7 +92,7 @@ protected:
         .variables = {
             {
                 "global",
-                std::unique_ptr<VarBase_t>(new Variable([](std::string) -> sprite::Map& {
+                std::unique_ptr<VarBase_t>(new Variable([](VarProps) -> sprite::Map& {
                     return GlobalSettings::map();
                 }))
             }
@@ -147,7 +147,7 @@ public:
         _overall->set_policy(VerticalLayout::CENTER);
         //_overall->set_background(Transparent, Blue);
 
-        _list = std::make_shared<ScrollableList<FileItem>>(Bounds(
+        _list = std::make_shared<ScrollableList<FileItem>>(Box(
             0,
             0,
             //_graph->width() - 

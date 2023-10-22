@@ -16,11 +16,11 @@ using namespace utils;
 // Tests for the split function.
 TEST(SplitTest, TestBasicSplit) {
     std::string s = "foo,bar,baz";
-    std::vector<std::string> expected = {"foo", "bar", "baz"};
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
     EXPECT_EQ(split(s, ','), expected);
 
     std::wstring ws = L"hello,world";
-    std::vector<std::wstring> expected_ws = {L"hello", L"world"};
+    std::vector<std::wstring_view> expected_ws = {L"hello", L"world"};
     EXPECT_EQ(split(ws, ','), expected_ws);
 }
 
@@ -105,61 +105,184 @@ TEST(SplitTest, ComplexTests) {
 
 TEST(SplitTest, TestEmptyString) {
     std::string s = "";
-    std::vector<std::string> expected = {""};
+    std::vector<std::string_view> expected = {""};
     EXPECT_EQ(split(s, ','), expected);
 
     std::wstring ws = L"";
-    std::vector<std::wstring> expected_ws = {L""};
+    std::vector<std::wstring_view> expected_ws = {L""};
     EXPECT_EQ(split(ws, ','), expected_ws);
 }
 
 TEST(SplitTest, TestSingleDelimiter) {
     std::string s = ",";
-    std::vector<std::string> expected = {"", ""};
+    std::vector<std::string_view> expected = {"", ""};
     EXPECT_EQ(split(s, ',', false, false), expected);
 
     std::wstring ws = L",";
-    std::vector<std::wstring> expected_ws = {L"", L""};
+    std::vector<std::wstring_view> expected_ws = {L"", L""};
     EXPECT_EQ(split(ws, ',', false, false), expected_ws);
 }
 
 TEST(SplitTest, TestNoDelimiter) {
     std::string s = "foobar";
-    std::vector<std::string> expected = {"foobar"};
+    std::vector<std::string_view> expected = {"foobar"};
     EXPECT_EQ(split(s, ','), expected);
 
     std::wstring ws = L"hello";
-    std::vector<std::wstring> expected_ws = {L"hello"};
+    std::vector<std::wstring_view> expected_ws = {L"hello"};
     EXPECT_EQ(split(ws, ','), expected_ws);
 }
 
 TEST(SplitTest, TestMultipleDelimiters) {
     std::string s = "foo,,bar,,baz";
-    std::vector<std::string> expected = {"foo", "", "bar", "", "baz"};
+    std::vector<std::string_view> expected = {"foo", "", "bar", "", "baz"};
     EXPECT_EQ(split(s, ','), expected);
 
     std::wstring ws = L"hello, ,world";
-    std::vector<std::wstring> expected_ws = {L"hello", L" ", L"world"};
+    std::vector<std::wstring_view> expected_ws = {L"hello", L" ", L"world"};
     EXPECT_EQ(split(ws, ','), expected_ws);
 }
 
 TEST(SplitTest, TestTrimming) {
     std::string s = "  foo , bar ,  baz  ";
-    std::vector<std::string> expected = {"foo", "bar", "baz"};
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
     EXPECT_EQ(split(s, ',', false, true), expected);
 
     std::wstring ws = L"  hello  ,  world  ";
-    std::vector<std::wstring> expected_ws = {L"hello", L"world"};
+    std::vector<std::wstring_view> expected_ws = {L"hello", L"world"};
     EXPECT_EQ(split(ws, ',', false, true), expected_ws);
+}
+
+TEST(StringTrimTests, LTrimBasicTest) {
+    std::string str1 = "    leading";
+    auto result1 = ltrim(str1);
+    ASSERT_EQ(result1, "leading");
+
+    std::string_view str2 = "    leading";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "leading");
+}
+
+TEST(StringTrimTests, LTrimNoTrimTest) {
+    std::string str1 = "noleading";
+    auto result1 = ltrim(str1);
+    ASSERT_EQ(result1, "noleading");
+
+    std::string_view str2 = "noleading";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "noleading");
+}
+
+TEST(StringTrimTests, RTrimBasicTest) {
+    std::string str1 = "trailing    ";
+    auto result1 = rtrim(str1);
+    ASSERT_EQ(result1, "trailing");
+
+    std::string_view str2 = "trailing    ";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "trailing");
+}
+
+TEST(StringTrimTests, RTrimNoTrimTest) {
+    std::string str1 = "notrailing";
+    auto result1 = rtrim(str1);
+    ASSERT_EQ(result1, "notrailing");
+
+    std::string_view str2 = "notrailing";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "notrailing");
+}
+
+TEST(StringTrimTests, LTrimConstRefTest) {
+    const std::string str = "    leading";
+    auto result = ltrim(str);
+    ASSERT_EQ(result, "leading");
+}
+
+TEST(StringTrimTests, RTrimConstRefTest) {
+    const std::string str = "trailing    ";
+    auto result = rtrim(str);
+    ASSERT_EQ(result, "trailing");
+}
+
+TEST(StringTrimTests, LTrimRValueTest) {
+    auto result = ltrim(std::string("    leading"));
+    ASSERT_EQ(result, "leading");
+}
+
+TEST(StringTrimTests, RTrimRValueTest) {
+    auto result = rtrim(std::string("trailing    "));
+    ASSERT_EQ(result, "trailing");
+}
+
+TEST(StringTrimTests, LTrimEmptyTest) {
+    std::string str = "";
+    auto result = ltrim(str);
+    ASSERT_EQ(result, "");
+
+    std::string_view str2 = "";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, RTrimEmptyTest) {
+    std::string str = "";
+    auto result = rtrim(str);
+    ASSERT_EQ(result, "");
+
+    std::string_view str2 = "";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimOnlySpacesTest) {
+    std::string str1 = "    ";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = "    ";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimMixedSpacesTest) {
+    std::string str1 = " \t \r \n ";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = " \t \r \n ";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimConstRefTest) {
+    const std::string str = "  both  ";
+    auto result = trim(str);
+    ASSERT_EQ(result, "both");
+}
+
+TEST(StringTrimTests, TrimRValueTest) {
+    auto result = trim(std::string("  both  "));
+    ASSERT_EQ(result, "both");
+}
+
+TEST(StringTrimTests, TrimEmptyTest) {
+    std::string str1 = "";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = "";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
 }
 
 TEST(SplitTest, TestSkipEmpty) {
     std::string s = "foo,,bar,,baz";
-    std::vector<std::string> expected = {"foo", "bar", "baz"};
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
     EXPECT_EQ(split(s, ',', true, false), expected);
 
     std::wstring ws = L"hello, ,world";
-    std::vector<std::wstring> expected_ws = {L"hello", L" ", L"world"};
+    std::vector<std::wstring_view> expected_ws = {L"hello", L" ", L"world"};
     EXPECT_EQ(split(ws, ',', false, false), expected_ws);
 }
 
@@ -190,6 +313,54 @@ TEST(RepeatTest, TestLargeRepetitions) {
     expected += s;
   }
   EXPECT_EQ(repeat(s, 1000000), expected);
+}
+
+// upper lower
+
+TEST(StringUtilTest, Lowercase) {
+    // Test with std::string
+    EXPECT_EQ(lowercase(std::string("Hello")), "hello");
+    
+    // Test with std::wstring
+    EXPECT_EQ(lowercase(std::wstring(L"Hello")), L"hello");
+    
+    // Test with std::string_view
+    EXPECT_EQ(lowercase(std::string_view("Hello")), "hello");
+    
+    // Test with const char*
+    EXPECT_EQ(lowercase("Hello"), "hello");
+    
+    // Test with const wchar_t*
+    EXPECT_EQ(lowercase(L"Hello"), L"hello");
+
+    // Test with an empty std::string
+    EXPECT_EQ(lowercase(std::string("")), "");
+
+    // Test with an empty std::string_view
+    EXPECT_EQ(lowercase(std::string_view("")), "");
+}
+
+TEST(StringUtilTest, Uppercase) {
+    // Test with std::string
+    EXPECT_EQ(uppercase(std::string("Hello")), "HELLO");
+    
+    // Test with std::wstring
+    EXPECT_EQ(uppercase(std::wstring(L"Hello")), L"HELLO");
+    
+    // Test with std::string_view
+    EXPECT_EQ(uppercase(std::string_view("Hello")), "HELLO");
+    
+    // Test with const char*
+    EXPECT_EQ(uppercase("Hello"), "HELLO");
+    
+    // Test with const wchar_t*
+    EXPECT_EQ(uppercase(L"Hello"), L"HELLO");
+
+    // Test with an empty std::string
+    EXPECT_EQ(uppercase(std::string("")), "");
+
+    // Test with an empty std::string_view
+    EXPECT_EQ(uppercase(std::string_view("")), "");
 }
 
 // find_replace

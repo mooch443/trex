@@ -658,11 +658,11 @@ void GUI::load_connectivity_matrix() {
     for(size_t index = 0; index < rows.size(); ++index) {
         auto values = utils::split(rows[index], ',');
         if(values.size() == expected_number) {
-            auto frame = Meta::fromStr<Frame_t::number_t>(values[0]);
+            auto frame = Meta::fromStr<Frame_t::number_t>((std::string)values[0]);
             array.resize(values.size()-1);
             
             for(size_t i=1; i<values.size(); ++i) {
-                array[i-1] = cmn::abs(Meta::fromStr<float>(values[i]));
+                array[i-1] = cmn::abs(Meta::fromStr<float>((std::string)values[i]));
                 if(array[i-1] > maximum)
                     maximum = array[i-1];
             }

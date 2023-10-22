@@ -627,9 +627,9 @@ void PythonIntegration::init() {
             if(array.size() > 0) {
                 array = utils::split(array.front(), '.');
                 if(array.size() >= 1)
-                    python_major_version() = Meta::fromStr<int>(array[0]);
+                    python_major_version() = Meta::fromStr<int>((std::string)array[0]);
                 if(array.size() > 1)
-                    python_minor_version() = Meta::fromStr<int>(array[1]);
+                    python_minor_version() = Meta::fromStr<int>((std::string)array[1]);
             }
             
             python_uses_gpu() = has_gpu;

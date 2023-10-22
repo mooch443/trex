@@ -65,6 +65,18 @@ void SceneManager::set_active(std::string name) {
     }
 }
 
+bool SceneManager::is_scene_registered(std::string name) const {
+    Scene* ptr{ nullptr };
+    
+    if (std::unique_lock guard{_mutex};
+        _scene_registry.contains(name))
+    {
+        ptr = _scene_registry.at(name);
+    }
+    
+    return ptr != nullptr;
+}
+
 SceneManager::~SceneManager() {
     update_queue();
     if (active_scene)

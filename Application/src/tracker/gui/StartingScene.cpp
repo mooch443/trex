@@ -38,7 +38,7 @@ void StartingScene::activate() {
         _data.push_back(std::move(tmp));
         
         _recents_list.emplace_back(new dyn::Variable{
-            [i, this](std::string) -> sprite::Map& {
+            [i, this](dyn::VarProps) -> sprite::Map& {
                 return _data[i];
             }
         });
@@ -66,6 +66,7 @@ void StartingScene::deactivate() {
 }
 
 void StartingScene::_draw(DrawStructure& graph) {
+    using namespace dyn;
     if(not dynGUI)
         dynGUI = {
             .path = "welcome_layout.json",
@@ -73,10 +74,10 @@ void StartingScene::_draw(DrawStructure& graph) {
             .context = {
                 .actions = {
                     { "open_recent",
-                        [this](std::string str){
+                        [this](dyn::Action str){
                             print("open_recent got ", str);
-                            //auto &vars = dynGUI.context.variables.at("recent_items")->value<std::vector<std::shared_ptr<dyn::VarBase_t>>&>("");
-                            auto index = Meta::fromStr<size_t>(str);
+                            assert(str.parameters.size() == 1u);
+                            auto index = Meta::fromStr<size_t>(str.parameters.front());
                             if(_recents.items().size() > index) {
                                 auto& item = _recents.items().at(index);
                                 DetailItem details{item};
@@ -111,7 +112,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     {
                         "recent_items",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](std::string)
+                            [this](VarProps)
                                 -> std::vector<std::shared_ptr<dyn::VarBase_t>>&
                             {
                                 return _recents_list;
@@ -121,7 +122,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     {
                         "image_scale",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](std::string)
+                            [this](VarProps)
                                 -> Vec2
                             {
                                 return image_scale;
@@ -131,7 +132,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     {
                         "window_size",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](std::string)
+                            [this](VarProps)
                                 -> Vec2
                             {
                                 return window_size;
@@ -141,7 +142,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     {
                         "top_right",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](std::string)
+                            [this](VarProps)
                                 -> Vec2
                             {
                                 return Vec2(window_size.width, 0);
@@ -151,7 +152,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     {
                         "left_center",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](std::string)
+                            [this](VarProps)
                                 -> Vec2
                             {
                                 return Vec2(window_size.width * 0.4,
@@ -162,7 +163,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     {
                         "list_size",
                         std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](std::string)
+                            [this](VarProps)
                                 -> Size2
                             {
                                 return element_size;
@@ -171,7 +172,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     },
                     {
                         "global",
-                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](std::string) -> sprite::Map& {
+                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](VarProps) -> sprite::Map& {
                             return GlobalSettings::map();
                         }))
                     }
