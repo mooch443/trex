@@ -2,7 +2,7 @@
     {
         "type":"button",
         "text":"Test",
-        "pos":[10,100],
+        "pos":[300,100],
         "size":[100,40],
         "action":"change_scene:'starting-scene'"
     },
@@ -12,41 +12,78 @@
         "pos":"{addVector:{global.gui_zoom_limit}:[10,20]}",
         "size":"{addSize:{global.gui_zoom_limit}:0}"
     },
+
+    {
+        "type":"collection",
+        "pos":[10,70],
+        "size":[200,350],
+        "fill":[50,50,50,125],
+        "children": [
+            { "type":"stext",
+              "text":"<b>{global.individual_prefix}0</b>",
+              "pos":[10,10]
+            }
+        ]
+    },
+
     {
         "type": "rect",
         "pos": [10, 10],
         "size": "[{+:{window_size.x}:-20},40]",
-        "fill": [255,255,255,125],
-        "line": [255,255,255,255]
+        "fill": [50,50,50,125],
+        "line": [150,150,150,255],
+        "clickable":true,
+        "action": "set-frame:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{global.video_length}}"
     },
     {
         "type": "rect",
-        "pos": "{addVector:[{*:{/:{global.gui_frame}:{global.video_length}}:{+:{window_size.x}:-30}},10]:[10,0]}",
-        "size": [10,40],
-        "fill": [255,0,0,125],
-        "line": [255,0,255,255]
+        "pos": "{addVector:[{round:{*:{/:{global.gui_frame}:{global.video_length}}:{+:{window_size.x}:-25}}},10]:[12.5,0]}",
+        "origin": [0.5,0],
+        "size": [5,40],
+        "fill": [150,150,150,125],
+        "line":[200,200,200,200]
     },
-    {
-        "type":"stext",
-        "text":" up",
-        "font":{ "size":1 },
-        "color":[255,255,0],
-        "pos":[150,100]
-    },
+
     {
         "type":"settings",
         "var":"gui_frame",
         "size":[100,40],
-        "pos":[100,150],
+        "pos":[300,150],
         "fill":[50,50,50]
     },
     {
         "type":"settings",
         "var":"video_length",
         "size":[100,40],
-        "pos":[100,200],
+        "pos":[300,200],
         "fill":[50,50,50]
     },
+    {
+        "type":"settings",
+        "var":"",
+        "origin":[0,1],
+        "pos":"{addVector:[10,{-:{window_size.y}:10}]:0}",
+        "font":{"size":0.75,"align":"center"},
+        "fill":[50,50,50],
+        "line":[75,75,75],
+        "size":[400,40],
+        "color":[225,225,225],
+        "desc":"",
+        "highlight_clr":[75,75,75,255]
+    },
+
+    {
+        "type":"each",
+        "pos":[0,0],
+        "size":[100,100],
+        "var":"fishes",
+        "do": {
+            "type":"circle",
+            "pos":"{i.pos}",
+            "fill":[125,125,125]
+        }
+    },
+
     {
         "type":"each",
         "pos":[0,0],

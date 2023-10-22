@@ -25,6 +25,13 @@ void TrackingScene::activate() {
         map["pos"] = Vec2(100, 100 + i * 10);
         map["name"] = std::string("Text");
         map["detail"] = std::string("detail");
+        map["radius"] = float(rand()) / float(RAND_MAX) * 50 + 50;
+        map["angle"] = float(rand()) / float(RAND_MAX) * RADIANS(180);
+        map["acceleration"] = Vec2();
+        map["velocity"] = Vec2();
+        map["angular_velocity"] = float(0);
+        map["mass"] = float(rand()) / float(RAND_MAX) * 1 + 0.1;
+        map["inertia"] = float(rand()) / float(RAND_MAX) * 1 + 0.1;
         map.set_do_print(false);
         _data.emplace_back(std::move(map));
         
@@ -32,6 +39,8 @@ void TrackingScene::activate() {
             return _data.at(i);
         }));
     }
+    
+    SETTING(video_length) = uint64_t(100);
 }
 
 void TrackingScene::deactivate() {
@@ -39,12 +48,19 @@ void TrackingScene::deactivate() {
 }
 
 void TrackingScene::_draw(DrawStructure& graph) {
+    static Timer timer;
+    auto dt = saturate(timer.elapsed(), 0.001, 0.1);
+    print("dt = ", dt);
+    
     using namespace dyn;
     if(not dynGUI)
         dynGUI = {
             .path = "tracking_layout.json",
             .graph = &graph,
             .context = {
+                ActionFunc("set-frame", [](Action action) {
+                    SETTING(gui_frame) = Frame_t((int)Meta::fromStr<float>(action.parameters.front()));
+                }),
                 ActionFunc("change_scene", [](Action action) {
                     if(action.parameters.empty())
                         throw U_EXCEPTION("Invalid arguments for ", action, ".");
@@ -75,9 +91,62 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     dynGUI.update(nullptr);
     
+    const float target_angular_velocity = 0.01f * 2.0f * static_cast<float>(M_PI);
+    auto mouse_position = graph.mouse_position();
+    float time_factor = 0.5f; // Smaller values make the system more 'inertial', larger values make it more 'responsive'
+    const float linear_damping = 0.95f;  // Close to 1: almost no damping, close to 0: strong damping
+    const float angular_damping = 0.95f;
+    
     for(auto &i : _data) {
-        i["pos"] = i["pos"].value<Vec2>() + Vec2(1, 0);
+        auto v = i["pos"].value<Vec2>();
+        auto velocity = i["velocity"].value<Vec2>();
+        auto radius = i["radius"].value<float>();
+        auto angle = i["angle"].value<float>();
+        auto angular_velocity = i["angular_velocity"].value<float>();
+        auto mass = i["mass"].value<float>();
+        auto inertia = i["inertia"].value<float>();
+
+        // Apply damping
+        velocity *= linear_damping;
+        angular_velocity *= angular_damping;
+
+        // Calculate new target angle based on mouse position
+        float dx = mouse_position.x - v.x;
+        float dy = mouse_position.y - v.y;
+        float target_angle = atan2(dy, dx);
+        
+        // Calculate angular direction
+        float angular_direction = target_angle - angle;
+
+        // Update angular acceleration, angular_velocity and angle
+        float angular_acceleration = angular_direction / inertia;
+        angular_velocity += angular_acceleration * dt;
+        angle += angular_velocity * dt;
+
+        // Ensure angle is within bounds
+        while (angle > 2.0f * static_cast<float>(M_PI)) {
+            angle -= 2.0f * static_cast<float>(M_PI);
+        }
+
+        // Calculate new target position
+        float target_x = mouse_position.x + cos(angle) * radius;
+        float target_y = mouse_position.y + sin(angle) * radius;
+        Vec2 target(target_x, target_y);
+
+        // Calculate direction and update linear acceleration, velocity and position
+        Vec2 direction = target - v;
+        Vec2 acceleration = direction / mass;
+        velocity += acceleration * dt;
+        v += velocity * dt;
+
+        // Update the attributes
+        i["pos"] = v;
+        i["velocity"] = velocity;
+        i["angle"] = angle;
+        i["angular_velocity"] = angular_velocity;
     }
+    timer.reset();
+    graph.root().set_dirty();
 }
 
 }
