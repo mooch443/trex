@@ -30,12 +30,12 @@
                 "valign":"top",
                 "children":[
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"source",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"source",
                             "font":{"size":0.75},
@@ -48,28 +48,28 @@
                                 "color":[125,125,125,125],
                                 "max_size":[850,80]
                             }
-                        }]
+                        }
                     ],
 
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"target",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"output_dir",
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[850,40],
                             "desc":""
-                        }]
+                        }
                     ],
 
                     [
                         [],
-                        [{
+                        {
                             "type":"settings",
                             "var":"track_background_subtraction",
                             "invert":true,
@@ -78,106 +78,39 @@
                             "size":[200,40],
                             "pad":[0,0,10,0],
                             "desc":"Use machine learning to detect animals"
-                        }]
+                        }
                     ],
 
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"model",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"model",
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[850,40],
                             "desc":""
-                        }]
+                        }
                     ],
 
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"region",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"region_model",
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[850,40],
                             "desc":""
-                        }]
-                    ],
-
-                    [
-                        [{
-                            "type":"text",
-                            "text":"#individuals",
-                            "pos":[0,6]
-                        }],
-                        [{
-                            "type":"settings",
-                            "var":"track_max_individuals",
-                            "fill":[50,50,50],
-                            "line":[75,75,75],
-                            "size":[850,40],
-                            "desc":""
-                        }]
-                    ],
-
-                    [
-                        [{
-                            "type":"stext",
-                            "text":"<b>kinematics</b>",
-                            "pos":[0,11]
-                        }],
-                        [{
-                            "type":"hlayout",
-                            "pad":[0,0,10,0],
-                            "children":[
-                            { "type":"hlayout",
-                              "pad":[0,0,10,0],
-                              "children":[
-                                {
-                                    "type":"stext",
-                                    "text":"max speed (cm/s)",
-                                    "pos":[0,0]
-                                },
-                                {
-                                    "type":"settings",
-                                    "var":"track_max_speed",
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[200,45],
-                                    "desc":""
-                                },
-                                {
-                                    "type":"stext",
-                                    "text":"conversion\n(cm/pixel)",
-                                    "pos":[0,0]
-                                },
-                                {
-                                    "type":"settings",
-                                    "var":"cm_per_pixel",
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[200,45],
-                                    "desc":""
-                                },
-                                {
-                                    "type":"button",
-                                    "text":"Calibrate",
-                                    "fill":[50,90,50],
-                                    "size":[150,45],
-                                    "action":"calibrate"
-                                }
-                             ]
-                           }]
-                        }]
+                        }
                     ]
                 ]
             },
@@ -190,12 +123,12 @@
                 "valign":"top",
                 "children":[
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"source",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"source",
                             "font":{"size":0.75},
@@ -208,122 +141,142 @@
                                 "color":[125,125,125,255],
                                 "max_size":[850,100]
                             }
-                        }]
+                        }
                     ],
 
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"target",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"output_dir",
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[850,40],
                             "desc":""
-                        }]
+                        }
                     ],
 
                     [
                         [],
-                        [{
+                        {
                             "type":"settings",
                             "var":"track_background_subtraction",
                             "invert":true,
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[200,40],
+                            "pad":[0,0,10,0],
                             "desc":"Use machine learning to detect animals"
-                        }]
+                        }
                     ],
                     
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"averaging",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"averaging_method",
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[200,40],
                             "desc":""
-                        }]
+                        }
                     ],
 
                     [
-                        [{
+                        {
                             "type":"text",
                             "text":"threshold",
                             "pos":[0,6]
-                        }],
-                        [{
+                        },
+                        {
                             "type":"settings",
                             "var":"threshold",
                             "fill":[50,50,50],
                             "line":[75,75,75],
                             "size":[850,40],
                             "desc":""
-                        }]
-                    ],
-                    [
-                        [{
-                            "type":"stext",
-                            "text":"<b>kinematics</b>",
-                            "pos":[0,11]
-                        }],
-                        [{
-                            "type":"hlayout",
-                            "pad":[0,0,10,0],
-                            "children":[
-                            { "type":"hlayout",
-                              "pad":[0,0,10,0],
-                              "children":[
-                                {
-                                    "type":"stext",
-                                    "text":"max speed (cm/s)",
-                                    "pos":[0,0]
-                                },
-                                {
-                                    "type":"settings",
-                                    "var":"track_max_speed",
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[200,45],
-                                    "desc":""
-                                },
-                                {
-                                    "type":"stext",
-                                    "text":"conversion\n(cm/pixel)",
-                                    "pos":[0,0]
-                                },
-                                {
-                                    "type":"settings",
-                                    "var":"cm_per_pixel",
-                                    "fill":[50,50,50],
-                                    "line":[75,75,75],
-                                    "size":[200,45],
-                                    "desc":""
-                                },
-                                {
-                                    "type":"button",
-                                    "text":"Calibrate",
-                                    "fill":[50,90,50],
-                                    "size":[150,45],
-                                    "action":"calibrate"
-                                }
-                             ]
-                           }]
-                        }]
+                        }
                     ]
                 ]
             }
         },
+        
+        {
+            "type":"hlayout",
+            "pad":[0,0,10,0],
+            "children":[
+                {
+                    "type":"text",
+                    "text":"#animals",
+                    "pos":[0,6]
+                },
+                {
+                    "type":"settings",
+                    "var":"track_max_individuals",
+                    "fill":[50,50,50],
+                    "line":[75,75,75],
+                    "size":[850,40],
+                    "desc":""
+                }
+            ]
+        },
+            {
+                "type":"hlayout",
+                "pad":[0,0,10,0],
+                "children":[
+                { "type":"hlayout",
+                  "pad":[0,0,10,0],
+                  "children":[
+                    {
+                        "type":"stext",
+                        "text":"<b>kinematics</b>",
+                        "pos":[0,11]
+                    },
+                    {
+                        "type":"stext",
+                        "text":"max speed (cm/s)",
+                        "pos":[0,0]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"track_max_speed",
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[200,45],
+                        "desc":""
+                    },
+                    {
+                        "type":"stext",
+                        "text":"conversion\n(cm/pixel)",
+                        "pos":[0,0]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"cm_per_pixel",
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[200,45],
+                        "desc":""
+                    },
+                    {
+                        "type":"button",
+                        "text":"Calibrate",
+                        "fill":[50,90,50],
+                        "size":[150,45],
+                        "action":"calibrate"
+                    }
+                 ]
+               }]
+            },
+        
         {
             "type":"stext",
             "max_size":[850,200],

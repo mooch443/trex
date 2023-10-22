@@ -2,6 +2,7 @@
     {
         "type":"button",
         "text":"Test",
+        "pos":[10,100],
         "size":[100,40],
         "action":"change_scene:'starting-scene'"
     },
@@ -12,11 +13,39 @@
         "size":"{addSize:{global.gui_zoom_limit}:0}"
     },
     {
+        "type": "rect",
+        "pos": [10, 10],
+        "size": "{addSize:{mulSize:{window_size}:[1,0]}:[-20,40]}",
+        "fill": [255,255,255,125],
+        "line": [255,255,255,255]
+    },
+    {
+        "type": "rect",
+        "pos": "{addVector:[{mul:{div:{global.gui_frame}:{global.video_length}}:{add:{window_size.x}:-30}}},10]:[10,0]}",
+        "size": [10,40],
+        "fill": [255,0,0,125],
+        "line": [255,0,255,255]
+    },
+    {
         "type":"stext",
         "text":"<sym>↑▶⏸⏹📁❤⚖️⚠✓✂😉☁</sym> <key><c>Привет</c></key> up",
         "font":{ "size":1 },
         "color":[255,255,0],
-        "pos":[100,0]
+        "pos":[150,100]
+    },
+    {
+        "type":"settings",
+        "var":"gui_frame",
+        "size":[100,40],
+        "pos":[100,150],
+        "fill":[50,50,50]
+    },
+    {
+        "type":"settings",
+        "var":"video_length",
+        "size":[100,40],
+        "pos":[100,200],
+        "fill":[50,50,50]
     },
     {
         "type":"each",
@@ -25,8 +54,10 @@
         "var":"fishes",
         "do": {
             "type":"text",
-            "pos":"{minVector:{i.pos}:[500,500]}",
-            "text":"{i.name} => {i.detail}"
+            "pos":"{minVector:{addVector:{addVector:{mulVector:{i.i}:[0,20]}:{mulVector:{i.pos}:0.1}}:[50,50]}:{addVector:{window_size}:[-150,-50]}}",
+            "text":"{i.name} => {i.detail}",
+            "font":{ "size":0.75 },
+            "color":[125,125,125]
         }
     }
 ]}

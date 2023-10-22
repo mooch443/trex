@@ -22,7 +22,7 @@ void TrackingScene::activate() {
     for(size_t i=0; i<10; ++i) {
         sprite::Map map;
         map["i"] = i;
-        map["pos"] = Vec2(100, 100 + i * 8);
+        map["pos"] = Vec2(100, 100 + i * 10);
         map["name"] = std::string("Text");
         map["detail"] = std::string("detail");
         map.set_do_print(false);
