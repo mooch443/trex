@@ -67,67 +67,42 @@ void SettingsScene::deactivate() {
 }
 
 void SettingsScene::_draw(DrawStructure& graph) {
+    using namespace dyn;
     if(not dynGUI)
-        dynGUI = dyn::DynamicGUI{
+        dynGUI = DynamicGUI{
             .path = "settings_layout.json",
             .graph = &graph,
             .context = {
-                .actions = {
-                    {
-                        "go-back",
-                        [](auto){
-                            auto prev = SceneManager::getInstance().last_active();
-                            if(prev)
-                                SceneManager::getInstance().set_active(prev);
-                            print("Going back");
-                        }
-                    },
-                    {
-                        "convert",
-                        [](auto){
-                            SceneManager::getInstance().set_active("convert-scene");
-                        }
-                    },
-                    { "choose-source",
-                        [](auto){
-                            print("choose-source");
-                            
-                        }
-                    },
-                    { "choose-target",
-                        [](auto){
-                            print("choose-target");
-                        }
-                    },
-                    { "choose-model",
-                        [](auto){
-                            print("choose-detection");
-                        }
-                    },
-                    { "choose-region",
-                        [](auto){
-                            print("choose-region");
-                        }
-                    },
-                    { "choose-settings",
-                        [](auto){
-                            print("choose-settings");
-                        }
-                    },
-                    { "toggle-background-subtraction",
-                        [](auto){
-                            SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
-                        }
-                    }
-                },
-                    .variables = {
-                        {
-                            "settings_summary",
-                            std::unique_ptr<dyn::VarBase_t>(new dyn::Variable([](dyn::VarProps) -> std::string {
-                                return std::string(GlobalSettings::map().toStr());
-                            }))
-                        }
-                    }
+                ActionFunc("go-back", [](auto){
+                    auto prev = SceneManager::getInstance().last_active();
+                    if(prev)
+                        SceneManager::getInstance().set_active(prev);
+                    print("Going back");
+                }),
+                ActionFunc("convert", [](auto){
+                    SceneManager::getInstance().set_active("convert-scene");
+                }),
+                ActionFunc("choose-source", [](auto){
+                    print("choose-source");
+                }),
+                ActionFunc("choose-target", [](auto){
+                    print("choose-target");
+                }),
+                ActionFunc("choose-model", [](auto){
+                    print("choose-detection");
+                }),
+                ActionFunc("choose-region", [](auto){
+                    print("choose-region");
+                }),
+                ActionFunc("choose-settings", [](auto){
+                    print("choose-settings");
+                }),
+                ActionFunc("toggle-background-subtraction", [](auto){
+                    SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
+                }),
+                VarFunc("settings_summary", [](dyn::VarProps) -> std::string {
+                    return std::string(GlobalSettings::map().toStr());
+                })
             }
         };
     

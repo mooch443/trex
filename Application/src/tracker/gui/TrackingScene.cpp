@@ -45,40 +45,26 @@ void TrackingScene::_draw(DrawStructure& graph) {
             .path = "tracking_layout.json",
             .graph = &graph,
             .context = {
-                .actions = {
-                    {   "change_scene",
-                        [](dyn::Action action) {
-                            if(action.parameters.empty())
-                                throw U_EXCEPTION("Invalid arguments for ",action,".");
-                            
-                            auto scene = Meta::fromStr<std::string>(action.parameters.front());
-                            if(not SceneManager::getInstance().is_scene_registered(scene))
-                                return false;
-                            SceneManager::getInstance().set_active(scene);
-                            return true;
-                        }
-                    },
-                },
-                .variables = {
-                    {   "window_size",
-                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](VarProps)
-                                -> Vec2
-                            {
-                                return window_size;
-                            }
-                        })
-                    },
-                    {   "fishes",
-                        std::unique_ptr<dyn::VarBase_t>(new dyn::Variable{
-                            [this](VarProps)
-                                -> std::vector<std::shared_ptr<VarBase_t>>&
-                            {
-                                return _individuals;
-                            }
-                        })
-                    }
-                }
+                ActionFunc("change_scene", [](Action action) {
+                    if(action.parameters.empty())
+                        throw U_EXCEPTION("Invalid arguments for ", action, ".");
+
+                    auto scene = Meta::fromStr<std::string>(action.parameters.front());
+                    if(not SceneManager::getInstance().is_scene_registered(scene))
+                        return false;
+                    SceneManager::getInstance().set_active(scene);
+                    return true;
+                }),
+                
+                VarFunc("window_size", [this](VarProps) -> Vec2 {
+                    return window_size;
+                }),
+                
+                VarFunc("fishes", [this](VarProps)
+                    -> std::vector<std::shared_ptr<VarBase_t>>&
+                {
+                    return _individuals;
+                })
             }
         };
     

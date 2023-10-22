@@ -89,14 +89,9 @@ protected:
     HorizontalLayout _main_layout;
 
     dyn::Context context {
-        .variables = {
-            {
-                "global",
-                std::unique_ptr<VarBase_t>(new Variable([](VarProps) -> sprite::Map& {
-                    return GlobalSettings::map();
-                }))
-            }
-        }
+        dyn::VarFunc("global", [](VarProps) -> sprite::Map& {
+            return GlobalSettings::map();
+        })
     };
     dyn::State state;
     std::vector<Layout::Ptr> objects;

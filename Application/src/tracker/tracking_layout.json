@@ -15,20 +15,20 @@
     {
         "type": "rect",
         "pos": [10, 10],
-        "size": "{addSize:{mulSize:{window_size}:[1,0]}:[-20,40]}",
+        "size": "[{+:{window_size.x}:-20},40]",
         "fill": [255,255,255,125],
         "line": [255,255,255,255]
     },
     {
         "type": "rect",
-        "pos": "{addVector:[{mul:{div:{global.gui_frame}:{global.video_length}}:{add:{window_size.x}:-30}}},10]:[10,0]}",
+        "pos": "{addVector:[{*:{/:{global.gui_frame}:{global.video_length}}:{+:{window_size.x}:-30}},10]:[10,0]}",
         "size": [10,40],
         "fill": [255,0,0,125],
         "line": [255,0,255,255]
     },
     {
         "type":"stext",
-        "text":"<sym>↑▶⏸⏹📁❤⚖️⚠✓✂😉☁</sym> <key><c>Привет</c></key> up",
+        "text":" up",
         "font":{ "size":1 },
         "color":[255,255,0],
         "pos":[150,100]

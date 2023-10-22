@@ -50,61 +50,36 @@ ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_a
     }),
 menu{
     dyn::Context{
-        .actions = {
-            {
-                "QUIT", [](auto) {
-                    auto& manager = SceneManager::getInstance();
-                    manager.set_active("starting-scene");
-                }
-            },
-            {
-                "FILTER", [](auto) {
-                    static bool filter { false };
-                    filter = not filter;
-                    SETTING(do_filter) = filter;
-                }
-            }
-        },
-
-        .variables = {
-            {
-                "fps", std::unique_ptr<VarBase_t>(new Variable([](VarProps) {
-                    return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
-                }))
-            },
-            {
-                "net_fps", std::unique_ptr<VarBase_t>(new Variable([](VarProps) {
-                    return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
-                }))
-            },
-            {
-                "vid_fps", std::unique_ptr<VarBase_t>(new Variable([](VarProps) {
-                    return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
-                }))
-            },
-            {
-                "fish",
-                std::unique_ptr<VarBase_t>(new Variable([](VarProps) -> sprite::Map& {
-                    return fish;
-                }))
-            },
-            {
-                "average_is_generating",
-                std::unique_ptr<VarBase_t>(new Variable([this](VarProps) {
-                    return _segmenter->is_average_generating();
-                }))
-            },
-            {
-                "actual_frame", std::unique_ptr<VarBase_t>(new Variable([this](VarProps) {
-                    return _actual_frame;
-                }))
-            },
-            {
-                "video", std::unique_ptr<VarBase_t>(new Variable([](VarProps) -> sprite::Map& {
-                    return _video_info;
-                }))
-            }
-        }
+        ActionFunc("QUIT", [](auto) {
+            auto& manager = SceneManager::getInstance();
+            manager.set_active("starting-scene");
+        }),
+        ActionFunc("FILTER", [](auto) {
+            static bool filter { false };
+            filter = not filter;
+            SETTING(do_filter) = filter;
+        }),
+        VarFunc("fps", [](VarProps) {
+            return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
+        }),
+        VarFunc("net_fps", [](VarProps) {
+            return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
+        }),
+        VarFunc("vid_fps", [](VarProps) {
+            return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
+        }),
+        VarFunc("fish", [](VarProps) -> sprite::Map& {
+            return fish;
+        }),
+        VarFunc("average_is_generating", [this](VarProps) {
+            return _segmenter->is_average_generating();
+        }),
+        VarFunc("actual_frame", [this](VarProps) {
+            return _actual_frame;
+        }),
+        VarFunc("video", [](VarProps) -> sprite::Map& {
+            return _video_info;
+        })
     },
     [this](const std::string& name) {
         if (name == "gui_frame") {
