@@ -1021,3 +1021,262 @@ TEST(PathSerializationTest, RoundTripCrossOS) {
         EXPECT_EQ(deserialized_path.str(), "/unix/or/windows/path");
     }
 }
+
+using namespace util;
+TEST(ParseArrayParts, BasicTest) {
+    auto result = parse_array_parts("a,b,c");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], "b");
+    EXPECT_EQ(result[2], "c");
+}
+
+TEST(ParseArrayParts, BasicTest2) {
+    auto result = parse_array_parts("[a,b,c]");
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0], "[a,b,c]");
+}
+
+TEST(ParseArrayParts, WithWhiteSpace) {
+    auto result = parse_array_parts(" a , b , c ");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], "b");
+    EXPECT_EQ(result[2], "c");
+}
+
+TEST(ParseArrayParts, WithNestedBrackets) {
+    auto result = parse_array_parts("a, [b,c], {d,e}");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], "[b,c]");
+    EXPECT_EQ(result[2], "{d,e}");
+}
+
+TEST(ParseArrayParts, WithEscapedDelimiter) {
+    auto result = parse_array_parts(R"(a, "b,c", 'd,e')");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], R"("b,c")");
+    EXPECT_EQ(result[2], R"('d,e')");
+}
+
+TEST(ParseArrayParts, SingleValue) {
+    auto result = parse_array_parts("a");
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0], "a");
+}
+
+TEST(ParseArrayParts, EmptyString) {
+    auto result = parse_array_parts("");
+    ASSERT_EQ(result.size(), 0);
+}
+
+TEST(ParseArrayParts, OnlyDelimiters) {
+    auto result = parse_array_parts(",,");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "");
+    EXPECT_EQ(result[1], "");
+    EXPECT_EQ(result[2], "");
+}
+
+TEST(ParseArrayParts, WithDifferentTypes) {
+    auto result1 = parse_array_parts(std::string("a,b,c"));
+    ASSERT_EQ(result1.size(), 3);
+
+    auto result2 = parse_array_parts("a,b,c");
+    ASSERT_EQ(result2.size(), 3);
+
+    std::string_view sv("a,b,c");
+    auto result3 = parse_array_parts(sv);
+    ASSERT_EQ(result3.size(), 3);
+}
+
+
+TEST(TruncateTests, HandlesCurlyBracesInStdString) {
+    std::string input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInStdString) {
+    std::string input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesCurlyBracesInStdStringView) {
+    std::string_view input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInStdStringView) {
+    std::string_view input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesCurlyBracesInConstCharPointer) {
+    const char* input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInConstCharPointer) {
+    const char* input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesCurlyBracesInConstStdString) {
+    const std::string input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInConstStdString) {
+    const std::string input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesNestedCurlyBraces) {
+    std::string input = "{{nested}}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "{nested}");
+}
+
+TEST(TruncateTests, HandlesNestedSquareBrackets) {
+    std::string input = "[[nested]]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "[nested]");
+}
+
+TEST(TruncateTests, HandlesEmptyCurlyBraces) {
+    std::string input = "{}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(TruncateTests, HandlesEmptySquareBrackets) {
+    std::string input = "[]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(TruncateTests, HandlesWhitespaceInCurlyBraces) {
+    std::string input = "{  }";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(TruncateTests, HandlesWhitespaceInSquareBrackets) {
+    std::string input = "[  ]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(ToStringTest, BasicTests) {
+    EXPECT_EQ(to_string(1.0), "1");
+    EXPECT_EQ(to_string(1.01), "1.01");
+    EXPECT_EQ(to_string(1.0100000), "1.01");
+    EXPECT_EQ(to_string(0.0), "0");
+    EXPECT_EQ(to_string(0.1), "0.1");
+    EXPECT_EQ(to_string(0.00001), "0.00001");
+    EXPECT_EQ(to_string(100.0), "100");
+    EXPECT_EQ(to_string(100.01), "100.01");
+    EXPECT_EQ(to_string(100.01000), "100.01");
+}
+
+TEST(ToStringTest, NegativeNumbers) {
+    EXPECT_EQ(to_string(-1.0), "-1");
+    EXPECT_EQ(to_string(-1.01), "-1.01");
+    EXPECT_EQ(to_string(-1.0100000), "-1.01");
+    EXPECT_EQ(to_string(-0.1), "-0.1");
+    EXPECT_EQ(to_string(-0.00001), "-0.00001");
+    EXPECT_EQ(to_string(-100.0), "-100");
+    EXPECT_EQ(to_string(-100.01), "-100.01");
+    EXPECT_EQ(to_string(-100.01000), "-100.01");
+}
+
+TEST(ToStringTest, EdgeCases) {
+    EXPECT_EQ(to_string(1.00001), "1.00001");
+    EXPECT_EQ(to_string(1.99999), "1.99999");
+}
+
+TEST(ToStringTest, ExceptionCase) {
+    // Assuming the buffer is of size 128 as in your example.
+    // Here we test if a really big float that cannot fit in our buffer would throw the exception.
+    float bigNumber = 1e40;
+    EXPECT_EQ(to_string(bigNumber), "inf");
+}
+
+TEST(ToStringTest, HandleCompileTimeUnsignedInt) {
+    static_assert(to_string(1234) == "1234");
+    static_assert(to_string(0) == "0");
+}
+
+TEST(ToStringTest, HandleRunTimeUnsignedInt) {
+    std::vector<uint> v{
+        9876, 10
+    };
+    ASSERT_EQ(to_string(v.front()), "9876");
+    ASSERT_EQ(to_string(v.back()), "10");
+}
+
+TEST(ToStringTest, HandleCompileTimeSignedInt) {
+    static_assert(to_string(-1234) == "-1234");
+    static_assert(to_string(0) == "0");
+}
+
+TEST(ToStringTest, HandleRunTimeSignedInt) {
+    ASSERT_EQ(to_string(-9876), "-9876");
+    ASSERT_EQ(to_string(-10), "-10");
+}
+
+TEST(ToStringTest, ConstExprFloat) {
+    // Simple whole number
+    constexpr auto number = 1.0f;
+    static constexpr auto array = to_string_floating_point(number);
+    static constexpr std::string_view sv(array.data());
+    EXPECT_EQ(sv, "1");
+    
+    // Zero
+    static constexpr auto a = to_string_floating_point(0.f);
+    static constexpr std::string_view sv0(a.data());
+    static_assert(sv0 == "0");
+
+    // Fractional number, no trailing zeros
+    static constexpr auto b = to_string_floating_point(123.456f);
+    static constexpr std::string_view sv1(b.data());
+    EXPECT_EQ(sv1, "123.456");
+
+    // Fractional number with trailing zeros
+    static constexpr auto c = to_string_floating_point(45.600f);
+    static constexpr std::string_view sv2(c.data());
+    EXPECT_EQ(sv2, "45.6");
+
+    // Negative number
+    static constexpr auto d = to_string_floating_point(-3.21f);
+    static constexpr std::string_view sv3(d.data());
+    EXPECT_EQ(sv3, "-3.21");
+
+    // NaN
+    static constexpr auto nan_float = std::numeric_limits<float>::quiet_NaN();
+    static constexpr auto e = to_string_floating_point(nan_float);
+    static constexpr std::string_view sv4(e.data());
+    EXPECT_EQ(sv4, "nan");
+
+    // Infinity
+    static constexpr auto inf_float = std::numeric_limits<float>::infinity();
+    static constexpr auto f = to_string_floating_point(inf_float);
+    static constexpr std::string_view sv5(f.data());
+    EXPECT_EQ(sv5, "inf");
+
+    // Negative infinity
+    static constexpr auto neg_inf_float = -std::numeric_limits<float>::infinity();
+    static constexpr auto g = to_string_floating_point(neg_inf_float);
+    static constexpr std::string_view sv6(g.data());
+    EXPECT_EQ(sv6, "-inf");
+}

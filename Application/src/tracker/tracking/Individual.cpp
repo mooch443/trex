@@ -958,11 +958,15 @@ blob::Pose Individual::pose_window(Frame_t start, Frame_t end) const {
     
     iterate_frames(range.range, [&](Frame_t, const std::shared_ptr<SegmentInformation> &, const BasicStuff * basic, const PostureStuff *)
     {
-        collection.push_back(&basic->blob.pred.pose);
+        if(not basic->blob.pred.pose.empty())
+            collection.push_back(&basic->blob.pred.pose);
         return true;
     });
     
-    print("Poses:", collection);
+#ifndef NDEBUG
+    if(not collection.empty())
+        print("Poses:", collection);
+#endif
     
     if(collection.empty())
         return blob::Pose{};

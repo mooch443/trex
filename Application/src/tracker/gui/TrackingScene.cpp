@@ -19,7 +19,7 @@ TrackingScene::TrackingScene(Base& window)
 
 void TrackingScene::activate() {
     using namespace dyn;
-    for(size_t i=0; i<10; ++i) {
+    for(size_t i=0; i<1000; ++i) {
         sprite::Map map;
         map["i"] = i;
         map["pos"] = Vec2(100, 100 + i * 10);
@@ -112,7 +112,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         auto angular_velocity = i["angular_velocity"].value<float>();
         auto mass = i["mass"].value<float>();
         auto inertia = i["inertia"].value<float>();
-
+        
         // Apply damping
         velocity *= linear_damping;
         angular_velocity *= angular_damping;
