@@ -442,12 +442,12 @@ void InfoCard::update() {
                 }
                 
                 auto &probs = (*fprobs).at(blob);
-                auto probs_str = Meta::toStr(probs/*.p*/);
+                //auto probs_str = Meta::toStr(probs/*.p*/);
                 /*if(detail)
                     probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";*/
                 
                 auto text = add<Text>(Str(Meta::toStr(blob)+": "), Loc(10, y), TextClr(White), Font(0.8f));
-                auto second = add<Text>(Str(probs_str), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), Font(0.8f));
+                auto second = add<Text>(Str(dec<4>(probs).toStr()), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), Font(0.8f));
                 y += text->height();
                 
                 auto w = second->pos().x + second->width() + 10;
