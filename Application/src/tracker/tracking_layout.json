@@ -1,4 +1,17 @@
 { "objects": [
+
+    {
+        "type":"each",
+        "pos":[0,0],
+        "size":[100,100],
+        "var":"fishes",
+        "do": {
+            "type":"circle",
+            "pos":"{i.pos}",
+            "fill":[125,125,125]
+        }
+    },
+
     {
         "type":"button",
         "text":"Test",
@@ -33,7 +46,7 @@
         "fill": [50,50,50,125],
         "line": [150,150,150,255],
         "clickable":true,
-        "action": "set-frame:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{global.video_length}}"
+        "action": "set:gui_frame:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{global.video_length}}"
     },
     {
         "type": "rect",
@@ -59,42 +72,41 @@
         "fill":[50,50,50]
     },
     {
-        "type":"settings",
-        "var":"",
+        "type":"hlayout",
+        "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
         "origin":[0,1],
-        "pos":"{addVector:[10,{-:{window_size.y}:10}]:0}",
-        "font":{"size":0.75,"align":"center"},
-        "fill":[50,50,50],
-        "line":[75,75,75],
-        "size":[400,40],
-        "color":[225,225,225],
-        "desc":"",
-        "highlight_clr":[75,75,75,255]
-    },
+        "pad":[10,10,0,0],
+        "children":[
+            {
+                "type":"list",
+                "pos":[0,0],
+                "size":[200,140],
+                "fill":[50,50,50],
+                "items":[
+                    {
+                        "text": "hi",
+                        "detail": "=>0",
+                        "action": "set:'gui_frame':0"
+                    },
+                    {
+                        "text": "to the mid",
+                        "detail": "=>50",
+                        "action": "set:gui_frame:{min:{+:{global.gui_frame}:1}:{global.video_length}}"
+                    }
+                ]
 
-    {
-        "type":"each",
-        "pos":[0,0],
-        "size":[100,100],
-        "var":"fishes",
-        "do": {
-            "type":"circle",
-            "pos":"{i.pos}",
-            "fill":[125,125,125]
-        }
-    },
-
-    {
-        "type":"each",
-        "pos":[0,0],
-        "size":[100,100],
-        "var":"fishes",
-        "do": {
-            "type":"text",
-            "pos":"{minVector:{addVector:{addVector:{mulVector:{i.i}:[0,20]}:{mulVector:{i.pos}:0.1}}:[50,50]}:{addVector:{window_size}:[-150,-50]}}",
-            "text":"{i.name} => {i.detail}",
-            "font":{ "size":0.75 },
-            "color":[125,125,125]
-        }
+            },
+            {
+                "type":"settings",
+                "var":"",
+                "font":{"size":0.75,"align":"center"},
+                "fill":[50,50,50],
+                "line":[75,75,75],
+                "size":[400,40],
+                "color":[225,225,225],
+                "desc":"",
+                "highlight_clr":[75,75,75,255]
+            }
+        ]
     }
 ]}

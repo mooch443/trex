@@ -30,8 +30,8 @@ void TrackingScene::activate() {
         map["acceleration"] = Vec2();
         map["velocity"] = Vec2();
         map["angular_velocity"] = float(0);
-        map["mass"] = float(rand()) / float(RAND_MAX) * 1 + 0.1;
-        map["inertia"] = float(rand()) / float(RAND_MAX) * 1 + 0.1;
+        map["mass"] = float(rand()) / float(RAND_MAX) * 1 + 0.1f;
+        map["inertia"] = float(rand()) / float(RAND_MAX) * 1 + 0.1f;
         map.set_do_print(false);
         _data.emplace_back(std::move(map));
         
@@ -50,7 +50,6 @@ void TrackingScene::deactivate() {
 void TrackingScene::_draw(DrawStructure& graph) {
     static Timer timer;
     auto dt = saturate(timer.elapsed(), 0.001, 0.1);
-    print("dt = ", dt);
     
     using namespace dyn;
     if(not dynGUI)
@@ -58,8 +57,16 @@ void TrackingScene::_draw(DrawStructure& graph) {
             .path = "tracking_layout.json",
             .graph = &graph,
             .context = {
-                ActionFunc("set-frame", [](Action action) {
-                    SETTING(gui_frame) = Frame_t((int)Meta::fromStr<float>(action.parameters.front()));
+                ActionFunc("set", [](Action action) {
+                    if(action.parameters.size() != 2)
+                        throw InvalidArgumentException("Invalid number of arguments for action: ",action);
+                    
+                    auto parm = Meta::fromStr<std::string>(action.parameters.front());
+                    if(not GlobalSettings::has(parm))
+                        throw InvalidArgumentException("No parameter ",parm," in global settings.");
+                    
+                    auto value = action.parameters.back();
+                    GlobalSettings::get(parm).get().set_value_from_string(value);
                 }),
                 ActionFunc("change_scene", [](Action action) {
                     if(action.parameters.empty())
