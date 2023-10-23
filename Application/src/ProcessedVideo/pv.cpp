@@ -29,7 +29,7 @@ template<> void Data::read(blob::Prediction& pred) {
         uint8_t N{0u};
         read<uint8_t>(N);
         assert(N % 2u == 0);
-        print("pose::N = ", N / 2u);
+        //print("pose::N = ", N / 2u);
         pred.pose.points.resize(N / 2u);
         for(size_t i=0; i<N / 2u; i++) {
             read<uint16_t>(pred.pose.points[i].x);
