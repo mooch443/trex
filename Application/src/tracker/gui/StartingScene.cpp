@@ -71,52 +71,60 @@ void StartingScene::_draw(DrawStructure& graph) {
         dynGUI = {
             .path = "welcome_layout.json",
             .graph = &graph,
-            .context = Context{
-                ActionFunc("open_recent", [this](dyn::Action str){
-                    print("open_recent got ", str);
-                    assert(str.parameters.size() == 1u);
-                    auto index = Meta::fromStr<size_t>(str.parameters.front());
-                    if(_recents.items().size() > index) {
-                        auto& item = _recents.items().at(index);
-                        DetailItem details{item};
-                        
-                        for (auto& key : item._options.keys())
-                            item._options[key].get().copy_to(&GlobalSettings::map());
+            .context = [&](){
+                dyn::Context context;
+                context.actions = {
+                    ActionFunc("open_recent", [this](dyn::Action str) {
+                        print("open_recent got ", str);
+                        assert(str.parameters.size() == 1u);
+                        auto index = Meta::fromStr<size_t>(str.parameters.front());
+                        if (_recents.items().size() > index) {
+                            auto& item = _recents.items().at(index);
+                            DetailItem details{item};
 
-                        CommandLine::instance().load_settings();
-                        SceneManager::getInstance().set_active("settings-scene");
-                    }
-                }),
-                ActionFunc("open_file", [](auto){
-                    SceneManager::getInstance().set_active("convert-scene");
-                }),
-                ActionFunc("open_camera", [](auto){
-                    SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
-                    SceneManager::getInstance().set_active("convert-scene");
-                }),
-                VarFunc("recent_items", [this](VarProps) -> std::vector<std::shared_ptr<dyn::VarBase_t>>& {
-                    return _recents_list;
-                }),
-                VarFunc("image_scale", [this](VarProps) -> Vec2 {
-                    return image_scale;
-                }),
-                VarFunc("window_size", [this](VarProps) -> Vec2 {
-                    return window_size;
-                }),
-                VarFunc("top_right", [this](VarProps) -> Vec2 {
-                    return Vec2(window_size.width, 0);
-                }),
-                VarFunc("left_center", [this](VarProps) -> Vec2 {
-                    return Vec2(window_size.width * 0.4,
-                                window_size.height * 0.4);
-                }),
-                VarFunc("list_size", [this](VarProps) -> Size2 {
-                    return element_size;
-                }),
-                VarFunc("global", [](VarProps) -> sprite::Map& {
-                    return GlobalSettings::map();
-                })
-            }
+                            for (auto& key : item._options.keys())
+                                item._options[key].get().copy_to(&GlobalSettings::map());
+
+                            CommandLine::instance().load_settings();
+                            SceneManager::getInstance().set_active("settings-scene");
+                        }
+                    }),
+                    ActionFunc("open_file", [](auto) {
+                        SceneManager::getInstance().set_active("convert-scene");
+                    }),
+                    ActionFunc("open_camera", [](auto) {
+                        SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
+                        SceneManager::getInstance().set_active("convert-scene");
+                    })
+                };
+
+                context.variables = {
+                    VarFunc("recent_items", [this](VarProps) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&{
+                        return _recents_list;
+                    }),
+                    VarFunc("image_scale", [this](VarProps) -> Vec2 {
+                        return image_scale;
+                    }),
+                    VarFunc("window_size", [this](VarProps) -> Vec2 {
+                        return window_size;
+                    }),
+                    VarFunc("top_right", [this](VarProps) -> Vec2 {
+                        return Vec2(window_size.width, 0);
+                    }),
+                    VarFunc("left_center", [this](VarProps) -> Vec2 {
+                        return Vec2(window_size.width * 0.4,
+                                    window_size.height * 0.4);
+                    }),
+                    VarFunc("list_size", [this](VarProps) -> Size2 {
+                        return element_size;
+                    }),
+                    VarFunc("global", [](VarProps) -> sprite::Map& {
+                        return GlobalSettings::map();
+                    })
+                };
+
+                return context;
+            }()
         };
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
