@@ -126,12 +126,12 @@ void launch_gui() {
         });
     manager.register_scene(&loading);
     
-    /*if(SETTING(source).value<file::PathArray>().empty())
+    if(SETTING(source).value<file::PathArray>().empty())
         manager.set_active(&start);
     if (not SETTING(source).value<file::PathArray>().empty()) {
         manager.set_active(&converting);
-    }*/
-    manager.set_active(&tracking_scene);
+    }
+    //manager.set_active(&tracking_scene);
     
     base.platform()->set_icons({
         //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
