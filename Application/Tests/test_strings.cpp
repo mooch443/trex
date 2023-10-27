@@ -4,6 +4,7 @@
 #include <misc/format.h>
 #include <misc/Timer.h>
 #include <file/Path.h>
+#include <misc/default_settings.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -1279,4 +1280,222 @@ TEST(ToStringTest, ConstExprFloat) {
     static constexpr auto g = to_string_floating_point(neg_inf_float);
     static constexpr std::string_view sv6(g.data());
     EXPECT_EQ(sv6, "-inf");
+}
+
+using namespace settings;
+TEST(HtmlifyTests, EmptyDocument) {
+    std::string doc = "";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "");
+}
+
+TEST(HtmlifyTests, PlainText) {
+    std::string doc = "This is plain text.";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "This is plain text.");
+}
+
+TEST(HtmlifyTests, Keywords) {
+    std::string doc = "true int";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<key>true</key> <key>int</key>");
+}
+
+TEST(HtmlifyTests, NumberFormatting) {
+    std::string doc = "123 45.67";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<nr>123</nr> <nr>45.67</nr>");
+}
+
+TEST(HtmlifyTests, Links) {
+    std::string doc = "`http://example.com`";
+    std::string result = htmlify(doc, true);
+    ASSERT_EQ(result, "<a href=\"http://example.com\" target=\"_blank\">http://example.com</a>");
+}
+
+TEST(HtmlifyTests, Newlines) {
+    std::string doc = "Line 1\nLine 2";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "Line <nr>1</nr><br/>\nLine <nr>2</nr>");
+}
+
+TEST(HtmlifyTests, Quotations) {
+    std::string doc = "'quoted' \"also quoted\"";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<str>'quoted'</str> <str>\"also quoted\"</str>");
+}
+
+TEST(HtmlifyTests, Headings) {
+    std::string doc = "$Heading$";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<h4>Heading</h4>");
+}
+
+TEST(ContainsTest, StringAndChar) {
+    std::string s = "hello world";
+    ASSERT_TRUE(contains(s, 'e'));
+    ASSERT_FALSE(contains(s, 'z'));
+}
+
+TEST(ContainsTest, StringAndString) {
+    std::string s = "hello world";
+    ASSERT_TRUE(contains(s, "world"));
+    ASSERT_FALSE(contains(s, "universe"));
+}
+
+TEST(ContainsTest, CStringAndChar) {
+    const char* s = "hello world";
+    ASSERT_TRUE(contains(s, 'e'));
+    ASSERT_FALSE(contains(s, 'z'));
+}
+
+TEST(ContainsTest, CStringAndCString) {
+    const char* s = "hello world";
+    ASSERT_TRUE(contains(s, "world"));
+    ASSERT_FALSE(contains(s, "universe"));
+}
+
+TEST(ContainsTest, StringViewAndChar) {
+    std::string_view sv = "hello world";
+    ASSERT_TRUE(contains(sv, 'e'));
+    ASSERT_FALSE(contains(sv, 'z'));
+}
+
+TEST(ContainsTest, StringViewAndStringView) {
+    std::string_view sv = "hello world";
+    std::string_view needle = "world";
+    ASSERT_TRUE(contains(sv, needle));
+    ASSERT_FALSE(contains(sv, "universe"));
+}
+
+TEST(ContainsTest, EmptyStrings) {
+    std::string s = "hello world";
+    ASSERT_FALSE(contains(s, ""));
+    ASSERT_FALSE(contains("", s));
+    ASSERT_FALSE(contains("", ""));
+}
+
+template<typename T>
+class ContainsTest : public ::testing::TestWithParam<T> {
+};
+
+using ContainsTestTypes = ::testing::Types<
+    std::tuple<std::string, std::string>,
+    std::tuple<std::string, const char*>,
+    std::tuple<std::string, std::string_view>,
+    std::tuple<std::string, char>,
+    std::tuple<const char*, std::string>,
+    std::tuple<const char*, const char*>,
+    std::tuple<const char*, std::string_view>,
+    std::tuple<const char*, char>
+>;
+
+TYPED_TEST_SUITE(ContainsTest, ContainsTestTypes);
+
+TYPED_TEST(ContainsTest, EmptyCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType emptyStr{};
+    if constexpr(std::is_same_v<StrType, const char*>)
+        emptyStr = "";
+    NeedleType emptyNeedle{};
+    if constexpr(std::is_same_v<NeedleType, const char*>)
+        emptyNeedle = "";
+    
+    EXPECT_FALSE(contains(emptyStr, emptyNeedle));
+    EXPECT_FALSE(contains(emptyStr, "needle"));
+    EXPECT_FALSE(contains("haystack", emptyNeedle));
+}
+
+TYPED_TEST(ContainsTest, SingleCharacterCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"a"};
+    NeedleType needle;
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>)
+        needle = 'a';
+    else needle = "a";
+    
+    EXPECT_TRUE(contains(str, needle));
+    EXPECT_FALSE(contains(str, "b"));
+}
+
+TYPED_TEST(ContainsTest, LongerCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>)
+        return;
+    else {
+        StrType str{"abcdef"};
+        NeedleType needle{"cd"};
+        
+        EXPECT_TRUE(contains(str, needle));
+        EXPECT_FALSE(contains(str, "gh"));
+    }
+}
+
+TYPED_TEST(ContainsTest, StartEndCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"abcdef"};
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needleStart{'a'};
+        NeedleType needleEnd{'f'};
+        EXPECT_TRUE(contains(str, needleStart));
+        EXPECT_TRUE(contains(str, needleEnd));
+    } else {
+        NeedleType needleStart{"ab"};
+        NeedleType needleEnd{"ef"};
+        EXPECT_TRUE(contains(str, needleStart));
+        EXPECT_TRUE(contains(str, needleEnd));
+    }
+}
+
+TYPED_TEST(ContainsTest, MultipleOccurrences) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"abcabcabc"};
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needle{'a'};
+        EXPECT_TRUE(contains(str, needle));
+    } else {
+        NeedleType needle{"abc"};
+        EXPECT_TRUE(contains(str, needle));
+    }
+}
+
+TYPED_TEST(ContainsTest, AllSameCharacters) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"aaaaaa"};
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needle{'a'};
+        EXPECT_TRUE(contains(str, needle));
+    } else {
+        NeedleType needle{"aaa"};
+        EXPECT_TRUE(contains(str, needle));
+    }
+}
+
+TYPED_TEST(ContainsTest, NeedleLongerThanStr) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"short"};
+
+    if constexpr(not std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needle{"very long needle"};
+        EXPECT_FALSE(contains(str, needle));
+    } else {
+        // Do nothing, not applicable for char type
+    }
 }

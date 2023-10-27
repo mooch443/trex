@@ -19,8 +19,6 @@ namespace gui {
         return _cache;
     }
 
-    static GenericThreadPool _pool(cmn::hardware_concurrency(), "GUICache::_pool");
-
     GUICache& GUICache::instance() {
         if (!cache())
             throw U_EXCEPTION("No cache created yet.");
@@ -41,7 +39,7 @@ namespace gui {
     }
 
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
-        : _video(video), _graph(graph)
+        : _video(video), _graph(graph), _pool(saturate(cmn::hardware_concurrency(),1u,5u), "GUICache::_pool")
     {
         cache() = this;
         globals::Cache::init();
@@ -425,7 +423,7 @@ namespace gui {
                         _video->read_frame(frame, frameIndex);
                         SETTING(gui_source_video_frame) = frame.source_index().valid() ? frame.source_index() : frameIndex;
                         
-                        Tracker::instance()->preprocess_frame(std::move(frame), processed_frame, &_pool, PPFrame::NeedGrid::Need);
+                        Tracker::instance()->preprocess_frame(std::move(frame), processed_frame, &_pool, PPFrame::NeedGrid::Need, _video->header().resolution);
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Frame ", frameIndex," cannot be loaded from file.");

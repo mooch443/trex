@@ -105,7 +105,6 @@ const FrameRange& Tracker::analysis_range() {
     return _analysis_range;
 }
 
-GenericThreadPool recognition_pool(max(1u, cmn::hardware_concurrency()), "RecognitionPool");
 Tracker* _instance = NULL;
 std::vector<Range<Frame_t>> _global_segment_order;
 
@@ -218,8 +217,6 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
         mem::TrackerMemoryStats stats;
         stats.print();
     }
-
-    bool callback_registered = false;
     
 void Tracker::analysis_state(AnalysisState pause) {
     if(!instance())
@@ -266,7 +263,8 @@ Tracker::Tracker(Image::Ptr&& average, const pv::File& video)
 Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
       : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
         _max_individuals(0),
-        _background(NULL)
+        _background(NULL),
+        recognition_pool(max(1u, 5u), "RecognitionPool")
         /*_inactive_individuals([this](Idx_t A, Idx_t B){
             auto it = _individuals.find(A);
             assert(it != _individuals.end());
@@ -309,9 +307,9 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
         DatasetQuality::update();
     });
     
-    auto track_list_update = [](auto&key, auto&value)
+    auto track_list_update = [](std::string_view key, auto&value)
     {
-        auto update = [key = key, tmp = value.template value<Settings::track_ignore_t>()]() mutable
+        auto update = [key = std::string(key), tmp = value.template value<Settings::track_ignore_t>()]() mutable
         {
             bool changed = false;
             for(auto &vec : tmp) {
@@ -331,7 +329,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
             }
         };
         
-            update();
+        update();
     };
     Settings::set_callback(Settings::track_ignore, track_list_update);
     Settings::set_callback(Settings::track_include, track_list_update);
@@ -347,7 +345,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
         {
             auto worker = [key](){
                 {
-                    LockGuard guard(w_t{}, "Updating midlines in changed_setting("+key+")");
+                    LockGuard guard(w_t{}, "Updating midlines in changed_setting("+std::string(key)+")");
                     IndividualManager::transform_parallel(Tracker::instance()->thread_pool(), [](auto fdx, auto fish)
                     {
                         print("\t", fdx);
@@ -365,24 +363,18 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
         }
     });
     
-    if (!callback_registered) {
-        auto ptr = "Tracker::Settings";
-        auto variable_changed = [ptr](sprite::Map::Signal signal, auto&map, auto&key, auto&value)
-        {
-            if(signal == sprite::Map::Signal::EXIT) {
-                map.unregister_callback(ptr);
-                return;
-            }
-            
-            if(contains(Settings::names(), key)) {
-                LockGuard guard(ro_t{}, "changed_settings");
-                Settings :: variable_changed(signal, map, key, value);
-            }
+    if (not _callback) {
+        auto callback = [](std::string_view name){
+            LockGuard guard(ro_t{}, "changed_settings");
+            Settings :: variable_changed(sprite::Map::Signal::NONE, GlobalSettings::map(), name, cmn::GlobalSettings::map().at(name).get());
         };
-        cmn::GlobalSettings::map().register_callback(ptr, variable_changed);
-        for(auto &n : Settings :: names())
-            variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
-        callback_registered = true;
+        _callback = cmn::GlobalSettings::map().register_callbacks(Settings::names(), callback);
+        GlobalSettings::map().register_shutdown_callback([this](auto) {
+            _callback.reset();
+        });
+        
+        for(auto n : Settings::names())
+            callback(n);
     }
 }
 
@@ -408,11 +400,8 @@ Tracker::~Tracker() {
     IndividualManager::clear();
     emergency_finish();
 
-    if (callback_registered) {
-        auto ptr = "Tracker::Settings";
-        cmn::GlobalSettings::map().unregister_callback(ptr);
-        callback_registered = false;
-    }
+    if (_callback)
+        cmn::GlobalSettings::map().unregister_callbacks(std::move(_callback));
 }
 
 void Tracker::emergency_finish() {
@@ -578,7 +567,7 @@ void Tracker::update_history_log() {
     PPFrame::UpdateLogs();
 }
 
-void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, bool do_history_split)
+void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, const Size2& resolution, bool do_history_split)
 {
     double time = double(frame.timestamp()) / double(1000*1000);
     
@@ -602,7 +591,7 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     frame.clear();
     
     filter_blobs(pp, pool);
-    pp.fill_proximity_grid();
+    pp.fill_proximity_grid(resolution);
     
     if(do_history_split)
         HistorySplit{pp, need, pool};

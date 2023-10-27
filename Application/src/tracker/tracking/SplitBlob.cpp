@@ -76,16 +76,10 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         SPLIT_SETTING( X ) = value.value<track::split::slow:: X##_t >(); \
     } void()
         
-        auto callback = "SplitBlob";
-        
-        auto fn = [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
-        {
+        auto fn = [](std::string_view name) {
             static bool first = true;
-            
-            if(signal == sprite::Map::Signal::EXIT) {
-                map.unregister_callback(callback);
-                return;
-            }
+            auto &map = GlobalSettings::map();
+            auto &value = map.at(name).get();
             
             DEF_CALLBACK(blob_split_max_shrink);
             DEF_CALLBACK(blob_split_global_shrink_limit);
@@ -100,10 +94,20 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
                 first = false;
         };
         
+        GlobalSettings::map().register_callbacks({
+            "blob_split_max_shrink",
+            "blob_split_global_shrink_limit",
+            "cm_per_pixel",
+            "blob_size_ranges",
+            "track_threshold",
+            "track_posture_threshold",
+            "blob_split_algorithm"
+            
+        }, fn);
+        
 #undef DEF_CALLBACK
         
-        GlobalSettings::map().register_callback(callback, fn);
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "", GlobalSettings::map()["cm_per_pixel"].get());
+        fn("");
         
         return 0;
     }(); UNUSED(_);

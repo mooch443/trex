@@ -1116,9 +1116,9 @@ int main(int argc, char** argv)
             Timer timer;
             pv::Frame frame;
             video.read_frame(frame, idx);
-            Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, false);
+            Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
 
-            ptr->set_loading_time(narrow_cast<float>(timer.elapsed()));
+            ptr->set_loading_time(timer.elapsed());
 
             // clear stored blob data, so that the destructor is called
             // in a different thread (balancing) if they arent needed.
@@ -1302,30 +1302,21 @@ int main(int argc, char** argv)
     CheckUpdates::init();
 #endif
     
-    auto callback = "TRex::main";
-    GlobalSettings::map().register_callback(callback, [&analysis, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
-    {
-        if(signal == sprite::Map::Signal::EXIT) {
-            map.unregister_callback(callback);
-            return;
-        }
+    GlobalSettings::map().register_callbacks({"analysis_paused"}, [&](auto) {
+        analysis.bump();
         
-        if (key == "analysis_paused") {
-            analysis.bump();
+        bool pause = SETTING(analysis_paused).value<bool>();
+        if(analysis.paused() != pause) {
+            print("Adding to queue...");
             
-            bool pause = value.value<bool>();
-            if(analysis.paused() != pause) {
-                print("Adding to queue...");
-                
-                gui::WorkProgress::add_queue("pausing", [&analysis, pause](){
-                    if(analysis.paused() != pause) {
-                        analysis.set_paused(pause);
-                        print("Paused.");
-                    }
-                });
-                
-                print("Added.");
-            }
+            gui::WorkProgress::add_queue("pausing", [&analysis, pause](){
+                if(analysis.paused() != pause) {
+                    analysis.set_paused(pause);
+                    print("Paused.");
+                }
+            });
+            
+            print("Added.");
         }
     });
     

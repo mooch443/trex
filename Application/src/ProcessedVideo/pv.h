@@ -244,6 +244,7 @@ namespace pv {
         
     public:
         Header() = default;
+        Header(Header&&) = default;
         Header(const std::string& n)
             : name(n)
         { }
@@ -254,6 +255,13 @@ namespace pv {
         }
         
         std::string generate_metadata() const;
+        
+        static Header move(Header&& src) {
+            Header dest = std::move(src);
+            src.average = nullptr;
+            src.mask = nullptr;
+            return dest;
+        }
     };
 
     struct TaskSentinel;
@@ -315,6 +323,7 @@ namespace pv {
         
     public:
         File(const file::Path& filename, FileMode mode);
+        File(File&&) noexcept;
         ~File();
         
         void close() override;

@@ -322,14 +322,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
     for(size_t i=0; i<2; ++i)
         PD(fish_graphs).push_back(new PropertiesGraph(PD(tracker), PD(gui).mouse_position()));
     
-    auto callback = "TRex::GUI";
-    auto changed = [callback, this](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
-    {
-        if(signal == sprite::Map::Signal::EXIT) {
-            map.unregister_callback(callback);
-            return;
-        }
-        
+    auto changed = [this](std::string_view name) {
         // ignore gui frame
         if(name == "gui_frame") {
             return;
@@ -340,7 +333,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
         if(!GUI::instance())
             return;
         
-        WorkProgress::add_queue("", [this, name, &value](){
+        WorkProgress::add_queue("", [this, name, &value = GlobalSettings::map()[name].get()](){
             if(!GUI::instance())
                 return;
             
@@ -358,7 +351,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
                 //globals::_settings.gui_run = value.value<bool>();
             //else if(name == "nowindow")
                 //globals::_settings.nowindow = value.value<bool>();
-                
+            
             if(is_in(name, "output_graphs", "limit", "event_min_peak_offset", "output_normalize_midline_data"))
             {
                 Output::Library::clear_cache();
@@ -394,7 +387,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
                     {
                         FilterCache::clear();
                         
-                        LockGuard guard(w_t{}, "setting_changed_"+name);
+                        LockGuard guard(w_t{}, "setting_changed_"+std::string(name));
                         auto start = Tracker::start_frame();
                         DatasetQuality::remove_frames(start);
                     }
@@ -530,14 +523,64 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
         });
     };
     
-    GlobalSettings::map().register_callback(callback, changed);
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_splits", SETTING(manual_splits).get());
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "grid_points", SETTING(grid_points).get());
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "recognition_shapes", SETTING(recognition_shapes).get());
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "gui_run", SETTING(gui_run).get());
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "gui_mode", SETTING(gui_mode).get());
-    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "nowindow", SETTING(nowindow).get());
+    static CallbackCollection _callback;
+    _callback = GlobalSettings::map().register_callbacks({
+        "app_name",
+        "blacklist",
+        "event_min_peak_offset",
+        "exec",
+        "grid_points",
+        "grid_points_scaling",
+        "gui_auto_scale",
+        "gui_auto_scale_focus_one",
+        "gui_background_color",
+        "gui_connectivity_matrix_file",
+        "gui_equalize_blob_histograms",
+        "gui_focus_group",
+        "gui_foi_name",
+        "gui_interface_scale",
+        "gui_mode",
+        "gui_show_detailed_probabilities",
+        "gui_show_midline",
+        "gui_show_outline",
+        "gui_show_paths",
+        "gui_show_posture",
+        "gui_show_recognition_bounds",
+        "gui_show_recognition_summary",
+        "gui_show_selections",
+        "gui_show_texts",
+        "gui_show_visualfield",
+        "gui_show_visualfield_ts",
+        "gui_zoom_limit",
+        "limit",
+        "manual_matches",
+        "manual_splits",
+        "output_graphs",
+        "output_normalize_midline_data",
+        "output_prefix",
+        "recognition_border",
+        "recognition_border_shrink_percent",
+        "recognition_border_size_rescale",
+        "recognition_coeff",
+        "recognition_shapes",
+        "track_threshold",
+        "visual_field_eye_offset",
+        "visual_field_eye_separation",
+        "visual_field_history_smoothing",
+        "whitelist"
+    }, changed);
+    
+    changed("manual_matches");
+    changed("manual_splits");
+    changed("grid_points");
+    changed("recognition_shapes");
+    changed("gui_run");
+    changed("gui_mode");
+    changed("nowindow");
+    
+    GlobalSettings::map().register_shutdown_callback([](auto) {
+        
+    });
     
 #if WITH_MHD
     _http_gui = new HttpGui(_gui);
@@ -2262,7 +2305,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 PD(video_source).read_frame(frame, idx);
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
-                    Tracker::instance()->preprocess_frame(std::move(frame), pp, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed);
+                    Tracker::instance()->preprocess_frame(std::move(frame), pp, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video_source()->header().resolution);
                 }
                 
                 IndividualManager::transform_ids(pp.previously_active_identities(), [&](Idx_t fdx, Individual* fish) -> void {
@@ -4506,7 +4549,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         WorkProgress::set_percent(i.try_sub(range.start).get() / (float)(range.end - range.start).get());
         
         PD(video_source).read_frame(frame, i);
-        Tracker::instance()->preprocess_frame(std::move(frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+        Tracker::instance()->preprocess_frame(std::move(frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_source()->header().resolution);
         
         cv::Mat image, padded, mask;
         pp.transform_blobs([&](pv::Blob& blob){

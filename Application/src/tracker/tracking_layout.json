@@ -58,6 +58,11 @@
     },
 
     {
+        "type": "stext",
+        "text": "{global.source} tracking @ {fps}fps {tracker.range}"
+    },
+
+    {
         "type":"settings",
         "var":"gui_frame",
         "size":[100,40],
@@ -82,6 +87,11 @@
                 "pos":[0,0],
                 "size":[200,140],
                 "fill":[50,50,50],
+                "foldable":true,
+                "folded":true,
+                "text":"test",
+                "item_height":1,
+                "font":{"size":0.6},
                 "items":[
                     {
                         "text": "hi",

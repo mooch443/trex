@@ -210,18 +210,10 @@ VideoOpener::VideoOpener()
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
     
-    _name = "VideoOpener"+Meta::toStr(uint64_t(this));
-    _callback = _name.c_str();
-    gui::temp_settings.register_callback(_callback, [this](sprite::Map::Signal signal, auto&map, auto&key, auto&value){
-        if(signal == sprite::Map::Signal::EXIT) {
-            map.unregister_callback(_callback);
-            _callback = nullptr;
-            return;
-        }
-        
+    _callback = gui::temp_settings.register_callbacks({"threshold", "average_samples", "averaging_method"}, [this](auto key) {
         if(key == "threshold") {
             if(_buffer)
-                _buffer->_threshold = value.template value<int>();
+                _buffer->_threshold = SETTING(threshold).value<int>();
             
         } else if(is_in(key, "average_samples", "averaging_method")) {
             if(_buffer)
@@ -559,10 +551,8 @@ VideoOpener::~VideoOpener() {
         _infos->remove_event_handler(EventType::HOVER, nullptr);
     }
     
-    if(_callback != nullptr) {
-        temp_settings.unregister_callback(_callback);
-        _callback = nullptr;
-    }
+    if(_callback)
+        temp_settings.unregister_callbacks(std::move(_callback));
     
     {
         std::lock_guard guard(_stale_mutex);

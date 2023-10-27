@@ -16,7 +16,7 @@ class Segmenter {
     std::atomic<bool> _should_terminate{false};
     
     // Overlayed video with detections and tracker for object tracking
-    std::unique_ptr<OverlayedVideo<Detection>> _overlayed_video;
+    std::unique_ptr<VideoProcessor<Detection>> _overlayed_video;
     std::unique_ptr<Tracker> _tracker;
     
     // File for output

@@ -75,6 +75,7 @@ protected:
 public:
     const std::vector<FrameProperties::Ptr>& frames() const { return _added_frames; }
 protected:
+    CallbackCollection _callback;
     Image::Ptr _average;
     GETTER_SETTER(cv::Mat, mask)
     
@@ -147,6 +148,7 @@ public:
     
 private:
     inline static SecondsPerFrame _time_samples;
+    GenericThreadPool recognition_pool;
     
 public:
     static double average_seconds_per_individual();
@@ -202,7 +204,7 @@ public:
     static size_t number_frames() { return instance()->_added_frames.size(); }
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, bool do_history_split = true);
+    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, const Size2& resolution, bool do_history_split = true);
     
     friend class VisualField;
     

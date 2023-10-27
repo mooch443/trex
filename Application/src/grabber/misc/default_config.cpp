@@ -53,7 +53,7 @@ ENUM_CLASS_DOCS(meta_encoding_t,
         }
     }
     
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn)
+    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn)
     {
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;

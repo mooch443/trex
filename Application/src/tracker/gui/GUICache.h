@@ -73,6 +73,7 @@ namespace gui {
     class GUICache {
         pv::File* _video{ nullptr };
         gui::DrawStructure* _graph{ nullptr };
+        GenericThreadPool _pool;
 
     public:
         int last_threshold = -1;

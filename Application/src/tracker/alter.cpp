@@ -74,7 +74,7 @@ static_assert(ObjectDetection<Yolo8>);
 namespace ind = indicators;
 
 void launch_gui() {
-    IMGUIBase base(window_title(), {1024,768}, [&, ptr = &base](DrawStructure& graph)->bool {
+    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
         graph.draw_log_messages(Bounds(graph.dialog_window_size()));
         return true;

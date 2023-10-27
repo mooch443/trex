@@ -92,21 +92,21 @@ Segmenter::~Segmenter() {
 
 Size2 Segmenter::size() const {
     std::unique_lock vlock(_mutex_video);
-    return _overlayed_video->source->size();
+    return _overlayed_video->source()->size();
 }
 
 Frame_t Segmenter::video_length() const {
     std::unique_lock vlock(_mutex_video);
-    if(not _overlayed_video || not _overlayed_video->source)
+    if(not _overlayed_video || not _overlayed_video->source())
         throw U_EXCEPTION("No video was opened.");
-    return _overlayed_video->source->length();
+    return _overlayed_video->source()->length();
 }
 
 bool Segmenter::is_finite() const {
     std::unique_lock vlock(_mutex_video);
-    if(not _overlayed_video || not _overlayed_video->source)
+    if(not _overlayed_video || not _overlayed_video->source())
         throw U_EXCEPTION("No video was opened.");
-    return _overlayed_video->source->is_finite();
+    return _overlayed_video->source()->is_finite();
 }
 
 bool Segmenter::is_average_generating() const {
@@ -135,7 +135,7 @@ void Segmenter::open_video() {
 
     {
         std::unique_lock vlock(_mutex_video);
-        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+        _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
            Detection{},
            std::move(video_base),
            [this]() {
@@ -229,7 +229,7 @@ void Segmenter::open_camera() {
 
     {
         std::unique_lock vlock(_mutex_video);
-        _overlayed_video = std::make_unique<OverlayedVideo<Detection>>(
+        _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
            Detection{},
            std::move(camera),
            [this]() {
@@ -237,7 +237,7 @@ void Segmenter::open_camera() {
            }
         );
         
-        _overlayed_video->source->notify();
+        _overlayed_video->source()->notify();
     }
     
     SETTING(video_length) = uint64_t(video_length().get());
@@ -385,7 +385,7 @@ void Segmenter::perform_tracking() {
     if(std::unique_lock guard(_mutex_tracker); _tracker != nullptr)
     {
         PPFrame pp;
-        Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, false);
+        Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
         _tracker->add(pp);
         /*if (pp.index().get() % 100 == 0) {
             print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
@@ -475,8 +475,8 @@ void Segmenter::tracking_thread() {
             //try {
             
             std::unique_lock vlock(_mutex_video);
-            if (_overlayed_video->source->is_finite()) {
-                auto L = _overlayed_video->source->length();
+            if (_overlayed_video->source()->is_finite()) {
+                auto L = _overlayed_video->source()->length();
                 auto C = _progress_data.original_index();
 
                 if (L.valid() && C.valid()) {
@@ -537,7 +537,7 @@ void Segmenter::reset(Frame_t frame) {
     std::unique_lock vlock(_mutex_video);
     if(not _overlayed_video)
         throw U_EXCEPTION("No overlayed_video set.");
-    _overlayed_video->reset(frame);
+    _overlayed_video->reset_to_frame(frame);
 }
 
 void Segmenter::setDefaultSettings() {
