@@ -21,6 +21,7 @@ void TrackingScene::activate() {
     using namespace dyn;
     for(size_t i=0; i<1000; ++i) {
         sprite::Map map;
+        map.set_do_print(false);
         map["i"] = i;
         map["pos"] = Vec2(100, 100 + i * 10);
         map["name"] = std::string("Text");
