@@ -213,7 +213,7 @@ void ConvertScene::activate()  {
         
         print("Loading source = ", SETTING(source).value<file::PathArray>());
         SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
-        if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
+        if (SETTING(source).value<file::PathArray>() == file::PathArray({file::Path("webcam")}))
             open_camera();
         else
             open_video();
@@ -444,7 +444,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
             auto clr = wheel.next();
             auto last = keypoint.bones.back();
             for(auto& bone : keypoint.bones) {
-                graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
+                graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{10}, FillClr{clr.alpha(50)});
                 graph.line(Vec2{last.x, last.y}, {bone.x, bone.y}, 5, LineClr{clr.exposureHSL(0.5)});
                 last = bone;
             }

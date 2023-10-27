@@ -354,7 +354,7 @@ TEST_F(TestSystemTracker, TrackingTest) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
     data->tracker.add(pp);
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);

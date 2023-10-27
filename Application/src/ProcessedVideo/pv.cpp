@@ -62,8 +62,8 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
 
 namespace pv {
     // used to register for global settings updates
-    static std::mutex settings_mutex;
-    static std::atomic_bool use_differences(false), settings_registered(false);
+    static std::atomic_bool use_differences(false);
+    static CallbackCollection _callback;
 
     /**
      * If there is a task that is async (and can be run read-only for example) and e.g. continously calls "read_frame", then a task sentinel can be registered. This prevents the file from being destroyed until the task is done.
@@ -91,6 +91,31 @@ namespace pv {
             ptr->_task_variable.notify_all();
         }
     };
+
+File::File(File&& other) noexcept
+    : cmn::DataFormat(std::move(other)),       // Move-construct base class
+      cmn::GenericVideo(std::move(other)),     // Move-construct another base class
+      _lock(),                                // Mutexes cannot be moved, so we'll initialize a new one
+      _header(Header::move(std::move(other._header))),
+      _average(std::move(other._average)),
+      _mask(std::move(other._mask)),
+      _filename(std::move(other._filename)),
+      _prev_frame_time(other._prev_frame_time),
+      _compression_ratio(other._compression_ratio.load()), // Atomic types can't be moved. Copy the value.
+      _compression_value(other._compression_value),
+      _compression_samples(other._compression_samples),
+      _last_frame(std::move(other._last_frame)),
+      _task_list_mutex(),                      // Mutexes cannot be moved
+      _task_list(std::move(other._task_list)),
+      _mode(other._mode),
+      _tried_to_open(other._tried_to_open)
+{
+    // Ensure the moved-from object is left in a safe state
+    other._prev_frame_time = 0;
+    other._compression_value = 0;
+    other._compression_samples = 0;
+    other._tried_to_open = false;
+}
 
 File::File(const file::Path& filename, FileMode mode)
     : DataFormat(filename.add_extension("pv"), filename.str()),
@@ -206,25 +231,16 @@ File::File(const file::Path& filename, FileMode mode)
         Data* ptr = &ref;
         ReadonlyMemoryWrapper *compressed = NULL;
         
-        if(!settings_registered){
-            std::lock_guard<std::mutex> lock(settings_mutex);
-            if(!settings_registered) {
-                auto callback = "pv::Frame::read_from";
-                use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
-                GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map&map, const std::string&key, const sprite::PropertyType& value)
-                {
-                    if(signal == sprite::Map::Signal::EXIT) {
-                        map.unregister_callback(callback);
-                        return;
-                    }
-                    
-                    if(key == "use_differences")
-                        use_differences = value.value<bool>();
-                });
-                
-                settings_registered = true;
-            }
-        }
+        static std::once_flag flag;
+        std::call_once(flag, [](){
+            use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
+            _callback = GlobalSettings::map().register_callbacks({"use_differences"}, [](auto) {
+                use_differences = SETTING(use_differences).value<bool>();
+            });
+            GlobalSettings::map().register_shutdown_callback([](auto){
+                _callback.reset();
+            });
+        });
         
         if(ref.header().version >= V_6) {
             uchar compression_flag;
@@ -1052,12 +1068,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     void File::add_individual(Frame&& frame) {
-        _check_opened();
         
         static std::mutex pack_mutex;
         static DataPackage pack;
 
         std::lock_guard g(pack_mutex);
+        _check_opened();
         bool compressed;
         frame.serialize(pack, compressed);
         add_individual(std::move(frame), pack, compressed);
@@ -1073,12 +1089,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     void File::read_frame(Frame& frame, Frame_t frameIndex) {
+        std::unique_lock<std::mutex> guard(_lock);
         _check_opened();
         
         assert(!_open_for_writing);
         assert(frameIndex.valid());
         
-        std::unique_lock<std::mutex> guard(_lock);
         if(frameIndex.get() >= _header.num_frames)
            throw U_EXCEPTION("Frame index ", frameIndex," out of range.");
         

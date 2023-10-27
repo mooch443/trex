@@ -121,8 +121,9 @@ inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv
     }
 }
 
-PPFrame::PPFrame()
-    : _blob_grid(Tracker::average().bounds().size())
+PPFrame::PPFrame(const Size2& size)
+    : _resolution(size), _blob_grid(size)
+    //: _blob_grid(Tracker::average().bounds().size())
 {
 }
 
@@ -484,7 +485,9 @@ const grid::ProximityGrid& PPFrame::blob_grid() noexcept {
     std::scoped_lock guard(_blob_grid_mutex);
     if(_blob_grid.empty()) {
         // have to fill the grid
-        fill_proximity_grid();
+        if(_resolution.empty())
+            throw U_EXCEPTION("Resolution not set at time of use.");
+        fill_proximity_grid(_resolution);
     }
     
     return _blob_grid;
@@ -760,7 +763,7 @@ bool PPFrame::has_fixed_matches() const {
     return !fixed_matches.empty();
 }
 
-void PPFrame::fill_proximity_grid() {
+void PPFrame::fill_proximity_grid(const Size2& size) {
     ASSUME_NOT_FINALIZED;
     
     /*if(!SETTING(gui_show_pixel_grid).value<bool>())
@@ -768,6 +771,8 @@ void PPFrame::fill_proximity_grid() {
         // do not need a blob_grid, so dont waste time here
         return;
     }*/
+    _resolution = size;
+    _blob_grid.set_resolution(size, grid::proximity_res);
     
     auto add_blob = [this](const pv::Blob& b) {
         auto N = b.hor_lines().size();

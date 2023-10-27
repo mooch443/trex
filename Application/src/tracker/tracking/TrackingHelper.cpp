@@ -493,7 +493,7 @@ double TrackingHelper::process_postures() {
             }
             
             std::lock_guard guard((_statistics_mutex));
-            combined_posture_seconds += narrow_cast<float>(collected);
+            combined_posture_seconds += collected;
             
         }, Tracker::instance()->thread_pool(), all.begin(), all.end());
         

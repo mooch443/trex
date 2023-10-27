@@ -124,6 +124,7 @@ private:
     
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
+    GETTER_SETTER(Size2, resolution)
     
     GETTER_NCONST(cache_map_t, individual_cache)
     
@@ -439,7 +440,7 @@ public:
                    robin_hood::unordered_flat_set<pv::bid>&& big_ids,
                    size_t pixels, size_t samples);
     
-    void fill_proximity_grid();
+    void fill_proximity_grid(const Size2&);
     void finalize(source_location loc = source_location::current());
     void init_from_blobs(std::vector<pv::BlobPtr>&& vec);
     
@@ -594,7 +595,8 @@ public:
     
     bool is_regular(pv::bid bdx) const;
     
-    PPFrame();
+    PPFrame() noexcept = default;
+    PPFrame(const Size2&);
 
     PPFrame(const PPFrame&) = delete;
     PPFrame(PPFrame&&) noexcept = delete;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <commons/common/commons.pc.h>
+#include <commons.pc.h>
 #include <gui/FileChooser.h>
 #include <gui/types/Layout.h>
 #include <gui/types/Checkbox.h>
@@ -58,8 +58,7 @@ public:
         void restart_background();
     };
     
-    std::string _name;
-    const char* _callback;
+    CallbackCollection _callback;
     
     std::mutex _video_mutex;
     std::unique_ptr<BufferedVideo> _buffer;

@@ -20,7 +20,7 @@ IMPLEMENT(GUI::setting_keys) = {
 };
 
 GUI *_instance = nullptr;
-const char* callback = "Framegrabber::GUI";
+CallbackCollection callback;
 
 GUI* GUI::instance() {
     return _instance;
@@ -38,35 +38,15 @@ GUI::GUI(DrawStructure* graph, FrameGrabber& grabber)
     _record_direction(true),
     _pulse_direction(false),
     _pulse(0),
-    _gui(graph),
-    _sf_base(NULL)
+    _sf_base(NULL),
+    _gui(graph)
 {
     _gui->set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
     _instance = this;
     
-    GlobalSettings::map().register_callback(callback, [this](sprite::Map::Signal signal, sprite::Map&map, const std::string& name, const sprite::PropertyType& value)
-        {
-            if(signal == sprite::Map::Signal::EXIT) {
-                map.unregister_callback(callback);
-                callback = nullptr;
-                return;
-            }
-        
-            if(name == KEY(mode)) {
-                set_redraw();
-            } else if(name == KEY(terminate)) {
-                if(value.value<bool>())
-                { }
-            }
-            else if(name == std::string("gui_interface_scale")) {
-                /*gui::Event e(gui::WINDOW_RESIZED);
-                e.size.width = e.size.width;
-                e.size.height = e.size.height;
-                
-                this->event(e);*/
-            }
-        }
-    );
+    callback = GlobalSettings::map().register_callbacks({"mode"}, [this](std::string_view name){
+        set_redraw();
+    });
 }
 
 void GUI::set_base(gui::Base *base) {
@@ -91,8 +71,7 @@ void GUI::set_base(gui::Base *base) {
 
 GUI::~GUI() {
     if(callback)
-        GlobalSettings::map().unregister_callback(callback);
-    callback = nullptr;
+        GlobalSettings::map().unregister_callbacks(std::move(callback));
 }
 
 #if WITH_MHD

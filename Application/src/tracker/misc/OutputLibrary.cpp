@@ -19,6 +19,7 @@ namespace Output {
     std::map<std::string, std::vector<std::pair<Options_t, Calculation>>> _options_map;
     Output::Library::default_options_type _output_defaults;
     std::mutex _output_variables_lock;
+    CallbackCollection _callback_id;
 
     LibraryCache::Ptr LibraryCache::default_cache() {
         return _default_cache;
@@ -126,16 +127,18 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         static const float CENTER_X = SETTING(output_centered) ? SETTING(video_size).value<Size2>().width * 0.5f * cm_per_px : 0;
         static const float CENTER_Y = SETTING(output_centered) ?SETTING(video_size).value<Size2>().height * 0.5f * cm_per_px : 0;
         
-        auto callback = "Output::Library::Init";
-        GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType&val)
-        {
-            if(signal == sprite::Map::Signal::EXIT) {
-                map.unregister_callback(callback);
-                return;
-            }
+        GlobalSettings::map().register_shutdown_callback([](auto) {
+            _callback_id.reset();
+        });
+        _callback_id = GlobalSettings::map().register_callbacks({
+            "output_invalid_value",
+            "output_graphs",
+            "output_default_options",
+            "midline_resolution"
             
+        }, [](std::string_view name) {
             if(name == "output_invalid_value") {
-                if(val.value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
+                if(SETTING(output_invalid_value).value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
                     gui::Graph::set_invalid(std::numeric_limits<float>::quiet_NaN());
                 else
                     gui::Graph::set_invalid(std::numeric_limits<float>::infinity());

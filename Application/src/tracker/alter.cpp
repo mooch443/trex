@@ -74,10 +74,7 @@ static_assert(ObjectDetection<Yolo8>);
 namespace ind = indicators;
 
 void launch_gui() {
-    /**
-     * Open a window and initialize the draw loop.
-     */
-    IMGUIBase base(window_title(), {1024,800}, [&, ptr = &base](DrawStructure& graph)->bool {
+    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
         graph.draw_log_messages(Bounds(graph.dialog_window_size()));
         return true;
@@ -89,10 +86,10 @@ void launch_gui() {
         }
     });
     
-    /**
-     * Get the SceneManager instance and register all scenes
-     */
     auto& manager = SceneManager::getInstance();
+    
+    StartingScene start(base);
+    manager.register_scene(&start);
     
     static std::unique_ptr<Segmenter> segmenter;
     ConvertScene converting(base, [&](ConvertScene& scene){
@@ -116,14 +113,11 @@ void launch_gui() {
         segmenter = nullptr;
     });
     manager.register_scene(&converting);
-
-    StartingScene start{ base };
-    manager.register_scene(&start);
     
-    TrackingScene tracking_scene{ base };
+    TrackingScene tracking_scene(base);
     manager.register_scene(&tracking_scene);
     
-    SettingsScene settings_scene{ base };
+    SettingsScene settings_scene(base);
     manager.register_scene(&settings_scene);
 
     LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
@@ -440,7 +434,7 @@ int main(int argc, char**argv) {
             }
         });
         
-        if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
+        if (SETTING(source).value<file::PathArray>() == file::PathArray({file::Path("webcam")}))
             segmenter.open_camera();
         else
             segmenter.open_video();
