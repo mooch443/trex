@@ -117,9 +117,6 @@ void StartingScene::_draw(DrawStructure& graph) {
                     }),
                     VarFunc("list_size", [this](VarProps) -> Size2 {
                         return element_size;
-                    }),
-                    VarFunc("global", [](VarProps) -> sprite::Map& {
-                        return GlobalSettings::map();
                     })
                 };
 

@@ -861,14 +861,16 @@ Fish::~Fish() {
         if(_blob != nullptr && _blob->pred.pose.size() > 0) {
             for(size_t i=0; i<_blob->pred.pose.size(); ++i) {
                 auto bone = _blob->pred.pose.bone(i);
-                parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{10});
+                parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5});
                 parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(50)});
             }
-            
+
+            ColorWheel wheel;
             for(size_t i=0; i<_average_pose.size(); ++i) {
                 auto bone = _average_pose.bone(i);
-                parent.add<Circle>(Loc{bone.A}, FillClr{_color.alpha(75)}, LineClr{_color.alpha(150)}, Radius{10});
-                parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{_color.alpha(75)},2);
+                auto c = Color::blend(_color.alpha(125), wheel.next().alpha(130));
+                parent.add<Circle>(Loc{bone.A}, FillClr{c.alpha(75)}, LineClr{c.alpha(150)}, Radius{5});
+                parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{c.alpha(75)},2);
             }
         }
         
