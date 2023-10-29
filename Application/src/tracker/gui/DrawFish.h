@@ -80,7 +80,7 @@ namespace gui {
     public:
         Fish(track::Individual& obj);
         ~Fish();
-        void update(Base* base, Drawable* bowl, Entangled& p, DrawStructure& d);
+        void update(const Size2& screen_size, Drawable* bowl, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
         void set_data(Frame_t frameIndex, double time, const EventAnalysis::EventMap* events);
         
@@ -92,8 +92,8 @@ namespace gui {
         void update_recognition_circle();
         Color get_color(const BasicStuff*) const;
     public:
-        void label(Base*, Drawable* bowl, Entangled&);
-        void shadow(DrawStructure&);
+        void label(const Size2& screen_size, Drawable* bowl, Entangled&);
+        Drawable* shadow();
         void check_tags();
     };
 }

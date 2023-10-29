@@ -37,6 +37,8 @@ public:
     void draw(DrawStructure& base) {
         _draw(*this, base);
     }
+    
+    virtual bool on_global_event(Event) { return false; }
 };
 
 class SceneManager {
@@ -81,6 +83,7 @@ public:
     void update(DrawStructure& graph);
 
     void update_queue();
+    bool on_global_event(Event);
 
 private:
     void enqueue(auto&& task) {

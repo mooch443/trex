@@ -15,7 +15,7 @@
 #include <misc/IdentifiedTag.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
-#include <gui.h>
+//#include <gui.h>
 #endif
 
 using namespace track;
@@ -235,7 +235,7 @@ Fish::~Fish() {
         window.image(blob_bounds.pos(), _image);
     }*/
     
-    void Fish::update(Base* base, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
+    void Fish::update(const Size2& screen_size, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
         const auto frame_rate = FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
@@ -254,7 +254,7 @@ Fish::~Fish() {
         _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = _view.hovered();
-        const bool timeline_visible = GUICache::exists() && Timeline::visible();
+        const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
         //const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
         
         auto base_color = single_identity != Transparent ? single_identity : _obj.identity().color();
@@ -273,7 +273,7 @@ Fish::~Fish() {
 
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE && false
         if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
         {
             if (!is_selected) _view.tag(Effects::blur);
@@ -875,7 +875,7 @@ Fish::~Fish() {
         }
         
         _label_parent.update([&](auto&){
-            label(base, bowl, _label_parent);
+            label(screen_size, bowl, _label_parent);
         });
         
         parent.advance_wrap(_label_parent);
@@ -1238,7 +1238,7 @@ void Fish::updatePath(Frame_t to, Frame_t from) {
         }
     }
 
-void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
+void Fish::label(const Size2& screen_size, Drawable* bowl, Entangled &e) {
     if(GUIOPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
             e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
@@ -1365,10 +1365,10 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     else
         _label->set_data(this->frame(), label_text, blob->calculate_bounds(), fish_pos());
 
-    _label->update(base, bowl, e, 1, 0, blob == nullptr);
+    _label->update(screen_size, bowl, e, 1, 0, blob == nullptr);
 }
 
-void Fish::shadow(DrawStructure &window) {
+Drawable* Fish::shadow() {
     auto active = GUICache::instance().active_ids.find(_obj.identity().ID()) != GUICache::instance().active_ids.end();
     
     if(GUIOPTION(gui_show_shadows) && active) {
@@ -1388,7 +1388,8 @@ void Fish::shadow(DrawStructure &window) {
         }
 #endif
 #endif
-        window.wrap_object(*_polygon);
+        return _polygon.get();//window.wrap_object(*_polygon);
     }
+    return nullptr;
 }
 }

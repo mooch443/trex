@@ -79,9 +79,11 @@ void launch_gui() {
         graph.draw_log_messages(Bounds(graph.dialog_window_size()));
         return true;
     }, [](auto&, Event e) {
-        if(e.type == EventType::KEY) {
-            if(e.key.code == Keyboard::Escape) {
-                SETTING(terminate) = true;
+        if(not SceneManager::getInstance().on_global_event(e)) {
+            if(e.type == EventType::KEY) {
+                if(e.key.code == Keyboard::Escape) {
+                    SETTING(terminate) = true;
+                }
             }
         }
     });

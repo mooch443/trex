@@ -68,7 +68,7 @@ public:
 
     // Checks if EOF has been reached for finite video sources
     bool eof() const noexcept {
-        assert(source_);
+        assert(_source);
         if (not _source->is_finite())
             return false;
         return _current_frame_index >= _source->length();
@@ -145,7 +145,7 @@ public:
     void reset_to_frame(Frame_t frame) {
         std::scoped_lock guard(_index_mutex);
         _current_frame_index = frame;
-        assert(source_);
+        assert(_source);
         if (_source->is_finite())
             _source->set_frame(_current_frame_index);
     }

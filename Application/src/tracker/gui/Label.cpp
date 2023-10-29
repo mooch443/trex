@@ -33,7 +33,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
     _frame = frame;
 }
 
-void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d, bool disabled) {
+void Label::update(const Size2& screen_size, Drawable*ptr, Entangled& e, float alpha, float _d, bool disabled) {
     alpha = saturate(alpha, 0.5, 1.0);
     
     if(disabled)
@@ -41,7 +41,7 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d
     
     Vec2 offset;
     Vec2 scale(1);
-    Bounds screen;
+    Bounds screen(Vec2(), screen_size);
 
     auto stage = e.stage();
     if (!stage)
@@ -50,14 +50,11 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d
     Size2 background(stage->width() * 0.5, stage->height() * 0.5);
 
     //auto ptr = base.find("fishbowl");
-    if (ptr) {
-        screen = e.global_transform().getInverse().transformRect(Bounds(0, 0, stage->width(), stage->height()));
-        if(!stage->scale().empty())
-            scale = stage->scale().reciprocal().mul(ptr->scale().reciprocal());
-        
-        auto size = base ? base->window_dimensions().mul(scale * gui::interface_scale())
-            : track::Tracker::average().bounds().size();
-        screen << (Size2)size;
+    //if (ptr)
+    {
+        auto inverse = e.global_transform().getInverse();
+        scale = inverse.transformPoint(Vec2(1)) - inverse.transformPoint(Vec2(0));
+        screen = inverse.transformRect(Bounds(Vec2(), screen_size));
         offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))) / screen.width;
     }
 
@@ -108,8 +105,9 @@ void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, float _d
 
         if (ptr && screen.contains(_center)) {
             auto o = -Vec2(0, _text->local_bounds().height);
-            if (Timeline::visible()) {
-                o -= Vec2(0, 40);
+            //if (Timeline::visible()) //TODO: timeline update
+            {
+            //    o -= Vec2(0, 40);
             }
 
             Bounds bds(text_pos + o, Size2(10));

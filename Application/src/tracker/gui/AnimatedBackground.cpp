@@ -107,6 +107,7 @@ struct Buffers {
 };
 
 void AnimatedBackground::before_draw() {
+    bool is_recording{false}; // GUI::instance->is_recording
     bool value = SETTING(gui_show_video_background).value<bool>();
     if(value != gui_show_video_background) {
         gui_show_video_background = value;
@@ -228,7 +229,7 @@ void AnimatedBackground::before_draw() {
         Image::Ptr image;
         Timer timer;
         if(_next_frame.valid()) {
-            if(not GUI::instance()->is_recording()) {
+            if(not is_recording) {
                 if(_next_frame.wait_for(std::chrono::milliseconds(5)) != std::future_status::ready)
                 {
                     Entangled::before_draw();
@@ -238,7 +239,7 @@ void AnimatedBackground::before_draw() {
             
             image = _next_frame.get();
             if(image && image->index() != frame.get()) {
-                if(not GUI::instance()->is_recording())
+                if(not is_recording)
                 {
                     // image but wrong index
                     buffers::move_back(_static_image.exchange_with(std::move(image)));
@@ -255,7 +256,8 @@ void AnimatedBackground::before_draw() {
         }
         
         if(not image) {
-            if(not GUI::instance()->is_recording()) {
+            if(not is_recording) //TODO: untangle gui
+            {
                 _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame);
                 Entangled::before_draw();
                 return;

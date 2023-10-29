@@ -11,9 +11,6 @@
 #include <grabber/misc/default_config.h>
 
 namespace gui {
-    static std::unique_ptr<std::thread> percentile_ptr = nullptr;
-    static std::mutex percentile_mutex;
-
     GUICache*& cache() {
         static GUICache* _cache{ nullptr };
         return _cache;
@@ -246,6 +243,7 @@ namespace gui {
         } else return;
         
         frame_idx = frameIndex;
+        _video_resolution = _video->size();
         
         if(!GUI_SETTINGS(nowindow)) {
             //! Calculate average pixel values. This is not a high-priority action, especially if the GUI is disabled. Only used for `gui_equalize_blob_histograms`.

@@ -110,4 +110,11 @@ void SceneManager::update_queue() {
     }
 }
 
+bool SceneManager::on_global_event(Event event) {
+    if(active_scene) {
+        return active_scene->on_global_event(event);
+    }
+    return false;
+}
+
 }

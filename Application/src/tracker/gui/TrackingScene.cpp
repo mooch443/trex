@@ -16,6 +16,8 @@
 #include <misc/OutputLibrary.h>
 #include <tracking/Categorize.h>
 #include <gui/CheckUpdates.h>
+#include <gui/DrawFish.h>
+#include <tracking/VisualField.h>
 
 using namespace track;
 
@@ -23,20 +25,435 @@ namespace gui {
 
 static constexpr Frame_t cache_size{Frame_t::number_t(10)};
 
-TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>&& stages)
-:
-video(std::move(video)),
-tracker(std::move(average), video),
-analysis(std::move(stages)),
-pool(4u, "preprocess_main")
+void VisualFieldWidget::set_parent(SectionInterface * parent) {
+    if(this->parent() == parent)
+        return;
+    
+    _polygons.clear();
+    Entangled::set_parent(parent);
+}
 
-{ }
+void VisualFieldWidget::update() {
+    begin();
+    
+    if(not _cache->has_selection()
+       || not GUI_SETTINGS(gui_show_visualfield)) 
+    {
+        end();
+        return;
+    }
+    
+    const auto& frame = _cache->frame_idx;
+    size_t poly_idx{0u};
+    
+    for(auto id : _cache->selected) {
+        auto fish = _cache->individuals.at(id);
+        
+        VisualField* ptr = (VisualField*)fish->custom_data(frame, VisualField::custom_id);
+        if(!ptr && fish->head(frame)) {
+            ptr = new VisualField(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), true);
+            fish->add_custom_data(frame, VisualField::custom_id, ptr, [](void* ptr) {
+                //std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+                delete (VisualField*)ptr;
+            });
+        }
+        
+        if(ptr) {
+            using namespace gui;
+            double max_d = SQR(_cache->_video_resolution.width) + SQR(_cache->_video_resolution.height);
+            
+            std::vector<Vertex> crosses;
+            
+            for(auto &eye : ptr->eyes()) {
+                crosses.emplace_back(eye.pos, eye.clr);
+                
+                for (size_t i=6; i<VisualField::field_resolution-6; i++) {
+                    if(eye._depth[i] < FLT_MAX) {
+                        //auto w = (1 - sqrt(eye._depth[i]) / (sqrt(max_d) * 0.5));
+                        crosses.emplace_back(eye._visible_points[i], eye.clr);
+                        
+                        //if(eye._visible_ids[i] != fish->identity().ID())
+                        //    base.line(eye.pos, eye._visible_points.at(i), eye.clr.alpha(100 * w * w + 10));
+                    } else {
+                        static const Rangef fov_range(-VisualField::symmetric_fov, VisualField::symmetric_fov);
+                        static const double len = fov_range.end - fov_range.start;
+                        double percent = double(i) / double(VisualField::field_resolution) * len + fov_range.start + eye.angle;
+                        crosses.emplace_back(eye.pos + Vec2(Float2_t(cos(percent)), Float2_t( sin(percent))) * sqrtf(max_d) * 0.5f, eye.clr);
+                        
+                        //if(&eye == &_eyes[0])
+                        //    base.line(eye.pos, eye.pos + Vec2(cos(percent), sin(percent)) * max_d, Red.alpha(100));
+                    }
+                    
+                    if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)id.get())
+                    {
+                        auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
+                        //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
+                        add<Line>(eye.pos, eye._visible_points[i + VisualField::field_resolution], Black.alpha((uint8_t)saturate(50 * w * w + 10)));
+                    }
+                }
+                
+                crosses.emplace_back(eye.pos, eye.clr);
+                add<Circle>(Loc(eye.pos), Radius{3}, LineClr{White.alpha(125)});
+                //if(&eye == &_eyes[0])
+                //auto poly = new gui::Polygon(crosses);
+                //poly->set_fill_clr(Transparent);
+                if(_polygons.size() <= poly_idx) {
+                    auto ptr = std::make_unique<Polygon>(std::move(crosses));
+                    _polygons.emplace_back(std::move(ptr));
+                } else {
+                    _polygons[poly_idx]->set_vertices(std::move(crosses));
+                }
+                
+                //    base.add_object(poly);
+                advance_wrap(*_polygons[poly_idx++]);
+                crosses.clear();
+            }
+            
+            for(auto &eye : ptr->eyes()) {
+                Vec2 straight(cos(eye.angle), sin(eye.angle));
+                
+                add<Line>(eye.pos, eye.pos + straight * 11, Black, 1);
+                
+                auto left = Vec2((Float2_t)cos(eye.angle - VisualField::symmetric_fov),
+                                 (Float2_t)sin(eye.angle - VisualField::symmetric_fov));
+                auto right = Vec2((Float2_t)cos(eye.angle + VisualField::symmetric_fov),
+                                  (Float2_t)sin(eye.angle + VisualField::symmetric_fov));
+                
+                add<Line>(eye.pos, eye.pos + left * 100, eye.clr.exposure(0.65f), 1);
+                add<Line>(eye.pos, eye.pos + right * 100, eye.clr.exposure(0.65f), 1);
+            }
+        }
+    }
+    
+    end();
+    
+    set_bounds(Bounds(Vec2(), _cache->_video_resolution));
+    
+    if(_polygons.size() > poly_idx) {
+        _polygons.resize(poly_idx);
+    }
+}
+
+Bowl::Bowl(GUICache* cache) : _cache(cache), _vf_widget(cache) {
+    _current_scale = Vec2(1.0f, 1.0f);
+    _target_scale = Vec2(1.0f, 1.0f);
+    _current_pos = Vec2(0.0f, 0.0f);
+    _target_pos = Vec2(0.0f, 0.0f);
+    _aspect_ratio = Vec2(1.0f, 1.0f);
+    _max_zoom = Vec2(300.0f, 300.0f);
+    _screen_size = Vec2(0.0f, 0.0f);
+    _center_of_screen = Vec2(0.0f, 0.0f);
+    _timer.reset();
+}
+
+bool Bowl::has_target_points_changed(const std::vector<Vec2>& new_target_points) const {
+    return _target_points != new_target_points;
+}
+
+bool Bowl::has_screen_size_changed(const Vec2& new_screen_size) const {
+    return _screen_size != new_screen_size;
+}
+
+void Bowl::set_video_aspect_ratio(float video_width, float video_height) {
+    if (video_width == 0 or video_height == 0) {
+        return;
+    }
+    _aspect_ratio = Vec2(video_width, video_height);
+    _video_size = {video_width, video_height};
+}
+
+void Bowl::fit_to_screen(const Vec2& screen_size) {
+    if (not has_screen_size_changed(screen_size)) {
+        return;
+    }
+    _screen_size = screen_size;
+    _center_of_screen = _screen_size / 2;
+    
+    set_size(_video_size);
+    update_goals();
+}
+
+void Bowl::set_target_focus(const std::vector<Vec2>& target_points) {
+    if (not has_target_points_changed(target_points)) {
+        return;
+    }
+    _target_points = target_points;
+    update_goals();
+}
+
+void Bowl::update_goals() {
+    if (_target_points.empty()) {
+        float width_scale = _screen_size.x / _aspect_ratio.x;
+        float height_scale = _screen_size.y / _aspect_ratio.y;
+        float scale_factor = std::min(width_scale, height_scale);
+        _target_scale = Vec2(scale_factor, scale_factor);
+        _target_pos = _center_of_screen - _video_size.mul(_target_scale) / 2;
+        
+        return;
+    }
+
+    // Compute the bounding box and its center of mass
+    float min_x = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::min();
+    float min_y = std::numeric_limits<float>::max();
+    float max_y = std::numeric_limits<float>::min();
+
+    Vec2 sum_of_points(0.0f, 0.0f);
+    for (const auto& point : _target_points) {
+        min_x = std::min(min_x, point.x);
+        max_x = std::max(max_x, point.x);
+        min_y = std::min(min_y, point.y);
+        max_y = std::max(max_y, point.y);
+        sum_of_points = sum_of_points + point;
+    }
+    
+    Bounds bounding_box(Vec2(min_x, min_y), Size2(max_x - min_x + 1, max_y - min_y + 1));
+    if(bounding_box.width < _max_zoom.x) {
+        auto diff = _max_zoom.x - bounding_box.width;
+        bounding_box.x -= diff / 2;
+        bounding_box.width = _max_zoom.x;
+    }
+    if(bounding_box.height < _max_zoom.y) {
+        auto diff = _max_zoom.y - bounding_box.height;
+        bounding_box.y -= diff / 2;
+        bounding_box.height = _max_zoom.y;
+    }
+    
+    Vec2 theory_scale = _screen_size.div(bounding_box.size());
+    auto o = _screen_size.div(theory_scale).max() * 0.1;
+    bounding_box << bounding_box.pos() - o;
+    bounding_box << bounding_box.size() + o * 2;
+    
+    // Find the required scaling factor, but don't exceed the max zoom
+    Vec2 scale_required = _screen_size.div(bounding_box.size());
+    Vec2 new_target_scale = Vec2( scale_required.min(), scale_required.min() );
+
+    // Update the target scale
+    _target_scale = new_target_scale;
+
+    // Calculate the target position
+    _target_pos = _center_of_screen - bounding_box.center().mul(_target_scale);
+}
+
+void Bowl::update_blobs(const Frame_t& frame) {
+    const auto mode = GUI_SETTINGS(gui_mode);
+    const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
+    
+    bool draw_blobs_separately = true;
+    if(draw_blobs_separately)
+    {
+        if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
+           && _cache->tracked_frames.contains(frame))
+        {
+            for(auto &&[k,fish] : _cache->_fish_map) {
+                auto obj = fish->shadow();
+                if(obj)
+                    advance_wrap(*obj);
+            }
+        }
+        
+        if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
+            for(auto & [b, ptr] : _cache->display_blobs) {
+                //if(blob_fish.find(b->blob_id()) == blob_fish.end())
+                {
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
+                    if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
+                    {
+                        ptr->ptr->tag(Effects::blur);
+                    }
+#endif
+#endif
+                    advance_wrap(*(ptr->ptr));
+                }
+            }
+            
+        } else {
+            for(auto &[b, ptr] : _cache->display_blobs) {
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
+                if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
+                {
+                    ptr->ptr->untag(Effects::blur);
+                }
+#endif
+#endif
+                advance_wrap(*(ptr->ptr));
+            }
+        }
+        
+    } else if(draw_blobs
+              && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
+              && _cache->tracked_frames.contains(frame))
+    {
+        for(auto &&[k,fish] : _cache->_fish_map) {
+            auto obj = fish->shadow();
+            if(obj)
+                advance_wrap(*obj);
+        }
+    }
+}
+
+void Bowl::update(Frame_t frame, DrawStructure &graph, const Size2& window_size) {
+    update([this, &frame, &graph, window_size](auto&) {
+        add<Circle>(LineClr{Red}, Loc{}, Radius{10});
+        
+        auto props = Tracker::properties(frame);
+        if(not props)
+            return;
+        
+        update_blobs(frame);
+        advance_wrap(_vf_widget);
+        
+        set_of_individuals_t source;
+        if(Tracker::has_identities() && GUI_SETTINGS(gui_show_inactive_individuals))
+        {
+            for(auto [id, fish] : _cache->individuals)
+                source.insert(fish);
+            //! TODO: Tracker::identities().count(id) ?
+            
+        } else {
+            for(auto fish : _cache->active)
+                source.insert(fish);
+        }
+        
+        for (auto& fish : (source.empty() ? _cache->active : source)) {
+            if (fish->empty()
+                || fish->start_frame() > frame)
+                continue;
+
+            auto segment = fish->segment_for(frame);
+            if (!GUI_SETTINGS(gui_show_inactive_individuals)
+                && (!segment || (segment->end() != Tracker::end_frame()
+                    && segment->length().get() < (long_t)GUI_SETTINGS(output_min_frames))))
+            {
+                continue;
+            }
+
+            /*auto it = container->map().find(fish);
+            if (it != container->map().end())
+                empty_map = &it->second;
+            else
+                empty_map = NULL;*/
+
+            if (_cache->_fish_map.find(fish) == _cache->_fish_map.end()) {
+                _cache->_fish_map[fish] = std::make_unique<gui::Fish>(*fish);
+                fish->register_delete_callback(_cache->_fish_map[fish].get(), [&graph, this](Individual* f) {
+                    std::lock_guard guard(graph.lock());
+
+                    auto it = _cache->_fish_map.find(f);
+                    if (it != _cache->_fish_map.end()) {
+                        _cache->_fish_map.erase(f);
+                    }
+                    _cache->set_tracking_dirty();
+                });
+            }
+
+            _cache->_fish_map[fish]->set_data(frame, props->time, nullptr);
+
+            {
+                std::unique_lock guard(Categorize::DataStore::cache_mutex());
+                _cache->_fish_map[fish]->update(window_size, this, *this, graph);
+            }
+            //base.wrap_object(*PD(cache)._fish_map[fish]);
+            //PD(cache)._fish_map[fish]->label(ptr, e);
+        }
+        
+        
+        for(auto &target : _target_points) {
+            add<Circle>(FillClr{Cyan}, Radius{10}, Origin{0.5}, Loc{target});
+        }
+    });
+}
+
+void Bowl::update() {
+    if(not content_changed())
+        return;
+    
+    const auto dt = saturate(_timer.elapsed(), 0.001, 0.1);
+    
+    const float lerp_speed = 3.0f;
+    float lerp_factor = 1.0f - std::exp(-lerp_speed * dt);
+
+    _current_pos = _current_pos + (_target_pos - _current_pos) * lerp_factor;
+    _current_scale = _current_scale + (_target_scale - _current_scale) * lerp_factor;
+
+    _current_size = _current_size + (_video_size.mul(_current_scale) - _current_size) * lerp_factor;
+    
+    set_scale(_current_scale);
+    set_pos(_current_pos);
+    _timer.reset();
+    
+    set_content_changed(not _current_pos.Equals(_target_pos)
+                        || not _current_scale.Equals(_target_scale)
+                        || not _current_size.Equals(_video_size.mul(_current_scale)));
+}
+
+void Bowl::set_max_zoom_size(const Vec2& max_zoom) {
+    _max_zoom = max_zoom;
+}
+
+TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>&& stages)
+    : video(std::move(video)),
+      tracker(std::move(average), video),
+      analysis(std::move(stages)),
+      pool(4u, "preprocess_main")
+{
+    gpuMat bg;
+    video.average().copyTo(bg);
+    video.processImage(bg, bg, false);
+    cv::Mat original;
+    bg.copyTo(original);
+    
+    _background = std::make_unique<AnimatedBackground>(Image::Make(original));
+    
+    _background->add_event_handler(EventType::MBUTTON, [this](Event e){
+        if(e.mbutton.pressed) {
+            if(_clicked_background)
+                _clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
+            else
+                print("Clicked, but nobody is around.");
+        }
+    });
+    
+    if(video.has_mask()) {
+        cv::Mat mask = video.mask().mul(cv::Scalar(255));
+        mask.convertTo(mask, CV_8UC1);
+        _gui_mask = std::make_unique<ExternalImage>(Image::Make(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
+    }
+}
 
 TrackingScene::TrackingScene(Base& window)
 : Scene(window, "tracking-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     print("window dimensions", window.window_dimensions().mul(dpi));
+}
+
+bool TrackingScene::on_global_event(Event event) {
+    if(event.type == EventType::KEY) {
+        if(not event.key.pressed)
+            return true;
+        
+        switch (event.key.code) {
+            case Keyboard::Escape:
+                SETTING(terminate) = true;
+                break;
+            case Keyboard::Space:
+                SETTING(gui_run) = not SETTING(gui_run).value<bool>();
+                break;
+            case Keyboard::M:
+                next_poi(Idx_t());
+                break;
+            case Keyboard::N:
+                prev_poi(Idx_t());
+                break;
+            default:
+                break;
+        }
+        return true;
+    }
+    return false;
 }
 
 bool TrackingScene::stage_0(ConnectedTasks::Type && ptr) {
@@ -92,6 +509,8 @@ bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
         
         if(idx + 1_f == _data->video.length())
             _data->please_stop_analysis = true;
+        
+        //print(_data->tracker.active_individuals(idx));
 
         /*{
             std::lock_guard lock(data_mutex);
@@ -225,7 +644,9 @@ void TrackingScene::init_video() {
     }
     
     bool executed_a_settings{false};
-    pv::File video(file::DataLocation::parse("input", SETTING(source).value<file::PathArray>().source()), pv::FileMode::READ);
+    file::Path filename = file::DataLocation::parse("input", SETTING(source).value<file::PathArray>().source());
+    SETTING(filename) = filename.remove_extension();
+    pv::File video(filename, pv::FileMode::READ);
     
     if(video.header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
@@ -300,29 +721,21 @@ void TrackingScene::init_video() {
 
 void TrackingScene::activate() {
     using namespace dyn;
-    for(size_t i=0; i<1000; ++i) {
-        sprite::Map map;
-        map.set_do_print(false);
-        map["i"] = i;
-        map["pos"] = Vec2(100, 100 + i * 10);
-        map["name"] = std::string("Text");
-        map["detail"] = std::string("detail");
-        map["radius"] = float(rand()) / float(RAND_MAX) * 50 + 50;
-        map["angle"] = float(rand()) / float(RAND_MAX) * RADIANS(180);
-        map["acceleration"] = Vec2();
-        map["velocity"] = Vec2();
-        map["angular_velocity"] = float(0);
-        map["mass"] = float(rand()) / float(RAND_MAX) * 1 + 0.1f;
-        map["inertia"] = float(rand()) / float(RAND_MAX) * 1 + 0.1f;
-        map.set_do_print(false);
-        _fish_data.emplace_back(std::move(map));
-        
-        _individuals.emplace_back(new Variable([i, this](VarProps) -> sprite::Map& {
-            return _fish_data.at(i);
-        }));
-    }
     
     init_video();
+    
+    _data->_callback = GlobalSettings::map().register_callbacks({
+        "gui_focus_group",
+        "gui_run"
+        
+    }, [this](std::string_view key) {
+        if(key == "gui_focus_group" && _data->_bowl)
+            _data->_bowl->_screen_size = Vec2();
+        else if(key == "gui_run") {
+            
+        }
+        
+    });
     
     for (auto i=0_f; i<cache_size; ++i)
         _data->unused.emplace(std::make_unique<PPFrame>(_data->tracker.average().bounds().size()));
@@ -390,128 +803,369 @@ void TrackingScene::deactivate() {
     _data = nullptr;
 }
 
-void TrackingScene::_draw(DrawStructure& graph) {
-    static Timer timer;
-    auto dt = saturate(timer.elapsed(), 0.001, 0.1);
+void TrackingScene::update_display_blobs(bool draw_blobs) {
+    if((_data->_cache->raw_blobs_dirty() || _data->_cache->display_blobs.size() != _data->_cache->raw_blobs.size()) && draw_blobs)
+    {
+        static std::mutex vector_mutex;
+        auto screen_bounds = Bounds(Vec2(), window_size);
+        //auto copy = PD(cache).display_blobs;
+        size_t gpixels = 0;
+        double gaverage_pixels = 0, gsamples = 0;
+        
+        distribute_indexes([&](auto, auto start, auto end, auto){
+            std::unordered_map<pv::bid, SimpleBlob*> map;
+            //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
+            
+            const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            const bool tags_dont_track = SETTING(tags_dont_track).value<bool>();
+            size_t pixels = 0;
+            double average_pixels = 0, samples = 0;
+            
+            for(auto it = start; it != end; ++it) {
+                if(!*it || (tags_dont_track && (*it)->blob->is_tag())) {
+                    continue;
+                }
+                
+                //bool found = copy.count((*it)->blob.get());
+                //if(!found) {
+                    //auto bds = bowl.transformRect((*it)->blob->bounds());
+                    //if(bds.overlaps(screen_bounds))
+                    //{
+                if(!gui_show_only_unassigned ||
+                   (!_data->_cache->display_blobs.contains((*it)->blob->blob_id()) && !contains(_data->_cache->active_blobs, (*it)->blob->blob_id())))
+                {
+                    (*it)->convert();
+                    //vector.push_back((*it)->convert());
+                    map[(*it)->blob->blob_id()] = it->get();
+                }
+                    //}
+                //}
+                
+                pixels += (*it)->blob->num_pixels();
+                average_pixels += (*it)->blob->num_pixels();
+                ++samples;
+            }
+            
+            std::lock_guard guard(vector_mutex);
+            gpixels += pixels;
+            gaverage_pixels += average_pixels;
+            gsamples += samples;
+            _data->_cache->display_blobs.insert(map.begin(), map.end());
+            //std::move(vector.begin(), vector.end(), std::back_inserter(PD(cache).display_blobs_list));
+            //PD(cache).display_blobs_list.insert(PD(cache).display_blobs_list.end(), vector.begin(), vector.end());
+            
+        }, _data->pool, _data->_cache->raw_blobs.begin(), _data->_cache->raw_blobs.end());
+        
+        _data->_cache->_current_pixels = gpixels;
+        _data->_cache->_average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
+        _data->_cache->updated_raw_blobs();
+    }
+}
+
+void TrackingScene::set_frame(Frame_t frame) {
+    if(frame <= _data->video.length()) {
+        SETTING(gui_frame) = frame;
+        
+        if(_data->_cache) {
+            _data->_cache->update_data(frame);
+            
+            using namespace dyn;
+            
+            const auto mode = GUI_SETTINGS(gui_mode);
+            const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
+            update_display_blobs(draw_blobs);
+            
+            _individuals.resize(_data->_cache->raw_blobs.size());
+            _fish_data.resize(_individuals.size());
+            for(size_t i=0; i<_data->_cache->raw_blobs.size(); ++i) {
+                auto &var = _individuals[i];
+                if(not var)
+                    var = std::unique_ptr<VarBase_t>(new Variable([i, this](VarProps) -> sprite::Map& {
+                        return _fish_data.at(i);
+                    }));
+                
+                auto &map = _fish_data.at(i);
+                auto &fish = _data->_cache->raw_blobs[i];
+                map["pos"] = Vec2(fish->blob->bounds().pos());
+            }
+        }
+    }
+}
+
+void TrackingScene::update_run_loop() {
+    //if(!recording())
+    if(not _data || not _data->_cache)
+        return;
     
+    _data->_cache->set_dt(last_redraw.elapsed());
+    last_redraw.reset();
+    //else
+    //    _data->_cache->set_dt(0.75f / (float(GUI_SETTINGS(frame_rate))));
+    
+    if(not GUI_SETTINGS(gui_run))
+        return;
+    
+    const auto dt = _data->_cache->dt();
+    const double frame_rate = GUI_SETTINGS(frame_rate);
+    
+    Frame_t index = GUI_SETTINGS(gui_frame);
+    _data->_time_since_last_frame += dt;
+    
+    double advances = _data->_time_since_last_frame * frame_rate;
+    if(advances >= 1) {
+        index += Frame_t(uint(advances));
+        if(index >= _data->video.length())
+            index = _data->video.length().try_sub(1_f);
+        set_frame(index);
+        _data->_time_since_last_frame = 0;
+    }
+}
+
+void TrackingScene::_draw(DrawStructure& graph) {
     using namespace dyn;
     if(not dynGUI)
-        dynGUI = {
-            .path = "tracking_layout.json",
-            .graph = &graph,
-            .context = {
-                ActionFunc("set", [](Action action) {
-                    if(action.parameters.size() != 2)
-                        throw InvalidArgumentException("Invalid number of arguments for action: ",action);
-                    
-                    auto parm = Meta::fromStr<std::string>(action.parameters.front());
-                    if(not GlobalSettings::has(parm))
-                        throw InvalidArgumentException("No parameter ",parm," in global settings.");
-                    
-                    auto value = action.parameters.back();
-                    GlobalSettings::get(parm).get().set_value_from_string(value);
-                }),
-                ActionFunc("change_scene", [](Action action) {
-                    if(action.parameters.empty())
-                        throw U_EXCEPTION("Invalid arguments for ", action, ".");
-
-                    auto scene = Meta::fromStr<std::string>(action.parameters.front());
-                    if(not SceneManager::getInstance().is_scene_registered(scene))
-                        return false;
-                    SceneManager::getInstance().set_active(scene);
-                    return true;
-                }),
-                
-                VarFunc("window_size", [this](VarProps) -> Vec2 {
-                    return window_size;
-                }),
-                
-                VarFunc("fishes", [this](VarProps)
-                    -> std::vector<std::shared_ptr<VarBase_t>>&
-                {
-                    return _individuals;
-                }),
-                
-                VarFunc("tracker", [this](VarProps) -> auto& {
-                    static sprite::Map map = [](){
-                        sprite::Map map;
-                        map.set_do_print(false);
-                        return map;
-                    }();
-                    static Range<Frame_t> last;
-                    Range<Frame_t> current{ _data->tracker.start_frame(), _data->tracker.end_frame() };
-                    if(current != last) {
-                        map["range"] = current;
-                        last = current;
-                    }
-                    return map;
-                })
-            }
-        };
+        dynGUI = init_gui(graph);
     
-    //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
-    auto max_w = window()->window_dimensions().width * 0.65;
-    window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height);
-    element_size = Size2((window()->window_dimensions().width - max_w - 50), window()->window_dimensions().height - 25 - 50);
+    update_run_loop();
+    
+    {
+        uint64_t last_change = FOI::last_change();
+        auto name = SETTING(gui_foi_name).value<std::string>();
+
+        if (last_change != _data->_foi_state.last_change || name != _data->_foi_state.name) {
+            _data->_foi_state.name = name;
+
+            if (!_data->_foi_state.name.empty()) {
+                long_t id = FOI::to_id(_data->_foi_state.name);
+                if (id != -1) {
+                    _data->_foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
+                    _data->_foi_state.color = FOI::color(_data->_foi_state.name);
+                }
+            }
+
+            _data->_foi_state.last_change = last_change;
+        }
+    }
+    
+    auto gui_scale = graph.scale();
+    if(gui_scale.x == 0)
+        gui_scale = Vec2(1);
+    window_size = window()->window_dimensions().div(gui_scale) * gui::interface_scale();
+    //window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height).div(((IMGUIBase*)window())->dpi_scale()) * gui::interface_scale();
+    
+    if(not _data->_cache) {
+        _data->_cache = std::make_unique<GUICache>(&graph, &_data->video);
+        _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
+        _data->_bowl->set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
+        _data->_bowl->fit_to_screen(window_size);
+        _data->_vf_widget = std::make_unique<VisualFieldWidget>(_data->_cache.get());
+    }
+    
+    std::vector<Vec2> targets;
+    if(_data->_cache->has_selection() 
+       && not graph.is_key_pressed(Keyboard::LShift))
+    {
+        for(auto fdx : _data->_cache->selected) {
+            if(not _data->_cache->fish_selected_blobs.contains(fdx))
+                continue;
+            
+            auto bdx = _data->_cache->fish_selected_blobs.at(fdx);
+            for(auto &blob: _data->_cache->raw_blobs) {
+                if(blob->blob->blob_id() == bdx || blob->blob->parent_id() == bdx) {
+                    auto& bds = blob->blob->bounds();
+                    targets.push_back(bds.pos());
+                    targets.push_back(bds.pos() + bds.size());
+                    targets.push_back(bds.pos() + bds.size().mul(0, 1));
+                    targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                    break;
+                }
+            }
+        }
+    }
+    //_data->_bowl.set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
+    _data->_bowl->fit_to_screen(window_size);
+    _data->_bowl->set_target_focus(targets);
+    _data->_bowl->set_content_changed(true);
+    
+    if(LockGuard guard(ro_t{}, "Update Gui", 100); guard.locked())
+        _data->_bowl->update(_data->_cache->frame_idx, graph, window_size);
+    
+    //_data->_bowl.auto_size({});
+    _data->_bowl->set(LineClr{Cyan});
+    //_data->_bowl.set(FillClr{Yellow});
+    
+    auto alpha = SETTING(gui_background_color).value<Color>().a;
+    _data->_background->set_color(Color(255, 255, 255, alpha ? alpha : 1));
+    
+    if(alpha > 0) {
+        graph.wrap_object(*_data->_background);
+        /*if(PD(gui_mask)) {
+            PD(gui_mask)->set_color(PD(background)->color().alpha(PD(background)->color().a * 0.5));
+            PD(gui).wrap_object(*PD(gui_mask));
+        }*/
+        _data->_background->set_scale(_data->_bowl->scale());
+        _data->_background->set_pos(_data->_bowl->pos());
+    }
+    
+    graph.wrap_object(*_data->_bowl);
     
     dynGUI.update(nullptr);
-    
-    const float target_angular_velocity = 0.01f * 2.0f * static_cast<float>(M_PI);
-    auto mouse_position = graph.mouse_position();
-    float time_factor = 0.5f; // Smaller values make the system more 'inertial', larger values make it more 'responsive'
-    const float linear_damping = 0.95f;  // Close to 1: almost no damping, close to 0: strong damping
-    const float angular_damping = 0.95f;
-    
-    /*for(auto &i : _data) {
-        auto v = i["pos"].value<Vec2>();
-        auto velocity = i["velocity"].value<Vec2>();
-        auto radius = i["radius"].value<float>();
-        auto angle = i["angle"].value<float>();
-        auto angular_velocity = i["angular_velocity"].value<float>();
-        auto mass = i["mass"].value<float>();
-        auto inertia = i["inertia"].value<float>();
-        
-        // Apply damping
-        velocity *= linear_damping;
-        angular_velocity *= angular_damping;
-
-        // Calculate new target angle based on mouse position
-        float dx = mouse_position.x - v.x;
-        float dy = mouse_position.y - v.y;
-        float target_angle = atan2(dy, dx);
-        
-        // Calculate angular direction
-        float angular_direction = target_angle - angle;
-
-        // Update angular acceleration, angular_velocity and angle
-        float angular_acceleration = angular_direction / inertia;
-        angular_velocity += angular_acceleration * dt;
-        angle += angular_velocity * dt;
-
-        // Ensure angle is within bounds
-        while (angle > 2.0f * static_cast<float>(M_PI)) {
-            angle -= 2.0f * static_cast<float>(M_PI);
-        }
-
-        // Calculate new target position
-        float target_x = mouse_position.x + cos(angle) * radius;
-        float target_y = mouse_position.y + sin(angle) * radius;
-        Vec2 target(target_x, target_y);
-
-        // Calculate direction and update linear acceleration, velocity and position
-        Vec2 direction = target - v;
-        Vec2 acceleration = direction / mass;
-        velocity += acceleration * dt;
-        v += velocity * dt;
-
-        // Update the attributes
-        i["pos"] = v;
-        i["velocity"] = velocity;
-        i["angle"] = angle;
-        i["angular_velocity"] = angular_velocity;
-    }*/
-    timer.reset();
     graph.root().set_dirty();
+}
+
+void TrackingScene::next_poi(Idx_t _s_fdx) {
+    auto frame = _data->_cache->frame_idx;
+    auto next_frame = frame;
+    std::set<FOI::fdx_t> fdx;
+    
+    {
+        for(const FOI& foi : _data->_foi_state.changed_frames) {
+            if(_s_fdx.valid()) {
+                if(not foi.fdx().contains(FOI::fdx_t(_s_fdx)))
+                    continue;
+            }
+            
+            if(not frame.valid() || foi.frames().start > frame) {
+                next_frame = foi.frames().start;
+                fdx = foi.fdx();
+                break;
+            }
+        }
+    }
+    
+    if(frame != next_frame && next_frame.valid()) {
+        set_frame(next_frame);
+        
+        if(!_s_fdx.valid())
+        {
+            if(!fdx.empty()) {
+                _data->_cache->deselect_all();
+                for(auto id : fdx) {
+                    if(!_data->_cache->is_selected(Idx_t(id.id)))
+                        _data->_cache->do_select(Idx_t(id.id));
+                }
+            }
+        }
+    }
+}
+
+void TrackingScene::prev_poi(Idx_t _s_fdx) {
+    auto frame = _data->_cache->frame_idx;
+    auto next_frame = frame;
+    std::set<FOI::fdx_t> fdx;
+    
+    {
+        for(const FOI& foi : _data->_foi_state.changed_frames) {
+            if(_s_fdx.valid()) {
+                if(not foi.fdx().contains(FOI::fdx_t(_s_fdx)))
+                    continue;
+            }
+            
+            if(not frame.valid() || foi.frames().end < frame) {
+                next_frame = foi.frames().end;
+                fdx = foi.fdx();
+                break;
+            }
+        }
+    }
+    
+    if(frame != next_frame && next_frame.valid()) {
+        set_frame(next_frame);
+        
+        if(!_s_fdx.valid())
+        {
+            if(!fdx.empty()) {
+                _data->_cache->deselect_all();
+                for(auto id : fdx) {
+                    if(!_data->_cache->is_selected(Idx_t(id.id)))
+                        _data->_cache->do_select(Idx_t(id.id));
+                }
+            }
+        }
+    }
+}
+
+dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
+    using namespace dyn;
+    return {
+        .path = "tracking_layout.json",
+        .graph = &graph,
+        .context = {
+            ActionFunc("set", [this](Action action) {
+                if(action.parameters.size() != 2)
+                    throw InvalidArgumentException("Invalid number of arguments for action: ",action);
+                
+                auto parm = Meta::fromStr<std::string>(action.parameters.front());
+                if(not GlobalSettings::has(parm))
+                    throw InvalidArgumentException("No parameter ",parm," in global settings.");
+                
+                auto value = action.parameters.back();
+                
+                if(parm == "gui_frame") {
+                    set_frame(Meta::fromStr<Frame_t>(value));
+                } else
+                    GlobalSettings::get(parm).get().set_value_from_string(value);
+            }),
+            ActionFunc("change_scene", [](Action action) {
+                if(action.parameters.empty())
+                    throw U_EXCEPTION("Invalid arguments for ", action, ".");
+
+                auto scene = Meta::fromStr<std::string>(action.parameters.front());
+                if(not SceneManager::getInstance().is_scene_registered(scene))
+                    return false;
+                SceneManager::getInstance().set_active(scene);
+                return true;
+            }),
+            
+            VarFunc("window_size", [this](VarProps) -> Vec2 {
+                return window_size;
+            }),
+            
+            VarFunc("fishes", [this](VarProps)
+                -> std::vector<std::shared_ptr<VarBase_t>>&
+            {
+                return _individuals;
+            }),
+            
+            VarFunc("consec", [this](VarProps props) -> auto& {
+                auto consec = _data->tracker.global_segment_order();
+                static std::vector<sprite::Map> segments;
+                static std::vector<std::shared_ptr<VarBase_t>> variables;
+                segments.clear();
+                variables.clear();
+                
+                ColorWheel wheel;
+                for(size_t i=0; i<3 && i < consec.size(); ++i) {
+                    sprite::Map map;
+                    map.set_do_print(false);
+                    map["color"] = wheel.next();
+                    map["from"] = consec.at(i).start;
+                    map["to"] = consec.at(i).end + 1_f;
+                    segments.emplace_back(std::move(map));
+                    variables.emplace_back(new Variable([i, this](VarProps) -> sprite::Map& {
+                        return segments.at(i);
+                    }));
+                }
+                
+                return variables;
+            }),
+            
+            VarFunc("tracker", [this](VarProps) -> auto& {
+                static sprite::Map map = [](){
+                    sprite::Map map;
+                    map.set_do_print(false);
+                    return map;
+                }();
+                static Range<Frame_t> last;
+                Range<Frame_t> current{ _data->tracker.start_frame(), _data->tracker.end_frame() };
+                if(current != last) {
+                    map["range"] = current;
+                    last = current;
+                }
+                return map;
+            })
+        }
+    };
 }
 
 }

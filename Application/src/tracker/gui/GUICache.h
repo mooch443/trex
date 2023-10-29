@@ -76,6 +76,7 @@ namespace gui {
         GenericThreadPool _pool;
 
     public:
+        Size2 _video_resolution;
         int last_threshold = -1;
         Frame_t last_frame;
         Bounds boundary;
@@ -133,6 +134,8 @@ namespace gui {
     protected:
         ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
         std::set<Idx_t> checked_probs;
+        std::unique_ptr<std::thread> percentile_ptr;
+        std::mutex percentile_mutex;
         
     public:
         std::unordered_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;

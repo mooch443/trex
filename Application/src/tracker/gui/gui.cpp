@@ -1693,7 +1693,6 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         source.insert(fish);
                 }
                 
-                
                 if(PD(cache).has_selection() && SETTING(gui_show_visualfield)) {
                     for(auto id : PD(cache).selected) {
                         auto fish = PD(cache).individuals.at(id);
@@ -1758,7 +1757,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
-                                PD(cache)._fish_map[fish]->update(best_base(), ptr, e, base);
+                                PD(cache)._fish_map[fish]->update(screen_dimensions(), ptr, e, base);
                             }
                             //base.wrap_object(*PD(cache)._fish_map[fish]);
                             //PD(cache)._fish_map[fish]->label(ptr, e);
@@ -2891,7 +2890,9 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
         if(draw_blobs_separately) {
             if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && PD(cache).tracked_frames.contains(frame())) {
                 for(auto &&[k,fish] : PD(cache)._fish_map) {
-                    fish->shadow(base);
+                    auto obj = fish->shadow();
+                    if(obj)
+                        base.wrap_object(*obj);
                 }
             }
             
@@ -2939,7 +2940,9 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             
         } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && PD(cache).tracked_frames.contains(frame())) {
             for(auto &&[k,fish] : PD(cache)._fish_map) {
-                fish->shadow(base);
+                auto obj = fish->shadow();
+                if(obj)
+                    base.wrap_object(*obj);
             }
         }
     });
