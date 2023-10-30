@@ -14,7 +14,7 @@ using namespace dyn;
 // Unit Tests
 TEST(ParseText, BasicReplacement) {
     Context context{
-        VarFunc("variable", [](VarProps) -> std::string { return "mocked_value"; })
+        VarFunc("variable", [](const VarProps&) -> std::string { return "mocked_value"; })
     };
     std::string result = parse_text("{variable}", context);
     ASSERT_EQ(result, "mocked_value");
@@ -28,9 +28,9 @@ TEST(ParseText, NoReplacement) {
 
 TEST(ParseText, NestedReplacement) {
     Context context{
-        VarFunc("variable_inner_variable", [](VarProps) -> std::string { return "mocked_value"; }),
-        VarFunc("inner_variable", [](VarProps) -> std::string { return "inner"; }),
-        VarFunc("variable_inner", [](VarProps) -> std::string { return "correct"; })
+        VarFunc("variable_inner_variable", [](const VarProps&) -> std::string { return "mocked_value"; }),
+        VarFunc("inner_variable", [](const VarProps&) -> std::string { return "inner"; }),
+        VarFunc("variable_inner", [](const VarProps&) -> std::string { return "correct"; })
     };
     std::string result = parse_text("{variable_{inner_variable}}", context);
     ASSERT_EQ(result, "correct");
@@ -44,7 +44,7 @@ TEST(ParseText, EscapeCharacters) {
 
 TEST(ParseText, SpecialTypeSize2) {
     Context context{
-        VarFunc("size2_var", [](VarProps) -> Size2 { return Size2(10, 5); })
+        VarFunc("size2_var", [](const VarProps&) -> Size2 { return Size2(10, 5); })
     };
     std::string result = parse_text("{size2_var.w}", context);
     ASSERT_EQ(result, "10");
@@ -52,7 +52,7 @@ TEST(ParseText, SpecialTypeSize2) {
 
 TEST(ParseText, SpecialTypeVec2) {
     Context context{
-        VarFunc("vec2_var", [](VarProps) -> Vec2 { return Vec2(10, 5); })
+        VarFunc("vec2_var", [](const VarProps&) -> Vec2 { return Vec2(10, 5); })
     };
     std::string result = parse_text("{vec2_var.x}", context);
     ASSERT_EQ(result, "10");
@@ -60,7 +60,7 @@ TEST(ParseText, SpecialTypeVec2) {
 
 TEST(ParseText, HtmlifySyntax) {
     Context context{
-        VarFunc("html_var", [](VarProps) -> std::string {
+        VarFunc("html_var", [](const VarProps&) -> std::string {
             return "classname::value<int>(parm)\n`https://address/`";
         })
     };
@@ -70,7 +70,7 @@ TEST(ParseText, HtmlifySyntax) {
 
 TEST(ParseText, ExceptionHandling) {
     Context context{
-        VarFunc("exception_var", [](VarProps) -> std::string {
+        VarFunc("exception_var", [](const VarProps&) -> std::string {
             throw std::runtime_error("An exception");
             return "should not reach here";
         })
@@ -81,7 +81,7 @@ TEST(ParseText, ExceptionHandling) {
 
 TEST(ParseText, PerformanceTest) {
     Context context{
-        VarFunc("very_long_variable", [](VarProps) -> std::string {
+        VarFunc("very_long_variable", [](const VarProps&) -> std::string {
             return "very long mocked value";
         })
     };
@@ -134,7 +134,7 @@ TEST(ParseText, TrailingBackslashes) {
 
 TEST(ParseText, InvalidTypeUsage) {
     Context context{
-        VarFunc("variable", [](VarProps props) -> std::string {
+        VarFunc("variable", [](const VarProps& props) -> std::string {
                 if(not props.subs.empty())
                     throw InvalidArgumentException("Variable has no fields: ", props.subs);
                 return "mocked_value";
@@ -151,9 +151,9 @@ TEST(ParseText, EmptyVariableName) {
 
 TEST(ParseText, AddVectorTest) {
     Context context{
-        VarFunc("frame", [](VarProps) -> int { return 5;}),
-        VarFunc("video_length", [](VarProps) -> int { return 50; }),
-        VarFunc("window_size", [](VarProps) -> Size2 { return Size2(100, 20); })
+        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
+        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
     };
 
     std::string result = parse_text("{addVector:[{*:{/:{frame}:{video_length}}:{+:{window_size.w}:-30}},10]:[10,0]}", context);
@@ -162,9 +162,9 @@ TEST(ParseText, AddVectorTest) {
 
 TEST(ParseText, NestedOperations) {
     Context context{
-        VarFunc("frame", [](VarProps) -> int { return 5;}),
-        VarFunc("video_length", [](VarProps) -> int { return 50; }),
-        VarFunc("window_size", [](VarProps) -> Size2 { return Size2(100, 20); })
+        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
+        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
     };
 
     std::string result = parse_text("{*:{/:{frame}:{video_length}}:{+:{window_size.w}:-30}}", context);
@@ -173,9 +173,9 @@ TEST(ParseText, NestedOperations) {
 
 TEST(ParseText, MultipleNestedOperations) {
     Context context{
-        VarFunc("frame", [](VarProps) -> int { return 5;}),
-        VarFunc("video_length", [](VarProps) -> int { return 50; }),
-        VarFunc("window_size", [](VarProps) -> Size2 { return Size2(100, 20); })
+        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
+        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
     };
 
     std::string result = parse_text("{*: {+: {frame}:{video_length}}: {/: {window_size.w} : {video_length}}}", context);
@@ -184,9 +184,9 @@ TEST(ParseText, MultipleNestedOperations) {
 
 TEST(ParseText, InvalidNestedOperation) {
     Context context{
-        VarFunc("frame", [](VarProps) -> int { return 5;}),
-        VarFunc("video_length", [](VarProps) -> int { return 50; }),
-        VarFunc("window_size", [](VarProps) -> Size2 { return Size2(100, 20); })
+        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
+        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
     };
 
     auto str = parse_text("{*: {+: {invalid}:{video_length}}: {/: {window_size.x} : {video_length}}}", context);

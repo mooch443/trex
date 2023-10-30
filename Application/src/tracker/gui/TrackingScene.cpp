@@ -909,7 +909,7 @@ void TrackingScene::set_frame(Frame_t frame) {
             for(size_t i=0; i<_data->_cache->raw_blobs.size(); ++i) {
                 auto &var = _individuals[i];
                 if(not var)
-                    var = std::unique_ptr<VarBase_t>(new Variable([i, this](VarProps) -> sprite::Map& {
+                    var = std::unique_ptr<VarBase_t>(new Variable([i, this](const VarProps&) -> sprite::Map& {
                         return _fish_data.at(i);
                     }));
                 
@@ -1018,7 +1018,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl.set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
     _data->_bowl->fit_to_screen(window_size);
     _data->_bowl->set_target_focus(targets);
-    _data->_bowl->set_content_changed(true);
+    //_data->_bowl->set_content_changed(true);
     
     if(LockGuard guard(ro_t{}, "Update Gui", 100); guard.locked())
         _data->_bowl->update(_data->_cache->frame_idx, graph, window_size);
@@ -1047,7 +1047,11 @@ void TrackingScene::_draw(DrawStructure& graph) {
     graph.section("loading", [this](DrawStructure& base, auto section) {
         WorkProgress::update(base, section, window_size);
     });
-    graph.root().set_dirty();
+    //graph.root().set_dirty();
+    
+    if(not graph.root().is_dirty())
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    //print("dirty = ", graph.root().is_dirty());
 }
 
 void TrackingScene::next_poi(Idx_t _s_fdx) {
@@ -1154,40 +1158,43 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 return true;
             }),
             
-            VarFunc("window_size", [this](VarProps) -> Vec2 {
+            VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                 return window_size;
             }),
             
-            VarFunc("fishes", [this](VarProps)
+            VarFunc("fishes", [this](const VarProps&)
                 -> std::vector<std::shared_ptr<VarBase_t>>&
             {
                 return _individuals;
             }),
             
-            VarFunc("consec", [this](VarProps props) -> auto& {
+            VarFunc("consec", [this](const VarProps& props) -> auto& {
                 auto consec = _data->tracker.global_segment_order();
                 static std::vector<sprite::Map> segments;
                 static std::vector<std::shared_ptr<VarBase_t>> variables;
-                segments.clear();
-                variables.clear();
                 
                 ColorWheel wheel;
                 for(size_t i=0; i<3 && i < consec.size(); ++i) {
-                    sprite::Map map;
-                    map.set_do_print(false);
+                    if(segments.size() <= i) {
+                        segments.emplace_back();
+                        variables.emplace_back(new Variable([i, this](const VarProps&) -> sprite::Map& {
+                            return segments.at(i);
+                        }));
+                        assert(variables.size() == segments.size());
+                    }
+                    
+                    auto& map = segments.at(i);
+                    if(map.do_print())
+                        map.set_do_print(false);
                     map["color"] = wheel.next();
                     map["from"] = consec.at(i).start;
                     map["to"] = consec.at(i).end + 1_f;
-                    segments.emplace_back(std::move(map));
-                    variables.emplace_back(new Variable([i, this](VarProps) -> sprite::Map& {
-                        return segments.at(i);
-                    }));
                 }
                 
                 return variables;
             }),
             
-            VarFunc("tracker", [this](VarProps) -> auto& {
+            VarFunc("tracker", [this](const VarProps&) -> auto& {
                 static sprite::Map map = [](){
                     sprite::Map map;
                     map.set_do_print(false);
@@ -1203,7 +1210,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 return map;
             }),
 
-            VarFunc("key", [this](VarProps) -> auto& {
+            VarFunc("key", [this](const VarProps&) -> auto& {
                 return _data->_keymap;
             })
         }

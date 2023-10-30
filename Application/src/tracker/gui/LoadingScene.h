@@ -89,7 +89,7 @@ protected:
     HorizontalLayout _main_layout;
 
     dyn::Context context {
-        dyn::VarFunc("global", [](VarProps) -> sprite::Map& {
+        dyn::VarFunc("global", [](const VarProps&) -> sprite::Map& {
             return GlobalSettings::map();
         })
     };

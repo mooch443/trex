@@ -20,6 +20,7 @@ StartingScene::StartingScene(Base& window)
 }
 
 void StartingScene::activate() {
+    using namespace dyn;
     // Fill the recent items list
     _recents = RecentItems::read();
     //_recents.show(*_recent_items);
@@ -37,8 +38,8 @@ void StartingScene::activate() {
         tmp["index"] = i;
         _data.push_back(std::move(tmp));
         
-        _recents_list.emplace_back(new dyn::Variable{
-            [i, this](dyn::VarProps) -> sprite::Map& {
+        _recents_list.emplace_back(new Variable{
+            [i, this](const VarProps&) -> sprite::Map& {
                 return _data[i];
             }
         });
@@ -99,23 +100,23 @@ void StartingScene::_draw(DrawStructure& graph) {
                 };
 
                 context.variables = {
-                    VarFunc("recent_items", [this](VarProps) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&{
+                    VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&{
                         return _recents_list;
                     }),
-                    VarFunc("image_scale", [this](VarProps) -> Vec2 {
+                    VarFunc("image_scale", [this](const VarProps&) -> Vec2 {
                         return image_scale;
                     }),
-                    VarFunc("window_size", [this](VarProps) -> Vec2 {
+                    VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                         return window_size;
                     }),
-                    VarFunc("top_right", [this](VarProps) -> Vec2 {
+                    VarFunc("top_right", [this](const VarProps&) -> Vec2 {
                         return Vec2(window_size.width, 0);
                     }),
-                    VarFunc("left_center", [this](VarProps) -> Vec2 {
+                    VarFunc("left_center", [this](const VarProps&) -> Vec2 {
                         return Vec2(window_size.width * 0.4,
                                     window_size.height * 0.4);
                     }),
-                    VarFunc("list_size", [this](VarProps) -> Size2 {
+                    VarFunc("list_size", [this](const VarProps&) -> Size2 {
                         return element_size;
                     })
                 };

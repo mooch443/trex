@@ -59,25 +59,25 @@ menu{
             filter = not filter;
             SETTING(do_filter) = filter;
         }),
-        VarFunc("fps", [](VarProps) {
+        VarFunc("fps", [](const VarProps&) {
             return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
         }),
-        VarFunc("net_fps", [](VarProps) {
+        VarFunc("net_fps", [](const VarProps&) {
             return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
         }),
-        VarFunc("vid_fps", [](VarProps) {
+        VarFunc("vid_fps", [](const VarProps&) {
             return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
         }),
-        VarFunc("fish", [](VarProps) -> sprite::Map& {
+        VarFunc("fish", [](const VarProps&) -> sprite::Map& {
             return fish;
         }),
-        VarFunc("average_is_generating", [this](VarProps) {
+        VarFunc("average_is_generating", [this](const VarProps&) {
             return _segmenter->is_average_generating();
         }),
-        VarFunc("actual_frame", [this](VarProps) {
+        VarFunc("actual_frame", [this](const VarProps&) {
             return _actual_frame;
         }),
-        VarFunc("video", [](VarProps) -> sprite::Map& {
+        VarFunc("video", [](const VarProps&) -> sprite::Map& {
             return _video_info;
         })
     },
@@ -121,7 +121,7 @@ _on_deactivate(on_deactivate)
     _video_info.set_do_print(false);
     fish.set_do_print(false);
 
-    menu.dynGUI.context.variables.emplace("fishes", new Variable([this](dyn::VarProps) -> std::vector<std::shared_ptr<VarBase_t>>&{
+    menu.dynGUI.context.variables.emplace("fishes", new Variable([this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
         return _gui_objects;
     }));
 }
@@ -404,7 +404,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         }
         tmp["p"] = Meta::toStr(assign.p);
         _individual_properties.push_back(std::move(tmp));
-        _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](VarProps) -> sprite::Map& {
+        _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](const VarProps&) -> sprite::Map& {
             return _individual_properties.at(i);
         }));
     }

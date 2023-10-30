@@ -100,7 +100,7 @@ void SettingsScene::_draw(DrawStructure& graph) {
                 ActionFunc("toggle-background-subtraction", [](auto){
                     SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
                 }),
-                VarFunc("settings_summary", [](dyn::VarProps) -> std::string {
+                VarFunc("settings_summary", [](const VarProps&) -> std::string {
                     return std::string(GlobalSettings::map().toStr());
                 })
             }
