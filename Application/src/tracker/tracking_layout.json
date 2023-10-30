@@ -30,18 +30,27 @@
                 "pad":[10,0,0,0],
                 "children":[
                     {
-                        "type":"button",
-                        "action":"set:analysis_paused:{not:{global.analysis_paused}}",
-                        "text":"{if:global.analysis_paused:'<sym>▶</sym>':'<sym>⏸</sym>'}",
-                        "size":[25,25],
-                        "font":{"size":0.8},
-                        "fill":[10,0,0,0],
-                        "line":[10,0,0,0],
-                        "color":"{if:global.analysis_paused:[30,80,30,100]:[200,120,80,100]}"
+                        "type":"condition",
+                        "var":"{equal:{-:{global.video_length}:1}:{tracker.to}}",
+                        "then": {
+                            "type":"rect",
+                            "size":[0,0]
+                        },
+                        "else": {
+                            "type":"button",
+                            "action":"set:analysis_paused:{not:{global.analysis_paused}}",
+                            "text":"{if:global.analysis_paused:'<sym>▶</sym>':'<sym>⏸</sym>'}",
+                            "size":[25,25],
+                            "font":{"size":0.8},
+                            "fill":[10,0,0,0],
+                            "line":[10,0,0,0],
+                            "color":"{if:global.analysis_paused:[30,80,30,100]:[200,120,80,100]}"
+                        }
                     },
+                    
                     {
                         "type": "stext",
-                        "text": "<b>{global.source}</b> — <a>{global.gui_frame}</a>/<a>{-:{global.video_length}:1}</a> {if:global.analysis_paused:'(<orange>paused</orange>)':'@ <a>{fps}</a>fps'}",
+                        "text": "<b>{global.source}</b> — <a>{global.gui_frame}</a>/<a>{-:{global.video_length}:1}</a> {if:{equal:{-:{global.video_length}:1}:{tracker.to}}:'':{if:global.analysis_paused:'(<orange>paused</orange>)':'<i>processing @ <a>{fps}</a>fps</i>'}}",
                         "font":{ "size":0.65 },
                         "shadow":0.5,
                         "pad":[-5,0,0,7.5]
@@ -61,6 +70,14 @@
                         "action": "set:gui_frame:{min:{-:{global.video_length}:1}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{-:{global.video_length}:0.5}}}"
                     },
 
+                    {
+                        "type": "rect",
+                        "pos": [11, -9],
+                        "size": "[{round:{*:{/:{tracker.to}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}},28]",
+                        "fill": [0,0,0,155],
+                        "line": [50,0,0,0],
+                        "clickable":false
+                    },
 
                     {
                         "type":"each",
@@ -83,14 +100,6 @@
                         "line":[50,50,50,255]
                     }
                 ]
-            },
-            {
-                "type":"each",
-                "var":"consec",
-                "do": {
-                    "type": "text",
-                    "text": "{i.from} - {i.to} = {-:{i.to}:{i.from}}"
-                }
             }
             
         ]

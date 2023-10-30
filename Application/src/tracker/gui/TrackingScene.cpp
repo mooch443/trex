@@ -1178,7 +1178,8 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 static Range<Frame_t> last;
                 Range<Frame_t> current{ _data->tracker.start_frame(), _data->tracker.end_frame() };
                 if(current != last) {
-                    map["range"] = current;
+                    map["from"] = current.start;
+                    map["to"] = current.end;
                     last = current;
                 }
                 return map;
