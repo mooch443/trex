@@ -369,6 +369,8 @@ int main(int argc, char**argv) {
 	default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
 	GlobalSettings::map().dont_print("gui_frame");
 	GlobalSettings::map().dont_print("gui_focus_group");
+    
+    track::initialize_slows();
 
 	FileSize size{ sizeof(MotionRecord) };
 	auto str = size.toStr();

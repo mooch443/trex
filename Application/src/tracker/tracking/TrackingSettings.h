@@ -154,4 +154,6 @@ struct slow {
 //! Slow updated, but faster access:
 #define SLOW_SETTING(NAME) (track::slow:: NAME)
 
+void initialize_slows();
+
 }
