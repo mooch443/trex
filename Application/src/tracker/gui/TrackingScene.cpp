@@ -394,9 +394,20 @@ void Bowl::set_max_zoom_size(const Vec2& max_zoom) {
     _max_zoom = max_zoom;
 }
 
+const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map {
+    {"esc", Keyboard::Escape},
+    {"left", Keyboard::Left},
+    {"right", Keyboard::Right},
+    {"lshift", Keyboard::LShift},
+    {"lctrl", Keyboard::LControl},
+    {"rctrl", Keyboard::RControl},
+    {"lalt", Keyboard::LAlt},
+    {"ralt", Keyboard::RAlt}
+};
+
 TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>&& stages)
     : video(std::move(video)),
-      tracker(std::move(average), video),
+      tracker(std::move(average), this->video),
       analysis(std::move(stages)),
       pool(4u, "preprocess_main")
 {
@@ -422,6 +433,9 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<st
         mask.convertTo(mask, CV_8UC1);
         _gui_mask = std::make_unique<ExternalImage>(Image::Make(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
     }
+
+    for (auto& [key, code] : _key_map)
+        _keymap[key] = false;
 }
 
 TrackingScene::TrackingScene(Base& window)
@@ -975,6 +989,10 @@ void TrackingScene::_draw(DrawStructure& graph) {
             _data->_foi_state.last_change = last_change;
         }
     }
+
+    for (auto& [key, code] : _key_map) {
+        _data->_keymap[key] = graph.is_key_pressed(code);
+    }
     
     std::vector<Vec2> targets;
     if(_data->_cache->has_selection() 
@@ -1183,6 +1201,10 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                     last = current;
                 }
                 return map;
+            }),
+
+            VarFunc("key", [this](VarProps) -> auto& {
+                return _data->_keymap;
             })
         }
     };

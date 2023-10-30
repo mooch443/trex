@@ -1,26 +1,23 @@
 { "objects": [
 
     {
-        "type":"button",
-        "text":"Test",
-        "pos":[300,100],
-        "size":[100,40],
-        "action":"change_scene:'starting-scene'"
+        "type":"condition",
+        "var":"{bool:{global.gui_focus_group}}",
+        "then":{
+            "type":"collection",
+            "pos":[10,90],
+            "size":[200,350],
+            "fill":[50,50,50,125],
+            "children": [
+                { "type":"stext",
+                  "text":"<b>{global.individual_prefix}{global.gui_focus_group}</b>",
+                  "pos":[10,10]
+                }
+            ]
+        },
+        "else":{ "type":"rect", "size":[0,0] }
     },
-
-    {
-        "type":"collection",
-        "pos":[10,90],
-        "size":[200,350],
-        "fill":[50,50,50,125],
-        "children": [
-            { "type":"stext",
-              "text":"<b>{global.individual_prefix}0</b>",
-              "pos":[10,10]
-            }
-        ]
-    },
-
+    
     {
         "type":"vlayout",
         "pad":[0,10,0,0],
@@ -106,20 +103,37 @@
     },
 
     {
-        "type":"settings",
-        "var":"gui_frame",
-        "size":[100,40],
-        "pos":[300,150],
-        "fill":[50,50,50]
+        "type":"condition",
+        "var":"{key.lctrl}",
+        "then":{ 
+            "type":"collection",
+            "children":[
+                {
+                    "type":"button",
+                    "text":"Test",
+                    "pos":[300,100],
+                    "size":[100,40],
+                    "action":"change_scene:'starting-scene'"
+                },
+                {
+                    "type":"settings",
+                    "var":"gui_frame",
+                    "size":[100,40],
+                    "pos":[300,150],
+                    "fill":[50,50,50]
+                },
+                {
+                    "type":"settings",
+                    "var":"video_length",
+                    "size":[100,40],
+                    "pos":[300,200],
+                    "fill":[50,50,50]
+                }
+            ]
+        },
+        "else":{ "type":"rect", "size":[0,0] }
     },
-    {
-        "type":"settings",
-        "var":"video_length",
-        "size":[100,40],
-        "pos":[300,200],
-        "fill":[50,50,50]
-    },
-
+    
     {
         "type":"hlayout",
         "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",

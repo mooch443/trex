@@ -115,6 +115,8 @@ class TrackingScene : public Scene {
         std::unique_ptr<ExternalImage> _gui_mask;
         std::function<void(Vec2, bool, std::string)> _clicked_background;
         double _time_since_last_frame{0};
+
+        sprite::Map _keymap;
         
         struct {
             uint64_t last_change;
