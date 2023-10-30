@@ -208,6 +208,8 @@ void Bowl::update_goals() {
         sum_of_points = sum_of_points + point;
     }
     
+    _max_zoom = GUI_SETTINGS(gui_zoom_limit);
+    
     Bounds bounding_box(Vec2(min_x, min_y), Size2(max_x - min_x + 1, max_y - min_y + 1));
     if(bounding_box.width < _max_zoom.x) {
         auto diff = _max_zoom.x - bounding_box.width;
@@ -297,8 +299,6 @@ void Bowl::update_blobs(const Frame_t& frame) {
 
 void Bowl::update(Frame_t frame, DrawStructure &graph, const Size2& window_size) {
     update([this, &frame, &graph, window_size](auto&) {
-        add<Circle>(LineClr{Red}, Loc{}, Radius{10});
-        
         auto props = Tracker::properties(frame);
         if(not props)
             return;
@@ -358,11 +358,6 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const Size2& window_size)
             }
             //base.wrap_object(*PD(cache)._fish_map[fish]);
             //PD(cache)._fish_map[fish]->label(ptr, e);
-        }
-        
-        
-        for(auto &target : _target_points) {
-            add<Circle>(FillClr{Cyan}, Radius{10}, Origin{0.5}, Loc{target});
         }
     });
 }
@@ -462,6 +457,9 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             case Keyboard::N:
                 prev_poi(Idx_t());
+                break;
+            case Keyboard::T:
+                SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
                 break;
             default:
                 break;
@@ -1024,7 +1022,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_bowl->update(_data->_cache->frame_idx, graph, window_size);
     
     //_data->_bowl.auto_size({});
-    _data->_bowl->set(LineClr{Cyan});
+    //_data->_bowl->set(LineClr{Cyan});
     //_data->_bowl.set(FillClr{Yellow});
     
     auto alpha = SETTING(gui_background_color).value<Color>().a;
@@ -1047,11 +1045,19 @@ void TrackingScene::_draw(DrawStructure& graph) {
     graph.section("loading", [this](DrawStructure& base, auto section) {
         WorkProgress::update(base, section, window_size);
     });
-    //graph.root().set_dirty();
+    //
     
     if(not graph.root().is_dirty())
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
     //print("dirty = ", graph.root().is_dirty());
+    if(graph.root().is_dirty())
+        last_dirty.reset();
+    else if(_data->_cache->is_animating()
+       && last_dirty.elapsed() > 0.1)
+    {
+        graph.root().set_dirty();
+        last_dirty.reset();
+    }
 }
 
 void TrackingScene::next_poi(Idx_t _s_fdx) {

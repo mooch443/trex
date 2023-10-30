@@ -41,6 +41,7 @@ namespace gui {
         (bool, gui_show_histograms),
         (bool, gui_auto_scale),
         (bool, gui_auto_scale_focus_one),
+        (bool, gui_show_timeline),
         (uint16_t, output_min_frames),
         (gui::Color, gui_background_color),
         (bool, gui_equalize_blob_histograms),
@@ -51,7 +52,8 @@ namespace gui {
         (uchar, gui_timeline_alpha),
         (bool, gui_happy_mode),
         (bool, auto_categorize),
-        (bool, gui_macos_blur)
+        (bool, gui_macos_blur),
+        (Size2, gui_zoom_limit)
     )
     }
 

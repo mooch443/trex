@@ -150,7 +150,7 @@ class TrackingScene : public Scene {
     dyn::DynamicGUI dynGUI;
     
     Size2 window_size;
-    Timer last_redraw;
+    Timer last_redraw, last_dirty;
     
     std::vector<sprite::Map> _fish_data;
     std::vector<std::shared_ptr<dyn::VarBase_t>> _individuals;
