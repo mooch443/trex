@@ -928,6 +928,20 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     update_run_loop();
     
+    auto gui_scale = graph.scale();
+    if(gui_scale.x == 0)
+        gui_scale = Vec2(1);
+    window_size = window()->window_dimensions().div(gui_scale) * gui::interface_scale();
+    //window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height).div(((IMGUIBase*)window())->dpi_scale()) * gui::interface_scale();
+    
+    if(not _data->_cache) {
+        _data->_cache = std::make_unique<GUICache>(&graph, &_data->video);
+        _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
+        _data->_bowl->set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
+        _data->_bowl->fit_to_screen(window_size);
+        _data->_vf_widget = std::make_unique<VisualFieldWidget>(_data->_cache.get());
+    }
+
     {
         uint64_t last_change = FOI::last_change();
         auto name = SETTING(gui_foi_name).value<std::string>();
@@ -945,20 +959,6 @@ void TrackingScene::_draw(DrawStructure& graph) {
 
             _data->_foi_state.last_change = last_change;
         }
-    }
-    
-    auto gui_scale = graph.scale();
-    if(gui_scale.x == 0)
-        gui_scale = Vec2(1);
-    window_size = window()->window_dimensions().div(gui_scale) * gui::interface_scale();
-    //window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height).div(((IMGUIBase*)window())->dpi_scale()) * gui::interface_scale();
-    
-    if(not _data->_cache) {
-        _data->_cache = std::make_unique<GUICache>(&graph, &_data->video);
-        _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
-        _data->_bowl->set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
-        _data->_bowl->fit_to_screen(window_size);
-        _data->_vf_widget = std::make_unique<VisualFieldWidget>(_data->_cache.get());
     }
     
     std::vector<Vec2> targets;

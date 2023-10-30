@@ -18,6 +18,7 @@ class AnimatedBackground : public Entangled {
     std::unique_ptr<VideoSource> _source;
     float _source_scale{1.f};
     
+    Image::Ptr _average;
     ExternalImage _static_image;
     Frame_t _current_frame;
     

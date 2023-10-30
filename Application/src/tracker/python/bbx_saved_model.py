@@ -808,8 +808,8 @@ class TRexYOLO8:
                 #print(result.keypoints.cpu().xy, scale)
                 #keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
                 #keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
-                keys[..., 0] = (keys[..., 0] * scale[0]) #+ coords[..., 0]).T
-                keys[..., 1] = (keys[..., 1] * scale[1]) #+ coords[..., 1]).T
+                keys[..., 0] = (keys[..., 0] + offset[0]) * scale[0] #+ coords[..., 0]).T
+                keys[..., 1] = (keys[..., 1] + offset[1]) * scale[1] #+ coords[..., 1]).T
                 keypoints.append(keys) # bones * 3 elements
 
         #print("collected ", len(keypoints), keypoints)

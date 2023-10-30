@@ -6,8 +6,8 @@
 namespace gui {
 
 AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
-    :
-      _static_image(std::move(image))
+    : _average(std::move(image)),
+      _static_image(Image::Make(*_average))
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
@@ -111,7 +111,7 @@ void AnimatedBackground::before_draw() {
     bool value = SETTING(gui_show_video_background).value<bool>();
     if(value != gui_show_video_background) {
         gui_show_video_background = value;
-        _static_image.set_source(Image::Make(GUI::video_source()->average()));
+        _static_image.set_source(Image::Make(*_average));
         set_content_changed(true);
     }
     
