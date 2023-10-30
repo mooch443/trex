@@ -247,7 +247,7 @@ void async_main(void*) {
 								drawfish->set_data(index, props->time, nullptr);
 
 								{
-									drawfish->update(ptr, s, e, graph);
+									drawfish->update(ptr->window_dimensions(), s, e, graph);
 								}
 								//print("\t", fish->identity().name(), " has frame ", index, " at ", basic->centroid.pos<Units::PX_AND_SECONDS>());
                                 graph.circle(Loc(basic->centroid.pos<Units::PX_AND_SECONDS>()),
