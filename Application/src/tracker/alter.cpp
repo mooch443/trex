@@ -48,6 +48,10 @@
 
 #include <signal.h>
 
+#if !COMMONS_NO_PYTHON
+#include <gui/CheckUpdates.h>
+#endif
+
 using namespace cmn;
 
 struct TileImage;
@@ -87,6 +91,10 @@ void launch_gui() {
             }
         }
     });
+    
+#if !COMMONS_NO_PYTHON
+    CheckUpdates::init(base.graph().get());
+#endif
     
     /**
      * Get the SceneManager instance and register all scenes
@@ -155,6 +163,11 @@ void launch_gui() {
     
     manager.set_active(nullptr);
     manager.update_queue();
+    
+#if !COMMONS_NO_PYTHON
+    CheckUpdates::cleanup();
+#endif
+    
     base.graph()->root().set_stage(nullptr);
     Detection::manager().clean_up();
     Detection::deinit();
@@ -337,7 +350,6 @@ int main(int argc, char**argv) {
         track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     });
-    
     
     using namespace track;
     

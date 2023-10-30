@@ -176,14 +176,16 @@ namespace cmn {
     }
     
     std::future<void> ConnectedTasks::set_paused(bool pause) {
-        if(_paused != pause) {
-            _paused = pause;
-            SETTING(analysis_paused) = _paused.load();
-            
+        bool expected = !pause;
+        if(_paused.compare_exchange_strong(expected, pause)) {
+            if(SETTING(analysis_paused).value<bool>() != pause) {
+                SETTING(analysis_paused) = pause;
+            }
+
             _finish_condition.notify_all();
             for(auto &s : _stages)
                 s.condition.notify_all();
-            
+
             auto task = std::async(std::launch::async, [this](){
                 cmn::set_thread_name("ConnectedTasks::set_paused");
                 while(is_paused() != _paused)
@@ -193,10 +195,12 @@ namespace cmn {
                 for(auto &s : _stages)
                     s.condition.notify_all();
             });
-            
+
             return task;
         }
         
-        return std::async(std::launch::async, [](){});
+        std::promise<void> promise;
+        promise.set_value();
+        return promise.get_future();
     }
 }

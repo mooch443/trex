@@ -818,12 +818,12 @@ void GUI::run_loop(gui::LoopStatus status) {
         const uint32_t frames_per_second = max(1u, (uint32_t)GUI_SETTINGS(gui_playback_speed));
         image_index += Frame_t(frames_per_second);
         
-        if (image_index > PD(tracker).end_frame()) {
+        if (PD(tracker).end_frame().valid() && image_index > PD(tracker).end_frame()) {
             image_index = PD(tracker).end_frame();
             GUI::stop_recording();
         }
     }
-    else if(GUI::run() && image_index >= PD(tracker).end_frame()) {
+    else if(GUI::run() && PD(tracker).end_frame().valid() && image_index >= PD(tracker).end_frame()) {
         GUI::run(false);
     }
     
@@ -1122,7 +1122,7 @@ void GUI::draw(DrawStructure &base) {
      * -----------------------------
      */
     base.section("loading", [](DrawStructure& base, auto section) {
-        WorkProgress::update(base, section);
+        WorkProgress::update(base, section, screen_dimensions());
     });
 }
 

@@ -571,7 +571,7 @@ int main(int argc, char** argv)
                     auto status = CheckUpdates::perform(false).get();
                     if(is_in(status, CheckUpdates::VersionStatus::OLD, CheckUpdates::VersionStatus::ALREADY_ASKED))
                     {
-                        CheckUpdates::display_update_dialog();
+                        CheckUpdates::display_update_dialog(GUI::instance() ? &GUI::instance()->gui() : nullptr);
                     } else if(status == CheckUpdates::VersionStatus::NEWEST) {
                         print("You have the newest version (",CheckUpdates::newest_version(),").");
                     } else
@@ -1299,7 +1299,7 @@ int main(int argc, char** argv)
     gui_lock.unlock();
     
 #if !COMMONS_NO_PYTHON
-    CheckUpdates::init();
+    CheckUpdates::init(&gui.gui());
 #endif
     
     GlobalSettings::map().register_callbacks({"analysis_paused"}, [&](auto) {

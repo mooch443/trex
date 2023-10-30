@@ -192,14 +192,14 @@ public:
                     
 #if !COMMONS_NO_PYTHON
                 case CHECK_UPDATE: {
-                    gui::WorkProgress::add_queue("", []() {
+                    gui::WorkProgress::add_queue("", [gui = gPtr ? &gPtr->gui() : nullptr]() {
                         CheckUpdates::VersionStatus status = CheckUpdates::VersionStatus::NONE;
                         try {
                             status = CheckUpdates::perform(false).get();
                         } catch(...) { }
                         
                         if(is_in(status, CheckUpdates::VersionStatus::OLD, CheckUpdates::VersionStatus::ALREADY_ASKED))
-                            CheckUpdates::display_update_dialog();
+                            CheckUpdates::display_update_dialog(gui);
                         else if(GUI::instance() && status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");
                         else if(GUI::instance())

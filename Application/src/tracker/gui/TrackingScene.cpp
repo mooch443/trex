@@ -18,6 +18,7 @@
 #include <gui/CheckUpdates.h>
 #include <gui/DrawFish.h>
 #include <tracking/VisualField.h>
+#include <gui/WorkProgress.h>
 
 using namespace track;
 
@@ -507,8 +508,10 @@ bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
         static Timing after_track("Analysis::after_track", 10);
         TakeTiming after_trackt(after_track);
         
-        if(idx + 1_f == _data->video.length())
+        if(idx + 1_f == _data->video.length()) {
             _data->please_stop_analysis = true;
+            SETTING(analysis_paused) = true;
+        }
         
         //print(_data->tracker.active_individuals(idx));
 
@@ -726,15 +729,25 @@ void TrackingScene::activate() {
     
     _data->_callback = GlobalSettings::map().register_callbacks({
         "gui_focus_group",
-        "gui_run"
+        "gui_run",
+        "analysis_paused"
         
     }, [this](std::string_view key) {
         if(key == "gui_focus_group" && _data->_bowl)
             _data->_bowl->_screen_size = Vec2();
         else if(key == "gui_run") {
             
+        } else if(key == "analysis_paused") {
+            gui::WorkProgress::add_queue("pausing...", [this](){
+                _data->analysis.bump();
+                bool pause = SETTING(analysis_paused).value<bool>();
+                if(_data->analysis.paused() != pause) {
+                    print("Adding to queue...");
+                    _data->analysis.set_paused(pause).get();
+                    print("Added.");
+                }
+            });
         }
-        
     });
     
     for (auto i=0_f; i<cache_size; ++i)
@@ -766,6 +779,7 @@ void TrackingScene::activate() {
                && !please_stop_analysis)
             {
                 please_stop_analysis = true;
+                SETTING(analysis_paused) = true;
             }
             
             while(not currentID.load().valid()
@@ -792,6 +806,7 @@ void TrackingScene::activate() {
 }
 
 void TrackingScene::deactivate() {
+    WorkProgress::stop();
     dynGUI.clear();
     
     print("Preparing for shutdown...");
@@ -1010,6 +1025,10 @@ void TrackingScene::_draw(DrawStructure& graph) {
     graph.wrap_object(*_data->_bowl);
     
     dynGUI.update(nullptr);
+    
+    graph.section("loading", [this](DrawStructure& base, auto section) {
+        WorkProgress::update(base, section, window_size);
+    });
     graph.root().set_dirty();
 }
 

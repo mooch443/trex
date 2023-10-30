@@ -520,8 +520,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         assert(_timestamp.valid());
         pack.write<timestamp_t>(_timestamp);
         pack.write<uint16_t>(_n);
-        static_assert(std::same_as<int32_t, Frame_t::number_t>, "Assuming int32_t here. Please fix.");
-        pack.write<int32_t>(_source_index.valid() ? _source_index.get() : -1);
+        //static_assert(std::same_as<int32_t, Frame_t::number_t>, "Assuming int32_t here. Please fix.");
+        pack.write<Frame_t::number_t>(_source_index.valid() ? _source_index.get() : Frame_t::number_t(-1));
         
         for(uint16_t i=0; i<_n; i++) {
             auto &mask = _mask.at(i);

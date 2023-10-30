@@ -31,6 +31,9 @@ class WorkProgress {
 private:
     WorkProgress();
     
+    struct WorkGUIObjects;
+    std::unique_ptr<WorkGUIObjects> gui;
+
 public:
     static WorkProgress& instance();
     static void stop();
@@ -52,7 +55,7 @@ public:
     
     static void set_item_abortable(bool abortable);
     static void set_custom_button(const std::string& text);
-    static void update(gui::DrawStructure &base, gui::Section *section);
+    static void update(gui::DrawStructure &base, gui::Section *section, Size2 screen_size);
     
     static void set_progress(const std::string& title, float value, const std::string& description = "");
     

@@ -23,23 +23,40 @@
 
     {
         "type":"vlayout",
+        "pad":[0,10,0,0],
         "children":[
             {
-                "type": "stext",
-                "text": "<b>{global.source}</b> — {global.gui_frame}/{-:{global.video_length}:1} {if:global.analysis_paused:'(paused)':'@ {fps}fps'}",
-                "font":{ "size":0.65 },
-                "pad":[10,10,0,0],
-                "shadow":0.5
+                "type":"hlayout",
+                "pad":[10,0,0,0],
+                "children":[
+                    {
+                        "type":"button",
+                        "action":"set:analysis_paused:{not:{global.analysis_paused}}",
+                        "text":"{if:global.analysis_paused:'<sym>▶</sym>':'<sym>⏸</sym>'}",
+                        "size":[25,25],
+                        "font":{"size":0.8},
+                        "fill":[10,0,0,0],
+                        "line":[10,0,0,0],
+                        "color":"{if:global.analysis_paused:[30,80,30,100]:[200,120,80,100]}"
+                    },
+                    {
+                        "type": "stext",
+                        "text": "<b>{global.source}</b> — <a>{global.gui_frame}</a>/<a>{-:{global.video_length}:1}</a> {if:global.analysis_paused:'(<orange>paused</orange>)':'@ <a>{fps}</a>fps'}",
+                        "font":{ "size":0.65 },
+                        "shadow":0.5,
+                        "pad":[-5,0,0,7.5]
+                    }
+                ]
             },
             {
                 "type":"collection",
                 "children":[
                     {
                         "type": "rect",
-                        "pos": [10, 10],
+                        "pos": [10, -10],
                         "size": "[{+:{window_size.x}:-20},30]",
                         "fill": [50,50,50,125],
-                        "line": [150,150,150,255],
+                        "line": [50,50,50,255],
                         "clickable":true,
                         "action": "set:gui_frame:{min:{-:{global.video_length}:1}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{-:{global.video_length}:0.5}}}"
                     },
@@ -50,20 +67,20 @@
                         "var":"consec",
                         "do": {
                             "type": "rect",
-                            "pos": "{addVector:[{round:{*:{/:{i.from}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},10]:[12.5,0]}",
+                            "pos": "{addVector:[{round:{*:{/:{i.from}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},0]:[12.5,-10]}",
                             "size": "{addVector:[{round:{*:{/:{-:{i.to}:{i.from}}:{{-:{global.video_length}:1}}}:{-:{window_size.x}:25}}},30]:[0,0]}",
                             "fill": "{clrAlpha:{i.color}:50}",
-                            "line":[200,200,200,200]
+                            "line":"{clrAlpha:{i.color}:100}"
                         }
                     },
 
                     {
                         "type": "rect",
-                        "pos": "{addVector:[{round:{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},10]:[12.5,0]}",
+                        "pos": "{addVector:[{round:{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},-12]:[12.5,0]}",
                         "origin": [0.5,0],
-                        "size": [5,30],
-                        "fill": [150,150,150,125],
-                        "line":[200,200,200,200]
+                        "size": [5,34],
+                        "fill": [150,150,150,225],
+                        "line":[50,50,50,255]
                     }
                 ]
             },
