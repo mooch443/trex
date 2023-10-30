@@ -43,50 +43,55 @@ FrameRange _analysis_range;
 
 void initialize_slows() {
 #define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); })
-        
-    DEF_CALLBACK(frame_rate);
-    DEF_CALLBACK(track_max_speed);
-    DEF_CALLBACK(cm_per_pixel);
-    DEF_CALLBACK(track_threshold);
-    DEF_CALLBACK(track_max_reassign_time);
-    DEF_CALLBACK(calculate_posture);
-    DEF_CALLBACK(track_absolute_difference);
-    DEF_CALLBACK(track_background_subtraction);
     
-    DEF_CALLBACK(track_trusted_probability);
-    DEF_CALLBACK(huge_timestamp_ends_segment);
-    DEF_CALLBACK(huge_timestamp_seconds);
-    DEF_CALLBACK(track_end_segment_for_speed);
-    DEF_CALLBACK(track_segment_max_length);
-    
-    static const auto update_range = [](){
-        const auto video_length = narrow_cast<long_t>(SETTING(video_length).value<Settings::video_length_t>())-1;
-        //auto analysis_range = FAST_SETTING(analysis_range);
-        const auto analysis_range = SETTING(analysis_range).value<Settings::analysis_range_t>();
-        const auto& [start, end] = analysis_range;
+    static std::once_flag flag;
+    std::call_once(flag, [](){
+        Settings::init();
         
-        _analysis_range = FrameRange(Range<Frame_t>{
-            Frame_t((uint32_t)max(0, start)),
-            Frame_t((uint32_t)max(end > -1
-                        ? min(video_length, end)
-                        : video_length, max(0, start)))
+        DEF_CALLBACK(frame_rate);
+        DEF_CALLBACK(track_max_speed);
+        DEF_CALLBACK(cm_per_pixel);
+        DEF_CALLBACK(track_threshold);
+        DEF_CALLBACK(track_max_reassign_time);
+        DEF_CALLBACK(calculate_posture);
+        DEF_CALLBACK(track_absolute_difference);
+        DEF_CALLBACK(track_background_subtraction);
+        
+        DEF_CALLBACK(track_trusted_probability);
+        DEF_CALLBACK(huge_timestamp_ends_segment);
+        DEF_CALLBACK(huge_timestamp_seconds);
+        DEF_CALLBACK(track_end_segment_for_speed);
+        DEF_CALLBACK(track_segment_max_length);
+        
+        static const auto update_range = [](){
+            const auto video_length = narrow_cast<long_t>(SETTING(video_length).value<Settings::video_length_t>())-1;
+            //auto analysis_range = FAST_SETTING(analysis_range);
+            const auto analysis_range = SETTING(analysis_range).value<Settings::analysis_range_t>();
+            const auto& [start, end] = analysis_range;
+            
+            _analysis_range = FrameRange(Range<Frame_t>{
+                Frame_t((uint32_t)max(0, start)),
+                Frame_t((uint32_t)max(end > -1
+                            ? min(video_length, end)
+                            : video_length, max(0, start)))
+            });
+            
+            assert(_analysis_range.start().valid()
+                   && _analysis_range.end().valid());
+        };
+        
+        Settings::set_callback(Settings::analysis_range, [](auto&, auto& value) {
+            SLOW_SETTING(analysis_range) = value.template value<Settings::analysis_range_t>();
+            update_range();
         });
         
-        assert(_analysis_range.start().valid()
-               && _analysis_range.end().valid());
-    };
-    
-    Settings::set_callback(Settings::analysis_range, [](auto&, auto& value) {
-        SLOW_SETTING(analysis_range) = value.template value<Settings::analysis_range_t>();
-        update_range();
+        Settings::set_callback(Settings::video_length, [](auto&, auto&) {
+            update_range();
+        });
+        
+        for(auto &n : Settings :: names())
+            Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
     });
-    
-    Settings::set_callback(Settings::video_length, [](auto&, auto&) {
-        update_range();
-    });
-    
-    for(auto &n : Settings :: names())
-        Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
 }
 
 const set_of_individuals_t& Tracker::active_individuals(Frame_t frame) {

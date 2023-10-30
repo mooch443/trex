@@ -1,18 +1,6 @@
 { "objects": [
 
     {
-        "type":"each",
-        "pos":[0,0],
-        "size":[100,100],
-        "var":"fishes",
-        "do": {
-            "type":"circle",
-            "pos":"{i.pos}",
-            "fill":[125,125,125]
-        }
-    },
-
-    {
         "type":"button",
         "text":"Test",
         "pos":[300,100],
