@@ -119,7 +119,8 @@ void async_main(void*) {
 				//frame.set_timestamp(single.timestamp());
 
                 track::LockGuard guard(track::w_t{}, "update_tracker_queue");
-				if(frame.index() != Tracker::end_frame() + 1_f
+				if(Tracker::end_frame().valid()
+				   && frame.index() != Tracker::end_frame() + 1_f
                    && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
 				{
 					print("Reanalyse event ", frame.index(), " -> ", Tracker::end_frame());
@@ -398,8 +399,9 @@ int main(int argc, char**argv) {
         print("Manual: ", manual,"cm/s");
 
 		auto epsilon = manual * 0.0001;
-		ASSERT(manual - next.speed<Units::CM_AND_SECONDS>() <= epsilon,
-			"Difference between manually chosen and automatically calculated speed > %f", epsilon);
+		auto speed = next.speed<Units::CM_AND_SECONDS>();
+		ASSERT(manual - speed <= epsilon,
+			"Difference between manually chosen (",manual,") and automatically calculated speed (",speed,") > ", epsilon," points: ", p0, " => ", p1, " / ", t1 - t0);
 	}
 
 
