@@ -1,35 +1,28 @@
 { "objects": [
-    {
-        "type":"collection",
-        "children":[
-            {
-                "type":"condition",
-                "var":"{bool:{global.gui_focus_group}}",
-                "then":{
-                    "type":"collection",
-                    "pos":[10,90],
-                    "size":[200,350],
-                    "fill":[50,50,50,125],
-                    "children": [
-                        { 
-                            "type":"stext",
-                            "text":"<b>{global.individual_prefix}{global.gui_focus_group}</b>",
-                            "pos":[10,10]
-                        }
-                    ]
-                },
-                "else":{ "type":"collection", "children":[] }
-            } 
-        ]
-    },
-    
     
     {  "type":"condition",
        "var":"{global.gui_show_timeline}",
         "then":{
             "type":"collection",
             "children":[
-                
+                {
+                    "type":"condition",
+                    "var":"{bool:{global.gui_focus_group}}",
+                    "then":{
+                        "type":"collection",
+                        "pos":[10,90],
+                        "size":[200,350],
+                        "fill":[50,50,50,125],
+                        "children": [
+                            { 
+                                "type":"stext",
+                                "text":"<b>{global.individual_prefix}{global.gui_focus_group}</b>",
+                                "pos":[10,10]
+                            }
+                        ]
+                    },
+                    "else":{ "type":"collection", "children":[] }
+                },
                 
                 {
                     "type":"vlayout",
@@ -74,41 +67,47 @@
                                     "type": "rect",
                                     "pos": [10, -10],
                                     "size": "[{+:{window_size.x}:-20},30]",
-                                    "fill": [20,20,20,125],
-                                    "line": [80,80,80,255],
+                                    "fill": [10,10,10,0],
+                                    "line": [255,255,255,255],
                                     "clickable":true,
                                     "action": "set:gui_frame:{min:{-:{global.video_length}:1}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{-:{global.video_length}:0.5}}}"
                                 },
-
                                 {
                                     "type": "rect",
-                                    "pos": [11, -9],
-                                    "size": "[{round:{*:{/:{tracker.to}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}},28]",
-                                    "fill": [30,30,30,155],
-                                    "line": [50,0,0,0],
+                                    "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.to}}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}},-9]",
+                                    "size": "[{-:{+:{window_size.x}:-10}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.to}}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}}},28]",
+                                    "fill": [0,0,0,150],
+                                    "line": [250,250,250,0],
                                     "clickable":false
                                 },
-
+                                {
+                                    "type": "rect",
+                                    "pos": "[{+:11:{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}},-9]",
+                                    "size": "[{*:{/:{max:0:{-:{tracker.to}:{global.gui_frame}}}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}},28]",
+                                    "fill": [50,50,50,150],
+                                    "line": [250,250,250,0],
+                                    "clickable":false
+                                },
+                                {
+                                    "type": "rect",
+                                    "pos": [10, -10],
+                                    "size": "[{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-20}},30]",
+                                    "fill": [100,100,100,150],
+                                    "line": [250,250,250,200],
+                                    "clickable":false
+                                },
+                                
                                 {
                                     "type":"each",
                                     "var":"consec",
                                     "do": {
                                         "type": "rect",
-                                        "pos": "{addVector:[{round:{*:{/:{i.from}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},0]:[12.5,-10]}",
-                                        "size": "{addVector:[{round:{*:{/:{-:{i.to}:{i.from}}:{{-:{global.video_length}:1}}}:{-:{window_size.x}:25}}},30]:[0,0]}",
-                                        "fill": "{clrAlpha:{i.color}:50}",
-                                        "line":"{clrAlpha:{i.color}:100}"
+                                        "pos": "{addVector:[{round:{*:{/:{i.from}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},0]:[12.5,-9]}",
+                                        "size": "{addVector:[{round:{*:{/:{-:{i.to}:{i.from}}:{{-:{global.video_length}:1}}}:{-:{window_size.x}:25}}},28]:[0,0]}",
+                                        "fill": "{clrAlpha:{i.color}:50}"
                                     }
-                                },
-
-                                {
-                                    "type": "rect",
-                                    "pos": "{addVector:[{round:{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},-12]:[12.5,0]}",
-                                    "origin": [0.5,0],
-                                    "size": [5,34],
-                                    "fill": [150,150,150,225],
-                                    "line":[50,50,50,255]
                                 }
+                                
                             ]
                         }
                     ]
