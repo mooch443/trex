@@ -103,8 +103,8 @@ void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, 
     auto screen_source = coord.convert(BowlCoord(_text->pos()));
     auto screen_rect = coord.convert(BowlRect(_source));
     auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
-    if(dis > 0.25)
-        print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), text()->text());
+    //if(dis > 0.25)
+    //    print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), text()->text());
     
     if (is_in_mouse_dock)
     {

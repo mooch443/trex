@@ -71,12 +71,14 @@ public:
         // Thread will be managed by ThreadManager, no need to join here.
         ThreadManager::getInstance().terminateGroup(group_id);
         
-        if(promise.has_value()) {
-            promise->set_value({Frame_t(), nullptr});
-            promise.reset();
-        }
-        
+        std::unique_lock guard(future_mutex);
         if(future.valid()) {
+            if(future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+            {
+                promise->set_value({Frame_t(), nullptr});
+                promise.reset();
+            }
+            
             future.get();
         }
     }
@@ -170,6 +172,15 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
     {
         if(future.wait_for(std::chrono::milliseconds(5)) == std::future_status::ready) {
             auto &&[index, image] = future.get();
+            
+            if(not image) {
+                // the returned image is illegal
+                auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
+                if(id_in_future != target_index)
+                    next_index_to_use = target_index;
+                return std::nullopt;
+            }
+            
             id_in_future.invalidate(); // nothing in future
             
             double fps{0};
@@ -293,6 +304,7 @@ void FramePreloader<FrameType>::preload_frames() {
     } else {
         auto guard = LOGGED_LOCK(preloaded_frame_mutex);
         current_id.invalidate();
+        promise->set_value({Frame_t(), nullptr});
     }
 }
 

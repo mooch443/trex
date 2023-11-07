@@ -434,7 +434,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
         SETTING(gui_frame) = _current_data.frame.index();
 
         if (_background_image->source()) {
-            graph.wrap_object(*_background_image);
+            if(_background_image->source() && _background_image->source()->rows > 0 && _background_image->source()->cols > 0)
+                graph.wrap_object(*_background_image);
         }
 
         for (auto box : _current_data.tiles)

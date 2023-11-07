@@ -370,7 +370,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
     
     if (not _callback) {
         auto callback = [](std::string_view name){
-            LockGuard guard(ro_t{}, "changed_settings");
+            //LockGuard guard(ro_t{}, "changed_settings");
             Settings :: variable_changed(sprite::Map::Signal::NONE, GlobalSettings::map(), name, cmn::GlobalSettings::map().at(name).get());
         };
         _callback = cmn::GlobalSettings::map().register_callbacks(Settings::names(), callback);

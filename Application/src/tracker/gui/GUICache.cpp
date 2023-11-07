@@ -31,20 +31,25 @@ namespace gui {
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
         : _video(video), _graph(graph),
             _preloader([this](Frame_t frameIndex) -> FramePtr {
-                auto ptr = buffers::get();
-                ptr->clear();
-                
+                FramePtr ptr;
                 try {
                     if(frameIndex.valid()
                        && _video->is_read_mode())
                     {
+                        if(frameIndex >= _video->length())
+                            return nullptr; // past the end
+                        
                         pv::Frame frame;
                         _video->read_frame(frame, frameIndex);
+                        
+                        ptr = buffers::get();
+                        ptr->clear();
+                        
                         Tracker::instance()->preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, _video->header().resolution);
                     }
                     
                 } catch(...) {
-                    FormatExcept("Cannot load frame ", index, " from file ", _video->filename());
+                    FormatExcept("Cannot load frame ", frameIndex, " from file ", _video->filename());
                 }
                 
                 return ptr;
@@ -142,13 +147,13 @@ namespace gui {
         _animator_map.clear();
     }
     
-    bool GUICache::is_animating(std::string animator) const {
+    bool GUICache::is_animating(std::string_view animator) const {
         if(GUI_SETTINGS(gui_happy_mode) && mode() == mode_t::tracking) {
             return true;
         }
         
         //print(" ");
-        auto is_relevant = [this](const std::string& animator) {
+        auto is_relevant = [this](const std::string_view& animator) {
             auto it = _animator_map.find(animator);
             if(it != _animator_map.end()) {
                 //print(" * animator ", animator, " is ", it->second->rendered());
@@ -817,7 +822,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         return reload_blobs ? processed_frame().index() : Frame_t{};
     }
     
-    void GUICache::set_animating(std::string animation, bool v, Drawable* parent) {
+    void GUICache::set_animating(std::string_view animation, bool v, Drawable* parent) {
         if (animation.empty())
             throw std::invalid_argument("Empty animation.");
 
