@@ -36,7 +36,7 @@ namespace cmn {
         //std::vector<bool> _thread_paused;
         std::vector<Stage> _stages;
         
-        std::thread *_main_thread;
+        std::thread *_main_thread{nullptr};
         std::mutex _finish_mutex;
         std::condition_variable _finish_condition;
         

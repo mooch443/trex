@@ -3,6 +3,7 @@
 #include <gui/Label.h>
 #include <gui/types/Entangled.h>
 #include <gui/GuiTypes.h>
+#include <gui/Coordinates.h>
 
 namespace gui {
 
@@ -23,7 +24,7 @@ struct MouseDock {
     static inline std::mutex mutex;
     static std::unique_ptr<MouseDock> instance;
 
-    static void update(double dt, Drawable* ptr, Entangled& graph);
+    static void update(double dt, const FindCoord&, Entangled& graph);
     static void draw_background(Entangled&graph);
 
     static void register_label(Label* label, Vec2 center) {

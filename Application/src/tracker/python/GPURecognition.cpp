@@ -707,7 +707,7 @@ void PythonIntegration::deinit() {
     
     try {
         _interpreter = nullptr;
-        print("[py] ended.");
+        print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "ended.");
         
     } catch(py::error_already_set &e) {
         throw SoftException("Python runtime error during clean-up: ", e.what());
@@ -758,7 +758,7 @@ bool PythonIntegration::check_module(const std::string& name) {
 void PythonIntegration::run(const std::string& module_name, const std::string& function) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
-    print("[py] Running ",module_name.c_str(),"::",function.c_str());
+    print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
 #endif
     
     std::unique_lock<std::mutex> guard(module_mutex);
@@ -851,7 +851,7 @@ template<typename T>
 void set_function_internal(const char* name_, T&& f, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
-    print("[py] defining function ",m.c_str(),"::",name_);
+    print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "defining function ",m.c_str(),"::",name_);
 #endif
     
     if(m.empty()) {
@@ -1067,7 +1067,7 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 void PythonIntegration::unset_function(const char *name_, const std::string &m) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
-    print("[py] Undefining function ",m.c_str(),"::",name_);
+    print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Undefining function ",m.c_str(),"::",name_);
 #endif
     if(m.empty()) {
         if(!CHECK_NONE(_main.attr(name_))) {

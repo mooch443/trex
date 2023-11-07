@@ -142,7 +142,7 @@ WorkProgress::WorkProgress() {
                 if(instance().gui) {
                     auto stage = gui->_additional.stage();
                     if(stage) {
-                        std::unique_lock guard(stage->lock());
+                        auto guard = GUI_LOCK(stage->lock());
                         gui->_additional.update([](auto&){});
                     }
                 }
@@ -349,7 +349,7 @@ bool WorkProgress::has_additional() {
         
         auto stage = instance().gui->_additional.stage();
         if(stage) {
-            std::unique_lock guard(stage->lock());
+            auto guard = GUI_LOCK(stage->lock());
             return !instance().gui->_additional.children().empty();
         }
         return false;

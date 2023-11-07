@@ -129,7 +129,7 @@ void GUI::update_loop() {
         update();
         
         {
-            std::unique_lock guard(gui().lock());
+            auto guard = GUI_LOCK(gui().lock());
             draw(gui());
         }
         //_gui.print(&_sf_base);

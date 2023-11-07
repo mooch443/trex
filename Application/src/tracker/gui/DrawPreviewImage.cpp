@@ -165,7 +165,7 @@ std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
 VerticalLayout layout;
 SettingsTooltip tooltip;
 
-void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
+void draw(const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     if(!SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
@@ -212,7 +212,7 @@ void draw(PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     
     auto size = graph.dialog_window_size();
     
-    static StaticText text(Str("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details."), Loc(offset), SizeLimit(240, -1), Font(0.65));
+    static StaticText text(Str("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details."), Loc(offset), SizeLimit(240, 0), Font(0.65));
     static Button button(Str("x"), Box(5, 5, 25, 25));
     button.set_scale(graph.scale().reciprocal());
     offset.x += button.local_bounds().width + 10;

@@ -47,6 +47,8 @@
 #include <tracking/IndividualManager.h>
 #include <grabber/misc/default_config.h>
 
+#include <gui/Coordinates.h>
+
 #if WIN32
 #include <Shellapi.h>
 
@@ -180,7 +182,9 @@ struct PrivateData {
         }),
         _gui(gui),
         _cache( _gui, _video_source )
-    { }
+    {
+        FindCoord::set_video(video.header().resolution);
+    }
 };
 
 template<typename T>
@@ -302,7 +306,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
             GUI::instance()->set_info_visible(b);
         }, []() {
             if(GUI::instance()) {
-                std::unique_lock guard(GUI::instance()->gui().lock());
+                auto guard = GUI_LOCK(GUI::instance()->gui().lock());
                 GUI::instance()->update_recognition_rect();
             }
         }, _frameinfo);
@@ -337,7 +341,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
             if(!GUI::instance())
                 return;
             
-            std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
+            auto lock_guard = GUI_LOCK(this->gui().lock());
             
             /*if(name == "track_max_speed") {
                 _setting_animation.name = name;
@@ -392,7 +396,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
                         DatasetQuality::remove_frames(start);
                     }
                     
-                    std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
+                    auto lock_guard = GUI_LOCK(this->gui().lock());
                     PD(tracking)._recognition_image.set_source(Image::Make());
                     PD(cache).set_tracking_dirty();
                     PD(cache).set_blobs_dirty();
@@ -432,7 +436,6 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
                 PD(cache).set_tracking_dirty();
                 PD(cache).set_blobs_dirty();
                 PD(cache).set_raw_blobs_dirty();
-                PD(cache).last_frame = {};
                 GUI::set_redraw();
             }
         
@@ -484,7 +487,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
                         auto first_change = Tracker::instance()->update_with_manual_matches(matches);
                         reanalyse_from(first_change, true);
                         
-                        std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
+                        auto guard = GUI_LOCK(PD(gui).lock());
                         if(first_change.valid())
                             PD(timeline)->reset_events(first_change);
                         
@@ -621,21 +624,21 @@ GUI::~GUI() {
     //! cannot use PD(gui) below because GUI::instance(), which is used in PD, is
     //! not available anymore at this point!
     {
-        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui->lock());
+        auto lock = GUI_LOCK(_private_data->_gui->lock());
         GUI::_instance = NULL;
     }
     
     delete _private_data->_work_progress;
         
     {
-        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui->lock());
+        auto lock = GUI_LOCK(_private_data->_gui->lock());
         for(auto d : _static_pointers) {
             d->clear_parent_dont_check();
         }
     }
     
     if(_private_data->_recorder.recording()) {
-        std::lock_guard<std::recursive_mutex> guard(_private_data->_gui->lock());
+        auto guard = GUI_LOCK(_private_data->_gui->lock());
         _private_data->_recorder.stop_recording(nullptr, nullptr);
     }
 
@@ -643,7 +646,7 @@ GUI::~GUI() {
 }
 
 void GUI::set_base(gui::Base* base) {
-    std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
+    auto guard = GUI_LOCK(PD(gui).lock());
     _base = base;
     if (PDP(timeline))
         PDP(timeline)->set_base(base);
@@ -673,7 +676,7 @@ gui::DrawStructure& GUI::gui() {
 }
 
 gui::FrameInfo& GUI::frameinfo() {
-    std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+    auto lock = GUI_LOCK(PD(gui).lock());
     return instance()->_frameinfo;
 }
 
@@ -844,6 +847,9 @@ void GUI::run_loop(gui::LoopStatus status) {
         
         if(GUI::frame() != image_index) {
             SETTING(gui_frame) = image_index;
+            GUICache::instance().request_frame_change_to(image_index);
+            if(best_base())
+                FindCoord::set_screen_size(PD(gui), *best_base());
         }
         
         //print(image_index, " ", animating, " ", GUICache::instance().animators());
@@ -904,7 +910,7 @@ void GUI::run_loop(gui::LoopStatus status) {
 }
 
 void GUI::do_recording() {
-    PD(recorder).update_recording(instance()->base(), frame(), PD(cache).tracked_frames.end);
+    //PD(recorder).update_recording(instance()->base(), frame(), PD(cache).tracked_frames.end);
 }
 
 bool GUI::is_recording() const {
@@ -937,7 +943,7 @@ pv::File* GUI::video_source() {
 
 void GUI::redraw() {
     static std::once_flag flag;
-    std::unique_lock<std::recursive_mutex> lock(PD(gui).lock());
+    auto lock = GUI_LOCK(PD(gui).lock());
     
     std::call_once(flag, [&]() {
         gpuMat bg;
@@ -1019,17 +1025,26 @@ void GUI::draw(DrawStructure &base) {
 
         }
         else {
-            PD(cache).update_data(this->frame());
-
-            this->draw_raw(base, this->frame());
-            PD(cache).set_mode(mode);
-
-            if (mode == gui::mode_t::tracking)
-                this->draw_tracking(base, this->frame());
-            else if (mode == gui::mode_t::blobs)
-                this->draw_raw_mode(base, this->frame());
-
-            PD(cache).updated_blobs();
+            auto loaded = PD(cache).update_data(this->frame());
+            if(not loaded.valid()) {
+                //section->reuse_objects();
+            } else {
+            }
+            
+            if(not loaded.valid()
+               || loaded == this->frame()) {
+                this->draw_raw(base, this->frame());
+                PD(cache).set_mode(mode);
+                
+                if (mode == gui::mode_t::tracking)
+                    this->draw_tracking(base, this->frame());
+                else if (mode == gui::mode_t::blobs)
+                    this->draw_raw_mode(base, this->frame());
+                
+                PD(cache).updated_blobs();
+            } else {
+                section->reuse_objects();
+            }
         }
     });
     
@@ -1131,7 +1146,7 @@ void GUI::draw_menu() {
 }
 
 void GUI::removed_frames(Frame_t including) {
-    std::lock_guard<std::recursive_mutex> gguard(gui().lock());
+    auto gguard = GUI_LOCK(gui().lock());
     if(PD(heatmapController))
         PD(heatmapController)->frames_deleted_from(including);
 }
@@ -1149,7 +1164,7 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
             GUI::analysis()->set_paused(true).get();
         
         {
-            std::lock_guard<std::recursive_mutex> gguard(GUI::gui().lock());
+            auto gguard = GUI_LOCK(GUI::gui().lock());
             LockGuard guard(w_t{}, "reanalyse_from");
             
             if(Tracker::end_frame().valid()
@@ -1343,7 +1358,7 @@ void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
 }
 
 void GUI::set_redraw() {
-    std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+    auto lock = GUI_LOCK(PD(gui).lock());
     PD(cache).set_redraw();
     PD(gui).set_dirty(GUI::instance()->base());
     //animating = true;
@@ -1587,6 +1602,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         section->set_bounds(Bounds(target_pos, target_size));
     }
     
+    FindCoord::set_bowl_transform(section->global_transform());
     timer.reset();
     
     return {Vec2(), Vec2()};
@@ -1702,7 +1718,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             ptr = new VisualField(id, frameNr, *fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
                             fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [](void* ptr) {
                                 if(GUI::instance()) {
-                                    std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+                                    auto lock = GUI_LOCK(PD(gui).lock());
                                     delete (VisualField*)ptr;
                                 } else {
                                     delete (VisualField*)ptr;
@@ -1717,6 +1733,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 
                 {
                     PD(tracking._bowl).update([&](auto& e) {
+                        auto coord = FindCoord::get();
                         for (auto& fish : (source.empty() ? PD(cache).active : source)) {
                             if (fish->empty()
                                 || fish->start_frame() > frameNr)
@@ -1736,28 +1753,29 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             else
                                 empty_map = NULL;
 
-                            if (PD(cache)._fish_map.find(fish) == PD(cache)._fish_map.end()) {
-                                PD(cache)._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
-                                fish->register_delete_callback(PD(cache)._fish_map[fish].get(), [](Individual* f) {
+                            auto id = fish->identity().ID();
+                            if (PD(cache)._fish_map.find(id) == PD(cache)._fish_map.end()) {
+                                PD(cache)._fish_map[id] = std::make_unique<gui::Fish>(*fish);
+                                fish->register_delete_callback(PD(cache)._fish_map[id].get(), [](Individual* f) {
                                     //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
                                     if (!GUI::instance())
                                         return;
 
-                                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                                    auto guard = GUI_LOCK(GUI::instance()->gui().lock());
 
-                                    auto it = PD(cache)._fish_map.find(f);
+                                    auto it = PD(cache)._fish_map.find(f->identity().ID());
                                     if (it != PD(cache)._fish_map.end()) {
-                                        PD(cache)._fish_map.erase(f);
+                                        PD(cache)._fish_map.erase(f->identity().ID());
                                     }
                                     PD(cache).set_tracking_dirty();
                                 });
                             }
 
-                            PD(cache)._fish_map[fish]->set_data(frameNr, props->time, empty_map);
+                            PD(cache)._fish_map[id]->set_data(*fish, frameNr, props->time, empty_map);
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
-                                PD(cache)._fish_map[fish]->update(screen_dimensions(), ptr, e, base);
+                                PD(cache)._fish_map[id]->update(coord, e, base);
                             }
                             //base.wrap_object(*PD(cache)._fish_map[fish]);
                             //PD(cache)._fish_map[fish]->label(ptr, e);
@@ -1815,7 +1833,11 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 
                 for(auto it = PD(cache)._fish_map.cbegin(); it != PD(cache)._fish_map.cend();) {
                     if(it->second->frame() != frameNr) {
-                        it->first->unregister_delete_callback(it->second.get());
+                        auto fish = PD(cache).individuals.find(it->first);
+                        if(fish != PD(cache).individuals.end())
+                            fish->second->unregister_delete_callback(it->second.get());
+                        else
+                            FormatError("Cannot find individual ", it->first, " in cache map.");
                         it = PD(cache)._fish_map.erase(it);
                     } else
                         it++;
@@ -1846,7 +1868,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         Vec2 p0(gui::Graph::invalid());
                         
                         if(!fish0->has(frameIndex)) {
-                            auto c = PD(cache).processed_frame.cached(fish0->identity().ID());
+                            auto c = PD(cache).processed_frame().cached(fish0->identity().ID());
                             if(c)
                                 p0 = c->estimated_px;
                         } else
@@ -1865,7 +1887,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             Vec2 p1(infinity<Float2_t>());
                             
                             if(!fish1->has(frameIndex)) {
-                                auto c = PD(cache).processed_frame.cached(fish1->identity().ID());
+                                auto c = PD(cache).processed_frame().cached(fish1->identity().ID());
                                 if(c)
                                     p1 = c->estimated_px;
                             } else
@@ -1953,7 +1975,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             individuals_graph.set_scale(base.scale().reciprocal());
         }
         
-        DrawPreviewImage::draw(PD(cache).processed_frame, frameNr, base);
+        DrawPreviewImage::draw(PD(cache).processed_frame(), frameNr, base);
         
 #if !COMMONS_NO_PYTHON
         if(SETTING(gui_show_uniqueness)) {
@@ -2372,8 +2394,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
             print("Preprocessed frame ", PD(cache).frame_idx,":");
-            //print("Filtered out: ", PD(cache).processed_frame.noise());
-            //print("Blobs: ", PD(cache).processed_frame.blobs());
+            //print("Filtered out: ", PD(cache).processed_frame().noise().size());
+            //print("Blobs: ", PD(cache).processed_frame().blobs().size());
         }
         
         layout.remove_child(&textfield);
@@ -2389,7 +2411,7 @@ void GUI::set_status(const std::string& text) {
     if(!instance())
         return;
     
-    std::lock_guard guard(instance()->gui().lock());
+    auto guard = GUI_LOCK(instance()->gui().lock());
     additional_status_text() = text;
 }
 
@@ -2465,7 +2487,7 @@ void GUI::draw_footer(DrawStructure& base) {
         });
         
         PD(clicked_background) = [&](const Vec2& pos, bool v, std::string key) {
-            tracker::gui::clicked_background(PD(gui), PD(cache), pos, v, key, PD(footer)._settings_dropdown, PD(footer)._value_input);
+            tracker::gui::clicked_background(PD(gui), PD(cache), pos, v, key); //PD(footer)._settings_dropdown, PD(footer)._value_input);
         };
         
         options_dropdown.set_toggle(true);
@@ -2747,7 +2769,7 @@ gui::mode_t::Class GUI::mode() const {
 }
 
 void GUI::update_display_blobs(bool draw_blobs, Section* ) {
-    if((PD(cache).raw_blobs_dirty() || PD(cache).display_blobs.size() != PD(cache).raw_blobs.size()) && draw_blobs)
+    if((/*PD(cache).raw_blobs_dirty() ||*/ PD(cache).display_blobs.size() != PD(cache).raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
@@ -2817,7 +2839,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
 #else
     const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
 #endif
-    bool redraw_blobs = PD(cache).raw_blobs_dirty();
+    bool redraw_blobs = true;//PD(cache).raw_blobs_dirty();
     
     /*struct FPS {
         double fps = 0, samples = 0, ratio = 0;
@@ -2884,8 +2906,8 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             }
         }
         
-        update_display_blobs(draw_blobs, fishbowl);
-        PD(cache).updated_raw_blobs();
+        //update_display_blobs(draw_blobs, fishbowl);
+        //PD(cache).updated_raw_blobs();
         
         if(draw_blobs_separately) {
             if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && PD(cache).tracked_frames.contains(frame())) {
@@ -2965,10 +2987,12 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             
             const auto image = Bounds(Size2(mat));
             
+            static std::mutex _mutex;
             distribute_indexes([&mat, &image](auto, auto start, auto end, auto){
                 using namespace grab::default_config;
                 auto apply = [&]<grab::default_config::meta_encoding_t::Class encoding>() {
                     Color inp;
+                    std::unique_lock guard(_mutex, std::defer_lock);
                     for(auto it = start; it != end; ++it) {
                         auto& e = *it;
                         auto input = e.second->ptr->source()->get();
@@ -2983,8 +3007,11 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                                         inp = Color(input.template at<cv::Vec2b>(y - bounds.y, x - bounds.x));
                                     }
                                     
-                                    if(inp.a > 0)
+                                    if(inp.a > 0) {
+                                        guard.lock();
                                         mat.at<cv::Vec4b>(y, x) = inp;
+                                        guard.unlock();
+                                    }
                                 }
                             }
                         }
@@ -3016,7 +3043,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
     }
 #endif
     
-    tracker::gui::draw_boundary_selection(gui(), this->base(), PD(cache), fishbowl, PD(footer)._settings_dropdown, PD(footer)._value_input);
+    tracker::gui::draw_boundary_selection(gui(), this->base(), PD(cache), fishbowl);//, PD(footer)._settings_dropdown, PD(footer)._value_input);
 }
 
 void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
@@ -3035,26 +3062,21 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
         }
         
         tracker::gui::draw_blob_view({
-            .offset = ptr_pos,
-            .scale = ptr_scale,
             .graph = base,
-            .ptr = (Section*)ptr,
             .cache = PD(cache),
-            .transform = transform,
-            .screen = dim,
-            .base = best_base()
+            .coord = FindCoord::get()
         });
     }
 }
 
 void GUI::local_event(const gui::Event &event) {
     if (event.type == gui::KEY) {
-        std::unique_lock<std::recursive_mutex> guard(gui().lock());
+        auto guard = GUI_LOCK(gui().lock());
         key_event(event);
         PD(cache).set_redraw();
         
     } else {
-        std::unique_lock<std::recursive_mutex> guard(gui().lock());
+        auto guard = GUI_LOCK(gui().lock());
         if(event.type == gui::MBUTTON) {
             if(event.mbutton.pressed)
                 PD(gui).mouse_down(event.mbutton.button == 0);
@@ -3100,7 +3122,7 @@ void GUI::confirm_terminate() {
     terminate_visible = true;
     
     WorkProgress::add_queue("", [ptr = &terminate_visible](){
-        std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+        auto lock_guard = GUI_LOCK(PD(gui).lock());
         PD(gui).dialog([ptr = ptr](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
                 SETTING(terminate) = true;
@@ -3153,7 +3175,7 @@ void GUI::key_event(const gui::Event &event) {
         return;
     
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
-        std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+        auto lock = GUI_LOCK(PD(gui).lock());
         Identity id(Idx_t(narrow_cast<uint32_t>(key.code - Codes::Num0)));
         PD(cache).deselect_all_select(id.ID());
         GUI::set_redraw();
@@ -3162,7 +3184,7 @@ void GUI::key_event(const gui::Event &event) {
     
     auto next_crossing = [&](){
         if(ConfirmedCrossings::next(PD(cache)._current_foi)) {
-            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+            auto lock = GUI_LOCK(PD(gui).lock());
             
             SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start - 1_f);
             
@@ -3209,7 +3231,7 @@ void GUI::key_event(const gui::Event &event) {
         
         case Codes::Right: {
             if(!run()) {
-                std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+                auto lock = GUI_LOCK(PD(gui).lock());
                 
                 direction_change() = play_direction() != 1;
                 if (direction_change()) {
@@ -3242,7 +3264,7 @@ void GUI::key_event(const gui::Event &event) {
         case Codes::Space: {
             run(!run());
             
-            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+            auto lock = GUI_LOCK(PD(gui).lock());
             direction_change() = play_direction() != 1;
             play_direction() = 1;
             
@@ -3259,7 +3281,7 @@ void GUI::key_event(const gui::Event &event) {
         
         case Codes::Left: {
             if(!run()) {
-                std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+                auto lock = GUI_LOCK(PD(gui).lock());
                 
                 direction_change() = play_direction() != -1;
                 if (direction_change()) {
@@ -3321,7 +3343,7 @@ void GUI::key_event(const gui::Event &event) {
         }
             
         case Codes::P: {
-            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+            auto lock = GUI_LOCK(PD(gui).lock());
             Identity id;
             
             if(PD(cache).has_selection() && !PD(cache).active_ids.empty()) {
@@ -3344,7 +3366,7 @@ void GUI::key_event(const gui::Event &event) {
         }
             
         case Codes::O: {
-            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+            auto lock = GUI_LOCK(PD(gui).lock());
             Identity id;
             
             if(PD(cache).has_selection() && !PD(cache).active_ids.empty()) {
@@ -3402,7 +3424,7 @@ void GUI::key_event(const gui::Event &event) {
         }
         case Codes::M:
         {
-            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+            auto lock = GUI_LOCK(PD(gui).lock());
             if (ConfirmedCrossings::started()) {
                 next_crossing();
                 
@@ -3413,7 +3435,7 @@ void GUI::key_event(const gui::Event &event) {
             
         case Codes::N:
         {
-            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+            auto lock = GUI_LOCK(PD(gui).lock());
             if (ConfirmedCrossings::started()) {
                 if(ConfirmedCrossings::previous(PD(cache)._current_foi)) {
                     SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start - 1_f);
@@ -3533,7 +3555,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             
             WorkProgress::add_queue("checking identities...", [this, r, tags_available](){
                 if(r == Dialog::OKAY) {
-                    std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+                    auto lock_guard = GUI_LOCK(PD(gui).lock());
                     PD(tracking_callbacks).push([](){
                         instance()->auto_correct(GUI::GUIType::TEXT, false);
                     });
@@ -3543,7 +3565,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                     WorkProgress::add_queue(t, fn, b);
                 });
                 
-                std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+                auto lock_guard = GUI_LOCK(PD(gui).lock());
                 PD(cache).recognition_updated = false;
                 PD(cache).set_tracking_dirty();
             });
@@ -3554,7 +3576,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             Tracker::instance()->check_segments_identities(force_correct, IdentitySource::VisualIdent, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                 WorkProgress::add_queue(t, [fn](){
                     {
-                        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+                        auto lock = GUI_LOCK(instance()->gui().lock());
                         PD(tracking_callbacks).push([](){
                             instance()->auto_correct(GUI::GUIType::TEXT, false);
                         });
@@ -3564,7 +3586,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 }, b);
             });
             
-            std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+            auto lock = GUI_LOCK(instance()->gui().lock());
             PD(cache).recognition_updated = false;
             PD(cache).set_tracking_dirty();
             
@@ -3648,7 +3670,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
 void GUI::auto_quit() {
     FormatWarning("Saving and quitting...");
                         
-    std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+    auto lock = GUI_LOCK(instance()->gui().lock());
     LockGuard guard(w_t{}, "saving and quitting");
     PD(cache).deselect_all();
     instance()->write_config(true);
@@ -3684,7 +3706,7 @@ void GUI::auto_quit() {
     
 void GUI::tracking_finished() {
     {
-        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        auto lock = GUI_LOCK(instance()->gui().lock());
         while(!PD(tracking_callbacks).empty()) {
             auto &item = PD(tracking_callbacks).front();
             item();
@@ -3737,13 +3759,13 @@ void GUI::auto_train() {
         // TODO: MISSING
         //Tracker::recognition()->check_last_prediction_accuracy();
         
-        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        auto lock = GUI_LOCK(instance()->gui().lock());
         instance()->auto_correct(GUI::GUIType::TEXT, true);
     });
     
     print("Registering finished callback.");
     
-    std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+    auto lock = GUI_LOCK(instance()->gui().lock());
     instance()->training_data_dialog(GUI::GUIType::TEXT, false /* retrain */);
 }
     
@@ -3760,7 +3782,7 @@ void GUI::auto_train() {
             return;
         }
         
-        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        auto lock = GUI_LOCK(instance()->gui().lock());
         WorkProgress::add_queue("checking identities...", [](){
             Tracker::instance()->check_segments_identities(
                 true,
@@ -3787,11 +3809,11 @@ void GUI::auto_apply() {
         // TODO: MISSING
         //Tracker::recognition()->check_last_prediction_accuracy();
         
-        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        auto lock = GUI_LOCK(instance()->gui().lock());
         instance()->auto_correct(GUI::GUIType::TEXT, true);
     });
     
-    std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+    auto lock = GUI_LOCK(instance()->gui().lock());
     instance()->training_data_dialog(GUI::GUIType::TEXT, true);
 }
 #endif
@@ -4465,7 +4487,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
                             if(!instance())
                                 return;
                             
-                            std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+                            auto lock = GUI_LOCK(instance()->gui().lock());
                             instance()->auto_correct(GUI::GUIType::TEXT, true);
                         });
                     }

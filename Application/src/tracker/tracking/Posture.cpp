@@ -28,7 +28,7 @@ namespace track {
 
     std::vector<Posture::EntryPoint> Posture::subpixel_threshold(const cv::Mat& greyscale, const int threshold) {
         static Timing timing("subpixel thresholding", 30);
-        static std::mutex average_mutex;
+        static auto average_mutex = LOGGED_MUTEX("Posture::average_mutex");
         static size_t average_eps_count = 1000;
         static size_t eps_samples = 1;
         
@@ -42,9 +42,8 @@ namespace track {
         EntryPoint strips[2];
         
         {
-            average_mutex.lock();
+            auto g = LOGGED_LOCK(average_mutex);
             eps.reserve(average_eps_count / eps_samples * 1.1f);
-            average_mutex.unlock();
         }
         
         const float t = threshold;
@@ -214,7 +213,7 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::lock_guard<std::mutex> guard(average_mutex);
+        auto guard = LOGGED_LOCK(average_mutex);
         if(eps_samples < 10000) {
             average_eps_count += eps.size();
             eps_samples++;

@@ -134,6 +134,9 @@ const std::vector<float>& Tracker::get_prediction(Frame_t frame, pv::bid bdx) co
 
 const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) const
 {
+    if(not frame.valid() || not bdx.valid())
+        return nullptr;
+    
     auto it = _vi_predictions.find(frame);
     if(it == _vi_predictions.end())
         return nullptr;
@@ -579,6 +582,7 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     pp.time = time;
     assert(frame.index().valid());
     pp.set_index(frame.index());
+    pp.set_source_index(frame.source_index());
     pp.timestamp = frame.timestamp();
     pp.set_loading_time(frame.loading_time());
     pp.init_from_blobs(std::move(frame).steal_blobs());
@@ -2328,13 +2332,17 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     }
 
     void Tracker::global_segment_order_changed() {
-        LockGuard guard(w_t{}, "Tracker::global_segment_order_changed");
-        _global_segment_order.clear();
+        _segment_order_changed = true;
+    }
+
+    std::vector<Range<Frame_t>> Tracker::unsafe_global_segment_order() {
+        LockGuard guard(ro_t{}, "Tracker::max_range()");
+        return _global_segment_order;
     }
     
     std::vector<Range<Frame_t>> Tracker::global_segment_order() {
         LockGuard guard(ro_t{}, "Tracker::max_range()");
-        if(_global_segment_order.empty()) {
+        if(_segment_order_changed) {
             LockGuard guard(w_t{}, "Tracker::max_range()::write");
             std::set<Range<Frame_t>> manuals;
             auto manually_approved = FAST_SETTING(manually_approved);
@@ -2379,6 +2387,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             }
             
             _global_segment_order = std::vector<Range<Frame_t>>(ordered.begin(), ordered.end());
+            _segment_order_changed = false;
         }
         
         return _global_segment_order;

@@ -21,11 +21,14 @@ struct TileImage {
     std::function<void()> callback;
 
     inline static std::vector<Image::Ptr> buffers;
-    inline static std::mutex buffer_mutex;
+    static auto& buffer_mutex() {
+        static auto m = new LOGGED_MUTEX("TileImage::buffer_mutex");
+        return *m;
+    }
 
     static void move_back(Image::Ptr&& ptr) {
-        if (std::unique_lock guard{ buffer_mutex }; 
-            ptr) 
+        if (auto guard = LOGGED_LOCK( buffer_mutex() );
+            ptr)
         {
             buffers.emplace_back(std::move(ptr));
         }
@@ -46,7 +49,7 @@ struct TileImage {
         data.image = std::move(original);
         
         static const auto get_buffer = []() {
-            if (std::unique_lock guard{ buffer_mutex };
+            if (auto guard = LOGGED_LOCK( buffer_mutex() );
                 not buffers.empty())
             {
                 auto buffer = std::move(buffers.back());

@@ -12,6 +12,7 @@ template<typename F, typename R = typename cmn::detail::return_type<F>::type>
 struct RepeatedDeferral {
     size_t _threads{ 1 }, _minimal_fill { 0 };
     uint32_t _index;
+    ThreadGroupId _group_id;
     std::vector<R> _next;
     //std::future<R> _next_image;
     F _fn;
@@ -28,14 +29,13 @@ struct RepeatedDeferral {
     mutable std::mutex _mutex;
     //std::unique_ptr<std::thread> _updater{nullptr};
     std::atomic<bool> _terminate{ false };
-    const ThreadGroup* group{nullptr};
     
     RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn,
                      cmn::source_location loc = cmn::source_location::current()) : _threads(threads), _minimal_fill(minimal_fill), _index ( thread_index().fetch_add(1) ), _fn(std::forward<F>(fn)), name(name)
     {
         thread_print("Instance of RepeatedDeferral(", name,") with ID ", _index, " with ", &thread_index());
-        group = ThreadManager::getInstance().registerGroup(_index, name, loc);
-        ThreadManager::getInstance().addThread(_index, name, ManagedThread{
+        _group_id = ThreadManager::getInstance().registerGroup(name, loc);
+        ThreadManager::getInstance().addThread(_group_id, name, ManagedThread{
             [this](auto&){ updater(); }
         });
     }
@@ -129,7 +129,7 @@ struct RepeatedDeferral {
 
         //if(_updater && _updater->joinable())
         //    _updater->join();
-        ThreadManager::getInstance().terminateGroup(_index);
+        ThreadManager::getInstance().terminateGroup(_group_id);
         //_updater = nullptr;
     }
     
@@ -142,8 +142,8 @@ struct RepeatedDeferral {
         Timer timer;
         
         std::unique_lock guard(_mutex);
-        if(not group->started and not _terminate) {
-            ThreadManager::getInstance().startGroup(_index);
+        if(not _terminate) {
+            ThreadManager::getInstance().startGroup(_group_id);
         }
         
         if(_next.empty())

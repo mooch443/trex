@@ -14,8 +14,6 @@
 #include <tracking/IndividualManager.h>
 
 namespace gui {
-    IMPLEMENT(Timeline::_mutex);
-
     //! NeighborDistances drawn out
     struct ProximityBar {
         Size2 _dimensions;
@@ -118,7 +116,7 @@ namespace gui {
             std::vector<Range<Frame_t>> other_consec;
             
             {
-                std::unique_lock info_guard(Timeline::_frame_info_mutex);
+                auto info_guard = LOGGED_LOCK(Timeline::frame_info_mutex());
                 number << _frame_info->frameIndex.load().toStr() << "/" << _frame_info->video_length << ", " << SETTING(gui_source_video_frame).value<Frame_t>().toStr() << " " << _frame_info->big_count << " tracks";
                 if (_frame_info->small_count)
                     number << " (" << _frame_info->small_count << " short)";
@@ -223,7 +221,7 @@ namespace gui {
             float percent = float(endframe) / _frame_info->video_length;
             base.rect(Box(pos, Size2(max_w * percent, bar_height)), FillClr{red_bar_clr});
 
-            std::unique_lock info_lock(Timeline::_frame_info_mutex);
+            auto info_lock = LOGGED_LOCK(Timeline::frame_info_mutex());
             if (_bar && use_scale.y > 0) {
                 std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
                 float new_height = roundf(bar_height);
@@ -308,14 +306,14 @@ namespace gui {
     
     std::tuple<Vec2, float> Timeline::timeline_offsets(Base* base) {
         //const float max_w = Tracker::average().cols;
-        std::unique_lock guard(_mutex);
+        auto guard = LOGGED_LOCK(mutex());
         const float max_w = _instance && !_terminate && base ? base->window_dimensions().width * gui::interface_scale() : Tracker::average().cols;
         Vec2 offset(0);
         return {offset, max_w};
     }
 
     Timeline& Timeline::instance() {
-        std::unique_lock guard(Timeline::_mutex);
+        auto guard = LOGGED_LOCK(Timeline::mutex());
         if (!_instance)
             throw U_EXCEPTION("No timeline has been created.");
         return *_instance;
@@ -329,7 +327,7 @@ namespace gui {
         _updated_recognition_rect(updated_rec_rect),
         _hover_status_text(hover_status)
     {
-        std::unique_lock guard(_mutex);
+        auto guard = LOGGED_LOCK(mutex());
         _instance = this;
         //_gui = &gui;
         _tracker = Tracker::instance();
@@ -713,7 +711,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                         auto prev_props = index.valid() && index > 0_f ? Tracker::properties(index - 1_f) : nullptr;
 
                         {
-                            std::unique_lock info_lock(_frame_info_mutex);
+                            auto info_lock = LOGGED_LOCK(frame_info_mutex());
 
                             _frame_info->tdelta = props && prev_props ? props->time - prev_props->time : 0;
                             _frame_info->small_count = 0;
@@ -824,7 +822,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
     }
 
     void Timeline::set_visible(bool v) {
-        std::unique_lock guard(_mutex);
+        auto guard = LOGGED_LOCK(mutex());
         if(_instance->_visible != v) {
             GUICache::instance().set_tracking_dirty();
             GUICache::instance().set_redraw();
@@ -834,7 +832,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
     }
 
     bool Timeline::visible() {
-        std::unique_lock guard(_mutex);
+        auto guard = LOGGED_LOCK(mutex());
         return _instance->_visible;
     }
     

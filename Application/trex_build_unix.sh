@@ -138,9 +138,21 @@ else
     fi
 fi
 
-NPROC=$(nproc)
+# Determine OS and set NPROC appropriately
+if [ "$(uname)" == "Darwin" ]; then
+    # macOS
+    NPROC=$(sysctl -n hw.ncpu)
+elif [ "$(uname)" == "Linux" ]; then
+    # Linux
+    NPROC=$(nproc)
+else
+    echo "Unsupported operating system"
+    exit 1
+fi
+
 echo "NPROC=$NPROC"
 
+# Build targets with cmake
 CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config Release --parallel ${NPROC}
 CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config Release --parallel ${NPROC}
 CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config Release --parallel ${NPROC}

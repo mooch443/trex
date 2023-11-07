@@ -1072,7 +1072,7 @@ int main(int argc, char** argv)
     
     auto graph = std::make_unique<gui::DrawStructure>();
     GUI *gui_instance = new GUI(graph.get(), video, tracker.average(), tracker);
-    std::unique_lock<std::recursive_mutex> gui_lock(gui_instance->gui().lock());
+    auto gui_lock = GUI_LOCK(gui_instance->gui().lock());
     
     //try {
     GUI &gui = *gui_instance;
@@ -1467,7 +1467,7 @@ int main(int argc, char** argv)
     
     gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&, gui::LoopStatus status){
         {
-            std::unique_lock<std::recursive_mutex> guard(gui.gui().lock());
+            auto guard = GUI_LOCK(gui.gui().lock());
             GUI::run_loop(status);
         }
         
@@ -1670,7 +1670,7 @@ int main(int argc, char** argv)
         // ---
         // IN CASE RECORDING IS ACTIVATED
         // ---
-        std::unique_lock<std::recursive_mutex> guard(gui.gui().lock());
+        auto guard = GUI_LOCK(gui.gui().lock());
         try {
             gui.do_recording();
         } catch(const std::exception& ex) {

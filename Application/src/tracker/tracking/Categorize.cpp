@@ -40,7 +40,6 @@ std::unordered_map<Label::Ptr, std::vector<Sample::Ptr>> _labels;
 
 std::random_device rd;
 
-std::shared_mutex _cache_mutex;
 std::vector<std::tuple<Frame_t, std::shared_ptr<PPFrame>>> _frame_cache;
 #ifndef NDEBUG
 std::unordered_set<Frame_t> _current_cached_frames;
@@ -71,39 +70,43 @@ typename std::vector<T>::const_iterator find_keyed_tuple(const std::vector<T>& v
 
 namespace Work {
 
-std::atomic_bool _terminate = false, _learning = false;
-std::mutex _mutex;
-std::mutex& mutex() {
+static std::mutex& mutex() {
+    static std::mutex _mutex;
     return _mutex;
 }
 
-std::mutex _recv_mutex;
 std::mutex& recv_mutex() {
+    static std::mutex _recv_mutex;
     return _recv_mutex;
 }
 
 std::atomic_bool& terminate() {
+    static std::atomic_bool _terminate = false;
     return _terminate;
 }
 
 std::atomic_bool& learning() {
+    static std::atomic_bool _learning{false};
     return _learning;
 }
 
-std::condition_variable _variable, _recv_variable;
 std::condition_variable& variable() {
+    static std::condition_variable _variable;
     return _variable;
 }
 
 std::queue<Sample::Ptr> _generated_samples;
 std::atomic<int> _number_labels{0};
 
-std::condition_variable _learning_variable;
 std::condition_variable& learning_variable() {
+    static std::condition_variable _learning_variable;
     return _learning_variable;
 }
 
-std::mutex _learning_mutex;
+static std::mutex& learning_mutex() {
+    static std::mutex m;
+    return m;
+}
 
 std::unique_ptr<std::thread> thread;
 
@@ -157,7 +160,7 @@ void work() {
 }
 
 size_t num_ready() {
-    std::lock_guard guard(_mutex);
+    std::lock_guard guard(mutex());
     return _generated_samples.size();
 }
 
@@ -172,11 +175,11 @@ void set_best_accuracy(float a) {
 
 void add_task(LearningTask&& task) {
     {
-        std::lock_guard guard(_learning_mutex);
+        std::lock_guard guard(Work::learning_mutex());
         queue().push(std::move(task));
     }
     
-    Work::_learning_variable.notify_one();
+    Work::learning_variable().notify_one();
 }
 
 auto& task_queue() {
@@ -337,7 +340,20 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static Frame_t start_frame = Tracker::analysis_range().start();
+    static Frame_t start_frame = [](){
+        track::Settings::set_callback(track::Settings::Variables::analysis_range,
+        [](const std::string_view&, const sprite::PropertyType&){
+            auto start = Tracker::analysis_range().start();
+            if(std::unique_lock guard(DataStore::cache_mutex());
+               start != start_frame)
+            {
+                start_frame = start;
+                _probability_cache.clear();// since this breaks the datastore for probability cache
+            }
+        });
+        return Tracker::analysis_range().start();
+    }();
+    
     assert(start_frame == (FAST_SETTING(analysis_range).first == -1 ? Frame_t(Frame_t::number_t(0)) : Frame_t(FAST_SETTING(analysis_range).first)));
     return start_frame;
 }
@@ -801,7 +817,7 @@ void terminate() {
         Work::terminate() = true;
         Work::learning() = false;
         Work::learning_variable().notify_all();
-        Work::_variable.notify_all();
+        Work::variable().notify_all();
         Work::thread->join();
         Work::thread = nullptr;
         pool = nullptr;
@@ -821,8 +837,8 @@ void hide() {
     Work::visible() = false;
     
     //if(Work::state() != Work::State::APPLY) {
-        Work::_learning = false;
-        Work::_variable.notify_all();
+        Work::learning() = false;
+        Work::variable().notify_all();
     //}
 }
 
@@ -1080,11 +1096,11 @@ file::Path output_location() {
 }
 
 void Work::start_learning() {
-    if(Work::_learning) {
+    if(Work::learning()) {
         return;
     }
     
-    Work::_learning = true;
+    Work::learning() = true;
     namespace py = Python;
     
     py::schedule(py::PackagedTask{._task = py::PromisedTask([]() -> void {
@@ -1149,7 +1165,7 @@ void Work::start_learning() {
         };
         
         Timer timer;
-        while(FAST_SETTING(categories_ordered).empty() && Work::_learning) {
+        while(FAST_SETTING(categories_ordered).empty() && Work::learning()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if(timer.elapsed() >= 1) {
                 FormatWarning("# Waiting for labels...");
@@ -1169,18 +1185,18 @@ void Work::start_learning() {
         
         bool force_prediction = false;
         
-        std::unique_lock guard(Work::_learning_mutex);
-        while(Work::_learning) {
+        std::unique_lock guard(Work::learning_mutex());
+        while(Work::learning()) {
             const auto dims = FAST_SETTING(individual_image_size);
             const auto gpu_max_sample_images = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
             
-            Work::_learning_variable.wait_for(guard, std::chrono::milliseconds(200));
+            Work::learning_variable().wait_for(guard, std::chrono::milliseconds(200));
             
             bool clear_probs = false;
             bool force_training = false;
             force_prediction = false;
             
-            while(!queue().empty() && Work::_learning) {
+            while(!queue().empty() && Work::learning()) {
                 if(py::check_module(module)) {
                     reset_variables();
                     if(best_accuracy() > 0) {
@@ -1209,7 +1225,7 @@ void Work::start_learning() {
                             clear_probs = true;
                             if (item.callback)
                                 item.callback(item);
-                            Work::_learning_variable.notify_one();
+                            Work::learning_variable().notify_one();
                             break;
                         }
                             
@@ -1251,7 +1267,7 @@ void Work::start_learning() {
                             } catch(const UtilsException&) {
                                 // pass
                             }
-                            Work::_variable.notify_one();
+                            Work::variable().notify_one();
                             break;
                         }
                             
@@ -1269,7 +1285,7 @@ void Work::start_learning() {
                 if(prediction_images.size() >= gpu_max_sample_images
                    || training_images.size() >= gpu_max_sample_images)
                 {
-                    Work::_learning_variable.notify_all();
+                    Work::learning_variable().notify_all();
                     break;
                 }
             }
@@ -1391,7 +1407,7 @@ void Work::start_learning() {
                 last_insert.reset();
                 
             } else {
-                Work::_learning_variable.notify_one();
+                Work::learning_variable().notify_one();
             }
         }
         
@@ -1434,7 +1450,7 @@ Work::Task Work::_pick_front_thread() {
         double mean = 0;
         std::vector<int64_t> vector;
         {
-            std::shared_lock g(_cache_mutex);
+            std::shared_lock g(DataStore::cache_mutex());
             vector.reserve(_frame_cache.size());
 
             for (auto& [v, pp] : _frame_cache) {
@@ -1526,7 +1542,7 @@ Work::Task Work::_pick_front_thread() {
 }
 
 void Work::work_thread() {
-    std::unique_lock guard(Work::_mutex);
+    std::unique_lock guard(Work::mutex());
     const std::thread::id id = std::this_thread::get_id();
     constexpr size_t maximum_tasks = 5u;
     
@@ -1542,7 +1558,7 @@ void Work::work_thread() {
             // process sergment
             guard.unlock();
             try {
-                _variable.notify_one();
+                variable().notify_one();
                 task.func();
                 guard.lock();
                 
@@ -1582,18 +1598,17 @@ void Work::work_thread() {
 
             if (sample != Sample::Invalid() && !sample->_assigned_label) {
                 _generated_samples.push(sample);
-                _recv_variable.notify_one();
             }
         }
 
         if (_generated_samples.size() < requested_samples() && !terminate())
-            _variable.notify_one();
+            variable().notify_one();
 
         if (terminate())
             break;
 
         if(collected < maximum_tasks)
-            _variable.wait_for(guard, std::chrono::seconds(1));
+            variable().wait_for(guard, std::chrono::seconds(1));
     }
 }
 
@@ -1613,7 +1628,7 @@ void Work::loop() {
 
 void DataStore::clear() {
     {
-        std::unique_lock guard(_cache_mutex);
+        std::unique_lock guard(DataStore::cache_mutex());
         print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
         _frame_cache.clear();
 #ifndef NDEBUG
@@ -1691,7 +1706,7 @@ void paint_distributions(int64_t frame) {
             //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
             //if (mit != v.end() && mat != v.end())
             {
-                std::lock_guard g(Work::_mutex);
+                std::lock_guard g(Work::mutex());
                 for (auto& t : Work::task_queue()) {
                     if (!t.range.start.valid())
                         continue;
@@ -1743,7 +1758,7 @@ void paint_distributions(int64_t frame) {
                          Blue, 2);
 
                 {
-                    std::unique_lock guard(_cache_mutex);
+                    std::unique_lock guard(DataStore::cache_mutex());
                     sum = 0;
                     for (auto& [c, pp] : _frame_cache) {
                         cv::line(mat,
@@ -1832,7 +1847,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
     {
         //std::lock_guard g(Work::_mutex);
-        std::unique_lock guard(_cache_mutex);
+        std::unique_lock guard(DataStore::cache_mutex());
 
         auto it = find_keyed_tuple(_frame_cache, frame);
         if (it != _frame_cache.end()) {
@@ -1886,7 +1901,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     Frame_t::number_t minimum_range = std::numeric_limits<Frame_t::number_t>::max(), maximum_range = 0;
     
     {
-        std::lock_guard g(Work::_mutex);
+        std::lock_guard g(Work::mutex());
         for (auto& t : Work::task_queue()) {
             if (!t.range.start.valid())
                 continue;
@@ -1906,7 +1921,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         }
     }
 
-    std::unique_lock guard(_cache_mutex);
+    std::unique_lock guard(DataStore::cache_mutex());
     auto it = find_keyed_tuple(_frame_cache, frame);
     if(it == _frame_cache.end()) {
 #ifndef NDEBUG
@@ -2077,7 +2092,7 @@ Sample::Ptr DataStore::temporary(
             auto f = Frame_t(frames.at(i + start_offset));
             
             {
-                std::shared_lock guard(_cache_mutex);
+                std::shared_lock guard(DataStore::cache_mutex());
                 auto it = find_keyed_tuple(_frame_cache, Frame_t(f));
                 if(it != _frame_cache.end()) {
                     //ptr = std::get<1>(*it);
@@ -2293,7 +2308,7 @@ void Work::set_state(State state) {
             LearningTask task;
             task.type = LearningTask::Type::Load;
             Work::add_task(std::move(task));
-            Work::_variable.notify_one();
+            Work::variable().notify_one();
             state = State::SELECTION;
             break;
         }
@@ -2319,7 +2334,7 @@ void Work::set_state(State state) {
             } else {
                 Work::status() = "Initializing...";
                 Work::requested_samples() = Interface::per_row * 2;
-                Work::_variable.notify_one();
+                Work::variable().notify_one();
                 Work::visible() = true;
                 Work::start_learning();
             }
@@ -2333,12 +2348,12 @@ void Work::set_state(State state) {
             LearningTask task;
             task.type = LearningTask::Type::Apply;
             Work::add_task(std::move(task));
-            Work::_variable.notify_one();
-            Work::_learning_variable.notify_one();
+            Work::variable().notify_one();
+            Work::learning_variable().notify_one();
             state = State::APPLY;
             Work::visible() = false;
 
-            Work::_variable.notify_one();
+            Work::variable().notify_one();
             break;
         }
             

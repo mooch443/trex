@@ -1,246 +1,302 @@
-{ "objects": [
-    
-    {  "type":"condition",
-       "var":"{global.gui_show_timeline}",
-        "then":{
-            "type":"collection",
+{ 
+"defaults": {
+"vars":{
+    "start":"{analysis_range.start}",
+    "end":"{-:{analysis_range.end}:1}",
+    "length":"{-:{global.video_length}:1}",
+    "width":"{-:{window_size.x}:20}",
+    "width23":"{-:{window_size.x}:22}",
+
+    "timeline_start":"[{+:10:{*:{/:{analysis_range.start}:{length}}:{width}}},-10]",
+    "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
+
+    "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}"
+}
+},
+"objects": [
+{
+"type":"condition",
+"var":"{global.gui_show_timeline}",
+"then":{
+    "type":"collection",
+    "children":[
+        {
+            "type":"condition",
+            "var":"{bool:{global.gui_focus_group}}",
+            "then":{
+                "type":"collection",
+                "pos":[10,90],
+                "size":"auto",
+                "fill":[50,50,50,125],
+                "pad":[10,10,10,10],
+                "children": [
+                    { 
+                        "type":"stext",
+                        "text":"<b>{global.individual_prefix}{global.gui_focus_group}</b>ßöäü",
+                        "pos":[10,10]
+                    }
+                ]
+            },
+            "else":{ "type":"collection", "children":[] }
+        },
+        
+        {
+            "type":"vlayout",
+            "pad":[0,10,0,0],
             "children":[
                 {
-                    "type":"condition",
-                    "var":"{bool:{global.gui_focus_group}}",
-                    "then":{
-                        "type":"collection",
-                        "pos":[10,90],
-                        "size":[200,350],
-                        "fill":[50,50,50,125],
-                        "children": [
-                            { 
-                                "type":"stext",
-                                "text":"<b>{global.individual_prefix}{global.gui_focus_group}</b>",
-                                "pos":[10,10]
-                            }
-                        ]
-                    },
-                    "else":{ "type":"collection", "children":[] }
-                },
-                
-                {
-                    "type":"vlayout",
-                    "pad":[0,10,0,0],
+                    "type":"hlayout",
+                    "pad":[10,0,0,0],
                     "children":[
                         {
-                            "type":"hlayout",
-                            "pad":[10,0,0,0],
-                            "children":[
-                                {
-                                    "type":"condition",
-                                    "var":"{equal:{-:{global.video_length}:1}:{tracker.to}}",
-                                    "then": {
-                                        "type":"rect",
-                                        "size":[0,0]
-                                    },
-                                    "else": {
-                                        "type":"button",
-                                        "action":"set:analysis_paused:{not:{global.analysis_paused}}",
-                                        "text":"{if:global.analysis_paused:'<sym>▶</sym>':'<sym>⏸</sym>'}",
-                                        "size":[25,25],
-                                        "font":{"size":0.8},
-                                        "fill":[10,0,0,0],
-                                        "line":[10,0,0,0],
-                                        "color":"{if:global.analysis_paused:[30,80,30,100]:[200,120,80,100]}"
-                                    }
-                                },
-                                
-                                {
-                                    "type": "stext",
-                                    "text": "<b>{global.source}</b> — <a>{global.gui_frame}</a>/<a>{-:{global.video_length}:1}</a> {if:{equal:{-:{global.video_length}:1}:{tracker.to}}:'':{if:global.analysis_paused:'(<orange>paused</orange>)':'<i>processing @ <a>{fps}</a>fps</i>'}}",
-                                    "font":{ "size":0.65 },
-                                    "shadow":0.5,
-                                    "pad":[-5,0,0,7.5]
-                                }
-                            ]
+                            "type":"condition",
+                            "var":"{equal:{+:1:{length}}:{tracker.end}}",
+                            "then": {
+                                "type":"rect",
+                                "size":[0,0]
+                            },
+                            "else": {
+                                "type":"button",
+                                "action":"set:analysis_paused:{not:{global.analysis_paused}}",
+                                "text":"{if:{global.analysis_paused}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
+                                "size":[25,25],
+                                "font":{"size":0.8},
+                                "fill":[10,0,0,0],
+                                "line":[10,0,0,0],
+                                "color":"{if:{global.analysis_paused}:[30,80,30,100]:[200,120,80,100]}"
+                            }
                         },
+                        
                         {
-                            "type":"collection",
-                            "children":[
-                                {
-                                    "type": "rect",
-                                    "pos": [10, -10],
-                                    "size": "[{+:{window_size.x}:-20},30]",
-                                    "fill": [10,10,10,0],
-                                    "line": [255,255,255,255],
-                                    "clickable":true,
-                                    "action": "set:gui_frame:{min:{-:{global.video_length}:1}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:25}}:{-:{global.video_length}:0.5}}}"
-                                },
-                                {
-                                    "type": "rect",
-                                    "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.to}}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}},-9]",
-                                    "size": "[{-:{+:{window_size.x}:-10}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.to}}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}}},28]",
-                                    "fill": [0,0,0,150],
-                                    "line": [250,250,250,0],
-                                    "clickable":false
-                                },
-                                {
-                                    "type": "rect",
-                                    "pos": "[{+:11:{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}}},-9]",
-                                    "size": "[{*:{/:{max:0:{-:{tracker.to}:{global.gui_frame}}}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-23}},28]",
-                                    "fill": [50,50,50,150],
-                                    "line": [250,250,250,0],
-                                    "clickable":false
-                                },
-                                {
-                                    "type": "rect",
-                                    "pos": [10, -10],
-                                    "size": "[{*:{/:{global.gui_frame}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-20}},30]",
-                                    "fill": [100,100,100,150],
-                                    "line": [250,250,250,200],
-                                    "clickable":false
-                                },
-                                
-                                {
-                                    "type":"each",
-                                    "var":"consec",
-                                    "do": {
-                                        "type": "rect",
-                                        "pos": "{addVector:[{round:{*:{/:{i.from}:{{-:{global.video_length}:1}}}:{+:{window_size.x}:-25}}},0]:[12.5,-9]}",
-                                        "size": "{addVector:[{round:{*:{/:{-:{i.to}:{i.from}}:{{-:{global.video_length}:1}}}:{-:{window_size.x}:25}}},28]:[0,0]}",
-                                        "fill": "{clrAlpha:{i.color}:50}"
-                                    }
-                                }
-                                
-                            ]
+                            "type": "stext",
+                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{basename:{global.source}}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{length}:{tracker.end}}:'':{if:{global.analysis_paused}:'(<orange>paused</orange>)':'<i>processing @ <a>{int:{fps}}</a>fps</i>'}}",
+                            "font":{ "size":0.65 },
+                            "shadow":0.5,
+                            "pad":[-5,0,0,7.5]
                         }
                     ]
                 },
-
                 {
-                    "type":"condition",
-                    "var":"{key.lctrl}",
-                    "then":{ 
-                        "type":"collection",
-                        "children":[
-                            {
-                                "type":"button",
-                                "text":"Test",
-                                "pos":[300,100],
-                                "size":[100,40],
-                                "action":"change_scene:'starting-scene'"
-                            },
-                            {
-                                "type":"settings",
-                                "var":"gui_frame",
-                                "size":[100,40],
-                                "pos":[300,150],
-                                "fill":[50,50,50]
-                            },
-                            {
-                                "type":"settings",
-                                "var":"video_length",
-                                "size":[100,40],
-                                "pos":[300,200],
-                                "fill":[50,50,50]
-                            }
-                        ]
-                    },
-                    "else":{ "type":"rect", "size":[0,0] }
-                },
-                
-                {
-                    "type":"hlayout",
-                    "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
-                    "origin":[0,1],
-                    "pad":[10,10,0,0],
+                    "type":"collection",
                     "children":[
                         {
-                            "type":"list",
-                            "pos":[0,0],
-                            "size":[150,140],
-                            "fill":[50,50,50],
-                            "foldable":true,
-                            "folded":true,
-                            "text":"display",
-                            "item_height":1,
-                            "font":{"size":0.6},
-                            "items":[
-                                {
-                                    "text":"selections",
-                                    "detail":"{if:global.gui_show_selections:'hide':'show'}",
-                                    "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
-                                },
-                                {
-                                    "text":"blobs",
-                                    "detail":"{if:global.gui_show_blobs:'hide':'show'}",
-                                    "action":"set:gui_show_blobs:{not:{global.gui_show_blobs}}"
-                                },
-                                {
-                                    "text":"heatmap",
-                                    "detail":"{if:global.gui_show_heatmap:'hide':'show'}",
-                                    "action":"set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
-                                },
-                                {
-                                    "text":"gui_show_posture",
-                                    "detail":"{if:global.gui_show_posture:'hide':'show'}",
-                                    "action":"set:gui_show_posture:{not:{global.gui_show_posture}}"
-                                },
-                                {
-                                    "text":"gui_show_midline",
-                                    "detail":"{if:global.gui_show_midline:'hide':'show'}",
-                                    "action":"set:gui_show_midline:{not:{global.gui_show_midline}}"
-                                },
-                                {
-                                    "text":"gui_show_outline",
-                                    "detail":"{if:global.gui_show_outline:'hide':'show'}",
-                                    "action":"set:gui_show_outline:{not:{global.gui_show_outline}}"
-                                },
-                                {
-                                    "text":"gui_show_visualfield",
-                                    "detail":"{if:global.gui_show_visualfield:'hide':'show'}",
-                                    "action":"set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
-                                },
-                                {
-                                    "text":"gui_show_probabilities",
-                                    "detail":"{if:global.gui_show_probabilities:'hide':'show'}",
-                                    "action":"set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
-                                },
-                                {
-                                    "text":"gui_show_texts",
-                                    "detail":"{if:global.gui_show_texts:'hide':'show'}",
-                                    "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
-                                },
-                                {
-                                    "text":"gui_show_graph",
-                                    "detail":"{if:global.gui_show_graph:'hide':'show'}",
-                                    "action":"set:gui_show_graph:{not:{global.gui_show_graph}}"
-                                },
-                                {
-                                    "text":"gui_auto_scale",
-                                    "detail":"{if:global.gui_auto_scale:'hide':'show'}",
-                                    "action":"set:gui_auto_scale:{not:{global.gui_auto_scale}}"
-                                },
-                                {
-                                    "text":"gui_auto_scale_focus_one",
-                                    "detail":"{if:global.gui_auto_scale_focus_one:'hide':'show'}",
-                                    "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
-                                }
-                            ]
-
+                            "type": "rect",
+                            "pos": [10, -10],
+                            "size": "[{width},30]",
+                            "fill": [30,30,30,0],
+                            "line": [255,255,255,255],
+                            "clickable":true,
+                            "action": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
                         },
                         {
-                            "type":"settings",
-                            "var":"",
-                            "font":{"size":0.75,"align":"center"},
-                            "fill":[50,50,50],
-                            "line":[75,75,75],
-                            "size":[400,40],
-                            "color":[225,225,225],
-                            "desc":"",
-                            "highlight_clr":[75,75,75,255]
+                            "type": "rect",
+                            "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{-:{window_size.x}:22}}},-9]",
+                            "size": "[{max:0:{-:{-:{window_size.x}:11}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{width23}}}}},28]",
+                            "fill": [0,0,0,150],
+                            "line": [250,250,250,0],
+                            "clickable":false
+                        },
+
+                        {
+                            "type": "rect",
+                            "pos": "{current_pos}",
+                            "size": "[{+:10:{-:{*:{/:{max:{global.gui_frame}:{min:{min:{global.video_length}:{-:{tracker.end}:1}}:{end}}}:{length}}:{-:{window_size.x}:22}}:{at:0:{current_pos}}}},28]",
+                            "fill": [20,50,50,150],
+                            "line": [250,250,250,0],
+                            "clickable":false
+                        },
+                        
+                        {
+                            "type": "rect",
+                            "pos": "{timeline_start}",
+                            "size": "[{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}},30]",
+                            "fill": [50,50,50,150],
+                            "line": [255,255,255,255],
+                            "clickable":false
+                        },
+
+                        {
+                            "type": "rect",
+                            "pos": "{timeline_start}",
+                            "size": "[{+:{-:{*:{/:{end}:{length}}:{width}}:{at:0:{timeline_start}}}:10},30]",
+                            "fill": [50,150,50,0],
+                            "line": [150,150,150,125],
+                            "clickable":false
+                        },
+                        
+                        {
+                            "type":"each",
+                            "var":"consec",
+                            "do": {
+                                "type": "rect",
+                                "pos": "[{+:11:{*:{/:{i.start}:{length}}:{-:{window_size.x}:22}}},-9]",
+                                "size": "[{*:{/:{-:{-:{i.end}:1}:{i.start}}:{length}}:{-:{window_size.x}:22}},28]",
+                                "fill": "{clrAlpha:{i.color}:125}"
+                            }
                         }
                     ]
                 }
             ]
         },
-        "else": { "type":"rect", "size":[0,0] }
-    }
+
+        {
+            "type":"condition",
+            "var":"{key.lctrl}",
+            "then":{ 
+                "type":"collection",
+                "children":[
+                    {
+                        "type":"button",
+                        "text":"Test",
+                        "pos":[300,100],
+                        "size":[100,40],
+                        "action":"change_scene:'starting-scene'"
+                    },
+                    {
+                        "type":"settings",
+                        "var":"gui_frame",
+                        "size":[100,40],
+                        "pos":[300,150],
+                        "fill":[50,50,50]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"video_length",
+                        "size":[100,40],
+                        "pos":[300,200],
+                        "fill":[50,50,50]
+                    },
+
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"each",
+                                "var":"consec",
+                                "do": {
+                                    "type": "stext",
+                                    "text": "{i.start}-{i.end}",
+                                    "color":[255,255,255,255]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "else":{ "type":"rect", "size":[0,0] }
+        },
+        
+        {
+            "type":"hlayout",
+            "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
+            "origin":[0,1],
+            "pad":[10,10,0,0],
+            "children":[
+                {
+                    "type":"list",
+                    "pos":[0,0],
+                    "size":[150,140],
+                    "fill":[50,50,50],
+                    "foldable":true,
+                    "folded":true,
+                    "text":"display",
+                    "item_height":1,
+                    "font":{"size":0.6},
+                    "items":[
+                        {
+                            "text":"selections",
+                            "detail":"{if:{global.gui_show_selections}:'hide':'show'}",
+                            "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
+                        },
+                        {
+                            "text":"blobs",
+                            "detail":"{if:{global.gui_show_blobs}:'hide':'show'}",
+                            "action":"set:gui_show_blobs:{not:{global.gui_show_blobs}}"
+                        },
+                        {
+                            "text":"heatmap",
+                            "detail":"{if:{global.gui_show_heatmap}:'hide':'show'}",
+                            "action":"set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
+                        },
+                        {
+                            "text":"gui_show_posture",
+                            "detail":"{if:{global.gui_show_posture}:'hide':'show'}",
+                            "action":"set:gui_show_posture:{not:{global.gui_show_posture}}"
+                        },
+                        {
+                            "text":"gui_show_midline",
+                            "detail":"{if:{global.gui_show_midline}:'hide':'show'}",
+                            "action":"set:gui_show_midline:{not:{global.gui_show_midline}}"
+                        },
+                        {
+                            "text":"gui_show_outline",
+                            "detail":"{if:{global.gui_show_outline}:'hide':'show'}",
+                            "action":"set:gui_show_outline:{not:{global.gui_show_outline}}"
+                        },
+                        {
+                            "text":"gui_show_visualfield",
+                            "detail":"{if:{global.gui_show_visualfield}:'hide':'show'}",
+                            "action":"set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
+                        },
+                        {
+                            "text":"gui_show_probabilities",
+                            "detail":"{if:{global.gui_show_probabilities}:'hide':'show'}",
+                            "action":"set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
+                        },
+                        {
+                            "text":"gui_show_texts",
+                            "detail":"{if:{global.gui_show_texts}:'hide':'show'}",
+                            "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
+                        },
+                        {
+                            "text":"gui_show_graph",
+                            "detail":"{if:{global.gui_show_graph}:'hide':'show'}",
+                            "action":"set:gui_show_graph:{not:{global.gui_show_graph}}"
+                        },
+                        {
+                            "text":"gui_auto_scale",
+                            "detail":"{if:{global.gui_auto_scale}:'hide':'show'}",
+                            "action":"set:gui_auto_scale:{not:{global.gui_auto_scale}}"
+                        },
+                        {
+                            "text":"gui_auto_scale_focus_one",
+                            "detail":"{if:{global.gui_auto_scale_focus_one}:'hide':'show'}",
+                            "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
+                        }
+                    ]
+
+                },
+                {
+                    "type":"settings",
+                    "var":"",
+                    "font":{"size":0.75,"align":"center"},
+                    "fill":[50,50,50],
+                    "line":[75,75,75],
+                    "size":[400,40],
+                    "color":[225,225,225],
+                    "desc":"",
+                    "highlight_clr":[75,75,75,255]
+                }
+            ]
+        },
+
+        {
+            "type":"hlayout",
+            "pos":"{addVector:[{-:{window_size.x}:10},{-:{window_size.y}:10}]:0}",
+            "origin":[1,1],
+            "pad":[0,10,0,0],
+            "children":[
+                {
+                    "type":"stext",
+                    "font":{"size":0.6},
+                    "text":"[{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}]",
+                    "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
+                }
+            ]
+        }
+    ]
+},
+"else": { "type":"rect", "size":[0,0] }
+}
 
 ]}

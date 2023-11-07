@@ -19,22 +19,28 @@ namespace track::split {
 //! secures the CPULabeling caches while in use
 //! + queue & dequeue and reusing
 struct Guard {
-    inline static std::queue<CPULabeling::ListCache_t*> caches;
-    inline static std::mutex clock;
+    static auto& caches() {
+        static std::queue<CPULabeling::ListCache_t*> c;
+        return c;
+    }
+    static auto& clock() {
+        static auto m = LOGGED_MUTEX("track::split::clock");
+        return m;
+    }
     
     CPULabeling::ListCache_t* c{ nullptr };
     Guard() {
-        std::unique_lock guard(clock);
-        if(caches.empty()) {
+        auto guard = LOGGED_LOCK(clock());
+        if(caches().empty()) {
             c = new CPULabeling::ListCache_t;
         } else {
-            c = caches.front();
-            caches.pop();
+            c = caches().front();
+            caches().pop();
         }
     }
     ~Guard() {
-        std::unique_lock guard(clock);
-        caches.push(c);
+        auto guard = LOGGED_LOCK(clock());
+        caches().push(c);
     }
 };
 

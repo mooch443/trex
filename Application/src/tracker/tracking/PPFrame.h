@@ -67,14 +67,14 @@ public:
     std::atomic<uint64_t> _split_objects{0}, _split_pixels{0};
     
 #if TREX_ENABLE_HISTORY_LOGS
-    inline static std::shared_ptr<std::ofstream> history_log;
-    inline static std::mutex log_mutex;
+    static std::shared_ptr<std::ofstream>& history_log();
+    static LOGGED_MUTEX_TYPE& log_mutex();
 #endif
     
     template<typename... Args>
     static inline void Log([[maybe_unused]] Args&& ...args) {
 #if TREX_ENABLE_HISTORY_LOGS
-        if(!history_log)
+        if(!history_log())
             return;
         write_log(format<FormatterType::NONE>(std::forward<Args>(args)...));
 #else
@@ -93,10 +93,10 @@ public:
     using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
     
     //! Time in seconds
-    double time;
+    double time{0};
     
     CacheHints hints;
-    GETTER_SETTER(double, loading_time)
+    GETTER_SETTER_I(double, loading_time, 0)
     
 public:
     //! Original timestamp
@@ -104,6 +104,8 @@ public:
     
     //! Original frame index
     GETTER_SETTER(Frame_t, index)
+    //! Original frame index in the video
+    GETTER_SETTER(Frame_t, source_index)
 
 public:
     bool _finalized = false;

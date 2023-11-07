@@ -17,7 +17,10 @@ namespace track {
 inline static std::atomic<bool> _initialized = false;
 inline static constexpr auto tagwork = "pretrained_tagwork";
 inline static std::atomic_bool _terminate = false;
-inline static std::mutex _mutex;
+static auto& mutex() {
+    static std::mutex m;
+    return m;
+}
 inline static std::condition_variable _variable;
 inline static std::vector<RecTask> _queue;
 inline static std::atomic<double> _average_time_per_task{0.0};
@@ -29,7 +32,7 @@ inline static std::unique_ptr<std::thread> _update_thread;
 bool RecTask::can_take_more() {
     static Timer last_print_timer;
     
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(mutex());
     if(last_print_timer.elapsed() > 5)
     {
         print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
@@ -57,7 +60,7 @@ void RecTask::thread() {
         RecTask::init();
         Timer task_timer;
 
-        std::unique_lock guard(_mutex);
+        std::unique_lock guard(mutex());
         while(!_terminate || !_queue.empty()) {
             while(!_queue.empty()) {
                 task_timer.reset();
@@ -124,7 +127,7 @@ void RecTask::thread() {
 }
 
 bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, const std::function<void()>& callback) {
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(mutex());
     static std::once_flag flag;
 
     std::call_once(flag, []() {
@@ -169,7 +172,7 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
 }
 
 void RecTask::update(RecTask&& task) {
-    auto individual = task.individual;
+    //auto individual = task.individual;
     auto apply = [task = std::move(task)]() 
         mutable -> void 
     {
@@ -264,7 +267,7 @@ void RecTask::update(RecTask&& task) {
 
 
 void RecTask::remove(Idx_t fdx) {
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(mutex());
     for(auto it = _queue.begin(); it != _queue.end(); ) {
         if(it->_fdx == fdx) {
             it = _queue.erase(it);

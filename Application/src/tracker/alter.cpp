@@ -321,27 +321,39 @@ int main(int argc, char**argv) {
     for(auto a : CommandLine::instance()) {
         if(a.name == "s") {
             SETTING(settings_file) = file::Path(a.value).add_extension("settings");
+            CommandLine::instance().add_setting("settings_file", a.value);
         }
-        if(a.name == "i") {
+        else if(a.name == "i") {
             SETTING(source) = file::PathArray(a.value);
+            CommandLine::instance().add_setting("source", a.value);
         }
-        if(a.name == "m") {
+        else if(a.name == "m") {
             SETTING(model) = file::Path(a.value);
+            CommandLine::instance().add_setting("model", a.value);
         }
-        if(a.name == "sm") {
+        else if(a.name == "sm") {
             SETTING(segmentation_model) = file::Path(a.value);
+            CommandLine::instance().add_setting("segmentation_model", a.value);
         }
-        if (a.name == "bm") {
+        else if (a.name == "bm") {
             SETTING(region_model) = file::Path(a.value);
+            CommandLine::instance().add_setting("region_model", a.value);
         }
-        if(a.name == "d") {
+        else if(a.name == "d") {
             SETTING(output_dir) = file::Path(a.value);
+            CommandLine::instance().add_setting("output_dir", a.value);
         }
-        if(a.name == "dim") {
+        else if(a.name == "dim") {
             SETTING(detection_resolution) = Meta::fromStr<uint16_t>(a.value);
+            CommandLine::instance().add_setting("detection_resolution", a.value);
         }
-        if(a.name == "o") {
+        else if(a.name == "o") {
             SETTING(filename) = file::Path(a.value);
+            CommandLine::instance().add_setting("filename", a.value);
+        }
+        else if(a.name == "p") {
+            SETTING(output_prefix) = std::string(a.value);
+            CommandLine::instance().add_setting("output_prefix", a.value);
         }
     }
     

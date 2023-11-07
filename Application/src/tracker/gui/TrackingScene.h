@@ -14,8 +14,12 @@
 #include <tracking/Tracker.h>
 #include <gui/GUICache.h>
 #include <gui/AnimatedBackground.h>
+#include <gui/Coordinates.h>
+#include <gui/ScreenRecorder.h>
 
 namespace gui {
+
+class IMGUIBase;
 
 class VisualFieldWidget : public Entangled {
     const GUICache* _cache;
@@ -29,6 +33,7 @@ public:
 class Bowl : public Entangled {
     GUICache* _cache;
     VisualFieldWidget _vf_widget;
+    Frame_t _last_frame;
     
 public:
     Bowl(GUICache* cache);
@@ -37,8 +42,8 @@ public:
     void set_target_focus(const std::vector<Vec2>& target_points);
     
     using Entangled::update;
-    void update() override;
-    void update(Frame_t, DrawStructure&, const Size2&);
+    void update_scaling();
+    void update(Frame_t, DrawStructure&, const FindCoord&);
     void set_max_zoom_size(const Vec2& max_zoom);
     
 public:
@@ -46,6 +51,7 @@ public:
     bool has_screen_size_changed(const Vec2& new_screen_size) const;
     void update_goals();
     void update_blobs(const Frame_t& frame);
+    void set_data(Frame_t frame);
 
     Vec2 _current_scale;
     Vec2 _target_scale;
@@ -59,6 +65,77 @@ public:
     Vec2 _video_size;
     Timer _timer;
     std::vector<Vec2> _target_points;
+};
+
+template<typename... ArgType>
+class TaskQueue {
+public:
+    using TaskFunction = std::function<void(ArgType...)>;
+    
+    TaskQueue() : _stop(false) {}
+    TaskQueue(const TaskQueue&) = delete;
+    TaskQueue& operator=(const TaskQueue&) = delete;
+
+    ~TaskQueue() {
+        stop();
+    }
+
+    void stop() {
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            _stop = true;
+        }
+        _cond.notify_all();
+    }
+
+    template<typename F>
+    auto enqueue(F&& f) -> std::future<void> {
+        auto task = std::make_shared<std::packaged_task<void(ArgType...)>>(
+            std::forward<F>(f)
+        );
+
+        std::future<void> res = task->get_future();
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            if (_stop) {
+                throw std::runtime_error("enqueue on stopped TaskQueue");
+            }
+            _tasks.emplace([task](ArgType&& ...arg) { (*task)(std::forward<ArgType>(arg)...); });
+        }
+        _cond.notify_one();
+        return res;
+    }
+
+    // Call this with the specific argument you want to pass to the tasks
+    void processTasks(ArgType&& ...arg) {
+        std::unique_lock<std::mutex> lock(_mutex);
+        while (not _stop && not _tasks.empty()) {
+            TaskFunction task = std::move(_tasks.front());
+            _tasks.pop();
+            
+            lock.unlock();
+            try {
+                task(std::forward<ArgType>(arg)...);
+            } catch(const std::exception& ex) {
+                FormatExcept("Ignoring exception in main queue task: ", ex.what());
+            }
+            
+            lock.lock();
+            
+            if (_stop || _tasks.empty()) {
+                break;
+            }
+            _cond.wait(lock, [this]() {
+                return !_tasks.empty() || _stop;
+            });
+        }
+    }
+
+private:
+    bool _stop;
+    std::queue<TaskFunction> _tasks;
+    std::mutex _mutex;
+    std::condition_variable _cond;
 };
 
 class TrackingScene : public Scene {
@@ -125,7 +202,32 @@ class TrackingScene : public Scene {
             Color color;
         } _foi_state;
         
+        std::atomic<FrameRange> _analysis_range;
         CallbackCollection _callback;
+        Vec2 _last_mouse;
+        Vec2 _bowl_mouse;
+        bool _zoom_dirty{false};
+        pv::Frame _frame;
+        
+        ScreenRecorder _recorder;
+        TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
+        
+        struct Statistics {
+            std::atomic<double> individuals_per_second{0};
+            std::atomic<double> frames_per_second{0};
+            
+            double acc_frames{0}, frames_count{0}, sample_frames{0};
+            double acc_individuals{0}, sample_individuals{0};
+            
+            Timer timer, print_timer;
+            
+            void update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force);
+            void calculateRates(double elapsed);
+            void updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool end);
+            void printProgress(float percent, const std::string& status);
+            void logProgress(float percent, const std::string& status);
+            
+        } _stats;
         
         /**
          * @brief Constructor for the Data struct.
@@ -141,12 +243,14 @@ class TrackingScene : public Scene {
              std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>&& functions);
     };
     
+    //! All the gui related data that is supposed to go away between
+    //! scene switches:
     std::unique_ptr<Data> _data;
     std::mutex _task_mutex;
     
     std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
     
-    // The HorizontalLayout for the two buttons and the image
+    // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
     
     Size2 window_size;
@@ -170,7 +274,6 @@ private:
     dyn::DynamicGUI init_gui(DrawStructure& graph);
     void init_video();
     void set_frame(Frame_t);
-    void update_display_blobs(bool draw_blobs);
     bool on_global_event(Event) override;
     void update_run_loop();
     

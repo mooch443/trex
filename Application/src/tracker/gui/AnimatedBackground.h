@@ -1,10 +1,13 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/frame_t.h>
 #include <gui/types/Entangled.h>
 #include <video/VideoSource.h>
-#include <misc/frame_t.h>
+#include <misc/ThreadManager.h>
 #include <misc/Timer.h>
+#include <pv.h>
+#include <gui/FramePreloader.h>
 
 namespace gui {
 
@@ -28,8 +31,10 @@ class AnimatedBackground : public Entangled {
     std::future<Image::Ptr> _next_frame;
     bool gui_show_video_background{true};
     
+    FramePreloader<Image::Ptr> preloader;
+    
 public:
-    AnimatedBackground(Image::Ptr&&);
+    AnimatedBackground(Image::Ptr&&, const pv::File* = nullptr);
     AnimatedBackground(VideoSource&&);
     
     AnimatedBackground(const AnimatedBackground&) = delete;
@@ -42,6 +47,8 @@ public:
     
     void before_draw() override;
     using Entangled::update;
+    
+    Image::Ptr preload(Frame_t);
 };
 
 }

@@ -148,8 +148,10 @@ namespace cmn {
             _stop = true;
             
             _finish_condition.notify_all();
-            _main_thread->join();
-            delete _main_thread;
+            if(_main_thread) {
+                _main_thread->join();
+                delete _main_thread;
+            }
             
             for(auto &t : _stages)
                 t.condition.notify_all();

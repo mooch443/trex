@@ -20,12 +20,27 @@ struct OnEndMethod {
  */
 struct ManagedThreadWrapper;
 
+struct ThreadGroupId {
+    size_t index{0};
+    
+    explicit constexpr ThreadGroupId(size_t index) noexcept : index(index) {}
+    constexpr ThreadGroupId() noexcept = default;
+    
+    constexpr bool valid() const noexcept { return index > 0; }
+    constexpr auto operator<=>(const ThreadGroupId& other) const noexcept {
+        return index <=> other.index;
+    }
+    std::string toStr() const;
+    static std::string class_name() { return "ThreadGroupId"; }
+};
+
 /**
  * @struct ThreadGroup
  *
  * @brief Structure for grouping ManagedThreadWrappers and their associated on-end-callbacks.
  */
 struct ThreadGroup {
+    ThreadGroupId id;
     std::list<ManagedThreadWrapper> threads;
     std::list<OnEndMethod> onEndCallbacks;
     std::string name;
@@ -36,13 +51,13 @@ struct ThreadGroup {
 };
 
 class ManagedThread {
-    std::function<void(const ThreadGroup&)> lambda;
+    std::function<void(const ThreadGroupId&)> lambda;
     std::condition_variable variable;
     std::mutex mutex;
     std::atomic<bool> terminationSignal{false};
     std::promise<void> terminationProof;
 public:
-    ManagedThread(std::function<void(const ThreadGroup&)> fn) : lambda(fn) {}
+    ManagedThread(std::function<void(const ThreadGroupId&)> fn) : lambda(fn) {}
     ManagedThread(ManagedThread&& other)
         : lambda(std::move(other.lambda)),
           terminationSignal(other.terminationSignal.load()),
@@ -55,7 +70,7 @@ public:
             cmn::thread_print("Ending thread.");
     }
     
-    void loop(const ThreadGroup& group);
+    void loop(const ThreadGroup& group, const ManagedThreadWrapper& thread);
 
     std::future<void> terminate() {
         std::future<void> future;
@@ -78,6 +93,7 @@ public:
 struct ManagedThreadWrapper {
     std::unique_ptr<std::thread> t;
     ManagedThread m;
+    std::string name;
 };
 
 /**
@@ -94,8 +110,8 @@ struct ManagedThreadWrapper {
  */
 class ThreadManager {
 private:
-
-    std::map<int, ThreadGroup> groups;
+    std::atomic<size_t> running_id{1u};
+    std::map<ThreadGroupId, ThreadGroup> groups;
     mutable std::mutex mtx;
 
     /**
@@ -126,14 +142,14 @@ public:
      * @param group The group id to be assigned to the new thread group.
      * @param name  The name to be assigned to the new thread group.
      */
-    const ThreadGroup* registerGroup(int group, const std::string& name, cmn::source_location loc = cmn::source_location::current());
+    ThreadGroupId registerGroup(const std::string& name, cmn::source_location loc = cmn::source_location::current());
 
     /**
      * @brief Signals termination to all threads within a specific group and joins them.
      * 
      * @param group The group id of the group whose threads are to be terminated.
      */
-    void terminateGroup(int group);
+    void terminateGroup(ThreadGroupId group);
 
     /**
      * @brief Adds a thread to a group. Thread is defined by the ManagedThread concept.
@@ -142,7 +158,7 @@ public:
      * @param name           The name to be assigned to the thread.
      * @param managedThread  The managed thread to be added.
      */
-    void addThread(int group, const std::string& name, ManagedThread&& managedThread);
+    void addThread(ThreadGroupId group, const std::string& name, ManagedThread&& managedThread);
 
     /**
      * @brief Adds an on-end-callback to a group.
@@ -150,16 +166,16 @@ public:
      * @param group         The group id to which the on-end-callback is to be added.
      * @param onEndMethod   The on-end-callback to be added.
      */
-    void addOnEndCallback(int group, OnEndMethod onEndMethod);
+    void addOnEndCallback(ThreadGroupId group, OnEndMethod onEndMethod);
 
     /**
      * @brief Starts all threads in a group.
      * 
      * @param group The group id of the group whose threads are to be started.
      */
-    void startGroup(int group);
+    void startGroup(ThreadGroupId group);
     //bool groupStarted(int group) const;
-    void notify(int group);
+    void notify(ThreadGroupId group);
 
     /**
      * @brief Signals termination to all threads and joins them in reverse order of group registration.
@@ -170,4 +186,9 @@ public:
      * @brief Prints the tree of registered threads and their states.
      */
     void printThreadTree();
+    
+private:
+    void printThreadTree(std::unique_lock<std::mutex>&);
 };
+
+#define REGISTER_THREAD_GROUP(NAME) ThreadManager::getInstance().registerGroup(NAME, cmn::source_location::current())

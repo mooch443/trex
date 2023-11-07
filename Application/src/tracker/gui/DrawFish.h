@@ -11,6 +11,7 @@
 #include <misc/EventAnalysis.h>
 #include <gui/Graph.h>
 #include <misc/OutputLibrary.h>
+#include <gui/Coordinates.h>
 
 namespace pv {
 struct CompressedBlob;
@@ -23,7 +24,6 @@ namespace gui {
         Entangled _view;
         Label* _label { nullptr };
 
-        track::Individual& _obj;
         GETTER(Frame_t, frame)
         Frame_t _safe_frame;
         double _time;
@@ -61,17 +61,30 @@ namespace gui {
         std::vector<Vec2> points;
         
         blob::Pose _average_pose;
-        pv::CompressedBlob *_blob;
         Bounds _blob_bounds;
         int _match_mode;
         IndividualCache _next_frame_cache;
-        const BasicStuff* _basic_stuff{ nullptr };
-        const PostureStuff* _posture_stuff{ nullptr };
+        
+        Identity _id;
+        std::optional<BasicStuff> _basic_stuff;
+        std::optional<PostureStuff> _posture_stuff;
+        double _ML{0}; // midline length
+        Midline::Ptr _pp_midline;
+        bool _empty{true};
+        Range<Frame_t> _range;
+        
+        std::tuple<bool, FrameRange> _has_processed_segment;
+        decltype(Individual::average_recognition_segment)::mapped_type processed_segment;
+        std::shared_ptr<SegmentInformation> _segment;
+        Individual::IDaverage _qr_code;
+        std::vector<float> _pred;
+        
         int _avg_cat = -1;
         Color _previous_color;
         Output::Library::LibInfo _info;
         double _library_y = Graph::invalid();
         std::string circle_animator{ "recognition-circle-"+Meta::toStr((uint64_t)this) };
+        bool _path_dirty{false};
         //ExternalImage _colored;
         
         Graph _graph;
@@ -80,19 +93,19 @@ namespace gui {
     public:
         Fish(track::Individual& obj);
         ~Fish();
-        void update(const Size2& screen_size, Drawable* bowl, Entangled& p, DrawStructure& d);
+        void update(const FindCoord&, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(Frame_t frameIndex, double time, const EventAnalysis::EventMap* events);
+        void set_data(Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
         void paintPath(const Vec2& offset);
-        void updatePath(Frame_t to = {}, Frame_t from = {});
+        void updatePath(Individual&, Frame_t to = {}, Frame_t from = {});
         //void paintPixels() const;
         void update_recognition_circle();
         Color get_color(const BasicStuff*) const;
     public:
-        void label(const Size2& screen_size, Drawable* bowl, Entangled&);
+        void label(const FindCoord&, Entangled&);
         Drawable* shadow();
         void check_tags();
     };

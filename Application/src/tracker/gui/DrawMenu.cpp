@@ -139,7 +139,7 @@ public:
         _list->set_folded(true);
         _list->on_toggle([](){
             {
-                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                auto guard = GUI_LOCK(GUI::instance()->gui().lock());
                 GUI::cache().set_tracking_dirty();
             }
             GUI::instance()->set_redraw();

@@ -220,6 +220,8 @@ namespace Match {
     };
 
     class PairingGraph {
+        std::mutex _mutex;
+        
     public:
         using ordered_map_t = robin_hood::unordered_node_map<Blob_t, Fish_t>;
         //! this is the "queue" for permutations from this node on

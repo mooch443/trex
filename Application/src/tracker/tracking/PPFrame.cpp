@@ -8,19 +8,30 @@
 
 namespace track {
 
+#if TREX_ENABLE_HISTORY_LOGS
+std::shared_ptr<std::ofstream>& PPFrame::history_log() {
+    static std::shared_ptr<std::ofstream> history_log;
+    return history_log;
+}
+LOGGED_MUTEX_TYPE& PPFrame::log_mutex() {
+    static auto m = new LOGGED_MUTEX("PPFrame::log_mutex");
+    return *m;
+}
+#endif
+
 void PPFrame::UpdateLogs() {
 #if TREX_ENABLE_HISTORY_LOGS
-    if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
-        history_log = std::make_shared<std::ofstream>();
+    if(history_log() == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
+        history_log() = std::make_shared<std::ofstream>();
         
         auto path = SETTING(history_matching_log).value<file::Path>();
         if(!path.empty()) {
             path = file::DataLocation::parse("output", path);
             DebugCallback("Opening history_log at ", path, "...");
             //!TODO: CHECK IF THIS WORKS
-            history_log->open(path.str(), std::ios_base::out | std::ios_base::binary);
-            if(history_log->is_open()) {
-                auto &ss = *history_log;
+            history_log()->open(path.str(), std::ios_base::out | std::ios_base::binary);
+            if(history_log()->is_open()) {
+                auto &ss = *history_log();
                 ss << "<html><head>";
                 ss << "<style>";
                 ss << "map{ \
@@ -76,20 +87,20 @@ void PPFrame::UpdateLogs() {
 
 void PPFrame::CloseLogs() {
 #if TREX_ENABLE_HISTORY_LOGS
-    std::lock_guard guard(log_mutex);
-    if(history_log != nullptr && history_log->is_open()) {
+    auto guard = LOGGED_LOCK(log_mutex());
+    if(history_log() != nullptr && history_log()->is_open()) {
         print("Closing history log.");
-        *history_log << "</body></html>";
-        history_log->flush();
-        history_log->close();
+        *history_log() << "</body></html>";
+        history_log()->flush();
+        history_log()->close();
     }
-    history_log = nullptr;
+    history_log() = nullptr;
 #endif
 }
 
 void PPFrame::write_log(std::string str) {
 #if TREX_ENABLE_HISTORY_LOGS
-    if(!history_log)
+    if(!history_log())
         return;
     
     const auto tname = get_thread_name();
@@ -98,8 +109,8 @@ void PPFrame::write_log(std::string str) {
     
     str = "<line>[<warning>"+tname+"</warning>] "+ settings::htmlify(str) + "</line>";
     
-    std::lock_guard guard(log_mutex);
-    *history_log << str << std::endl;
+    auto guard = LOGGED_LOCK(log_mutex());
+    *history_log() << str << std::endl;
 #else
     UNUSED(str)
 #endif

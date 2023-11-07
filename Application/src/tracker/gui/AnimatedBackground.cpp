@@ -1,44 +1,51 @@
 #include "AnimatedBackground.h"
-#include <gui/gui.h>
 #include <pv.h>
-#include <misc/RepeatedDeferral.h>
+#include <misc/create_struct.h>
+#include <misc/default_config.h>
 
 namespace gui {
 
-AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
+using buffers = Buffers<Image::Ptr, decltype([]{ return Image::Make(); })>;
+
+AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video)
     : _average(std::move(image)),
-      _static_image(Image::Make(*_average))
+    _static_image(Image::Make(*_average)),
+    preloader([this](Frame_t index) { return preload(index); })
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
     
-    if(not GlobalSettings::has("meta_source_path") or SETTING(meta_source_path).value<std::string>().empty()) {
-        auto metadata = GUI::video_source()->header().metadata;
-        sprite::Map config;
-        GlobalSettings::docs_map_t docs;
-        
-        try {
-            default_config::get(config, docs, nullptr);
-            sprite::parse_values(config, metadata);
+    if(not GlobalSettings::has("meta_source_path")
+        or SETTING(meta_source_path).value<std::string>().empty())
+    {
+        if(video) {
+            auto metadata = video->header().metadata;
+            sprite::Map config;
+            GlobalSettings::docs_map_t docs;
             
-        } catch(...) {
-            FormatExcept("Failed to load metadata from: ", metadata);
-        }
-        
-        if(config.has("meta_source_path")) {
-            std::string meta_source_path = config.get<std::string>("meta_source_path");
             try {
-                std::unique_lock guard(_source_mutex);
-                _source = std::make_unique<VideoSource>(meta_source_path);
-                _source->set_colors(ImageMode::RGB);
-                _source->set_lazy_loader(true);
-            } catch(const UtilsException& e) {
-                FormatError("Cannot load animated gui background: ", e.what());
+                default_config::get(config, docs, nullptr);
+                sprite::parse_values(config, metadata);
+                
+            } catch(...) {
+                FormatExcept("Failed to load metadata from: ", metadata);
             }
-        }
-        
-        if(config.has("meta_video_scale")) {
-            _source_scale = config.get<float>("meta_video_scale");
+            
+            if(config.has("meta_source_path")) {
+                std::string meta_source_path = config.get<std::string>("meta_source_path");
+                try {
+                    std::unique_lock guard(_source_mutex);
+                    _source = std::make_unique<VideoSource>(meta_source_path);
+                    _source->set_colors(ImageMode::RGB);
+                    _source->set_lazy_loader(true);
+                } catch(const UtilsException& e) {
+                    FormatError("Cannot load animated gui background: ", e.what());
+                }
+            }
+            
+            if(config.has("meta_video_scale")) {
+                _source_scale = config.get<float>("meta_video_scale");
+            }
         }
         
     } else {
@@ -66,7 +73,11 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image)
 }
 
 AnimatedBackground::AnimatedBackground(VideoSource&& source)
-    : _source(std::make_unique<VideoSource>(std::move(source)))
+    : _source(std::make_unique<VideoSource>(std::move(source))),
+      preloader([this](Frame_t index) { return preload(index); },
+      [](Image::Ptr&& ptr) {
+          buffers::move_back(std::move(ptr));
+      })
 {
     {
         std::unique_lock guard(_source_mutex);
@@ -82,40 +93,65 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
     auto_size({});
 }
 
-template<typename T, typename Construct>
-struct Buffers {
-    inline static std::mutex _mutex;
-    inline static std::vector<T> _buffers;
-    inline static Construct _create{};
+Image::Ptr AnimatedBackground::preload(Frame_t index) {
+    std::unique_lock guard(_source_mutex);
+    if(not _source)
+        return nullptr;
+    if(not index.valid() || index >= _source->length())
+        return nullptr; // past end
     
-    static T get() {
-        if(std::unique_lock guard(_mutex);
-           not _buffers.empty())
+    try {
+        //print("Loading ", index);
+        _source->frame(index, _local_buffer);
+        _local_buffer.copyTo(_buffer); // upload
+        
+        const gpuMat *output = &_buffer;
+        if(_source_scale > 0 && _source_scale != 1)
         {
-            auto ptr = std::move(_buffers.back());
-            _buffers.pop_back();
-            return ptr;
+            cv::resize(*output, _resized,
+                       Size2(output->cols, output->rows)
+                        .mul(_source_scale).map(roundf));
+            output = &_resized;
         }
         
-        return _create();
+        const uint channels = is_in(output->channels(), 3, 4)
+                                ? 4 : 1;
+        auto image = buffers::get();
+        
+        if(not image
+           || image->cols != (uint)output->cols
+           || image->rows != (uint)output->rows
+           || image->dims != channels)
+        {
+            image = Image::Make(output->rows, output->cols, channels);
+        }
+        
+        if(output->channels() == 3) {
+            cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
+        } else {
+            assert(output->channels() == image->dims);
+            output->copyTo(image->get());
+        }
+        
+        image->set_index(index.get());
+        return image;
+        
+    } catch(...) {
+        FormatError("Error pre-loading frame ", index);
+        return nullptr;
     }
-    
-    static void move_back(T&& image) {
-        std::unique_lock guard(_mutex);
-        _buffers.emplace_back(std::move(image));
-    }
-};
+}
 
 void AnimatedBackground::before_draw() {
     bool is_recording{false}; // GUI::instance->is_recording
-    bool value = SETTING(gui_show_video_background).value<bool>();
+    bool value = PRELOAD_CACHE(gui_show_video_background);
     if(value != gui_show_video_background) {
         gui_show_video_background = value;
         _static_image.set_source(Image::Make(*_average));
         set_content_changed(true);
     }
     
-    if(not _source or not SETTING(gui_show_video_background)) {
+    if(not _source or not PRELOAD_CACHE(gui_show_video_background)) {
         if(content_changed()) {
             _static_image.set_color(_tint);
             //set_content_changed(false);
@@ -129,54 +165,24 @@ void AnimatedBackground::before_draw() {
        && frame != _current_frame
        && _source)
     {
-        using buffers = Buffers<Image::Ptr, decltype([]{ return Image::Make(); })>;
-        
-        auto retrieve_next = [this](Frame_t index) -> Image::Ptr {
-            std::unique_lock guard(_source_mutex);
-            if(not index.valid() || index >= _source->length())
-                return nullptr; // past end
-            
-            try {
-                //print("Loading ", index);
-                _source->frame(index, _local_buffer);
-                _local_buffer.copyTo(_buffer); // upload
+        auto maybe_image = preloader.get_frame(frame);
+        if(maybe_image.has_value() && maybe_image.value()) {
+            auto image = std::move(maybe_image.value());
+            if(image->index() != frame.get()) {
+                Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
+                cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);
                 
-                const gpuMat *output = &_buffer;
-                if(_source_scale > 0 && _source_scale != 1)
-                {
-                    cv::resize(*output, _resized,
-                               Size2(output->cols, output->rows)
-                                .mul(_source_scale).map(roundf));
-                    output = &_resized;
-                }
+                buffers::move_back(_static_image.exchange_with(std::move(ptr)));
+                _static_image.set_color(_tint.alpha(_tint.a * 0.95));
                 
-                const uint channels = is_in(output->channels(), 3, 4)
-                                        ? 4 : 1;
-                auto image = buffers::get();
-                
-                if(not image
-                   || image->cols != (uint)output->cols
-                   || image->rows != (uint)output->rows
-                   || image->dims != channels)
-                {
-                    image = Image::Make(output->rows, output->cols, channels);
-                }
-                
-                if(output->channels() == 3) {
-                    cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
-                } else {
-                    assert(output->channels() == image->dims);
-                    output->copyTo(image->get());
-                }
-                
-                image->set_index(index.get());
-                return image;
-                
-            } catch(...) {
-                FormatError("Error pre-loading frame ", index);
-                return nullptr;
+            } else {
+                buffers::move_back(_static_image.exchange_with(std::move(image)));
+                _static_image.set_color(_tint);
+                _current_frame = frame;
             }
-        };
+            
+            set_content_changed(true);
+        }
         
         //if(_next_frame.valid()
         //   && (not GUI::instance()->is_recording() || _next_frame.get()))
@@ -226,11 +232,11 @@ void AnimatedBackground::before_draw() {
             
         } else*/
         
-        Image::Ptr image;
+       /* Image::Ptr image;
         Timer timer;
         if(_next_frame.valid()) {
             if(not is_recording) {
-                if(_next_frame.wait_for(std::chrono::milliseconds(5)) != std::future_status::ready)
+                if(_next_frame.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready)
                 {
                     Entangled::before_draw();
                     return;
@@ -238,12 +244,15 @@ void AnimatedBackground::before_draw() {
             }
             
             image = _next_frame.get();
-            if(image && image->index() != frame.get()) {
+            if(image && image->index() != long_t(frame.get())) {
                 if(not is_recording)
                 {
                     // image but wrong index
-                    buffers::move_back(_static_image.exchange_with(std::move(image)));
-                    _static_image.set_color(_tint.alpha(_tint.a * 0.5));
+                    Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
+                    cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);
+                    
+                    buffers::move_back(_static_image.exchange_with(std::move(ptr)));
+                    _static_image.set_color(_tint.alpha(_tint.a * 0.95));
                     _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame);
                     Entangled::before_draw();
                     return;
@@ -279,11 +288,11 @@ void AnimatedBackground::before_draw() {
         }
         
         if(frame.valid()) {
-            //print("Queueing retrieve for ", frame, " == ", _current_frame, " + 1_f");
+            print("Queueing retrieve for ", frame, " == ", _current_frame, " + 1_f");
             _next_frame = std::async(std::launch::async | std::launch::deferred, retrieve_next, frame + 1_f);
         }
-            //print("Not queueing for ", frame, " after ", _current_frame);
-        _current_frame = frame;
+        print("Not queueing for ", frame, " after ", _current_frame);
+        _current_frame = frame;*/
     }
     
     Entangled::before_draw();

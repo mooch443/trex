@@ -683,11 +683,11 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
         {
             file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_statistics.npz");
             
-            if(!(fishdata / path).exists() || Tracker::instance()->_statistics.size() == Tracker::number_frames())
+            if(!(fishdata / path).exists() || Tracker::instance()->statistics().size() == Tracker::number_frames())
             {
                 std::vector<long_t> frame_numbers;
                 std::vector<float> statistics;
-                for(auto && [frame, stats] : Tracker::instance()->_statistics) {
+                for(auto && [frame, stats] : Tracker::instance()->statistics()) {
                     frame_numbers.push_back(frame.get());
                     statistics.insert(statistics.end(), (float*)&stats, (float*)&stats + sizeof(track::Tracker::Statistics) / sizeof(float));
                 }
@@ -760,7 +760,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                 
             } else {
                 path = fishdata / path;
-                FormatWarning("Not writing statistics because _statistics array (", Tracker::instance()->_statistics.size(),") is != frames added (", Tracker::number_frames(),") and path ",path," exists.");
+                FormatWarning("Not writing statistics because _statistics array (", Tracker::instance()->statistics().size(),") is != frames added (", Tracker::number_frames(),") and path ",path," exists.");
             }
         }
         

@@ -420,7 +420,7 @@ void InfoCard::update() {
     if(fprobs) {
         track::Match::prob_t max_prob = 0;
         pv::bid bdx;
-        cache.processed_frame.transform_blob_ids([&](pv::bid blob) {
+        cache.processed_frame().transform_blob_ids([&](pv::bid blob) {
             if(fprobs->count(blob)) {
                 auto &probs = (*fprobs).at(blob);
                 if(probs/*.p*/ > max_prob) {
@@ -430,7 +430,7 @@ void InfoCard::update() {
             }
         });
         
-        cache.processed_frame.transform_blob_ids([&](pv::bid blob) {
+        cache.processed_frame().transform_blob_ids([&](pv::bid blob) {
             if(fprobs->count(blob)) {
                 auto color = Color(200, 200, 200, 255);
                 if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end()
@@ -563,7 +563,7 @@ void InfoCard::update() {
                 fish->register_delete_callback(this, [this](Individual*) {
                     if(!GUI::instance())
                         return;
-                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                    auto guard = GUI_LOCK(GUI::instance()->gui().lock());
                     _shadow->fdx = Idx_t{};
                     set_content_changed(true);
                 });*/

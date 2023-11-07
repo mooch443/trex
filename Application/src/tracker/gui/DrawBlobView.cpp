@@ -4,7 +4,6 @@
 #include <gui/Section.h>
 #include <gui/Label.h>
 #include <gui/DrawBase.h>
-#include <gui/gui.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/Entangled.h>
@@ -187,7 +186,7 @@ void draw_blob_view(const DisplayParameters& parm)
     /*static std::unordered_set<pv::bid> shown_ids;
     std::unordered_set<pv::bid> to_show_ids;
     
-    for(auto &blob : parm.cache.processed_frame.original_blobs()) {
+    for(auto &blob : parm.cache.processed_frame().original_blobs()) {
         auto bounds = parm.transform.transformRect(blob->bounds());
         
         if(!Bounds(100, 100, parm.screen.width-100, parm.screen.height-100).overlaps(bounds))
@@ -248,15 +247,20 @@ void draw_blob_view(const DisplayParameters& parm)
         //update_vector_elements(outer_images, outer_simple);
     }*/
     
-    parm.graph.section("blob_outers", [&, parm=parm](DrawStructure &base, Section* s) {
-        if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
+    Frame_t frame = GUI_SETTINGS(gui_frame);
+    
+    parm.graph.section("blob_outers", [&](DrawStructure &base, Section* s) {
+        /*if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
             s->set_scale(parm.scale);
             s->set_pos(parm.offset);
         }
         else {
             s->reuse_objects();
             return;
-        }
+        }*/
+        
+        s->set_scale(parm.coord.bowl_scale());
+        s->set_pos(parm.coord.hud_viewport().pos());
         
         if(!SETTING(gui_show_pixel_grid)) {
             parm.cache.updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
@@ -264,13 +268,12 @@ void draw_blob_view(const DisplayParameters& parm)
         
         //if(_timeline.visible())
         {
-            auto bowl = parm.ptr ? parm.ptr->global_transform() : Transform();
-            auto screen_bounds = Bounds(Vec2(-50), parm.screen + 100);
+            auto screen_bounds = Bounds(parm.coord.screen_size());
             
             constexpr size_t maximum_number_texts = 1000;
-            if(parm.cache.processed_frame.N_blobs() >= maximum_number_texts) {
-                Loc pos(10, GUI::timeline().bar()->global_bounds().height + GUI::timeline().bar()->global_bounds().y + 10);
-                auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(parm.cache.processed_frame.N_blobs())+").";
+            if(parm.cache.processed_frame().N_blobs() >= maximum_number_texts) {
+                Loc pos(10, 50);//GUI::timeline().bar()->global_bounds().height + GUI::timeline().bar()->global_bounds().y + 10);
+                auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(parm.cache.processed_frame().N_blobs())+").";
                 
                 Scale scale{base.scale().reciprocal()};
                 base.rect(Box(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), FillClr{Black.alpha(125)}, LineClr{Transparent}, scale);
@@ -279,17 +282,23 @@ void draw_blob_view(const DisplayParameters& parm)
             
             static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
             static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
+            static Frame_t last;
+            if(last != frame) {
+                _blob_labels.clear();
+                last = frame;
+            }
             
             for(auto & [id, tup] : _blob_labels)
                 std::get<0>(tup) = false;
             
             std::set<std::tuple<float, pv::BlobWeakPtr, bool>, std::greater<>> draw_order;
-            Transform section_transform = s->global_transform();
-            auto mp = section_transform.transformPoint(base.mouse_position());
+            //Transform section_transform = s->global_transform();
+            auto mp = parm.coord.convert(HUDCoord(base.mouse_position())); //bowl.transformPoint(base.mouse_position());
             
-            parm.cache.processed_frame.transform_noise([&](pv::Blob& blob){
+            //print("Updating frame ", parm.cache.processed_frame);
+            parm.cache.processed_frame().transform_noise([&](pv::Blob& blob){
                 auto id = blob.blob_id();
-                auto d = sqdistance(mp, blob.bounds().pos());
+                auto d = euclidean_distance(mp, blob.bounds().pos());
                 draw_order.insert({d, &blob, false});
                 
                 if(_blob_labels.count(&blob))
@@ -297,20 +306,22 @@ void draw_blob_view(const DisplayParameters& parm)
             });
             
             if(!SETTING(gui_draw_only_filtered_out)) {
-                parm.cache.processed_frame.transform_blobs([&](pv::Blob& blob){
+                parm.cache.processed_frame().transform_blobs([&](pv::Blob& blob){
                     auto id = blob.blob_id();
-                    auto d = sqdistance(mp, blob.bounds().pos());
+                    auto d = euclidean_distance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
+                    
+                    //print(id, ": ", d);
                     
                     if(_blob_labels.count(&blob))
                         std::get<0>(_blob_labels.at(&blob)) = true;
                 });
             }
             
-            auto &_average_image = GUI::average();
+            auto &res = parm.cache._video_resolution;
             Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
-            auto mpos = (base.mouse_position() - parm.offset).mul(parm.scale.reciprocal());
-            const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / parm.scale.x) + SQR((_average_image.rows * 0.25) / parm.scale.y));
+            auto mpos = parm.coord.convert(HUDCoord(base.mouse_position()));
+            const float max_distance = sqrtf(SQR((res.width * 0.25) / s->scale().x) + SQR((res.height * 0.25) / s->scale().y));
             size_t displayed = 0;
             
             //base.circle(attr::Loc(mpos), attr::Radius(10), attr::FillClr(Red));
@@ -319,6 +330,7 @@ void draw_blob_view(const DisplayParameters& parm)
             for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
                 if(!std::get<0>(it->second)) {
                     auto ptr = std::get<2>(it->second).get();
+                    std::get<1>(it->second)->clear_event_handlers();
                     MouseDock::unregister_label(ptr);
                     _unused_labels.emplace_back(std::move(it->second));
                     it = _blob_labels.erase(it);
@@ -330,7 +342,8 @@ void draw_blob_view(const DisplayParameters& parm)
                 if(displayed >= maximum_number_texts && !active)
                     return;
                 
-                if(!bowl.transformRect(blob->bounds()).overlaps(screen_bounds)) {
+                HUDRect bds = parm.coord.convert(BowlRect(blob->bounds()));
+                if(not bds.overlaps(screen_bounds)) {
                     return;
                 }
                 
@@ -355,7 +368,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 else d = 1;
                 
                 bool found = false;
-                const auto search_distance = (1 + FAST_SETTING(track_max_speed)) * SQR(sca.x);
+                const auto search_distance = 10 / parm.coord.bowl_scale().min();//(1 + FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));// * SQR(sca.x);
                 if(blob->bounds().contains(mpos)) {
                     found = true;
                     
@@ -416,14 +429,14 @@ void draw_blob_view(const DisplayParameters& parm)
                     //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
                     auto circ = std::get<1>(it->second).get();
                     circ->set_clickable(true);
-                    circ->set_radius(5 * float(GUI::average().cols) / 1000);
-                    //circ->clear_event_handlers();
-                    circ->on_click([id = blob->blob_id(), parm = parm](auto) mutable {
-                        print("Clicked blob.");
+                    circ->set_radius(5.f);
+                    circ->clear_event_handlers();
+                    circ->on_click([id = blob->blob_id(), &cache = parm.cache, frame = frame](auto) mutable {
+                        print("Clicked blob ",id," in frame ",frame,".");
                         _current_boundary.clear();
                         set_clicked_blob_id(id);
-                        set_clicked_blob_frame(GUI::frame());
-                        parm.cache.set_blobs_dirty();
+                        set_clicked_blob_frame(frame);
+                        cache.set_blobs_dirty();
                     });
                 }
                 
@@ -436,12 +449,12 @@ void draw_blob_view(const DisplayParameters& parm)
                     circ->set_fill_clr(White.alpha(150 * d));
                 circ->set_line_clr(White.alpha(50));
                 circ->set_pos(blob->center());
-                circ->set_scale(parm.scale.reciprocal());
+                circ->set_scale(s->scale().reciprocal());
                 
                 e.add<Rect>(Box{blob->bounds()}, FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
 
-                /*auto results = parm.cache.processed_frame.blob_grid().query(mpos, max_distance);
+                /*auto results = parm.cache.processed_frame().blob_grid().query(mpos, max_distance);
                 bool found = false;
                 for(auto &[d, id] : results) {
                     if(id == blob->blob_id() || id == blob->parent_id()) {
@@ -467,7 +480,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 if(d > 0 && real_size > 0) {
                     label->set_data(parm.cache.frame_idx, text, blob->bounds(), blob->center());
-                    label->update(screen_bounds.size(), parm.ptr, e, d,od, !active);
+                    label->update(parm.coord, e, d,od, !active);
                     ++displayed;
                 }
             };
@@ -479,10 +492,10 @@ void draw_blob_view(const DisplayParameters& parm)
                 for (auto&& [d, blob, active] : draw_order) {
                     draw_blob(e, blob, blob->recount(-1), active);
                 }
-                MouseDock::update(parm.cache.dt(), parm.ptr, e);
+                MouseDock::update(parm.cache.dt(), parm.coord, e);
             });
 
-            _collection.set_bounds(GUI::average().bounds());
+            _collection.set_bounds(Bounds(Vec2(), res));
             //_collection.set_scale(Vec2(1));
             //_collection.set_pos(Vec2());
             base.wrap_object(_collection);
@@ -492,41 +505,43 @@ void draw_blob_view(const DisplayParameters& parm)
     });
     
     static pv::bid last_blob_id;
-    if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == GUI::frame()) {
+    if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
         static std::shared_ptr<Entangled> popup;
         static std::shared_ptr<Dropdown> list;
         if(popup == nullptr) {
             popup = std::make_shared<Entangled>();
             list = std::make_shared<Dropdown>(Box(0, 0, 200, 35));
-            list->on_open([list=list.get()](bool opened) {
+            list->on_open([list=list.get(), &cache = parm.cache](bool opened) {
                 if(!opened) {
                     //list->set_items({});
                     _clicked_blob_id = pv::bid::invalid;
-                    GUI::set_redraw();
+                    //GUI::set_redraw(); //TODO: redraw
+                    cache.set_raw_blobs_dirty();
                 }
             });
-            list->on_select([parm](auto, auto& item) {
+            list->on_select([&cache = parm.cache](auto, auto& item) {
                 pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
                 if(item.ID() == 0) /* SPLIT */ {
                     auto copy = FAST_SETTING(manual_splits);
-                    if(!contains(copy[GUI::frame()], clicked_blob_id)) {
-                        copy[GUI::frame()].insert(clicked_blob_id);
+                    auto frame = GUI_SETTINGS(gui_frame);
+                    if(!contains(copy[frame], clicked_blob_id)) {
+                        copy[frame].insert(clicked_blob_id);
                     }
                     WorkProgress::add_queue("", [copy](){
                         SETTING(manual_splits) = copy;
                     });
                 } else {
-                    auto it = parm.cache.individuals.find(Idx_t(item.ID() - 1));
-                    if(it != parm.cache.individuals.end()) {
+                    auto it = cache.individuals.find(Idx_t(item.ID() - 1));
+                    if(it != cache.individuals.end()) {
                         auto fish = it->second;
                         auto id = it->first;
                         
-                        for(auto&& [fdx, bdx] : parm.cache.fish_selected_blobs) {
+                        for(auto&& [fdx, bdx] : cache.fish_selected_blobs) {
                             if(bdx == clicked_blob_id) {
                                 if(fdx != id) {
-                                    if(parm.cache.is_selected(fdx)) {
-                                        parm.cache.deselect(fdx);
-                                        parm.cache.do_select(id);
+                                    if(cache.is_selected(fdx)) {
+                                        cache.deselect(fdx);
+                                        cache.do_select(id);
                                     }
                                     break;
                                 }
@@ -534,15 +549,16 @@ void draw_blob_view(const DisplayParameters& parm)
                         }
                         
                         print("Assigning blob ", clicked_blob_id," to fish ",fish->identity().name());
-                        GUI::instance()->add_manual_match(GUI::frame(), id, clicked_blob_id);
+                        //TODO: fix this
+                        //GUI::instance()->add_manual_match(frame, id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
                     } else
                         print("Cannot find individual with ID ",item.ID()-1,".");
                 }
                 
                 _clicked_blob_id = pv::bid::invalid;
-                GUI::set_redraw();
-                parm.cache.set_raw_blobs_dirty();
+                //GUI::set_redraw(); //TODO: redraw
+                cache.set_raw_blobs_dirty();
             });
             //list->set_background(Black.alpha(125), Black.alpha(230));
             //popup->set_size(Size2(200, 400));
@@ -552,8 +568,11 @@ void draw_blob_view(const DisplayParameters& parm)
         bool found = false;
         for(auto &blob : parm.cache.raw_blobs) {
             if(blob->blob->blob_id() == _clicked_blob_id.load()) {
-                blob_pos = blob->blob->bounds().pos() + blob->blob->bounds().size() * 0.5;
-                popup->set_pos(blob_pos.mul(parm.scale) + parm.offset);
+                blob_pos = blob->blob->bounds().center();
+                print("Clicked blob ", blob->blob->blob_id(), " at ", blob_pos, " ", frame);
+                auto pt = parm.coord.convert(BowlCoord(blob_pos));
+                print("blob => ", pt);
+                popup->set_pos(pt);
                 found = true;
                 break;
             }
@@ -566,8 +585,8 @@ void draw_blob_view(const DisplayParameters& parm)
                     || parm.cache.fish_selected_blobs.at(id) != _clicked_blob_id)
                 {
                     float d = FLT_MAX;
-                    auto c = parm.cache.processed_frame.cached(id);
-                    if(GUI::frame() > Tracker::start_frame() && c) {
+                    auto c = parm.cache.processed_frame().cached(id);
+                    if(frame > Tracker::start_frame() && c) {
                         d = (c->estimated_px - blob_pos).length();
                     }
                     items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
@@ -608,7 +627,7 @@ void draw_blob_view(const DisplayParameters& parm)
     
     if(SETTING(gui_show_pixel_grid)) {
         parm.graph.section("collision_model", [&](auto&, auto s) {
-            if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
+            /*if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
                 s->set_scale(parm.scale);
                 s->set_pos(parm.offset);
             }
@@ -616,18 +635,18 @@ void draw_blob_view(const DisplayParameters& parm)
             if(!parm.cache.blobs_dirty()) {
                 s->reuse_objects();
                 return;
-            }
+            }*/
             
             parm.cache.updated_blobs();
             
             std::unordered_map<pv::bid, Color> colors;
             ColorWheel wheel;
             //! TODO: original_blobs
-            /*for(auto &b : parm.cache.processed_frame.original_blobs()) {
+            /*for(auto &b : parm.cache.processed_frame().original_blobs()) {
                 colors[b->blob_id()] = wheel.next().alpha(200);
             }*/
             
-            auto &grid = parm.cache.processed_frame.blob_grid().get_grid();
+            auto &grid = parm.cache.blob_grid().get_grid();
             for(auto &set : grid) {
                 for(auto &pixel : set) {
                     parm.graph.circle(Loc(pixel.x, pixel.y),
@@ -644,10 +663,10 @@ void draw_blob_view(const DisplayParameters& parm)
     }
 }
 
-void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key, Dropdown& settings_dropdown, Textfield& value_input) {
-    const std::string chosen = settings_dropdown.has_selection() ? settings_dropdown.selected_item().name() : "";
-    if (key.empty())
-        key = chosen;
+void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key /*Dropdown& settings_dropdown, Textfield& value_input*/) {
+    //const std::string chosen = settings_dropdown.has_selection() ? settings_dropdown.selected_item().name() : "";
+    //if (key.empty())
+    //    key = chosen;
     
     tracker::gui::set_clicked_blob_id(pv::bid::invalid);
     
@@ -722,11 +741,11 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                     
                     // if textfield text has been modified, use that one rather than the actual setting value
                     auto tmp = Meta::toStr(array);
-                    if(key == chosen && tmp != value_input.text())
-                        array = Meta::fromStr<std::vector<Bounds>>(value_input.text());
+                    //if(key == chosen && tmp != value_input.text())
+                    //    array = Meta::fromStr<std::vector<Bounds>>(value_input.text());
                     array.push_back(bds);
-                    if(key == chosen)
-                        value_input.set_text(Meta::toStr(array));
+                    //if(key == chosen)
+                    //    value_input.set_text(Meta::toStr(array));
                     GlobalSettings::get(key) = array;
                     
                 } catch(...) {}
@@ -739,12 +758,12 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                     
                     // if textfield text has been modified, use that one rather than the actual setting value
                     auto tmp = Meta::toStr(array);
-                    if(key == chosen && tmp != value_input.text())
-                        array = Meta::fromStr< std::vector<std::vector<Vec2>>>(value_input.text());
+                    //if(key == chosen && tmp != value_input.text())
+                    //    array = Meta::fromStr< std::vector<std::vector<Vec2>>>(value_input.text());
                     
                     array.push_back(_current_boundary.back());
-                    if(key == chosen)
-                        value_input.set_text(Meta::toStr(array));
+                    //if(key == chosen)
+                    //    value_input.set_text(Meta::toStr(array));
                     GlobalSettings::get(key) = array;
                     
                 } catch(...) {}
@@ -758,15 +777,15 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                 
                 // if textfield text has been modified, use that one rather than the actual setting value
                 auto tmp = Meta::toStr(array);
-                if(key == chosen && tmp != value_input.text())
-                    array = Meta::fromStr<std::vector<Vec2>>(value_input.text());
+                //if(key == chosen && tmp != value_input.text())
+                //    array = Meta::fromStr<std::vector<Vec2>>(value_input.text());
                 
                 for(auto &boundary : _current_boundary) {
                     for(auto &pt : boundary)
                         array.push_back(pt);
                 }
-                if(key == chosen)
-                    value_input.set_text(Meta::toStr(array));
+                //if(key == chosen)
+                //    value_input.set_text(Meta::toStr(array));
                 GlobalSettings::get(key) = array;
                 
             } catch(...) {}
@@ -809,7 +828,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
     cache.set_redraw();
 };
     
-void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, Section* bowl, Dropdown& settings_dropdown, Textfield& value_input) {
+void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, SectionInterface* bowl) {
     static std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
     static std::shared_ptr<Button> button = nullptr;
     static std::shared_ptr<Dropdown> dropdown = nullptr;
@@ -914,7 +933,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 if(!button) {
                     button = std::make_shared<Button>(Str(name), Box(Vec2(), bds.size()));
                     button->on_click([&](auto){
-                        clicked_background(base, cache, Vec2(), true, "", settings_dropdown, value_input);
+                        clicked_background(base, cache, Vec2(), true, "");
                     });
                     
                 } else {
@@ -929,7 +948,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                         "recognition_shapes"
                     });
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
-                        clicked_background(base, cache, Vec2(), true, item.name(), settings_dropdown, value_input);
+                        clicked_background(base, cache, Vec2(), true, item.name());
                     });
                     dropdown->textfield()->set_placeholder("append to...");
                     

@@ -99,7 +99,7 @@ namespace gui {
         SFLoop loop(*_base->graph(), _base.get(),
         [this, &scale, &okay, _graph = _base->graph().get(), size](SFLoop& loop, LoopStatus)
             {
-            std::unique_lock<std::recursive_mutex> guard(_graph->lock());
+            auto guard = GUI_LOCK(_graph->lock());
             auto desktop = _base->window_dimensions();
             auto size = _video_size;
             

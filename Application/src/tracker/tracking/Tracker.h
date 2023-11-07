@@ -134,7 +134,8 @@ public:
     };
     
     
-    std::map<Frame_t, Statistics> _statistics;
+    using stats_map_t = std::map<Frame_t, Statistics>;
+    GETTER(stats_map_t, statistics)
     
     struct SecondsPerFrame {
         double _seconds_per_frame, _frames_sampled;
@@ -175,7 +176,30 @@ public:
 private:
     void add(Frame_t frameIndex, PPFrame& frame);
     
+    CallbackManagerImpl<void> _delete_frame_callbacks;
+    static inline std::atomic<bool> _segment_order_changed{false};
+    
 public:
+    /**
+     * Registers a new callback function and returns its unique ID.
+     * The callback will be invoked when certain events or changes occur.
+     *
+     * @param callback The callback function to register.
+     * @return A unique identifier for the registered callback.
+     */
+    std::size_t register_delete_callback(const std::function<void()>& callback) {
+        return _delete_frame_callbacks.registerCallback(callback);
+    }
+
+    /**
+     * Unregisters (removes) a previously registered callback using its unique ID.
+     *
+     * @param id The unique identifier of the callback to unregister.
+     */
+    void unregister_delete_callback(std::size_t id) {
+        _delete_frame_callbacks.unregisterCallback(id);
+    }
+    
     void set_average(Image::Ptr&& average) {
         _average = std::move(average);
         _background = new Background(Image::Make(*_average), nullptr);
@@ -218,6 +242,7 @@ public:
 
     static std::vector<Range<Frame_t>> global_segment_order();
     static void global_segment_order_changed();
+    static std::vector<Range<Frame_t>> unsafe_global_segment_order();
 
     void check_segments_identities(bool auto_correct, IdentitySource, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
     void clear_segments_identities();

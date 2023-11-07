@@ -14,6 +14,8 @@ std::promise<void> running_promise;
 std::mutex init_mutex;
 std::future<void> init_future;
 
+std::atomic<bool> yolo8_initialized{false};
+
 void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
@@ -58,29 +60,39 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
 }
 
 void Yolo8::init() {
-    std::unique_lock guard(init_mutex);
-    if(init_future.valid())
-        init_future.get();
-    
-    init_future = Python::schedule([](){
-        using py = track::PythonIntegration;
-        py::ModuleProxy proxy{
-            "bbx_saved_model",
-            Yolo8::reinit
-        };
-    });//.get();
+    bool expected = false;
+    if(yolo8_initialized.compare_exchange_strong(expected, true)) {
+        std::unique_lock guard(init_mutex);
+        if(init_future.valid())
+            init_future.get();
+        
+        init_future = Python::schedule([](){
+            using py = track::PythonIntegration;
+            py::ModuleProxy proxy{
+                "bbx_saved_model",
+                Yolo8::reinit
+            };
+        });//.get();
+    }
 }
 
 void Yolo8::deinit() {
-    std::unique_lock guard(running_mutex);
-    if(running_prediction.valid()) {
-        print("Still have an active prediction running, waiting...");
-        running_prediction.wait();
-        print("Got it.");
+    bool expected = true;
+    if(yolo8_initialized.compare_exchange_strong(expected, false)) {
+        std::unique_lock guard(running_mutex);
+        if(running_prediction.valid()) {
+            print("Still have an active prediction running, waiting...");
+            running_prediction.wait();
+            print("Got it.");
+        }
+        
+        if(not Python::python_initialized())
+            throw U_EXCEPTION("Please Yolo8::deinit before calling Python::deinit().");
+        
+        Python::schedule([](){
+            track::PythonIntegration::unload_module("bbx_saved_model");
+        }).get();
     }
-    Python::schedule([](){
-        track::PythonIntegration::unload_module("bbx_saved_model");
-    }).get();
 }
 
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result) {

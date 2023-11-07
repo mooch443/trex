@@ -376,7 +376,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_fish", std::pair<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
         config.dont_print("gui_source_video_frame");
-        CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");
+        CONFIG("gui_frame", Frame_t(0u), "The currently selected frame. `gui_displayed_frame` might differ, if loading from file is currently slow.");
+        CONFIG("gui_displayed_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_macos_blur", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
 //#endif

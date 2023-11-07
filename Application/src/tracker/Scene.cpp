@@ -12,13 +12,18 @@ SceneManager& SceneManager::getInstance() {
 
 void SceneManager::set_active(Scene* scene) {
     auto fn = [this, scene]() {
-        if (active_scene && active_scene != scene) {
-            active_scene->deactivate();
+        try {
+            if (active_scene && active_scene != scene) {
+                active_scene->deactivate();
+            }
+            last_active_scene = active_scene;
+            active_scene = scene;
+            if (scene)
+                scene->activate();
+            
+        } catch(const std::exception& e) {
+            SceneManager::set_switching_error(e.what());
         }
-        last_active_scene = active_scene;
-        active_scene = scene;
-        if (scene)
-            scene->activate();
     };
     enqueue(fn);
 }

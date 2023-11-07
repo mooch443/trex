@@ -243,7 +243,7 @@ namespace gui {
         if(fish)
             fish->register_delete_callback(this, [this](track::Individual*) {
                 if(GUI::instance()) {
-                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                    auto guard = GUI_LOCK(GUI::instance()->gui().lock());
                     set_fish(NULL);
                 }
             });

@@ -14,6 +14,7 @@ class Segmenter {
     std::condition_variable _cv_messages, _cv_ready_for_tracking;
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
+    ThreadGroupId _generator_group_id, _tracker_group_id;
     
     // Overlayed video with detections and tracker for object tracking
     std::unique_ptr<VideoProcessor<Detection>> _overlayed_video;

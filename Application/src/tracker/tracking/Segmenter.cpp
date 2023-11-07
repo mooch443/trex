@@ -4,8 +4,6 @@
 #include <file/PathArray.h>
 
 namespace track {
-
-constexpr int thread_id = 42;
 Timer start_timer;
 
 file::Path average_name() {
@@ -18,18 +16,18 @@ Segmenter::Segmenter(std::function<void(std::string)> error_callback)
 {
     start_timer.reset();
 
-    ThreadManager::getInstance().registerGroup(thread_id, "Segmenter");
+    _generator_group_id = REGISTER_THREAD_GROUP("Segmenter");
     
-    ThreadManager::getInstance().addThread(thread_id, "generator-thread", ManagedThread{
+    ThreadManager::getInstance().addThread(_generator_group_id, "generator-thread", ManagedThread{
         [this](auto&){ generator_thread(); }
     });
     
-    ThreadManager::getInstance().registerGroup(thread_id+1, "SegmenterTracking");
-    ThreadManager::getInstance().addThread(thread_id+1, "tracking-thread", ManagedThread{
+    _tracker_group_id = REGISTER_THREAD_GROUP("SegmenterTracking");
+    ThreadManager::getInstance().addThread(_tracker_group_id, "tracking-thread", ManagedThread{
         [this](auto&){ tracking_thread(); }
     });
     
-    ThreadManager::getInstance().addOnEndCallback(thread_id+1, OnEndMethod{
+    ThreadManager::getInstance().addOnEndCallback(_tracker_group_id, OnEndMethod{
         [this](){
             if (std::unique_lock guard(_mutex_general);
                 _output_file != nullptr)
@@ -70,8 +68,8 @@ Segmenter::~Segmenter() {
         _cv_messages.notify_all();
     }
     
-    ThreadManager::getInstance().terminateGroup(thread_id+1);
-    ThreadManager::getInstance().terminateGroup(thread_id);
+    ThreadManager::getInstance().terminateGroup(_tracker_group_id);
+    ThreadManager::getInstance().terminateGroup(_generator_group_id);
     
     std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
     _overlayed_video = nullptr;
@@ -209,8 +207,8 @@ void Segmenter::open_video() {
         callback_after_generating(bg);
     }
 
-    ThreadManager::getInstance().startGroup(thread_id);
-    ThreadManager::getInstance().startGroup(thread_id+1);
+    ThreadManager::getInstance().startGroup(_generator_group_id);
+    ThreadManager::getInstance().startGroup(_tracker_group_id);
 }
 
 void Segmenter::open_camera() {
@@ -282,8 +280,8 @@ void Segmenter::open_camera() {
         _output_file->set_average(bg);
     }
     
-    ThreadManager::getInstance().startGroup(thread_id);
-    ThreadManager::getInstance().startGroup(thread_id+1);
+    ThreadManager::getInstance().startGroup(_generator_group_id);
+    ThreadManager::getInstance().startGroup(_tracker_group_id);
 }
 
 void Segmenter::generator_thread() {
@@ -408,11 +406,11 @@ void Segmenter::perform_tracking() {
 
     static Timer frame_counter;
     static size_t num_frames{0};
-    static std::mutex mFPS;
+    static auto mFPS = LOGGED_MUTEX("mFPS");
     static double FPS{ 0 };
 
     {
-        std::unique_lock g(mFPS);
+        auto g = LOGGED_LOCK(mFPS);
         num_frames++;
 
         if (frame_counter.elapsed() > 30) {

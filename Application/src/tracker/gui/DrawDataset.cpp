@@ -44,7 +44,7 @@ namespace gui {
         decltype(FrameInfo::global_segment_order)::value_type consec;
         
         {
-            std::unique_lock info_lock(Timeline::_frame_info_mutex);
+            auto info_lock = LOGGED_LOCK(Timeline::frame_info_mutex());
             frame = GUI::instance()->frameinfo().frameIndex.load();
             consec = GUI::instance()->frameinfo().global_segment_order.empty()
                 ? Range<Frame_t>({},{})

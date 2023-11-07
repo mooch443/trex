@@ -130,23 +130,22 @@ class ImageArray : public BaseTask<Data> {
     using Vector = std::vector<Data>;
     package::packaged_func<R> task;
     Vector _images;
-    std::mutex _mutex;
+    std::mutex _mutex, _task_mutex;
 
 public:
     template<typename F>
     ImageArray(F fn)
       : BaseTask<Data>(0),
         task([this, fn = std::move(fn)]() mutable {
-            static std::mutex _mu;
             static decltype(_images) packet;
             {
-                std::scoped_lock guard(_mutex, _mu);
+                std::scoped_lock guard(_mutex, _task_mutex);
                 std::swap(_images, packet);
                 _images.clear();
                 BaseTask<Data>::_weight = 0;
             }
 
-            std::lock_guard guard(_mu);
+            std::lock_guard guard(_task_mutex);
             fn(std::move(packet));
         })
     { }

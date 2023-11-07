@@ -5,6 +5,7 @@
 #include <tracking/Individual.h>
 #include <tracking/Tracker.h>
 #include <tracking/ConfirmedCrossings.h>
+#include <gui/FramePreloader.h>
 
 class Timer;
 namespace track { class Individual; }
@@ -57,12 +58,14 @@ namespace gui {
     )
     }
 
-#define GUI_SETTINGS(NAME) gui::globals::Cache::copy< gui::globals::Cache:: NAME >()
+#define GUI_SETTINGS(NAME) ::gui::globals::Cache::copy< ::gui::globals::Cache:: NAME >()
 
     struct SimpleBlob {
         pv::BlobWeakPtr blob;
         int threshold;
         std::unique_ptr<ExternalImage> ptr;
+        Vec2 image_pos;
+        Frame_t frame;
         
         SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
         void convert();
@@ -75,12 +78,20 @@ namespace gui {
     class GUICache {
         pv::File* _video{ nullptr };
         gui::DrawStructure* _graph{ nullptr };
+        using FramePtr = std::unique_ptr<PPFrame>;
+        FramePreloader<FramePtr> _preloader;
+        Timer _last_success;
+        std::unique_ptr<PPFrame> _current_processed_frame{std::make_unique<PPFrame>()};
+        std::unique_ptr<PPFrame> _next_processed_frame;
+        
+        LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
+        
+    public:
         GenericThreadPool _pool;
 
     public:
         Size2 _video_resolution;
         int last_threshold = -1;
-        Frame_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
         std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
@@ -94,6 +105,7 @@ namespace gui {
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
         
+        GETTER(std::vector<Range<Frame_t>>, global_segment_order)
         GETTER_I(bool, blobs_dirty, false)
         GETTER_I(bool, raw_blobs_dirty, false)
         GETTER_I(mode_t::Class, mode, mode_t::tracking)
@@ -133,14 +145,12 @@ namespace gui {
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
-    protected:
         ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
         std::set<Idx_t> checked_probs;
-        std::unique_ptr<std::thread> percentile_ptr;
-        std::mutex percentile_mutex;
         
     public:
-        std::unordered_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
+        std::mutex _fish_map_mutex;
+        std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<Frame_t, track::Tracker::Statistics> _statistics;
         std::unordered_map<pv::bid, int> _ranged_blob_labels;
         
@@ -149,14 +159,20 @@ namespace gui {
         Frame_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;
         
-        PPFrame processed_frame;
         std::vector<Idx_t> selected;
         cmn::atomic<uint64_t> _current_pixels = 0;
         std::atomic<double> _average_pixels = 0;
         
+    protected:
+        std::unique_ptr<std::thread> percentile_ptr;
+        std::mutex percentile_mutex;
+        std::once_flag _percentile_once;
+        std::atomic<bool> done_calculating{false};
+        
     public:
         bool has_selection() const;
         Individual * primary_selection() const;
+        Idx_t primary_selected_id() const;
         void deselect_all();
         bool is_selected(Idx_t id) const;
         void do_select(Idx_t id);
@@ -182,11 +198,23 @@ namespace gui {
         void updated_blobs() { _blobs_dirty = false; }
         void updated_raw_blobs() { _raw_blobs_dirty = false; }
         void on_redraw() { _dirty = false; }
-        void update_data(Frame_t frameIndex);
+        Frame_t update_data(Frame_t frameIndex);
         
-        bool is_tracking_dirty() { return _tracking_dirty; }
+        bool is_tracking_dirty() const { return _tracking_dirty; }
         bool must_redraw() const;
-    
+        
+        bool something_important_changed(Frame_t) const;
+        
+        /// We can preload a pv::Frame here already, but not invalidate
+        /// any of the actual data.
+        void request_frame_change_to(Frame_t);
+        
+        const PPFrame& processed_frame() const {
+            return *_current_processed_frame;
+        }
+        
+        const grid::ProximityGrid& blob_grid();
+        
         GUICache(gui::DrawStructure*, pv::File*);
         ~GUICache();
     };

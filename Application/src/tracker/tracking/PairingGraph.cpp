@@ -988,8 +988,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
     }*/
     
     const PairingGraph::Result& PairingGraph::get_optimal_pairing(bool debug, default_config::matching_mode_t::Class match_mode) {
-        static std::mutex _mutex;
-        std::lock_guard<std::mutex> guard(_mutex);
+        auto guard = LOGGED_LOCK(_mutex);
         
         if(_optimal_pairing)
             delete _optimal_pairing;
@@ -1010,7 +1009,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
             };
             
-            static std::mutex mutex;
+            static auto mutex = LOGGED_MUTEX("PairingGraph::mutex");
             static ska::bytell_hash_map<matching_mode_t::Class, Benchmark_t> benchmarks;
             
             if(is_in(match_mode, matching_mode_t::automatic, matching_mode_t::hungarian, matching_mode_t::benchmark))
@@ -1122,7 +1121,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     
                     if(match_mode == matching_mode_t::benchmark) {
                         auto hs = timer.elapsed();
-                        std::lock_guard<std::mutex> guard(mutex);
+                        auto guard = LOGGED_LOCK(mutex);
                         auto &val = benchmarks[matching_mode_t::hungarian];
                         val.ptr = _optimal_pairing;
                         _optimal_pairing = new Result;
@@ -1146,7 +1145,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 if(match_mode == matching_mode_t::approximate)
                     ptr = _optimal_pairing;
                 else {
-                    std::lock_guard<std::mutex> guard(mutex);
+                    auto guard = LOGGED_LOCK(mutex);
                     auto &val = benchmarks[matching_mode_t::approximate];
                     val.ptr = new Result;
                     ptr = val.ptr;
@@ -1183,7 +1182,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 if(match_mode == matching_mode_t::benchmark) {
-                    std::lock_guard<std::mutex> guard(mutex);
+                    auto guard = LOGGED_LOCK(mutex);
                     auto &val = benchmarks[matching_mode_t::approximate];
                     auto s = timer.elapsed();
                     val.time_acc += s;
@@ -1265,7 +1264,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
                 if(match_mode == matching_mode_t::benchmark) {
                     auto s = timer.elapsed();
-                    std::lock_guard<std::mutex> guard(mutex);
+                    auto guard = LOGGED_LOCK(mutex);
                     auto &val = benchmarks[matching_mode_t::tree];
                     ++val.samples;
                     val.time_acc += s;
@@ -1274,7 +1273,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
             
             if(match_mode == matching_mode_t::benchmark) {
-                std::lock_guard<std::mutex> guard(mutex);
+                auto guard = LOGGED_LOCK(mutex);
                 static size_t print_counter = 0;
                 decltype(benchmarks) previous_benchmarks;
                 

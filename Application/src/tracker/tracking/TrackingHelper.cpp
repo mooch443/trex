@@ -468,7 +468,7 @@ double TrackingHelper::process_postures() {
     TakeTiming take(timing);
     
     double combined_posture_seconds = 0;
-    static std::mutex _statistics_mutex;
+    static auto _statistics_mutex = LOGGED_MUTEX("TrackingHelper::statistics_mutex");
     
     if(cache->do_posture && !_manager.need_postures.empty()) {
         static std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> all;
@@ -492,7 +492,7 @@ double TrackingHelper::process_postures() {
                 collected += t.elapsed();
             }
             
-            std::lock_guard guard((_statistics_mutex));
+            auto guard = LOGGED_LOCK(_statistics_mutex);
             combined_posture_seconds += collected;
             
         }, Tracker::instance()->thread_pool(), all.begin(), all.end());

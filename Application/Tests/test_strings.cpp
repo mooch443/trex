@@ -1331,6 +1331,12 @@ TEST(HtmlifyTests, Headings) {
     ASSERT_EQ(result, "<h4>Heading</h4>");
 }
 
+TEST(HtmlifyTests, UnknownHeadings) {
+    std::string doc = "<test>Heading</test>";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "&lt;test&gt;Heading&lt;/test&gt;");
+}
+
 TEST(ContainsTest, StringAndChar) {
     std::string s = "hello world";
     ASSERT_TRUE(contains(s, 'e'));

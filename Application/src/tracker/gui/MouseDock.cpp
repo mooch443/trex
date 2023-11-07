@@ -27,7 +27,7 @@ IMPLEMENT(MouseDock::instance) = std::make_unique<MouseDock>();
 void MouseDock::draw_background(Entangled &graph) {
 }
 
-    void MouseDock::update(double dt, Drawable* ptr, Entangled& graph) {
+    void MouseDock::update(double dt, const FindCoord& coord, Entangled& graph) {
         std::unique_lock lock_guard(mutex);
         if (not graph.stage()) {
             instance->attached.clear();
@@ -40,8 +40,8 @@ void MouseDock::draw_background(Entangled &graph) {
         dt = min(0.1, dt);
         timer.reset();
 
-        auto mp = graph.stage()->mouse_position();
-        mp = (mp - ptr->pos()).div(ptr->scale());
+        auto mp = coord.convert(HUDCoord(graph.stage()->mouse_position()));
+        //mp = (mp - ptr->pos()).div(ptr->scale());
         
         std::sort(instance->attached.begin(), instance->attached.end(), [&mp](Label* A, Label* B){
             return sqdistance(A->center(), mp) < sqdistance(B->center(), mp);
@@ -59,9 +59,11 @@ void MouseDock::draw_background(Entangled &graph) {
             instance->pos = animate_position(instance->pos, mp, dt * 2, InterpolationType::EASE_OUT);
             GUICache::instance().set_animating(animator, true, &graph);
             //GUICache::instance().set_blobs_dirty();
+            //print("Set animating");
         }
         else {
             GUICache::instance().set_animating(animator, false);
+            //print("Stop animating");
         }
 
         //    instance->pos += v * sqrtf(mag) * dt * 40;

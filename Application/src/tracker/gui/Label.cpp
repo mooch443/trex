@@ -9,7 +9,7 @@
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-    : _text(std::make_shared<StaticText>(Str(text))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
+    : _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
@@ -33,15 +33,13 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
     _frame = frame;
 }
 
-void Label::update(const Size2& screen_size, Drawable*ptr, Entangled& e, float alpha, float _d, bool disabled) {
+void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, bool disabled) {
     alpha = saturate(alpha, 0.5, 1.0);
     
     if(disabled)
         alpha *= 0.5;
     
-    Vec2 offset;
-    Vec2 scale(1);
-    Bounds screen(Vec2(), screen_size);
+    //Bounds screen(Vec2(), coord.screen_size());
 
     auto stage = e.stage();
     if (!stage)
@@ -51,12 +49,14 @@ void Label::update(const Size2& screen_size, Drawable*ptr, Entangled& e, float a
 
     //auto ptr = base.find("fishbowl");
     //if (ptr)
-    {
-        auto inverse = e.global_transform().getInverse();
-        scale = inverse.transformPoint(Vec2(1)) - inverse.transformPoint(Vec2(0));
-        screen = inverse.transformRect(Bounds(Vec2(), screen_size));
-        offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))) / screen.width;
-    }
+    auto scale = coord.bowl_scale().reciprocal();
+    auto screen = coord.viewport();
+    //auto screen = coord.convert(HUDRect(Vec2(), coord.screen_size()));
+    
+        //auto inverse = e.global_transform().getInverse();
+        //scale = inverse.transformPoint(Vec2(1)) - inverse.transformPoint(Vec2(0));
+        //screen = inverse.transformRect(Bounds(Vec2(), screen_size));
+    auto offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))).div(Vec2(screen.width * 0.5, screen.height * 0.95));
 
     //scale = scale.mul(0.75);
     _text->set_scale(scale);
@@ -70,13 +70,28 @@ void Label::update(const Size2& screen_size, Drawable*ptr, Entangled& e, float a
     if(not is_in_mouse_dock)
         e.advance_wrap(*_text);
     
+    auto video_size = coord.video_size();
+    auto center = screen.pos() + screen.size().mul(0.5, 1.05);
+    //auto center = video_size.mul(0.5, 0.95);
+    
+    auto vec = center - _center;
+    //e.add<Circle>(Loc(center), Radius{20}, FillClr{Red.alpha(100)}, LineClr{Red.alpha(200)});
+    //e.add<Line>(Loc{_center}, Loc{_center + vec}, Red.alpha(200));
+    
     if(not is_in_mouse_dock) {
         _text->set_alpha(Alpha{alpha});
     } else
         _text->set_alpha(Alpha{1});
     
-    float distance = (_text->global_bounds().height + _source.height * scale.y); // scale.y;
-    auto text_pos = _center - offset * (distance + 5 * scale.y);
+    float distance = (_text->height() + _source.height) * scale.y; // scale.y;
+    float percent = vec.length() / sqrtf(screen.width * screen.height);
+    
+    // maybe something about max_zoom_limit and current scale vs. video size?
+    distance = /*_text->local_bounds().height +*/ 60 * SQR(percent) + 10 * scale.x;
+    //auto text_pos = _center - offset * distance + 10 * scale.y;
+    auto text_pos = _center - vec.normalize() * distance;
+    //print("offset = ", offset, " distance=", distance, " len=", vec.length(), " norm=",vec.length() / sqrtf(screen.width * screen.height));
+    
     _color = (disabled ? (is_in_mouse_dock ? White : Gray) : Cyan).alpha(255 * alpha);
 
     if(disabled)
@@ -84,38 +99,36 @@ void Label::update(const Size2& screen_size, Drawable*ptr, Entangled& e, float a
     else
         _text->set_text_color(White);
 
-    if (is_in_mouse_dock) 
+    auto screen_target = coord.convert(BowlCoord(text_pos));
+    auto screen_source = coord.convert(BowlCoord(_text->pos()));
+    auto screen_rect = coord.convert(BowlRect(_source));
+    auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
+    if(dis > 0.25)
+        print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), text()->text());
+    
+    if (is_in_mouse_dock)
     {
-        //text_pos = MouseDock::label_pos(this) + mp;
         _text->set_origin(Vec2(0, 0.5));
-
-        /*if (ptr && screen.contains(_center)) {
-            //auto o = -Vec2(0, _text->local_bounds().height);
-            if (Timeline::visible()) {
-                //o -= Vec2(0, 40);
-            }
-
-            Bounds bds(text_pos, Size2(10));
-            bds.restrict_to(screen);
-            text_pos = bds.pos(); //- o;
-        }*/
     }
     else {
-        //_text->set_origin(Vec2(0.5, 1));
-
-        if (ptr && screen.contains(_center)) {
-            auto o = -Vec2(0, _text->local_bounds().height);
-            //if (Timeline::visible()) //TODO: timeline update
+        /*if (screen.overlaps(_source)) {
+            if (GUI_SETTINGS(gui_show_timeline)) //TODO: timeline update
             {
-            //    o -= Vec2(0, 40);
+                screen.y += 60 * scale.y;
+                screen.height -= 60 * scale.y;
             }
-
-            Bounds bds(text_pos + o, Size2(10));
+            
+            auto local = _text->local_bounds();
+            screen.y += local.height * _text->origin().y;
+            screen.x += local.width * _text->origin().x;
+            screen.width -= local.width;
+            screen.height -= local.height + 10 * scale.y;
+            Bounds bds(text_pos, Vec2(1));
             bds.restrict_to(screen);
-            text_pos = bds.pos() - o;
-        }
+            text_pos = bds.pos();
+        }*/
 
-        update_positions(e, text_pos, false);
+        update_positions(e, text_pos, dis <= 1);
     }
 }
 

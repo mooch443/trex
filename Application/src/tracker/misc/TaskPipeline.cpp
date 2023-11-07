@@ -3,15 +3,21 @@
 namespace cmn {
 namespace OverlayBuffers {
 
-inline static std::mutex buffer_mutex;
-inline static std::vector<Image::Ptr> buffers;
+static auto& buffer_mutex() {
+    static auto mutex = new LOGGED_MUTEX("OverlayBuffers::buffer_mutex");
+    return *mutex;
+}
+static auto& buffers() {
+    static std::vector<Image::Ptr> buffers;
+    return buffers;
+}
 
 Image::Ptr get_buffer() {
-    if (std::unique_lock guard(OverlayBuffers::buffer_mutex);
-        not OverlayBuffers::buffers.empty())
+    if (auto guard = LOGGED_LOCK(OverlayBuffers::buffer_mutex());
+        not OverlayBuffers::buffers().empty())
     {
-        auto ptr = std::move(OverlayBuffers::buffers.back());
-        OverlayBuffers::buffers.pop_back();
+        auto ptr = std::move(OverlayBuffers::buffers().back());
+        OverlayBuffers::buffers().pop_back();
         //print("Received from buffers ", ptr->bounds());
         return ptr;
     }
@@ -22,9 +28,9 @@ Image::Ptr get_buffer() {
 void put_back(Image::Ptr&& ptr) {
     if (not ptr)
         return;
-    std::unique_lock guard(OverlayBuffers::buffer_mutex);
+    auto guard = LOGGED_LOCK(OverlayBuffers::buffer_mutex());
     //print("Pushed back buffer ", ptr->bounds());
-    OverlayBuffers::buffers.push_back(std::move(ptr));
+    OverlayBuffers::buffers().push_back(std::move(ptr));
 }
 }
 

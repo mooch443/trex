@@ -831,14 +831,14 @@ Image::Ptr VideoOpener::BufferedVideo::next() {
 void VideoOpener::select_file(const file::Path &p) {
     auto _graph = _file_chooser->base().graph().get();
     const double max_width = _graph->width() * 0.25;
-    std::lock_guard guard(_graph->lock());
+    auto guard = GUI_LOCK(_graph->lock());
     _end_frames_thread = true;
     
     if(_file_chooser->current_tab().extension != "pv") {
         auto callback = [this, p, max_width, _graph](const bool success){
             if(!success) {
                 // immediately move to stale
-                std::lock_guard gui_lock(_graph->lock());
+                auto gui_lock = GUI_LOCK(_graph->lock());
                 std::lock_guard guard(_video_mutex);
                 FormatExcept("Could not open file ",p.str(),".");
                 

@@ -42,7 +42,10 @@ namespace gui {
     
     class Timeline {
         //Size2 size;
-        static std::mutex _mutex;
+        static auto& mutex() {
+            static auto _mutex = new LOGGED_MUTEX("Timeline::mutex");
+            return *_mutex;
+        }
         static Timeline& instance();
         std::atomic<bool> foi_update_scheduled{false};
         std::atomic<float> use_scale{1.f};
@@ -54,7 +57,10 @@ namespace gui {
         Image::Ptr bar_image;
         
     public:
-        inline static std::mutex _frame_info_mutex;
+        static auto& frame_info_mutex() {
+            static auto _frame_info_mutex = new LOGGED_MUTEX("Timeline::_frame_info_mutex");
+            return *_frame_info_mutex;
+        }
         
     protected:
         GETTER(std::unique_ptr<ExternalImage>, bar)

@@ -70,7 +70,7 @@ namespace pv {
      */
     struct TaskSentinel {
         pv::File *ptr = nullptr;
-        bool _please_terminate = false;
+        std::atomic<bool> _please_terminate{false};
         
         bool terminate() const {
             return _please_terminate;
@@ -1068,11 +1068,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     void File::add_individual(Frame&& frame) {
-        
-        static std::mutex pack_mutex;
+        static auto pack_mutex = LOGGED_MUTEX("File::pack_mutex");
         static DataPackage pack;
 
-        std::lock_guard g(pack_mutex);
+        auto g = LOGGED_LOCK(pack_mutex);
         _check_opened();
         bool compressed;
         frame.serialize(pack, compressed);

@@ -232,7 +232,10 @@ std::string FilterCache::toStr() const {
     return "TFC<l:" + Meta::toStr(median_midline_length_px) + "+-" + Meta::toStr(midline_length_px_std) + " pts:" + Meta::toStr(median_number_outline_pts) + "+-" + Meta::toStr(outline_pts_std) + " angle:" + Meta::toStr(median_angle_diff) + ">";
 }
 
-inline static std::mutex _filter_mutex;
+static auto& filter_mutex() {
+    static auto _filter_mutex = new LOGGED_MUTEX("FilterCache::_filter_mutex");
+    return *_filter_mutex;
+}
 inline static std::map<Idx_t, std::map<Range<Frame_t>, std::shared_ptr<FilterCache>>> _filter_cache_std, _filter_cache_no_std;
 
 inline float standard_deviation(const std::set<float> & v) {
@@ -278,13 +281,13 @@ std::tuple<Image::Ptr, Vec2> diff_image(
 }
 
 void FilterCache::clear() {
-    std::lock_guard<std::mutex> guard(_filter_mutex);
+    auto guard = LOGGED_LOCK(filter_mutex());
     _filter_cache_std.clear();
     _filter_cache_no_std.clear();
 }
 
 bool cached_filter(Idx_t fdx, const Range<Frame_t>& segment, FilterCache & constraints, const bool with_std) {
-    std::lock_guard<std::mutex> guard(_filter_mutex);
+    auto guard = LOGGED_LOCK(filter_mutex());
     const auto &cache = with_std ? _filter_cache_std : _filter_cache_no_std;
     auto fit = cache.find(fdx);
     if(fit != cache.end()) {
@@ -369,7 +372,7 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     constraints->median_angle_diff = median_angle_diff.added() ? median_angle_diff.getValue() : 0;
     
     if(!constraints->empty()) {
-        std::lock_guard<std::mutex> guard(_filter_mutex);
+        auto guard = LOGGED_LOCK(filter_mutex());
         if(calculate_std)
             _filter_cache_std[fish->identity().ID()][segment] = constraints;
         else

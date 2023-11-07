@@ -81,7 +81,7 @@ Sample::Ptr retrieve() {
          * Search current rows and cells to see whether the sample is already assigned
          * to any of the cells.
          */
-        std::lock_guard gui_guard(GUI::instance()->gui().lock());
+        auto gui_guard = GUI_LOCK(GUI::instance()->gui().lock());
         for(auto &row : Row::rows()) {
             for(auto &c : row._cells) {
                 if(c._sample == sample) {
@@ -477,7 +477,7 @@ void Interface::clear_probabilities() {
 
 void Interface::clear_rows() {
     if(GUI::instance()) {
-        std::lock_guard guard(GUI::instance()->gui().lock());
+        auto guard = GUI_LOCK(GUI::instance()->gui().lock());
         for(auto &row : Row::rows()) {
             row.clear();
         }
@@ -558,7 +558,7 @@ void Interface::init(DrawStructure& base) {
                 FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
             });
         shuffle->on_click([](auto) {
-            std::lock_guard gui_guard(GUI::instance()->gui().lock());
+            auto gui_guard = GUI_LOCK(GUI::instance()->gui().lock());
             for (auto& row : Row::rows()) {
                 for (size_t i = 0; i < row._cells.size(); ++i) {
                     row.update(i, retrieve());

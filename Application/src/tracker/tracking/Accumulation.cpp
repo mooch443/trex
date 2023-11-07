@@ -736,7 +736,7 @@ Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulatio
 Accumulation::~Accumulation() {
     if(!GUI::instance())
         return;
-    std::lock_guard lock(GUI::instance()->gui().lock());
+    auto lock = GUI_LOCK(GUI::instance()->gui().lock());
     _textarea = nullptr;
     _graph = nullptr;
     _layout = nullptr;

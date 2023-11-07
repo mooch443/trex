@@ -78,7 +78,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                     ActionFunc("open_recent", [this](dyn::Action str) {
                         print("open_recent got ", str);
                         assert(str.parameters.size() == 1u);
-                        auto index = Meta::fromStr<size_t>(str.parameters.front());
+                        auto index = Meta::fromStr<size_t>(str.first());
                         if (_recents.items().size() > index) {
                             auto& item = _recents.items().at(index);
                             DetailItem details{item};

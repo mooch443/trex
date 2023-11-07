@@ -237,7 +237,7 @@ void async_main(void*) {
 									drawfish = std::make_unique<gui::Fish>(*fish);
 									fish->register_delete_callback(drawfish.get(), [&](Individual* f) {
 										//std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
-										std::lock_guard<std::recursive_mutex> guard(graph.lock());
+										auto guard = GUI_LOCK(graph.lock());
 
 										auto it = map.find(f);
 										if (it != map.end())
@@ -299,7 +299,7 @@ void async_main(void*) {
 			static Entangled menu([&graph, &tracker](Entangled& menu) {
                 static Button reanalyse(Str{"reanalyse"}, Box{ Size2(100, 33) }, [&]() {
 					auto index = SETTING(gui_frame).value<Frame_t>();
-					std::lock_guard guard(graph.lock());
+					auto guard = GUI_LOCK(graph.lock());
 					if(index.valid() && tracker.end_frame().valid()
 						&& index <= tracker.end_frame()) 
 					{

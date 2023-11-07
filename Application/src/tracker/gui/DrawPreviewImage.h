@@ -15,7 +15,7 @@
 namespace gui {
 namespace DrawPreviewImage {
 
-void draw(track::PPFrame&, Frame_t, DrawStructure&);
+void draw(const track::PPFrame&, Frame_t, DrawStructure&);
 
 }
 }

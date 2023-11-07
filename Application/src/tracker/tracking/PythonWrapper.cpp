@@ -32,7 +32,7 @@ void update(std::promise<void>&& init_promise) {
     
     struct Guard {
         Guard() {
-            print("[py] init()");
+            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "init()");
 
             _initialized = false;
             try {
@@ -47,9 +47,9 @@ void update(std::promise<void>&& init_promise) {
         }
         
         ~Guard() {
-            print("[py] ...");
+            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "...");
             py::deinit();
-            print("[py] deinit()");
+            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "deinit()");
         }
     };
     
@@ -86,7 +86,7 @@ void update(std::promise<void>&& init_promise) {
                         try {
                             
                         } catch(...) {
-                            FormatExcept("[py] Error during initialization (trex_init.py).");
+                            FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error during initialization (trex_init.py).");
                             guard.lock();
                             _queue.clear();
                             throw;
@@ -236,7 +236,7 @@ std::future<void> deinit() {
                 try {
                     reinit();
                 } catch(...) {
-                    FormatExcept("[py] Error during initialization (trex_init.py).");
+                    FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error during initialization (trex_init.py).");
                     lock.lock();
                     
                     //for(auto &task : tasks)
