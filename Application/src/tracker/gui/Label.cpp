@@ -19,6 +19,8 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
 Label::~Label() {
     MouseDock::unregister_label(this);
     //print("Label destroyed ", this);
+    if(not animator.empty())
+        GUICache::instance().set_animating(animator, false);
 }
 
 void Label::set_data(Frame_t frame, const std::string &text, const Bounds &source, const Vec2 &center) {

@@ -31,8 +31,16 @@ SelectedSettingType _selected_setting_type;
 std::atomic<pv::bid> _clicked_blob_id;
 std::atomic<Frame_t> _clicked_blob_frame;
 
+static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
+
 void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
 void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
+
+void blob_view_shutdown() {
+    _blob_labels.clear();
+    _unused_labels.clear();
+}
 
 struct Outer {
     Image::Ptr image;
@@ -280,8 +288,6 @@ void draw_blob_view(const DisplayParameters& parm)
                 base.text(Str(text), Loc(pos + Vec2(2)), TextClr(White), Font(0.5), scale);
             }
             
-            static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
-            static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
             static Frame_t last;
             if(last != frame) {
                 _blob_labels.clear();

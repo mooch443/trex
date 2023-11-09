@@ -610,7 +610,7 @@ void PPFrame::clear_blobs() {
 }
 
 void PPFrame::_check_owners() {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(TREX_DEBUG_BLOBS)
     for(auto& [bdx, ptr] : _blob_map) {
         auto it = std::find(_blob_owner.begin(), _blob_owner.end(), bdx);
         if(it == _blob_owner.end())

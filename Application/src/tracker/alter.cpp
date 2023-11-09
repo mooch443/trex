@@ -139,12 +139,20 @@ void launch_gui() {
         });
     manager.register_scene(&loading);
     
-    if(SETTING(source).value<file::PathArray>().empty())
+    if(auto array = SETTING(source).value<file::PathArray>();
+       array.empty()) 
+    {
         manager.set_active(&start);
-    if (not SETTING(source).value<file::PathArray>().empty()) {
+    } else if(auto front = array.get_paths().front();
+              array.size() == 1 /// TODO: not sure how this deals with patterns
+              && ((not front.has_extension() && file::DataLocation::parse("input", front.add_extension("pv")).exists())
+                  || front.extension() == "pv")
+              && front != "webcam")
+    {
+        manager.set_active(&tracking_scene);
+    } else {
         manager.set_active(&converting);
     }
-    //manager.set_active(&tracking_scene);
     
     base.platform()->set_icons({
         //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),

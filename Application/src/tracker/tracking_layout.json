@@ -86,7 +86,7 @@
                             "fill": [30,30,30,0],
                             "line": [255,255,255,255],
                             "clickable":true,
-                            "action": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
+                            "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
                         },
                         {
                             "type": "rect",

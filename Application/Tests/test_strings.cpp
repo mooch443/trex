@@ -368,7 +368,7 @@ TEST(StringUtilTest, Uppercase) {
 
 TEST(FindReplaceTest, BasicTest) {
     std::string str = "The quick brown fox jumps over the lazy dog.";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"quick", "fast"},
         {"brown", "red"},
         {"jumps", "leaps"},
@@ -380,7 +380,7 @@ TEST(FindReplaceTest, BasicTest) {
 
 TEST(FindReplaceTest, EmptyInput) {
     std::string str = "";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"quick", "fast"},
         {"brown", "red"},
         {"jumps", "leaps"},
@@ -392,7 +392,7 @@ TEST(FindReplaceTest, EmptyInput) {
 
 TEST(FindReplaceTest, NoMatches) {
     std::string str = "The quick brown fox jumps over the lazy dog.";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"foo", "bar"},
         {"baz", "qux"}
     };
@@ -402,7 +402,7 @@ TEST(FindReplaceTest, NoMatches) {
 
 TEST(FindReplaceTest, OverlappingMatches) {
     std::string str = "The quick brown fox jumps over the lazy dog.";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"the", "THE"},
         {"THE", "the"},
     };
@@ -414,7 +414,7 @@ TEST(FindReplaceTest, OverlappingMatches) {
 
 TEST(FindReplaceTest, EmptyInputString) {
     std::string input = "";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"abc", "xyz"}, {"def", "uvw"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}, {"def", "uvw"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "");
 }
@@ -422,13 +422,13 @@ TEST(FindReplaceTest, EmptyInputString) {
 
 TEST(FindReplaceTest, EmptySearchStrings) {
     std::string str = "The quick brown fox jumps over the lazy dog.";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {};
     std::string expected = "The quick brown fox jumps over the lazy dog.";
     EXPECT_EQ(find_replace(str, search_strings), expected);
     
     {
         std::string input = "abcdefgh";
-        std::vector<std::tuple<std::string, std::string>> search_strings;
+        std::vector<std::pair<std::string_view, std::string_view>> search_strings;
         std::string result = find_replace(input, search_strings);
         ASSERT_EQ(result, "abcdefgh");
     }
@@ -436,56 +436,56 @@ TEST(FindReplaceTest, EmptySearchStrings) {
 
 TEST(FindReplaceTest, EmptyInputAndSearchStrings) {
     std::string input = "";
-    std::vector<std::tuple<std::string, std::string>> search_strings;
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings;
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "");
 }
 
 TEST(FindReplaceTest, NoMatchingSearchStrings) {
     std::string input = "abcdefgh";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"ijk", "xyz"}, {"lmn", "uvw"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"ijk", "xyz"}, {"lmn", "uvw"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "abcdefgh");
 }
 
 TEST(FindReplaceTest, SomeMatchingSearchStrings) {
     std::string input = "abcdefgh";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"abc", "xyz"}, {"lmn", "uvw"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}, {"lmn", "uvw"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "xyzdefgh");
 }
 
 TEST(FindReplaceTest, AllMatchingSearchStrings) {
     std::string input = "abcdefgh";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"abc", "xyz"}, {"def", "uvw"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}, {"def", "uvw"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "xyzuvwgh");
 }
 
 TEST(FindReplaceTest, MultipleInstancesOfSearchStrings) {
     std::string input = "abcdeabc";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"abc", "xyz"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "xyzdexyz");
 }
 
 TEST(FindReplaceTest, SpecialCharactersAndDigits) {
     std::string input = "a$b%c123";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"$", "X"}, {"%", "Y"}, {"1", "2"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"$", "X"}, {"%", "Y"}, {"1", "2"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "aXbYc223");
 }
 
 TEST(FindReplaceTest, IdenticalReplacements) {
     std::string input = "abcabc";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"abc", "abc"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "abc"}};
     std::string result = find_replace(input, search_strings);
     ASSERT_EQ(result, "abcabc");
 }
 
 TEST(FindReplaceTest, ComplexSearchStrings) {
     std::string input = "A quick brown fox jumps over the lazy dog, and the dog returns the favor.";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"quick", "swift"},
         {"the lazy dog", "a sleeping canine"},
         {"the favor", "a compliment"}
@@ -496,28 +496,28 @@ TEST(FindReplaceTest, ComplexSearchStrings) {
 
 TEST(FindReplaceTest, UnicodeCharacters) {
     std::string input = "こんにちは世界";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"こんにちは", "さようなら"}, {"世界", "宇宙"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"こんにちは", "さようなら"}, {"世界", "宇宙"}};
     std::string expected = "さようなら宇宙";
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
 TEST(FindReplaceTest, CaseSensitivity) {
     std::string input = "The Quick Brown Fox Jumps Over The Lazy Dog.";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"The", "A"}, {"Quick", "Swift"}, {"Brown", "Red"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"The", "A"}, {"Quick", "Swift"}, {"Brown", "Red"}};
     std::string expected = "A Swift Red Fox Jumps Over A Lazy Dog.";
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
 TEST(FindReplaceTest, ComplexOverlappingSearchStrings) {
     std::string input = "appleappletreeapple";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {{"apple", "orange"}, {"appletree", "peachtree"}};
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"apple", "orange"}, {"appletree", "peachtree"}};
     std::string expected = "orangeorangetreeorange";
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
 TEST(FindReplaceTest, RespectOrderOfSearchStrings) {
     std::string input = "this is an orangetree";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"orange", "apple"},
         {"orangetree", "appletree"},
     };
@@ -527,7 +527,7 @@ TEST(FindReplaceTest, RespectOrderOfSearchStrings) {
 
 TEST(FindReplaceTest, MultipleReplacementsInARow) {
     std::string input = "helloorangeapplegrape";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"orange", "banana"},
         {"apple", "cherry"},
         {"grape", "kiwi"},
@@ -538,7 +538,7 @@ TEST(FindReplaceTest, MultipleReplacementsInARow) {
 
 TEST(FindReplaceTest, OverlappingSearchStrings) {
     std::string input = "abcde";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"abc", "xyz"},
         {"bcd", "uv"},
     };
@@ -548,7 +548,7 @@ TEST(FindReplaceTest, OverlappingSearchStrings) {
 
 TEST(FindReplaceTest, ReplaceSubstringsWithDifferentLengths) {
     std::string input = "this is an orangetree";
-    std::vector<std::tuple<std::string, std::string>> search_strings = {
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
         {"orange", "app"},
         {"orangetree", "appletree"},
     };

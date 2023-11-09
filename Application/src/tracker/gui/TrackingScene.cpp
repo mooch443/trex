@@ -972,6 +972,7 @@ void TrackingScene::deactivate() {
     
     WorkProgress::stop();
     dynGUI.clear();
+    tracker::gui::blob_view_shutdown();
     
     print("Preparing for shutdown...");
 #if !COMMONS_NO_PYTHON
@@ -1377,7 +1378,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {
                 if(not _data->tracker.start_frame().valid())
-                    return Range<Frame_t>();
+                    return Range<Frame_t>(_data->_analysis_range.load().start(), _data->_analysis_range.load().start());
                 return Range<Frame_t>{ _data->tracker.start_frame(), _data->tracker.end_frame() + 1_f };
             }),
             
@@ -1406,6 +1407,10 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             
             VarFunc("mouse_in_bowl", [this](const VarProps&) -> Vec2 {
                 return _data->_bowl_mouse;
+            }),
+            
+            VarFunc("mouse", [this](const VarProps&) -> Vec2 {
+                return this->_data->_last_mouse;
             })
         }
     };

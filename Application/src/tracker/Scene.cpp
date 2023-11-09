@@ -14,12 +14,16 @@ void SceneManager::set_active(Scene* scene) {
     auto fn = [this, scene]() {
         try {
             if (active_scene && active_scene != scene) {
+                print("[SceneManager] Deactivating ", active_scene->name());
                 active_scene->deactivate();
             }
             last_active_scene = active_scene;
             active_scene = scene;
-            if (scene)
+            if (scene) {
+                print("[SceneManager] Switching to ", scene->name());
                 scene->activate();
+            } else
+                print("[SceneManager] Deactivating.");
             
         } catch(const std::exception& e) {
             SceneManager::set_switching_error(e.what());

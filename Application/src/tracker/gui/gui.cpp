@@ -1210,7 +1210,7 @@ void GUI::draw_grid(gui::DrawStructure &base) {
         size_t _i;
         const Vec2* _point;
         GridPoint(size_t i, const Vec2* point) : _i(i), _point(point) {}
-        void convert(std::shared_ptr<Circle> circle) const {
+        void convert(const std::unique_ptr<Circle>& circle) const {
             circle->set_pos(*_point);
             if(circle->hovered())
                 circle->set_fill_clr(Red.alpha(250));
@@ -1230,21 +1230,21 @@ void GUI::draw_grid(gui::DrawStructure &base) {
                 circle->clear_event_handlers();
                 circle->on_click([](auto){
                 });
-                circle->on_hover([circle](auto) {
+                circle->on_hover([circle = circle.get()](auto) {
                     circle->set_dirty();
                 });
             }
         }
     };
-    static std::vector<std::shared_ptr<Circle>> circles;
-    std::vector<std::shared_ptr<GridPoint>> points;
+    static std::vector<std::unique_ptr<Circle>> circles;
+    std::vector<std::unique_ptr<GridPoint>> points;
     
     for (size_t i=0; i<grid_points.size(); ++i)
-        points.push_back(std::make_shared<GridPoint>(i, &grid_points.at(i)));
+        points.emplace_back(std::make_unique<GridPoint>(i, &grid_points.at(i)));
     
     update_vector_elements(circles, points);
     
-    for(auto circle : circles) {
+    for(auto& circle : circles) {
         base.wrap_object(*circle);
         
         if(circle->hovered()) {

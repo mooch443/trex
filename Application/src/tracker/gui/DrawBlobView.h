@@ -32,5 +32,7 @@ void set_clicked_blob_frame(::gui::Frame_t v);
 
 void clicked_background(::gui::DrawStructure& base, ::gui::GUICache& cache, const ::gui::Vec2& pos, bool v, std::string key);
 
+void blob_view_shutdown();
+
 }
 }

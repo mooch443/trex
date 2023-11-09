@@ -66,6 +66,10 @@ namespace gui {
 
     GUICache::~GUICache() {
         clear_animators();
+        _fish_map.clear();
+        display_blobs.clear();
+        raw_blobs.clear();
+        available_blobs_list.clear();
 
         std::lock_guard guard(percentile_mutex);
         if(percentile_ptr) {
