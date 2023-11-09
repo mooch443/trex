@@ -1159,7 +1159,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
                // use = clr;
             prev = fv.frame;
             prev_pos = fv.vertex.position();
-            _vertices.push_back(Vertex(fv.vertex.position() + offset, fv.vertex.color().alpha(percent * 255)));
+            _vertices.emplace_back(fv.vertex.position() + offset, fv.vertex.clr().alpha(percent * 255));
         }
         
         

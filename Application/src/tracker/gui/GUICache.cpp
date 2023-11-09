@@ -89,6 +89,7 @@ namespace gui {
         if (!ptr->source()) {
             ptr->set_source(Image::Make());
         }
+        ptr->set_cut_border(true);
     }
     
     void SimpleBlob::convert() {
@@ -702,12 +703,17 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         //! raw_blobs can be exaggerated because nullptrs within the
         //! blob and noise arrays are also counted (but not provided
         //! within the above loop). shrink:
-        if(reload_blobs)
+        if(reload_blobs) {
+            for(size_t j=i; j<raw_blobs.size(); ++j)
+                available_blobs_list.emplace_back(std::move(raw_blobs[j]));
             raw_blobs.resize(i);
+        }
         
+#ifndef NDEBUG
         for(auto &obj : raw_blobs) {
             assert(obj->frame == frameIndex);
         }
+#endif
         
         if(reload_blobs) {
             /**
