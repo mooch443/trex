@@ -187,6 +187,7 @@ class TrackingScene : public Scene {
         std::unique_ptr<VisualFieldWidget> _vf_widget;
         
         std::unique_ptr<Bowl> _bowl;
+        std::unordered_map<Idx_t, Bounds> _last_bounds;
         
         std::unique_ptr<AnimatedBackground> _background;
         std::unique_ptr<ExternalImage> _gui_mask;

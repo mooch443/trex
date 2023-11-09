@@ -1143,8 +1143,16 @@ void TrackingScene::_draw(DrawStructure& graph) {
            && not graph.is_key_pressed(Keyboard::LShift))
         {
             for(auto fdx : _data->_cache->selected) {
-                if(not _data->_cache->fish_selected_blobs.contains(fdx))
+                if(not _data->_cache->fish_selected_blobs.contains(fdx)) {
+                    if(_data->_last_bounds.contains(fdx)) {
+                        auto &bds = _data->_last_bounds.at(fdx);
+                        targets.push_back(bds.pos());
+                        targets.push_back(bds.pos() + bds.size());
+                        targets.push_back(bds.pos() + bds.size().mul(0, 1));
+                        targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                    }
                     continue;
+                }
                 
                 auto bdx = _data->_cache->fish_selected_blobs.at(fdx);
                 for(auto &blob: _data->_cache->raw_blobs) {
@@ -1155,10 +1163,20 @@ void TrackingScene::_draw(DrawStructure& graph) {
                         targets.push_back(bds.pos() + bds.size());
                         targets.push_back(bds.pos() + bds.size().mul(0, 1));
                         targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                        _data->_last_bounds[fdx] = bds;
                         break;
                     }
                 }
             }
+            
+            std::vector<Idx_t> remove;
+            for(auto &[fdx, bds] : _data->_last_bounds) {
+                if(not contains(_data->_cache->selected, fdx))
+                    remove.push_back(fdx);
+            }
+            
+            for(auto fdx: remove)
+                _data->_last_bounds.erase(fdx);
         }
         
         _data->_bowl->fit_to_screen(window_size);
