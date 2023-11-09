@@ -27,6 +27,13 @@ void SceneManager::set_active(Scene* scene) {
             
         } catch(const std::exception& e) {
             SceneManager::set_switching_error(e.what());
+
+            if (SceneManager::getInstance().fallback_scene) {
+				SceneManager::getInstance().set_active(SceneManager::getInstance().fallback_scene);
+			}
+            else {
+				print("[SceneManager] No fallback scene for error: ", e.what());
+			}
         }
     };
     enqueue(fn);
@@ -74,6 +81,28 @@ void SceneManager::set_active(std::string name) {
     }
 }
 
+void SceneManager::set_fallback(std::string name) {
+    if (name.empty()) {
+		fallback_scene = nullptr;
+		return;
+	}
+
+	Scene* ptr{ nullptr };
+
+    if (std::unique_lock guard{ _mutex };
+        _scene_registry.contains(name))
+    {
+		ptr = _scene_registry.at(name);
+	}
+
+    if (ptr) {
+		fallback_scene = ptr;
+	}
+    else {
+		throw InvalidArgumentException("Cannot find the given Scene name (",name,").");
+	}
+}
+
 bool SceneManager::is_scene_registered(std::string name) const {
     Scene* ptr{ nullptr };
     
@@ -94,8 +123,19 @@ SceneManager::~SceneManager() {
 
 void SceneManager::update(DrawStructure& graph) {
     update_queue();
-    if (active_scene)
-        active_scene->draw(graph);
+
+    try {
+        if (active_scene)
+            active_scene->draw(graph);
+    }
+    catch (const std::exception& e) {
+        static const char* msg = nullptr;
+        if (msg != e.what()) {
+			msg = e.what();
+            graph.dialog(settings::htmlify(e.what()), "Error");
+			//print("[SceneManager] Error: ", msg);
+		}
+	}
     
     auto str = switching_error().read();
     if(not str.empty()) {

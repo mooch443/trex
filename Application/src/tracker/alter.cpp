@@ -126,6 +126,7 @@ void launch_gui() {
 
     StartingScene start{ base };
     manager.register_scene(&start);
+    manager.set_fallback(start.name());
     
     TrackingScene tracking_scene{ base };
     manager.register_scene(&tracking_scene);

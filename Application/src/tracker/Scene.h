@@ -42,6 +42,7 @@ public:
 };
 
 class SceneManager {
+    Scene* fallback_scene{ nullptr };
     Scene* active_scene{ nullptr };
     Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
@@ -77,6 +78,8 @@ public:
 
     void set_active(std::string name);
     Scene* last_active() const;
+
+    void set_fallback(std::string name);
 
     ~SceneManager();
 

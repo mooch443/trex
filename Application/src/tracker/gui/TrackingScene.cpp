@@ -980,7 +980,8 @@ void TrackingScene::deactivate() {
     Categorize::terminate();
 #endif
     
-    _data->analysis.terminate();
+    if(_data)
+        _data->analysis.terminate();
     _data = nullptr;
 }
 
@@ -1048,6 +1049,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
     update_run_loop();
     if(_data)
         _data->_exec_main_queue.processTasks(static_cast<IMGUIBase*>(window()), graph);
+    else
+        return;
     
     if(window()) {
         auto update = FindCoord::set_screen_size(graph, *window());
