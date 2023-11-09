@@ -225,7 +225,7 @@ void Bowl::update_goals() {
     }
     
     Vec2 theory_scale = _screen_size.div(bounding_box.size());
-    auto o = _screen_size.div(theory_scale).max() * 0.1;
+    auto o = _screen_size.div(theory_scale).max() * 0.25;
     bounding_box << bounding_box.pos() - o;
     bounding_box << bounding_box.size() + o * 2;
     
