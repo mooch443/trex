@@ -93,7 +93,7 @@ Fish::~Fish() {
             _view.set_dirty();
         });
         
-        _posture.set_origin(Vec2(0.5));
+        _posture.set_origin(Vec2(0));
     }
 
     void Fish::check_tags() {
@@ -1433,7 +1433,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
             _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), fish_pos());
     }
 
-    _label->update(coord, e, 1, 0, not _basic_stuff.has_value());
+    _label->update(coord, e, 1, 0, not _basic_stuff.has_value(), GUICache::instance().dt());
 }
 
 Drawable* Fish::shadow() {

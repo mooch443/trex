@@ -9,7 +9,7 @@
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-    : _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
+    : _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get())), _line({}, 1)
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
@@ -25,8 +25,10 @@ Label::~Label() {
 
 void Label::set_data(Frame_t frame, const std::string &text, const Bounds &source, const Vec2 &center) {
     if(text != _text->text()) {
-        if(not animator.empty())
+        if(_registered) {
+            _registered = false;
             GUICache::instance().set_animating(animator, false);
+        }
         _text->set_txt(text);
         //+"-"+_text->text();
     }
@@ -35,7 +37,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
     _frame = frame;
 }
 
-void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, bool disabled) {
+void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, bool disabled, double dt) {
     alpha = saturate(alpha, 0.5, 1.0);
     
     if(disabled)
@@ -111,6 +113,10 @@ void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, 
     if (is_in_mouse_dock)
     {
         _text->set_origin(Vec2(0, 0.5));
+        if(_registered) {
+            _registered = false;
+            GUICache::instance().set_animating(animator, false);
+        }
     }
     else {
         /*if (screen.overlaps(_source)) {
@@ -130,36 +136,50 @@ void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, 
             text_pos = bds.pos();
         }*/
 
-        update_positions(e, text_pos, dis <= 1);
+        update_positions(e, text_pos, dis <= 1, dt);
     }
 }
 
-float Label::update_positions(Entangled& e, Vec2 text_pos, bool do_animate) {
+float Label::update_positions(Entangled& e, Vec2 text_pos, bool do_animate, double dt) {
     if (not do_animate) {
         _text->set_pos(text_pos);
-        e.add<Line>(_center, _text->pos(), _color, 1);
+        _line.create(_center, _text->pos(), _color);
+        e.advance_wrap(_line);
+        //e.add<Line>(_center, _text->pos(), _color, 1);
+        if(_registered) {
+            //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
+            _registered = false;
+            GUICache::instance().set_animating(animator, false);
+        }
+        
         return 0;
     }
 
-    auto dt = min(animation_timer.elapsed(), 0.5) * 2;
-    animation_timer.reset();
+    dt = min(dt, 0.5) * 2;
+    //animation_timer.reset();
     auto next = animate_position(_text->pos(), text_pos, dt * 2, InterpolationType::EASE_OUT);
     //if(next.Equals(_text->pos()) && not text_pos.Equals(_text->pos()))
     //    FormatWarning("Next: ", next, " equals ", _text->pos(), " but not ", text_pos);
     float d = 0;
     if(not text_pos.Equals(_text->pos())) {
         d = euclidean_distance(_text->pos(), text_pos);
-        if(not animator.empty())
+        if(not _registered) {
             GUICache::instance().set_animating(animator, true, _text.get());
+            _registered = true;
+        }
         _text->set_pos(next);
     } else {
-        if(not animator.empty() && GUICache::instance().is_animating(animator)) {
+        if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
+            _registered = false;
             GUICache::instance().set_animating(animator, false);
         }
     }
     
-    e.add<Line>(_center, _text->pos(), _color, 1);
+
+    _line.create(_center, _text->pos(), _color);
+    e.advance_wrap(_line);
+    //e.add<Line>(_center, _text->pos(), _color, 1);
     return d;
 }
 

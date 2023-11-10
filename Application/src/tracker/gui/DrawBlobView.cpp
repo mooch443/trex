@@ -486,7 +486,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 if(d > 0 && real_size > 0) {
                     label->set_data(parm.cache.frame_idx, text, blob->bounds(), blob->center());
-                    label->update(parm.coord, e, d,od, !active);
+                    label->update(parm.coord, e, d,od, !active, parm.cache.dt());
                     ++displayed;
                 }
             };

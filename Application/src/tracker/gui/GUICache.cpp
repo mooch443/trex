@@ -837,6 +837,63 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         
         _last_success.reset();
         
+        if(properties && (reload_blobs || _fish_dirty))
+        {
+            set_of_individuals_t source;
+            if(Tracker::has_identities() && GUI_SETTINGS(gui_show_inactive_individuals))
+            {
+                for(auto [id, fish] : individuals)
+                    source.insert(fish);
+                //! TODO: Tracker::identities().count(id) ?
+                
+            } else {
+                for(auto fish : active)
+                    source.insert(fish);
+            }
+            
+            for (auto& fish : (source.empty() ? active : source)) {
+                if (fish->empty()
+                    || fish->start_frame() > frameIndex)
+                    continue;
+
+                auto segment = fish->segment_for(frameIndex);
+                if (!GUI_SETTINGS(gui_show_inactive_individuals)
+                    && (!segment || (segment->end() != Tracker::end_frame()
+                        && segment->length().get() < sign_cast<uint32_t>(GUI_SETTINGS(output_min_frames)))))
+                {
+                    continue;
+                }
+
+                /*auto it = container->map().find(fish);
+                if (it != container->map().end())
+                    empty_map = &it->second;
+                else
+                    empty_map = NULL;*/
+
+                std::unique_lock guard(_fish_map_mutex);
+                auto id = fish->identity().ID();
+                if (not _fish_map.contains(id)) {
+                    _fish_map[id] = std::make_unique<gui::Fish>(*fish);
+                    fish->register_delete_callback(_fish_map[id].get(), [this](Individual* f) {
+                            std::unique_lock guard(_fish_map_mutex);
+                            auto it = _fish_map.find(f->identity().ID());
+                            if (it != _fish_map.end()) {
+                                _fish_map.erase(it);
+                            }
+                            
+                            set_tracking_dirty();
+                        });
+                }
+                
+                _fish_map[id]->set_data(*fish, frameIndex, properties->time, nullptr);
+                //base.wrap_object(*PD(cache)._fish_map[fish]);
+                //PD(cache)._fish_map[fish]->label(ptr, e);
+            }
+            
+            updated_blobs();
+            updated_raw_blobs();
+        }
+        
         //if(reload_blobs)
         //    print("reloading: ", reasons);
         return reload_blobs ? processed_frame().index() : Frame_t{};

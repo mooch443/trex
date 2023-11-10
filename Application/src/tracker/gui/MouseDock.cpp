@@ -80,7 +80,7 @@ void MouseDock::draw_background(Entangled &graph) {
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 15;
         for (auto label : instance->attached) {
-            auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos, true);
+            auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos, true, dt);
             
             //label->text()->set_alpha(1);
             //label->text()->set_txt(Meta::toStr(euclidean_distance(instance->pos, label->center())));

@@ -304,60 +304,6 @@ void Bowl::update_blobs(const Frame_t& frame) {
 }
 
 void Bowl::set_data(Frame_t frame) {
-    auto props = Tracker::properties(frame);
-    if(not props)
-        return;
-    
-    set_of_individuals_t source;
-    if(Tracker::has_identities() && GUI_SETTINGS(gui_show_inactive_individuals))
-    {
-        for(auto [id, fish] : _cache->individuals)
-            source.insert(fish);
-        //! TODO: Tracker::identities().count(id) ?
-        
-    } else {
-        for(auto fish : _cache->active)
-            source.insert(fish);
-    }
-    
-    for (auto& fish : (source.empty() ? _cache->active : source)) {
-        if (fish->empty()
-            || fish->start_frame() > frame)
-            continue;
-
-        auto segment = fish->segment_for(frame);
-        if (!GUI_SETTINGS(gui_show_inactive_individuals)
-            && (!segment || (segment->end() != Tracker::end_frame()
-                && segment->length().get() < sign_cast<uint32_t>(GUI_SETTINGS(output_min_frames)))))
-        {
-            continue;
-        }
-
-        /*auto it = container->map().find(fish);
-        if (it != container->map().end())
-            empty_map = &it->second;
-        else
-            empty_map = NULL;*/
-
-        std::unique_lock guard(_cache->_fish_map_mutex);
-        auto id = fish->identity().ID();
-        if (not _cache->_fish_map.contains(id)) {
-            _cache->_fish_map[id] = std::make_unique<gui::Fish>(*fish);
-            fish->register_delete_callback(_cache->_fish_map[id].get(), [this](Individual* f) {
-                    std::unique_lock guard(_cache->_fish_map_mutex);
-                    auto it = _cache->_fish_map.find(f->identity().ID());
-                    if (it != _cache->_fish_map.end()) {
-                        _cache->_fish_map.erase(it);
-                    }
-                    
-                    _cache->set_tracking_dirty();
-                });
-        }
-        
-        _cache->_fish_map[id]->set_data(*fish, frame, props->time, nullptr);
-        //base.wrap_object(*PD(cache)._fish_map[fish]);
-        //PD(cache)._fish_map[fish]->label(ptr, e);
-    }
 }
 
 void Bowl::update_scaling() {
@@ -1132,9 +1078,6 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 map["pos"] = Vec2(fish->blob->bounds().pos());
             }
             
-            _data->_bowl->set_data(loaded.valid() ? loaded : frameIndex);
-            _data->_cache->updated_blobs();
-            _data->_cache->updated_raw_blobs();
             _data->_zoom_dirty = true;
         }
     }
