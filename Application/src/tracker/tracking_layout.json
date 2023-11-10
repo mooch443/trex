@@ -92,7 +92,7 @@
                             "type": "rect",
                             "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{-:{window_size.x}:22}}},-9]",
                             "size": "[{max:0:{-:{-:{window_size.x}:11}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{width23}}}}},28]",
-                            "fill": [0,0,0,150],
+                            "fill": [0,0,0,0],
                             "line": [250,250,250,0],
                             "clickable":false
                         },
@@ -101,7 +101,7 @@
                             "type": "rect",
                             "pos": "{current_pos}",
                             "size": "[{+:10:{-:{*:{/:{max:{global.gui_frame}:{min:{min:{global.video_length}:{-:{tracker.end}:1}}:{end}}}:{length}}:{-:{window_size.x}:22}}:{at:0:{current_pos}}}},28]",
-                            "fill": [20,50,50,150],
+                            "fill": [20,40,50,180],
                             "line": [250,250,250,0],
                             "clickable":false
                         },
@@ -110,7 +110,7 @@
                             "type": "rect",
                             "pos": "{timeline_start}",
                             "size": "[{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}},30]",
-                            "fill": [50,50,50,150],
+                            "fill": [20,20,20,180],
                             "line": [255,255,255,255],
                             "clickable":false
                         },
