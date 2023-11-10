@@ -1073,8 +1073,10 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     auto mouse = graph.mouse_position();
     if(mouse != _data->_last_mouse || _data->_cache->is_animating()) {
-        _data->_cache->set_blobs_dirty();
-        _data->_cache->set_tracking_dirty();
+        if(((IMGUIBase*)window())->focussed()) {
+            _data->_cache->set_blobs_dirty();
+            _data->_cache->set_tracking_dirty();
+        }
         _data->_last_mouse = mouse;
     }
     
@@ -1109,9 +1111,11 @@ void TrackingScene::_draw(DrawStructure& graph) {
             
         //} while(_data->_recorder.recording() && loaded.valid() && loaded != frameIndex);
         
-        if(loaded.valid()) {
+        if(loaded.valid() || _data->_cache->fish_dirty()) {
             //print("Update all... ", loaded, "(",frameIndex,")");
-            SETTING(gui_displayed_frame) = loaded;
+            
+            if(loaded.valid())
+                SETTING(gui_displayed_frame) = loaded;
             using namespace dyn;
             
             _individuals.resize(_data->_cache->raw_blobs.size());
@@ -1128,7 +1132,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 map["pos"] = Vec2(fish->blob->bounds().pos());
             }
             
-            _data->_bowl->set_data(loaded);
+            _data->_bowl->set_data(loaded.valid() ? loaded : frameIndex);
             _data->_cache->updated_blobs();
             _data->_cache->updated_raw_blobs();
             _data->_zoom_dirty = true;
@@ -1136,7 +1140,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     if(_data->_zoom_dirty
-       || _data->_cache->is_tracking_dirty())
+       || _data->_cache->is_tracking_dirty()
+       || _data->_cache->fish_dirty())
     {
         std::vector<Vec2> targets;
         if(_data->_cache->has_selection()

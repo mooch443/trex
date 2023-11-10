@@ -97,9 +97,9 @@ namespace gui {
         
         auto &percentiles = GUICache::instance().pixel_value_percentiles;
         if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
-            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source());
+            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0);
         } else {
-            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source());
+            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source(), 0);
         }
 
         if(SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>() == grab::default_config::meta_encoding_t::r3g3b2) {
@@ -290,7 +290,8 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             || (is_tracking_dirty() && mode() == mode_t::tracking)
             || _tracking_dirty
             || raw_blobs_dirty()
-            || _blobs_dirty;
+            || _blobs_dirty
+            || _frame_contained != tracked_frames.contains(frameIndex);
 }
     
     Frame_t GUICache::update_data(Frame_t frameIndex) {
@@ -304,6 +305,8 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             reasons.emplace_back("threshold");
         if(raw_blobs_dirty())
             reasons.emplace_back("raw_blobs_dirty");*/
+        
+        _fish_dirty = false;
         
         bool current_frame_matches = _current_processed_frame
              && _current_processed_frame->index() == frameIndex;
@@ -557,6 +560,13 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         
         if(not something_important_changed(frameIndex))
             return {};
+        
+        bool contained = tracked_frames.contains(frameIndex);
+        if(contained != _frame_contained) {
+            _frame_contained = contained;
+            _fish_dirty = true;
+            print("frameIndex ", frameIndex, " contained=",contained);
+        }
         
         if(_current_processed_frame && _current_processed_frame->index() != frameIndex) {
             buffers::move_back(std::move(_current_processed_frame));

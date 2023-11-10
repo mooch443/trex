@@ -102,12 +102,15 @@ namespace gui {
 
         Frame_t frame_idx;
         
+        bool _frame_contained{false};
+        
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
         
         GETTER(std::vector<Range<Frame_t>>, global_segment_order)
         GETTER_I(bool, blobs_dirty, false)
         GETTER_I(bool, raw_blobs_dirty, false)
+        GETTER_I(bool, fish_dirty, false)
         GETTER_I(mode_t::Class, mode, mode_t::tracking)
         GETTER_I(double, gui_time, 0)
         GETTER_SETTER_I(float, zoom_level, 1)

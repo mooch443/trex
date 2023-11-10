@@ -1286,7 +1286,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
             float target_radius = 100;
             float percent = min(1, _recognition_circle->radius() / target_radius);
             
-            if(percent < 0.9) {
+            if(percent < 1.0) {
                 percent *= percent;
                 
                 _recognition_circle->set_pos(_fish_pos - _view.pos());
@@ -1313,10 +1313,10 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
                           LineClr{Transparent},
                           FillClr{ColorWheel(_avg_cat).next().alpha(75)});
         } else {
-            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+            /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
                           LineClr{Transparent},
-                          FillClr{Purple.alpha(15)});
+                          FillClr{Purple.alpha(15)});*/
         }
     }
     
