@@ -4080,7 +4080,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         Output::Library::clear_cache();
         
         auto range = PD(tracker).analysis_range();
-        bool finished = PD(tracker).end_frame() >= range.end();
+        bool finished = (PD(tracker).end_frame().valid() && PD(tracker).end_frame() == range.end()) || PD(tracker).end_frame() >= range.end();
 #if !COMMONS_NO_PYTHON
         if(finished && SETTING(auto_categorize)) {
             auto_categorize();

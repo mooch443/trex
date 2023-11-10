@@ -1084,35 +1084,41 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     if(_data->_zoom_dirty
        || _data->_cache->is_tracking_dirty()
-       || _data->_cache->fish_dirty())
+       || _data->_cache->fish_dirty()
+        )
     {
         std::vector<Vec2> targets;
         if(_data->_cache->has_selection()
            && not graph.is_key_pressed(Keyboard::LShift))
         {
             for(auto fdx : _data->_cache->selected) {
-                if(not _data->_cache->fish_selected_blobs.contains(fdx)) {
-                    if(_data->_last_bounds.contains(fdx)) {
-                        auto &bds = _data->_last_bounds.at(fdx);
-                        targets.push_back(bds.pos());
-                        targets.push_back(bds.pos() + bds.size());
-                        targets.push_back(bds.pos() + bds.size().mul(0, 1));
-                        targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                bool found = false;
+                if (auto it = _data->_cache->fish_selected_blobs.find(fdx);
+                    it != _data->_cache->fish_selected_blobs.end()) 
+                {
+                    auto bdx = _data->_cache->fish_selected_blobs.at(fdx);
+                    for (auto& blob : _data->_cache->raw_blobs) {
+                        if (blob->blob &&
+                            (blob->blob->blob_id() == bdx || blob->blob->parent_id() == bdx)) {
+                            auto& bds = blob->blob->bounds();
+                            targets.push_back(bds.pos());
+                            targets.push_back(bds.pos() + bds.size());
+                            targets.push_back(bds.pos() + bds.size().mul(0, 1));
+                            targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                            _data->_last_bounds[fdx] = bds;
+                            found = true;
+                            break;
+                        }
                     }
-                    continue;
                 }
-                
-                auto bdx = _data->_cache->fish_selected_blobs.at(fdx);
-                for(auto &blob: _data->_cache->raw_blobs) {
-                    if(blob->blob &&
-                       (blob->blob->blob_id() == bdx || blob->blob->parent_id() == bdx)) {
-                        auto& bds = blob->blob->bounds();
+
+                if (not found) {
+                    if (_data->_last_bounds.contains(fdx)) {
+                        auto& bds = _data->_last_bounds.at(fdx);
                         targets.push_back(bds.pos());
                         targets.push_back(bds.pos() + bds.size());
                         targets.push_back(bds.pos() + bds.size().mul(0, 1));
                         targets.push_back(bds.pos() + bds.size().mul(1, 0));
-                        _data->_last_bounds[fdx] = bds;
-                        break;
                     }
                 }
             }

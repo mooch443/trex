@@ -90,6 +90,24 @@
                         },
                         {
                             "type": "rect",
+                            "pos": [0,-10],
+                            "size": [11,30],
+                            "fill": [30,30,30,0],
+                            "line": [255,255,255,0],
+                            "clickable":true,
+                            "drag": "set:gui_frame:0"
+                        },
+                        {
+                            "type": "rect",
+                            "pos": "[{+:{width}:9},-10]",
+                            "size": [11,30],
+                            "fill": [30,30,30,0],
+                            "line": [255,255,255,0],
+                            "clickable":true,
+                            "drag": "set:gui_frame:{length}"
+                        },
+                        {
+                            "type": "rect",
                             "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{-:{window_size.x}:22}}},-9]",
                             "size": "[{max:0:{-:{-:{window_size.x}:11}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{width23}}}}},28]",
                             "fill": [0,0,0,0],

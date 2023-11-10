@@ -29,7 +29,8 @@ namespace gui {
     }
 
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
-        : _video(video), _graph(graph),
+        : _pool(saturate(cmn::hardware_concurrency(), 1u, 5u), "GUICache::_pool"),
+            _video(video), _graph(graph),
             _preloader([this](Frame_t frameIndex) -> FramePtr {
                 FramePtr ptr;
                 try {
@@ -56,9 +57,8 @@ namespace gui {
             },
             [](FramePtr&& ptr) {
                 buffers::move_back(std::move(ptr));
-            }),
+            })
 
-        _pool(saturate(cmn::hardware_concurrency(),1u,5u), "GUICache::_pool")
     {
         cache() = this;
         globals::Cache::init();

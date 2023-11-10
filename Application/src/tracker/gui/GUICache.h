@@ -76,6 +76,7 @@ namespace gui {
     using namespace track;
     
     class GUICache {
+        GenericThreadPool _pool;
         pv::File* _video{ nullptr };
         gui::DrawStructure* _graph{ nullptr };
         using FramePtr = std::unique_ptr<PPFrame>;
@@ -86,9 +87,6 @@ namespace gui {
         
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
         
-    public:
-        GenericThreadPool _pool;
-
     public:
         Size2 _video_resolution;
         int last_threshold = -1;
