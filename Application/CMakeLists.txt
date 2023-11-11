@@ -63,9 +63,11 @@ endif()
 add_subdirectory(src/commons)
 
 set(CMAKE_CXX_STANDARD 20)
-message(STATUS "Using c++20 standard (${CMAKE_CXX_STANDARD}).")
+message(STATUS "Using c++20 standard (${CMAKE_CXX_STANDARD}) for TRex.")
 
 set(cxx_flag_std_number "")
+message(STATUS "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "CMAKE_CXX_COMPILER_VERSION=${CMAKE_CXX_COMPILER_VERSION}")
 if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
     include(CheckCXXCompilerFlag)
     check_cxx_compiler_flag(-std=c++2a HAVE_FLAG_STD_CXX20)
@@ -75,9 +77,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
         set(cxx_flag_std_number "-std=c++2a")
     endif()
 
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${cxx_flag_std_number}")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${cxx_flag_std_number}")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${cxx_flag_std_number}")
+    message(STATUS "cxx_flag_std_number=${cxx_flag_std_number}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${cxx_flag_std_number}")
 endif()
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -213,7 +214,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 if(XCODE)
-    set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++20")
+    set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++2a")
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
     
     set(CMAKE_XCODE_ATTRIBUTE_GCC_WARN_ABOUT_RETURN_TYPE "YES")
