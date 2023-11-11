@@ -100,23 +100,23 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
     add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
-add_executable(properties properties.cpp
-    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+#add_executable(properties properties.cpp
+#    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
 
-target_link_libraries(properties 
-    PUBLIC 
-        tracker_gui
-        tracker_tracking
-        tracker_python
-        tracker_misc
-        framegrabber_misc
-        commons 
-        pv)
+#target_link_libraries(properties 
+#    PUBLIC 
+#        tracker_gui
+#        tracker_tracking
+#        tracker_python
+#        tracker_misc
+#        framegrabber_misc
+#        commons 
+#        pv)
 
-if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
-    target_link_libraries(properties 
-        PUBLIC tracker_python)
-endif()
+#if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
+#    target_link_libraries(properties 
+#        PUBLIC tracker_python)
+#endif()
 
 # add actual executable
 set(TREXA_SRCS alter.cpp Alterface.cpp Alterface.h
