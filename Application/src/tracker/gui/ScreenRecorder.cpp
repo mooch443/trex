@@ -25,11 +25,11 @@ struct ScreenRecorder::Data {
     Frame_t _last_recording_frame;
     std::atomic_bool _recording = false;
     
-    void do_record(Image::Ptr&& image, Base* _base, Frame_t frame, Frame_t max_frame) {
-        if(!_recording || !_base /*|| (_last_recording_frame.valid() && _recording_frame == _last_recording_frame)*/)
+    void do_record(Image::Ptr&& image, Base* , Frame_t frame, Frame_t max_frame) {
+        if(!_recording /*|| !_base || (_last_recording_frame.valid() && _recording_frame == _last_recording_frame)*/)
             return;
         
-        assert(_base->frame_recording());
+        //assert(_base->frame_recording());
         static Timing timing("recording_timing");
         TakeTiming take(timing);
         
