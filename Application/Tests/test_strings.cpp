@@ -18,7 +18,14 @@ using namespace utils;
 TEST(SplitTest, TestBasicSplit) {
     std::string s = "foo,bar,baz";
     std::vector<std::string_view> expected = {"foo", "bar", "baz"};
-    EXPECT_EQ(split(s, ','), expected);
+    auto result = split(s, ',');
+    static_assert(are_the_same<decltype(result), decltype(expected)>, "Has to be a vector of string_view");
+    EXPECT_EQ(result, expected);
+    
+    for(auto &view : result) {
+        EXPECT_GE(view.data(), s.data());
+        EXPECT_LE(view.data() + view.length(), s.data() + s.length());
+    }
 
     std::wstring ws = L"hello,world";
     std::vector<std::wstring_view> expected_ws = {L"hello", L"world"};
@@ -137,7 +144,13 @@ TEST(SplitTest, TestNoDelimiter) {
 TEST(SplitTest, TestMultipleDelimiters) {
     std::string s = "foo,,bar,,baz";
     std::vector<std::string_view> expected = {"foo", "", "bar", "", "baz"};
-    EXPECT_EQ(split(s, ','), expected);
+    auto result = split(s, ',');
+    EXPECT_EQ(result, expected);
+    
+    for(auto &view : result) {
+        EXPECT_GE(view.data(), s.data());
+        EXPECT_LE(view.data() + view.length(), s.data() + s.length());
+    }
 
     std::wstring ws = L"hello, ,world";
     std::vector<std::wstring_view> expected_ws = {L"hello", L" ", L"world"};
@@ -1287,6 +1300,14 @@ TEST(HtmlifyTests, EmptyDocument) {
     std::string doc = "";
     std::string result = htmlify(doc, false);
     ASSERT_EQ(result, "");
+}
+
+TEST(HtmlifyTests, Complex) {
+    std::string doc = R"(["/Volumes/Public/work/yolov7-seg.pt","/Volumes/Public/work/yolov7-tiny.pt","/Volumes/Public/work/yolov8l-seg.pt","/Volumes/Public/work/yolov8m-seg.pt","/Volumes/Public/work/yolov8n-seg.pt","/Volumes/Public/work/yolov8n.pt","/Volumes/Public/work/yolov8s-seg.pt","/Volumes/Public/work/yolov8x-seg.pt"])";
+    std::string expected = R"([<str>"/Volumes/Public/work/yolov7-seg.pt"</str>,<str>"/Volumes/Public/work/yolov7-tiny.pt"</str>,<str>"/Volumes/Public/work/yolov8l-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8m-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8n-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8n.pt"</str>,<str>"/Volumes/Public/work/yolov8s-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8x-seg.pt"</str>])";
+    
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, expected);
 }
 
 TEST(HtmlifyTests, PlainText) {
