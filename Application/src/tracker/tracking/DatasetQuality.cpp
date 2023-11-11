@@ -173,7 +173,7 @@ void remove_segment(const Range<Frame_t> &range) {
     
     auto it = _cache.find(range);
     if(it != _cache.end()) {
-        _sorted.erase(range);
+        _sorted.erase(Quality(range));
         _cache.erase(it);
         _quality.erase(range);
     }
