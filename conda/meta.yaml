@@ -121,6 +121,7 @@ requirements:
     #- tensorflow-gpu =2.4.1 # [linux]
     #- tensorflow-estimator =2.4.1 # [linux]
     #- tensorflow >=2,<3   # [osx and not arm64]
+    - "pytorch::pytorch-mutex=*=cuda" # [linux or win]
     - "pytorch::pytorch=2.*=py3*" # [osx and not arm64]
     - "pytorch-nightly::pytorch=2.*=py3*" # [osx and arm64]
     - "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" # [win]
