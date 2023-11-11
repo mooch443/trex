@@ -312,7 +312,7 @@ void WorkProgress::update_taskbar(IMGUIBase* base) {
 #endif
         }
 #elif defined(__APPLE__)
-        MacProgressBar::set_percent(value);
+        MacProgressBar::set_percent(_percent);
 #endif
     });
 }
