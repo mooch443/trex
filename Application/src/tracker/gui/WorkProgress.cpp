@@ -154,15 +154,6 @@ WorkProgress::WorkProgress() {
                 
                 _item = "";
                 set_percent(0);
-
-#ifdef WIN32
-                if (ptbl && GUI::instance()) {
-                    HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
-                    ptbl->SetProgressState(hwnd, TBPF_NOPROGRESS);
-                }
-#elif defined(__APPLE__)
-                MacProgressBar::set_visible(false);
-#endif
             }
         }
     });
@@ -264,54 +255,73 @@ void WorkProgress::set_item_abortable(bool abortable) {
     });
 }
 
-void WorkProgress::set_percent(float value) {
-    work::check([&](){
-        if(_percent == value)
-            return;
-        _percent = value;
-#if WIN32
-        if (GUI::instance()->base()) {
-            if (!ptbl) {
-                // initialize the COM interface
-                if (SUCCEEDED(CoInitialize(NULL))) {
-                    HRESULT hr = CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&ptbl));
-                    
-                    if (SUCCEEDED(hr))
-                    {
-                        HRESULT hr2 = ptbl->HrInit();
-                        if (!SUCCEEDED(hr2)) {
-                            ptbl->Release();
-                            ptbl = nullptr;
-                        }
-                        
-                    } else {
-                        FormatWarning("ITaskbarList3 could not be created.");
-                    }
-                }
-            }
-            
-#if !defined(__EMSCRIPTEN__)
-            // only if it works... display Taskbar progress on Windows
+void WorkProgress::update_taskbar(IMGUIBase* base) {
+    if (not base)
+        return;
+
+    work::check([base]() {
+        if (_percent <= 0) {
+#if defined(WIN32)
             if (ptbl) {
-                const ULONGLONG percent = (ULONGLONG)max(1.0, double(value) * 100.0);
-                HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
-                
-                if (value > 0) {
-                    // show progress in green
-                    ptbl->SetProgressState(hwnd, TBPF_NORMAL);
-                    ptbl->SetProgressValue(hwnd, percent, 100ul);
+                HWND hwnd = glfwGetWin32Window(base->platform()->window_handle());
+                ptbl->SetProgressState(hwnd, TBPF_NOPROGRESS);
+            }
+#elif defined(__APPLE__)
+            MacProgressBar::set_visible(false);
+#endif
+            return;
+        }
+
+#if WIN32
+        if (!ptbl) {
+            // initialize the COM interface
+            if (SUCCEEDED(CoInitialize(NULL))) {
+                HRESULT hr = CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&ptbl));
+
+                if (SUCCEEDED(hr))
+                {
+                    HRESULT hr2 = ptbl->HrInit();
+                    if (!SUCCEEDED(hr2)) {
+                        ptbl->Release();
+                        ptbl = nullptr;
+                    }
+
                 }
                 else {
-                    // display "pause" color if no progress has been made
-                    ptbl->SetProgressState(hwnd, TBPF_PAUSED);
-                    ptbl->SetProgressValue(hwnd, 100ul, 100ul);
+                    FormatWarning("ITaskbarList3 could not be created.");
                 }
+            }
+        }
+
+#if !defined(__EMSCRIPTEN__)
+        // only if it works... display Taskbar progress on Windows
+        if (ptbl) {
+            const ULONGLONG percent = (ULONGLONG)max(1.0, double(_percent) * 100.0);
+            HWND hwnd = glfwGetWin32Window(base->platform()->window_handle());
+
+            if (_percent > 0) {
+                // show progress in green
+                ptbl->SetProgressState(hwnd, TBPF_NORMAL);
+                ptbl->SetProgressValue(hwnd, percent, 100ul);
+            }
+            else {
+                // display "pause" color if no progress has been made
+                ptbl->SetProgressState(hwnd, TBPF_PAUSED);
+                ptbl->SetProgressValue(hwnd, 100ul, 100ul);
             }
 #endif
         }
 #elif defined(__APPLE__)
         MacProgressBar::set_percent(value);
 #endif
+    });
+}
+
+void WorkProgress::set_percent(float value) {
+    work::check([&](){
+        if(_percent == value)
+            return;
+        _percent = value;
     });
 }
 
@@ -380,7 +390,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
 
 
 using namespace gui;
-void WorkProgress::update(gui::DrawStructure &base, gui::Section *section, Size2 screen_dimensions) {
+void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Section *section, Size2 screen_dimensions) {
     work::check([&, &gui = instance().gui](){
         std::lock_guard<std::mutex> wlock(_queue_lock);
         if(_item.empty())
@@ -506,6 +516,8 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section, Size2
                 } else
                     c->set_pos(Vec2(width * 0.5, c->pos().y));
             }
+
+            update_taskbar(window);
         }
         
         gui->work_progress.set_origin(Vec2(0.5));

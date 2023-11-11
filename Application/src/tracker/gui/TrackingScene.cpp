@@ -1184,7 +1184,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     dynGUI.update(nullptr);
     
     graph.section("loading", [this](DrawStructure& base, auto section) {
-        WorkProgress::update(base, section, window_size);
+        WorkProgress::update((IMGUIBase*)window(), base, section, window_size);
     });
     //
     

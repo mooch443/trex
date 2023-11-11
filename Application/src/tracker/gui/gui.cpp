@@ -1137,7 +1137,7 @@ void GUI::draw(DrawStructure &base) {
      * -----------------------------
      */
     base.section("loading", [](DrawStructure& base, auto section) {
-        WorkProgress::update(base, section, screen_dimensions());
+        WorkProgress::update((IMGUIBase*)best_base(), base, section, screen_dimensions());
     });
 }
 
