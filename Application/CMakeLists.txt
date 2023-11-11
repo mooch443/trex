@@ -62,27 +62,36 @@ endif()
 
 add_subdirectory(src/commons)
 
-set(CMAKE_CXX_STANDARD 20)
-message(STATUS "Using c++20 standard (${CMAKE_CXX_STANDARD}) for TRex.")
+message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "CMAKE_CXX_COMPILER_VERSION: ${CMAKE_CXX_COMPILER_VERSION}")
 
-set(cxx_flag_std_number "")
-message(STATUS "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}")
-message(STATUS "CMAKE_CXX_COMPILER_VERSION=${CMAKE_CXX_COMPILER_VERSION}")
-if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag(-std=c++2a HAVE_FLAG_STD_CXX20)
-    if(HAVE_FLAG_STD_CXX20)
-        message(STATUS "Using support for C++20")
-        set(CMAKE_CXX_STANDARD 20)
-        set(cxx_flag_std_number "-std=c++2a")
+include(CheckCXXCompilerFlag)
+
+if(MSVC)
+    check_cxx_compiler_flag("/std:c++23" COMPILER_SUPPORTS_CXX23)
+    if(NOT COMPILER_SUPPORTS_CXX23)
+        set(COMPILER_SUPPORTS_CXX23 ON) # we dont have a way to check for C++23 in MSVC?
     endif()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus")
+else()
+    check_cxx_compiler_flag("-std=c++2b" COMPILER_SUPPORTS_CXX23)  # c++2b is often used for C++23 in GCC and Clang
+endif()
 
-    message(STATUS "cxx_flag_std_number=${cxx_flag_std_number}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${cxx_flag_std_number}")
+if(COMPILER_SUPPORTS_CXX23)
+    set(CMAKE_CXX_STANDARD 23)
+else()
+    set(CMAKE_CXX_STANDARD 20)
+endif()
+
+if(MSVC)
+    message(STATUS "Using latest C++ standard.")
+else()
+    message(STATUS "Using c++${CMAKE_CXX_STANDARD} standard.")
 endif()
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
 string( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
 set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 
