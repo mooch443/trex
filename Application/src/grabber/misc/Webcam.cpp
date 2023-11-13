@@ -25,6 +25,13 @@ namespace fg {
         _size = cv::Size(test.cols, test.rows);
     }
 
+    Size2 Webcam::size() const {
+        if(not open())
+            throw U_EXCEPTION("The webcam has not been started yet. Cannot retrieve its size.");
+        std::unique_lock guard(_mutex);
+        return _size;
+    }
+
     int Webcam::frame_rate() {
         if (!open())
             return -1;
@@ -32,7 +39,7 @@ namespace fg {
         return _capture.get(cv::CAP_PROP_FPS);
     }
 
-    bool Webcam::open() {
+    bool Webcam::open() const {
         std::unique_lock guard(_mutex);
         return _capture.isOpened();
     }

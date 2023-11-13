@@ -13,6 +13,20 @@ struct OnEndMethod {
     std::function<void()> lambda;
 };
 
+class PersistentCondition {
+private:
+    std::condition_variable cond_var;
+    std::atomic<bool> notified{false};
+    std::mutex mtx;
+
+public:
+    // Notify one waiting thread
+    void notify() noexcept;
+
+    // Wait for a notification
+    void wait(std::unique_lock<std::mutex>& lock);
+};
+
 /**
  * @struct ManagedThreadWrapper
  *
@@ -52,7 +66,7 @@ struct ThreadGroup {
 
 class ManagedThread {
     std::function<void(const ThreadGroupId&)> lambda;
-    std::condition_variable variable;
+    PersistentCondition variable;
     std::mutex mutex;
     std::atomic<bool> terminationSignal{false};
     std::promise<void> terminationProof;
@@ -79,14 +93,14 @@ public:
             std::unique_lock guard(mutex);
             future = terminationProof.get_future();
             terminationSignal.store(true);
-            variable.notify_all();
+            variable.notify();
         }
         
         return future;
     }
     
     void notify() {
-        variable.notify_all();
+        variable.notify();
     }
 };
 
@@ -111,7 +125,7 @@ struct ManagedThreadWrapper {
 class ThreadManager {
 private:
     std::atomic<size_t> running_id{1u};
-    std::map<ThreadGroupId, ThreadGroup> groups;
+    std::map<ThreadGroupId, std::shared_ptr<ThreadGroup>> groups;
     mutable std::mutex mtx;
 
     /**

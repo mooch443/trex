@@ -15,7 +15,7 @@ namespace fg {
         
         virtual Size2 size() const override { return _size; }
         virtual bool next(Image& image) override;
-        virtual bool open() override { return true; }
+        virtual bool open() const override { return true; }
         virtual void close() override { }
     };
 }

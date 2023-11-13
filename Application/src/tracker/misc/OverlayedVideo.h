@@ -82,6 +82,9 @@ public:
         try {
             Timer timer_;
             assert(_source);
+            
+            // get image from resize+cvtColor (last step of video source)
+            // => here (ApplyProcessor)
             auto&& [nix, buffer, image] = _source->next();
             if(not nix.valid())
                 return tl::unexpected("Cannot retrieve frame from video source.");

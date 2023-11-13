@@ -16,13 +16,13 @@ Segmenter::Segmenter(std::function<void(std::string)> error_callback)
 {
     start_timer.reset();
 
-    _generator_group_id = REGISTER_THREAD_GROUP("Segmenter");
+    _generator_group_id = REGISTER_THREAD_GROUP("Segmenter::GeneratorT");
     
     ThreadManager::getInstance().addThread(_generator_group_id, "generator-thread", ManagedThread{
         [this](auto&){ generator_thread(); }
     });
     
-    _tracker_group_id = REGISTER_THREAD_GROUP("SegmenterTracking");
+    _tracker_group_id = REGISTER_THREAD_GROUP("Segmenter::Tracking");
     ThreadManager::getInstance().addThread(_tracker_group_id, "tracking-thread", ManagedThread{
         [this](auto&){ tracking_thread(); }
     });
@@ -64,8 +64,8 @@ Segmenter::~Segmenter() {
     
     {
         std::unique_lock guard(_mutex_general);
-        _cv_ready_for_tracking.notify_all();
-        _cv_messages.notify_all();
+        //_cv_ready_for_tracking.notify_all();
+        //_cv_messages.notify_all();
     }
     
     ThreadManager::getInstance().terminateGroup(_tracker_group_id);
@@ -137,7 +137,8 @@ void Segmenter::open_video() {
            Detection{},
            std::move(video_base),
            [this]() {
-               _cv_messages.notify_one();
+               ThreadManager::getInstance().notify(_generator_group_id);
+               //_cv_messages.notify_one();
            }
         );
     }
@@ -231,7 +232,8 @@ void Segmenter::open_camera() {
            Detection{},
            std::move(camera),
            [this]() {
-               _cv_messages.notify_one();
+               ThreadManager::getInstance().notify(_generator_group_id);
+               //_cv_messages.notify_one();
            }
         );
         
@@ -285,11 +287,12 @@ void Segmenter::open_camera() {
 }
 
 void Segmenter::generator_thread() {
-    set_thread_name("GeneratorT");
-    std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
-
+    //set_thread_name("GeneratorT");
     std::unique_lock guard(_mutex_general);
-    while (not _should_terminate) {
+    //if (_should_terminate || (_next_frame_data && items.size() >= 10))
+    //    return;
+    
+    {
         try {
             if (not _next_frame_data and not items.empty()) {
                 if (std::get<1>(items.front()).valid())
@@ -300,14 +303,15 @@ void Segmenter::generator_thread() {
                         //thread_print("Got data for item ", data.frame.index());
                         
                         _next_frame_data = std::move(data);
-                        _cv_ready_for_tracking.notify_one();
+                        //_cv_ready_for_tracking.notify_one();
+                        ThreadManager::getInstance().notify(_tracker_group_id);
                         
                         items.erase(items.begin());
                     }
 
                 }
                 else {
-                    thread_print("Invalid future ", std::get<0>(items.front()));
+                    thread_print("TM Invalid future ", std::get<0>(items.front()));
                     items.erase(items.begin());
                     
                     /*auto status = std::get<1>(items.front()).wait_for(std::chrono::seconds(0));
@@ -325,6 +329,8 @@ void Segmenter::generator_thread() {
             decltype(_overlayed_video->generate()) result;
             try {
                 std::unique_lock vlock(_mutex_video);
+                // get from ApplyProcessor / result is future segmentation data
+                // We are in Segmenter::generator_thread
                 result = _overlayed_video->generate();
             } catch(...) {
                 guard.lock();
@@ -334,6 +340,7 @@ void Segmenter::generator_thread() {
             
             if (not result) {
                 //_overlayed_video->reset(0_f);
+                thread_print("TM Invalid item #", items.size());
                 if(error_callback)
                     error_callback("Cannot generate results: "+std::string(result.error()));
             }
@@ -348,15 +355,18 @@ void Segmenter::generator_thread() {
         }
 
         if (items.size() >= 10 && _next_frame_data) {
-            //thread_print("Entering wait with ", items.size(), " items queued up.");
-            _cv_messages.wait(guard, [&]() {
+            //thread_print("TM Entering wait with ", items.size(), " items queued up.");
+            /*_cv_messages.wait(guard, [&]() {
                 return not _next_frame_data or _should_terminate;
-            });
+            });*/
             //thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
+            
+        } else {
+            ThreadManager::getInstance().notify(_generator_group_id);
         }
     }
 
-    thread_print("ended.");
+    //thread_print("ended.");
 };
 
 void Segmenter::perform_tracking() {
@@ -434,9 +444,13 @@ void Segmenter::perform_tracking() {
 };
 
 void Segmenter::tracking_thread() {
-    set_thread_name("Tracking thread");
+    //set_thread_name("Tracking thread");
     std::unique_lock guard(_mutex_general);
-    while (not _should_terminate) {
+    //while (not _should_terminate)
+    if(_should_terminate)
+        return;
+    
+    {
         if(average_generator.valid()) {
             guard.unlock();
             try {
@@ -467,7 +481,7 @@ void Segmenter::tracking_thread() {
             }
             catch (...) {
                 FormatExcept("Exception while moving to progress");
-                continue;
+                return;
             }
             //guard.unlock();
             //try {
@@ -507,12 +521,15 @@ void Segmenter::tracking_thread() {
         }
 
         //thread_print("Waiting for next...");
-        _cv_messages.notify_one();
+        //_cv_messages.notify_one();
+        //ThreadManager::getInstance().notify(_tracker_group_id);
         if (not _should_terminate)
-            _cv_ready_for_tracking.wait(guard);
+            ThreadManager::getInstance().notify(_generator_group_id);
+        //if (not _should_terminate)
+        //    _cv_ready_for_tracking.wait(guard);
         //thread_print("Received notification: next(", (bool)next,")");
     }
-    thread_print("Tracking ended.");
+    //thread_print("Tracking ended.");
 }
 
 void Segmenter::set_progress_callback(std::function<void (float)> callback) {

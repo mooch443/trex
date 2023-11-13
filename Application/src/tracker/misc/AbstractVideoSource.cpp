@@ -47,6 +47,7 @@ std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr> AbstractBase
 tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr>, const char*> AbstractBaseVideoSource::fetch_next_process() {
     try {
         Timer timer;
+        // get image from 1. step (source.frame) => here (resize+cvtColor)
         auto result = _source_frame.next();
         if(result) {
             auto& [index, buffer] = result.value();

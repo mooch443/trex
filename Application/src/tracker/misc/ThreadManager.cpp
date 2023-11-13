@@ -4,6 +4,33 @@
 
 using namespace cmn;
 
+void PersistentCondition::notify() noexcept {
+    std::unique_lock g(mtx);
+    notified = true;
+    cond_var.notify_one();
+}
+
+void PersistentCondition::wait(std::unique_lock<std::mutex> &lock) {
+    bool expected = true;
+    if(not notified.compare_exchange_strong(expected, false)) {
+        lock.unlock();
+        
+        {
+            std::unique_lock g(mtx);
+            if(notified) {
+                notified = false;
+                g.unlock();
+                lock.lock();
+                return;
+            }
+            
+            cond_var.wait(g);
+        }
+        
+        lock.lock();
+    }
+}
+
 std::string ThreadGroupId::toStr() const {
     return "ThreadGroup<"+Meta::toStr(index)+">";
 }
@@ -19,12 +46,11 @@ ThreadManager::~ThreadManager() {
 
 void ThreadManager::addThread(ThreadGroupId group, const std::string& name, ManagedThread&& managedThread) {
     std::unique_lock lock(mtx);
-    ManagedThreadWrapper wrapper{
+    groups.at(group)->threads.emplace_back(ManagedThreadWrapper{
         .t = nullptr,
         .m = std::move(managedThread),
         .name = name
-    };
-    groups.at(group).threads.push_back(std::move(wrapper));
+    });
     cmn::thread_print("Added thread ", group, "::", name.c_str());
     printThreadTree(lock);
 }
@@ -36,36 +62,43 @@ ThreadGroupId ThreadManager::registerGroup(const std::string& name, source_locat
     
     auto group = ThreadGroupId{running_id++};
     auto& g = groups[group];
-    if (g.started) {
-        FormatExcept("Thread ", g.name, " was already started.");
-        g.terminate();
+    if (g && g->started) {
+        FormatExcept("Thread ", g->name, " was already started.");
+        g->terminate();
     }
-    g.id = group;
-    g.name = name;
-    g.threads.clear();
-    g.onEndCallbacks.clear();
-    g.started = false;
+    
+    g = std::make_shared<ThreadGroup>();
+    g->id = group;
+    g->name = name;
+    g->threads.clear();
+    g->onEndCallbacks.clear();
+    g->started = false;
     thread_print("Registered group ", group, "::", name.c_str(), " from ", file::Path(loc.file_name()).filename(),":", loc.line());
     
     printThreadTree(lock);
-    return g.id;
+    return g->id;
 }
 
 void ThreadManager::addOnEndCallback(ThreadGroupId group, OnEndMethod onEndMethod) {
     std::lock_guard<std::mutex> lock(mtx);
-    groups.at(group).onEndCallbacks.push_back(onEndMethod);
-    thread_print("Added on end callback to group ", group, " (", groups.at(group).name,")");
+    groups.at(group)->onEndCallbacks.push_back(onEndMethod);
+    thread_print("Added on end callback to group ", group, " (", groups.at(group)->name,")");
 }
 
 void ManagedThread::loop(const ThreadGroup &group, const ManagedThreadWrapper& thread) {
-    set_thread_name(group.name);
+    set_thread_name(group.name+"::"+thread.name);
     thread_print("Starting loop ", group.name);
     terminationProof = {};
     terminationSignal = false;
     try {
         std::unique_lock guard(mutex);
         while (!terminationSignal.load()) {
-            lambda(group.id);
+            //thread_print("TM Loop ", group.name);
+            try {
+                lambda(group.id);
+            } catch(...) {
+                FormatExcept("TM Exception in thread group ", group.name);
+            }
             variable.wait(guard);
         }
     } catch(...) {
@@ -103,27 +136,44 @@ void ThreadGroup::terminate() {
 }
 
 void ThreadGroup::notify() {
-    for(auto &t : threads)
+    for(auto &t : threads) {
         t.m.notify();
+    }
 }
 
 void ThreadManager::notify(ThreadGroupId group) {
-    std::unique_lock lock(mtx);
-    if(groups.find(group) != groups.end()) {
-        groups.at(group).notify();
-    } else {
-        thread_print("Group ", group, " does not exist");
+    std::shared_ptr<ThreadGroup> g;
+    {
+        std::unique_lock lock(mtx);
+        if(groups.find(group) != groups.end()) {
+            g = groups.at(group);
+        } else {
+            thread_print("Group ", group, " does not exist");
+        }
+    }
+    
+    if(g) {
+        //thread_print("TM Notify ", g->name);
+        g->notify();
     }
 }
 
 void ThreadManager::terminateGroup(ThreadGroupId group) {
-    std::unique_lock lock(mtx);
-    if(groups.find(group) != groups.end()) {
-        groups.at(group).terminate();
-    } else {
-        thread_print("Group ", group, " does not exist");
+    std::shared_ptr<ThreadGroup> g;
+    
+    {
+        std::unique_lock lock(mtx);
+        if(groups.find(group) != groups.end()) {
+            g = groups.at(group);
+        } else {
+            thread_print("Group ", group, " does not exist");
+        }
     }
-    printThreadTree(lock);
+    
+    if(g) {
+        g->terminate();
+        printThreadTree();
+    }
 }
 
 void ThreadManager::startGroup(ThreadGroupId group) {
@@ -136,11 +186,11 @@ void ThreadManager::startGroup(ThreadGroupId group) {
     
     //! only start the group if it has not been started yet
     bool expected = false;
-    if(g.started.compare_exchange_strong(expected, true)) {
-        for(auto& wrapper : g.threads) {
+    if(g->started.compare_exchange_strong(expected, true)) {
+        for(auto& wrapper : g->threads) {
             if(not wrapper.t) {
                 wrapper.t = std::make_unique<std::thread>([&wrapper, &g] {
-                    wrapper.m.loop(g, wrapper);
+                    wrapper.m.loop(*g, wrapper);
                 });
                 thread_print("Started thread in group ", group);
             } else {
@@ -164,7 +214,7 @@ void ThreadManager::terminate() {
     std::unique_lock lock(mtx);
     // Terminating threads and calling callbacks in reverse order (reverse dependencies)
     for(auto it = groups.rbegin(); it != groups.rend(); ++it) {
-        it->second.terminate();
+        it->second->terminate();
     }
     printThreadTree(lock);
 }
@@ -177,9 +227,9 @@ void ThreadManager::printThreadTree() {
 void ThreadManager::printThreadTree(std::unique_lock<std::mutex> &) {
     thread_print("[ThreadManager::print]");
     for(auto& group : groups) {
-        thread_print("  Group ", group.first, "::", group.second.name.c_str());
-        for(auto& wrapper : group.second.threads) {
-            if(group.second.started && wrapper.t)
+        thread_print("  Group ", group.first, "::", group.second->name.c_str());
+        for(auto& wrapper : group.second->threads) {
+            if(group.second->started && wrapper.t)
                 thread_print("   ", fmt::clr<FormatColor::GREEN>("+"), " Thread ", wrapper.name.c_str());
             else
                 thread_print("   ", fmt::clr<FormatColor::RED>("-"), " Thread ", wrapper.name.c_str());

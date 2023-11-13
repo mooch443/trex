@@ -21,15 +21,20 @@ namespace fg {
             _capture(std::move(other._capture)),
             _color_mode(std::move(other._color_mode))
         { }
-        Webcam& operator=(Webcam&&) = default;
+        Webcam& operator=(Webcam&& other) noexcept {
+            _size = std::move(other._size);
+            _capture = std::move(other._capture);
+            _color_mode = std::move(other._color_mode);
+            return *this;
+        }
         ~Webcam() {
             if(open())
                 close();
         }
         
-        virtual Size2 size() const override { return _size; }
+        virtual Size2 size() const override;
         virtual bool next(Image& image) override;
-        [[nodiscard]] virtual bool open() override;
+        [[nodiscard]] virtual bool open() const override;
         virtual void close() override;
         int frame_rate();
         

@@ -13,7 +13,7 @@ struct RepeatedDeferral {
     size_t _threads{ 1 }, _minimal_fill { 0 };
     uint32_t _index;
     ThreadGroupId _group_id;
-    std::vector<R> _next;
+    std::vector<std::tuple<std::string, R>> _next;
     //std::future<R> _next_image;
     F _fn;
     std::string name;
@@ -24,11 +24,13 @@ struct RepeatedDeferral {
     double _runtime{0}, _rsamples{0};
     double _average_fill_state{ 0 }, _as{ 0 };
     Timer since_last, since_print;
+    Timer runtime;
     
-    std::condition_variable _message, _new_item;
+    std::condition_variable /*_message,*/ _new_item;
     mutable std::mutex _mutex;
     //std::unique_ptr<std::thread> _updater{nullptr};
     std::atomic<bool> _terminate{ false };
+    std::once_flag _flag;
     
     RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn,
                      cmn::source_location loc = cmn::source_location::current()) : _threads(threads), _minimal_fill(minimal_fill), _index ( thread_index().fetch_add(1) ), _fn(std::forward<F>(fn)), name(name)
@@ -41,15 +43,16 @@ struct RepeatedDeferral {
     }
     
     void updater() {
-        set_thread_name(this->name+"_update_thread");
+        //set_thread_name(this->name+"_update_thread");
         std::unique_lock guard(_mutex);
-        Timer runtime;
         
-        while (not _terminate) {
+        //while (not _terminate)
+        {
             if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
-                //thread_print(this->name.c_str(), " #NEXT Sleeping at ", _next.size());
-                _message.wait(guard);
+                //thread_print("TM ",this->name.c_str(), " #NEXT Sleeping at ", _next.size());
+                //_message.wait(guard);
                 //thread_print(this->name.c_str(), " #NEXT Wake at ", _next.size());
+                return;
             }
             
             if (not _terminate and _next.size() < _threads)
@@ -71,10 +74,9 @@ struct RepeatedDeferral {
                 }
                 guard.lock();
                 
-                _next.push_back(std::move(r));
+                _next.push_back({this->name, std::move(r)});
+                //thread_print("TM ", this->name.c_str(), " #NEXT Filled up to ", _next.size());
                 _new_item.notify_one();
-                
-                //thread_print(this->name.c_str(), " #NEXT Filled up to ", _next.size());
                 
                 //std::unique_lock guard(mtiming);
                 _runtime += e * 1000;
@@ -104,11 +106,12 @@ struct RepeatedDeferral {
             }
         }
         
-        thread_print("Task ",name.c_str(), " ending.");
+        //thread_print("Task ",name.c_str(), " ending.");
     }
     
     void notify() {
-        _message.notify_all();
+        ThreadManager::getInstance().notify(_group_id);
+        //_message.notify_all();
         _new_item.notify_all();
     }
     
@@ -143,6 +146,7 @@ struct RepeatedDeferral {
         
         std::unique_lock guard(_mutex);
         if(not _terminate) {
+            //thread_print("Restarting thread for ", name);
             ThreadManager::getInstance().startGroup(_group_id);
         }
         
@@ -162,15 +166,18 @@ struct RepeatedDeferral {
             ++_as;
         }
         
-        auto f = std::move(_next.front());
+        auto [from, f] = std::move(_next.front());
         _next.erase(_next.begin());
-        if(_next.size() <= _minimal_fill) {
-            _message.notify_one();
-            //thread_print(this->name.c_str(), " #NEXT Need to update: ", _next.size(), " / ", _threads);
-        } //else
-          //thread_print(this->name.c_str(), " #NEXT No need to update: ", _next.size(), " / ", _threads);
         
-        return f;
+        //thread_print("TM got item<",type_name<R>(),">/", _next.size(), " from ", from);
+        if(_next.size() <= _minimal_fill) {
+            //_message.notify_one();
+            ThreadManager::getInstance().notify(_group_id);
+            //thread_print("TM ",this->name.c_str(), " #NEXT Need to update: ", _next.size(), " / ", _threads);
+        } //else
+            //thread_print("TM ",this->name.c_str(), " #NEXT No need to update: ", _next.size(), " / ", _threads);
+        
+        return std::move(f);
     }
     
     R next() {

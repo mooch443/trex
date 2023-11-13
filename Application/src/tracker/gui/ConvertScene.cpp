@@ -221,6 +221,10 @@ void ConvertScene::activate()  {
         RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::map());
 
         auto size = segmenter().size();
+        if(size.empty()) {
+            size = Size2(640,480);
+            FormatError("Cannot determine size of the video input. Defaulting to ", size, ".");
+        }
         auto work_area = ((const IMGUIBase*)window())->work_area();
         print("work_area = ", work_area);
         auto window_size = Size2(
