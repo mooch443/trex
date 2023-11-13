@@ -16,7 +16,7 @@ if [ "$(uname -p)" == "arm" ]; then
 	echo "" >> $PREFIX/.messages.txt;
 
 elif [ "$(uname)" == "Darwin" ]; then
-    { python -m pip install opencv-python ultralytics tensorflow==2.10 tensorflow-estimator==2.10 2>&1; } >> $PREFIX/.messages.txt;
+    { python -m pip install opencv-python ultralytics tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.23.5 2>&1; } >> $PREFIX/.messages.txt;
     echo "" >> $PREFIX/.messages.txt;
 
 else
