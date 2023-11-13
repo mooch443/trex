@@ -268,6 +268,9 @@ private:
         _future = std::async(std::launch::async, [this]() {
             set_thread_name("pipeline_async");
             std::unique_lock guard(_mutex);
+            if(not _c)
+                return;
+            
             (*_c)();
         });
         

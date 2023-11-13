@@ -113,8 +113,6 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         
 #undef DEF_CALLBACK
         
-        fn("");
-        
         return 0;
     }(); UNUSED(_);
     

@@ -573,14 +573,6 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
         "whitelist"
     }, changed);
     
-    changed("manual_matches");
-    changed("manual_splits");
-    changed("grid_points");
-    changed("recognition_shapes");
-    changed("gui_run");
-    changed("gui_mode");
-    changed("nowindow");
-    
     GlobalSettings::map().register_shutdown_callback([](auto) {
         
     });

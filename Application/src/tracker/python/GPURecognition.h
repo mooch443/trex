@@ -331,7 +331,7 @@ namespace track {
             std::string m;
             std::set<std::string> set_functions;
             ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit, bool unset = false)
-                : m(name), _unset(unset)
+                : _unset(unset), m(name)
             {
                 if(PythonIntegration::check_module("bbx_saved_model"))
                     reinit(*this);

@@ -68,6 +68,7 @@
 #include <gui/GUICache.h>
 #include "VideoOpener.h"
 #include <tracking/PythonWrapper.h>
+#include <gui/DrawBlobView.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -1736,14 +1737,17 @@ int main(int argc, char** argv)
     });
     
     print("Preparing for shutdown...");
+    gui::WorkProgress::stop();
+    tracker::gui::blob_view_shutdown();
+    
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();
     Categorize::terminate();
 #endif
     
     analysis.terminate();
-    analysis.~ConnectedTasks();
-    gui::WorkProgress::stop();
+    
+    tracker.prepare_shutdown();
     
     {
         delete gui_instance;
@@ -1751,8 +1755,6 @@ int main(int argc, char** argv)
     }
     if(imgui_base)
         delete imgui_base;
-    
-    tracker.prepare_shutdown();
     
     if(log_file)
         fclose(log_file);

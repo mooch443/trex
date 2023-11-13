@@ -94,12 +94,15 @@ void ManagedThread::loop(const ThreadGroup &group, const ManagedThreadWrapper& t
         std::unique_lock guard(mutex);
         while (!terminationSignal.load()) {
             //thread_print("TM Loop ", group.name);
+            guard.unlock();
             try {
                 lambda(group.id);
             } catch(...) {
                 FormatExcept("TM Exception in thread group ", group.name);
             }
-            variable.wait(guard);
+            guard.lock();
+            if(not terminationSignal)
+                variable.wait(guard);
         }
     } catch(...) {
         FormatExcept("Terminating thread (",thread.name,") from group(",group.name,") due to an exception.");

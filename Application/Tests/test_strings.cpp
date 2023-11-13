@@ -1252,46 +1252,38 @@ TEST(ToStringTest, HandleRunTimeSignedInt) {
 TEST(ToStringTest, ConstExprFloat) {
     // Simple whole number
     constexpr auto number = 1.0f;
-    static constexpr auto array = to_string_floating_point(number);
-    static constexpr std::string_view sv(array.data());
+    static constexpr auto sv = to_string(number);
     EXPECT_EQ(sv, "1");
     
     // Zero
-    static constexpr auto a = to_string_floating_point(0.f);
-    static constexpr std::string_view sv0(a.data());
+    static constexpr auto sv0 = to_string(0.f);
     static_assert(sv0 == "0");
 
     // Fractional number, no trailing zeros
-    static constexpr auto b = to_string_floating_point(123.456f);
-    static constexpr std::string_view sv1(b.data());
+    static constexpr auto sv1 = to_string(123.456f);
     EXPECT_EQ(sv1, "123.456");
 
     // Fractional number with trailing zeros
-    static constexpr auto c = to_string_floating_point(45.600f);
-    static constexpr std::string_view sv2(c.data());
+    static constexpr auto sv2 = to_string(45.600f);
     EXPECT_EQ(sv2, "45.6");
 
     // Negative number
-    static constexpr auto d = to_string_floating_point(-3.21f);
-    static constexpr std::string_view sv3(d.data());
+    static constexpr auto sv3 = to_string(-3.21f);
     EXPECT_EQ(sv3, "-3.21");
 
     // NaN
     static constexpr auto nan_float = std::numeric_limits<float>::quiet_NaN();
-    static constexpr auto e = to_string_floating_point(nan_float);
-    static constexpr std::string_view sv4(e.data());
-    EXPECT_EQ(sv4, "nan");
+    static constexpr auto sv4 = to_string(nan_float);
+    static_assert(sv4 == "nan");
 
     // Infinity
     static constexpr auto inf_float = std::numeric_limits<float>::infinity();
-    static constexpr auto f = to_string_floating_point(inf_float);
-    static constexpr std::string_view sv5(f.data());
-    EXPECT_EQ(sv5, "inf");
+    static constexpr auto sv5 = to_string(inf_float);
+    static_assert(sv5 == "inf");
 
     // Negative infinity
     static constexpr auto neg_inf_float = -std::numeric_limits<float>::infinity();
-    static constexpr auto g = to_string_floating_point(neg_inf_float);
-    static constexpr std::string_view sv6(g.data());
+    static constexpr auto sv6 = to_string(neg_inf_float);
     EXPECT_EQ(sv6, "-inf");
 }
 

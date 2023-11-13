@@ -437,6 +437,21 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
 
         py::schedule([&transfer]() mutable
                      {
+            if(not yolo8_initialized) {
+                // probably shutting down at the moment
+                for(size_t i=0; i< transfer.datas.size(); ++i) {
+                    transfer.promises.at(i).set_exception(nullptr);
+                    
+                    try {
+                        transfer.callbacks.at(i)();
+                    } catch(...) {
+                        FormatExcept("Exception in callback of element ", i," in python results.");
+                    }
+                }
+                FormatExcept("System shutting down.");
+                return;
+            }
+            
             Timer timer;
             using py = track::PythonIntegration;
             //thread_print("** transfer of ", (uint64_t)& transfer);

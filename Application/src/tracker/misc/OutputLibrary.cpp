@@ -127,102 +127,6 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         static const float CENTER_X = SETTING(output_centered) ? SETTING(video_size).value<Size2>().width * 0.5f * cm_per_px : 0;
         static const float CENTER_Y = SETTING(output_centered) ?SETTING(video_size).value<Size2>().height * 0.5f * cm_per_px : 0;
         
-        GlobalSettings::map().register_shutdown_callback([](auto) {
-            _callback_id.reset();
-        });
-        _callback_id = GlobalSettings::map().register_callbacks({
-            "output_invalid_value",
-            "output_graphs",
-            "output_default_options",
-            "midline_resolution"
-            
-        }, [](std::string_view name) {
-            if(name == "output_invalid_value") {
-                if(SETTING(output_invalid_value).value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
-                    gui::Graph::set_invalid(std::numeric_limits<float>::quiet_NaN());
-                else
-                    gui::Graph::set_invalid(std::numeric_limits<float>::infinity());
-                
-                clear_cache();
-                
-            } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
-            {
-                auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-                _output_defaults = SETTING(output_default_options).value<Output::Library::default_options_type>();
-                _options_map.clear();
-                
-                
-                std::vector<std::string> remove;
-                for (auto &c : _cache_func) {
-                    if(utils::beginsWith(c.first, "bone")) {
-                        remove.push_back(c.first);
-                    }
-                }
-                for (auto &r : remove) {
-                    _cache_func.erase(r);
-                }
-                
-                for (uint32_t i=1; i<FAST_SETTING(midline_resolution); i++) {
-                    Library::add("bone"+std::to_string(i), [i]
-                     _LIBFNC({
-                         // angular speed at current point
-                         auto midline = fish->midline(frame);
-                         
-                         if (midline) {
-                             float prev_angle = 0.0;
-                             
-                             if(i > 1) {
-                                 auto line = midline->segments().at(i-1).pos - midline->segments().at(i-2).pos;
-                                 float abs_angle = atan2(line.y, line.x);
-                                 
-                                 prev_angle = abs_angle;
-                             }
-                             
-                             auto line = midline->segments().at(i).pos - midline->segments().at(i-1).pos;
-                             float abs_angle = atan2(line.y, line.x) - prev_angle;
-                             
-                             return abs_angle;
-                         } else
-                             FormatWarning("No midline.");
-                         
-                         return gui::Graph::invalid();
-                    }));
-                    
-                    //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
-                }
-
-                for (auto &instance : graphs) {
-                    auto &fname = instance.first;
-                    auto &options = instance.second;
-                    
-                    if(_cache_func.count(fname) == 0) {
-                        print("There is no function called ",fname,".");
-                        continue;
-                    }
-                    
-                    Options_t modifiers;
-                    Calculation func;
-                    
-                    if(_output_defaults.count(fname)) {
-                        auto &o = _output_defaults.at(fname);
-                        for(auto &e : o) {
-                            if(!parse_modifiers(e, modifiers))
-                                // function is something other than identity
-                                func = parse_calculation(e);
-                        }
-                    }
-                    
-                    for(auto &e : options) {
-                        if(!parse_modifiers(e, modifiers))
-                            // function is something other than identity
-                            func = parse_calculation(e);
-                    }
-                    
-                    _options_map[fname].push_back({ modifiers, func });
-                }
-            }
-        });
-        
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
         
@@ -1025,6 +929,101 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         SETTING(output_graphs) = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
         
         
+        GlobalSettings::map().register_shutdown_callback([](auto) {
+            _callback_id.reset();
+        });
+        _callback_id = GlobalSettings::map().register_callbacks({
+            "output_invalid_value",
+            "output_graphs",
+            "output_default_options",
+            "midline_resolution"
+            
+        }, [](std::string_view name) {
+            if(name == "output_invalid_value") {
+                if(SETTING(output_invalid_value).value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
+                    gui::Graph::set_invalid(std::numeric_limits<float>::quiet_NaN());
+                else
+                    gui::Graph::set_invalid(std::numeric_limits<float>::infinity());
+                
+                clear_cache();
+                
+            } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
+            {
+                auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                _output_defaults = SETTING(output_default_options).value<Output::Library::default_options_type>();
+                _options_map.clear();
+                
+                
+                std::vector<std::string> remove;
+                for (auto &c : _cache_func) {
+                    if(utils::beginsWith(c.first, "bone")) {
+                        remove.push_back(c.first);
+                    }
+                }
+                for (auto &r : remove) {
+                    _cache_func.erase(r);
+                }
+                
+                for (uint32_t i=1; i<FAST_SETTING(midline_resolution); i++) {
+                    Library::add("bone"+std::to_string(i), [i]
+                     _LIBFNC({
+                         // angular speed at current point
+                         auto midline = fish->midline(frame);
+                         
+                         if (midline) {
+                             float prev_angle = 0.0;
+                             
+                             if(i > 1) {
+                                 auto line = midline->segments().at(i-1).pos - midline->segments().at(i-2).pos;
+                                 float abs_angle = atan2(line.y, line.x);
+                                 
+                                 prev_angle = abs_angle;
+                             }
+                             
+                             auto line = midline->segments().at(i).pos - midline->segments().at(i-1).pos;
+                             float abs_angle = atan2(line.y, line.x) - prev_angle;
+                             
+                             return abs_angle;
+                         } else
+                             FormatWarning("No midline.");
+                         
+                         return gui::Graph::invalid();
+                    }));
+                    
+                    //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
+                }
+
+                for (auto &instance : graphs) {
+                    auto &fname = instance.first;
+                    auto &options = instance.second;
+                    
+                    if(_cache_func.count(fname) == 0) {
+                        print("There is no function called ",fname,".");
+                        continue;
+                    }
+                    
+                    Options_t modifiers;
+                    Calculation func;
+                    
+                    if(_output_defaults.count(fname)) {
+                        auto &o = _output_defaults.at(fname);
+                        for(auto &e : o) {
+                            if(!parse_modifiers(e, modifiers))
+                                // function is something other than identity
+                                func = parse_calculation(e);
+                        }
+                    }
+                    
+                    for(auto &e : options) {
+                        if(!parse_modifiers(e, modifiers))
+                            // function is something other than identity
+                            func = parse_calculation(e);
+                    }
+                    
+                    _options_map[fname].push_back({ modifiers, func });
+                }
+            }
+        });
 #pragma GCC diagnostic pop
     }
     
