@@ -912,16 +912,20 @@ Fish::~Fish() {
             auto & pred =  _basic_stuff->blob.pred;
             for(size_t i=0; i<pred.pose.size(); ++i) {
                 auto bone = pred.pose.bone(i);
-                parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5});
-                parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(50)});
+                if(bone.length() > 0) {
+                    parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5});
+                    parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(50)});
+                }
             }
 
             ColorWheel wheel;
             for(size_t i=0; i<_average_pose.size(); ++i) {
                 auto bone = _average_pose.bone(i);
-                auto c = Color::blend(_color.alpha(125), wheel.next().alpha(130));
-                parent.add<Circle>(Loc{bone.A}, FillClr{c.alpha(75)}, LineClr{c.alpha(150)}, Radius{5});
-                parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{c.alpha(75)},2);
+                if(bone.length() > 0) {
+                    auto c = Color::blend(_color.alpha(125), wheel.next().alpha(130));
+                    parent.add<Circle>(Loc{bone.A}, FillClr{c.alpha(75)}, LineClr{c.alpha(150)}, Radius{5});
+                    parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{c.alpha(75)},2);
+                }
             }
         }
         

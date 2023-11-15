@@ -8,9 +8,8 @@
 
 namespace gui {
 
-struct Alterface {
+/*struct Alterface {
     Image::Ptr next;
-    dyn::DynamicGUI dynGUI;
     SettingsDropdown settings;
     
     Alterface() = delete;
@@ -22,6 +21,6 @@ struct Alterface {
     ~Alterface();
     
     void draw(IMGUIBase& base, DrawStructure& g);
-};
+};*/
 
 }

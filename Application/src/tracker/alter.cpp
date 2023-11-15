@@ -383,7 +383,7 @@ int main(int argc, char**argv) {
     SETTING(track_threshold) = Settings::track_threshold_t(0);
     SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);
     SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
-        Rangef(10,300)
+        Rangef(1,300)
     });
     SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
     SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
@@ -392,7 +392,7 @@ int main(int argc, char**argv) {
     SETTING(gui_interface_scale) = float(1);
     SETTING(meta_source_path) = Meta::toStr(SETTING(source).value<file::PathArray>());
 
-    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.1);
+    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
     SETTING(meta_real_width) = 1000.f;//float(get_model_image_size().width * 10);
     
     std::stringstream ss;

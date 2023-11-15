@@ -1,15 +1,12 @@
 #include "Label.h"
-//#include <gui/gui.h>
 #include <gui/IMGUIBase.h>
-#include <tracking/Tracker.h>
-#include <gui/Timeline.h>
 #include <gui/MouseDock.h>
 #include <gui/GUICache.h>
 
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-    : _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get())), _line({}, 1)
+: _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _line({}, 1), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
@@ -37,7 +34,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
     _frame = frame;
 }
 
-void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, bool disabled, double dt) {
+void Label::update(const FindCoord& coord, Entangled& e, float alpha, float, bool disabled, double dt) {
     alpha = saturate(alpha, 0.5, 1.0);
     
     if(disabled)
@@ -74,7 +71,7 @@ void Label::update(const FindCoord& coord, Entangled& e, float alpha, float _d, 
     if(not is_in_mouse_dock)
         e.advance_wrap(*_text);
     
-    auto video_size = coord.video_size();
+    //auto video_size = coord.video_size();
     auto center = screen.pos() + screen.size().mul(0.5, 1.05);
     //auto center = video_size.mul(0.5, 0.95);
     

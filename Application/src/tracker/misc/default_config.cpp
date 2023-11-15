@@ -335,6 +335,24 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
         CONFIG("meta_classes", std::vector<std::string>{}, "Class names for object classification in video during conversion.");
+        CONFIG("meta_skeleton", blob::Pose::Skeleton("human", {
+                {0, 1, "Nose to Left Eye"},
+                {0, 2, "Nose to Right Eye"},
+                {1, 3, "Left Eye to Ear"},
+                {2, 4, "Right Eye to Ear"},
+                {5, 6, "Left to Right Shoulder"},
+                {5, 7, "Left Upper Arm"},
+                {7, 9, "Left Forearm"},
+                {6, 8, "Right Upper Arm"},
+                {8, 10, "Right Forearm"},
+                {5, 11, "Left Shoulder to Hip"},
+                {6, 12, "Right Shoulder to Hip"},
+                {11, 12, "Left to Right Hip"},
+                {11, 13, "Left Thigh"},
+                {13, 15, "Left Shin"},
+                {12, 14, "Right Thigh"},
+                {14, 16, "Right Shin"}
+            }), "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
         CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
@@ -683,6 +701,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("cam_undistort_vector", buffer, "");
         CONFIG("cam_matrix", matrix, "");
+        CONFIG("webcam_index", uint8_t(0), "cv::VideoCapture index of the current webcam. If the program chooses the wrong webcam (`source` = webcam), increase this index until it finds the correct one.");
         CONFIG("cam_scale", float(1.0), "Scales the image down or up by the given factor.");
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");

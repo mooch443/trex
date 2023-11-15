@@ -41,10 +41,13 @@ class ConvertScene : public Scene {
     std::shared_future<void> _scene_active;
     std::promise<void> _scene_promise;
     
-    Alterface menu;
+    Size2 window_size;
+    //Alterface menu;
     
     ind::ProgressBar bar;
     ind::ProgressSpinner spinner;
+    
+    dyn::DynamicGUI dynGUI;
     
     // Frame data
     GETTER(Frame_t, actual_frame)
@@ -81,9 +84,9 @@ private:
     Size2 calculateWindowSize(const Size2& output_size, const Size2& window_size);
 
     // Helper function to draw outlines
-    void drawOutlines(DrawStructure& graph, const Size2& scale);
+    void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
     
-    void drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, const std::unordered_map<pv::bid, Identity>& visible_bdx);
+    void drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx);
 
     // Main _draw function
     void _draw(DrawStructure& graph);

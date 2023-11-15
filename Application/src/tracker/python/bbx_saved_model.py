@@ -561,7 +561,7 @@ class TRexYOLO8:
         """
         assert self.has_region_model(), "No region model found"
         
-        from ultralytics.yolo.utils.ops import scale_coords
+        #from ultralytics.yolo.utils.ops import scale_coords
         # predict bounding boxes of areas of interest
         model = next((model for model in self.models if model.task == ModelTaskType.region), None)
         assert model is not None

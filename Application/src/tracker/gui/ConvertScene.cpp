@@ -11,6 +11,8 @@
 #include <misc/ThreadManager.h>
 #include <misc/RecentItems.h>
 #include <file/PathArray.h>
+#include <gui/Coordinates.h>
+#include <python/GPURecognition.h>
 
 namespace gui {
 
@@ -48,45 +50,14 @@ ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_a
     [this](Scene&, DrawStructure& graph) {
         _draw(graph);
     }),
-menu{
-    dyn::Context{
-        ActionFunc("QUIT", [](auto) {
-            auto& manager = SceneManager::getInstance();
-            manager.set_active("starting-scene");
-        }),
-        ActionFunc("FILTER", [](auto) {
-            static bool filter { false };
-            filter = not filter;
-            SETTING(do_filter) = filter;
-        }),
-        VarFunc("fps", [](const VarProps&) {
-            return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
-        }),
-        VarFunc("net_fps", [](const VarProps&) {
-            return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
-        }),
-        VarFunc("vid_fps", [](const VarProps&) {
-            return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
-        }),
-        VarFunc("fish", [](const VarProps&) -> sprite::Map& {
-            return fish;
-        }),
-        VarFunc("average_is_generating", [this](const VarProps&) {
-            return _segmenter->is_average_generating();
-        }),
-        VarFunc("actual_frame", [this](const VarProps&) {
-            return _actual_frame;
-        }),
-        VarFunc("video", [](const VarProps&) -> sprite::Map& {
-            return _video_info;
-        })
-    },
+/*menu{
+    ,
     [this](const std::string& name) {
         if (name == "gui_frame") {
             this->segmenter().reset(SETTING(gui_frame).value<Frame_t>());
         }
     }
-},
+},*/
 
 bar{
     ind::option::BarWidth{50},
@@ -120,10 +91,6 @@ _on_deactivate(on_deactivate)
 {
     _video_info.set_do_print(false);
     fish.set_do_print(false);
-
-    menu.dynGUI.context.variables.emplace("fishes", new Variable([this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
-        return _gui_objects;
-    }));
 }
 
 ConvertScene::~ConvertScene() {
@@ -173,7 +140,7 @@ void ConvertScene::deactivate() {
         _segmenter = nullptr;
         _object_blobs.clear();
         _current_data = {};
-        menu.dynGUI.clear();
+        dynGUI.clear();
         
         if(_on_deactivate)
             _on_deactivate(*this);
@@ -327,7 +294,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 }
 
 // Helper function to draw outlines
-void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale) {
+void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset) {
     if (not _current_data.outlines.empty()) {
         graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
@@ -339,12 +306,10 @@ void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale) {
     }
 }
 
-void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, const std::unordered_map<pv::bid, Identity>& visible_bdx) {
+void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx) {
     for (auto& blob : _object_blobs) {
-        const auto bds = blob->bounds();
-        //graph.rect(bds, attr::LineClr(Gray), attr::FillClr(Gray.alpha(25)));
-        auto [pos, image] = blob->image();
-
+        auto bds = blob->bounds();
+        
         SegmentationData::Assignment assign{
             .clid = size_t(-1)
         };
@@ -355,31 +320,23 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
                     .clid = pred.clid,
                     .p = static_cast<float>(pred.p) / 255.f
                 };
-                /*if(auto it = _current_data.predictions.find(blob->parent_id());
-                    it != _current_data.predictions.end())
-                {
-                    assign = it->second;
-
-                } else if((it = _current_data.predictions.find(blob->blob_id())) != _current_data.predictions.end())
-                {
-                    assign = it->second;
-
-                } else
-                    print("[draw]3 blob ", blob->blob_id(), " not found...");*/
-
             }
             else
                 print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
         }
-
+        
         auto cname = meta_classes.size() > assign.clid
             ? meta_classes.at(assign.clid)
             : "<unknown:" + Meta::toStr(assign.clid) + ">";
 
         sprite::Map tmp;
         tmp.set_do_print(false);
-        tmp["pos"] = bds.pos().mul(scale);
-        tmp["size"] = Size2(bds.size().mul(scale));
+        
+        auto coords = FindCoord::get();
+        bds = coords.convert(BowlRect(bds));
+        
+        tmp["pos"] = bds.pos();
+        tmp["size"] = Size2(bds.size());
         tmp["type"] = std::string(cname);
         if(Tracker::instance() && Tracker::background())
             tmp["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
@@ -418,16 +375,35 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
 void ConvertScene::_draw(DrawStructure& graph) {
     fetch_new_data();
     
+    auto output_size = SETTING(output_size).value<Size2>();
+    auto video_size = SETTING(video_size).value<Size2>();
+    
+    if(window()) {
+        auto update = FindCoord::set_screen_size(graph, *window()) .div(graph.scale().reciprocal() * gui::interface_scale());
+        FindCoord::set_video(output_size);
+        if(update != window_size)
+            window_size = update;
+    }
+    
+    Vec2 _aspect_ratio = Vec2(output_size.width, output_size.height);
+    Vec2 _screen_size = FindCoord::get().screen_size();
+    float width_scale = _screen_size.x / _aspect_ratio.x;
+    float height_scale = _screen_size.y / _aspect_ratio.y;
+    float scale_factor = std::min(width_scale, height_scale);
+    auto _target_scale = Vec2(scale_factor, scale_factor);
+    auto _target_pos = (_screen_size - output_size.mul(_target_scale)) / 2;
     const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
+    
     graph.section("video", [&](auto&, Section* section) {
-        auto output_size = SETTING(output_size).value<Size2>();
-        auto window_size = window()->window_dimensions();
-
-        // Calculate window dimensions
-        Size2 wdim = calculateWindowSize(output_size, window_size);
-
-        auto scale = wdim.div(output_size);
-        section->set_scale(scale);
+        section->set_size(output_size);
+        section->set_pos(_target_pos);
+        section->set_scale(_target_scale);
+        
+        Transform transform;
+        transform.scale(graph.scale() / gui::interface_scale());
+        transform.combine(section->global_transform());
+        
+        FindCoord::set_bowl_transform(transform);
 
         LockGuard lguard(w_t{}, "drawing", 10);
         if (not lguard.locked()) {
@@ -438,20 +414,76 @@ void ConvertScene::_draw(DrawStructure& graph) {
         SETTING(gui_frame) = _current_data.frame.index();
 
         if (_background_image->source()) {
-            if(_background_image->source() && _background_image->source()->rows > 0 && _background_image->source()->cols > 0)
+            if(_background_image->source() && _background_image->source()->rows > 0 && _background_image->source()->cols > 0) {
                 graph.wrap_object(*_background_image);
+            }
         }
 
         for (auto box : _current_data.tiles)
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
         ColorWheel wheel;
+        using Skeleton = blob::Pose::Skeleton;
+        
+        Skeleton skelet = SETTING(meta_skeleton).value<Skeleton>();
         for (auto& keypoint : _current_data.keypoints) {
             auto clr = wheel.next();
             auto last = keypoint.bones.back();
-            for(auto& bone : keypoint.bones) {
-                graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
-                graph.line(Vec2{last.x, last.y}, {bone.x, bone.y}, 5, LineClr{clr.exposureHSL(0.5)});
-                last = bone;
+            size_t i = 0;
+            if(not skelet.connections().empty()) {
+                for(auto& bone : keypoint.bones) {
+                    if(bone.x >0 || bone.y > 0) {
+                        graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
+                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White});
+                    }
+                    ++i;
+                }
+                
+                for(auto &c : skelet.connections()) {
+                    if(c.to < keypoint.bones.size()
+                       && c.from < keypoint.bones.size()) 
+                    {
+                        auto &A = keypoint.bones.at(c.from);
+                        auto &B = keypoint.bones.at(c.to);
+                        
+                        if((A.x > 0 || A.y > 0)
+                           && (B.x > 0 || B.y > 0))
+                        {
+                            Vec2 p0{A.x, A.y}, p1{B.x, B.y};
+                            if(p0.x > p1.x)
+                                std::swap(p0, p1);
+                            
+                            auto v = p1 - p0;
+                            //auto D = v.length();
+                            v = v.normalize();
+                            Rotation a{atan2(v)};
+                            Scale sca(1);
+                            Font font(0.5);
+                            
+                            graph.line(p0, p1, 5, LineClr{clr.exposureHSL(0.5)});
+                            graph.text(
+                                Str(c.name),
+                                Loc((p1-p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
+                                TextClr(Cyan.alpha(200)),
+                                font,
+                                sca,
+                                Origin(0.5),
+                                a);
+                        }
+                    }
+                }
+                
+            } else {
+                for(auto& bone : keypoint.bones) {
+                    if(bone.x >0 || bone.y > 0) {
+                        graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
+                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White});
+                        
+                        if(last.x > 0 && last.y > 0)
+                            graph.line(Vec2{last.x, last.y}, {bone.x, bone.y}, 5, LineClr{clr.exposureHSL(0.5)});
+                        last = bone;
+                    }
+                    ++i;
+                }
             }
         }
 
@@ -465,7 +497,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         }
 
         // Draw outlines
-        drawOutlines(graph, scale);
+        drawOutlines(graph, _target_scale, _target_pos);
 
         using namespace track;
         std::unordered_map<pv::bid, Identity> visible_bdx;
@@ -503,16 +535,67 @@ void ConvertScene::_draw(DrawStructure& graph) {
         if (not dirty)
             return;
 
-        drawBlobs(meta_classes, scale, visible_bdx);
+        drawBlobs(meta_classes, _target_scale, _target_pos, visible_bdx);
     });
-
+    
+    if(not dynGUI) {
+        dynGUI = {
+            .path = "alter_layout.json",
+            .graph = &graph,
+            .context = dyn::Context{
+                ActionFunc("QUIT", [](auto) {
+                    auto& manager = SceneManager::getInstance();
+                    manager.set_active("starting-scene");
+                }),
+                ActionFunc("FILTER", [](auto) {
+                    static bool filter { false };
+                    filter = not filter;
+                    SETTING(do_filter) = filter;
+                }),
+                VarFunc("fps", [](const VarProps&) {
+                    return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
+                }),
+                VarFunc("net_fps", [](const VarProps&) {
+                    return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
+                }),
+                VarFunc("vid_fps", [](const VarProps&) {
+                    return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
+                }),
+                VarFunc("window_size", [this](const VarProps&) -> Vec2 {
+                    return this->window_size;
+                }),
+                VarFunc("gpu_device", [](const VarProps&) -> std::string {
+                    return python_gpu_name();
+                }),
+                VarFunc("fish", [](const VarProps&) -> sprite::Map& {
+                    return fish;
+                }),
+                VarFunc("average_is_generating", [this](const VarProps&) {
+                    return _segmenter->is_average_generating();
+                }),
+                VarFunc("actual_frame", [this](const VarProps&) {
+                    return _actual_frame;
+                }),
+                VarFunc("video", [](const VarProps&) -> sprite::Map& {
+                    return _video_info;
+                }),
+                VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+                    return _gui_objects;
+                })
+            },
+            .base = window()
+        };
+    }
+    
+    
     graph.section("menus", [&](auto&, Section* section) {
-        section->set_scale(graph.scale().reciprocal());
+        section->set_scale(graph.scale().reciprocal() * gui::interface_scale());
+        
         _video_info["frame"] = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
-
-        menu.draw(*(IMGUIBase*)window(), graph);
+        
+        dynGUI.update(nullptr);
     });
 }
 

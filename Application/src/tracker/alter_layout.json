@@ -1,16 +1,25 @@
 {"objects":[
 	{ 
-		"type":"vlayout",
+		"type":"gridlayout",
 		"pos":[20,10],
 		"scale":[1.0,1.0],
-		"pad":[0,0,0,0],
-		"children": [
+		"pad":[5,5,5,5],
+		"fill":[0,0,0,50],
+		"clickable":false,
+		"valign":"center",
+		"children": [[
 			{ 
 				"type":"hlayout", 
-				"pad":[0,0,10,10],
+				"pad":[0,0,5,0],
 				"children": [
 					{ "type":"button", "text":"Quit", "action":"QUIT" },
-					{ "type":"button", "text":"Filter", "action":"FILTER" },
+					{ "type":"button", "text":"Filter", "action":"FILTER" }
+				]
+			},
+
+			{
+				"type":"vlayout",
+				"children":[
 					{
 						"type":"condition",
 						"var":"{average_is_generating}",
@@ -18,23 +27,34 @@
 							"type":"text", "text":"detecting the background...", "font":{"size":0.75}, "color":[220,220,220], "shadow":0.75
 						},
 						"else":{
-							"type":"text", "text":"total:{fps:2d}fps net:{net_fps}fps video:{vid_fps}", "font":{"size":0.75}, "color":[255,255,255], "shadow":0.75
+							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c> <sym>◦</sym> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+						}
+					},
+					{
+						"type":"condition",
+						"var":"{global.region_model}",
+						"then": { 
+							"type":"stext", "text":"<i>video:</i> {at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>◦</sym> <c>{int:{vid_fps}}</c><i>fps</i> <i>—</i> <i>model:</i> <sym>💻 </sym><c>{int:{net_fps}}</c><i>fps</i> <sym>◦</sym> {global.detection_resolution}<i>px</i> <sym>◦</sym> <i>region:</i> {global.region_resolution}<i>px</i>", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+						},
+						"else": {
+							"type":"stext", "text":"<i>video:</i> {at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>◦</sym> <c>{int:{vid_fps}}</c><i>fps</i> <i>—</i> <i>model:</i> <sym>💻 </sym><c>{int:{net_fps}}</c><i>fps</i> <sym>◦</sym> {global.detection_resolution}<i>px</i>", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 						}
 					}
-					
 				]
-			},
-			{
-				"type":"condition",
-				"var":"{global.region_model}",
-				"then": { 
-					"type":"text", "text":"resolution: {video.resolution} | detection @ {global.detection_resolution}px | region @ {global.region_resolution}px | actual: {actual_frame}/{global.video_length} | written: {video.frame}", "font":{"size":0.75}, "color":[150,240,255], "shadow":1
-				},
-				"else": {
-					"type":"text", "text":"resolution: {video.resolution} | detection @ {global.detection_resolution}px | actual: {actual_frame}/{global.video_length} | written: {video.frame} | {global.model}", "font":{"size":0.55}, "color":[150,240,255], "shadow":1
-				}
 			}
-			
+		]]
+	},
+	{
+		"type":"hlayout",
+		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
+		"origin":[1,1],
+		"children":[
+			{
+				"type":"stext",
+				"font":{"size":0.5},
+				"none":"📤🌩🗬🗎🛈▶⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
+				"text":"<c>{shorten:{filename:{global.model}}:35}</c><sym> 🞙</sym> {global.detection_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>"
+			}
 		]
 	},
 
@@ -43,21 +63,40 @@
 		"var":"fishes",
 		"do": {
 			"type": "collection",
-			"pos":"{i.pos}",
+			"pos":"{subVector:{i.pos}:[0,5]}",
 			"children": [
 				{
 					"type":"condition",
 					"var":"{i.tracked}",
-					"then": {"type":"stext","text":"<b><nr>{i.id}</nr></b>: <c>{i.type}</c> (p=<i>{i.p} s={i.px}</i>)","font":{"size":0.5},"origin":[0,1],"shadow":0.3},
-					"else": {"type":"stext","text":"<ref><b>{i.id}</b>: <c>{i.type}</c> (p=<i>{i.p} s={i.px}</i>)</ref>","font":{"size":0.5},"origin":[0,1],"shadow":0.1}
+					"then": {"type":"stext","text":"<c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)","font":{"size":0.5},"origin":[0,1],"shadow":0.3},
+					"else": {"type":"stext","text":"<orange><c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)</orange>","font":{"size":0.5},"origin":[0,1],"shadow":0.3}
 				},
 				{
 					"type":"condition",
 					"var":"{i.tracked}",
-					"then": {"type":"rect","pos":[0,0],"size":"{i.size}","fill":[0,255,0,30],"line":"{i.color}","origin":[0,0]},
-					"else": {"type":"rect","pos":[0,0],"size":"{i.size}","fill":[50,50,50,30],"line":[200,200,200,150],"origin":[0,0]}
+					"then": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[0,255,0,30],"line":"{i.color}","origin":[0,0]},
+					"else": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[50,50,50,30],"line":[200,200,200,200],"origin":[0,0]}
 				}
 			]
 		}
+	},
+
+	{
+		"type":"hlayout",
+		"pos":"[10,{-:{window_size.y}:10}]",
+		"origin":[0,1],
+		"children":[
+			{
+				"type":"settings",
+				"var":"",
+				"font":{"size":0.75,"align":"center"},
+				"fill":[50,50,50],
+				"line":[75,75,75],
+				"size":[400,40],
+				"color":[225,225,225],
+				"desc":"",
+				"highlight_clr":[75,75,75,255]
+			}
+		]
 	}
 ]}

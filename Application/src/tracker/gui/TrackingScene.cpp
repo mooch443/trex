@@ -1367,19 +1367,6 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 return _data->_keymap;
             }),
             
-            VarFunc("filename", [](const VarProps& props) -> file::Path {
-                if(props.parameters.size() != 1) {
-                    throw InvalidArgumentException("Need one argument for ", props,".");
-                }
-                return file::Path(Meta::fromStr<file::Path>(props.first()).filename());
-            }),
-            VarFunc("basename", [](const VarProps& props) -> file::Path {
-                if(props.parameters.size() != 1) {
-                    throw InvalidArgumentException("Need one argument for ", props,".");
-                }
-                return file::Path(Meta::fromStr<file::Path>(props.first()).filename()).remove_extension();
-            }),
-            
             VarFunc("mouse_in_bowl", [this](const VarProps&) -> Vec2 {
                 return _data->_bowl_mouse;
             }),

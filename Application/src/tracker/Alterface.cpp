@@ -5,7 +5,7 @@
 namespace gui {
 using namespace dyn;
 
-inline static sprite::Map fish =  [](){
+/*inline static sprite::Map fish =  [](){
     sprite::Map fish;
     fish.set_do_print(false);
     fish["name"] = std::string("fish0");
@@ -37,17 +37,13 @@ Alterface::~Alterface() {
 }
 
 void Alterface::draw(IMGUIBase& base, DrawStructure& g) {
-    if(not dynGUI) {
-        dynGUI.graph = &g;
-        dynGUI.base = (Base*)&base;
-    }
     
     g.section("buttons", [&](auto&, Section* section) {
-        section->set_scale(g.scale().reciprocal());
+        //section->set_scale(g.scale().reciprocal());
         dynGUI.update(nullptr);
     });
     
     settings.draw(base, g);
-}
+}*/
 
 }

@@ -13,7 +13,7 @@ namespace fg {
 
         try {
             if(!_capture.isOpened())
-                _capture.open(0);
+                _capture.open(SETTING(webcam_index).value<uint8_t>());
         } catch(...) {
             throw U_EXCEPTION("OpenCV cannot open the webcam.");
         }
