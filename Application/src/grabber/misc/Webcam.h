@@ -11,6 +11,10 @@ namespace fg {
         cv::VideoCapture _capture;
         GETTER_SETTER_I(ImageMode, color_mode, ImageMode::GRAY)
         mutable std::mutex _mutex;
+        cv::Mat _cache;
+        gpuMat _gpu_cache;
+        std::vector<cv::Mat> _array;
+        std::vector<gpuMat> _gpu_array;
         
     public:
         Webcam();
@@ -34,6 +38,36 @@ namespace fg {
         
         virtual Size2 size() const override;
         virtual bool next(Image& image) override;
+        template<typename T>
+            requires (are_the_same<cv::Mat, T> || are_the_same<cv::UMat, T>)
+        bool next(T &output) {
+            std::unique_lock guard(_mutex);
+            T* cache;
+            if constexpr(are_the_same<cv::Mat, T>)
+                cache = &_cache;
+            else
+                cache = &_gpu_cache;
+            
+            std::vector<T>* array;
+            if constexpr(are_the_same<cv::Mat, T>)
+                array = &_array;
+            else
+                array = &_gpu_array;
+            
+            if(_color_mode == ImageMode::GRAY) {
+                if(not _capture.read(*cache))
+                    return false;
+                
+                cv::split(*cache, *array);
+                cv::max((*array)[2], (*array)[0], (*array)[0]);
+                cv::max((*array)[0], (*array)[3], output);
+            } else {
+                if(not _capture.read(output))
+                    return false;
+            }
+            return true;
+        }
+        
         [[nodiscard]] virtual bool open() const override;
         virtual void close() override;
         int frame_rate();

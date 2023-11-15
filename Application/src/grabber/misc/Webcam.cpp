@@ -50,23 +50,34 @@ namespace fg {
     }
 
     bool Webcam::next(cmn::Image &image) {
-        std::unique_lock guard(_mutex);
-        cv::Mat tmp;
-        _capture >> tmp;
+        uint8_t channels = 3;
+        if(is_in(_color_mode, ImageMode::GRAY, ImageMode::R3G3B2))
+            channels = 1;
+        else if(_color_mode == ImageMode::RGB)
+            channels = 3;
         
-        if(tmp.empty())
+        std::unique_lock guard(_mutex);
+        if(image.dimensions() != _size || image.dims != channels)
+            image.create(_size.height, _size.width, channels, image.index());
+        
+        if(channels == 3) {
+            if(not _capture.read(image.get()))
+                return false;
+            return true;
+        }
+        
+        if(not _capture.read(_cache))
             return false;
         
         if(_color_mode == ImageMode::GRAY) {
-            std::vector<cv::Mat> array;
-            cv::split(tmp, array);
+            cv::split(_cache, _array);
             
-            auto img = cv::Mat(cv::max(array[2], cv::Mat(cv::max(array[0], array[1]))));
+            auto img = cv::Mat(cv::max(_array[2], cv::Mat(cv::max(_array[0], _array[1]))));
             assert((uint)img.cols == image.cols && (uint)img.rows == image.rows);
             
             image.create(img, image.index());
         } else {
-            image.create(tmp, image.index());
+            image.create(_cache, image.index());
         }
         return true;
     }

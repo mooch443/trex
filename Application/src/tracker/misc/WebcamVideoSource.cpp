@@ -36,11 +36,8 @@ tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char
         }
 
         static gpuMatPtr tmp = std::make_unique<useMat>();
-        static Image cpuBuffer(this->source.size().height, this->source.size().width, 3);
-        this->source.next(cpuBuffer);
-        //this->source.frame(index, cpuBuffer);
-        cpuBuffer.get().copyTo(*buffer);
-
+        this->source.next(*buffer);
+        
         //if (detection_type() != ObjectDetectionType::yolo8)
         {
             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
