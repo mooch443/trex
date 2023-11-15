@@ -239,7 +239,7 @@ void ConvertScene::activate()  {
         SceneManager::getInstance().set_active("starting-scene");
         
         if(SETTING(scene_crash_is_fatal)) {
-            throw U_EXCEPTION("Aborting since an exception here is considered a fatal error.");
+            throw U_EXCEPTION(e.what());
         }
     }
 }
