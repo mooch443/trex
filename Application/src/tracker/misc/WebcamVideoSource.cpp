@@ -23,19 +23,10 @@ tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char
 
         auto index = i++;
 
-        gpuMatPtr buffer;
-
-        if (std::unique_lock guard{ buffer_mutex };
-            not buffers.empty())
-        {
-            buffer = std::move(buffers.back());
-            buffers.pop_back();
-        }
-        else {
-            buffer = std::make_unique<useMat>();
-        }
-
-        static gpuMatPtr tmp = std::make_unique<useMat>();
+        gpuMatPtr buffer = buffers::get();
+        if(not tmp)
+            tmp = buffers::get();
+        
         this->source.next(*buffer);
         
         //if (detection_type() != ObjectDetectionType::yolo8)
@@ -43,6 +34,7 @@ tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char
             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
             std::swap(buffer, tmp);
         }
+        
         return std::make_tuple(index, std::move(buffer));
     }
     catch (const std::exception& e) {

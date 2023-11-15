@@ -9,6 +9,7 @@
 #include <tracking/IndividualManager.h>
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
+#include <misc/Buffers.h>
 
 namespace gui {
     using buffers = Buffers<std::unique_ptr<PPFrame>, decltype([](){ return std::make_unique<PPFrame>(); })>;

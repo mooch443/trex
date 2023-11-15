@@ -32,8 +32,7 @@ void AbstractBaseVideoSource::notify() {
 Size2 AbstractBaseVideoSource::size() const { return info.size; }
 
 void AbstractBaseVideoSource::move_back(gpuMatPtr&& ptr) {
-    std::unique_lock guard(buffer_mutex);
-    buffers.push_back(std::move(ptr));
+    buffers::move_back(std::move(ptr));
 }
 
 std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr> AbstractBaseVideoSource::next() {
@@ -59,6 +58,9 @@ tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr>
             if (SETTING(meta_video_scale).value<float>() != 1) {
                 Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
                 //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
+                
+                if(not tmp)
+                    tmp = buffers::get();
                 cv::resize(*buffer, *tmp, new_size);
                 std::swap(buffer, tmp);
             }

@@ -7,6 +7,7 @@ class WebcamVideoSource : public AbstractBaseVideoSource {
     
 public:
     using SourceType = fg::Webcam;
+    gpuMatPtr tmp;
     
 public:
     WebcamVideoSource(fg::Webcam&& source);

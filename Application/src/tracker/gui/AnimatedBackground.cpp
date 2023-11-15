@@ -2,6 +2,7 @@
 #include <pv.h>
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
+#include <misc/Buffers.h>
 
 namespace gui {
 

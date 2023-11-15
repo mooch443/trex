@@ -5,6 +5,9 @@
 
 class VideoSourceVideoSource : public AbstractBaseVideoSource {
     VideoSource source;
+    gpuMatPtr tmp;
+    cv::Mat cpuBuffer;
+    
 public:
     using SourceType = VideoSource;
     

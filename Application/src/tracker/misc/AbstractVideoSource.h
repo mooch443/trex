@@ -6,6 +6,7 @@
 #include <misc/Timer.h>
 #include <file/Path.h>
 #include <misc/RepeatedDeferral.h>
+#include <misc/Buffers.h>
 
 using namespace cmn;
 
@@ -23,17 +24,19 @@ public:
     static inline std::atomic<float> _network_fps{0}, _network_samples{ 0 };
     static inline std::atomic<float> _video_fps{ 0 }, _video_samples{ 0 };
     
+    using gpuMatPtr = std::unique_ptr<useMat>;
+    using buffers = Buffers<gpuMatPtr, decltype([]{ return std::make_unique<useMat>(); })>;
+    
 protected:
     Frame_t i{0_f};
-    using gpuMatPtr = std::unique_ptr<useMat>;
-    std::mutex buffer_mutex;
-    std::vector<gpuMatPtr> buffers;
-    gpuMatPtr tmp = std::make_unique<useMat>();
-    
+    gpuMatPtr tmp;
     VideoInfo info;
     
-    RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>()>> _source_frame;
-    RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>()>> _resize_cvt;
+    using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>()>>;
+    using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>()>>;
+    
+    VideoFunction _source_frame;
+    PreprocessFunction _resize_cvt;
     
 public:
     AbstractBaseVideoSource(VideoInfo info);
@@ -44,7 +47,6 @@ public:
     Size2 size() const;
     
     void move_back(gpuMatPtr&& ptr);
-    
     std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next();
     
     virtual tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() = 0;
