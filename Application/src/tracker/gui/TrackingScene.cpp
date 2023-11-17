@@ -20,6 +20,7 @@
 #include <tracking/VisualField.h>
 #include <gui/WorkProgress.h>
 #include <gui/DrawBlobView.h>
+#include <gui/Label.h>
 
 using namespace track;
 
@@ -1018,7 +1019,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     auto mouse = graph.mouse_position();
-    if(mouse != _data->_last_mouse || _data->_cache->is_animating()) {
+    if(mouse != _data->_last_mouse || _data->_cache->is_animating() || graph.root().is_animating()) {
         if(((IMGUIBase*)window())->focussed()) {
             _data->_cache->set_blobs_dirty();
             _data->_cache->set_tracking_dirty();
@@ -1141,7 +1142,26 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     _data->_bowl->update_scaling();
     
-    auto coords = FindCoord::get();
+    auto coords = FindCoord::get(); 
+    
+    auto alpha = SETTING(gui_background_color).value<Color>().a;
+    _data->_background->set_color(Color(255, 255, 255, alpha ? alpha : 1));
+
+    if (alpha > 0) {
+        graph.wrap_object(*_data->_background);
+        /*if(PD(gui_mask)) {
+            PD(gui_mask)->set_color(PD(background)->color().alpha(PD(background)->color().a * 0.5));
+            PD(gui).wrap_object(*PD(gui_mask));
+        }*/
+        _data->_background->set_scale(_data->_bowl->scale());
+        _data->_background->set_pos(_data->_bowl->pos());
+    }
+
+    //if(GUI_SETTINGS(gui_mode) == mode_t::tracking)
+    {
+        graph.wrap_object(*_data->_bowl);
+    }
+
     _data->_bowl->update(_data->_cache->frame_idx, graph, coords);
     _data->_bowl_mouse = coords.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
     
@@ -1153,23 +1173,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl->set(LineClr{Cyan});
     //_data->_bowl.set(FillClr{Yellow});
     
-    auto alpha = SETTING(gui_background_color).value<Color>().a;
-    _data->_background->set_color(Color(255, 255, 255, alpha ? alpha : 1));
     
-    if(alpha > 0) {
-        graph.wrap_object(*_data->_background);
-        /*if(PD(gui_mask)) {
-            PD(gui_mask)->set_color(PD(background)->color().alpha(PD(background)->color().a * 0.5));
-            PD(gui).wrap_object(*PD(gui_mask));
-        }*/
-        _data->_background->set_scale(_data->_bowl->scale());
-        _data->_background->set_pos(_data->_bowl->pos());
-    }
-    
-    //if(GUI_SETTINGS(gui_mode) == mode_t::tracking)
-    {
-        graph.wrap_object(*_data->_bowl);
-    }
     
     if(GUI_SETTINGS(gui_mode) == mode_t::blobs) {
         tracker::gui::draw_blob_view({
@@ -1276,7 +1280,7 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
 
 dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
     using namespace dyn;
-    return {
+    return dyn::DynamicGUI {
         .path = "tracking_layout.json",
         .graph = &graph,
         .context = {

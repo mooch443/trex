@@ -28,19 +28,40 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     using namespace track::detect;
     std::vector<ModelConfig> models;
 
+
     if (SETTING(model).value<file::Path>().exists()) {
         models.emplace_back(
             ModelTaskType::detect,
             SETTING(model).value<file::Path>().str(),
             SETTING(detection_resolution).value<uint16_t>()
         );
+    } else {
+        std::string input_string = SETTING(model).value<file::Path>().str();
+        std::regex regex_pattern("yolov8.*\\.pt");
+        std::regex regex_pattern2("yolov8.*$");
+
+        if (std::regex_match(input_string, regex_pattern)) {
+            models.emplace_back(
+                ModelTaskType::detect,
+                SETTING(model).value<file::Path>().str(),
+                SETTING(detection_resolution).value<uint16_t>()
+            );
+
+        } else if(std::regex_match(input_string, regex_pattern2)) {
+            models.emplace_back(
+                ModelTaskType::detect,
+                SETTING(model).value<file::Path>().str()+".pt",
+                SETTING(detection_resolution).value<uint16_t>()
+            );
+            
+        } else if (SETTING(segmentation_model).value<file::Path>().exists()) {
+            models.emplace_back(
+                ModelTaskType::detect,
+                SETTING(segmentation_model).value<file::Path>().str(),
+                SETTING(detection_resolution).value<uint16_t>()
+            );
+        }
     }
-    else if (SETTING(segmentation_model).value<file::Path>().exists())
-        models.emplace_back(
-            ModelTaskType::detect,
-            SETTING(segmentation_model).value<file::Path>().str(),
-            SETTING(detection_resolution).value<uint16_t>()
-        );
 
     if(SETTING(region_model).value<file::Path>().exists())
         models.emplace_back(

@@ -66,7 +66,7 @@ public:
 
     static void set_bowl_transform(const Transform& bowl_transform);
     static void set_video(const Size2& resolution);
-    static Size2 set_screen_size(const DrawStructure&, const Base&);
+    static Size2 set_screen_size(const DrawStructure&, const Base&, const Vec2& = Vec2(1));
 
     static FindCoord get();
     

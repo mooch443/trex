@@ -62,23 +62,50 @@
 		"type":"each",
 		"var":"fishes",
 		"do": {
-			"type": "collection",
-			"pos":"{subVector:{i.pos}:[0,5]}",
-			"children": [
-				{
-					"type":"condition",
-					"var":"{i.tracked}",
-					"then": {"type":"stext","text":"<c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)","font":{"size":0.5},"origin":[0,1],"shadow":0.3},
-					"else": {"type":"stext","text":"<orange><c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)</orange>","font":{"size":0.5},"origin":[0,1],"shadow":0.3}
-				},
-				{
-					"type":"condition",
-					"var":"{i.tracked}",
-					"then": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[0,255,0,30],"line":"{i.color}","origin":[0,0]},
-					"else": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[50,50,50,30],"line":[200,200,200,200],"origin":[0,0]}
-				}
-			]
+			"type":"condition",
+			"var":"{i.visible}",
+			"then":{
+				"type": "collection",
+				"pos":"{subVector:{i.pos}:[0,5]}",
+				"children": [
+					{
+						"type":"condition",
+						"var":"{i.tracked}",
+						"then": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[0,255,0,30],"line":"{i.color}","origin":[0,0]},
+						"else": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[50,50,50,30],"line":[200,200,200,200],"origin":[0,0]}
+					}
+				]
+			},
+			"else":{
+				"type":"rect",
+				"size":[0,0]
+			}
 		}
+	},
+
+	{
+		"type":"each",
+		"var":"fishes",
+		"do": 
+			{
+				"type":"condition",
+				"var":"{i.visible}",
+				"then":{
+					"type":"label",
+					"text":"<c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+					"pos":"{i.pos}",
+					"length":100,
+					"id":"{i.id}",
+					"center":"{i.center}",
+					"size":"{i.size}",
+					"font":{"size":0.5,"align":"middle"}
+				},
+				"else":{
+					"type":"rect",
+					"size":[0,0]
+				}
+			}
+		
 	},
 
 	{

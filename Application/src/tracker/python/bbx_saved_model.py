@@ -1020,7 +1020,7 @@ def load_yolo8(configs : List[TRex.ModelConfig]):
     for config in configs:
         models.append(Model(config))
     
-    print("Loaded models ", models)
+    print("Configs: ", models)
     model = TRexYOLO8(models)
 
 def load_model():

@@ -374,26 +374,30 @@ void draw_blob_view(const DisplayParameters& parm)
                 else d = 1;
                 
                 bool found = false;
-                const auto search_distance = 10 / parm.coord.bowl_scale().min();//(1 + FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));// * SQR(sca.x);
+                const auto search_distance = 15; // parm.coord.bowl_scale().min();//(1 + FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));// * SQR(sca.x);
+                const auto offsetx = 50;  // parm.coord.bowl_scale().min(); 
+                const auto offsety = 50 / parm.coord.bowl_scale().min();
                 if(blob->bounds().contains(mpos)) {
                     found = true;
                     
                 } else {
                     for(auto &line : *blob->lines()) {
-                        auto d = abs(float(line.y) - float(mpos.y));
-                        if(d < search_distance) {
+                        auto d = min(abs(float(line.y) - offsety - float(mpos.y)),
+                                    abs(float(line.y) - float(mpos.y)));
+                        if(float(mpos.y) >= line.y - offsety && float(mpos.y) <= line.y + offsety * 0.25) {
+                            //d < search_distance) {
                             d = abs(float(line.x0) - float(mpos.x));
-                            if((line.x0 >= mpos.x && line.x0 <= mpos.x)
-                               || d < search_distance)
+                            if((mpos.x >= line.x0 - offsetx * 1.5 && mpos.x <= line.x1 + offsetx * 0.5))
+                               //|| d < search_distance)
                             {
                                 found = true;
                                 break;
                             }
-                            d = abs(float(line.x1) - float(mpos.x));
+                            /*d = abs(float(line.x1) - offsetx - float(mpos.x));
                             if(d < search_distance) {
                                 found = true;
                                 break;
-                            }
+                            }*/
                         }
                         
                         /*e.add<Circle>(attr::Loc(line.x0, line.y), attr::Radius{5}, attr::LineClr{Red});
@@ -473,25 +477,33 @@ void draw_blob_view(const DisplayParameters& parm)
                     for(auto& p : blob->prediction().pose.points)
                         e.add<Circle>(Loc(p.x, p.y), FillClr{Red.alpha(50)}, Radius{5});
                 }
-                
-                if(register_label && parm.cache.frame_idx == label->frame())
-                //if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)
-                //    && parm.cache.frame_idx == label->frame())
-                {
-                    //print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center(), " with distance ", od);
-                    MouseDock::register_label(label.get(), blob->center());
-				} else {
-					MouseDock::unregister_label(label.get());
-				}
-                
-                if(d > 0 && real_size > 0) {
+
+                if (d > 0 && real_size > 0) {
+                    e.advance_wrap(*label);
                     label->set_data(parm.cache.frame_idx, text, blob->bounds(), blob->center());
-                    label->update(parm.coord, e, d,od, !active, parm.cache.dt());
-                    ++displayed;
+
+                    if (register_label && parm.cache.frame_idx == label->frame())
+                        //if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)
+                        //    && parm.cache.frame_idx == label->frame())
+                    {
+                        //print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center(), " with distance ", od);
+                        MouseDock::register_label(label.get(), blob->center());
+                    }
+                    else {
+                        MouseDock::unregister_label(label.get());
+                        {
+                            label->set_override_position(Vec2());
+                            label->set_position_override(false);
+                            label->update(parm.coord, d, od, !active, parm.cache.dt());
+                            ++displayed;
+                        }
+                    }
                 }
+                //if(d > 0 && real_size > 0) 
             };
             
             static Entangled _collection;
+            base.wrap_object(_collection);
             _collection.update([&](auto& e) {
                 MouseDock::draw_background(e);
                 displayed = 0;
@@ -504,7 +516,6 @@ void draw_blob_view(const DisplayParameters& parm)
             _collection.set_bounds(Bounds(Vec2(), res));
             //_collection.set_scale(Vec2(1));
             //_collection.set_pos(Vec2());
-            base.wrap_object(_collection);
             
             _unused_labels.clear();
         }

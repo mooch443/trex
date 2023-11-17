@@ -19,6 +19,8 @@ std::string window_title();
 namespace ind = indicators;
 using namespace track;
 
+class Label;
+
 class ConvertScene : public Scene {
     static sprite::Map fish;
     static sprite::Map _video_info;
@@ -32,11 +34,15 @@ class ConvertScene : public Scene {
 
     // Vectors for object blobs and GUI objects
     std::vector<pv::BlobPtr> _object_blobs;
-    std::vector<std::shared_ptr<VarBase_t>> _gui_objects;
     SegmentationData _current_data;
 
     // Individual properties for each object
-    std::vector<sprite::Map> _individual_properties;
+    std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui, _joint;
+    std::map<Idx_t, sprite::Map> _individual_properties;
+    std::vector<sprite::Map> _untracked_properties;
+    std::vector<sprite::Map*> _tracked_properties;
+
+    std::unordered_map<Idx_t, std::shared_ptr<Label>> _labels;
 
     std::shared_future<void> _scene_active;
     std::promise<void> _scene_promise;
@@ -48,6 +54,7 @@ class ConvertScene : public Scene {
     ind::ProgressSpinner spinner;
     
     dyn::DynamicGUI dynGUI;
+    double dt = 0;
     
     // Frame data
     GETTER(Frame_t, actual_frame)

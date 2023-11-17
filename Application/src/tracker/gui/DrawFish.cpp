@@ -928,12 +928,11 @@ Fish::~Fish() {
                 }
             }
         }
-        
+
+        parent.advance_wrap(_label_parent);
         _label_parent.update([&](auto&){
             label(coord, _label_parent);
         });
-        
-        parent.advance_wrap(_label_parent);
         
         //static auto change = parent.children();
         /*if(parent.children().size() != change.size()) {
@@ -1141,7 +1140,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
                 //use = inactive_clr;
                 if(_vertices.size() > 1) {
                     if (_paths.size() <= paths_index) {
-                        _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));
+                        _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::COPY));
                         _paths[paths_index]->set_thickness(thickness);
                         //_view.advance_wrap(*_paths[paths_index]);
                     } else {
@@ -1168,7 +1167,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
         
         
         if (_paths.size() <= paths_index) {
-            _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));
+            _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::COPY));
             _paths[paths_index]->set_thickness(thickness);
             //_view.advance_wrap(*_paths[paths_index]);
         }
@@ -1437,7 +1436,8 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
             _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), fish_pos());
     }
 
-    _label->update(coord, e, 1, 0, not _basic_stuff.has_value(), GUICache::instance().dt());
+    e.advance_wrap(*_label);
+    _label->update(coord, 1, 0, not _basic_stuff.has_value(), GUICache::instance().dt());
 }
 
 Drawable* Fish::shadow() {

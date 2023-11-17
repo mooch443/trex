@@ -35,8 +35,8 @@ HUDRect FindCoord::convert(const BowlRect& bowl) const {
     return HUDRect(rect);
 }
 
-Size2 FindCoord::set_screen_size(const DrawStructure& graph, const Base &window) {
-    auto update = window.window_dimensions().div(graph.scale()) * gui::interface_scale();
+Size2 FindCoord::set_screen_size(const DrawStructure& graph, const Base &window, const Vec2& scale) {
+    auto update = window.window_dimensions().div(graph.scale()).mul(scale) * gui::interface_scale();
     
     auto lock = LOGGED_LOCK(mutex());
     if(update != instance().window_size) {

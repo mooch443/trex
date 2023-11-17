@@ -11,10 +11,50 @@ namespace gui {
 enum InterpolationType {
     EASE_IN,
     EASE_OUT,
+    EASE_IN_OUT,
     LINEAR
 };
 
-Vec2 animate_position(Vec2 pos, Vec2 target, float timeDiff, InterpolationType type);
+/**
+ * Animate the position from a current position to a target position using specified interpolation.
+ *
+ * @param pos The current position (Vec2).
+ * @param target The target position to which the current position should be animated (Vec2).
+ * @param dt The delta time since the last update, representing how much time has passed (float).
+ * @param totalDuration The total duration of the animation (float).
+ * @param type The type of interpolation to be used for the animation (InterpolationType).
+ *             It can be EASE_IN, EASE_OUT, EASE_IN_OUT, or LINEAR.
+ * @return Vec2 The new position after applying the animation step.
+ */
+template<InterpolationType type>
+Vec2 animate_position(Vec2 pos, Vec2 target, float dt, float totalDuration) {
+    float timeFraction = std::min(dt / totalDuration, 1.0f); // Clamp between 0 and 1
+    Vec2 d = target - pos;
+
+    switch (type) {
+    case EASE_IN:
+        pos += d * std::pow(timeFraction, 2);
+        break;
+    case EASE_OUT:
+        pos += d * (1 - std::pow(1 - timeFraction, 2));
+        break;
+    case EASE_IN_OUT:
+        if (timeFraction < 0.5) {
+            pos += d * 2 * std::pow(timeFraction, 2);
+        }
+        else {
+            pos += d * (-1 + 4 * timeFraction - 2 * std::pow(timeFraction, 2));
+        }
+        break;
+    case LINEAR:
+        pos += d * timeFraction;
+        break;
+    default:
+        break;
+    }
+
+    return pos;
+}
 
 struct MouseDock {
     std::vector<Label*> attached;
@@ -33,6 +73,7 @@ struct MouseDock {
         if (contains(instance->attached, label))
             return;
         instance->attached.push_back(label);
+        label->set_position_override(true);
     }
 
     static bool is_registered(Label* label) {
@@ -46,6 +87,7 @@ struct MouseDock {
         if (it != instance->attached.end()) {
             instance->centers.erase(label);
             instance->attached.erase(it);
+            label->set_position_override(false);
         }
     }
 

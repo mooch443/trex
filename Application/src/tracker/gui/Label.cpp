@@ -1,31 +1,45 @@
 #include "Label.h"
 #include <gui/IMGUIBase.h>
 #include <gui/MouseDock.h>
-#include <gui/GUICache.h>
 
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
 : _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _line({}, 1), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
-    _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
     _text->set_clickable(false);
+    //set_z_index(1);
 }
 
 Label::~Label() {
     MouseDock::unregister_label(this);
     //print("Label destroyed ", this);
-    if(not animator.empty())
-        GUICache::instance().set_animating(animator, false);
+    set_animating(false);
+}
+
+void Label::update() {
+    begin();
+
+    const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
+    if (not is_in_mouse_dock) {
+        advance_wrap(*_text);
+        _text->set(FillClr{ Black.alpha(150) });
+    }
+    else {
+        _text->set_background(Transparent, Transparent);
+    }
+
+    advance_wrap(_line);
+    end();
 }
 
 void Label::set_data(Frame_t frame, const std::string &text, const Bounds &source, const Vec2 &center) {
     if(text != _text->text()) {
-        if(_registered) {
+        /*if (_registered) {
             _registered = false;
-            GUICache::instance().set_animating(animator, false);
-        }
+            set_animating(false);
+        }*/
         _text->set_txt(text);
         //+"-"+_text->text();
     }
@@ -34,119 +48,151 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
     _frame = frame;
 }
 
-void Label::update(const FindCoord& coord, Entangled& e, float alpha, float, bool disabled, double dt) {
+float Label::update(const FindCoord& coord, float alpha, float, bool disabled, double dt, Scale text_scale) {
     alpha = saturate(alpha, 0.5, 1.0);
     
     if(disabled)
         alpha *= 0.5;
-    
-    //Bounds screen(Vec2(), coord.screen_size());
 
-    auto stage = e.stage();
-    if (!stage)
-        return;
+    Vec2 target_origin(0.5, 1);
+    const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
+    if (not is_in_mouse_dock) {
+        _text->set_alpha(Alpha{ alpha });
+    }
+    else {
+        _text->set_alpha(Alpha{ 1 });
+        target_origin = Vec2(0, 0.5);
+    }
 
-    Size2 background(stage->width() * 0.5, stage->height() * 0.5);
 
-    //auto ptr = base.find("fishbowl");
-    //if (ptr)
+    _text->set_origin(animate_position<InterpolationType::EASE_OUT>(_text->origin(), target_origin, dt, 1/2.0));
+
+    auto screen_size = coord.screen_size();
     auto scale = coord.bowl_scale().reciprocal();
-    auto screen = coord.viewport();
-    //auto screen = coord.convert(HUDRect(Vec2(), coord.screen_size()));
-    
-        //auto inverse = e.global_transform().getInverse();
-        //scale = inverse.transformPoint(Vec2(1)) - inverse.transformPoint(Vec2(0));
-        //screen = inverse.transformRect(Bounds(Vec2(), screen_size));
-    auto offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))).div(Vec2(screen.width * 0.5, screen.height * 0.95));
+    if (text_scale.empty())
+        text_scale = scale;
+    _text->set_scale(text_scale);
 
-    //scale = scale.mul(0.75);
-    _text->set_scale(scale);
+    Vec2 text_pos;
 
-    //auto mp = e.stage()->mouse_position();
-    //mp = (mp - ptr->pos()).div(ptr->scale());
+    if (not _position_override) {
+        auto screen = coord.viewport();
+        //auto screen1 = coord.hud_viewport();
+        //auto screen = coord.convert(screen1);
+        auto other = coord.convert(BowlRect(Vec2(), coord.video_size()));
 
-    //auto d = euclidean_distance(mp, _center);
-    const bool is_in_mouse_dock = MouseDock::is_registered(this);
+        auto center_screen = HUDCoord(Vec2(screen_size.width * 0.5, screen_size.height * 1.05));
+        Vec2 alternative = coord.convert(center_screen);
+        auto global = global_transform().getInverse();
+        alternative = global.transformPoint(center_screen);
+        //print("viewport = ", coord.viewport(), " hud_viewport = ", coord.hud_viewport(), " => ", coord.convert(HUDRect(Vec2(), coord.hud_viewport().size())), " ",coord.screen_size(), " other=",other, " alternative=",alternative, " screen_center=",center_screen);
 
-    if(not is_in_mouse_dock)
-        e.advance_wrap(*_text);
-    
-    //auto video_size = coord.video_size();
-    auto center = screen.pos() + screen.size().mul(0.5, 1.05);
-    //auto center = video_size.mul(0.5, 0.95);
-    
-    auto vec = center - _center;
-    //e.add<Circle>(Loc(center), Radius{20}, FillClr{Red.alpha(100)}, LineClr{Red.alpha(200)});
-    //e.add<Line>(Loc{_center}, Loc{_center + vec}, Red.alpha(200));
-    
-    if(not is_in_mouse_dock) {
-        _text->set_alpha(Alpha{alpha});
-    } else
-        _text->set_alpha(Alpha{1});
-    
-    float distance = (_text->height() + _source.height) * scale.y; // scale.y;
-    float percent = vec.length() / sqrtf(screen.width * screen.height);
-    
-    // maybe something about max_zoom_limit and current scale vs. video size?
-    distance = /*_text->local_bounds().height +*/ 60 * SQR(percent) + 10 * scale.x;
-    //auto text_pos = _center - offset * distance + 10 * scale.y;
-    auto text_pos = _center - vec.normalize() * distance;
-    //print("offset = ", offset, " distance=", distance, " len=", vec.length(), " norm=",vec.length() / sqrtf(screen.width * screen.height));
-    
-    _color = (disabled ? (is_in_mouse_dock ? White : Gray) : Cyan).alpha(255 * alpha);
+        //screen = BowlRect(Bounds(Vec2(), coord.screen_size()));
+        //auto screen = Bounds(Vec2(), coord.video_size());
+        //auto screen = coord.convert(HUDRect(Vec2(), coord.screen_size()));
 
-    if(disabled)
-        _text->set_text_color(LightGray);
+        //print("screen = ", screen, " scale = ", scale, " gscale = ", gscale, " video = ", coord.video_size());
+            //auto inverse = e.global_transform().getInverse();
+            //scale = inverse.transformPoint(Vec2(1)) - inverse.transformPoint(Vec2(0));
+            //screen = inverse.transformRect(Bounds(Vec2(), screen_size));
+        //auto offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))).div(Vec2(screen.width * 0.5, screen.height * 0.95));
+
+        //scale = scale.mul(0.75);
+
+        //auto mp = e.stage()->mouse_position();
+        //mp = (mp - ptr->pos()).div(ptr->scale());
+
+        //auto d = euclidean_distance(mp, _center);
+
+        //auto video_size = coord.video_size();
+        auto center = alternative;//(screen.pos() + screen.size().mul(0.5, 0.5));//.mul(scale);
+        //auto center = video_size.mul(0.5, 0.95);
+
+        auto vec = center - _center;
+        //e.add<Circle>(Loc(center), Radius{20}, FillClr{Red.alpha(100)}, LineClr{Red.alpha(200)});
+        //e.add<Line>(Loc{_center}, Loc{_center + vec}, Red.alpha(200));
+
+
+        float distance = (_text->height() + _source.height) * scale.y; // scale.y;
+        float percent = vec.length() / sqrtf(SQR(screen_size.width) + SQR(screen_size.height));
+        //print("percent = ", percent, " center=", _center, " alternative=",alternative, " screen=", screen.size());
+
+        // maybe something about max_zoom_limit and current scale vs. video size?
+        distance = /*_text->local_bounds().height +*/ (_line_length * (percent) + 10);
+        //auto text_pos = _center - offset * distance + 10 * scale.y;
+        text_pos = _center - vec.normalize() * distance;
+        //print("offset = ", offset, " distance=", distance, " len=", vec.length(), " norm=",vec.length() / sqrtf(screen.width * screen.height));
+
+
+
+        /*if (is_in_mouse_dock)
+        {
+            _text->set_origin(Vec2(0, 0.5));
+            if(_registered) {
+                _registered = false;
+                set_animating(false);
+            }
+        }
+        else {
+            if (screen.overlaps(_source)) {
+                if (GUI_SETTINGS(gui_show_timeline)) //TODO: timeline update
+                {
+                    screen.y += 60 * scale.y;
+                    screen.height -= 60 * scale.y;
+                }
+
+                auto local = _text->local_bounds();
+                screen.y += local.height * _text->origin().y;
+                screen.x += local.width * _text->origin().x;
+                screen.width -= local.width;
+                screen.height -= local.height + 10 * scale.y;
+                Bounds bds(text_pos, Vec2(1));
+                bds.restrict_to(screen);
+                text_pos = bds.pos();
+            }
+            //text_pos = center;
+        }*/
+    }
     else
-        _text->set_text_color(White);
+        text_pos = _override_position;
 
     auto screen_target = coord.convert(BowlCoord(text_pos));
     auto screen_source = coord.convert(BowlCoord(_text->pos()));
     auto screen_rect = coord.convert(BowlRect(_source));
-    auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
-    //if(dis > 0.25)
-    //    print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), text()->text());
-    
-    if (is_in_mouse_dock)
-    {
-        _text->set_origin(Vec2(0, 0.5));
-        if(_registered) {
-            _registered = false;
-            GUICache::instance().set_animating(animator, false);
-        }
+    float max_w = screen_size.width *= 0.1;
+    float max_h = screen_size.height *= 0.1;
+    if (screen_rect.width * 0.5 > max_w) {
+        screen_rect.x += screen_rect.width * 0.5 - max_w;
+        screen_rect.width = max_w * 2;
     }
-    else {
-        /*if (screen.overlaps(_source)) {
-            if (GUI_SETTINGS(gui_show_timeline)) //TODO: timeline update
-            {
-                screen.y += 60 * scale.y;
-                screen.height -= 60 * scale.y;
-            }
-            
-            auto local = _text->local_bounds();
-            screen.y += local.height * _text->origin().y;
-            screen.x += local.width * _text->origin().x;
-            screen.width -= local.width;
-            screen.height -= local.height + 10 * scale.y;
-            Bounds bds(text_pos, Vec2(1));
-            bds.restrict_to(screen);
-            text_pos = bds.pos();
-        }*/
+    if (screen_rect.height * 0.5 > max_h) {
+        screen_rect.y += screen_rect.height * 0.5 - max_h;
+        screen_rect.height = max_h * 2;
+    }
+    //auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
+    auto dis = euclidean_distance(screen_target, screen_source) / (2 * sqrtf(SQR(screen_rect.width) + SQR(screen_rect.height)));
+    if (dis > 0.25)
+        print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
 
-        update_positions(e, text_pos, dis <= 1, dt);
-    }
+    _color = (disabled ? (is_in_mouse_dock ? White : Gray) : Cyan).alpha(255 * alpha);
+
+    if (disabled)
+        _text->set_text_color(LightGray);
+    else
+        _text->set_text_color(White);
+
+    return update_positions(text_pos, dis <= 1 || is_in_mouse_dock, dt);
 }
 
-float Label::update_positions(Entangled& e, Vec2 text_pos, bool do_animate, double dt) {
+float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     if (not do_animate) {
         _text->set_pos(text_pos);
         _line.create(_center, _text->pos(), _color);
-        e.advance_wrap(_line);
         //e.add<Line>(_center, _text->pos(), _color, 1);
         if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
             _registered = false;
-            GUICache::instance().set_animating(animator, false);
+            //set_animating(false);
         }
         
         return 0;
@@ -154,30 +200,36 @@ float Label::update_positions(Entangled& e, Vec2 text_pos, bool do_animate, doub
 
     dt = min(dt, 0.5) * 2;
     //animation_timer.reset();
-    auto next = animate_position(_text->pos(), text_pos, dt * 2, InterpolationType::EASE_OUT);
+    auto next = animate_position<InterpolationType::EASE_OUT>(_text->pos(), text_pos, dt, 1/2.0);
     //if(next.Equals(_text->pos()) && not text_pos.Equals(_text->pos()))
     //    FormatWarning("Next: ", next, " equals ", _text->pos(), " but not ", text_pos);
     float d = 0;
     if(not text_pos.Equals(_text->pos())) {
         d = euclidean_distance(_text->pos(), text_pos);
         if(not _registered) {
-            GUICache::instance().set_animating(animator, true, _text.get());
+            set_animating(true);
             _registered = true;
         }
         _text->set_pos(next);
     } else {
         if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
-            _registered = false;
-            GUICache::instance().set_animating(animator, false);
+            _registered = false; 
+            //set_animating(false);
         }
     }
     
 
-    _line.create(_center, _text->pos(), _color);
-    e.advance_wrap(_line);
+    _line.create(_center, _color.exposureHSL(0.5).alpha(_color.a * 0.75), _text->pos(), _color, 2);
     //e.add<Line>(_center, _text->pos(), _color, 1);
     return d;
+}
+
+void Label::set(attr::Loc loc)
+{
+    print("Label::set ", loc);
+    //Entangled::set(loc);
+    //update(FindCoord::get(), )
 }
 
 }

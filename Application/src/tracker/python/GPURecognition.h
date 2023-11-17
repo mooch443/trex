@@ -34,11 +34,30 @@ namespace track {
                     max_image_size(max_image_size != -1 ? max_image_size : min_image_size)
             {
                 // check if model path exists
-                std::ifstream f(model_path.c_str());
-                if (!f.good()) {
-                    throw std::invalid_argument("Model path (for task) does not exist: " + model_path);
+                if(not is_in(model_path, 
+                        "yolov8n-pose.pt", 
+                        "yolov8s-pose.pt", 
+                        "yolov8m-pose.pt", 
+                        "yolov8l-pose.pt", 
+                        "yolov8x-pose.pt",
+                        "yolov8n.pt",
+                        "yolov8s.pt",
+                        "yolov8m.pt",
+                        "yolov8l.pt",
+                        "yolov8x.pt",
+                        "yolov8n-seg.pt",
+                        "yolov8s-seg.pt",
+                        "yolov8m-seg.pt",
+                        "yolov8l-seg.pt",
+                        "yolov8x-seg.pt"
+                    )) 
+                {
+                    std::ifstream f(model_path.c_str());
+                    if (!f.good()) {
+                        throw std::invalid_argument("Model path (for task) does not exist: " + model_path);
+                    }
+                    f.close();
                 }
-                f.close();
             }
 
             std::string toStr() const {

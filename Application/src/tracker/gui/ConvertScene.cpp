@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -13,6 +13,8 @@
 #include <file/PathArray.h>
 #include <gui/Coordinates.h>
 #include <python/GPURecognition.h>
+#include <gui/Label.h>
+#include <gui/ParseLayoutTypes.h>
 
 namespace gui {
 
@@ -79,9 +81,13 @@ bar{
 },
 
 spinner{
-    ind::option::PostfixText{"Recording..."},
+    ind::option::PostfixText{""},
         ind::option::ForegroundColor{ind::Color::white},
+#ifndef _WIN32
         ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
+#else
+        ind::option::SpinnerStates{std::vector<std::string>{".","..","..."}},
+#endif
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
 },
 
@@ -117,7 +123,7 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
             if(percent >= 0)
                 bar.set_progress(percent);
             else if(last_tick.elapsed() > 1) {
-                spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(video_frame())+")..."});
+                spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(video_frame())+")"});
                 spinner.tick();
                 last_tick.reset();
             }
@@ -162,7 +168,7 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    spinner.set_option(ind::option::PrefixText{"Recording..."});
+    spinner.set_option(ind::option::PrefixText{"Recording"});
     spinner.set_option(ind::option::ShowPercentage{false});
     segmenter().open_camera();
     
@@ -307,12 +313,45 @@ void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 o
 }
 
 void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx) {
+    //size_t i = 0;
+    size_t untracked = 0;
+    /*std::sort(_object_blobs.begin(), _object_blobs.end(), [](auto& A, auto& B) {
+        return A->bounds().center() < B->bounds().center();
+    });*/
+
+    auto coords = FindCoord::get();
+    std::set<Idx_t> tracked_ids;
+    for (auto& [id, map] : _individual_properties) {
+		map["visible"] = false;
+	}
+
     for (auto& blob : _object_blobs) {
         auto bds = blob->bounds();
-        
+        bds = coords.convert(BowlRect(bds));
+
+        Idx_t tracked_id;
+        Color tracked_color;
+
+        if (contains(visible_bdx, blob->blob_id())) {
+            auto id = visible_bdx.at(blob->blob_id());
+            tracked_color = id.color();
+            tracked_id = id.ID();
+        }
+        else if (blob->parent_id().valid() && contains(visible_bdx, blob->parent_id()))
+        {
+            auto id = visible_bdx.at(blob->parent_id());
+            tracked_color = id.color();
+            tracked_id = id.ID();
+        }
+        else {
+            tracked_color = Gray;
+        }
+
         SegmentationData::Assignment assign{
             .clid = size_t(-1)
         };
+        Vec2 first_pose = bds.center();
+
         if (_current_data.frame.index().valid()) {
             if (blob->prediction().valid()) {
                 auto pred = blob->prediction();
@@ -320,6 +359,11 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
                     .clid = pred.clid,
                     .p = static_cast<float>(pred.p) / 255.f
                 };
+                if (pred.pose.size() > 0) {
+                    auto& pt = pred.pose.point(0);
+                    if(pt.x > 0 || pt.y > 0)
+                        first_pose = coords.convert(BowlCoord(pt));
+                }
             }
             else
                 print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
@@ -329,58 +373,84 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
             ? meta_classes.at(assign.clid)
             : "<unknown:" + Meta::toStr(assign.clid) + ">";
 
-        sprite::Map tmp;
-        tmp.set_do_print(false);
-        
-        auto coords = FindCoord::get();
-        bds = coords.convert(BowlRect(bds));
-        
-        tmp["pos"] = bds.pos();
-        tmp["size"] = Size2(bds.size());
-        tmp["type"] = std::string(cname);
-        if(Tracker::instance() && Tracker::background())
-            tmp["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
-        else
-            tmp["px"] = -1;
+        sprite::Map* tmp = nullptr;
 
-        if (contains(visible_bdx, blob->blob_id())) {
-            auto id = visible_bdx.at(blob->blob_id());
-            tmp["color"] = id.color();
-            tmp["id"] = id.ID();
-            tmp["tracked"] = true;
-
-        }
-        else if (blob->parent_id().valid() && contains(visible_bdx, blob->parent_id()))
-        {
-            auto id = visible_bdx.at(blob->parent_id());
-            tmp["color"] = id.color();
-            tmp["id"] = id.ID();
-            tmp["tracked"] = true;
-
+        if (tracked_id.valid()) {
+            tmp = &_individual_properties[tracked_id];
+            tracked_ids.insert(tracked_id);
         }
         else {
-            tmp["tracked"] = false;
-            tmp["color"] = Gray;
-            tmp["id"] = Idx_t();
+            if (untracked >= _untracked_properties.size()) {
+                _untracked_properties.emplace_back();
+                _untracked_properties.back().set_do_print(false);
+            }
+
+            if (untracked >= _untracked_gui.size())
+                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps& props) -> sprite::Map& {
+                    //print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
+                    return _untracked_properties.at(i);
+                }));
+
+            tmp = &_untracked_properties[untracked++];
         }
-        tmp["p"] = Meta::toStr(assign.p);
-        _individual_properties.push_back(std::move(tmp));
-        _gui_objects.emplace_back(new Variable([&, i = _individual_properties.size() - 1](const VarProps&) -> sprite::Map& {
-            return _individual_properties.at(i);
-        }));
+        
+        
+        (*tmp)["pos"] = bds.pos();
+        (*tmp)["center"] = first_pose;
+        (*tmp)["tracked"] = tracked_id.valid() ? true : false;
+        (*tmp)["color"] = tracked_color;
+        (*tmp)["id"] = tracked_id;
+		(*tmp)["visible"] = true;
+        (*tmp)["size"] = Size2(bds.size());
+        (*tmp)["type"] = std::string(cname);
+        if(Tracker::instance() && Tracker::background())
+            (*tmp)["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
+        else
+            (*tmp)["px"] = -1;
+
+        (*tmp)["p"] = Meta::toStr(assign.p);
     }
+
+    size_t tracked = 0;
+    for (auto& [id, map] : _individual_properties) {
+        if(_tracked_properties.size() <= tracked)
+            _tracked_properties.emplace_back(&_individual_properties[id]);
+        else
+            _tracked_properties[tracked] = &_individual_properties[id];
+
+        if (tracked >= _tracked_gui.size())
+            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps& props) -> sprite::Map& {
+                //print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
+                return *_tracked_properties.at(i);
+            }));
+
+        tracked++;
+    }
+
+    if (untracked < _untracked_gui.size())
+        _untracked_gui.resize(untracked);
+    if (untracked < _untracked_properties.size())
+        _untracked_properties.resize(untracked);
+
+    if (tracked < _tracked_gui.size())
+        _tracked_gui.resize(tracked);
+
+    _joint = _tracked_gui;
+    _joint.insert(_joint.end(), _untracked_gui.begin(), _untracked_gui.end());
 }
 
 // Main _draw function
 void ConvertScene::_draw(DrawStructure& graph) {
     fetch_new_data();
     
+    
     auto output_size = SETTING(output_size).value<Size2>();
-    auto video_size = SETTING(video_size).value<Size2>();
+    auto video_size = _segmenter->size();
     
     if(window()) {
-        auto update = FindCoord::set_screen_size(graph, *window()) .div(graph.scale().reciprocal() * gui::interface_scale());
-        FindCoord::set_video(output_size);
+        auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
+        //
+        FindCoord::set_video(video_size);
         if(update != window_size)
             window_size = update;
     }
@@ -400,7 +470,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
         section->set_scale(_target_scale);
         
         Transform transform;
-        transform.scale(graph.scale() / gui::interface_scale());
+        //transform.scale(_screen_size.div(video_size).reciprocal());
+       // transform.scale(graph.scale() / gui::interface_scale());
         transform.combine(section->global_transform());
         
         FindCoord::set_bowl_transform(transform);
@@ -419,10 +490,12 @@ void ConvertScene::_draw(DrawStructure& graph) {
             }
         }
 
-        for (auto box : _current_data.tiles)
+        for (auto &box : _current_data.tiles)
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
         ColorWheel wheel;
         using Skeleton = blob::Pose::Skeleton;
+        auto coord = FindCoord::get();
+        print(coord.bowl_scale());
         
         Skeleton skelet = SETTING(meta_skeleton).value<Skeleton>();
         for (auto& keypoint : _current_data.keypoints) {
@@ -433,7 +506,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 for(auto& bone : keypoint.bones) {
                     if(bone.x >0 || bone.y > 0) {
                         graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
-                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White});
+                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White}, Scale{ coord.bowl_scale().reciprocal() });
                     }
                     ++i;
                 }
@@ -456,7 +529,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                             //auto D = v.length();
                             v = v.normalize();
                             Rotation a{atan2(v)};
-                            Scale sca(1);
+                            Scale sca(Scale{ coord.bowl_scale().reciprocal() });
                             Font font(0.5);
                             
                             graph.line(p0, p1, 5, LineClr{clr.exposureHSL(0.5)});
@@ -475,8 +548,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
             } else {
                 for(auto& bone : keypoint.bones) {
                     if(bone.x >0 || bone.y > 0) {
-                        graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
-                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White});
+                        graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)}, Scale{ coord.bowl_scale().reciprocal() });
+                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White}, Scale{ coord.bowl_scale().reciprocal() });
                         
                         if(last.x > 0 && last.y > 0)
                             graph.line(Vec2{last.x, last.y}, {bone.x, bone.y}, 5, LineClr{clr.exposureHSL(0.5)});
@@ -491,8 +564,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
         bool dirty{ false };
         if (last_frame != _current_data.frame.index()) {
             last_frame = _current_data.frame.index();
-            _gui_objects.clear();
-            _individual_properties.clear();
+            //_gui_objects.clear();
+            //_individual_properties.clear();
             dirty = true;
         }
 
@@ -580,21 +653,95 @@ void ConvertScene::_draw(DrawStructure& graph) {
                     return _video_info;
                 }),
                 VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
-                    return _gui_objects;
+                    return _tracked_gui;
                 })
             },
             .base = window()
+        };
+
+
+        dynGUI.context.custom_elements["label"] = CustomElement {
+            .name = "label",
+            .create = [this](LayoutContext& layout) -> Layout::Ptr {
+                std::shared_ptr<Label> ptr;
+                auto text = layout.get<std::string>("", "text");
+                auto center = layout.get<Vec2>(Vec2(), "center");
+                auto line_length = layout.get<float>(float(60), "length");
+                auto id = layout.get<Idx_t>(Idx_t(), "id");
+
+                if (id.valid()) {
+                    auto it = _labels.find(id);
+                    if (it != _labels.end()) {
+                        ptr = it->second;
+                    } else
+                        _labels[id] = ptr = std::make_shared<Label>();
+                }
+
+                if (not ptr)
+                    ptr = std::make_shared<Label>();
+
+                ptr->set_line_length(line_length);
+                ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
+                auto font = parse_font(layout.obj, layout._defaults.font);
+                ptr->text()->set(font);
+                print("Create new label with text = ", text);
+
+                return Layout::Ptr(ptr);
+            },
+            .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+                //print("Updating label with patterns: ", patterns);
+                //print("o = ", o.get());
+
+                Idx_t id;
+                if (patterns.contains("id"))
+                    id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
+                
+                if (id.valid()) {
+                    auto it = _labels.find(id);
+                    if (it != _labels.end()) {
+                        if(it->second.get() != o.get())
+                            o = Layout::Ptr(it->second);
+                    }
+                }
+
+                auto p = o.to<Label>();
+                auto source = p->source();
+                auto pos = source.pos();
+                auto center = p->center();
+                auto text = p->text()->text();
+                auto coord = FindCoord::get();
+
+                if(patterns.contains("text"))
+                    text = parse_text(patterns.at("text").original, context, state) + Meta::toStr((uint64_t)o.get());
+                if (patterns.contains("pos")) {
+                    pos = Meta::fromStr<Vec2>(parse_text(patterns.at("pos").original, context, state));
+                }
+                if (patterns.contains("size")) {
+                    source = Bounds(pos, Meta::fromStr<Size2>(parse_text(patterns.at("size").original, context, state)));
+                }
+                if (patterns.contains("center")) {
+                    center = Meta::fromStr<Vec2>(parse_text(patterns.at("center").original, context, state));
+                } else
+                    center = source.pos()+ Vec2(source.width, source.height) * 0.5;
+
+                p->set_data(0_f, text, source, center);
+                p->update(coord, 1, 1, false, dt, Scale{1});
+			}
         };
     }
     
     
     graph.section("menus", [&](auto&, Section* section) {
-        section->set_scale(graph.scale().reciprocal() * gui::interface_scale());
+        //section->set_scale(graph.scale().reciprocal() * gui::interface_scale());
         
         _video_info["frame"] = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
         
+        static Timer timer;
+        dt = timer.elapsed();
+        timer.reset();
+
         dynGUI.update(nullptr);
     });
 }

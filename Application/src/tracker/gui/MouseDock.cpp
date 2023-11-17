@@ -5,25 +5,6 @@
 namespace gui {
 IMPLEMENT(MouseDock::instance) = std::make_unique<MouseDock>();
 
-    Vec2 animate_position(Vec2 pos, Vec2 target, float timeDiff, InterpolationType type) {
-        auto d = target - pos;
-        switch (type) {
-            case EASE_IN:
-                pos += d * std::pow(timeDiff, 2);
-                break;
-            case EASE_OUT:
-                pos += d * (1 - std::pow(1 - timeDiff, 2));
-                break;
-            case LINEAR:
-                pos += d * timeDiff;
-                break;
-            default:
-                break;
-        }
-
-        return pos;
-    }
-
 void MouseDock::draw_background(Entangled &graph) {
 }
 
@@ -56,7 +37,7 @@ void MouseDock::draw_background(Entangled &graph) {
 
         constexpr const char* animator = "mouse-dock-animator";
         if (mag > 5) {
-            instance->pos = animate_position(instance->pos, mp, dt * 2, InterpolationType::EASE_OUT);
+            instance->pos = animate_position<InterpolationType::EASE_OUT>(instance->pos, mp, dt, 1/6.0);
             GUICache::instance().set_animating(animator, true, &graph);
             //GUICache::instance().set_blobs_dirty();
             //print("Set animating");
@@ -79,8 +60,11 @@ void MouseDock::draw_background(Entangled &graph) {
         
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 15;
+
         for (auto label : instance->attached) {
-            auto distance = label->update_positions(graph, Vec2(0, y) + instance->pos, true, dt);
+            //graph.advance_wrap(*label);
+            label->set_override_position(instance->pos + Vec2(0, y));
+            auto distance = label->update(coord, 1, 0, false, dt, Scale(0)); //label->update_positions(Vec2(0, y) + instance->pos, true, dt);
             
             //label->text()->set_alpha(1);
             //label->text()->set_txt(Meta::toStr(euclidean_distance(instance->pos, label->center())));
@@ -103,14 +87,15 @@ void MouseDock::draw_background(Entangled &graph) {
         
         if(bounds.width > 0) {
             //print("Added: ", boundses);
-            Vec2 p = animate_position(instance->_rect.pos(), bounds.pos(), 10 * dt, InterpolationType::EASE_OUT);
-            Size2 s = animate_position(p + instance->_rect.size(), p + bounds.size(), 2 * dt, InterpolationType::EASE_OUT);
+            Vec2 p = animate_position<InterpolationType::EASE_OUT>(instance->_rect.pos(), bounds.pos(), dt, 1/8.0);
+            Size2 s = animate_position<InterpolationType::EASE_OUT>(p + instance->_rect.size(), p + bounds.size(), dt, 1/4.0);
             instance->_rect.set_bounds(Bounds(p, s - p));
             graph.advance_wrap(instance->_rect);
             //print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
         }
-        
+
         for (auto label : instance->attached) {
+            label->update();
             graph.advance_wrap(*label->text());
         }
 
