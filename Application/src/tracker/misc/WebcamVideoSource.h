@@ -7,13 +7,13 @@ class WebcamVideoSource : public AbstractBaseVideoSource {
     
 public:
     using SourceType = fg::Webcam;
-    gpuMatPtr tmp;
+    useMatPtr_t tmp;
     
 public:
     WebcamVideoSource(fg::Webcam&& source);
     ~WebcamVideoSource();
 
-    tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() override;
+    tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() override;
 
     std::string toStr() const override;
     static std::string class_name() { return "WebcamVideoSource"; }

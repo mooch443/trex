@@ -5,13 +5,13 @@ AbstractBaseVideoSource::AbstractBaseVideoSource(VideoInfo info)
 : info(info),
 _source_frame(10u, 5u,
               std::string("source.frame"),
-              [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>
+              [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>
               {
     return fetch_next();
 }),
 _resize_cvt(10u, 5u,
             std::string("resize+cvtColor"),
-            [this]() -> tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> {
+            [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> {
     return this->fetch_next_process();
 })
 {
@@ -31,11 +31,17 @@ void AbstractBaseVideoSource::notify() {
 
 Size2 AbstractBaseVideoSource::size() const { return info.size; }
 
-void AbstractBaseVideoSource::move_back(gpuMatPtr&& ptr) {
-    buffers::move_back(std::move(ptr));
+void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
+    if(not ptr
+       || ptr->rows != info.size.height
+       || ptr->cols != info.size.width) 
+    {
+        return;
+    }
+    buffers.move_back(std::move(ptr));
 }
 
-std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr> AbstractBaseVideoSource::next() {
+std::tuple<Frame_t, useMatPtr_t, Image::Ptr> AbstractBaseVideoSource::next() {
     auto result = _resize_cvt.next();
     if(!result)
         return std::make_tuple(Frame_t{}, nullptr, nullptr);
@@ -43,7 +49,7 @@ std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr> AbstractBase
     return std::move(result.value());
 }
 
-tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr>, const char*> AbstractBaseVideoSource::fetch_next_process() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> AbstractBaseVideoSource::fetch_next_process() {
     try {
         Timer timer;
         // get image from 1. step (source.frame) => here (resize+cvtColor)
@@ -60,8 +66,10 @@ tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr, Image::Ptr>
                 //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                 
                 if(not tmp)
-                    tmp = buffers::get();
+                    tmp = useMatPtr_t{};
                 cv::resize(*buffer, *tmp, new_size);
+                move_back(std::move(buffer));
+                
                 std::swap(buffer, tmp);
             }
             

@@ -29,7 +29,7 @@ struct RepeatedDeferral {
     std::condition_variable /*_message,*/ _new_item;
     mutable std::mutex _mutex;
     //std::unique_ptr<std::thread> _updater{nullptr};
-    std::atomic<bool> _terminate{ false };
+    std::atomic<bool> _terminate{ false }, _allow_dropping{ false };
     std::once_flag _flag;
     
     RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn,
@@ -48,14 +48,17 @@ struct RepeatedDeferral {
         
         //while (not _terminate)
         {
-            if ((not _next.empty() and _next.size() >= _threads) and not _terminate) {
+            if (not _allow_dropping
+                && _next.size() >= _threads)
+            {
                 //thread_print("TM ",this->name.c_str(), " #NEXT Sleeping at ", _next.size());
                 //_message.wait(guard);
                 //thread_print(this->name.c_str(), " #NEXT Wake at ", _next.size());
                 return;
             }
             
-            if (not _terminate and _next.size() < _threads)
+            
+            if (not _terminate)
             {
                 _since_last += since_last.elapsed() * 1000;
                 _ssamples++;
@@ -74,8 +77,20 @@ struct RepeatedDeferral {
                 }
                 guard.lock();
                 
-                _next.push_back({this->name, std::move(r)});
-                //thread_print("TM ", this->name.c_str(), " #NEXT Filled up to ", _next.size());
+                if(_next.size() > _threads) {
+                    thread_print("TM Fill state of ", this->name.c_str(), " is > ", _threads, ": ", _next.size());
+                    if(_allow_dropping) {
+                        // we can drop this frame safely
+                    } else {
+                        // we HAVE to accumulate more memory...
+                        // maybe print a warning every now and then?
+                        _next.emplace_back(this->name, std::move(r));
+                    }
+                    
+                } else {
+                    _next.emplace_back(this->name, std::move(r));
+                    //thread_print("TM ", this->name.c_str(), " #NEXT Filled up to ", _next.size());
+                }
                 _new_item.notify_one();
                 
                 //std::unique_lock guard(mtiming);
@@ -154,7 +169,7 @@ struct RepeatedDeferral {
             _new_item.wait(guard, [this]() {return not _next.empty() or _terminate; });
 
         if(_terminate)
-            throw std::runtime_error("Terminated");
+            throw U_EXCEPTION(name, " already terminated.");
         
         auto e = timer.elapsed();
         {

@@ -294,6 +294,10 @@ void Segmenter::generator_thread() {
     std::unique_lock guard(_mutex_general);
     //if (_should_terminate || (_next_frame_data && items.size() >= 10))
     //    return;
+    if(_next_frame_data && items.size() >= 10) {
+        thread_print("TM enough items queued up...");
+        return;
+    }
     
     {
         try {
@@ -349,7 +353,7 @@ void Segmenter::generator_thread() {
             }
             else {
                 assert(std::get<1>(result.value()).valid());
-                items.push_back(std::move(result.value()));
+                items.emplace_back(std::move(result.value()));
             }
 
         }
@@ -357,14 +361,15 @@ void Segmenter::generator_thread() {
             // pass
         }
 
-        if (items.size() >= 10 && _next_frame_data) {
-            //thread_print("TM Entering wait with ", items.size(), " items queued up.");
+        if (items.size() >= 10) {
+            thread_print("TM ", items.size(), " items queued up.");
             /*_cv_messages.wait(guard, [&]() {
                 return not _next_frame_data or _should_terminate;
             });*/
             //thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
             
-        } else {
+        }
+        if(items.size() < 10 || not _next_frame_data) {
             ThreadManager::getInstance().notify(_generator_group_id);
         }
     }

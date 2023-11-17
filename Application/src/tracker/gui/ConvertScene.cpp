@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -35,9 +35,9 @@ sprite::Map ConvertScene::_video_info = []() {
     return fish;
 }();
 
-Size2 ConvertScene::output_size() const {
-    return segmenter().output_size();
-}
+//Size2 ConvertScene::output_size() const {
+//    return segmenter().output_size();
+//}
 
 std::string window_title() {
     auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
@@ -193,16 +193,19 @@ void ConvertScene::activate()  {
 
         RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::map());
 
-        auto size = segmenter().size();
-        if(size.empty()) {
-            size = Size2(640,480);
-            FormatError("Cannot determine size of the video input. Defaulting to ", size, ".");
+        video_size = _segmenter->size();
+        if(video_size.empty()) {
+            video_size = Size2(640,480);
+            FormatError("Cannot determine size of the video input. Defaulting to ", video_size, ".");
         }
+        
+        output_size = SETTING(output_size).value<Size2>();
+        
         auto work_area = ((const IMGUIBase*)window())->work_area();
         print("work_area = ", work_area);
         auto window_size = Size2(
             (work_area.width - work_area.x) * 0.75,
-            size.height / size.width * (work_area.width - work_area.x) * 0.75
+            video_size.height / video_size.width * (work_area.width - work_area.x) * 0.75
         );
         print("prelim window size = ", window_size);
         if (window_size.height > work_area.height - work_area.y) {
@@ -443,10 +446,6 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
 void ConvertScene::_draw(DrawStructure& graph) {
     fetch_new_data();
     
-    
-    auto output_size = SETTING(output_size).value<Size2>();
-    auto video_size = _segmenter->size();
-    
     if(window()) {
         auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
         //
@@ -495,7 +494,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         ColorWheel wheel;
         using Skeleton = blob::Pose::Skeleton;
         auto coord = FindCoord::get();
-        print(coord.bowl_scale());
+        //print(coord.bowl_scale());
         
         Skeleton skelet = SETTING(meta_skeleton).value<Skeleton>();
         for (auto& keypoint : _current_data.keypoints) {

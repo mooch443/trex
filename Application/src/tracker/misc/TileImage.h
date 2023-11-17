@@ -7,13 +7,88 @@
 #include <misc/TaskPipeline.h>
 
 using namespace cmn;
-using useMat = cv::Mat;
+
+using useMat_t = cv::Mat;
+
+struct GPUMatPtr {
+    std::unique_ptr<useMat_t> ptr;
+#ifndef NDEBUG
+    source_location loc;
+#endif
+    
+    GPUMatPtr(nullptr_t) {}
+    GPUMatPtr() { }
+    GPUMatPtr(GPUMatPtr&& ptr) noexcept {
+        *this = std::move(ptr);
+    }
+    GPUMatPtr& operator=(GPUMatPtr&& ptr) noexcept {
+#ifndef NDEBUG
+        if(this->ptr) {
+            print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
+        }
+        
+        //print("Moving buffer ",ptr.loc.file_name(),"::",ptr.loc.function_name(),":",ptr.loc.line());
+        this->loc = ptr.loc;
+#endif
+        this->ptr = std::move(ptr.ptr);
+        return *this;
+    }
+    
+    static GPUMatPtr Make(source_location loc) {
+        //print("Created buffer ", loc.file_name(),"::",loc.function_name(),":",loc.line());
+        GPUMatPtr ptr;
+        ptr.ptr = std::make_unique<useMat_t>();
+#ifndef NDEBUG
+        ptr.loc = loc;
+        
+        static std::atomic<size_t> counter{0u};
+        ++counter;
+        if(counter % 100 == 0)
+            thread_print("Counted ", counter.load());
+#else
+        UNUSED(loc);
+#endif
+        return ptr;
+    }
+    
+    
+#ifndef NDEBUG
+    ~GPUMatPtr() {
+        if(ptr)
+            print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
+    }
+#endif
+    
+    /*operator useMat_t&() {
+        return *ptr;
+    }*/
+    
+    useMat_t* get() const noexcept {
+        return ptr.get();
+    }
+    
+    useMat_t& operator*() {
+        return *ptr;
+    }
+    
+    useMat_t* operator->() const noexcept {
+        return ptr.get();
+    }
+    
+    operator bool() const noexcept {
+        return ptr != nullptr;
+    }
+};
+
+#define MAKE_GPU_MAT GPUMatPtr::Make(cmn::source_location::current())
+
+using useMatPtr_t = GPUMatPtr;
 
 struct TileImage {
     Size2 tile_size;
     SegmentationData data;
     std::vector<Image::Ptr> images;
-    inline static useMat resized, converted, thresholded;
+    inline static useMat_t resized, converted, thresholded;
     inline static cv::Mat download_buffer;
     std::vector<Vec2> _offsets;
     Size2 source_size, original_size;
@@ -41,7 +116,7 @@ struct TileImage {
     TileImage& operator=(TileImage&&) = default;
     TileImage& operator=(const TileImage&) = delete;
     
-    TileImage(const useMat& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
+    TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
         : tile_size(tile_size),
           source_size(source.cols, source.rows),
           original_size(original_size)
@@ -84,7 +159,7 @@ struct TileImage {
             _offsets = {Vec2()};
             
         } else {
-            useMat tile = useMat::zeros(tile_size.height, tile_size.width, CV_8UC3);
+            useMat_t tile = useMat_t::zeros(tile_size.height, tile_size.width, CV_8UC3);
             for(int y = 0; y < source.rows; y += tile_size.height) {
                 for(int x = 0; x < source.cols; x += tile_size.width) {
                     Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);

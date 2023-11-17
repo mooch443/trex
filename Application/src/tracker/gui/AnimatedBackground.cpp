@@ -2,11 +2,8 @@
 #include <pv.h>
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
-#include <misc/Buffers.h>
 
 namespace gui {
-
-using buffers = Buffers<Image::Ptr, decltype([]{ return Image::Make(); })>;
 
 AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video)
     : _average(std::move(image)),
@@ -76,8 +73,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
 AnimatedBackground::AnimatedBackground(VideoSource&& source)
     : _source(std::make_unique<VideoSource>(std::move(source))),
       preloader([this](Frame_t index) { return preload(index); },
-      [](Image::Ptr&& ptr) {
-          buffers::move_back(std::move(ptr));
+      [this](Image::Ptr&& ptr) {
+          buffers.move_back(std::move(ptr));
       })
 {
     {
@@ -117,7 +114,7 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
         
         const uint channels = is_in(output->channels(), 3, 4)
                                 ? 4 : 1;
-        auto image = buffers::get();
+        auto image = buffers.get(source_location::current());
         
         if(not image
            || image->cols != (uint)output->cols
@@ -173,11 +170,11 @@ void AnimatedBackground::before_draw() {
                 Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
                 cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);
                 
-                buffers::move_back(_static_image.exchange_with(std::move(ptr)));
+                buffers.move_back(_static_image.exchange_with(std::move(ptr)));
                 _static_image.set_color(_tint.alpha(_tint.a * 0.95));
                 
             } else {
-                buffers::move_back(_static_image.exchange_with(std::move(image)));
+                buffers.move_back(_static_image.exchange_with(std::move(image)));
                 _static_image.set_color(_tint);
                 _current_frame = frame;
             }

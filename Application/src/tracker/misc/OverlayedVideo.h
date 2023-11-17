@@ -24,7 +24,7 @@ class VideoProcessor {
     mutable std::mutex _index_mutex;  // Mutex for synchronizing frame index updates
     GETTER_I(Frame_t, current_frame_index, 0_f)  // Current frame index
 
-    useMat _resized_buffer;  // Buffer for resized image
+    useMat_t _resized_buffer;  // Buffer for resized image
 
     // Type alias for the result of an asynchronous network call
     using AsyncResult = tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*>;
@@ -98,7 +98,7 @@ public:
                 average_time = 0;
             }
 
-            useMat* current_use{ buffer.get() };
+            useMat_t* current_use{ buffer.get() };
             image->set_index(nix.get());
             
             Size2 original_size(current_use->cols, current_use->rows);

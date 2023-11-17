@@ -9,11 +9,9 @@
 #include <tracking/IndividualManager.h>
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
-#include <misc/Buffers.h>
 
 namespace gui {
-    using buffers = Buffers<std::unique_ptr<PPFrame>, decltype([](){ return std::make_unique<PPFrame>(); })>;
-
+    
     GUICache*& cache() {
         static GUICache* _cache{ nullptr };
         return _cache;
@@ -44,7 +42,7 @@ namespace gui {
                         pv::Frame frame;
                         _video->read_frame(frame, frameIndex);
                         
-                        ptr = buffers::get();
+                        ptr = buffers.get(source_location::current());
                         ptr->clear();
                         
                         Tracker::instance()->preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, _video->header().resolution);
@@ -56,8 +54,8 @@ namespace gui {
                 
                 return ptr;
             },
-            [](FramePtr&& ptr) {
-                buffers::move_back(std::move(ptr));
+            [this](FramePtr&& ptr) {
+                buffers.move_back(std::move(ptr));
             })
 
     {
@@ -331,7 +329,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                 /// we dont have a timeout, and we have a next frame
                 /// but it doesnt match the requested frame:
                 /// discard it.
-                buffers::move_back(std::move(_next_processed_frame));
+                buffers.move_back(std::move(_next_processed_frame));
             }
             
             if(not next_frame_matches) {
@@ -352,14 +350,14 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                     /// reset next processed frame since we have a more
                     /// up-to-date version here:
                     if(_next_processed_frame)
-                        buffers::move_back(std::move(_next_processed_frame));
+                        buffers.move_back(std::move(_next_processed_frame));
                     
                     if(maybe_frame.value()->index() != frameIndex
                         && _last_success.elapsed() < 0.1)
                     {
                         /// we dont have a timeout, and the indexes
                         /// dont match. discard and return...
-                        buffers::move_back(std::move(maybe_frame.value()));
+                        buffers.move_back(std::move(maybe_frame.value()));
                         return {};
                         
                     } else {
@@ -570,14 +568,14 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         }
         
         if(_current_processed_frame && _current_processed_frame->index() != frameIndex) {
-            buffers::move_back(std::move(_current_processed_frame));
+            buffers.move_back(std::move(_current_processed_frame));
             //print("current_processed_frame moved out for ", frameIndex);
         } else if(_current_processed_frame) {
             reload_blobs = false;
             //reasons.emplace_back("-");
             //print("current_processed_frame is fine for ", frameIndex, " = ", _current_processed_frame->index());
             if(_next_processed_frame)
-                buffers::move_back(std::move(_next_processed_frame));
+                buffers.move_back(std::move(_next_processed_frame));
         }
         
         if(_next_processed_frame) {

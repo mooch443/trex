@@ -24,16 +24,17 @@ public:
     static inline std::atomic<float> _network_fps{0}, _network_samples{ 0 };
     static inline std::atomic<float> _video_fps{ 0 }, _video_samples{ 0 };
     
-    using gpuMatPtr = std::unique_ptr<useMat>;
-    using buffers = Buffers<gpuMatPtr, decltype([]{ return std::make_unique<useMat>(); })>;
-    
 protected:
     Frame_t i{0_f};
-    gpuMatPtr tmp;
+    useMatPtr_t tmp;
     VideoInfo info;
     
-    using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*>()>>;
-    using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*>()>>;
+    Buffers<useMatPtr_t, decltype([](source_location&& loc){
+        return GPUMatPtr::Make(std::move(loc));
+    })> buffers;
+
+    using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*>()>>;
+    using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>()>>;
     
     VideoFunction _source_frame;
     PreprocessFunction _resize_cvt;
@@ -46,12 +47,12 @@ public:
     
     Size2 size() const;
     
-    void move_back(gpuMatPtr&& ptr);
-    std::tuple<Frame_t, gpuMatPtr, Image::Ptr> next();
+    void move_back(useMatPtr_t&& ptr);
+    std::tuple<Frame_t, useMatPtr_t, Image::Ptr> next();
     
-    virtual tl::expected<std::tuple<Frame_t, gpuMatPtr>, const char*> fetch_next() = 0;
+    virtual tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() = 0;
     
-    tl::expected<std::tuple<Frame_t, gpuMatPtr, Image::Ptr>, const char*> fetch_next_process();
+    tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> fetch_next_process();
     
     bool is_finite() const;
     

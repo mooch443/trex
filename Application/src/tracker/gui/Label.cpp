@@ -171,8 +171,8 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     }
     //auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
     auto dis = euclidean_distance(screen_target, screen_source) / (2 * sqrtf(SQR(screen_rect.width) + SQR(screen_rect.height)));
-    if (dis > 0.25)
-        print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
+    //if (dis > 0.25)
+        //print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
 
     _color = (disabled ? (is_in_mouse_dock ? White : Gray) : Cyan).alpha(255 * alpha);
 

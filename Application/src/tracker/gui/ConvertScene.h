@@ -48,6 +48,8 @@ class ConvertScene : public Scene {
     std::promise<void> _scene_promise;
     
     Size2 window_size;
+    Size2 output_size;
+    Size2 video_size;
     //Alterface menu;
     
     ind::ProgressBar bar;
@@ -74,7 +76,7 @@ public:
     
     void set_segmenter(Segmenter* seg);
     
-    Size2 output_size() const;
+    //Size2 output_size() const;
     
 private:
     void deactivate() override;

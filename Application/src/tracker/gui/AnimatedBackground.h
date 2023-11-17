@@ -8,6 +8,7 @@
 #include <misc/Timer.h>
 #include <pv.h>
 #include <gui/FramePreloader.h>
+#include <misc/Buffers.h>
 
 namespace gui {
 
@@ -32,6 +33,8 @@ class AnimatedBackground : public Entangled {
     bool gui_show_video_background{true};
     
     FramePreloader<Image::Ptr> preloader;
+    
+    Buffers<Image::Ptr, decltype([]{ return Image::Make(); })> buffers;
     
 public:
     AnimatedBackground(Image::Ptr&&, const pv::File* = nullptr);

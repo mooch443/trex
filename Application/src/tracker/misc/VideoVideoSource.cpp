@@ -13,7 +13,7 @@ VideoSourceVideoSource::~VideoSourceVideoSource() {
     quit();
 }
 
-tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char*> VideoSourceVideoSource::fetch_next() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSource::fetch_next() {
     if (i >= this->source.length()) {
         if(not SETTING(terminate))
             SETTING(terminate) = true;
@@ -26,11 +26,11 @@ tl::expected<std::tuple<Frame_t, AbstractBaseVideoSource::gpuMatPtr>, const char
         }
 
         auto index = i++;
-        gpuMatPtr buffer = buffers::get();
+        auto buffer = buffers.get(source_location::current());
         if(not tmp)
-            tmp = std::make_unique<useMat>();
+            tmp = MAKE_GPU_MAT;
         
-        if constexpr(are_the_same<useMat, cv::Mat>) {
+        if constexpr(are_the_same<useMat_t, cv::Mat>) {
             source.frame(index, *buffer);
         } else {
             this->source.frame(index, cpuBuffer);
