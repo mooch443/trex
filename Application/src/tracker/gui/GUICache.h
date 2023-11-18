@@ -78,7 +78,7 @@ namespace gui {
     
     class GUICache {
         GenericThreadPool _pool;
-        Buffers < std::unique_ptr<PPFrame>, decltype([]() { return std::make_unique<PPFrame>(); }) > buffers;+
+        Buffers < std::unique_ptr<PPFrame>, decltype([]() { return std::make_unique<PPFrame>(); }) > buffers;
         pv::File* _video{ nullptr };
         gui::DrawStructure* _graph{ nullptr };
         using FramePtr = std::unique_ptr<PPFrame>;

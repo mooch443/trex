@@ -41,7 +41,7 @@ public:
     using Entangled::set;
     void set(attr::Loc) override;
 
-    std::string toStr() const {
+    std::string toStr() const override {
         return "Label<"+Meta::toStr(_source) + ", " + Meta::toStr(text()->text()) + ">";
     }
     static std::string class_name() {
