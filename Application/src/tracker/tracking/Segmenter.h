@@ -17,7 +17,7 @@ class Segmenter {
     ThreadGroupId _generator_group_id, _tracker_group_id;
     
     // Overlayed video with detections and tracker for object tracking
-    std::unique_ptr<VideoProcessor<Detection>> _overlayed_video;
+    GETTER(std::unique_ptr<VideoProcessor<Detection>>, overlayed_video)
     std::unique_ptr<Tracker> _tracker;
     
     std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;

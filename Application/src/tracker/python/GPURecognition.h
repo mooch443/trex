@@ -251,7 +251,7 @@ namespace track {
             YoloInput& operator=(YoloInput&&) = default;
 
             std::string toStr() const {
-				return "YoloInput<images="+Meta::toStr(_images)+" offsets="+Meta::toStr(_offsets)+" scales="+Meta::toStr(_scales)+" belongs=",Meta::toStr(_orig_id),">";
+				return "YoloInput<images="+Meta::toStr(_images)+" offsets="+Meta::toStr(_offsets)+" scales="+Meta::toStr(_scales)+" belongs="+Meta::toStr(_orig_id)+">";
 			}
 		};
     }

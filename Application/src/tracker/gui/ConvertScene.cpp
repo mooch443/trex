@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -315,12 +315,21 @@ void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 o
     }
 }
 
+uint64_t interleaveBits(const Vec2& pos) {
+    uint32_t x(pos.x), y(pos.y);
+    uint64_t z = 0;
+    for (uint64_t i = 0; i < sizeof(uint32_t) * 8; ++i) {
+        z |= (x & (1 << i)) << i | (y & (1 << i)) << (i + 1);
+    }
+    return z;
+}
+
 void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx) {
     //size_t i = 0;
     size_t untracked = 0;
-    /*std::sort(_object_blobs.begin(), _object_blobs.end(), [](auto& A, auto& B) {
-        return A->bounds().center() < B->bounds().center();
-    });*/
+    std::sort(_object_blobs.begin(), _object_blobs.end(), [](auto& A, auto& B) {
+        return interleaveBits(A->bounds().center()) < interleaveBits(B->bounds().center());
+    });
 
     auto coords = FindCoord::get();
     std::set<Idx_t> tracked_ids;
@@ -399,6 +408,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         
         
         (*tmp)["pos"] = bds.pos();
+        (*tmp)["bdx"] = blob->blob_id();
         (*tmp)["center"] = first_pose;
         (*tmp)["tracked"] = tracked_id.valid() ? true : false;
         (*tmp)["color"] = tracked_color;
@@ -624,14 +634,26 @@ void ConvertScene::_draw(DrawStructure& graph) {
                     filter = not filter;
                     SETTING(do_filter) = filter;
                 }),
+                VarFunc("resizecvt", [this](const VarProps&) -> double {
+                    return this->segmenter().overlayed_video()->source()->resize_cvt().average_fps.load();
+                }),
+                VarFunc("sourceframe", [this](const VarProps&) -> double {
+                    return this->segmenter().overlayed_video()->source()->source_frame().average_fps.load();
+                }),
                 VarFunc("fps", [](const VarProps&) {
-                    return AbstractBaseVideoSource::_fps.load() / AbstractBaseVideoSource::_samples.load();
+                    auto fps = AbstractBaseVideoSource::_fps.load();
+                    auto samples = AbstractBaseVideoSource::_samples.load();
+                    return samples>0 ? fps / samples : 0;
                 }),
                 VarFunc("net_fps", [](const VarProps&) {
-                    return AbstractBaseVideoSource::_network_fps.load() / AbstractBaseVideoSource::_network_samples.load();
+                    auto fps = AbstractBaseVideoSource::_network_fps.load();
+                    auto samples = AbstractBaseVideoSource::_network_samples.load();
+                    return samples>0 ? fps / samples : 0;
                 }),
                 VarFunc("vid_fps", [](const VarProps&) {
-                    return AbstractBaseVideoSource::_video_fps.load() / AbstractBaseVideoSource::_video_samples.load();
+                    auto fps = AbstractBaseVideoSource::_video_fps.load();
+                    auto samples = AbstractBaseVideoSource::_video_samples.load();
+                    return samples>0 ? fps / samples : 0;
                 }),
                 VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                     return this->window_size;
@@ -653,6 +675,9 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 }),
                 VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
                     return _tracked_gui;
+                }),
+                VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+                    return _untracked_gui;
                 })
             },
             .base = window()
@@ -667,6 +692,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 auto center = layout.get<Vec2>(Vec2(), "center");
                 auto line_length = layout.get<float>(float(60), "length");
                 auto id = layout.get<Idx_t>(Idx_t(), "id");
+                auto color = layout.textClr;
+                auto line = layout.line;
 
                 if (id.valid()) {
                     auto it = _labels.find(id);
@@ -683,7 +710,9 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
                 auto font = parse_font(layout.obj, layout._defaults.font);
                 ptr->text()->set(font);
-                print("Create new label with text = ", text);
+                ptr->text()->set(color);
+                ptr->set_line_color(line);
+                //print("Create new label with text = ", text);
 
                 return Layout::Ptr(ptr);
             },
@@ -711,7 +740,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 auto coord = FindCoord::get();
 
                 if(patterns.contains("text"))
-                    text = parse_text(patterns.at("text").original, context, state) + Meta::toStr((uint64_t)o.get());
+                    text = parse_text(patterns.at("text").original, context, state);
                 if (patterns.contains("pos")) {
                     pos = Meta::fromStr<Vec2>(parse_text(patterns.at("pos").original, context, state));
                 }
@@ -722,6 +751,11 @@ void ConvertScene::_draw(DrawStructure& graph) {
                     center = Meta::fromStr<Vec2>(parse_text(patterns.at("center").original, context, state));
                 } else
                     center = source.pos()+ Vec2(source.width, source.height) * 0.5;
+
+                if(patterns.contains("line"))
+					p->set_line_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
+                if(patterns.contains("color"))
+                    p->text()->set(TextClr{ Meta::fromStr<Color>(parse_text(patterns.at("color").original, context, state)) });
 
                 p->set_data(0_f, text, source, center);
                 p->update(coord, 1, 1, false, dt, Scale{1});

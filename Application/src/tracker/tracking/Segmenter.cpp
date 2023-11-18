@@ -295,7 +295,7 @@ void Segmenter::generator_thread() {
     //if (_should_terminate || (_next_frame_data && items.size() >= 10))
     //    return;
     if(_next_frame_data && items.size() >= 10) {
-        thread_print("TM enough items queued up...");
+        //thread_print("TM enough items queued up...");
         return;
     }
     
@@ -362,7 +362,7 @@ void Segmenter::generator_thread() {
         }
 
         if (items.size() >= 10) {
-            thread_print("TM ", items.size(), " items queued up.");
+            //thread_print("TM ", items.size(), " items queued up.");
             /*_cv_messages.wait(guard, [&]() {
                 return not _next_frame_data or _should_terminate;
             });*/

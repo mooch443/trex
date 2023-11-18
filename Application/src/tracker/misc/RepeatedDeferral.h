@@ -23,6 +23,9 @@ struct RepeatedDeferral {
     
     double _runtime{0}, _rsamples{0};
     double _average_fill_state{ 0 }, _as{ 0 };
+
+    std::atomic<double> average_fps{0};
+
     Timer since_last, since_print;
     Timer runtime;
     
@@ -100,10 +103,14 @@ struct RepeatedDeferral {
                 {
                     //std::unique_lock guard(mtiming);
                     //++predicted;
+
+                    if(int64_t(_rsamples) % 100 == 0)
+                        average_fps = (_rsamples / _runtime) * 1000;
                     
                     if (since_print.elapsed() > 30) {
                         std::unique_lock guard(mtiming);
                         //auto total = (_waiting / _samples);
+
                         thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ",
                                      (_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
                         

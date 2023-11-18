@@ -39,7 +39,7 @@ namespace track {
             Frame_t start_frame;
             Frame_t end_frame;
             
-            std::string toStr() const { return Meta::toStr(start_frame)+"-",Meta::toStr(end_frame); }
+            std::string toStr() const { return Meta::toStr(start_frame)+"-"+Meta::toStr(end_frame); }
             void clear() { start_frame.invalidate(); end_frame.invalidate(); events.clear(); lengths.clear(); }
             size_t memory_size() const {
                 return sizeof(EventMap)

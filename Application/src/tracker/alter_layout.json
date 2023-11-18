@@ -27,18 +27,17 @@
 							"type":"text", "text":"detecting the background...", "font":{"size":0.75}, "color":[220,220,220], "shadow":0.75
 						},
 						"else":{
-							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c> <sym>◦</sym> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''}", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
 						}
 					},
 					{
-						"type":"condition",
-						"var":"{global.region_model}",
-						"then": { 
-							"type":"stext", "text":"<i>video:</i> {at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>◦</sym> <c>{int:{vid_fps}}</c><i>fps</i> <i>—</i> <i>model:</i> <sym>💻 </sym><c>{int:{net_fps}}</c><i>fps</i> <sym>◦</sym> {global.detection_resolution}<i>px</i> <sym>◦</sym> <i>region:</i> {global.region_resolution}<i>px</i>", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
-						},
-						"else": {
-							"type":"stext", "text":"<i>video:</i> {at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>◦</sym> <c>{int:{vid_fps}}</c><i>fps</i> <i>—</i> <i>model:</i> <sym>💻 </sym><c>{int:{net_fps}}</c><i>fps</i> <sym>◦</sym> {global.detection_resolution}<i>px</i>", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
-						}
+						"type":"stext", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detection_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>", 
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					{
+						"type":"stext",
+						"text":"", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					}
 				]
 			}
@@ -65,14 +64,26 @@
 			"type":"condition",
 			"var":"{i.visible}",
 			"then":{
-				"type": "collection",
-				"pos":"{subVector:{i.pos}:[0,5]}",
-				"children": [
+				"type":"collection",
+				"children":[
 					{
-						"type":"condition",
-						"var":"{i.tracked}",
-						"then": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[0,255,0,30],"line":"{i.color}","origin":[0,0]},
-						"else": {"type":"rect","pos":[0,5],"size":"{i.size}","fill":[50,50,50,30],"line":[200,200,200,200],"origin":[0,0]}
+						"type":"rect",
+						"pos":"{i.pos}",
+						"size":"{i.size}",
+						"fill":[0,255,0,30],
+						"line":"{i.color}",
+						"origin":[0,0]
+					},
+					{
+						"type":"label",
+						"text":"<c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+						"pos":"{i.pos}",
+						"length":100,
+						"line":"{i.color}",
+						"id":"{i.id}",
+						"center":"{i.center}",
+						"size":"{i.size}",
+						"font":{"size":0.5,"align":"middle"}
 					}
 				]
 			},
@@ -85,27 +96,36 @@
 
 	{
 		"type":"each",
-		"var":"fishes",
-		"do": 
-			{
-				"type":"condition",
-				"var":"{i.visible}",
-				"then":{
-					"type":"label",
-					"text":"<c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
-					"pos":"{i.pos}",
-					"length":100,
-					"id":"{i.id}",
-					"center":"{i.center}",
-					"size":"{i.size}",
-					"font":{"size":0.5,"align":"middle"}
-				},
-				"else":{
-					"type":"rect",
-					"size":[0,0]
-				}
-			}
-		
+		"var":"untracked",
+		"do": {
+			"type":"condition",
+			"var":"{i.visible}",
+			"then":{
+				"type":"collection",
+				"children":[
+					{
+						"type":"rect",
+						"pos":"{i.pos}",
+						"size":"{i.size}",
+						"fill":[50,50,50,30],
+						"line":[200,200,200,200],
+						"origin":[0,0]
+					},
+					{
+						"type":"label",
+						"text":"<c><b><ref>untracked</ref></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+						"pos":"{i.pos}",
+						"length":100,
+						"color":[200,200,200,255],
+						"line":[200,200,200,255],
+						"center":"{i.center}",
+						"size":"{i.size}",
+						"font":{"size":0.5,"align":"middle"}
+					}
+				]
+			},
+			"else":{ "type":"rect", "size":[0,0] }
+		}
 	},
 
 	{

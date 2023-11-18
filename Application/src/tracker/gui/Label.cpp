@@ -174,7 +174,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     //if (dis > 0.25)
         //print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
 
-    _color = (disabled ? (is_in_mouse_dock ? White : Gray) : Cyan).alpha(255 * alpha);
+    _color = (disabled ? (is_in_mouse_dock ? White : Gray) : _line_color).alpha(255 * alpha);
 
     if (disabled)
         _text->set_text_color(LightGray);

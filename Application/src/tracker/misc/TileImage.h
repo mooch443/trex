@@ -18,8 +18,15 @@ struct GPUMatPtr {
     
     GPUMatPtr(nullptr_t) {}
     GPUMatPtr() { }
-    GPUMatPtr(GPUMatPtr&& ptr) noexcept {
+    GPUMatPtr(GPUMatPtr&& other) noexcept 
+#ifdef NDEBUG
+        : ptr(std::move(other.ptr)) 
+#endif
+    {
+#ifndef NDEBUG
         *this = std::move(ptr);
+#endif
+        assert(ptr);
     }
     GPUMatPtr& operator=(GPUMatPtr&& ptr) noexcept {
 #ifndef NDEBUG

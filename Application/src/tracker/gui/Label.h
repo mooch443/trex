@@ -11,6 +11,7 @@ namespace gui {
 
 class Label : public Entangled {
     GETTER_SETTER_I(float, line_length, 60)
+    GETTER_I(Color, line_color, Cyan)
     GETTER(Color, color)
     GETTER(derived_ptr<StaticText>, text)
     Line _line;
@@ -30,6 +31,12 @@ public:
     float update(const FindCoord&, float alpha, float distance, bool disabled, double dt, Scale = {});
     void set_data(Frame_t frame, const std::string& text, const Bounds& source, const Vec2& center);
     float update_positions(Vec2 text_pos, bool animate, double dt);
+    void set_line_color(const Color& c) {
+		if(c == line_color())
+			return;
+		_line_color = c;
+        set_content_changed(true);
+	}
 
     using Entangled::set;
     void set(attr::Loc) override;
