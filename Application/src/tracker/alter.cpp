@@ -103,7 +103,21 @@ void launch_gui() {
     
     static std::unique_ptr<Segmenter> segmenter;
     ConvertScene converting(base, [&](ConvertScene& scene){
-        segmenter = std::make_unique<Segmenter>([&manager](std::string error) {
+        segmenter = std::make_unique<Segmenter>(
+        [&manager]() {
+            if (SETTING(auto_quit)) {
+                if (not SETTING(terminate))
+                    SETTING(terminate) = true;
+            }
+            else {
+                GlobalSettings::map().set_do_print(true);
+                thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
+                SETTING(source) = file::PathArray({ segmenter->output_file_name() });
+                thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t) & GlobalSettings::map());
+				manager.set_active("tracking-scene");
+			}
+        },
+        [&manager](std::string error) {
             if(SETTING(nowindow))
                 throw U_EXCEPTION("Error converting: ", error);
             
@@ -140,20 +154,49 @@ void launch_gui() {
         });
     manager.register_scene(&loading);
     
-    if(auto array = SETTING(source).value<file::PathArray>();
-       array.empty()) 
-    {
-        manager.set_active(&start);
-    } else if(auto front = array.get_paths().front();
-              array.size() == 1 /// TODO: not sure how this deals with patterns
-              && ((not front.has_extension() && file::DataLocation::parse("input", front.add_extension("pv")).exists())
-                  || front.extension() == "pv")
-              && front != "webcam")
-    {
-        manager.set_active(&tracking_scene);
+    using namespace default_config;
+    std::unordered_map<TRexTask, Scene*> task_scenes {
+        { TRexTask_t::none, &start },
+		{ TRexTask_t::convert, &converting },
+		{ TRexTask_t::track, &tracking_scene }
+	};
+
+    if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
+        if (auto array = SETTING(source).value<file::PathArray>();
+            array.empty())
+        {
+            manager.set_active(&start);
+        }
+        else if (auto front = array.get_paths().front();
+            array.size() == 1 /// TODO: not sure how this deals with patterns
+            )
+        {
+            front = front.filename();
+            auto output_file =
+                not front.has_extension()
+                ? file::DataLocation::parse("output", front.add_extension("pv"))
+                : file::DataLocation::parse("output", front.replace_extension("pv"));
+
+            if (front == "webcam")
+                manager.set_active(&converting);
+            else if (output_file.exists()) {
+                SETTING(source) = file::PathArray({ output_file });
+                manager.set_active(&tracking_scene);
+            }
+            else {
+                manager.set_active(&converting);
+            }
+        }
+        else {
+            manager.set_active(&converting);
+        }
+
     } else {
-        manager.set_active(&converting);
-    }
+        if(auto it = task_scenes.find(SETTING(task).value<TRexTask>()); it != task_scenes.end())
+			manager.set_active(it->second);
+		else
+			manager.set_active(&start);
+	}
     
     base.platform()->set_icons({
         //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
@@ -421,7 +464,11 @@ int main(int argc, char**argv) {
     std::string last_error;
     
     if(SETTING(nowindow)) {
-        Segmenter segmenter([&last_error](std::string error) {
+        Segmenter segmenter(
+            []() {
+                SETTING(terminate) = true;
+            },
+           [&last_error](std::string error) {
             SETTING(error_terminate) = true;
             SETTING(terminate) = true;
             last_error = error;

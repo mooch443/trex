@@ -13,6 +13,8 @@ SceneManager& SceneManager::getInstance() {
 void SceneManager::set_active(Scene* scene) {
     auto fn = [this, scene]() {
         try {
+            if(active_scene == scene) return;
+
             if (active_scene && active_scene != scene) {
                 print("[SceneManager] Deactivating ", active_scene->name());
                 active_scene->deactivate();
@@ -61,7 +63,10 @@ void SceneManager::unregister_scene(Scene* scene) {
 
 void SceneManager::set_active(std::string name) {
     if (name.empty()) {
-        set_active(nullptr);
+        if (std::unique_lock guard{ _mutex };
+            active_scene) {
+            set_active(nullptr);
+        }
         return;
     }
 
@@ -74,7 +79,8 @@ void SceneManager::set_active(std::string name) {
     }
 
     if (ptr) {
-        set_active(ptr);
+        if(ptr != active_scene)
+            set_active(ptr);
     }
     else {
         throw std::invalid_argument("Cannot find the given Scene name.");

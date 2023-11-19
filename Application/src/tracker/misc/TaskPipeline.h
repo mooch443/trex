@@ -167,7 +167,7 @@ class PipelineManager {
     std::shared_mutex _mutex;
     std::mutex _future_mutex;
     std::future<void> _future;
-    const double _weight_limit{0};
+    double _weight_limit{ 0 };
     std::function<void()> _create;
     
     template <typename... Args>
@@ -250,6 +250,15 @@ public:
         }
         update();
         
+    }
+
+    void set_weight_limit(double w) {
+        {
+            std::unique_lock guard(_mutex);
+            _weight_limit = w;
+        }
+
+        update();
     }
 
 private:

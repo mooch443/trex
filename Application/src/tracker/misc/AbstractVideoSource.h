@@ -46,9 +46,12 @@ public:
     void quit();
     
     Size2 size() const;
+    Frame_t current_frame_index() const {
+        return i;
+    }
     
     void move_back(useMatPtr_t&& ptr);
-    std::tuple<Frame_t, useMatPtr_t, Image::Ptr> next();
+    tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> next();
     
     virtual tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() = 0;
     

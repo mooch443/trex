@@ -199,7 +199,20 @@ ENUM_CLASS_DOCS(meta_encoding_t,
             "meta_video_scale",
             "meta_video_size",
             "meta_classes",
-            "meta_encoding"
+            "meta_encoding",
+            "cm_per_pixel",
+            "blob_size_ranges",
+            "track_threshold",
+            "meta_skeleton",
+            "track_max_individuals",
+            "track_background_subtraction",
+            "model",
+            "region_model",
+            "detection_resolution",
+            "region_resolution",
+            "video_conversion_range",
+            "batch_size"
+
         }, "The given settings values will be written to the video file.");
 
         CONFIG("nowindow", false, "Start without a window enabled (for terminal-only use).");

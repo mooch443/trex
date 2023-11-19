@@ -11,11 +11,11 @@ file::Path average_name() {
     return path;
 }
 
-Segmenter::Segmenter(std::function<void(std::string)> error_callback)
-    : error_callback(error_callback)
+Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std::string)> error_callback)
+    : error_callback(error_callback), eof_callback(eof_callback)
 {
     start_timer.reset();
-
+    Detection::manager().set_weight_limit(SETTING(batch_size).value<uchar>());
     _generator_group_id = REGISTER_THREAD_GROUP("Segmenter::GeneratorT");
     
     ThreadManager::getInstance().addThread(_generator_group_id, "generator-thread", ManagedThread{
@@ -67,9 +67,9 @@ Segmenter::~Segmenter() {
         //_cv_ready_for_tracking.notify_all();
         //_cv_messages.notify_all();
     }
-    
-    ThreadManager::getInstance().terminateGroup(_tracker_group_id);
+
     ThreadManager::getInstance().terminateGroup(_generator_group_id);
+    ThreadManager::getInstance().terminateGroup(_tracker_group_id);
     
     std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
     _overlayed_video = nullptr;
@@ -83,9 +83,9 @@ Segmenter::~Segmenter() {
     _transferred_current_data = {};
     
     SETTING(is_writing) = false;
-    SETTING(source) = file::PathArray();
-    SETTING(filename) = file::Path();
-    SETTING(frame_rate) = uint32_t(-1);
+    //SETTING(source) = file::PathArray();
+    //SETTING(filename) = file::Path();
+    //SETTING(frame_rate) = uint32_t(-1);
 }
 
 Size2 Segmenter::size() const {
@@ -105,6 +105,10 @@ bool Segmenter::is_finite() const {
     if(not _overlayed_video || not _overlayed_video->source())
         throw U_EXCEPTION("No video was opened.");
     return _overlayed_video->source()->is_finite();
+}
+
+file::Path Segmenter::output_file_name() const {
+	return _output_file ? _output_file->filename() : file::Path();
 }
 
 bool Segmenter::is_average_generating() const {
@@ -211,6 +215,18 @@ void Segmenter::open_video() {
         callback_after_generating(bg);
     }
 
+    auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
+    _video_conversion_range = Range<Frame_t>{
+        range.first == -1
+            ? 0_f
+            : Frame_t(range.first),
+        range.second == -1
+            ? _overlayed_video->source()->length()
+            : min(_overlayed_video->source()->length(), Frame_t(range.second))
+    };
+
+    _overlayed_video->reset_to_frame(_video_conversion_range.start);
+
     ThreadManager::getInstance().startGroup(_generator_group_id);
     ThreadManager::getInstance().startGroup(_tracker_group_id);
 }
@@ -302,7 +318,8 @@ void Segmenter::generator_thread() {
     {
         try {
             if (not _next_frame_data and not items.empty()) {
-                if (std::get<1>(items.front()).valid())
+                if (std::get<0>(items.front()).valid()
+                    && std::get<1>(items.front()).valid())
                 {
                     if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
                     {
@@ -346,8 +363,20 @@ void Segmenter::generator_thread() {
             guard.lock();
             
             if (not result) {
+                // set weight limit to ensure that the detection actually ends
+                // since we now go 1by1 and not in packages of multiple
+                // images
+                Detection::manager().set_weight_limit(1);
+
+                if (_overlayed_video->eof()) {
+					thread_print("TM EOF: ", result.error());
+					//_next_frame_data = {};
+					//_cv_ready_for_tracking.notify_one();
+					ThreadManager::getInstance().notify(_tracker_group_id);
+					return;
+				}
                 //_overlayed_video->reset(0_f);
-                thread_print("TM Invalid item #", items.size());
+                thread_print("TM Invalid item #", items.size(),": ", result.error());
                 if(error_callback)
                     error_callback("Cannot generate results: "+std::string(result.error()));
             }
@@ -398,7 +427,9 @@ void Segmenter::perform_tracking() {
         _output_file->add_individual(pv::Frame(_progress_data.frame));
     }
 
-    if(std::unique_lock guard(_mutex_tracker); _tracker != nullptr)
+    auto index = _progress_data.frame.index();
+
+    if (std::unique_lock guard(_mutex_tracker); _tracker != nullptr)
     {
         PPFrame pp;
         Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
@@ -421,9 +452,8 @@ void Segmenter::perform_tracking() {
     average += c;
     ++samples;
 
-
     static Timer frame_counter;
-    static size_t num_frames{0};
+    static size_t num_frames{ 0 };
     static auto mFPS = LOGGED_MUTEX("mFPS");
     static double FPS{ 0 };
 
@@ -481,6 +511,10 @@ void Segmenter::tracking_thread() {
             }
         }
         
+        Frame_t index;
+        if(_next_frame_data)
+            index = _next_frame_data.original_index();
+
         if (_next_frame_data) {
             try {
                 _progress_data = std::move(_next_frame_data);
@@ -528,6 +562,23 @@ void Segmenter::tracking_thread() {
         //}
         }
 
+        if (not _overlayed_video
+            || not _overlayed_video->source()
+            || (index.valid()
+                && _overlayed_video->source()->is_finite()
+                && (index >= _overlayed_video->source()->length()
+                    || index >= _video_conversion_range.end))
+            || (not index.valid() 
+                && items.empty() 
+                && _overlayed_video->eof())
+            )
+        {
+            if (eof_callback) {
+                eof_callback();
+                eof_callback = nullptr;
+            }
+        }
+
         //thread_print("Waiting for next...");
         //_cv_messages.notify_one();
         //ThreadManager::getInstance().notify(_tracker_group_id);
@@ -538,6 +589,13 @@ void Segmenter::tracking_thread() {
         //thread_print("Received notification: next(", (bool)next,")");
     }
     //thread_print("Tracking ended.");
+}
+
+void Segmenter::force_stop() {
+    if (eof_callback) {
+        eof_callback();
+        eof_callback = nullptr;
+    }
 }
 
 void Segmenter::set_progress_callback(std::function<void (float)> callback) {

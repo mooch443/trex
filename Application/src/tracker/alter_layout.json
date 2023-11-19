@@ -4,7 +4,7 @@
 		"pos":[20,10],
 		"scale":[1.0,1.0],
 		"pad":[5,5,5,5],
-		"fill":[0,0,0,50],
+		"fill":[0,0,0,100],
 		"clickable":false,
 		"valign":"center",
 		"children": [[
@@ -12,7 +12,7 @@
 				"type":"hlayout", 
 				"pad":[0,0,5,0],
 				"children": [
-					{ "type":"button", "text":"Quit", "action":"QUIT" },
+					{ "type":"button", "text":"Quit", "action":"terminate" },
 					{ "type":"button", "text":"Filter", "action":"FILTER" }
 				]
 			},
@@ -47,6 +47,8 @@
 		"type":"hlayout",
 		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
 		"origin":[1,1],
+		"pad":[5,5,5,5],
+		"fill":[0,0,0,200],
 		"children":[
 			{
 				"type":"stext",

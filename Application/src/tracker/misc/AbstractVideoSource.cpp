@@ -41,10 +41,10 @@ void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
     buffers.move_back(std::move(ptr));
 }
 
-std::tuple<Frame_t, useMatPtr_t, Image::Ptr> AbstractBaseVideoSource::next() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> AbstractBaseVideoSource::next() {
     auto result = _resize_cvt.next();
-    if(!result)
-        return std::make_tuple(Frame_t{}, nullptr, nullptr);
+    if (!result)
+        return tl::unexpected(result.error());
     
     return std::move(result.value());
 }

@@ -385,7 +385,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
 
 Tracker::~Tracker() {
     assert(_instance);
-    Settings::clear_callbacks();
+    //Settings::clear_callbacks();
     
 #if !COMMONS_NO_PYTHON
     Accumulation::on_terminate();

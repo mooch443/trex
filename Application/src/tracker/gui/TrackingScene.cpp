@@ -724,10 +724,11 @@ void TrackingScene::init_video() {
     }
     print("Deleted keys:", deleted_keys);
     print("Remaining:", combined.map.keys());
-    
+
+    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
     GlobalSettings::map().set_do_print(true);
-    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     GlobalSettings::map().dont_print("gui_frame");
     GlobalSettings::map().dont_print("gui_focus_group");
     
@@ -745,14 +746,20 @@ void TrackingScene::init_video() {
         DebugHeader("LOADED ",default_path);
     }
     
-    SETTING(cm_per_pixel) = float(0);
-    
-    cmd.load_settings(&combined);
+    //SETTING(cm_per_pixel) = float(0);
+
+    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
+    //cmd.load_settings(&combined);
     
     //! TODO: have to delegate this to another thread
     //! otherwise we will get stuck here
     bool executed_a_settings{false};
-    file::Path filename = file::DataLocation::parse("input", SETTING(source).value<file::PathArray>().source());
+    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
+    auto path = SETTING(source).value<file::PathArray>().empty()
+        ? file::Path()
+        : SETTING(source).value<file::PathArray>().get_paths().front();
+
+    file::Path filename = file::DataLocation::parse("input", path);
     SETTING(filename) = filename.remove_extension();
     pv::File video(filename, pv::FileMode::READ);
     
@@ -768,8 +775,6 @@ void TrackingScene::init_video() {
             if(default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
         }
-        
-        video.close();
     }
     
     try {
@@ -807,9 +812,10 @@ void TrackingScene::init_video() {
      * Try to load Settings from the command-line that have been
      * ignored previously.
      */
-    cmd.load_settings(&combined);
+    //cmd.load_settings(&combined);
     
     SETTING(gui_interface_scale) = float(1);
+    print("cm_per_pixel = ", SETTING(cm_per_pixel).value<float>());
     
     //! Stages
     _data = std::make_unique<Data>(

@@ -239,6 +239,13 @@ void ConvertScene::activate()  {
         window()->set_title(window_title());
         bar.set_progress(0);
 
+        auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
+        if (range.first == -1 && range.second == -1) {
+			SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());
+        }
+        else if(range.first >= 0) {
+            SETTING(gui_frame) = Frame_t(range.first);
+        }
     }
     catch (const std::exception& e) {
         FormatExcept("Exception when switching scenes: ", e.what());
@@ -625,9 +632,11 @@ void ConvertScene::_draw(DrawStructure& graph) {
             .path = "alter_layout.json",
             .graph = &graph,
             .context = dyn::Context{
-                ActionFunc("QUIT", [](auto) {
-                    auto& manager = SceneManager::getInstance();
-                    manager.set_active("starting-scene");
+                ActionFunc("terminate", [this](auto) {
+                    if(_segmenter)
+                        _segmenter->force_stop();
+                    else
+                        SceneManager::getInstance().set_active("starting-scene");
                 }),
                 ActionFunc("FILTER", [](auto) {
                     static bool filter { false };

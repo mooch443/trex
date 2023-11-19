@@ -11,6 +11,8 @@
 #include <tracking/Segmenter.h>
 #include <Alterface.h>
 
+#include <gui/ScreenRecorder.h>
+
 namespace gui {
 
 using namespace dyn;
@@ -63,6 +65,7 @@ class ConvertScene : public Scene {
     GETTER(Frame_t, video_frame)
     
     std::function<void(ConvertScene&)> _on_activate, _on_deactivate;
+    ScreenRecorder _recorder;
     
 public:
     ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate);

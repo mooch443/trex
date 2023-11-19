@@ -15,6 +15,7 @@ class Segmenter {
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
     ThreadGroupId _generator_group_id, _tracker_group_id;
+    Range<Frame_t> _video_conversion_range;
     
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<VideoProcessor<Detection>>, overlayed_video)
@@ -40,9 +41,10 @@ class Segmenter {
     std::function<void(float)> progress_callback;
     std::future<void> average_generator;
     std::function<void(std::string)> error_callback;
+    std::function<void()> eof_callback;
     
 public:
-    Segmenter(std::function<void(std::string)> error = nullptr);
+    Segmenter(std::function<void()> eof_callback, std::function<void(std::string)> error = nullptr);
     ~Segmenter();
     void reset(Frame_t);
     void open_video();
@@ -55,6 +57,8 @@ public:
     Frame_t video_length() const;
     Size2 size() const;
     bool is_finite() const;
+    file::Path output_file_name() const;
+    void force_stop();
     
     std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
     

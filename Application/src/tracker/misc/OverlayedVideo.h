@@ -71,7 +71,7 @@ public:
         assert(_source);
         if (not _source->is_finite())
             return false;
-        return _current_frame_index >= _source->length();
+        return _source->current_frame_index() >= _source->length();
     }
 
     // Retrieves and processes the next frame from the video source
@@ -85,9 +85,11 @@ public:
             
             // get image from resize+cvtColor (last step of video source)
             // => here (ApplyProcessor)
-            auto&& [nix, buffer, image] = _source->next();
-            if(not nix.valid())
-                return tl::unexpected("Cannot retrieve frame from video source.");
+            auto maybe_image = _source->next();
+            if(not maybe_image)
+                return tl::unexpected(maybe_image.error());
+
+            auto& [nix, buffer, image] = maybe_image.value();
             
             static double average_time = 0, sample_count = 0;
             average_time += timer_.elapsed() * 1000;
@@ -155,8 +157,8 @@ public:
 
     // Generates the next frame and applies the processing function on it
     AsyncResult generate() noexcept {
-        if (eof())
-            return tl::unexpected("End of file reached.");
+        //if (eof())
+        //    return tl::unexpected("End of file reached.");
         return _async_queue.next();
     }
 };
