@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -184,14 +184,15 @@ void ConvertScene::activate()  {
         if(_on_activate)
             _on_activate(*this);
         
-        print("Loading source = ", SETTING(source).value<file::PathArray>());
-        SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
-        if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
+        auto source = SETTING(source).value<file::PathArray>();
+        print("Loading source = ", source);
+        SETTING(meta_source_path) = source.source();
+        if (source == file::PathArray("webcam"))
             open_camera();
         else
             open_video();
 
-        RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::map());
+        RecentItems::open(source, GlobalSettings::map());
 
         video_size = _segmenter->size();
         if(video_size.empty()) {
@@ -238,7 +239,7 @@ void ConvertScene::activate()  {
         window()->set_window_bounds(bounds);
         window()->set_title(window_title());
         bar.set_progress(0);
-
+        
         auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
         if (range.first == -1 && range.second == -1) {
 			SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());

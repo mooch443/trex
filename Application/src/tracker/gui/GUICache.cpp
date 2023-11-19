@@ -850,6 +850,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                     source.insert(fish);
             }
             
+            std::unique_lock g(Categorize::DataStore::cache_mutex());
             for (auto& fish : (source.empty() ? active : source)) {
                 if (fish->empty()
                     || fish->start_frame() > frameIndex)

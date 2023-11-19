@@ -1,5 +1,6 @@
 #include "Webcam.h"
 #include <misc/GlobalSettings.h>
+#include <misc/Timer.h>
 
 namespace fg {
     Webcam::Webcam() {
@@ -23,6 +24,17 @@ namespace fg {
         cv::Mat test;
         _capture >> test;
         _size = cv::Size(test.cols, test.rows);
+        
+        /// fix for wrongly assigned prop fps values
+        _frame_rate = _capture.get(cv::CAP_PROP_FPS);
+        if(_frame_rate < 10) {
+            Timer timer;
+            for(size_t i=0; i<30; ++i)
+                _capture >> test;
+            auto e = timer.elapsed();
+            print("Measured framerate = ", 30 / e);
+            _frame_rate = int(round(30.0 / e));
+        }
     }
 
     Size2 Webcam::size() const {
@@ -33,10 +45,7 @@ namespace fg {
     }
 
     int Webcam::frame_rate() {
-        if (!open())
-            return -1;
-        std::unique_lock guard(_mutex);
-        return _capture.get(cv::CAP_PROP_FPS);
+        return _frame_rate;
     }
 
     bool Webcam::open() const {

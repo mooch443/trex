@@ -71,6 +71,18 @@ Segmenter::~Segmenter() {
     ThreadManager::getInstance().terminateGroup(_generator_group_id);
     ThreadManager::getInstance().terminateGroup(_tracker_group_id);
     
+#if WITH_FFMPEG
+    if(_queue) {
+        _queue->terminate() = true;
+        _queue->notify();
+        
+        if(_ffmpeg_group.valid())
+            ThreadManager::getInstance().terminateGroup(_ffmpeg_group);
+        
+        _queue = nullptr;
+    }
+#endif
+    
     std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
     _overlayed_video = nullptr;
     _tracker = nullptr;
@@ -108,7 +120,7 @@ bool Segmenter::is_finite() const {
 }
 
 file::Path Segmenter::output_file_name() const {
-	return _output_file ? _output_file->filename() : file::Path();
+	return _output_file_name;
 }
 
 bool Segmenter::is_average_generating() const {
@@ -123,12 +135,14 @@ void Segmenter::open_video() {
     video_base.set_colors(ImageMode::RGB);
 
     SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
-
-    print("filename = ", SETTING(filename).value<file::Path>());
-    print("video_base = ", video_base.base());
+    
     if (SETTING(filename).value<file::Path>().empty()) {
         SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
     }
+    
+    print("source = ", SETTING(source).value<file::PathArray>());
+    print("output = ", SETTING(filename).value<file::Path>());
+    print("video_base = ", video_base.base());
 
     setDefaultSettings();
     _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
@@ -175,15 +189,15 @@ void Segmenter::open_video() {
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
-    auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-    DebugHeader("Output: ", filename);
+    _output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    DebugHeader("Output: ", _output_file_name);
 
-    auto path = filename.remove_filename();
+    auto path = _output_file_name.remove_filename();
     if (not path.exists()) {
         path.create_folder();
     }
 
-    auto callback_after_generating = [this, filename](cv::Mat& bg){
+    auto callback_after_generating = [this](cv::Mat& bg){
         {
             std::unique_lock guard(_mutex_tracker);
             _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
@@ -191,7 +205,7 @@ void Segmenter::open_video() {
         
         {
             std::unique_lock vlock(_mutex_general);
-            _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+            _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
             _output_file->set_average(bg);
         }
     };
@@ -236,7 +250,9 @@ void Segmenter::open_camera() {
     fg::Webcam camera;
     camera.set_color_mode(ImageMode::RGB);
 
-    SETTING(frame_rate) = Settings::frame_rate_t(25);
+    SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
+                                                 ? 25
+                                                 : camera.frame_rate());
     if (SETTING(filename).value<file::Path>().empty())
         SETTING(filename) = file::Path("webcam");
 
@@ -287,22 +303,54 @@ void Segmenter::open_camera() {
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
-    auto filename = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-    DebugHeader("Output: ", filename);
+    _output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    DebugHeader("Output: ", _output_file_name);
 
-    auto path = filename.remove_filename();
+    auto path = _output_file_name.remove_filename();
     if (not path.exists()) {
         path.create_folder();
     }
 
     {
         std::unique_lock vlock(_mutex_general);
-        _output_file = std::make_unique<pv::File>(filename, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
         _output_file->set_average(bg);
     }
     
+    start_recording_ffmpeg();
+    
     ThreadManager::getInstance().startGroup(_generator_group_id);
     ThreadManager::getInstance().startGroup(_tracker_group_id);
+}
+
+void Segmenter::start_recording_ffmpeg() {
+#if WITH_FFMPEG
+    if(SETTING(save_raw_movie)) {
+        try {
+            auto path = output_file_name();
+            if(path.has_extension())
+                path = path.replace_extension("mov");
+            else
+                path = path.add_extension("mov");
+        
+            _queue = std::make_unique<FFMPEGQueue>(true, _overlayed_video->source()->size(), path, is_finite(), video_length(), [](Image::Ptr&& image) {
+                image = nullptr; // move image back to buffer
+            });
+            print("Encoding mp4 into ",path.str(),"...");
+            
+            _ffmpeg_group = ThreadManager::getInstance().registerGroup("RawMovie");
+            ThreadManager::getInstance().addThread(_ffmpeg_group, "FFMPEGQueue", ManagedThread{
+                [this](auto&){ _queue->loop(); }
+            });
+            ThreadManager::getInstance().startGroup(_ffmpeg_group);
+            
+        } catch(...) {
+            if(_ffmpeg_group.valid())
+                ThreadManager::getInstance().terminateGroup(_ffmpeg_group);
+            throw;
+        }
+    }
+#endif
 }
 
 void Segmenter::generator_thread() {
@@ -438,6 +486,11 @@ void Segmenter::perform_tracking() {
             print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
         }*/
     }
+    
+#if WITH_FFMPEG
+    if(_progress_data.image)
+        _queue->add(Image::Make(*_progress_data.image));
+#endif
 
     {
         std::unique_lock guard(_mutex_current);
@@ -641,7 +694,7 @@ void Segmenter::printDebugInformation() {
     print("video: ", SETTING(source).value<file::PathArray>());
     print("model resolution: ", SETTING(detection_resolution).value<uint16_t>());
     print("output size: ", SETTING(output_size).value<Size2>());
-    print("output path: ", SETTING(filename).value<file::Path>());
+    print("output path: ", _output_file_name);
     print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
 }
 

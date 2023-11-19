@@ -15,6 +15,7 @@ namespace fg {
         gpuMat _gpu_cache;
         std::vector<cv::Mat> _array;
         std::vector<gpuMat> _gpu_array;
+        int _frame_rate{0};
         
     public:
         Webcam();

@@ -79,13 +79,18 @@ namespace gui {
         Individual::IDaverage _qr_code;
         std::vector<float> _pred;
         
-        int _avg_cat = -1;
         Color _previous_color;
         Output::Library::LibInfo _info;
         double _library_y = Graph::invalid();
         std::string circle_animator{ "recognition-circle-"+Meta::toStr((uint64_t)this) };
         bool _path_dirty{false};
         //ExternalImage _colored;
+        
+        /// Categorization information
+        int _avg_cat = -1;
+        int _cat = -1;
+        std::string _cat_name;
+        std::string _avg_cat_name;
         
         Graph _graph;
         Entangled _posture, _label_parent;

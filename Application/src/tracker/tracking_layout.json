@@ -32,7 +32,7 @@
                 "children": [
                     { 
                         "type":"stext",
-                        "text":"<b>{global.individual_prefix}{global.gui_focus_group}</b>ßöäü",
+                        "text":"<b>{global.individual_prefix} {at:0:{global.gui_focus_group}}</b>",
                         "pos":[10,10]
                     }
                 ]

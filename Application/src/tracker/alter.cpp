@@ -400,8 +400,11 @@ int main(int argc, char**argv) {
             CommandLine::instance().add_setting("detection_resolution", a.value);
         }
         else if(a.name == "o") {
-            SETTING(filename) = file::Path(a.value);
-            CommandLine::instance().add_setting("filename", a.value);
+            auto path = file::Path(a.value);
+            if(path.has_extension())
+                path = path.remove_extension();
+            SETTING(filename) = path;
+            CommandLine::instance().add_setting("filename", path.str());
         }
         else if(a.name == "p") {
             SETTING(output_prefix) = std::string(a.value);

@@ -15,6 +15,10 @@ endif()
 
 add_dependencies(tracker_gui tracker_misc commons)
 
+if(WITH_FFMPEG)
+    target_compile_definitions(tracker_gui PRIVATE WITH_FFMPEG=true)
+endif()
+
 target_link_libraries(tracker_gui PRIVATE
     tracker_tracking
     tracker_misc

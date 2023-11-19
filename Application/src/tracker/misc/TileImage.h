@@ -24,7 +24,7 @@ struct GPUMatPtr {
 #endif
     {
 #ifndef NDEBUG
-        *this = std::move(ptr);
+        *this = std::move(other);
 #endif
         assert(ptr);
     }

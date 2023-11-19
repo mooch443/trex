@@ -17,6 +17,10 @@ if(WITH_HTTPD)
     add_dependencies(tracker_tracking LibMicroHttpd)
 endif()
 
+if(WITH_FFMPEG)
+    target_compile_definitions(tracker_tracking PRIVATE WITH_FFMPEG=true)
+endif()
+
 if(WIN32)
   if(NOT COMMONS_NO_PYTHON)
      target_link_libraries(tracker_tracking PRIVATE tracker_python)

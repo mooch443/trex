@@ -223,8 +223,16 @@ Fish::~Fish() {
 #if !COMMONS_NO_PYTHON
         if(frameIndex == _safe_frame && _basic) {
             auto c = Categorize::DataStore::_label_averaged_unsafe(&obj, Frame_t(frameIndex));
-            if(c)
+            if(c) {
                 _avg_cat = c->id;
+                _avg_cat_name = c->name;
+            }
+        }
+        
+        auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
+        _cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), bdx);
+        if (_cat != -1 && _cat != _avg_cat) {
+            _cat_name = Categorize::DataStore::label(_cat)->name;
         }
 #endif
         
@@ -1407,23 +1415,17 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     if(c) {
         auto cat = c->current_category;
         if(cat != -1 && cat != _avg_cat) {
-            auto l = Categorize::DataStore::label(cat);
-            if(l) {
-                secondary_text += std::string(" ") + "<key>"+l->name+"</key>";
-            }
+            secondary_text += std::string(" ") + "<key>"+_cat_name+"</key>";
         }
     }
     
     auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
-    auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), bdx);
-    if (cat != -1 && cat != _avg_cat) {
-        secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + Categorize::DataStore::label(cat)->name + "</i>" + (cat ? "</b>" : "");
+    if (_cat != -1 && _cat != _avg_cat) {
+        secondary_text += std::string(" ") + (_cat ? "<b>" : "") + "<i>" + _cat_name + "</i>" + (_cat ? "</b>" : "");
     }
     
     if(_avg_cat != -1) {
-        auto c = Categorize::DataStore::label(_avg_cat);
-        if(c)
-            secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
+        secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + _avg_cat_name + "</nr>";
     }
 #endif
     

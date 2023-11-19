@@ -147,6 +147,10 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     pv
     commons)
 
+if(WITH_FFMPEG)
+    target_compile_definitions(${TREXA_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
+endif()
+
 add_executable(${TREX_EXEC_NAME} ${SRCS})
 add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
     Commons::OpenCV

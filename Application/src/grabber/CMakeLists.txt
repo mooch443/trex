@@ -8,8 +8,6 @@ set(GIT_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
 
 file(GLOB SRCS
     ${HTML}
-	tomp4.h
-	tomp4.cpp
 	grabber.h
 	grabber.cpp
      gpuImage.h

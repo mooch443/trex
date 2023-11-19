@@ -16,56 +16,11 @@
 #include <gui/AnimatedBackground.h>
 #include <gui/Coordinates.h>
 #include <gui/ScreenRecorder.h>
+#include <gui/Bowl.h>
 
 namespace gui {
 
 class IMGUIBase;
-
-class VisualFieldWidget : public Entangled {
-    const GUICache* _cache;
-    std::vector<derived_ptr<Polygon>> _polygons;
-public:
-    VisualFieldWidget(const GUICache* cache) : _cache(cache) {}
-    void update() override;
-    void set_parent(SectionInterface*) override;
-};
-
-class Bowl : public Entangled {
-    GUICache* _cache;
-    VisualFieldWidget _vf_widget;
-    Frame_t _last_frame;
-    
-public:
-    Bowl(GUICache* cache);
-    void set_video_aspect_ratio(float video_width, float video_height);
-    void fit_to_screen(const Vec2& screen_size);
-    void set_target_focus(const std::vector<Vec2>& target_points);
-    
-    using Entangled::update;
-    void update_scaling();
-    void update(Frame_t, DrawStructure&, const FindCoord&);
-    void set_max_zoom_size(const Vec2& max_zoom);
-    
-public:
-    bool has_target_points_changed(const std::vector<Vec2>& new_target_points) const;
-    bool has_screen_size_changed(const Vec2& new_screen_size) const;
-    void update_goals();
-    void update_blobs(const Frame_t& frame);
-    void set_data(Frame_t frame);
-
-    Vec2 _current_scale;
-    Vec2 _target_scale;
-    Vec2 _current_pos;
-    Vec2 _target_pos;
-    Vec2 _aspect_ratio;
-    Vec2 _screen_size;
-    Vec2 _center_of_screen;
-    Vec2 _max_zoom;
-    Vec2 _current_size;
-    Vec2 _video_size;
-    Timer _timer;
-    std::vector<Vec2> _target_points;
-};
 
 template<typename... ArgType>
 class TaskQueue {

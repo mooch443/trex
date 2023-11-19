@@ -13,6 +13,10 @@ elseif(WIN32)
   add_library(tracker_misc STATIC ${SRCS} ${HDRS})
 endif()
 
+if(WITH_FFMPEG)
+    target_compile_definitions(tracker_misc PRIVATE WITH_FFMPEG=true)
+endif()
+
 target_link_libraries(tracker_misc PRIVATE
     commons
     lzo

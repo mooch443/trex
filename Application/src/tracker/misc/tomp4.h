@@ -7,6 +7,16 @@
 #include <file/Path.h>
 #include <lzo/minilzo.h>
 #include "gpuImage.h"
+#include <misc/Timer.h>
+#include <misc/create_struct.h>
+#include <misc/frame_t.h>
+
+namespace ffmpeg {
+
+CREATE_STRUCT(Settings,
+              (uint32_t, frame_rate));
+
+}
 
 class FFMPEGQueue {
     std::mutex _mutex, _write_mutex;
@@ -41,14 +51,21 @@ class FFMPEGQueue {
     //std::deque<cmn::Image*> _vacant_images;
     bool _direct;
     std::thread *write_thread;
+    Timer last_printout;
+    Timer per_frame;
     
     double average_compressed_size, samples_compressed_size;
     
+    bool _finite_source{false};
+    cmn::Frame_t _video_length;
+    std::function<void(cmn::Image::Ptr&&)> _move_back;
+    
 public:
-    FFMPEGQueue(bool direct, const cmn::Size2& size, const file::Path& output);
+    FFMPEGQueue(bool direct, const cmn::Size2& size, const file::Path& output, bool finite_source, cmn::Frame_t video_length, std::function<void(cmn::Image::Ptr&&)> move_back);
     ~FFMPEGQueue();
     
     void loop();
+    void loop_once(std::unique_lock<std::mutex>&);
     void write_loop();
     void notify();
     void add(std::unique_ptr<cmn::Image>&& ptr);
@@ -56,6 +73,7 @@ public:
     //void refill_queue(std::queue<std::unique_ptr<cmn::Image_t>>& queue);
     
 private:
+    void prints(bool force);
     void process_one_image(cmn::timestamp_t stamp, const std::unique_ptr<cmn::Image>& ptr, bool direct);
     void finalize_one_image(cmn::timestamp_t stamp, const cmn::Image& image);
     void update_cache_strategy(double frame_ms, double compressed_size);

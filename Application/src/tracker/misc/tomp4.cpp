@@ -3,7 +3,7 @@
 #include "tomp4.h"
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
-
+#include <misc/frame_t.h>
 // FFmpeg
 extern "C" {
 #include <libavformat/avformat.h>
@@ -16,7 +16,6 @@ extern "C" {
 
 #include <cnpy.h>
 #include <file/DataFormat.h>
-#include <grabber.h>
 
 #if WIN32
 #include <windows.h>
@@ -54,21 +53,26 @@ unsigned long long getTotalSystemMemory()
 }
 #endif
 
+#define FFMPEG_SETTING(NAME) ffmpeg::Settings::get<ffmpeg::Settings:: NAME>()
+
 using namespace cmn;
 
 const char *codec_name = "h264_nvenc";
 const AVCodec *codec;
 AVCodecContext *c= NULL;
 int i, ret, x, y;
-file::FilePtr f;
+//file::FilePtr f;
 AVFrame *frame;
 AVPacket *pkt;
 AVFrame* input_frame;
 SwsContext * ctx;
 uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
-void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
-            FILE *outfile)
+AVFormatContext* outFmtCtx = nullptr;
+AVStream* outStream = nullptr;
+
+void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt)//,
+            //FILE *outfile)
 {
     int ret;
     
@@ -93,15 +97,118 @@ void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
             throw U_EXCEPTION("Error during encoding (receive) ",ret,"");
         }
         
-        //pkt->dts = AV_NOPTS_VALUE;
         
+        // Rescale timestamps from codec time base to stream time base
+        pkt->pts = av_rescale_q(pkt->pts, enc_ctx->time_base, outStream->time_base);
+        pkt->dts = av_rescale_q(pkt->dts, enc_ctx->time_base, outStream->time_base);
+
+        print("pkt->pts = ", pkt->pts);
+        print("pkt->dts = ", pkt->dts);
+        
+        //pkt->dts = AV_NOPTS_VALUE;
+        // Write the packet
+        if (av_interleaved_write_frame(outFmtCtx, pkt) < 0) {
+            throw U_EXCEPTION("Error while writing packet to output file");
+        }
         //printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
-        fwrite(pkt->data, 1, pkt->size, outfile);
+        //fwrite(pkt->data, 1, pkt->size, outfile);
         av_packet_unref(pkt);
     }
 }
 
-FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, const file::Path& output) : _size(size), _output_path(output), _last_timestamp(0), _terminate(false), _direct(direct),write_thread(NULL), average_compressed_size(0), samples_compressed_size(0)
+// Main function for remuxing
+void remux(const std::string &inputFileName, const std::string &outputFileName) {
+    AVFormatContext* inputFormatContext = nullptr;
+    AVFormatContext* outputFormatContext = nullptr;
+
+    // Initialize FFmpeg
+    avformat_network_init();
+
+    // Open input file
+    if (avformat_open_input(&inputFormatContext, inputFileName.c_str(), nullptr, nullptr) < 0) {
+        throw U_EXCEPTION("Error opening input file");
+    }
+
+    // Retrieve stream information
+    if (avformat_find_stream_info(inputFormatContext, nullptr) < 0) {
+        avformat_close_input(&inputFormatContext);
+        throw U_EXCEPTION("Error finding stream information");
+    }
+
+    // Allocate output context
+    if (avformat_alloc_output_context2(&outputFormatContext, nullptr, nullptr, outputFileName.c_str()) < 0) {
+        avformat_close_input(&inputFormatContext);
+        throw U_EXCEPTION("Error allocating output context");
+    }
+
+    // Copy streams
+    for (unsigned int i = 0; i < inputFormatContext->nb_streams; i++) {
+        AVStream* inStream = inputFormatContext->streams[i];
+        AVStream* outStream = avformat_new_stream(outputFormatContext, nullptr);
+
+        if (!outStream) {
+            avformat_close_input(&inputFormatContext);
+            avformat_free_context(outputFormatContext);
+            throw U_EXCEPTION("Error creating a new stream in the output file");
+        }
+
+        if (avcodec_parameters_copy(outStream->codecpar, inStream->codecpar) < 0) {
+            avformat_close_input(&inputFormatContext);
+            avformat_free_context(outputFormatContext);
+            throw U_EXCEPTION("Error copying codec parameters");
+        }
+        outStream->codecpar->codec_tag = 0;
+    }
+
+    // Write the output file header
+    if (!(outputFormatContext->oformat->flags & AVFMT_NOFILE)) {
+        if (avio_open(&outputFormatContext->pb, outputFileName.c_str(), AVIO_FLAG_WRITE) < 0) {
+            avformat_close_input(&inputFormatContext);
+            avformat_free_context(outputFormatContext);
+            throw U_EXCEPTION("Error opening output file");
+        }
+    }
+
+    if (avformat_write_header(outputFormatContext, nullptr) < 0) {
+        avformat_close_input(&inputFormatContext);
+        avformat_free_context(outputFormatContext);
+        throw U_EXCEPTION("Error writing header to output file");
+    }
+
+    // Remuxing loop
+    AVPacket pkt;
+    while (av_read_frame(inputFormatContext, &pkt) >= 0) {
+        AVStream* inStream = inputFormatContext->streams[pkt.stream_index];
+        AVStream* outStream = outputFormatContext->streams[pkt.stream_index];
+
+        pkt.pts = av_rescale_q_rnd(pkt.pts, inStream->time_base, outStream->time_base, (AVRounding)(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+        pkt.dts = av_rescale_q_rnd(pkt.dts, inStream->time_base, outStream->time_base, (AVRounding)(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+        pkt.duration = av_rescale_q(pkt.duration, inStream->time_base, outStream->time_base);
+        pkt.pos = -1;
+
+        if (av_interleaved_write_frame(outputFormatContext, &pkt) < 0) {
+            av_packet_unref(&pkt);
+            avformat_close_input(&inputFormatContext);
+            if (outputFormatContext && !(outputFormatContext->oformat->flags & AVFMT_NOFILE))
+                avio_closep(&outputFormatContext->pb);
+            avformat_free_context(outputFormatContext);
+            throw U_EXCEPTION("Error writing frame");
+        }
+        av_packet_unref(&pkt);
+    }
+
+    // Write the trailer to output file
+    av_write_trailer(outputFormatContext);
+
+    // Clean up
+    avformat_close_input(&inputFormatContext);
+    if (outputFormatContext && !(outputFormatContext->oformat->flags & AVFMT_NOFILE))
+        avio_closep(&outputFormatContext->pb);
+    avformat_free_context(outputFormatContext);
+}
+
+FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, const file::Path& output, bool finite_source, Frame_t video_length, std::function<void(Image::Ptr&&)> move_back)
+: _size(size), _output_path(output), _last_timestamp(0), _terminate(false), _direct(direct),write_thread(NULL), average_compressed_size(0), samples_compressed_size(0), _finite_source(finite_source), _video_length(video_length), _move_back(move_back)
 {
     if(!direct)
         write_thread = new std::thread([this](){
@@ -163,86 +270,35 @@ void FFMPEGQueue::notify() {
 std::mutex fps_mutex;
 double frame_average = 0, frame_samples = 0;
 
+
+void FFMPEGQueue::prints(bool force){
+    if(last_printout.elapsed() >= 30 || force) {
+        double ms, compressed_size;
+        {
+            std::lock_guard<std::mutex> fps_guard(fps_mutex);
+            ms = frame_average / frame_samples;
+            
+            if(samples_compressed_size > 0)
+                compressed_size = average_compressed_size / samples_compressed_size;
+            else
+                compressed_size = 0;
+        }
+        
+        print("[FFMPEG] so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
+        last_printout.reset();
+    }
+}
+
 void FFMPEGQueue::loop() {
     std::unique_lock<std::mutex> guard(_mutex);
-    Timer per_frame;
     
     if(_direct)
         open_video();
     
-    Timer last_printout;
-    auto prints = [&last_printout, this](bool force){
-        if(last_printout.elapsed() >= 30 || force) {
-            double ms, compressed_size;
-            {
-                std::lock_guard<std::mutex> fps_guard(fps_mutex);
-                ms = frame_average / frame_samples;
-                
-                if(samples_compressed_size > 0)
-                    compressed_size = average_compressed_size / samples_compressed_size;
-                else
-                    compressed_size = 0;
-            }
-            
-            print("[FFMPEG] so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
-            last_printout.reset();
-        }
-    };
     
     while(true) {
         _condition.wait_for(guard, std::chrono::seconds(1));
-        
-        while(!_queue.empty()) {
-            // per_frame * N > (1/frame_rate)
-            
-            // if we already terminate, we can process all the frames (let the user wait)
-            if(_terminate) {
-                static bool terminated_before = false;
-                static size_t initial_size = 0;
-                if(!terminated_before) {
-                    initial_size = _queue.size();
-                    terminated_before = true;
-                }
-                
-                if(_queue.size()%size_t(max(1, initial_size * 0.1)) == 0)
-                    print("Processing remaining queue (", _queue.size()," images)");
-                
-            } else {
-                double samples, ms, compressed_size;
-                {
-                    std::lock_guard<std::mutex> fps_guard(fps_mutex);
-                    samples = frame_samples;
-                    ms = frame_average / frame_samples;
-                    
-                    if(samples_compressed_size > 0)
-                        compressed_size = average_compressed_size / samples_compressed_size;
-                    else
-                        compressed_size = 0;
-                }
-                
-                if(samples > 100)
-                    update_cache_strategy(ms * 1000, compressed_size);
-            }
-            
-            if(!_queue.empty()) {
-                if(_direct) {
-                    per_frame.reset();
-                }
-                
-                auto image = std::move(_queue.back());
-                _queue.pop_back();
-                
-                guard.unlock();
-                process_one_image(image->stamp(), image, _direct);
-                guard.lock();
-                
-                if(_direct) {
-                    update_statistics(per_frame.elapsed(), _size.width * _size.height);
-                }
-            }
-            
-            prints(false);
-        }
+        loop_once(guard);
         
         if(_terminate)
             break;
@@ -254,6 +310,63 @@ void FFMPEGQueue::loop() {
         close_video();
     
     print("Closed conversion loop.");
+}
+
+void FFMPEGQueue::loop_once(std::unique_lock<std::mutex>& guard) {
+    while(!_queue.empty()) {
+        // per_frame * N > (1/frame_rate)
+        
+        // if we already terminate, we can process all the frames (let the user wait)
+        if(_terminate) {
+            static bool terminated_before = false;
+            static size_t initial_size = 0;
+            if(!terminated_before) {
+                initial_size = _queue.size();
+                terminated_before = true;
+            }
+            
+            if(_queue.size()%size_t(max(1, initial_size * 0.1)) == 0)
+                print("Processing remaining queue (", _queue.size()," images)");
+            
+        } else {
+            double samples, ms, compressed_size;
+            {
+                std::lock_guard<std::mutex> fps_guard(fps_mutex);
+                samples = frame_samples;
+                ms = frame_average / frame_samples;
+                
+                if(samples_compressed_size > 0)
+                    compressed_size = average_compressed_size / samples_compressed_size;
+                else
+                    compressed_size = 0;
+            }
+            
+            if(samples > 100)
+                update_cache_strategy(ms * 1000, compressed_size);
+        }
+        
+        if(!_queue.empty()) {
+            if(_direct) {
+                per_frame.reset();
+            }
+            
+            auto image = std::move(_queue.back());
+            _queue.pop_back();
+            
+            guard.unlock();
+            process_one_image(image->stamp(), image, _direct);
+            guard.lock();
+            
+            if(_move_back)
+                _move_back(std::move(image));
+            
+            if(_direct) {
+                update_statistics(per_frame.elapsed(), _size.width * _size.height);
+            }
+        }
+        
+        prints(false);
+    }
 }
 
 void FFMPEGQueue::Package::unpack(cmn::Image &image, lzo_uint& new_len) const {
@@ -418,10 +531,12 @@ void FFMPEGQueue::open_video() {
         throw U_EXCEPTION("Dimensions must be a multiple of 2. (",c->width,"x",c->height,")");
     
     /* frames per second */
-    //int frame_rate = SETTING(frame_rate).value<int>();
-    c->time_base = AVRational{(int)1, (int)25};
-    c->framerate = AVRational{(int)25, (int)1};
-    
+    int frame_rate = SETTING(frame_rate).value<uint32_t>();
+    if(frame_rate == 0 || frame_rate > 256)
+        frame_rate = 25;
+    c->time_base = AVRational{1, frame_rate};
+    c->framerate = AVRational{frame_rate, 1}; // For setting frame rate explicitly
+
     /* emit one intra frame every ten frames
      * check frame pict_type before passing frame
      * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
@@ -442,9 +557,28 @@ void FFMPEGQueue::open_video() {
         throw U_EXCEPTION("Could not open codec '",codec_name,"'.");
     }
     
-    f = _output_path.fopen("wb");
-    if (!f)
-        throw U_EXCEPTION("Could not open ",_output_path.str(),".");
+    //f = _output_path.fopen("wb");
+    //if (!f)
+    //        throw U_EXCEPTION("Could not open ",_output_path.str(),".");
+    if(avformat_alloc_output_context2(&outFmtCtx, nullptr, nullptr, _output_path.c_str()) < 0)
+        throw U_EXCEPTION("Could not open ", _output_path," context.");
+    
+    outStream = avformat_new_stream(outFmtCtx, nullptr);
+    avcodec_parameters_from_context(outStream->codecpar, c);
+    
+    // Ensure the stream time base is the same
+    outStream->time_base = c->time_base;
+    
+    if (!(outFmtCtx->oformat->flags & AVFMT_NOFILE)) {
+        if (avio_open(&outFmtCtx->pb, _output_path.c_str(), AVIO_FLAG_WRITE) < 0) {
+            throw U_EXCEPTION("Cannot open ", _output_path," output file.");
+        }
+    }
+    
+    int error;
+    if((error = avformat_write_header(outFmtCtx, nullptr)) < 0) {
+        throw U_EXCEPTION("Error creating a header for output: ", error);
+    }
     
     frame = av_frame_alloc();
     if (!frame)
@@ -458,7 +592,7 @@ void FFMPEGQueue::open_video() {
         throw U_EXCEPTION("Could not allocate the video frame data");
     
     input_frame = av_frame_alloc();
-    input_frame->format = AV_PIX_FMT_GRAY8;
+    input_frame->format = AV_PIX_FMT_RGB24;
     input_frame->width = c->width;
     input_frame->height = c->height;
     
@@ -467,25 +601,11 @@ void FFMPEGQueue::open_video() {
         throw U_EXCEPTION("Could not allocate the video frame data");
     
     ctx = sws_getContext(c->width, c->height,
-                         AV_PIX_FMT_GRAY8, c->width, c->height,
-                         AV_PIX_FMT_YUV420P, 0, 0, 0, 0);
+                         (AVPixelFormat)input_frame->format, c->width, c->height,
+                         c->pix_fmt, 0, 0, 0, 0);
     
     print("linesizes: ", frame->linesize[0], " ", frame->linesize[1], " ", frame->linesize[2], " ", frame->linesize[3]);
     print("frame: ", c->width, "x", c->height, " (", frame->width, "x", frame->height, ")");
-    
-    /*for (int i=1; i<3; ++i) {
-        if(frame->data[i] == NULL)
-            continue;
-        
-        auto ptr = frame->data[i];
-        auto end = ptr + frame->linesize[i] * frame->height;
-        
-        print("Setting 128 from ",ptr," to ",end," (",c->width,", ",frame->linesize[i],")");
-        
-        for (; ptr != end; ptr+=frame->linesize[i]) {
-            memset(ptr, 128, frame->linesize[i]);
-        }
-    }*/
     
     memset(input_frame->data[0], 0, input_frame->linesize[0]);
     sws_scale(ctx, input_frame->data, input_frame->linesize, 0, frame->height, frame->data, frame->linesize);
@@ -493,11 +613,18 @@ void FFMPEGQueue::open_video() {
 
 void FFMPEGQueue::close_video() {
     /* flush the encoder */
-    encode(c, NULL, pkt, f.get());
+    //encode(c, NULL, pkt, f.get());
     /* add sequence end code to have a real MPEG file */
-    if (codec->id == AV_CODEC_ID_MPEG1VIDEO || codec->id == AV_CODEC_ID_MPEG2VIDEO)
+    /*if (codec->id == AV_CODEC_ID_MPEG1VIDEO || codec->id == AV_CODEC_ID_MPEG2VIDEO)
         fwrite(endcode, 1, sizeof(endcode), f.get());
-    f.reset();
+    f.reset();*/
+    
+    av_write_trailer(outFmtCtx);
+    if (!(outFmtCtx->oformat->flags & AVFMT_NOFILE)) {
+        avio_closep(&outFmtCtx->pb);
+    }
+    avformat_free_context(outFmtCtx);
+
     
     avcodec_free_context(&c);
     av_frame_free(&frame);
@@ -508,77 +635,78 @@ void FFMPEGQueue::close_video() {
     cnpy::npy_save(_output_path.replace_extension("npy").str(), timestamps);
     cnpy::npy_save(_output_path.remove_extension().str()+"_indexes.npy", mp4_indexes);
     
-    file::Path ffmpeg = SETTING(ffmpeg_path);
-    if(!ffmpeg.empty()) {
+    //file::Path ffmpeg = SETTING(ffmpeg_path);
+    //if(!ffmpeg.empty())
+    {
         file::Path save_path = _output_path.replace_extension("mp4");
-        std::string cmd = ffmpeg.str()+" -fflags +genpts -i "+_output_path.str()+" -vcodec copy -y "+save_path.str();
         print("Remuxing ",_output_path.str()," to ",save_path.str(),"...");
-        system(cmd.c_str());
-    } else
-        FormatWarning("Cannot do remuxing with empty ffmpeg path.");
+        remux(_output_path.str(), save_path.str());
+        
+        /*std::string cmd = ffmpeg.str()+" -fflags +genpts -i "+_output_path.str()+" -vcodec copy -y "+save_path.str();
+        
+        system(cmd.c_str());*/
+    } //else
+        //FormatWarning("Cannot do remuxing with empty ffmpeg path.");
 }
 
 void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image) {
     timestamps.push_back(stamp);
     mp4_indexes.push_back(image.index());
-    
+
     /* make sure the frame data is writable */
     ret = av_frame_make_writable(frame);
     if (ret < 0)
         throw U_EXCEPTION("Cannot make frame writable.");
-    
-    //Timer timer;
-    
-    //memcpy(frame->data, image->data(), image->size());
-    //assert(image->size() == (size_t)c->height * c->width);
-    
-    //static cv::Mat mat;
-    //cv::cvtColor(image.get(), mat, cv::COLOR_GRAY2BGR);
-    //cv::cvtColor(mat, mat, cv::COLOR_BGR2YUV);
-    
-    //for(int i=0; i<3; ++i) {
-        auto ptr = frame->data[0];
-        auto end = ptr + frame->linesize[0] * c->height;
-        auto srcptr = image.data();
-        
-        for (; ptr != end; ptr+=frame->linesize[0], srcptr+=image.cols) {
-            memcpy(ptr, srcptr, image.cols);
-            for(int i=0; i<frame->linesize[0]; ++i)
-                *(ptr+i) = saturate(*(ptr+i)+16, 0, 255);
-        }
-    //}
-    
-    
-    //sws_scale(ctx, input_frame->data, input_frame->linesize, 0, c->height, frame->data, frame->linesize);
-    
-    
-    /*timer.reset();
-    
-    uint8_t * inData[1] = { image.data() };
-    int inLinesize[1] = { 1*c->width }; // GRAY stride
-    sws_scale(ctx, inData, inLinesize, 0, c->height, frame->data, frame->linesize);
-    
-    print("sws_scale#2 ", timer.elapsed());*/
-    
-    pkt->stream_index = pts;
-    frame->pts = pts++;
-    pkt->dts = AV_NOPTS_VALUE;
-    pkt->pts = AV_NOPTS_VALUE;
-    
-    // have to do muxing https://ffmpeg.org/doxygen/trunk/doc_2examples_2muxing_8c-example.html
-    encode(c, frame, pkt, f.get());
+
+    // Prepare a temporary AVFrame for the source RGB data
+    /*AVFrame* rgb_frame = av_frame_alloc();
+    if (!rgb_frame)
+        throw U_EXCEPTION("Could not allocate RGB frame");
+
+    // Assign data and linesize here
+    frame->data[0] = image.data();
+    rgb_frame->data[0] = image.data(); // Pointer to your RGB data
+    rgb_frame->linesize[0] = image.cols * image.dims;
+    rgb_frame->width = c->width;
+    rgb_frame->height = c->height;
+    rgb_frame->format = AV_PIX_FMT_RGB24;*/
+    //if(av_frame_make_writable(input_frame) < 0)
+    //    throw U_EXCEPTION("Cannot write input frame.");
+    input_frame->data[0] = image.data();
+
+    // Convert the RGB frame to the codec context's pixel format (usually YUV)
+    sws_scale(
+        ctx,
+        (const uint8_t* const*)input_frame->data, input_frame->linesize, 0, c->height,
+        frame->data, frame->linesize
+    );
+
+    // Free the temporary RGB frame
+    //av_frame_free(&rgb_frame);
+
+    // Set the frame's PTS
+    // Assuming your desired frame rate is 25 FPS
+    //const int framerate = 25;
+    //frame->pts = (pts++ * av_q2d(c->time_base)) * framerate;
+
+    //frame->pts = pts * (c->time_base.den / c->time_base.num);
+    frame->pts = pts;
+    //print("frame ", pts, "->pts = ", frame->pts);
+    pts++;
+
+    // Encode the frame
+    encode(c, frame, pkt);
 }
 
 void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size) {
-    static const double frame_rate = SETTING(frame_rate).value<uint32_t>();
-    static const double frame_ms = 1000.0 / frame_rate; // ms / frame
+    static const double frame_ms = 1000.0 / FFMPEG_SETTING(frame_rate); // ms / frame
     static Frame_t approximate_length; // approximate length in frames
     static double approximate_ms = 0;
     static uint64_t maximum_memory = 0;  // maximum usage of system memory in bytes
     static double maximum_images = 0;
     
-    if(not approximate_length.valid() && FrameGrabber::instance->video()) {
-           approximate_length = FrameGrabber::instance->video()->length();
+    if(not approximate_length.valid() && _finite_source) {
+           approximate_length = _video_length;
     } else if(not approximate_length.valid() && GlobalSettings::has("approximate_length_minutes")) {
         approximate_length = Frame_t(SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<uint32_t>() * 60);
         auto stop_after_minutes = SETTING(stop_after_minutes).value<uint32_t>();
@@ -589,7 +717,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
     
     if(approximate_length.valid() && approximate_length > 0_f) {
         maximum_memory = SETTING(system_memory_limit).value<uint64_t>() == 0 ? (uint64_t)(getTotalSystemMemory()*0.9) : SETTING(system_memory_limit).value<uint64_t>();
-        approximate_ms = approximate_length.get() / frame_rate;
+        approximate_ms = approximate_length.get() / FFMPEG_SETTING(frame_rate);
     }
         
     if(_queue.size() > 0) {
@@ -624,7 +752,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
             
             ++added_since;
             
-            if(skip_step > 0 && added_since >= frame_rate / skip_step) {
+            if(skip_step > 0 && added_since >= FFMPEG_SETTING(frame_rate) / skip_step) {
                 added_since = 0;
                 
                 auto image = std::move(_queue.back());

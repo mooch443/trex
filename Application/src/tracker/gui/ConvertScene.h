@@ -9,7 +9,7 @@
 #include <indicators/progress_spinner.hpp>
 
 #include <tracking/Segmenter.h>
-#include <Alterface.h>
+#include <misc/tomp4.h>
 
 #include <gui/ScreenRecorder.h>
 

@@ -6,6 +6,9 @@
 #include <misc/frame_t.h>
 #include <misc/TaskPipeline.h>
 #include <pv.h>
+#if WITH_FFMPEG
+#include <misc/tomp4.h>
+#endif
 
 namespace track {
 
@@ -16,6 +19,7 @@ class Segmenter {
     std::atomic<bool> _should_terminate{false};
     ThreadGroupId _generator_group_id, _tracker_group_id;
     Range<Frame_t> _video_conversion_range;
+    file::Path _output_file_name;
     
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<VideoProcessor<Detection>>, overlayed_video)
@@ -43,6 +47,11 @@ class Segmenter {
     std::function<void(std::string)> error_callback;
     std::function<void()> eof_callback;
     
+#if WITH_FFMPEG
+    std::unique_ptr<FFMPEGQueue> _queue;
+    ThreadGroupId _ffmpeg_group;
+#endif
+    
 public:
     Segmenter(std::function<void()> eof_callback, std::function<void(std::string)> error = nullptr);
     ~Segmenter();
@@ -69,6 +78,7 @@ private:
 
     void setDefaultSettings();
     void printDebugInformation();
+    void start_recording_ffmpeg();
 };
 
 }
