@@ -80,6 +80,7 @@ public:
     void set_segmenter(Segmenter* seg);
     
     //Size2 output_size() const;
+    bool on_global_event(Event) override;
     
 private:
     void deactivate() override;

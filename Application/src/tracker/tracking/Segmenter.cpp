@@ -332,6 +332,8 @@ void Segmenter::start_recording_ffmpeg() {
                 path = path.replace_extension("mov");
             else
                 path = path.add_extension("mov");
+            
+            SETTING(meta_source_path).value<std::string>() = path.str();
         
             _queue = std::make_unique<FFMPEGQueue>(true, _overlayed_video->source()->size(), path, is_finite(), video_length(), [](Image::Ptr&& image) {
                 image = nullptr; // move image back to buffer
