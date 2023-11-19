@@ -133,6 +133,8 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
 
 void ConvertScene::deactivate() {
     try {
+        _recorder.stop_recording(window(), nullptr);
+
         bar.set_progress(100);
         bar.mark_as_completed();
         
@@ -271,6 +273,10 @@ void ConvertScene::fetch_new_data() {
     if(data.image) {
         _current_data = std::move(data);
         _object_blobs = std::move(obj);
+
+        if (not _recorder.recording()) {
+			_recorder.start_recording(window(), _current_data.frame.index());
+		}
     }
     
     if (_current_data.image) {
