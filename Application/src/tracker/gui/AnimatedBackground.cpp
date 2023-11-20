@@ -101,7 +101,7 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
     try {
         //print("Loading ", index);
         _source->frame(index, _local_buffer);
-        _local_buffer.copyTo(_buffer); // upload
+        _local_buffer.get().copyTo(_buffer); // upload
         
         const gpuMat *output = &_buffer;
         if(_source_scale > 0 && _source_scale != 1)

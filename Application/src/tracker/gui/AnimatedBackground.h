@@ -14,7 +14,7 @@ namespace gui {
 
 class AnimatedBackground : public Entangled {
     Color _tint{White};
-    cv::Mat _local_buffer;
+    Image _local_buffer;
     gpuMat _buffer;
     gpuMat _resized;
     

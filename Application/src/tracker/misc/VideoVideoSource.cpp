@@ -54,10 +54,10 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSour
         }
 
         //if (detection_type() != ObjectDetectionType::yolo8) 
-        {
+        /*{
             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
             std::swap(buffer, tmp);
-        }
+        }*/
         
         return std::make_tuple(index, std::move(buffer));
     }

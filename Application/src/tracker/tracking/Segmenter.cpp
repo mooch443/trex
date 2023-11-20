@@ -100,8 +100,10 @@ Segmenter::~Segmenter() {
         std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
         _overlayed_video = nullptr;
 
-        Output::TrackingResults results(*_tracker);
-        results.save();
+        if(_tracker && _tracker->end_frame().valid()) {
+            Output::TrackingResults results(*_tracker);
+            results.save();
+        }
 
         _tracker = nullptr;
 

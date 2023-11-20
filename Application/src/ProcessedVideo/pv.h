@@ -376,6 +376,9 @@ namespace pv {
 #ifdef USE_GPU_MAT
         void frame(Frame_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #endif
+        bool frame(Frame_t frameIndex, Image& output, cmn::source_location loc = cmn::source_location::current()) override {
+            throw InvalidArgumentException("Method not implemented.");
+        }
         void frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background);
         bool supports_multithreads() const override { return false; }
         
