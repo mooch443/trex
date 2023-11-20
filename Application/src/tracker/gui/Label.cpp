@@ -24,7 +24,7 @@ void Label::update() {
     const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
     if (not is_in_mouse_dock) {
         advance_wrap(*_text);
-        _text->set(FillClr{ Black.alpha(150) });
+        _text->set(FillClr{ _fill_color });
     }
     else {
         _text->set_background(Transparent, Transparent);

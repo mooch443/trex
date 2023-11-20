@@ -12,6 +12,7 @@ namespace gui {
 class Label : public Entangled {
     GETTER_SETTER_I(float, line_length, 60)
     GETTER_I(Color, line_color, Cyan)
+    GETTER_I(Color, fill_color, Transparent)
     GETTER(Color, color)
     GETTER(derived_ptr<StaticText>, text)
     Line _line;

@@ -62,6 +62,7 @@ public:
     void set_frame(Frame_t frame);
     
     Frame_t length() const;
+    virtual uint8_t channels() const = 0;
     
     virtual std::string toStr() const;
     static std::string class_name();

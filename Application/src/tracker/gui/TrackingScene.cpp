@@ -21,6 +21,7 @@
 #include <gui/WorkProgress.h>
 #include <gui/DrawBlobView.h>
 #include <gui/Label.h>
+#include <misc/Output.h>
 
 using namespace track;
 
@@ -236,6 +237,9 @@ bool TrackingScene::on_global_event(Event event) {
             case Keyboard::N:
                 prev_poi(Idx_t());
                 break;
+            case Keyboard::L:
+                load_state(Output::TrackingResults::expected_filename());
+                break;
             case Keyboard::T:
                 SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
                 break;
@@ -317,11 +321,17 @@ bool TrackingScene::stage_0(ConnectedTasks::Type && ptr) {
         throw U_EXCEPTION("Outside of analysis range: ", idx, " vs. ", range);
 
     Timer timer;
-    pv::Frame frame;
-    _data->video.read_frame(frame, idx);
-    Tracker::preprocess_frame(std::move(frame), *ptr, _data->pool.num_threads() > 1 ? &_data->pool : NULL, PPFrame::NeedGrid::NoNeed, _data->video.header().resolution, false);
+    try {
+        pv::Frame frame;
+        _data->video.read_frame(frame, idx);
+        Tracker::preprocess_frame(std::move(frame), *ptr, _data->pool.num_threads() > 1 ? &_data->pool : NULL, PPFrame::NeedGrid::NoNeed, _data->video.header().resolution, false);
 
-    ptr->set_loading_time(timer.elapsed());
+        ptr->set_loading_time(timer.elapsed());
+    }
+    catch (const std::exception& e) {
+		print("Error while preprocessing frame ", idx, ": ", e.what());
+        return false;
+	}
 
     // clear stored blob data, so that the destructor is called
     // in a different thread (balancing) if they arent needed.
@@ -424,8 +434,6 @@ void TrackingScene::init_video() {
     }
     
     //SETTING(cm_per_pixel) = float(0);
-
-    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
     //cmd.load_settings(&combined);
     
     //! TODO: have to delegate this to another thread
@@ -454,9 +462,18 @@ void TrackingScene::init_video() {
         }
     }
     
+    std::vector<std::string> exclude_parameters{
+        "source"
+    };
+    for (auto& [key, value] : cmd.settings_keys()) {
+        exclude_parameters.push_back(key);
+    }
+    print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
+
     try {
-        if(!video.header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata, &combined);
+        if (!video.header().metadata.empty()) {
+            sprite::parse_values(GlobalSettings::map(), video.header().metadata, &combined, exclude_parameters);
+        }
     } catch(const UtilsException& e) {
         // dont do anything, has been printed already
     }
@@ -1064,5 +1081,315 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
         }
     };
 }
+
+void TrackingScene::load_state(file::Path from) {
+    static bool state_visible = false;
+    if(state_visible)
+        return;
+    
+    state_visible = true;
+
+    auto fn = [this, from]() {
+        bool before = _data->analysis.is_paused();
+        _data->analysis.set_paused(true).get();
+        
+        Categorize::DataStore::clear();
+        
+        LockGuard guard(w_t{}, "GUI::load_state");
+        Output::TrackingResults results{_data->tracker};
+        
+        try {
+            auto header = results.load([](const std::string& title, float value, const std::string& desc) {
+                WorkProgress::set_progress(title, value, desc);
+            }, from);
+            
+            if(header.version <= Output::ResultsFormat::Versions::V_33
+               && !Tracker::instance()->vi_predictions().empty())
+            {
+                // probably need to convert blob ids
+                pv::Frame f;
+                size_t found = 0;
+                size_t N = 0;
+                
+                for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
+                    _data->video.read_frame(f, k);
+                    auto blobs = f.get_blobs();
+                    N += v.size();
+                    
+                    for(auto &[bid, ps] : v) {
+                        auto it = std::find_if(blobs.begin(), blobs.end(), [&bid=bid](auto &a)
+                        {
+                            return a->blob_id() == bid || a->parent_id() == bid;
+                        });
+                        
+                        auto id = uint32_t(bid);
+                        auto x = id >> 16;
+                        auto y = id & 0x0000FFFF;
+                        auto center = Vec2(x, y);
+                        
+                        if(it != blobs.end() || x > Tracker::average().cols || y > Tracker::average().rows) {
+                            // blobs are probably fine
+                            ++found;
+                        } else {
+                            
+                        }
+                    }
+                    
+                    if(found * 2 > N) {
+                        // blobs are probably fine!
+                        print("blobs are probably fine ",found,"/",N,".");
+                        break;
+                    } else if(N > 0) {
+                        print("blobs are probably not fine.");
+                        break;
+                    }
+                }
+                
+                if(found * 2 <= N && N > 0) {
+                    print("fixing...");
+                    WorkProgress::set_item("Fixing old blob_ids...");
+                    WorkProgress::set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
+                    auto old_id_from_position = [](Vec2 center) {
+                        return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
+                    };
+                    auto old_id_from_blob = [&old_id_from_position](const pv::Blob &blob) -> uint32_t {
+                        if(!blob.lines() || blob.lines()->empty())
+                            return -1;
+                        
+                        const auto start = Vec2(blob.lines()->front().x0,
+                                                blob.lines()->front().y);
+                        const auto end = Vec2(blob.lines()->back().x1,
+                                              blob.lines()->size());
+                        
+                        return old_id_from_position(start + (end - start) * 0.5);
+                    };
+                    
+                    grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
+                    size_t i=0, all_found = 0, not_found = 0;
+                    const size_t N = Tracker::instance()->vi_predictions().size();
+                    ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
+                    
+                    for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
+                        auto & active = Tracker::active_individuals(k);
+                        ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
+                        
+                        for(auto fish : active) {
+                            auto b = fish->compressed_blob(k);
+                            if(b) {
+                                auto bounds = b->calculate_bounds();
+                                auto center = bounds.pos() + bounds.size() * 0.5;
+                                blobs[b->blob_id()] = b;
+                                proximity.insert(center.x, center.y, b->blob_id());
+                            }
+                        }
+                        /*GUI::instance()->video_source()->read_frame(f, k.get());
+                        auto & blobs = f.blobs();
+                        proximity.clear();
+                        for(auto &b : blobs) {
+                            auto c = b->bounds().pos() + b->bounds().size() * 0.5;
+                            proximity.insert(c.x, c.y, (uint32_t)b->blob_id());
+                        }*/
+                        
+                        ska::bytell_hash_map<pv::bid, std::vector<float>> tmp;
+                        
+                        for(auto &[bid, ps] : v) {
+                            auto id = uint32_t(bid);
+                            auto x = id >> 16;
+                            auto y = id & 0x0000FFFF;
+                            auto center = Vec2(x, y);
+                            
+                            auto r = proximity.query(center, 1);
+                            if(r.size() == 1) {
+                                auto obj = std::get<1>(*r.begin());
+                                assert(obj.valid());
+                                /*auto ptr = std::find_if(blobs.begin(), blobs.end(), [obj](auto &b){
+                                    return obj == (uint32_t)b->blob_id();
+                                });*/
+                                /*auto ptr = blobs.find(pv::bid(obj));
+                                
+                                if(ptr == blobs.end()) {
+                                    FormatError("Cannot find actual blob for ", obj);
+                                } else {
+                                    //auto unpack = ptr->second->unpack();
+                                    //print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
+                                }*/
+                                    tmp[obj] = ps;
+                                    ++all_found;
+                                
+                            } else {
+                                const pv::CompressedBlob* found = nullptr;
+                                _data->video.read_frame(f, k);
+                                for(auto &b : f.get_blobs()) {
+                                    auto c = b->bounds().pos() + b->bounds().size() * 0.5;
+                                    if(sqdistance(c, center) < 2) {
+                                        //print("Found blob close to ", center, " at ", c, ": ", *b);
+                                        for(auto &fish : active) {
+                                            auto b = fish->compressed_blob(k);
+                                            if(b && (b->blob_id() == bid || b->parent_id == bid))
+                                            {
+                                                //print("Equal IDS1 ", b->blob_id(), " and ", id);
+                                                tmp[b->blob_id()] = ps;
+                                                found = b;
+                                                break;
+                                            }
+                                            
+                                            if(b) {
+                                                auto bounds = b->calculate_bounds();
+                                                auto center = bounds.pos() + bounds.size() * 0.5;
+                                                
+                                                auto distance = sqdistance(c, center);
+                                                //print("\t", fish->identity(), ": ", b->blob_id(), "(",b->parent_id,") at ", center, " (", distance, ")", (distance < 5 ? "*" : ""));
+                                                
+                                                if(distance < 2) {
+                                                    tmp[b->blob_id()] = ps;
+                                                    found = b;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        
+                                        tmp[b->blob_id()] = ps;
+                                        break;
+                                    }
+                                }
+                                
+                                if(found == nullptr) {
+                                    //print("Not found for ", center, " size=", r.size(), " with id ", bid);
+                                    ++not_found;
+                                } else {
+                                    ++all_found;
+                                }
+                            }
+                        }
+                        
+                        //v = tmp;
+                        next_recognition[k] = tmp;
+                        
+                        ++i;
+                        if(i % uint64_t(N * 0.1) == 0) {
+                            print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
+                            WorkProgress::set_percent(double(i) / double(N));
+                        }
+                    }
+                    
+                    print("Found:", all_found, " not found:", not_found);
+                    if(all_found > 0)
+                        Tracker::instance()->set_vi_data(next_recognition);
+                }
+            }
+            
+            {
+                sprite::Map config;
+                GlobalSettings::docs_map_t docs;
+                config.set_do_print(false);
+                
+                default_config::get(config, docs, NULL);
+                try {
+                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, true);
+                    
+                } catch(const cmn::illegal_syntax& e) {
+                    print("Illegal syntax in .results settings (",e.what(),").");
+                }
+                
+                std::vector<Idx_t> focus_group;
+                if(config.has("gui_focus_group"))
+                    focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
+                
+                //if(GUI::instance() && !gui_frame_on_startup().frame.valid()) {
+                //    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame)](){
+                        SETTING(gui_frame) = Frame_t(header.gui_frame);
+                //    });
+                //}
+                
+                //if(GUI::instance() && !gui_frame_on_startup().focus_group.has_value()) {
+                //    WorkProgress::add_queue("", [focus_group](){
+                        SETTING(gui_focus_group) = focus_group;
+                //    });
+                //}
+                
+            }
+            
+            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})
+            {
+                SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
+            }
+            
+            WorkProgress::add_queue("", [](){
+                Tracker::instance()->check_segments_identities(false, IdentitySource::VisualIdent, [](float ) { },
+                [](const std::string&t, const std::function<void()>& fn, const std::string&b)
+                {
+                    WorkProgress::add_queue(t, fn, b);
+                });
+            });
+            
+        } catch(const UtilsException& e) {
+            FormatExcept("Cannot load results. Crashed with exception: ", e.what());
+            
+            auto what = std::string(e.what());
+            _data->_exec_main_queue.enqueue([from, what](IMGUIBase* base, DrawStructure& graph) {
+                graph.dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "Error");
+            });
+            
+            auto start = Tracker::start_frame();
+            Tracker::instance()->_remove_frames(start);
+                //removed_frames(start);
+        }
+        
+        //PD(analysis).reset_PD(cache);
+        Output::Library::clear_cache();
+        
+        /*auto range = PD(tracker).analysis_range();
+        bool finished = (PD(tracker).end_frame().valid() && PD(tracker).end_frame() == range.end()) || PD(tracker).end_frame() >= range.end();
+#if !COMMONS_NO_PYTHON
+        if(finished && SETTING(auto_categorize)) {
+            auto_categorize();
+        } else if(finished && SETTING(auto_train)) {
+            auto_train();
+        }
+        else if(finished && SETTING(auto_apply)) {
+            auto_apply();
+        }
+        else if(finished && SETTING(auto_tags)) {
+            auto_tags();
+        }
+        else if(finished && SETTING(auto_quit)) {
+#else
+        if(finished && SETTING(auto_quit)) {
+#endif
+#if WITH_SFML
+            if(has_window())
+                window().setVisible(false);
+#endif
+            
+            try {
+                this->export_tracks();
+            } catch(const UtilsException&) {
+                SETTING(error_terminate) = true;
+            }
+            
+            SETTING(terminate) = true;
+        }
+        
+        if(GUI::instance() && (!before || (!finished && SETTING(auto_quit))))
+            PD(analysis).set_paused(false).get();*/
+        
+        state_visible = false;
+    };
+    
+    /*if (type == GRAPHICAL) {
+        PD(gui).dialog([fn](Dialog::Result result) {
+            if(result == Dialog::Result::OKAY) {
+                WorkProgress::add_queue("Loading results...", fn, PD(video_source).filename().str());
+            } else {
+                state_visible = false;
+            }
+            
+        }, "Are you sure you want to load results?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
+    } else {
+        WorkProgress::add_queue("Loading results...", fn, PD(video_source).filename().str());
+    }*/
+    WorkProgress::add_queue("Loading results...", fn);
+}
+
 
 }

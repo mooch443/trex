@@ -17,6 +17,6 @@ namespace track::detect {
         std::vector<Bone> bones;
         std::string toStr() const;
         const Bone& bone(size_t index) const;
-        operator cmn::blob::Pose() const;
+        cmn::blob::Pose toPose() const;
     };
 }

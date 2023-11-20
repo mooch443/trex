@@ -84,7 +84,9 @@ void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt)//,
     //    frame->pts = av_rescale_q(frame->pts, c->time_base, c->time_base);
     //if (pkt->dts != AV_NOPTS_VALUE)
     //    pkt->dts = av_rescale_q(pkt->dts, c->time_base, c->time_base);
-    
+
+    //frame->pict_type = AV_PICTURE_TYPE_I;
+
     ret = avcodec_send_frame(enc_ctx, frame);
     if (ret < 0)
         throw U_EXCEPTION("Error sending a frame for encoding (",ret,")");
@@ -102,9 +104,6 @@ void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt)//,
         pkt->pts = av_rescale_q(pkt->pts, enc_ctx->time_base, outStream->time_base);
         pkt->dts = av_rescale_q(pkt->dts, enc_ctx->time_base, outStream->time_base);
 
-        print("pkt->pts = ", pkt->pts);
-        print("pkt->dts = ", pkt->dts);
-        
         //pkt->dts = AV_NOPTS_VALUE;
         // Write the packet
         if (av_interleaved_write_frame(outFmtCtx, pkt) < 0) {
@@ -113,6 +112,52 @@ void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt)//,
         //printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
         //fwrite(pkt->data, 1, pkt->size, outfile);
         av_packet_unref(pkt);
+    }
+}
+
+// Function to flush the encoder's buffers
+void flush_encoder(AVCodecContext* enc_ctx) {
+    int ret;
+
+    // Sending NULL to the encoder will signal that we're flushing
+    ret = avcodec_send_frame(enc_ctx, nullptr);
+    if (ret < 0) {
+        std::cerr << "Error sending frame to encoder for flushing: " << ret << std::endl;
+        return;
+    }
+
+    while (ret >= 0) {
+        // Create a new packet for the encoded data
+        AVPacket pkt;
+        av_init_packet(&pkt);
+        pkt.data = nullptr;    // packet data will be allocated by the encoder
+        pkt.size = 0;
+
+        // Receive the encoded data from the encoder
+        ret = avcodec_receive_packet(enc_ctx, &pkt);
+
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            // EAGAIN means the encoder needs more input to produce more output
+            // EOF means the encoder has flushed all data
+            break;
+        }
+        else if (ret < 0) {
+            std::cerr << "Error during encoding while flushing: " << ret << std::endl;
+            break;
+        }
+
+        // Rescale timestamps from codec time base to stream time base
+        pkt.pts = av_rescale_q(pkt.pts, enc_ctx->time_base, outStream->time_base);
+        pkt.dts = av_rescale_q(pkt.dts, enc_ctx->time_base, outStream->time_base);
+
+        //pkt->dts = AV_NOPTS_VALUE;
+        // Write the packet
+        if (av_interleaved_write_frame(outFmtCtx, &pkt) < 0) {
+            throw U_EXCEPTION("Error while writing packet to output file");
+        }
+        //printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
+        //fwrite(pkt->data, 1, pkt->size, outfile);
+        av_packet_unref(&pkt);
     }
 }
 
@@ -207,9 +252,13 @@ void remux(const std::string &inputFileName, const std::string &outputFileName) 
     avformat_free_context(outputFormatContext);
 }
 
-FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, const file::Path& output, bool finite_source, Frame_t video_length, std::function<void(Image::Ptr&&)> move_back)
-: _size(size), _output_path(output), _last_timestamp(0), _terminate(false), _direct(direct),write_thread(NULL), average_compressed_size(0), samples_compressed_size(0), _finite_source(finite_source), _video_length(video_length), _move_back(move_back)
+FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, ImageMode mode, const file::Path& output, bool finite_source, Frame_t video_length, std::function<void(Image::Ptr&&)> move_back)
+: _size(size), _output_path(output), _last_timestamp(0), _terminate(false), _direct(direct),write_thread(NULL), average_compressed_size(0), samples_compressed_size(0), _finite_source(finite_source), _video_length(video_length), _move_back(move_back), _mode(mode)
 {
+    ffmpeg::Settings::init();
+
+    frame_ms = 1000.0 / FFMPEG_SETTING(frame_rate); // ms / frame
+
     if(!direct)
         write_thread = new std::thread([this](){
             cmn::set_thread_name("FFMPEGQueue::write_loop");
@@ -300,7 +349,7 @@ void FFMPEGQueue::loop() {
         _condition.wait_for(guard, std::chrono::seconds(1));
         loop_once(guard);
         
-        if(_terminate)
+        if(_terminate && _queue.empty())
             break;
     }
     
@@ -318,8 +367,6 @@ void FFMPEGQueue::loop_once(std::unique_lock<std::mutex>& guard) {
         
         // if we already terminate, we can process all the frames (let the user wait)
         if(_terminate) {
-            static bool terminated_before = false;
-            static size_t initial_size = 0;
             if(!terminated_before) {
                 initial_size = _queue.size();
                 terminated_before = true;
@@ -447,7 +494,8 @@ void FFMPEGQueue::write_loop() {
     lzo_uint new_len;
     
     while(true) {
-        _write_condition.wait_for(guard, std::chrono::seconds(1));
+        if(packages.empty() && not _terminate)
+            _write_condition.wait_for(guard, std::chrono::seconds(1));
         
         while(!packages.empty()) {
             frame_write_timer.reset();
@@ -461,8 +509,6 @@ void FFMPEGQueue::write_loop() {
             guard.lock();
             
             if(_terminate) {
-                static bool terminated_before = false;
-                static size_t initial_size = 0;
                 if(!terminated_before) {
                     initial_size = packages.size();
                     terminated_before = true;
@@ -509,7 +555,12 @@ void FFMPEGQueue::open_video() {
     
     if(!codec)
         throw U_EXCEPTION("Codec ",codec_name," not found, and 'h264_videotoolbox' could not be found either.");
-    
+
+    /*if (!(codec->capabilities & AV_CODEC_CAP_INTRA_ONLY)) {
+        // This codec doesn't support only intra frames (i.e., I-frames)
+        throw U_EXCEPTION("Codec ",codec_name," does not support only intra frames.");
+    }*/
+
     c = avcodec_alloc_context3(codec);
     if (!c)
         throw U_EXCEPTION("Could not allocate video codec context");
@@ -543,7 +594,7 @@ void FFMPEGQueue::open_video() {
      * then gop_size is ignored and the output of encoder
      * will always be I frame irrespective to gop_size
      */
-    c->gop_size = 10;
+    c->gop_size = 0;
     c->max_b_frames = 1;
     c->pix_fmt = AV_PIX_FMT_YUV420P;
     
@@ -553,8 +604,10 @@ void FFMPEGQueue::open_video() {
     /* open it */
     ret = avcodec_open2(c, codec, NULL);
     if (ret < 0) {
+        char errBuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errBuf, AV_ERROR_MAX_STRING_SIZE);
         //auto str = av_err2str(ret);
-        throw U_EXCEPTION("Could not open codec '",codec_name,"'.");
+        throw U_EXCEPTION("Could not open codec ",codec_name,": ", errBuf,".");
     }
     
     //f = _output_path.fopen("wb");
@@ -592,7 +645,7 @@ void FFMPEGQueue::open_video() {
         throw U_EXCEPTION("Could not allocate the video frame data");
     
     input_frame = av_frame_alloc();
-    input_frame->format = AV_PIX_FMT_RGB24;
+    input_frame->format = _mode == ImageMode::GRAY ? AV_PIX_FMT_GRAY8 : AV_PIX_FMT_RGB24;
     input_frame->width = c->width;
     input_frame->height = c->height;
     
@@ -618,6 +671,8 @@ void FFMPEGQueue::close_video() {
     /*if (codec->id == AV_CODEC_ID_MPEG1VIDEO || codec->id == AV_CODEC_ID_MPEG2VIDEO)
         fwrite(endcode, 1, sizeof(endcode), f.get());
     f.reset();*/
+
+    flush_encoder(c);
     
     av_write_trailer(outFmtCtx);
     if (!(outFmtCtx->oformat->flags & AVFMT_NOFILE)) {
@@ -630,27 +685,27 @@ void FFMPEGQueue::close_video() {
     av_frame_free(&frame);
     av_packet_free(&pkt);
     
-    print("Closed video.");
-    
     cnpy::npy_save(_output_path.replace_extension("npy").str(), timestamps);
     cnpy::npy_save(_output_path.remove_extension().str()+"_indexes.npy", mp4_indexes);
+
+    print("Closed video.");
     
     //file::Path ffmpeg = SETTING(ffmpeg_path);
     //if(!ffmpeg.empty())
-    {
-        file::Path save_path = _output_path.replace_extension("mp4");
-        print("Remuxing ",_output_path.str()," to ",save_path.str(),"...");
-        remux(_output_path.str(), save_path.str());
+    //{
+       // file::Path save_path = _output_path.replace_extension("mp4");
+       // print("Remuxing ",_output_path.str()," to ",save_path.str(),"...");
+        //remux(_output_path.str(), save_path.str());
         
         /*std::string cmd = ffmpeg.str()+" -fflags +genpts -i "+_output_path.str()+" -vcodec copy -y "+save_path.str();
         
         system(cmd.c_str());*/
-    } //else
+    //} //else
         //FormatWarning("Cannot do remuxing with empty ffmpeg path.");
 }
 
 void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image) {
-    timestamps.push_back(stamp);
+    timestamps.push_back(stamp.get());
     mp4_indexes.push_back(image.index());
 
     /* make sure the frame data is writable */
@@ -699,11 +754,6 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
 }
 
 void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size) {
-    static const double frame_ms = 1000.0 / FFMPEG_SETTING(frame_rate); // ms / frame
-    static Frame_t approximate_length; // approximate length in frames
-    static double approximate_ms = 0;
-    static uint64_t maximum_memory = 0;  // maximum usage of system memory in bytes
-    static double maximum_images = 0;
     
     if(not approximate_length.valid() && _finite_source) {
            approximate_length = _video_length;

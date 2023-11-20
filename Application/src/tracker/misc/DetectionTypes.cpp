@@ -17,7 +17,7 @@ namespace track::detect {
         return bones[index];
     }
 
-    Keypoint::operator blob::Pose() const {
+    blob::Pose Keypoint::toPose() const {
         std::vector<blob::Pose::Point> coords;
         for (auto& b : bones)
             coords.push_back(blob::Pose::Point(b.x, b.y));

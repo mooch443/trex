@@ -69,3 +69,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSour
 std::string VideoSourceVideoSource::toStr() const {
     return "VideoSourceVideoSource<"+Meta::toStr(source)+">";
 }
+
+uint8_t VideoSourceVideoSource::channels() const {
+	return source.colors() == ImageMode::GRAY ? 1 : 3;
+}

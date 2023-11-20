@@ -81,6 +81,7 @@ struct ScreenRecorder::Data {
                 cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
                 if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
                     FormatExcept("Cannot save to ",filename.str(),". Stopping recording.");
+                    SETTING(gui_is_recording) = false;
                     _recording = false;
                 }
                 
@@ -101,6 +102,7 @@ struct ScreenRecorder::Data {
                     fclose(f);
                 } else {
                     FormatExcept("Cannot write to ",filename.str(),". Stopping recording.");
+                    SETTING(gui_is_recording) = false;
                     _recording = false;
                 }
             }
@@ -108,7 +110,7 @@ struct ScreenRecorder::Data {
         
         static Timer last_print;
         if(last_print.elapsed() > 2) {
-            DurationUS duration{static_cast<uint64_t>((_recording_frame.try_sub( _recording_start)).get() / float(SETTING(frame_rate).value<uint32_t>()) * 1000) * 1000};
+            DurationUS duration{static_cast<uint64_t>((_recording_frame.try_sub(_recording_start.valid() ? _recording_start : 0_f)).get() / float(SETTING(frame_rate).value<uint32_t>()) * 1000) * 1000};
             auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(max_frame)+" length: "+Meta::toStr(duration));
             auto playback_speed = SETTING(gui_playback_speed).value<float>();
             if(playback_speed > 1) {
@@ -156,6 +158,7 @@ struct ScreenRecorder::Data {
         }
         
         _recording = false;
+        SETTING(gui_is_recording) = false;
         _last_recording_frame.invalidate();
         
         DebugCallback("Stopped recording to ", _recording_path, ".");
@@ -270,6 +273,7 @@ struct ScreenRecorder::Data {
         _recording_size = size;
         _recording_path = frames;
         _recording_format = format;
+        SETTING(gui_is_recording) = true;
     }
 };
 

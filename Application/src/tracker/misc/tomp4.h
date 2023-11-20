@@ -10,6 +10,7 @@
 #include <misc/Timer.h>
 #include <misc/create_struct.h>
 #include <misc/frame_t.h>
+#include <video/Video.h>
 
 namespace ffmpeg {
 
@@ -43,7 +44,7 @@ class FFMPEGQueue {
     
     cmn::timestamp_t _last_timestamp;
     GETTER_NCONST(std::atomic_bool, terminate)
-    std::vector<cmn::timestamp_t> timestamps;
+    std::vector<uint64_t> timestamps;
     std::vector<long> mp4_indexes;
     std::deque<std::shared_ptr<Package>> packages;
     
@@ -59,9 +60,20 @@ class FFMPEGQueue {
     bool _finite_source{false};
     cmn::Frame_t _video_length;
     std::function<void(cmn::Image::Ptr&&)> _move_back;
+    cmn::ImageMode _mode;
     
+
+    double frame_ms = 1;
+    cmn::Frame_t approximate_length; // approximate length in frames
+    double approximate_ms = 0;
+    uint64_t maximum_memory = 0;  // maximum usage of system memory in bytes
+    double maximum_images = 0;
+
+    bool terminated_before = false;
+    size_t initial_size = 0;
+
 public:
-    FFMPEGQueue(bool direct, const cmn::Size2& size, const file::Path& output, bool finite_source, cmn::Frame_t video_length, std::function<void(cmn::Image::Ptr&&)> move_back);
+    FFMPEGQueue(bool direct, const cmn::Size2& size, cmn::ImageMode mode, const file::Path& output, bool finite_source, cmn::Frame_t video_length, std::function<void(cmn::Image::Ptr&&)> move_back);
     ~FFMPEGQueue();
     
     void loop();

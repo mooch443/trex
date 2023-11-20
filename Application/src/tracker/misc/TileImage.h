@@ -46,6 +46,9 @@ struct GPUMatPtr {
         GPUMatPtr ptr;
         ptr.ptr = std::make_unique<useMat_t>();
 #ifndef NDEBUG
+        if(not ptr.ptr)
+			throw U_EXCEPTION("Failed to allocate buffer");
+
         ptr.loc = loc;
         
         static std::atomic<size_t> counter{0u};

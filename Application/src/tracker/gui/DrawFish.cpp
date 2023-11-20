@@ -13,6 +13,7 @@
 #include <gui/GUICache.h>
 //#include <gui.h>
 #include <misc/IdentifiedTag.h>
+#include <gui/Skelett.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
 //#include <gui.h>
@@ -208,7 +209,11 @@ Fish::~Fish() {
         //check_tags();
         
         _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f);
-        
+        if (not _skelett)
+            _skelett = std::make_unique<Skelett>();
+        _skelett->set_pose(_average_pose);
+        _skelett->set_skeleton(GUI_SETTINGS(meta_skeleton));
+
         auto [_basic, _posture] = obj.all_stuff(_safe_frame);
         if(_basic)
             _basic_stuff = *_basic;
@@ -524,6 +529,9 @@ Fish::~Fish() {
         //if(_view.content_changed())
         //if(_path_dirty)
         _view.update([&](Entangled&) {
+            if(not _basic_stuff.has_value())
+				return;
+
             _path_dirty = false;
             
             if (GUIOPTION(gui_show_paths)) {
@@ -920,7 +928,9 @@ Fish::~Fish() {
             auto & pred =  _basic_stuff->blob.pred;
             for(size_t i=0; i<pred.pose.size(); ++i) {
                 auto bone = pred.pose.bone(i);
-                if(bone.length() > 0) {
+                if((bone.A.x != 0 || bone.A.y != 0)
+                    && (bone.B.x != 0 || bone.B.y != 0)) 
+                {
                     parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5});
                     parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(50)});
                 }
@@ -929,12 +939,17 @@ Fish::~Fish() {
             ColorWheel wheel;
             for(size_t i=0; i<_average_pose.size(); ++i) {
                 auto bone = _average_pose.bone(i);
-                if(bone.length() > 0) {
+                if ((bone.A.x != 0 || bone.A.y != 0)
+                    && (bone.B.x != 0 || bone.B.y != 0))
+                {
                     auto c = Color::blend(_color.alpha(125), wheel.next().alpha(130));
                     parent.add<Circle>(Loc{bone.A}, FillClr{c.alpha(75)}, LineClr{c.alpha(150)}, Radius{5});
                     parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{c.alpha(75)},2);
                 }
             }
+
+            if(_skelett)
+                parent.advance_wrap(*_skelett);
         }
 
         parent.advance_wrap(_label_parent);

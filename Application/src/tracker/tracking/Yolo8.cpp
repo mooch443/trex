@@ -175,7 +175,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
                     auto p = result.keypoints()[i];
                     //print("pose ",i, " = ", p);
                     
-                    pose = p;
+                    pose = p.toPose();
                     data.keypoints.push_back(std::move(p));
                 }
                 data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(row.clid), .p = uint8_t(float(row.conf) * 255.f), .pose = std::move(pose) });

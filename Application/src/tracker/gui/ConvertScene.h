@@ -12,6 +12,7 @@
 #include <misc/tomp4.h>
 
 #include <gui/ScreenRecorder.h>
+#include <gui/Skelett.h>
 
 namespace gui {
 
@@ -45,6 +46,7 @@ class ConvertScene : public Scene {
     std::vector<sprite::Map*> _tracked_properties;
 
     std::unordered_map<Idx_t, std::shared_ptr<Label>> _labels;
+    std::vector<std::unique_ptr<Skelett>> _skeletts;
 
     std::shared_future<void> _scene_active;
     std::promise<void> _scene_promise;

@@ -1,64 +1,4 @@
 {"objects":[
-	{ 
-		"type":"gridlayout",
-		"pos":[20,10],
-		"scale":[1.0,1.0],
-		"pad":[5,5,5,5],
-		"fill":[0,0,0,100],
-		"clickable":false,
-		"valign":"center",
-		"children": [[
-			{ 
-				"type":"hlayout", 
-				"pad":[0,0,5,0],
-				"children": [
-					{ "type":"button", "text":"Quit", "action":"terminate" },
-					{ "type":"button", "text":"Filter", "action":"FILTER" }
-				]
-			},
-
-			{
-				"type":"vlayout",
-				"children":[
-					{
-						"type":"condition",
-						"var":"{average_is_generating}",
-						"then":{
-							"type":"text", "text":"detecting the background...", "font":{"size":0.75}, "color":[220,220,220], "shadow":0.75
-						},
-						"else":{
-							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''}", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
-						}
-					},
-					{
-						"type":"stext", 
-						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detection_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>", 
-						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
-					},
-					{
-						"type":"stext",
-						"text":"", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
-					}
-				]
-			}
-		]]
-	},
-	{
-		"type":"hlayout",
-		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
-		"origin":[1,1],
-		"pad":[5,5,5,5],
-		"fill":[0,0,0,200],
-		"children":[
-			{
-				"type":"stext",
-				"font":{"size":0.5},
-				"none":"📤🌩🗬🗎🛈▶⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
-				"text":"<c>{shorten:{filename:{global.model}}:35}</c><sym> 🞙</sym> {global.detection_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>"
-			}
-		]
-	},
-
 	{
 		"type":"each",
 		"var":"fishes",
@@ -128,6 +68,66 @@
 			},
 			"else":{ "type":"rect", "size":[0,0] }
 		}
+	},
+
+	{ 
+		"type":"gridlayout",
+		"pos":[20,10],
+		"scale":[1.0,1.0],
+		"pad":[5,5,5,5],
+		"fill":[0,0,0,100],
+		"clickable":false,
+		"valign":"center",
+		"children": [[
+			{ 
+				"type":"hlayout", 
+				"pad":[0,0,5,0],
+				"children": [
+					{ "type":"button", "text":"Quit", "action":"terminate" },
+					{ "type":"button", "text":"Filter", "action":"FILTER" }
+				]
+			},
+
+			{
+				"type":"vlayout",
+				"children":[
+					{
+						"type":"condition",
+						"var":"{average_is_generating}",
+						"then":{
+							"type":"text", "text":"detecting the background...", "font":{"size":0.75}, "color":[220,220,220], "shadow":0.75
+						},
+						"else":{
+							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''}", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+						}
+					},
+					{
+						"type":"stext", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detection_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}", 
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					{
+						"type":"stext",
+						"text":"", "font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					}
+				]
+			}
+		]]
+	},
+	{
+		"type":"hlayout",
+		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
+		"origin":[1,1],
+		"pad":[5,5,5,5],
+		"fill":[0,0,0,200],
+		"children":[
+			{
+				"type":"stext",
+				"font":{"size":0.5},
+				"none":"📤🌩🗬🗎🛈▶⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
+				"text":"<c>{shorten:{filename:{global.model}}:35}</c><sym> 🞙</sym> {global.detection_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+			}
+		]
 	},
 
 	{

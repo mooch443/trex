@@ -470,6 +470,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 #endif
 
         CONFIG("gui_recording_format", default_recording_t, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
+        CONFIG("gui_is_recording", false, "Is set to true when recording is active.", SYSTEM);
         CONFIG("gui_happy_mode", false, "If `calculate_posture` is enabled, enabling this option likely improves your experience with TRex.");
         CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of `{individual-id: \"individual-name\", ...}` that names individuals in the GUI and exported data.");
         CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");

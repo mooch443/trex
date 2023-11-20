@@ -2,6 +2,8 @@
 #include <file/DataLocation.h>
 #include <grabber/misc/default_config.h>
 #include <file/PathArray.h>
+#include <tracking/IndividualManager.h>
+#include <misc/Output.h>
 
 namespace track {
 Timer start_timer;
@@ -58,46 +60,75 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
 
 Segmenter::~Segmenter() {
     auto time = start_timer.elapsed();
-    print("Total time: ", time, "s");
+    thread_print("Total time for converting: ", time, "s");
     
+    ThreadManager::getInstance().terminateGroup(_generator_group_id);
+
+    /// while the generator is shutdown already now,
+    /// we still need to wait for the tracker and ffmpeg queue to finish
+    /// all the queued up items:
+    while (true) {
+        if (std::unique_lock guard(_mutex_general);
+            items.empty())
+        {
+            if(not _next_frame_data)
+                break;
+        }
+        else if(not _next_frame_data) {
+            try {
+                auto data = std::get<1>(items.front()).get();
+                print("Feeding the tracker ", data.original_index(), "...");
+                _next_frame_data = std::move(data);
+                ThreadManager::getInstance().notify(_tracker_group_id);
+            }
+            catch (const std::exception& ex) {
+                FormatExcept("Exception while feeding tracker: ", ex.what());
+            }
+            items.erase(items.begin());
+        } else
+            ThreadManager::getInstance().notify(_tracker_group_id);
+
+        // wait a bit...
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    ThreadManager::getInstance().terminateGroup(_tracker_group_id);
+
     _should_terminate = true;
     
     {
-        std::unique_lock guard(_mutex_general);
-        //_cv_ready_for_tracking.notify_all();
-        //_cv_messages.notify_all();
+        std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
+        _overlayed_video = nullptr;
+
+        Output::TrackingResults results(*_tracker);
+        results.save();
+
+        _tracker = nullptr;
+
+        _output_file = nullptr;
+        _next_frame_data = {};
+        _progress_data = {};
+        _transferred_blobs.clear();
+        _progress_blobs.clear();
+        _transferred_current_data = {};
+
+        SETTING(is_writing) = false;
+        //SETTING(source) = file::PathArray();
+        //SETTING(filename) = file::Path();
+        //SETTING(frame_rate) = uint32_t(-1);
     }
 
-    ThreadManager::getInstance().terminateGroup(_generator_group_id);
-    ThreadManager::getInstance().terminateGroup(_tracker_group_id);
-    
 #if WITH_FFMPEG
-    if(_queue) {
+    if (_queue) {
         _queue->terminate() = true;
         _queue->notify();
-        
-        if(_ffmpeg_group.valid())
+
+        if (_ffmpeg_group.valid())
             ThreadManager::getInstance().terminateGroup(_ffmpeg_group);
-        
+
         _queue = nullptr;
     }
 #endif
-    
-    std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
-    _overlayed_video = nullptr;
-    _tracker = nullptr;
-    
-    _output_file = nullptr;
-    _next_frame_data = {};
-    _progress_data = {};
-    _transferred_blobs.clear();
-    _progress_blobs.clear();
-    _transferred_current_data = {};
-    
-    SETTING(is_writing) = false;
-    //SETTING(source) = file::PathArray();
-    //SETTING(filename) = file::Path();
-    //SETTING(frame_rate) = uint32_t(-1);
 }
 
 Size2 Segmenter::size() const {
@@ -241,6 +272,8 @@ void Segmenter::open_video() {
 
     _overlayed_video->reset_to_frame(_video_conversion_range.start);
 
+    start_recording_ffmpeg();
+
     ThreadManager::getInstance().startGroup(_generator_group_id);
     ThreadManager::getInstance().startGroup(_tracker_group_id);
 }
@@ -316,7 +349,9 @@ void Segmenter::open_camera() {
         _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
         _output_file->set_average(bg);
     }
-    
+
+    _video_conversion_range = Range<Frame_t>{ 0_f, {} };
+
     start_recording_ffmpeg();
     
     ThreadManager::getInstance().startGroup(_generator_group_id);
@@ -328,16 +363,31 @@ void Segmenter::start_recording_ffmpeg() {
     if(SETTING(save_raw_movie)) {
         try {
             auto path = output_file_name();
+            if (not SETTING(save_raw_movie_path).value<file::Path>().empty()
+                && SETTING(save_raw_movie_path).value<file::Path>().remove_filename().exists())
+            {
+                path = SETTING(save_raw_movie_path).value<file::Path>();
+            }
+
             if(path.has_extension())
                 path = path.replace_extension("mov");
             else
                 path = path.add_extension("mov");
-            
+
+            SETTING(save_raw_movie_path).value<file::Path>() = path;
             SETTING(meta_source_path).value<std::string>() = path.str();
         
-            _queue = std::make_unique<FFMPEGQueue>(true, _overlayed_video->source()->size(), path, is_finite(), video_length(), [](Image::Ptr&& image) {
-                image = nullptr; // move image back to buffer
-            });
+            _queue = std::make_unique<FFMPEGQueue>(true,
+                _overlayed_video->source()->size(),
+                _overlayed_video->source()->channels() == 1
+                ? ImageMode::GRAY
+                : ImageMode::RGB,
+                path,
+                is_finite(),
+                is_finite() ? _video_conversion_range.length() : Frame_t{},
+                [](Image::Ptr&& image) {
+                    image = nullptr; // move image back to buffer
+                });
             print("Encoding mp4 into ",path.str(),"...");
             
             _ffmpeg_group = ThreadManager::getInstance().registerGroup("RawMovie");
@@ -484,14 +534,17 @@ void Segmenter::perform_tracking() {
         PPFrame pp;
         Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
         _tracker->add(pp);
-        /*if (pp.index().get() % 100 == 0) {
-            print(IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-        }*/
+        if (pp.index().get() % 100 == 0) {
+            print(track::IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+        }
     }
     
 #if WITH_FFMPEG
-    if(_progress_data.image)
+    if (_progress_data.image
+        && _queue) 
+    {
         _queue->add(Image::Make(*_progress_data.image));
+    }
 #endif
 
     {

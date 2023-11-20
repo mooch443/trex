@@ -75,3 +75,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> WebcamVideoSource::f
 std::string WebcamVideoSource::toStr() const {
     return "WebcamVideoSource<"+Meta::toStr(source)+">";
 }
+
+uint8_t WebcamVideoSource::channels() const {
+    return source.color_mode() == ImageMode::GRAY ? 1 : 3;
+}

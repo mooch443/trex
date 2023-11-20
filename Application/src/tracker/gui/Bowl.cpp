@@ -133,29 +133,32 @@ void Bowl::update_blobs(const Frame_t& frame) {
                 }
             }
             
+            if (draw_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-            const bool gui_macos_blur = GUI_SETTINGS(gui_macos_blur);
+                const bool gui_macos_blur = GUI_SETTINGS(gui_macos_blur);
 #endif
-            if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
-                for(auto & [b, ptr] : _cache->display_blobs) {
+                if (GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
+                    for (auto& [b, ptr] : _cache->display_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-                    if constexpr(std::is_same<MetalImpl, default_impl_t>::value) {
-                        if(gui_macos_blur)
-                            ptr->ptr->tag(Effects::blur);
+                        if constexpr (std::is_same<MetalImpl, default_impl_t>::value) {
+                            if (gui_macos_blur)
+                                ptr->ptr->tag(Effects::blur);
+                        }
+#endif
+                        advance_wrap(*(ptr->ptr));
                     }
-#endif
-                    advance_wrap(*(ptr->ptr));
+
                 }
-                
-            } else {
-                for(auto &[b, ptr] : _cache->display_blobs) {
+                else {
+                    for (auto& [b, ptr] : _cache->display_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-                    if constexpr(std::is_same<MetalImpl, default_impl_t>::value) {
-                        if(gui_macos_blur)
-                            ptr->ptr->untag(Effects::blur);
-                    }
+                        if constexpr (std::is_same<MetalImpl, default_impl_t>::value) {
+                            if (gui_macos_blur)
+                                ptr->ptr->untag(Effects::blur);
+                        }
 #endif
-                    advance_wrap(*(ptr->ptr));
+                        advance_wrap(*(ptr->ptr));
+                    }
                 }
             }
             

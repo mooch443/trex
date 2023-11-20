@@ -113,7 +113,6 @@ void launch_gui() {
                 GlobalSettings::map().set_do_print(true);
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
                 SETTING(source) = file::PathArray({ segmenter->output_file_name() });
-                thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t) & GlobalSettings::map());
 				manager.set_active("tracking-scene");
 			}
         },
@@ -161,25 +160,80 @@ void launch_gui() {
 		{ TRexTask_t::track, &tracking_scene }
 	};
 
+    {
+        SettingsMaps combined;
+
+        const auto set_combined_access_level = [&combined](auto& name, AccessLevel level) {
+            combined.access_levels[name] = level;
+        };
+
+        combined.map.set_do_print(false);
+        grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
+        //default_config::get(combined.map, combined.docs, set_combined_access_level);
+
+        std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.get<std::vector<std::string>>("meta_write_these").value() : std::vector<std::string>{};
+        print("Have these keys:", combined.map.keys());
+        std::set<std::string> deleted_keys;
+        for (auto key : combined.map.keys()) {
+            if (not contains(save, key)) {
+                deleted_keys.insert(key);
+                combined.map.erase(key);
+            }
+        }
+        print("Deleted keys:", deleted_keys);
+        print("Remaining:", combined.map.keys());
+
+        thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
+        GlobalSettings::map().set_do_print(true);
+        //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+        //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+        GlobalSettings::map().dont_print("gui_frame");
+        GlobalSettings::map().dont_print("gui_focus_group");
+
+        auto& cmd = CommandLine::instance();
+        for (auto& option : cmd.settings()) {
+            if (utils::lowercase(option.name) == "output_prefix") {
+                SETTING(output_prefix) = option.value;
+            }
+        }
+
+        auto default_path = file::DataLocation::parse("default.settings");
+        if (default_path.exists()) {
+            DebugHeader("LOADING FROM ", default_path);
+            default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
+            DebugHeader("LOADED ", default_path);
+        }
+
+        //SETTING(cm_per_pixel) = float(0);
+
+        thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
+        cmd.load_settings(&combined);
+    }
+
     if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
         if (auto array = SETTING(source).value<file::PathArray>();
             array.empty())
         {
             manager.set_active(&start);
         }
+        else if (auto output_file = SETTING(filename).value<file::Path>();
+            not output_file.empty()
+            && output_file.add_extension("pv").exists())
+        {
+            SETTING(source) = file::PathArray({ output_file });
+            manager.set_active(&tracking_scene);
+        }
         else if (auto front = array.get_paths().front();
             array.size() == 1 /// TODO: not sure how this deals with patterns
             )
         {
             front = front.filename();
-            auto output_file =
+            output_file =
                 not front.has_extension()
-                ? file::DataLocation::parse("output", front.add_extension("pv"))
-                : file::DataLocation::parse("output", front.replace_extension("pv"));
+                    ? file::DataLocation::parse("output", front.add_extension("pv"))
+                    : file::DataLocation::parse("output", front.replace_extension("pv"));
 
-            if (front == "webcam")
-                manager.set_active(&converting);
-            else if (output_file.exists()) {
+            if (output_file.exists()) {
                 SETTING(source) = file::PathArray({ output_file });
                 manager.set_active(&tracking_scene);
             }
@@ -463,6 +517,13 @@ int main(int argc, char**argv) {
     
     if(not SETTING(source).value<file::PathArray>().empty())
         SETTING(scene_crash_is_fatal) = true;
+
+    if (not SETTING(filename).value<file::Path>().empty()) {
+        auto path = SETTING(filename).value<file::Path>();
+        if (path.has_extension() && path.extension() == "pv")
+            path = path.remove_extension();
+        SETTING(filename) = file::DataLocation::parse("output", path);
+    }
     
     std::string last_error;
     

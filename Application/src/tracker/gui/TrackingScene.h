@@ -214,6 +214,8 @@ class TrackingScene : public Scene {
     
     std::vector<sprite::Map> _fish_data;
     std::vector<std::shared_ptr<dyn::VarBase_t>> _individuals;
+
+    void load_state(file::Path from);
     
 public:
     TrackingScene(Base& window);

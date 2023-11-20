@@ -55,7 +55,8 @@ namespace gui {
         (bool, gui_happy_mode),
         (bool, auto_categorize),
         (bool, gui_macos_blur),
-        (Size2, gui_zoom_limit)
+        (Size2, gui_zoom_limit),
+        (blob::Pose::Skeleton, meta_skeleton)
     )
     }
 

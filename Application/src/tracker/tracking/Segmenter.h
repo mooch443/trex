@@ -18,7 +18,7 @@ class Segmenter {
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
     ThreadGroupId _generator_group_id, _tracker_group_id;
-    Range<Frame_t> _video_conversion_range;
+    GETTER(Range<Frame_t>, video_conversion_range)
     file::Path _output_file_name;
     
     // Overlayed video with detections and tracker for object tracking

@@ -265,13 +265,17 @@ void ConvertScene::activate()  {
 }
 
 bool ConvertScene::on_global_event(Event e) {
-    if(e.type == EventType::KEY) {
+    if(e.type == EventType::KEY
+        && e.key.pressed) 
+    {
         switch(e.key.code) {
             case Keyboard::R:
                 if (not _recorder.recording()) {
                     _recorder.start_recording(window(), {});
-                } else
+                }
+                else {
                     _recorder.stop_recording(window(), nullptr);
+                }
                 return true;
         }
     }
@@ -531,68 +535,19 @@ void ConvertScene::_draw(DrawStructure& graph) {
         auto coord = FindCoord::get();
         //print(coord.bowl_scale());
         
-        Skeleton skelet = SETTING(meta_skeleton).value<Skeleton>();
+        size_t pose_index{ 0 };
+        static const Skeleton skelet = SETTING(meta_skeleton).value<Skeleton>();
         for (auto& keypoint : _current_data.keypoints) {
-            auto clr = wheel.next();
-            auto last = keypoint.bones.back();
-            size_t i = 0;
-            if(not skelet.connections().empty()) {
-                for(auto& bone : keypoint.bones) {
-                    if(bone.x >0 || bone.y > 0) {
-                        graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)});
-                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White}, Scale{ coord.bowl_scale().reciprocal() });
-                    }
-                    ++i;
-                }
-                
-                for(auto &c : skelet.connections()) {
-                    if(c.to < keypoint.bones.size()
-                       && c.from < keypoint.bones.size()) 
-                    {
-                        auto &A = keypoint.bones.at(c.from);
-                        auto &B = keypoint.bones.at(c.to);
-                        
-                        if((A.x > 0 || A.y > 0)
-                           && (B.x > 0 || B.y > 0))
-                        {
-                            Vec2 p0{A.x, A.y}, p1{B.x, B.y};
-                            if(p0.x > p1.x)
-                                std::swap(p0, p1);
-                            
-                            auto v = p1 - p0;
-                            //auto D = v.length();
-                            v = v.normalize();
-                            Rotation a{atan2(v)};
-                            Scale sca(Scale{ coord.bowl_scale().reciprocal() });
-                            Font font(0.5);
-                            
-                            graph.line(p0, p1, 5, LineClr{clr.exposureHSL(0.5)});
-                            graph.text(
-                                Str(c.name),
-                                Loc((p1-p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
-                                TextClr(Cyan.alpha(200)),
-                                font,
-                                sca,
-                                Origin(0.5),
-                                a);
-                        }
-                    }
-                }
-                
-            } else {
-                for(auto& bone : keypoint.bones) {
-                    if(bone.x >0 || bone.y > 0) {
-                        graph.circle(Loc{bone.x, bone.y}, LineClr{clr}, Radius{5}, FillClr{clr.alpha(75)}, Scale{ coord.bowl_scale().reciprocal() });
-                        graph.text(Str{Meta::toStr(i)}, Loc{bone.x, bone.y}, Origin{0.5,1}, TextClr{White}, Scale{ coord.bowl_scale().reciprocal() });
-                        
-                        if(last.x > 0 && last.y > 0)
-                            graph.line(Vec2{last.x, last.y}, {bone.x, bone.y}, 5, LineClr{clr.exposureHSL(0.5)});
-                        last = bone;
-                    }
-                    ++i;
-                }
-            }
+            auto pose = keypoint.toPose();
+            if (pose_index >= _skeletts.size())
+                _skeletts.push_back(std::make_unique<Skelett>(std::move(pose), skelet));
+            else
+                _skeletts[pose_index]->set_pose(std::move(pose));
+            graph.wrap_object(*_skeletts[pose_index]);
+            pose_index++;
         }
+        if(pose_index < _skeletts.size())
+			_skeletts.resize(pose_index);
 
         static Frame_t last_frame;
         bool dirty{ false };

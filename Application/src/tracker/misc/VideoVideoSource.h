@@ -17,6 +17,7 @@ public:
     
     tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() override;
 
+    uint8_t channels() const override;
     std::string toStr() const override;
     static std::string class_name() { return "VideoSourceVideoSource"; }
 };

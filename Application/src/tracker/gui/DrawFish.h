@@ -19,6 +19,7 @@ struct CompressedBlob;
 
 namespace gui {
     class Label;
+    class Skelett;
 
     class Fish {
         Entangled _view;
@@ -94,6 +95,7 @@ namespace gui {
         
         Graph _graph;
         Entangled _posture, _label_parent;
+        std::unique_ptr<Skelett> _skelett;
         
     public:
         Fish(track::Individual& obj);
