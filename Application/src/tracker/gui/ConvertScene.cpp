@@ -283,16 +283,18 @@ bool ConvertScene::on_global_event(Event e) {
     return true;
 }
 
-void ConvertScene::fetch_new_data() {
+bool ConvertScene::fetch_new_data() {
     static std::once_flag flag;
     std::call_once(flag, []() {
         set_thread_name("GUI");
     });
 
+    bool dirty = false;
     auto&& [data, obj] = segmenter().grab();
     if(data.image) {
         _current_data = std::move(data);
         _object_blobs = std::move(obj);
+        dirty = true;
     }
     
     if (_current_data.image) {
@@ -324,6 +326,7 @@ void ConvertScene::fetch_new_data() {
 
         _current_data.image = nullptr;
     }
+    return dirty;
 }
 
 // Helper function to calculate window dimensions
@@ -363,7 +366,13 @@ uint64_t interleaveBits(const Vec2& pos) {
     return z;
 }
 
-void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx) {
+void ConvertScene::drawBlobs(
+    Frame_t frameIndex, 
+    const std::vector<std::string>& meta_classes, 
+    const Vec2&, Vec2, 
+    const std::unordered_map<pv::bid, Identity>& visible_bdx, 
+    bool dirty) 
+{
     //size_t i = 0;
     size_t untracked = 0;
     std::sort(_object_blobs.begin(), _object_blobs.end(), [](auto& A, auto& B) {
@@ -375,6 +384,9 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
     for (auto& [id, map] : _individual_properties) {
 		map["visible"] = false;
 	}
+
+    auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
+    std::vector<Vec2> targets;
 
     for (auto& blob : _object_blobs) {
         auto bds = blob->bounds();
@@ -445,8 +457,9 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
             tmp = &_untracked_properties[untracked++];
         }
         
-        
+        bool selected = contains(selected_ids, tracked_id);
         (*tmp)["pos"] = bds.pos();
+        (*tmp)["selected"] = selected;
         (*tmp)["bdx"] = blob->blob_id();
         (*tmp)["center"] = first_pose;
         (*tmp)["tracked"] = tracked_id.valid() ? true : false;
@@ -454,6 +467,7 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
         (*tmp)["id"] = tracked_id;
 		(*tmp)["visible"] = true;
         (*tmp)["size"] = Size2(bds.size());
+        (*tmp)["radius"] = bds.size().length() * 0.5;
         (*tmp)["type"] = std::string(cname);
         if(Tracker::instance() && Tracker::background())
             (*tmp)["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
@@ -461,6 +475,20 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
             (*tmp)["px"] = -1;
 
         (*tmp)["p"] = Meta::toStr(assign.p);
+
+        if (tracked_id.valid() 
+            && selected) 
+        {
+            if (blob) {
+                auto bds = blob->bounds();
+                targets.push_back(bds.pos());
+                targets.push_back(bds.pos() + bds.size());
+                targets.push_back(bds.pos() + bds.size().mul(0, 1));
+                targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                _last_bounds[tracked_id] = { frameIndex, bds };
+                selected_ids.erase(std::find(selected_ids.begin(), selected_ids.end(), tracked_id));
+            }
+        }
     }
 
     size_t tracked = 0;
@@ -489,12 +517,34 @@ void ConvertScene::drawBlobs(const std::vector<std::string>& meta_classes, const
 
     _joint = _tracked_gui;
     _joint.insert(_joint.end(), _untracked_gui.begin(), _untracked_gui.end());
+
+    for (auto s : selected_ids) {
+        if (auto it = _last_bounds.find(s);
+            it != _last_bounds.end())
+        {
+            auto& [frame, bds] = it->second;
+            targets.push_back(bds.pos());
+            targets.push_back(bds.pos() + bds.size());
+            targets.push_back(bds.pos() + bds.size().mul(0, 1));
+            targets.push_back(bds.pos() + bds.size().mul(1, 0));
+
+            if(frameIndex.try_sub(frame) > 10_f) {
+				_last_bounds.erase(it);
+			}
+        }
+    }
+
+    if (dirty) {
+        _bowl->fit_to_screen(window_size);
+        _bowl->set_target_focus(targets);
+    }
 }
 
 // Main _draw function
 void ConvertScene::_draw(DrawStructure& graph) {
-    fetch_new_data();
-    
+    bool dirty = fetch_new_data();
+    dirty = true;
+
     if(window()) {
         auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
         //
@@ -502,20 +552,31 @@ void ConvertScene::_draw(DrawStructure& graph) {
         if(update != window_size)
             window_size = update;
     }
-    
-    Vec2 _aspect_ratio = Vec2(output_size.width, output_size.height);
+
+    auto coord = FindCoord::get();
+    if (not _bowl) {
+        _bowl = std::make_unique<Bowl>(nullptr);
+        _bowl->set_video_aspect_ratio(coord.video_size().width, coord.video_size().height);
+        _bowl->fit_to_screen(window_size);
+    }
+
+    /*Vec2 _aspect_ratio = Vec2(output_size.width, output_size.height);
     Vec2 _screen_size = FindCoord::get().screen_size();
     float width_scale = _screen_size.x / _aspect_ratio.x;
     float height_scale = _screen_size.y / _aspect_ratio.y;
     float scale_factor = std::min(width_scale, height_scale);
     auto _target_scale = Vec2(scale_factor, scale_factor);
-    auto _target_pos = (_screen_size - output_size.mul(_target_scale)) / 2;
+    auto _target_pos = (_screen_size - output_size.mul(_target_scale)) / 2;*/
     const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
-    
+
+    graph.wrap_object(*_bowl);
+    _bowl->update_scaling();
+    //_bowl_mouse = coord.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
+
     graph.section("video", [&](auto&, Section* section) {
         section->set_size(output_size);
-        section->set_pos(_target_pos);
-        section->set_scale(_target_scale);
+        section->set_pos(_bowl->_current_pos);
+        section->set_scale(_bowl->_current_scale);
         
         Transform transform;
         //transform.scale(_screen_size.div(video_size).reciprocal());
@@ -569,7 +630,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         }
 
         // Draw outlines
-        drawOutlines(graph, _target_scale, _target_pos);
+        drawOutlines(graph, _bowl->_current_scale, _bowl->_current_pos);
 
         using namespace track;
         std::unordered_map<pv::bid, Identity> visible_bdx;
@@ -607,7 +668,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         if (not dirty)
             return;
 
-        drawBlobs(meta_classes, _target_scale, _target_pos, visible_bdx);
+        drawBlobs(_current_data.frame.index(), meta_classes, _bowl->_current_scale, _bowl->_current_pos, visible_bdx, dirty);
     });
     
     if(not dynGUI) {
@@ -620,6 +681,13 @@ void ConvertScene::_draw(DrawStructure& graph) {
                         _segmenter->force_stop();
                     else
                         SceneManager::getInstance().set_active("starting-scene");
+                }),
+                ActionFunc("set", [this](const Action& action) {
+                    auto name = action.parameters.at(0);
+					auto value = action.parameters.at(1);
+					if(GlobalSettings::has(name)) {
+                        GlobalSettings::get(name).get().set_value_from_string(value);
+				    }
                 }),
                 ActionFunc("FILTER", [](auto) {
                     static bool filter { false };
@@ -731,7 +799,6 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 auto pos = source.pos();
                 auto center = p->center();
                 auto text = p->text()->text();
-                auto coord = FindCoord::get();
 
                 if(patterns.contains("text"))
                     text = parse_text(patterns.at("text").original, context, state);
@@ -754,7 +821,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                     p->text()->set(TextClr{ Meta::fromStr<Color>(parse_text(patterns.at("color").original, context, state)) });
 
                 p->set_data(0_f, text, source, center);
-                p->update(coord, 1, 1, false, dt, Scale{1});
+                p->update(FindCoord::get(), 1, 1, false, dt, Scale{1});
 			}
         };
     }
@@ -773,6 +840,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
 
         dynGUI.update(nullptr);
     });
+
+    _bowl->update(_current_data.frame.index(), graph, coord);
 }
 
 }

@@ -18,8 +18,8 @@ namespace gui {
             if (not _skeleton.connections().empty()) {
                 for (auto& bone : _pose.points) {
                     if (bone.x > 0 || bone.y > 0) {
-                        add<Circle>(Loc{ bone }, LineClr{ clr }, Radius{ 5 }, FillClr{ clr.alpha(75) });
-                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() });
+                        add<Circle>(Loc{ bone }, LineClr{ clr }, Radius{ 3 }, FillClr{ clr.alpha(75) });
+                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{0.35});
                     }
                     ++i;
                 }
@@ -43,9 +43,9 @@ namespace gui {
                             v = v.normalize();
                             Rotation a{ atan2(v) };
                             Scale sca(Scale{ coord.bowl_scale().reciprocal() });
-                            Font font(0.5);
+                            Font font(0.35);
 
-                            add<Line>(p0, p1, LineClr{ clr.exposureHSL(0.5) }, 5);
+                            add<Line>(p0, p1, LineClr{ clr.exposureHSL(0.5) }, 3);
                             add<Text>(
                                 Str(c.name),
                                 Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
@@ -63,11 +63,11 @@ namespace gui {
                 auto last = _pose.points.back();
                 for (auto& bone : _pose.points) {
                     if (bone.x > 0 || bone.y > 0) {
-                        add<Circle>(Loc{ bone }, LineClr{ clr }, Radius{ 5 }, FillClr{ clr.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
-                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() });
+                        add<Circle>(Loc{ bone }, LineClr{ clr }, Radius{ 3 }, FillClr{ clr.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
+                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{ 0.35 });
 
                         if (last.x > 0 && last.y > 0)
-                            add<Line>(Vec2{ last }, Vec2{ bone }, LineClr{ clr.exposureHSL(0.5) }, 5);
+                            add<Line>(Vec2{ last }, Vec2{ bone }, LineClr{ clr.exposureHSL(0.5) }, 3);
                         last = bone;
                     }
                     ++i;

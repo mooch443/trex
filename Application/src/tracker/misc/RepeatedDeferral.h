@@ -111,8 +111,8 @@ struct RepeatedDeferral {
                         std::unique_lock guard(mtiming);
                         //auto total = (_waiting / _samples);
 
-                        thread_print("runtime ", (_runtime / _rsamples), "ms; gap:", (_since_last / _ssamples), "ms; wait = ",
-                                     (_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
+                        thread_print("runtime ", dec<2>(_runtime / _rsamples), "ms; gap:", dec<2>(_since_last / _ssamples), "ms; wait = ",
+                                     dec<2>(_waiting / _samples), "ms ", dec<2>(_average_fill_state / _as), "/", _threads, " fill");
                         
                         if (_rsamples > 1000) {
                             _waiting = _samples = 0;

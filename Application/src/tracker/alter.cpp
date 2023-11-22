@@ -246,9 +246,14 @@ void launch_gui() {
         }
 
     } else {
-        if(auto it = task_scenes.find(SETTING(task).value<TRexTask>()); it != task_scenes.end())
-			manager.set_active(it->second);
-		else
+        if (auto it = task_scenes.find(SETTING(task).value<TRexTask>()); it != task_scenes.end()) {
+            if(it->second == &converting)
+                SETTING(cm_per_pixel) = float(0.01);
+            else
+                SETTING(cm_per_pixel) = float(0);
+            manager.set_active(it->second);
+        }
+        else
 			manager.set_active(&start);
 	}
     

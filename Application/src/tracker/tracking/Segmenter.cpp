@@ -552,6 +552,8 @@ void Segmenter::perform_tracking() {
     {
         std::unique_lock guard(_mutex_current);
         //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
+        if(_transferred_current_data)
+            overlayed_video()->source()->move_back(std::move(_transferred_current_data.image));
         _transferred_current_data = std::move(_progress_data);
         _transferred_blobs = std::move(_progress_blobs);
     }
@@ -577,7 +579,8 @@ void Segmenter::perform_tracking() {
             AbstractBaseVideoSource::_fps = FPS;
             AbstractBaseVideoSource::_samples = 1;
             frame_counter.reset();
-            print("FPS: ", FPS);
+            if(FPS >= 1)
+                print("FPS: ", int(FPS));
         }
 
     }

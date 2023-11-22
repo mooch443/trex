@@ -10,6 +10,7 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
     _text->set_origin(Vec2(0.5, 1));
     _text->set_clickable(false);
     //set_z_index(1);
+    _text->set(StaticText::Shadow_t{ 1 });
 }
 
 Label::~Label() {
@@ -58,9 +59,11 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
     if (not is_in_mouse_dock) {
         _text->set_alpha(Alpha{ alpha });
+        _text->set(StaticText::Shadow_t{ alpha });
     }
     else {
         _text->set_alpha(Alpha{ 1 });
+        _text->set(StaticText::Shadow_t{ 1 });
         target_origin = Vec2(0, 0.5);
     }
 
@@ -187,7 +190,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
 float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     if (not do_animate) {
         _text->set_pos(text_pos);
-        _line.create(_center, _text->pos(), _color);
+        _line.create(_center, _text->pos(), _color, Vec2(1), 2);
         //e.add<Line>(_center, _text->pos(), _color, 1);
         if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);

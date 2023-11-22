@@ -398,7 +398,7 @@ void TrackingScene::init_video() {
     
     combined.map.set_do_print(false);
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
-    //default_config::get(combined.map, combined.docs, set_combined_access_level);
+    default_config::get(combined.map, combined.docs, nullptr);
     
     std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.get<std::vector<std::string>>("meta_write_these").value() : std::vector<std::string>{};
     print("Have these keys:", combined.map.keys());
@@ -710,7 +710,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
         _data->_bowl->set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
         _data->_bowl->fit_to_screen(window_size);
-        _data->_vf_widget = std::make_unique<VisualFieldWidget>(_data->_cache.get());
+        _data->_vf_widget = std::make_unique<VisualFieldWidget>();
         
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
             tracker::gui::clicked_background(graph, *_data->_cache, pos, v, key);

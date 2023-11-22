@@ -6,7 +6,7 @@ using namespace track;
 
 namespace gui {
 
-Bowl::Bowl(GUICache* cache) : _cache(cache), _vf_widget(cache) {
+Bowl::Bowl(GUICache* cache) : _cache(cache) {
     _current_scale = Vec2(1.0f, 1.0f);
     _target_scale = Vec2(1.0f, 1.0f);
     _current_pos = Vec2(0.0f, 0.0f);
@@ -80,7 +80,10 @@ void Bowl::update_goals() {
         sum_of_points = sum_of_points + point;
     }
     
-    _max_zoom = GUI_SETTINGS(gui_zoom_limit);
+    if(_cache)
+        _max_zoom = GUI_SETTINGS(gui_zoom_limit);
+    else
+        _max_zoom = SETTING(gui_zoom_limit).value<Size2>();
     
     Bounds bounding_box(Vec2(min_x, min_y), Size2(max_x - min_x + 1, max_y - min_y + 1));
     if(bounding_box.width < _max_zoom.x) {
@@ -112,7 +115,7 @@ void Bowl::update_goals() {
 
 void Bowl::update_blobs(const Frame_t& frame) {
     //graph.section("blobs", [&, &_cache = _data->_cache, frame = GUI_SETTINGS(gui_frame)](DrawStructure &graph, Section* s)
-    {
+    if(_cache) {
         //s->set_scale(_data->_bowl->scale());
         //s->set_pos(_data->_bowl->pos());
         
@@ -209,12 +212,19 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         if(GUI_SETTINGS(gui_mode) != gui::mode_t::tracking)
             return;
         
-        advance_wrap(_vf_widget);
-        
-        std::scoped_lock guard(_cache->_fish_map_mutex);
-        for(auto &[id, fish] : _cache->_fish_map) {
-            if(fish->frame() == frame)
-                fish->update(coord, *this, graph);
+        if (_cache) {
+            if (_cache->has_selection()
+                && GUI_SETTINGS(gui_show_visualfield))
+            {
+                _vf_widget.update(frame, coord, _cache->active);
+                advance_wrap(_vf_widget);
+            }
+
+            std::scoped_lock guard(_cache->_fish_map_mutex);
+            for (auto& [id, fish] : _cache->_fish_map) {
+                if (fish->frame() == frame)
+                    fish->update(coord, *this, graph);
+            }
         }
     });
 }

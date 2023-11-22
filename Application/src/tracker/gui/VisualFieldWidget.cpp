@@ -1,6 +1,9 @@
 #include "VisualFieldWidget.h"
-#include <gui/GUICache.h>
 #include <tracking/VisualField.h>
+#include <gui/Coordinates.h>
+#include <tracking/TrackingSettings.h>
+
+using namespace track;
 
 namespace gui {
 
@@ -12,22 +15,21 @@ void VisualFieldWidget::set_parent(SectionInterface * parent) {
     Entangled::set_parent(parent);
 }
 
-void VisualFieldWidget::update() {
+void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_of_individuals_t& individuals) {
     begin();
     
-    if(not _cache->has_selection()
+    /*if (not _cache->has_selection()
        || not GUI_SETTINGS(gui_show_visualfield))
     {
         end();
         return;
-    }
+    }*/
     
-    const auto& frame = _cache->frame_idx;
     size_t poly_idx{0u};
+    double max_d = SQR(coord.video_size().width) + SQR(coord.video_size().height);
     
-    for(auto id : _cache->selected) {
-        auto fish = _cache->individuals.at(id);
-        
+    for(auto fish : individuals) {
+        auto id = fish->identity().ID();
         VisualField* ptr = (VisualField*)fish->custom_data(frame, VisualField::custom_id);
         if(!ptr && fish->head(frame)) {
             ptr = new VisualField(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), true);
@@ -39,7 +41,6 @@ void VisualFieldWidget::update() {
         
         if(ptr) {
             using namespace gui;
-            double max_d = SQR(_cache->_video_resolution.width) + SQR(_cache->_video_resolution.height);
             
             std::vector<Vertex> crosses;
             
@@ -106,7 +107,7 @@ void VisualFieldWidget::update() {
     
     end();
     
-    set_bounds(Bounds(Vec2(), _cache->_video_resolution));
+    set_bounds(Bounds(Vec2(), coord.video_size()));
     
     if(_polygons.size() > poly_idx) {
         _polygons.resize(poly_idx);

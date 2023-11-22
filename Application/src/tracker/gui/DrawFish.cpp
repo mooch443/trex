@@ -926,12 +926,12 @@ Fish::~Fish() {
         
         if(_basic_stuff.has_value() && _basic_stuff->blob.pred.pose.size() > 0) {
             auto & pred =  _basic_stuff->blob.pred;
-            for(size_t i=0; i<pred.pose.size(); ++i) {
+            /*for (size_t i = 0; i<pred.pose.size(); ++i) {
                 auto bone = pred.pose.bone(i);
                 if((bone.A.x != 0 || bone.A.y != 0)
                     && (bone.B.x != 0 || bone.B.y != 0)) 
                 {
-                    parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5});
+                    parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5}, Scale{section->scale().reciprocal());
                     parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(50)});
                 }
             }
@@ -946,7 +946,7 @@ Fish::~Fish() {
                     parent.add<Circle>(Loc{bone.A}, FillClr{c.alpha(75)}, LineClr{c.alpha(150)}, Radius{5});
                     parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{c.alpha(75)},2);
                 }
-            }
+            }*/
 
             if(_skelett)
                 parent.advance_wrap(*_skelett);
@@ -1454,6 +1454,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     }
 
     e.advance_wrap(*_label);
+    _label->set_line_color(_color);
     _label->update(coord, 1, 0, not _basic_stuff.has_value(), GUICache::instance().dt());
 }
 

@@ -13,6 +13,7 @@
 
 #include <gui/ScreenRecorder.h>
 #include <gui/Skelett.h>
+#include <gui/Bowl.h>
 
 namespace gui {
 
@@ -47,6 +48,7 @@ class ConvertScene : public Scene {
 
     std::unordered_map<Idx_t, std::shared_ptr<Label>> _labels;
     std::vector<std::unique_ptr<Skelett>> _skeletts;
+    std::unordered_map<Idx_t, std::tuple<Frame_t, Bounds>> _last_bounds;
 
     std::shared_future<void> _scene_active;
     std::promise<void> _scene_promise;
@@ -58,7 +60,8 @@ class ConvertScene : public Scene {
     
     ind::ProgressBar bar;
     ind::ProgressSpinner spinner;
-    
+
+    std::unique_ptr<Bowl> _bowl;
     dyn::DynamicGUI dynGUI;
     double dt = 0;
     
@@ -93,7 +96,7 @@ private:
     
     void activate() override;
 
-    void fetch_new_data();
+    bool fetch_new_data();
     
     // Helper function to calculate window dimensions
     Size2 calculateWindowSize(const Size2& output_size, const Size2& window_size);
@@ -101,7 +104,7 @@ private:
     // Helper function to draw outlines
     void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
     
-    void drawBlobs(const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx);
+    void drawBlobs(Frame_t, const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
 
     // Main _draw function
     void _draw(DrawStructure& graph);

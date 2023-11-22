@@ -25,7 +25,7 @@ struct GPUMatPtr {
     GPUMatPtr& operator=(GPUMatPtr&& ptr) noexcept {
 #ifndef NDEBUG
         if(this->ptr) {
-            print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
+            cmn::print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
         }
         
         //print("Moving buffer ",ptr.loc.file_name(),"::",ptr.loc.function_name(),":",ptr.loc.line());
@@ -41,14 +41,14 @@ struct GPUMatPtr {
         ptr.ptr = std::make_unique<useMat_t>();
 #ifndef NDEBUG
         if(not ptr.ptr)
-			throw U_EXCEPTION("Failed to allocate buffer");
+			throw cmn::U_EXCEPTION("Failed to allocate buffer");
 
         ptr.loc = loc;
         
         static std::atomic<size_t> counter{0u};
         ++counter;
         if(counter % 100 == 0)
-            thread_print("Counted ", counter.load());
+            cmn::thread_print("Counted ", counter.load());
 #else
         UNUSED(loc);
 #endif
@@ -59,7 +59,7 @@ struct GPUMatPtr {
 #ifndef NDEBUG
     ~GPUMatPtr() {
         if(ptr)
-            print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
+            cmn::print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
     }
 #endif
     
