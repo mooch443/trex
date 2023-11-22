@@ -372,7 +372,7 @@ namespace pv {
          **/
         const cv::Size& size() const override { return _header.resolution; }
         Frame_t length() const override { return Frame_t(_header.num_frames); }
-        void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
+        void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current());
 #ifdef USE_GPU_MAT
         void frame(Frame_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #endif

@@ -311,7 +311,15 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
             path = path.replace_extension("mov");
         else
             path = path.add_extension("mov");
-        mp4_queue = new FFMPEGQueue(true, Size2(_cam_size), path);
+        mp4_queue = new FFMPEGQueue{
+            true,
+            Size2(_cam_size),
+            _video ? _video->colors() : _camera->colors(),
+            path,
+            (bool)_video,
+            _video ? _video->length() : Frame_t{},
+            nullptr
+        };
         print("Encoding mp4 into ",path.str(),"...");
         mp4_thread = new std::thread([this](){
             cmn::set_thread_name("mp4_thread");

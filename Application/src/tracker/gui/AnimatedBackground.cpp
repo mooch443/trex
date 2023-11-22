@@ -6,7 +6,9 @@
 namespace gui {
 
 AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video)
-    : _average(std::move(image)),
+    :
+    buffers("AnimatedBackgroundPV", image->dimensions()),
+    _average(std::move(image)),
     _static_image(Image::Make(*_average)),
     preloader([this](Frame_t index) { return preload(index); })
 {
@@ -71,7 +73,9 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
 }
 
 AnimatedBackground::AnimatedBackground(VideoSource&& source)
-    : _source(std::make_unique<VideoSource>(std::move(source))),
+    : 
+    buffers("AnimatedBackgroundVideoSource", source.size()),
+    _source(std::make_unique<VideoSource>(std::move(source))),
       preloader([this](Frame_t index) { return preload(index); },
       [this](Image::Ptr&& ptr) {
           buffers.move_back(std::move(ptr));
@@ -100,35 +104,58 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
     
     try {
         //print("Loading ", index);
-        _source->frame(index, _local_buffer);
-        _local_buffer.get().copyTo(_buffer); // upload
-        
-        const gpuMat *output = &_buffer;
-        if(_source_scale > 0 && _source_scale != 1)
-        {
-            cv::resize(*output, _resized,
-                       Size2(output->cols, output->rows)
-                        .mul(_source_scale).map(roundf));
-            output = &_resized;
-        }
-        
-        const uint channels = is_in(output->channels(), 3, 4)
-                                ? 4 : 1;
+        uint8_t channels = 4;
+        if (_source->colors() == ImageMode::GRAY)
+            channels = 1;
+
         auto image = buffers.get(source_location::current());
-        
-        if(not image
-           || image->cols != (uint)output->cols
-           || image->rows != (uint)output->rows
-           || image->dims != channels)
+
+        if ((_source_scale > 0 && _source_scale != 1))
         {
-            image = Image::Make(output->rows, output->cols, channels);
+            if (_buffer.dims != channels
+                || _buffer.cols != _source->size().width
+                || _buffer.rows != _source->size().height)
+            {
+                _buffer.create(_source->size().height, _source->size().width, CV_8UC(channels));
+            }
+
+            _source->frame(index, _buffer);
+
+            const gpuMat* output = &_buffer;
+            if (_source_scale > 0 && _source_scale != 1) {
+                cv::resize(*output, _resized,
+                    Size2(output->cols, output->rows)
+                    .mul(_source_scale).map(roundf));
+                output = &_resized;
+            }
+
+            if (   image->cols != (uint)output->cols
+                || image->rows != (uint)output->rows
+                || image->dims != channels)
+            {
+                image->create(output->rows, output->cols, channels);
+            }
+
+            if (output->channels() == 3) {
+                cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
+            }
+            else {
+                assert(output->channels() == image->dims);
+                output->copyTo(image->get());
+            }
         }
-        
-        if(output->channels() == 3) {
-            cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
-        } else {
-            assert(output->channels() == image->dims);
-            output->copyTo(image->get());
+        else {
+            if (image->dims != channels
+                || image->cols != _source->size().width
+                || image->rows != _source->size().height)
+            {
+                image->create(_source->size().height, _source->size().width, channels);
+            }
+
+            _source->frame(index, *image);
+            assert(channels == image->dims);
+            assert(image->cols == _source->size().width);
+            assert(image->rows == _source->size().height);
         }
         
         image->set_index(index.get());
@@ -166,12 +193,16 @@ void AnimatedBackground::before_draw() {
         auto maybe_image = preloader.get_frame(frame);
         if(maybe_image.has_value() && maybe_image.value()) {
             auto image = std::move(maybe_image.value());
-            if(image->index() != frame.get()) {
+            if(image->index() != frame.get()) 
+            {
                 Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
                 cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);
                 
                 buffers.move_back(_static_image.exchange_with(std::move(ptr)));
-                _static_image.set_color(_tint.alpha(_tint.a * 0.95));
+                if(abs(int64_t(image->index()) - int64_t(frame.get())) > 1)
+                    _static_image.set_color(_tint.alpha(_tint.a * 0.95));
+                else
+                    _static_image.set_color(_tint);
                 
             } else {
                 buffers.move_back(_static_image.exchange_with(std::move(image)));

@@ -33,7 +33,10 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
     
     cv::Mat full_image;
     //cv::Mat back;
-    convert_to_r3g3b2(data.image->get(), full_image);
+    if(data.image->dims == 3)
+        convert_to_r3g3b2<3>(data.image->get(), full_image);
+    else
+        convert_to_r3g3b2<4>(data.image->get(), full_image);
     //convert_from_r3g3b2(full_image, back);
     //cv::cvtColor(back, back, cv::COLOR_BGR2RGB);
     

@@ -232,4 +232,18 @@ void Label::set(attr::Loc loc)
     //update(FindCoord::get(), )
 }
 
+void Label::set(attr::FillClr clr)
+{
+    if (_fill_color == clr)
+        return;
+    _fill_color = clr;
+    set_content_changed(true);
+}
+void Label::set(attr::LineClr clr)
+{
+    if (_line_color == clr)
+        return;
+    _line_color = clr;
+    set_content_changed(true);
+}
 }

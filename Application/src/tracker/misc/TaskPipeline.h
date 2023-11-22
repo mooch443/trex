@@ -4,6 +4,7 @@
 #include <misc/Image.h>
 #include <pv.h>
 #include <misc/DetectionTypes.h>
+#include <misc/Buffers.h>
 
 namespace cmn {
 
@@ -81,15 +82,6 @@ public:
 
     virtual void push(Data&& ptr) = 0;
 };
-
-
-
-namespace OverlayBuffers {
-
-Image::Ptr get_buffer();
-void put_back(Image::Ptr&& ptr);
-
-}
 
 struct SegmentationData {
     Image::Ptr image;

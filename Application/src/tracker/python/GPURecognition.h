@@ -239,16 +239,22 @@ namespace track {
             GETTER(std::vector<Vec2>, offsets)
             GETTER(std::vector<Vec2>, scales)
             GETTER(std::vector<size_t>, orig_id)
+            std::function<void(std::vector<Image::Ptr>&&)> _delete;
 
         public:
-            YoloInput(std::vector<Image::Ptr>&& images, std::vector<Vec2> offsets, std::vector<Vec2> scales, std::vector<size_t> orig_id)
-				: _images(std::move(images)), _offsets(std::move(offsets)), _scales(std::move(scales)), _orig_id(std::move(orig_id))
+            YoloInput(std::vector<Image::Ptr>&& images, std::vector<Vec2> offsets, std::vector<Vec2> scales, std::vector<size_t> orig_id, std::function<void(std::vector<Image::Ptr>&&)>&& deleter = nullptr)
+				: _images(std::move(images)), _offsets(std::move(offsets)), _scales(std::move(scales)), _orig_id(std::move(orig_id)), _delete(std::move(deleter))
 			{ }
 
             YoloInput(const YoloInput&) = delete;
             YoloInput(YoloInput&&) = default;
             YoloInput& operator=(const YoloInput&) = delete;
             YoloInput& operator=(YoloInput&&) = default;
+
+            ~YoloInput() {
+                if (this->_delete)
+                    this->_delete(std::move(_images));
+            }
 
             std::string toStr() const {
 				return "YoloInput<images="+Meta::toStr(_images)+" offsets="+Meta::toStr(_offsets)+" scales="+Meta::toStr(_scales)+" belongs="+Meta::toStr(_orig_id)+">";

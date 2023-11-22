@@ -204,6 +204,7 @@ void ConvertScene::activate()  {
         }
         
         output_size = SETTING(output_size).value<Size2>();
+        TileImage::buffers().set_image_size(video_size);
         
         auto work_area = ((const IMGUIBase*)window())->work_area();
         print("work_area = ", work_area);
@@ -300,15 +301,24 @@ void ConvertScene::fetch_new_data() {
             && _background_image->source()->cols == _current_data.image->cols
             && _background_image->source()->dims == 4)
         {
-            cv::cvtColor(_current_data.image->get(), _background_image->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
-            OverlayBuffers::put_back(std::move(_current_data.image));
+            if (_current_data.image->dims == 3)
+                cv::cvtColor(_current_data.image->get(), _background_image->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+            else
+                _current_data.image->get().copyTo(_background_image->unsafe_get_source().get());
+
+            segmenter().overlayed_video()->source()->move_back(std::move(_current_data.image));
+            //OverlayBuffers::put_back(std::move(_current_data.image));
             _background_image->updated_source();
         }
         else {
             auto rgba = Image::Make(_current_data.image->rows,
                 _current_data.image->cols, 4);
-            cv::cvtColor(_current_data.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
-            OverlayBuffers::put_back(std::move(_current_data.image));
+            if (_current_data.image->dims == 3)
+                cv::cvtColor(_current_data.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+            else
+                _current_data.image->get().copyTo(rgba->get());
+            segmenter().overlayed_video()->source()->move_back(std::move(_current_data.image));
+            //OverlayBuffers::put_back(std::move(_current_data.image));
             _background_image->set_source(std::move(rgba));
         }
 
@@ -676,6 +686,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 auto id = layout.get<Idx_t>(Idx_t(), "id");
                 auto color = layout.textClr;
                 auto line = layout.line;
+                auto fill = layout.fill;
 
                 if (id.valid()) {
                     auto it = _labels.find(id);
@@ -693,6 +704,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 auto font = parse_font(layout.obj, layout._defaults.font);
                 ptr->text()->set(font);
                 ptr->text()->set(color);
+                ptr->text()->set(FillClr{ fill });
                 ptr->set_line_color(line);
                 //print("Create new label with text = ", text);
 
@@ -736,6 +748,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
 
                 if(patterns.contains("line"))
 					p->set_line_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
+                if (patterns.contains("fill"))
+                    p->set_fill_color(Meta::fromStr<Color>(parse_text(patterns.at("fill").original, context, state)));
                 if(patterns.contains("color"))
                     p->text()->set(TextClr{ Meta::fromStr<Color>(parse_text(patterns.at("color").original, context, state)) });
 

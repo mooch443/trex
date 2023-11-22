@@ -224,7 +224,10 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
                 const cv::Mat* full_image;
                 if(not converted_images.contains(idx)) {
                     converted_images[idx] = std::make_unique<cv::Mat>();
-                    convert_to_r3g3b2(data.image->get(), *converted_images[idx]);
+                    if(data.image->dims == 3)
+                        convert_to_r3g3b2<3>(data.image->get(), *converted_images[idx]);
+                    else
+                        convert_to_r3g3b2<4>(data.image->get(), *converted_images[idx]);
                     full_image = converted_images[idx].get();
                 } else {
                     full_image = converted_images.at(idx).get();

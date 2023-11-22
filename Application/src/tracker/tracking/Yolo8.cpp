@@ -124,7 +124,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
     size_t mask_index = 0;
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2)
-        convert_to_r3g3b2(data.image->get(), r3);
+        convert_to_r3g3b2<4>(data.image->get(), r3);
     else if (mode == ImageMode::GRAY)
         cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
 
@@ -270,7 +270,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
     size_t mask_index = 0;
     cv::Mat r3;
     if  (mode == ImageMode::R3G3B2)
-        convert_to_r3g3b2(data.image->get(), r3);
+        convert_to_r3g3b2<4>(data.image->get(), r3);
     else if  (mode == ImageMode::GRAY)
         cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
 
@@ -397,7 +397,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
     
     struct TransferData {
         std::vector<Image::Ptr> images;
-        std::vector<Image::Ptr> oimages;
+        //std::vector<Image::Ptr> oimages;
         std::vector<SegmentationData> datas;
         std::vector<Vec2> scales;
         std::vector<Vec2> offsets;
@@ -420,8 +420,14 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
     size_t i = 0;
     for(auto&& tiled : tiles) {
         transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
-        if(tiled.images.size() == 1)
-            transfer.oimages.emplace_back(Image::Make(*tiled.data.image));
+        if (tiled.images.size() == 1) {
+            /*if (tiled.data.image->dimensions() != tiled.original_size)
+                throw U_EXCEPTION(tiled.data.image->dimensions()," != ", tiled.original_size);
+
+            auto ptr = TileImage::buffers.get(source_location::current());
+            ptr->create(*tiled.data.image);
+            transfer.oimages.emplace_back(std::move(ptr));*/
+        }
 #ifndef NDEBUG
         else
             FormatWarning("Cannot use oimages with tiled.");
@@ -493,7 +499,8 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
                 //size_t outline_elements{0};
                 //thread_print("Received a number of results: ", results.size());
                 //thread_print("For elements: ", datas);
-                
+                //for(auto &t : transfer.oimages)
+                //    TileImage::buffers.move_back(std::move(t));
                 
                 if(results.empty()) {
                     for(size_t i=0; i< transfer.datas.size(); ++i) {
@@ -538,11 +545,12 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
             };
             
             try {
-                std::vector<Image::Ptr> copy;
-                for (auto& img : transfer.images) {
-                    copy.emplace_back(Image::Make(*img));
-                }
-                track::detect::YoloInput input(std::move(copy), (transfer.offsets), (transfer.scales), (transfer.orig_id));
+                track::detect::YoloInput input(std::move(transfer.images), (transfer.offsets), (transfer.scales), (transfer.orig_id), 
+                    [](std::vector<Image::Ptr>&& images)
+                {
+                    for(auto&& image : images)
+                        TileImage::move_back(std::move(image));
+                });
                 //auto results = py::predict(std::move(input), bbx.m);
                 //print("C++ results = ", results);
                 recv(py::predict(std::move(input), bbx.m));

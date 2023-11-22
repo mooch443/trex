@@ -38,9 +38,17 @@ public:
 		_line_color = c;
         set_content_changed(true);
 	}
+    void set_fill_color(const Color& c) {
+        if (c == fill_color())
+            return;
+        _fill_color = c;
+        set_content_changed(true);
+    }
 
     using Entangled::set;
     void set(attr::Loc) override;
+    void set(attr::FillClr) override;
+    void set(attr::LineClr) override;
 
     std::string toStr() const override {
         return "Label<"+Meta::toStr(_source) + ", " + Meta::toStr(text()->text()) + ">";

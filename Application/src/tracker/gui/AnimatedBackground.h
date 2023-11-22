@@ -18,6 +18,8 @@ class AnimatedBackground : public Entangled {
     gpuMat _buffer;
     gpuMat _resized;
     
+    ImageBuffers<Image::Ptr, decltype([]{ return Image::Make(); })> buffers;
+    
     std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;
     float _source_scale{1.f};
@@ -33,8 +35,6 @@ class AnimatedBackground : public Entangled {
     bool gui_show_video_background{true};
     
     FramePreloader<Image::Ptr> preloader;
-    
-    Buffers<Image::Ptr, decltype([]{ return Image::Make(); })> buffers;
     
 public:
     AnimatedBackground(Image::Ptr&&, const pv::File* = nullptr);

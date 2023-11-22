@@ -13,6 +13,7 @@ namespace fg {
         TestCamera(cv::Size size, size_t element_size = 70);
         ~TestCamera() {}
         
+        virtual ImageMode colors() const override { return ImageMode::RGB; }
         virtual Size2 size() const override { return _size; }
         virtual bool next(Image& image) override;
         virtual bool open() const override { return true; }

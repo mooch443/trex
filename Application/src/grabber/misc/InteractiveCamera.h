@@ -30,6 +30,7 @@ namespace fg {
         ~InteractiveCamera() {
         }
         
+        virtual ImageMode colors() const override { return ImageMode::GRAY; }
         virtual Size2 size() const override { return _size; }
         virtual bool next(Image& image) override;
         virtual bool open() const override { return true; }

@@ -29,7 +29,7 @@
 #include <misc/TaskPipeline.h>
 #include <Scene.h>
 
-#include <misc/TileImage.h>
+#include <tracking/TileImage.h>
 #include <misc/AbstractVideoSource.h>
 #include <misc/VideoVideoSource.h>
 #include <misc/WebcamVideoSource.h>

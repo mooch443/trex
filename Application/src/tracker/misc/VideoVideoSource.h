@@ -1,12 +1,12 @@
 #pragma once
 #include <misc/AbstractVideoSource.h>
 #include <video/VideoSource.h>
-#include <misc/TileImage.h>
+#include <misc/DetectionImageTypes.h>
 
 class VideoSourceVideoSource : public AbstractBaseVideoSource {
     VideoSource source;
     useMatPtr_t tmp;
-    cv::Mat cpuBuffer;
+    Image cpuBuffer;
     
 public:
     using SourceType = VideoSource;

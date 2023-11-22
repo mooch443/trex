@@ -1,7 +1,7 @@
 #pragma once
 #include <commons.pc.h>
 #include <misc/AbstractVideoSource.h>
-#include <misc/TileImage.h>
+#include <tracking/TileImage.h>
 #include <tracking/Detection.h>
 #include <misc/VideoVideoSource.h>
 #include <misc/WebcamVideoSource.h>
@@ -103,6 +103,7 @@ public:
             useMat_t* current_use{ buffer.get() };
             image->set_index(nix.get());
             
+            // could use image here
             Size2 original_size(current_use->cols, current_use->rows);
             Size2 resized_size = track::get_model_image_size();
 
@@ -120,6 +121,7 @@ public:
                 }
             }
             
+            // could also use image here
             if (current_use->cols != new_size.width || current_use->rows != new_size.height) {
                 cv::resize(*current_use, _resized_buffer, new_size);
                 current_use = &_resized_buffer;
@@ -127,6 +129,8 @@ public:
             
             loaded_frame = nix + 1_f;
 
+            // tileimage barely uses the current_use / could probably use image here as well
+            // but have to check - it is a const reference
             TileImage tiled(*current_use, std::move(image), resized_size, original_size);
             tiled.callback = callback;
             _source->move_back(std::move(buffer));

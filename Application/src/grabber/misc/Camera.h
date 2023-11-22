@@ -4,6 +4,7 @@
 #include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/vec2.h>
+#include <video/Video.h>
 
 namespace fg {
     using namespace cmn;
@@ -19,6 +20,7 @@ namespace fg {
         virtual void close() = 0;
         virtual bool next(Image& image) = 0;
         virtual Size2 size() const = 0;
+        virtual ImageMode colors() const = 0;
         
         virtual std::string toStr() const { return "Camera"; }
         static std::string class_name() { return "Camera"; }

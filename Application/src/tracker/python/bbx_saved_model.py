@@ -1502,8 +1502,8 @@ def apply():
             try:
                 #im = tf.convert_to_tensor(np.array(image, copy=False)[..., :3], dtype=tf.float32)
                 im = np.array(image, copy=False)[..., :3]
-                oim = np.array(oimages, copy=False)
-                assert len(im) == len(oim)
+                #oim = np.array(oimages, copy=False)
+                #assert len(im) == len(oim)
                 #print("shape: ", im.shape, " image_size=",image_size)
                 #print(np.shape(offsets))
                 #results = predict_custom_yolo7_seg(im)

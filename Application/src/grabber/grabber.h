@@ -14,7 +14,7 @@
 #include <misc/frame_t.h>
 
 #if WITH_FFMPEG
-#include "tomp4.h"
+#include <misc/tomp4.h>
 #endif
 
 #include <video/AveragingAccumulator.h>

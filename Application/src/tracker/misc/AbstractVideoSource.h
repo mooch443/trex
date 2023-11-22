@@ -2,7 +2,7 @@
 #include <commons.pc.h>
 #include <misc/frame_t.h>
 #include <misc/TaskPipeline.h>
-#include <misc/TileImage.h>
+#include <misc/DetectionImageTypes.h>
 #include <misc/Timer.h>
 #include <file/Path.h>
 #include <misc/RepeatedDeferral.h>
@@ -29,9 +29,12 @@ protected:
     useMatPtr_t tmp;
     VideoInfo info;
     
-    Buffers<useMatPtr_t, decltype([](source_location&& loc){
-        return GPUMatPtr::Make(std::move(loc));
-    })> buffers;
+    ImageBuffers<useMatPtr_t, decltype([](source_location&& loc){
+        return MAKE_GPU_MAT_LOC(std::move(loc));
+    })> mat_buffers;
+    ImageBuffers < Image::Ptr, decltype([]() {
+        return Image::Make();
+    }) > image_buffers;
 
     using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*>()>>;
     using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>()>>;
@@ -51,6 +54,8 @@ public:
     }
     
     void move_back(useMatPtr_t&& ptr);
+    void move_back(Image::Ptr&& ptr);
+
     tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> next();
     
     virtual tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() = 0;

@@ -2,18 +2,20 @@
 
     
 AbstractBaseVideoSource::AbstractBaseVideoSource(VideoInfo info)
-: info(info),
-_source_frame(10u, 5u,
-              std::string("source.frame"),
-              [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>
-              {
-    return fetch_next();
-}),
-_resize_cvt(10u, 5u,
-            std::string("resize+cvtColor"),
-            [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> {
-    return this->fetch_next_process();
-})
+  : info(info),
+    mat_buffers("mat_buffers", info.size),
+    image_buffers("image_buffers", info.size),
+    _source_frame(10u, 5u,
+                std::string("source.frame"),
+                [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>
+                {
+        return fetch_next();
+    }),
+    _resize_cvt(10u, 5u,
+                std::string("resize+cvtColor"),
+                [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> {
+        return this->fetch_next_process();
+    })
 {
     //notify();
 }
@@ -32,13 +34,25 @@ void AbstractBaseVideoSource::notify() {
 Size2 AbstractBaseVideoSource::size() const { return info.size; }
 
 void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
-    if(not ptr
+    /*
+       if(not ptr
        || ptr->rows != info.size.height
        || ptr->cols != info.size.width) 
     {
         return;
     }
-    buffers.move_back(std::move(ptr));
+    */
+    mat_buffers.move_back(std::move(ptr));
+}
+
+void AbstractBaseVideoSource::move_back(Image::Ptr&& ptr) {
+    /*if (not ptr
+        || ptr->rows != info.size.height
+        || ptr->cols != info.size.width)
+    {
+        return;
+    }*/
+    image_buffers.move_back(std::move(ptr));
 }
 
 tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> AbstractBaseVideoSource::next() {
@@ -76,8 +90,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
             //! throws bad optional access if the returned frame is not valid
             assert(index.valid());
             
-            auto image = OverlayBuffers::get_buffer();
-            //image->set_index(index.get());
+            auto image = image_buffers.get(source_location::current());
             image->create(*buffer, index.get());
             
             if (_video_samples.load() > 1000) {

@@ -37,6 +37,7 @@ namespace fg {
                 close();
         }
         
+        ImageMode colors() const override { return _color_mode; }
         virtual Size2 size() const override;
         virtual bool next(Image& image) override;
         template<typename T>

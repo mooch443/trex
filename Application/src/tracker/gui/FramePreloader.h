@@ -166,7 +166,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
                 //print("Adding ", Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed)))), " every frame.");
                 next_index_to_use = target_index + Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed))));
             } else {
-                if(index < target_index) {
+                if(index + 1_f < target_index) {
                     Frame_t difference = 0_f;
                     if(fps > 0) {
                         double f = 1.0 / (double(PRELOAD_CACHE(frame_rate)) * PRELOAD_CACHE(gui_playback_speed));
