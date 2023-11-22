@@ -52,7 +52,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<st
     cv::Mat original;
     bg.copyTo(original);
     
-    _background = std::make_unique<AnimatedBackground>(Image::Make(original));
+    _background = std::make_unique<AnimatedBackground>(Image::Make(original), &this->video);
     
     _background->add_event_handler(EventType::MBUTTON, [this](Event e){
         if(e.mbutton.pressed) {
@@ -433,7 +433,6 @@ void TrackingScene::init_video() {
         DebugHeader("LOADED ",default_path);
     }
     
-    //SETTING(cm_per_pixel) = float(0);
     //cmd.load_settings(&combined);
     
     //! TODO: have to delegate this to another thread

@@ -287,11 +287,11 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
             get_filename_component(comp_s ${comp} NAME)
 
             add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
             add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
         endforeach()

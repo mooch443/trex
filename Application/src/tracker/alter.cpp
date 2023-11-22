@@ -492,7 +492,7 @@ int main(int argc, char**argv) {
     SETTING(gui_interface_scale) = float(1);
     SETTING(meta_source_path) = Meta::toStr(SETTING(source).value<file::PathArray>());
 
-    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
+    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0);
     SETTING(meta_real_width) = 1000.f;//float(get_model_image_size().width * 10);
     
     std::stringstream ss;

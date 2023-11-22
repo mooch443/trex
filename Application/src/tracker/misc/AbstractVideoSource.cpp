@@ -79,8 +79,8 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
                 Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
                 //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                 
-                if(not tmp)
-                    tmp = useMatPtr_t{};
+                if (not tmp)
+                    tmp = MAKE_GPU_MAT;
                 cv::resize(*buffer, *tmp, new_size);
                 move_back(std::move(buffer));
                 

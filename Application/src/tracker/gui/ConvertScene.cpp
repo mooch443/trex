@@ -166,7 +166,7 @@ void ConvertScene::open_video() {
     bar.set_option(ind::option::ShowPercentage{true});
     segmenter().open_video();
     
-    _video_info["resolution"] = segmenter().output_size();
+    _video_info["resolution"] = segmenter().size();
     _video_info["length"] = segmenter().video_length();
 }
 
@@ -175,7 +175,7 @@ void ConvertScene::open_camera() {
     spinner.set_option(ind::option::ShowPercentage{false});
     segmenter().open_camera();
     
-    _video_info["resolution"] = segmenter().output_size();
+    _video_info["resolution"] = segmenter().size();
     _video_info["length"] = segmenter().video_length();
 }
 

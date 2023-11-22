@@ -30,15 +30,15 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSour
         if(not buffer)
             throw U_EXCEPTION("Failed to get buffer");
 
-        if(not tmp)
-            tmp = MAKE_GPU_MAT;
-        if(not tmp)
-            throw U_EXCEPTION("Failed to get tmp");
+        //if(not tmp)
+        //    tmp = MAKE_GPU_MAT;
+        //if(not tmp)
+        //    throw U_EXCEPTION("Failed to get tmp");
 
         if(buffer->cols != source.size().width or buffer->rows != source.size().height)
             buffer->create(source.size().height, source.size().width, CV_8UC4);
-        if (tmp->cols != source.size().width or tmp->rows != source.size().height)
-            tmp->create(source.size().height, source.size().width, CV_8UC4);
+        //if (tmp->cols != source.size().width or tmp->rows != source.size().height)
+        //    tmp->create(source.size().height, source.size().width, CV_8UC4);
         
         try {
             source.frame(index, *buffer);

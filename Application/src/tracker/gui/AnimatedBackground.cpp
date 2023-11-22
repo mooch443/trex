@@ -2,6 +2,7 @@
 #include <pv.h>
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
+#include <grabber/misc/default_config.h>
 
 namespace gui {
 
@@ -14,56 +15,56 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
-    
-    if(not GlobalSettings::has("meta_source_path")
-        or SETTING(meta_source_path).value<std::string>().empty())
-    {
-        if(video) {
-            auto metadata = video->header().metadata;
-            sprite::Map config;
-            GlobalSettings::docs_map_t docs;
-            
-            try {
-                default_config::get(config, docs, nullptr);
-                sprite::parse_values(config, metadata);
-                
-            } catch(...) {
-                FormatExcept("Failed to load metadata from: ", metadata);
-            }
-            
-            if(config.has("meta_source_path")) {
-                std::string meta_source_path = config.get<std::string>("meta_source_path");
-                try {
-                    std::unique_lock guard(_source_mutex);
-                    _source = std::make_unique<VideoSource>(meta_source_path);
-                    _source->set_colors(ImageMode::RGB);
-                    _source->set_lazy_loader(true);
-                } catch(const UtilsException& e) {
-                    FormatError("Cannot load animated gui background: ", e.what());
-                }
-            }
-            
-            if(config.has("meta_video_scale")) {
-                _source_scale = config.get<float>("meta_video_scale");
-            }
-        }
-        
-    } else {
-        std::string meta_source_path = SETTING(meta_source_path).value<std::string>();
+
+    _source_scale = -1;
+
+    std::string meta_source_path = SETTING(meta_source_path).value<std::string>();
+
+    if (video) {
+        auto metadata = video->header().metadata;
+        SettingsMaps combined;
+
         try {
-            std::unique_lock guard(_source_mutex);
-            _source = std::make_unique<VideoSource>(meta_source_path);
-            _source->set_colors(ImageMode::RGB);
-            _source->set_lazy_loader(true);
-            
-            if(GlobalSettings::has("meta_video_scale")) {
-                _source_scale = SETTING("meta_video_scale").value<float>();
-            }
-            
-        } catch(const UtilsException& e) {
-            FormatError("Cannot load animated gui background: ", e.what());
+            combined.map.set_do_print(false);
+            grab::default_config::get(combined.map, combined.docs, nullptr);
+            default_config::get(combined.map, combined.docs, nullptr);
+
+            sprite::parse_values(combined.map, metadata);
+
+        }
+        catch (...) {
+            FormatExcept("Failed to load metadata from: ", metadata);
+        }
+
+        if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.get<std::string>("meta_source_path").value()))
+            && combined.map.has("meta_video_scale"))
+        {
+            _source_scale = combined.map.get<float>("meta_video_scale");
+        }
+
+        if (meta_source_path.empty()
+            && combined.map.has("meta_source_path"))
+        {
+            meta_source_path = combined.map.get<std::string>("meta_source_path").value();
         }
     }
+
+    try {
+        std::unique_lock guard(_source_mutex);
+        _source = std::make_unique<VideoSource>(meta_source_path);
+        _source->set_colors(ImageMode::RGB);
+        _source->set_lazy_loader(true);
+
+        if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
+            _source_scale = SETTING("meta_video_scale").value<float>();
+        }
+    }
+    catch (const UtilsException& e) {
+        FormatError("Cannot load animated gui background: ", e.what());
+    }
+
+    if (_source_scale <= 0)
+        _source_scale = 1;
     
     update([this](auto&) {
         advance_wrap(_static_image);
@@ -86,6 +87,9 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
         if(_source->length() > 0_f) {
             _source->frame(0_f, _buffer);
             _static_image.set_source(Image::Make(_buffer));
+        }
+        if (GlobalSettings::has("meta_video_scale")) {
+            _source_scale = SETTING("meta_video_scale").value<float>();
         }
     }
     
