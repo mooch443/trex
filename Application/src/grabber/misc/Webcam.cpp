@@ -20,6 +20,13 @@ namespace fg {
         }
         if(!_capture.isOpened())
             throw U_EXCEPTION("Cannot open webcam.");
+            
+        if(SETTING(cam_resolution).value<cv::Size>().width != -1)
+            _capture.set(cv::CAP_PROP_FRAME_WIDTH, SETTING(cam_resolution).value<cv::Size>().width);
+        if(SETTING(cam_resolution).value<cv::Size>().height != -1)
+            _capture.set(cv::CAP_PROP_FRAME_HEIGHT, SETTING(cam_resolution).value<cv::Size>().height);
+        if (SETTING(cam_framerate).value<int>() > 0)
+            _capture.set(cv::CAP_PROP_FPS, SETTING(cam_framerate).value<int>());
 
         cv::Mat test;
         _capture >> test;

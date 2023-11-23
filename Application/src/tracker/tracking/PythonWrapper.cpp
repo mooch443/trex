@@ -304,7 +304,7 @@ std::future<void> schedule(PackagedTask && task, Flag flag) {
         try {
             task._task();
         } catch (const SoftExceptionImpl& e) {
-            FormatExcept{ "Python runtime error: ", e.what() };
+            FormatExcept( "Python runtime error: ", e.what() );
             throw SoftException(e.what());
             
         } catch(...) {
@@ -507,7 +507,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
         } else {
             counter = 3; // set this independently of success
             
-            throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot initialize python, even though initializing it was required by the caller.", loc);
+            throw _U_EXCEPTION(loc, "Cannot initialize python, even though initializing it was required by the caller.");
         }
         
         variable.notify_all();

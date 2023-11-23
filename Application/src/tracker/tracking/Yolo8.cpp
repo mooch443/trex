@@ -123,10 +123,23 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
     const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
     size_t mask_index = 0;
     cv::Mat r3;
-    if (mode == ImageMode::R3G3B2)
-        convert_to_r3g3b2<4>(data.image->get(), r3);
-    else if (mode == ImageMode::GRAY)
-        cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
+    if (mode == ImageMode::R3G3B2) {
+        if (data.image->dims == 3)
+            convert_to_r3g3b2<3>(data.image->get(), r3);
+        else if (data.image->dims == 4)
+            convert_to_r3g3b2<4>(data.image->get(), r3);
+        else
+            throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
+    }
+    else if (mode == ImageMode::GRAY) {
+        if(data.image->dims == 3)
+            cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
+        else if(data.image->dims == 4)
+            cv::cvtColor(data.image->get(), r3, cv::COLOR_BGRA2GRAY);
+        else
+			throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
+    } else
+        throw U_EXCEPTION("Invalid image mode ", mode);
 
     auto image_dims = data.image->bounds() - Size2(1, 1);
     size_t N_rows = result.boxes().num_rows();

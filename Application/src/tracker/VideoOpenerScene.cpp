@@ -1126,7 +1126,7 @@ void VideoOpener::select_file(const file::Path &p) {
         });
         
     } catch(...) {
-        FormatExcept{ "Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),"." };
+        FormatExcept( "Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),"." );
     }
     
     _horizontal->auto_size();

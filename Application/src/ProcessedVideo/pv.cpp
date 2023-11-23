@@ -1407,10 +1407,10 @@ void File::set_average(const cv::Mat& average) {
     
     timestamp_t File::timestamp(Frame_t frameIndex, cmn::source_location loc) const {
         if(_open_for_writing)
-            throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot get timestamps for video while writing.", loc);
+            throw _U_EXCEPTION(loc, "Cannot get timestamps for video while writing.");
         
         if(frameIndex >= Frame_t(header().num_frames))
-            throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,". (caller ", loc.file_name(),":", loc.line(),")");
+            throw _U_EXCEPTION(loc, "Access out of bounds ",frameIndex,"/",header().num_frames,".");
         
         return header().index_table[frameIndex.get()];
     }

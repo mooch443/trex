@@ -3719,7 +3719,7 @@ void GUI::tracking_finished() {
         if(SETTING(auto_tags_on_startup))
             throw U_EXCEPTION(message);
         else
-            FormatWarning{message};
+            FormatWarning(message);
         
         //GUI::auto_tags();
     }
@@ -3769,7 +3769,7 @@ void GUI::auto_train() {
             if(SETTING(auto_tags_on_startup)) {
                 throw U_EXCEPTION(message);
             } else
-                FormatWarning{message};
+                FormatWarning(message);
             
             return;
         }
@@ -4301,7 +4301,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         if(SETTING(auto_train_on_startup))
             throw U_EXCEPTION(message);
         
-        FormatWarning{message};
+        FormatWarning(message);
         return;
     }
     

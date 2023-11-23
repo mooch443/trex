@@ -1451,7 +1451,7 @@ bool Accumulation::start() {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else
-                FormatExcept{text};
+                FormatExcept(text);
         } else
             update_coverage(*_collected_data);
         

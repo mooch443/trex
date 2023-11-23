@@ -206,7 +206,7 @@ public:
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
         if(!instance()->_average)
-            throw U_EXCEPTION<FormatterType::UNIX, const char*>("Pointer to average image is nullptr.", loc);
+            throw _U_EXCEPTION(loc, "Pointer to average image is nullptr.");
         return *instance()->_average;
     }
     
