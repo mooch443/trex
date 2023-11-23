@@ -59,11 +59,11 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
     if (not is_in_mouse_dock) {
         _text->set_alpha(Alpha{ alpha });
-        _text->set(StaticText::Shadow_t{ alpha });
+        _text->set(StaticText::Shadow_t{ SQR(alpha) * float(_text->text_color().a) / 255.f * 0.5 });
     }
     else {
         _text->set_alpha(Alpha{ 1 });
-        _text->set(StaticText::Shadow_t{ 1 });
+        _text->set(StaticText::Shadow_t{ float(_text->text_color().a) / 255.f * 0.5 });
         target_origin = Vec2(0, 0.5);
     }
 
@@ -184,7 +184,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     else
         _text->set_text_color(White);
 
-    return update_positions(text_pos, dis <= 1 || is_in_mouse_dock, dt);
+    return update_positions(text_pos, dis <= 1, dt);
 }
 
 float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
