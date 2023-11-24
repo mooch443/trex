@@ -5,28 +5,35 @@
 namespace fg {
     Webcam::Webcam() {
         std::unique_lock guard(_mutex);
-        if (SETTING(cam_framerate).value<int>() > 0)
-            _capture.set(cv::CAP_PROP_FPS, SETTING(cam_framerate).value<int>());
-        if(SETTING(cam_resolution).value<cv::Size>().width != -1)
-            _capture.set(cv::CAP_PROP_FRAME_WIDTH, SETTING(cam_resolution).value<cv::Size>().width);
-        if(SETTING(cam_resolution).value<cv::Size>().height != -1)
-            _capture.set(cv::CAP_PROP_FRAME_HEIGHT, SETTING(cam_resolution).value<cv::Size>().height);
-
         try {
+            std::vector<int> parameters{
+                cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G')
+            };
+
+            if (SETTING(cam_resolution).value<cv::Size>().width != -1) {
+                parameters.push_back(cv::CAP_PROP_FRAME_WIDTH);
+                parameters.push_back(SETTING(cam_resolution).value<cv::Size>().width);
+            }
+            if (SETTING(cam_resolution).value<cv::Size>().height != -1) {
+				parameters.push_back(cv::CAP_PROP_FRAME_HEIGHT);
+				parameters.push_back(SETTING(cam_resolution).value<cv::Size>().height);
+			}
+            if (SETTING(cam_framerate).value<int>() > 0) {
+                parameters.push_back(cv::CAP_PROP_FPS);
+                parameters.push_back(SETTING(cam_framerate).value<int>());
+            }
+
             if(!_capture.isOpened())
-                _capture.open(SETTING(webcam_index).value<uint8_t>());
+                if(not _capture.open(SETTING(webcam_index).value<uint8_t>(), cv::CAP_DSHOW, parameters))
+                    throw U_EXCEPTION("Cannot open webcam.");
+
         } catch(...) {
             throw U_EXCEPTION("OpenCV cannot open the webcam.");
         }
         if(!_capture.isOpened())
             throw U_EXCEPTION("Cannot open webcam.");
             
-        if(SETTING(cam_resolution).value<cv::Size>().width != -1)
-            _capture.set(cv::CAP_PROP_FRAME_WIDTH, SETTING(cam_resolution).value<cv::Size>().width);
-        if(SETTING(cam_resolution).value<cv::Size>().height != -1)
-            _capture.set(cv::CAP_PROP_FRAME_HEIGHT, SETTING(cam_resolution).value<cv::Size>().height);
-        if (SETTING(cam_framerate).value<int>() > 0)
-            _capture.set(cv::CAP_PROP_FPS, SETTING(cam_framerate).value<int>());
+        print("Current mode = ", _capture.get(cv::CAP_PROP_FOURCC), " (", _capture.get(cv::CAP_PROP_FPS), " fps)");
 
         cv::Mat test;
         _capture >> test;
