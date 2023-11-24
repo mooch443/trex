@@ -433,26 +433,13 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
     size_t i = 0;
     for(auto&& tiled : tiles) {
         transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
-        if (tiled.images.size() == 1) {
-            /*if (tiled.data.image->dimensions() != tiled.original_size)
-                throw U_EXCEPTION(tiled.data.image->dimensions()," != ", tiled.original_size);
-
-            auto ptr = TileImage::buffers.get(source_location::current());
-            ptr->create(*tiled.data.image);
-            transfer.oimages.emplace_back(std::move(ptr));*/
-        }
-#ifndef NDEBUG
-        else
-            FormatWarning("Cannot use oimages with tiled.");
-#endif
-        
-        transfer.promises.push_back(std::move(tiled.promise));
+        transfer.promises.emplace_back(std::move(tiled.promise));
         
         //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
         
         for(auto p : tiled.offsets()) {
             transfer.orig_id.push_back(i);
-            transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
+            transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size) );
             tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(transfer.scales.back()));
         }
         
@@ -530,7 +517,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
                             FormatExcept("Exception in callback of element ", i," in python results.");
                         }
                     }
-                    FormatExcept("Empty data for ", transfer.datas);
+                    FormatExcept("Empty data for ", transfer.datas, " image=", transfer.orig_id);
                     return;
                 }
                 

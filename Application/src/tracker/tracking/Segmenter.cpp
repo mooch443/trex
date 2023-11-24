@@ -63,6 +63,7 @@ Segmenter::~Segmenter() {
     thread_print("Total time for converting: ", time, "s");
     
     ThreadManager::getInstance().terminateGroup(_generator_group_id);
+    Detection::manager().set_weight_limit(1);
 
     /// while the generator is shutdown already now,
     /// we still need to wait for the tracker and ffmpeg queue to finish

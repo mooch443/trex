@@ -31,7 +31,7 @@ namespace fg {
             throw U_EXCEPTION("OpenCV cannot open the webcam.");
         }
         if(!_capture.isOpened())
-            throw U_EXCEPTION("Cannot open webcam.");
+            throw U_EXCEPTION("Cannot open webcam. Please check your system privacy settings to allow camera access for ", no_quotes(SETTING(app_name).value<std::string>()), ".");
             
         print("Current mode = ", _capture.get(cv::CAP_PROP_FOURCC), " (", _capture.get(cv::CAP_PROP_FPS), " fps)");
 

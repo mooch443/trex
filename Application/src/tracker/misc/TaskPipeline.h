@@ -177,7 +177,9 @@ public:
     template<typename... Args>
     PipelineManager(double weight_limit, Args... args)
         : _weight_limit(weight_limit), _create(bind_arguments_to_lambda(std::forward<Args>(args)...))
-    { }
+    {
+        CMN_ASSERT(not Data{}, "Default constructed values should evaluate to 'false'.");
+    }
 
     ~PipelineManager() {
         {
@@ -202,7 +204,7 @@ public:
         _c = nullptr;
     }
 
-    void enqueue(std::vector<Data>&& v) {
+    /*void enqueue(std::vector<Data>&& v) {
         {
             std::shared_lock guard(_mutex);
             if(not _create)
@@ -220,28 +222,42 @@ public:
             }
         }
         update();
-    }
+    }*/
 
     void enqueue(Data&& ptr) {
-        {
-            std::unique_lock guard(_mutex);
-            if(not _create) {
-                thread_print("[WARNING] _create method not set.");
-                return;
-            }
-            
-            if(not _c) {
-                _create();
-                assert(_c != nullptr);
-            }
-            
-            {
-                assert(_c != nullptr);
-                _c->push(std::move(ptr));
-            }
-        }
-        update();
+        std::scoped_lock g(_future_mutex);
+        if (_future.valid())
+            _future.get();
         
+        std::unique_lock guard(_mutex);
+        if(not _create) {
+            thread_print("[WARNING] _create method not set.");
+            return;
+        }
+        
+        if(not _c) {
+            _create();
+            assert(_c != nullptr);
+            if(not _c)
+                return;
+        }
+        
+        if(ptr)
+            _c->push(std::move(ptr));
+        
+        assert(_c->weight() > 0);
+        if(_c->weight() < _weight_limit) {
+            return;
+        }
+        
+        _future = std::async(std::launch::async, [this]() {
+            set_thread_name("pipeline_async");
+            std::unique_lock guard(_mutex);
+            if(not _c || _c->weight() == 0)
+                return;
+            
+            (*_c)();
+        });
     }
 
     void set_weight_limit(double w) {
@@ -250,33 +266,10 @@ public:
             _weight_limit = w;
         }
 
-        update();
+        //update();
+        enqueue({});
     }
 
-private:
-    bool update() {
-        // wait for enough tasks
-        
-        if(std::shared_lock guard(_mutex); not _c || _c->weight() < _weight_limit) {
-            return true;
-        }
-        
-        std::unique_lock guard(_future_mutex);
-        if (_future.valid()) {
-            _future.get();
-        }
-        
-        _future = std::async(std::launch::async, [this]() {
-            set_thread_name("pipeline_async");
-            std::unique_lock guard(_mutex);
-            if(not _c)
-                return;
-            
-            (*_c)();
-        });
-        
-        return false;
-    }
 };
 
 }

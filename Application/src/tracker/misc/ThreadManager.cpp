@@ -86,7 +86,7 @@ void ThreadManager::addOnEndCallback(ThreadGroupId group, OnEndMethod onEndMetho
 }
 
 void ManagedThread::loop(const ThreadGroup &group, const ManagedThreadWrapper& thread) {
-    set_thread_name(group.name+"::"+thread.name);
+    set_thread_name(utils::ShortenText(group.name+"::"+thread.name, 25));
     thread_print("Starting loop ", group.name);
     terminationProof = {};
     terminationSignal = false;
