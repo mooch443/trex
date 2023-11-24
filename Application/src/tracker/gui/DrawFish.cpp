@@ -208,7 +208,7 @@ Fish::~Fish() {
 
         //check_tags();
         
-        _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f);
+        _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f, frameIndex);
         if (not _skelett)
             _skelett = std::make_unique<Skelett>();
         _skelett->set_pose(_average_pose);

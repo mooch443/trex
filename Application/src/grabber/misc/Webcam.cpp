@@ -19,7 +19,7 @@ namespace fg {
             throw U_EXCEPTION("OpenCV cannot open the webcam.");
         }
         if(!_capture.isOpened())
-            throw U_EXCEPTION("Cannot open webcam.");
+            throw U_EXCEPTION("Cannot open webcam. Please check your system privacy settings to allow camera access for ", no_quotes(SETTING(app_name).value<std::string>()), ".");
             
         if(SETTING(cam_resolution).value<cv::Size>().width != -1)
             _capture.set(cv::CAP_PROP_FRAME_WIDTH, SETTING(cam_resolution).value<cv::Size>().width);

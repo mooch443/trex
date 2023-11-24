@@ -719,6 +719,15 @@ void ConvertScene::_draw(DrawStructure& graph) {
                     return this->window_size;
                 }),
                 VarFunc("gpu_device", [](const VarProps&) -> std::string {
+                    auto gpu_torch_device = SETTING(gpu_torch_device).value<std::string>();
+                    if(is_in(utils::lowercase(gpu_torch_device), "cpu")) {
+                        if(is_in(utils::lowercase(python_gpu_name()), "metal")
+                           || utils::contains(python_gpu_name(), "nvidia"))
+                        {
+                            return "CPU (settings override)";
+                        }
+                        return "CPU";
+                    }
                     return python_gpu_name();
                 }),
                 VarFunc("fish", [](const VarProps&) -> sprite::Map& {

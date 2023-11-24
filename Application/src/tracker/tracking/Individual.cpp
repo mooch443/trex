@@ -948,18 +948,27 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-blob::Pose Individual::pose_window(Frame_t start, Frame_t end) const {
+blob::Pose Individual::pose_window(Frame_t start, Frame_t end, Frame_t ref) const {
     start = saturate(start, start_frame(), end_frame());
     end = saturate(end, start_frame(), end_frame()) + 1_f;
+    if(not ref.valid() || ref < start || ref >= end) {
+        ref = start;
+    }
     
     FrameRange range(Range<Frame_t>(start, end));
     std::vector<const blob::Pose*> collection;
     collection.reserve(range.length().get());
+    int64_t ref_index = -1;
     
-    iterate_frames(range.range, [&](Frame_t, const std::shared_ptr<SegmentInformation> &, const BasicStuff * basic, const PostureStuff *)
+    iterate_frames(range.range, [&](Frame_t idx, const std::shared_ptr<SegmentInformation> &, const BasicStuff * basic, const PostureStuff *)
     {
-        if(not basic->blob.pred.pose.empty())
+        if(not basic->blob.pred.pose.empty()) {
+            if(idx == ref) {
+                ref_index = collection.size();
+            }
+            
             collection.push_back(&basic->blob.pred.pose);
+        }
         return true;
     });
     
@@ -971,10 +980,23 @@ blob::Pose Individual::pose_window(Frame_t start, Frame_t end) const {
     if(collection.empty())
         return blob::Pose{};
     
+    std::vector<size_t> empty_indexes;
+    if(not collection.empty()) {
+        if(ref_index == -1) {
+            return {};
+        }
+        auto& ref_pose = collection.at(ref_index);
+        for(size_t i=0; i<ref_pose->size(); ++i) {
+            auto & pt = ref_pose->point(i);
+            if(pt.x == 0 && pt.y == 0)
+                empty_indexes.push_back(i);
+        }
+    }
+    
     using namespace blob;
     return Pose::mean<GaussianTemporalWeighting<Focus::Center>>([&](size_t index){
         return *collection.at(index);
-    }, collection.size());
+    }, collection.size(), empty_indexes);
 }
 
 int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t current_prob)
