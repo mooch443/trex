@@ -874,7 +874,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     base.wrap_object(polygon);
                     
                 } else if(boundary.size() == 2) {
-                    base.line(boundary[0], boundary[1], 1, Cyan.alpha(125));
+                    base.line(Line::Point_t{ boundary[0] }, Line::Point_t{ boundary[1] }, LineClr{ Cyan.alpha(125) });
                     
                     Vec2 v;
                     if(boundary[1].x > boundary[0].x)

@@ -1890,7 +1890,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             
                             auto value = PD(cache).connectivity_matrix.at(FAST_SETTING(track_max_individuals) * i + j);
                             
-                            base.line(p0, p1, 1 + 5 * value, Viridis::value(value).alpha((value * 0.6) * 255));
+                            base.line(Line::Point_t{ p0 }, Line::Point_t{ p1 }, LineClr{ Viridis::value(value).alpha((value * 0.6) * 255) }, Line::Thickness_t{ 1 + 5 * value });
                         }
                     }
                 });

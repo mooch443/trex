@@ -68,7 +68,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
                     {
                         auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
                         //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
-                        add<Line>(eye.pos, eye._visible_points[i + VisualField::field_resolution], Black.alpha((uint8_t)saturate(50 * w * w + 10)));
+                        add<Line>(Line::Point_t{ eye.pos }, Line::Point_t{ eye._visible_points[i + VisualField::field_resolution] }, LineClr{ Black.alpha((uint8_t)saturate(50 * w * w + 10)) });
                     }
                 }
                 
@@ -92,15 +92,15 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
             for(auto &eye : ptr->eyes()) {
                 Vec2 straight(cos(eye.angle), sin(eye.angle));
                 
-                add<Line>(eye.pos, eye.pos + straight * 11, Black, 1);
+                add<Line>(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + straight * 11 }, LineClr{ Black });
                 
                 auto left = Vec2((Float2_t)cos(eye.angle - VisualField::symmetric_fov),
                                  (Float2_t)sin(eye.angle - VisualField::symmetric_fov));
                 auto right = Vec2((Float2_t)cos(eye.angle + VisualField::symmetric_fov),
                                   (Float2_t)sin(eye.angle + VisualField::symmetric_fov));
                 
-                add<Line>(eye.pos, eye.pos + left * 100, eye.clr.exposure(0.65f), 1);
-                add<Line>(eye.pos, eye.pos + right * 100, eye.clr.exposure(0.65f), 1);
+                add<Line>(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + left * 100 }, LineClr{ eye.clr.exposure(0.65f) });
+                add<Line>(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + right * 100 }, LineClr{ eye.clr.exposure(0.65f) });
             }
         }
     }

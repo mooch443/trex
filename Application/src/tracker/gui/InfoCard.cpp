@@ -273,7 +273,7 @@ void InfoCard::update() {
             if(it->frames.start() == current_segment) {
                 bool inside = it->frames.contains(_shadow->frame);
                 auto offy = - (inside ? 0.f : (Base::default_line_spacing(Font(1.1f))*0.5f));
-                add<Line>(Vec2(10+offx, p.y + offy), Vec2(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), inside ? White : White.alpha(100));
+                add<Line>(Line::Point_t(10 + offx, p.y + offy), Line::Point_t(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), LineClr{ inside ? White : White.alpha(100) });
             }
         }
     };

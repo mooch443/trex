@@ -242,7 +242,7 @@ namespace gui {
             }
             
             // draw line afterwards, so max_w is already set
-            add<Line>(Vec2(10, 10 + offset_y + h + 5), Vec2(10 + max_w, 10 + offset_y + h + 5), White.alpha(150));
+            add<Line>(Line::Point_t(10, 10 + offset_y + h + 5), Line::Point_t(10 + max_w, 10 + offset_y + h + 5), LineClr{ White.alpha(150) });
         };
         
         if(_last_current_frames.start.valid() && !_meta_current.empty()) {
@@ -271,7 +271,7 @@ namespace gui {
         }
         
         // vertical line between columns
-        add<Line>(Vec2(x - 10, 5), Vec2(x - 10, y + 5), White.alpha(150));
+        add<Line>(Line::Point_t(x - 10, 5), Line::Point_t(x - 10, y + 5), LineClr{ White.alpha(150) });
         
         if(index < _texts.size())
             _texts.erase(_texts.begin() + (int64_t)index, _texts.end());

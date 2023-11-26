@@ -449,7 +449,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 //offset.x = offset.x + 5 - int(offset.x) % 5;
             }
 
-            offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(10, 0.5)).mul(scale), Gray, scale)->width() + 5;
+            offset.x += base.line(Line::Point_t{ (offset + Vec2(0, 0.5)).mul(scale) }, Line::Point_t{ (offset + Vec2(10, 0.5)).mul(scale) }, LineClr{ Gray }, Scale{ scale })->width() + 5;
             offset.x += (shadowed_text(offset, dec<2>(_grabber.fps().load()).toStr(), Cyan)) + 2;
             offset.x += shadowed_text(offset, "fps", text_color);
 
@@ -482,7 +482,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     continue;
                     
                 } else if(offset.x > 25) {
-                    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
+                    offset.x += base.line(Line::Point_t{ (offset + Vec2(0, 0.5)).mul(scale) }, Line::Point_t{ (offset + Vec2(5, 0.5)).mul(scale) }, LineClr{ Gray }, Scale{ scale })->width() + 5;
                 }
                 
                 offset.x += shadowed_text(offset, values[i], darker ? (text_color.r < 100 ? Color(70,70,70,255) : text_color.exposure(0.8)) :text_color, 0.5, false) + 5;
@@ -535,8 +535,8 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
         static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
         static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
         
-        std::vector<Vertex> oline;
-        std::vector<Vec2> positions;
+        Line::Vertices_t oline;
+        Line::Points_t positions;
         
         for (auto& fish : individuals) {
             if (fish->end_frame() < min_display_frame)
@@ -639,7 +639,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                             }
                             oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
                             //auto line =
-                            base.add_object(new Line(oline, gui_outline_thickness));
+                            base.add_object(new Line(oline, Line::Thickness_t{ float(gui_outline_thickness) }));
                         }
                     }
                 }
@@ -652,7 +652,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                 float percent = saturate((float(_frame->index().get()) - float(seg->end().get())) / float(displayed_range.get()), 0.f, 1.f);
                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
                 
-                base.line(positions, 1, color.alpha(alpha));
+                base.line(positions, LineClr{ color.alpha(alpha) });
                 base.text(Str{Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")"}, Loc(positions.back() + Vec2(10, 0)), TextClr{color.alpha(alpha)}, is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
             }
         }

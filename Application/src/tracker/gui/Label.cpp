@@ -5,7 +5,7 @@
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-: _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _line({}, 1), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
+: _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
     _text->set_origin(Vec2(0.5, 1));
     _text->set_clickable(false);
@@ -190,7 +190,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
 float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     if (not do_animate) {
         _text->set_pos(text_pos);
-        _line.create(_center, _text->pos(), _color, Vec2(1), 2);
+        _line.create(Line::Point_t{ _center }, Line::Point_t{ _text->pos() }, LineClr{ _color }, Line::Thickness_t{ 2 });
         //e.add<Line>(_center, _text->pos(), _color, 1);
         if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
@@ -223,7 +223,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     }
     
 
-    _line.create(_center, _color.exposureHSL(0.5).alpha(_color.a * 0.75), _text->pos(), _color, 2);
+    _line.create(Line::Point_t{ _center }, LineClr{ _color.exposureHSL(0.5).alpha(_color.a * 0.75) }, Line::Point_t{ _text->pos() }, LineClr{ _color }, Line::Thickness_t{ 2 });
     //e.add<Line>(_center, _text->pos(), _color, 1);
     return d;
 }

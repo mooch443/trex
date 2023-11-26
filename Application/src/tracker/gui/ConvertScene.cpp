@@ -352,7 +352,7 @@ void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 o
         ColorWheel wheel;
         for (const auto& v : _current_data.outlines) {
             auto clr = wheel.next();
-            graph.line(v, 1, clr.alpha(150));
+            graph.line(Line::Points_t{ v }, LineClr{ clr.alpha(150) });
         }
     }
 }

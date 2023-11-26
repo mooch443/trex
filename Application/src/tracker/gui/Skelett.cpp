@@ -31,7 +31,7 @@ namespace gui {
                     if ((A.x > 0 || A.y > 0)
                         && (B.x > 0 || B.y > 0))
                     {
-                        Vec2 p0{ A }, p1{ B };
+                        Line::Point_t p0{ A }, p1{ B };
                         if (p0.x > p1.x)
                             std::swap(p0, p1);
 
@@ -42,7 +42,7 @@ namespace gui {
                         Scale sca(Scale{ coord.bowl_scale().reciprocal() });
                         Font font(0.35);
 
-                        add<Line>(p0, p1, LineClr{ _color.exposureHSL(0.5) }, 3);
+                        add<Line>(p0, p1, LineClr{ _color.exposureHSL(0.5) }, Line::Thickness_t{ 3 });
                         add<Text>(
                             Str(c.name),
                             Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
@@ -57,14 +57,14 @@ namespace gui {
 
         }
         else {
-            auto last = _pose.points.back();
+            Line::Point_t last { _pose.points.back() };
             for (auto& bone : _pose.points) {
                 if (bone.x > 0 || bone.y > 0) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
                     add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{ 0.35 });
 
                     if (last.x > 0 && last.y > 0)
-                        add<Line>(Vec2{ last }, Vec2{ bone }, LineClr{ _color.exposureHSL(0.5) }, 3);
+                        add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposureHSL(0.5) }, Line::Thickness_t{ 3 });
                     last = bone;
                 }
                 ++i;

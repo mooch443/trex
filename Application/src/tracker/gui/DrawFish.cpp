@@ -207,12 +207,6 @@ Fish::~Fish() {
         _blob_bounds = blob ? blob->calculate_bounds() : _view.bounds();
 
         //check_tags();
-        
-        _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f, frameIndex);
-        if (not _skelett)
-            _skelett = std::make_unique<Skelett>();
-        _skelett->set_pose(_average_pose);
-        _skelett->set_skeleton(GUI_SETTINGS(meta_skeleton));
 
         auto [_basic, _posture] = obj.all_stuff(_safe_frame);
         if(_basic)
@@ -288,6 +282,15 @@ Fish::~Fish() {
         }
         
         _color = get_color(&_basic_stuff.value());
+
+        _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f, frameIndex);
+        if (not _skelett) {
+            _skelett = std::make_unique<Skelett>();
+            _skelett->set_color(_color);
+        }
+        _skelett->set_pose(_average_pose);
+        _skelett->set_skeleton(GUI_SETTINGS(meta_skeleton));
+
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
     }
     
@@ -445,7 +448,7 @@ Fish::~Fish() {
             }
 
             if (active && _cached_outline && GUIOPTION(gui_show_outline)) {
-                std::vector<Vertex> oline;
+                Line::Vertices_t oline;
                 points = _cached_outline->uncompress();
 
                 if (GUIOPTION(gui_show_shadows)) {
@@ -483,7 +486,7 @@ Fish::~Fish() {
                 }
                 oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
                 //auto line =
-                window.add<Line>(oline, GUIOPTION(gui_outline_thickness));
+                window.add<Line>(oline, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
@@ -500,7 +503,7 @@ Fish::~Fish() {
                 auto& _midline = *_cached_midline;
                 midline_points = _midline.segments();
 
-                std::vector<Vertex> line;
+                Line::Vertices_t line;
                 auto tf = _cached_midline->transform(default_config::individual_image_normalization_t::none, true);
 
                 for (auto &segment : midline_points) {
@@ -513,7 +516,7 @@ Fish::~Fish() {
                     line.push_back(Vertex(tf.transformPoint(segment.pos), _color));
                 }
 
-                window.add<Line>(line, GUIOPTION(gui_outline_thickness));
+                window.add<Line>(line, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
                 //window.vertices(line);
 
                 if (head) {
@@ -545,7 +548,7 @@ Fish::~Fish() {
 
             constexpr const char* animator = "panic-button-animation";
             if(panic_button) {
-                _view.add<Line>(_posture.pos(), mp, White.alpha(50));
+                _view.add<Line>(Line::Point_t(_posture.pos()), Line::Point_t(mp), LineClr{ White.alpha(50) });
                 GUICache::instance().set_animating(animator, true);
             } else
                 GUICache::instance().set_animating(animator, false);
@@ -574,7 +577,7 @@ Fish::~Fish() {
                     auto estimated = _next_frame_cache.estimated_px + offset;
                     
                     _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(255)});
-                    _view.add<Line>(c_pos, estimated, _color);
+                    _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(estimated), LineClr{ _color });
                     _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{_color});
                 }
             }
@@ -831,7 +834,7 @@ Fish::~Fish() {
                 pos = pos * radius + c_pos;
             
                 _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
-                _view.add<Line>(c_pos, pos, circle_clr);
+                _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(pos), LineClr{ circle_clr });
             
                 if(FAST_SETTING(posture_direction_smoothing)) {
                     std::map<Frame_t, float> angles;
