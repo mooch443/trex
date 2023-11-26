@@ -245,7 +245,6 @@ public:
         if(ptr)
             _c->push(std::move(ptr));
         
-        assert(_c->weight() > 0);
         if(_c->weight() < _weight_limit) {
             return;
         }
