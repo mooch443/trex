@@ -222,8 +222,7 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
 
             std::scoped_lock guard(_cache->_fish_map_mutex);
             for (auto& [id, fish] : _cache->_fish_map) {
-                if (fish->frame() == frame)
-                    fish->update(coord, *this, graph);
+                fish->update(coord, *this, graph);
             }
         }
     });

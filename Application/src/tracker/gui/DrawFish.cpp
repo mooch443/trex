@@ -662,8 +662,11 @@ Fish::~Fish() {
             }
 
             auto color_source = GUIOPTION(gui_fish_color);
+            auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
+            auto pdx = _basic_stuff.has_value() ? _basic_stuff->blob.parent_id : pv::bid();
+
             if(color_source == "viridis") {
-                GUICache::instance().processed_frame().transform_blobs([&, bdx = _basic_stuff->blob.blob_id(), pdx = _basic_stuff->blob.parent_id](const pv::Blob& b)
+                GUICache::instance().processed_frame().transform_blobs([&,bdx,pdx] (const pv::Blob& b)
                 {
                     if(!is_in(b.blob_id(), bdx, pdx))
                         return true;
@@ -692,7 +695,7 @@ Fish::~Fish() {
                 auto percent = min(1.f, cmn::abs(_library_y));
                 Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
             
-                GUICache::instance().processed_frame().transform_blobs([&, bdx = _basic_stuff->blob.blob_id(), pdx = _basic_stuff->blob.parent_id](const pv::Blob& b)
+                GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b)
                 {
                     if(!is_in(b.blob_id(), bdx, pdx))
                         return true;
@@ -813,7 +816,6 @@ Fish::~Fish() {
             
                 // draw circle around the fish
             
-            
                 _circle.set_pos(c_pos);
                 _circle.set_radius(radius);
                 _circle.set_origin(Vec2(0.5));
@@ -928,29 +930,6 @@ Fish::~Fish() {
         parent.advance_wrap(_view);
         
         if(_basic_stuff.has_value() && _basic_stuff->blob.pred.pose.size() > 0) {
-            auto & pred =  _basic_stuff->blob.pred;
-            /*for (size_t i = 0; i<pred.pose.size(); ++i) {
-                auto bone = pred.pose.bone(i);
-                if((bone.A.x != 0 || bone.A.y != 0)
-                    && (bone.B.x != 0 || bone.B.y != 0)) 
-                {
-                    parent.add<Circle>(Loc{bone.A}, FillClr{Gray.alpha(25)}, LineClr{Gray.alpha(25)}, Radius{5}, Scale{section->scale().reciprocal());
-                    parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{Gray.alpha(50)});
-                }
-            }
-
-            ColorWheel wheel;
-            for(size_t i=0; i<_average_pose.size(); ++i) {
-                auto bone = _average_pose.bone(i);
-                if ((bone.A.x != 0 || bone.A.y != 0)
-                    && (bone.B.x != 0 || bone.B.y != 0))
-                {
-                    auto c = Color::blend(_color.alpha(125), wheel.next().alpha(130));
-                    parent.add<Circle>(Loc{bone.A}, FillClr{c.alpha(75)}, LineClr{c.alpha(150)}, Radius{5});
-                    parent.add<Line>(Loc{bone.A}, Loc{bone.B}, LineClr{c.alpha(75)},2);
-                }
-            }*/
-
             if(_skelett)
                 parent.advance_wrap(*_skelett);
         }
@@ -959,17 +938,6 @@ Fish::~Fish() {
         _label_parent.update([&](auto&){
             label(coord, _label_parent);
         });
-        
-        //static auto change = parent.children();
-        /*if(parent.children().size() != change.size()) {
-            print("_view:");
-            for(auto c : parent.children()) {
-                auto name = c->toStr();
-                print("\t", name);
-            }
-            print("--");
-            change = parent.children();
-        }*/
     }
 
 Color Fish::get_color(const BasicStuff * basic) const {
@@ -1374,8 +1342,8 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     if (!GUIOPTION(gui_show_texts))
         return;
     
-    if(!_basic_stuff.has_value())
-        return;
+    //if(!_basic_stuff.has_value())
+    //    return;
     
     std::string color = "";
     std::stringstream text;
@@ -1416,8 +1384,9 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
+    auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
 #if !COMMONS_NO_PYTHON
-    auto detection = tags::find(_frame, _basic_stuff->blob.blob_id());
+    auto detection = tags::find(_frame, bdx);
     if (detection.valid()) {
         secondary_text += "<a>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</a>";
     }
@@ -1437,7 +1406,6 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
         }
     }
     
-    auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
     if (_cat != -1 && _cat != _avg_cat) {
         secondary_text += std::string(" ") + (_cat ? "<b>" : "") + "<i>" + _cat_name + "</i>" + (_cat ? "</b>" : "");
     }
@@ -1456,6 +1424,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
             _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), fish_pos());
     }
 
+    //print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
     e.advance_wrap(*_label);
     _label->set_line_color(_color);
     _label->update(coord, 1, 0, not _basic_stuff.has_value(), GUICache::instance().dt());
