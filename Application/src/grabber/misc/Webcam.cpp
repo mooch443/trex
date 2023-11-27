@@ -7,7 +7,7 @@ namespace fg {
         std::unique_lock guard(_mutex);
         try {
             std::vector<int> parameters{
-                cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G')
+                //cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G')
             };
 
             if (SETTING(cam_resolution).value<cv::Size>().width != -1) {
@@ -24,7 +24,9 @@ namespace fg {
             }
 
             if(!_capture.isOpened())
-                if(not _capture.open(SETTING(webcam_index).value<uint8_t>(), cv::CAP_DSHOW, parameters))
+                if(not _capture.open(SETTING(webcam_index).value<uint8_t>(),
+                                     cv::CAP_ANY,
+                                     parameters))
                     throw U_EXCEPTION("Cannot open webcam.");
 
         } catch(...) {

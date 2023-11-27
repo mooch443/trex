@@ -614,6 +614,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 _skeletts.push_back(std::make_unique<Skelett>(std::move(pose), skelet));
             else
                 _skeletts[pose_index]->set_pose(std::move(pose));
+            _skeletts[pose_index]->set_color(wheel.next());
             graph.wrap_object(*_skeletts[pose_index]);
             pose_index++;
         }

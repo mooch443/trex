@@ -4016,7 +4016,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 
                 default_config::get(config, docs, NULL);
                 try {
-                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, true);
+                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, {}, true);
                     
                 } catch(const cmn::illegal_syntax& e) {
                     print("Illegal syntax in .results settings (",e.what(),").");

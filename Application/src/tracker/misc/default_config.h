@@ -10,8 +10,8 @@ namespace default_config {
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn);
 
-    void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level);
-    bool execute_settings_file(const file::Path& source, AccessLevelType::Class level);
+    void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
+    bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
 
     void warn_deprecated(const file::Path& source, sprite::Map& map);
     void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
@@ -27,7 +27,7 @@ namespace default_config {
     };
     Config generate_delta_config(bool include_build_number = false, std::vector<std::string> additional_exclusions = {});
     void register_default_locations();
-    void load_string_with_deprecations(const file::Path& source, const std::string& content, sprite::Map& map, AccessLevel, bool quiet = false);
+    void load_string_with_deprecations(const file::Path& source, const std::string& content, sprite::Map& map, AccessLevel, const std::vector<std::string>& exclude = {}, bool quiet = false);
 
     file::Path conda_environment_path();
 

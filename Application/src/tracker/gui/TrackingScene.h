@@ -237,5 +237,7 @@ private:
     
     void next_poi(Idx_t _s_fdx);
     void prev_poi(Idx_t _s_fdx);
+    
+    void export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range);
 };
 }

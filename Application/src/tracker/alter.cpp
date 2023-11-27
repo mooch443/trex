@@ -519,6 +519,7 @@ int main(int argc, char**argv) {
     SETTING(meta_encoding) = grab::default_config::meta_encoding_t::r3g3b2;
 
     CommandLine::instance().load_settings();
+    print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
     
     if(not SETTING(source).value<file::PathArray>().empty())
         SETTING(scene_crash_is_fatal) = true;

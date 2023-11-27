@@ -22,6 +22,7 @@
 #include <gui/DrawBlobView.h>
 #include <gui/Label.h>
 #include <misc/Output.h>
+#include <tracking/Export.h>
 
 using namespace track;
 
@@ -213,6 +214,16 @@ Idx_t find_wrapped_id(const Set& ids, track::Idx_t current_id, Comparator comp) 
     }
 }
 
+void TrackingScene::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
+    bool before = _data->analysis.is_paused();
+    _data->analysis.set_paused(true).get();
+    
+    track::export_data(_data->tracker, fdx, range);
+    
+    if(not before)
+        _data->analysis.set_paused(false).get();
+}
+
 bool TrackingScene::on_global_event(Event event) {
     if(event.type == EventType::MBUTTON) {
         _data->_zoom_dirty = true;
@@ -242,6 +253,9 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             case Keyboard::T:
                 SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
+                break;
+            case Keyboard::S:
+                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks("", {}, {}); });
                 break;
             case Keyboard::Left:
                 set_frame(GUI_SETTINGS(gui_frame).try_sub(1_f));
@@ -468,6 +482,7 @@ void TrackingScene::init_video() {
         exclude_parameters.push_back(key);
     }
     print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
+    print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
 
     try {
         if (!video.header().metadata.empty()) {
@@ -490,10 +505,11 @@ void TrackingScene::init_video() {
     }
     
     Output::Library::InitVariables();
+    Output::Library::Init();
     
     auto settings_file = file::DataLocation::parse("settings");
     if(settings_file.exists()) {
-        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
+        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP, exclude_parameters))
             executed_a_settings = true;
         else {
             SETTING(settings_file) = file::Path();
@@ -1284,7 +1300,7 @@ void TrackingScene::load_state(file::Path from) {
                 
                 default_config::get(config, docs, NULL);
                 try {
-                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, true);
+                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, {}, true);
                     
                 } catch(const cmn::illegal_syntax& e) {
                     print("Illegal syntax in .results settings (",e.what(),").");

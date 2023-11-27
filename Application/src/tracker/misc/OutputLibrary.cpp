@@ -997,7 +997,9 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                     auto &fname = instance.first;
                     auto &options = instance.second;
                     
-                    if(_cache_func.count(fname) == 0) {
+                    if(_cache_func.count(fname) == 0
+                       && not utils::beginsWith(fname, "pose")) 
+                    {
                         print("There is no function called ",fname,".");
                         continue;
                     }
@@ -1042,6 +1044,26 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 f.second.erase(it);
         }
     }
+
+    double Library::pose(uint8_t index, uint8_t component, LibInfo info, Frame_t frame) {
+        if(not info.fish)
+            return Graph::invalid();
+        auto ptr = info.fish->basic_stuff(frame);
+        if(not ptr)
+            return Graph::invalid();
+        
+        auto& pose = ptr->blob.pred.pose;
+        if(pose.size() <= index)
+            return Graph::invalid();
+        
+        auto& pt = pose.point(index);
+        if(pt.x == 0 && pt.y == 0)
+            return Graph::invalid();
+        
+        if(component == 0)
+            return pt.x;
+        return pt.y;
+    }
     
     double Library::get(const std::string &name, LibInfo info, Frame_t frame) {
         auto _cache = info._cache;
@@ -1049,8 +1071,20 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             _cache = _default_cache;
         
         std::lock_guard<std::recursive_mutex> lock(_cache->_cache_mutex);
-        if(_cache_func.count(name) == 0)
+        if(_cache_func.count(name) == 0) {
+            if(utils::beginsWith(name, "poseX")
+               || utils::beginsWith(name, "poseY"))
+            {
+                auto component = name.at(4) == 'X' ? 0 : 1;
+                try {
+                    auto index = Meta::fromStr<uint8_t>(name.substr(5));
+                    return pose(index, component, info, frame);
+                } catch(...) {
+                    // cannot parse pose
+                }
+            }
             return gui::Graph::invalid();
+        }
         
         size_t cache_size = _cache->_cache.size();
         if (!info.rec_depth && cache_size > 100)

@@ -129,6 +129,8 @@ namespace Output {
         static bool has(const std::string& name);
         static std::vector<std::string> functions();
         
+        static double pose(uint8_t index, uint8_t component, LibInfo info, Frame_t frame);
+        
         static void remove_calculation_options();
         
     private:

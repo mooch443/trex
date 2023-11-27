@@ -275,9 +275,9 @@ file::Path conda_environment_path() {
 #define PYTHON_TIPPS " (containing pythonXX.exe)"
 #endif
 
-void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level) {
+void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude) {
     try {
-        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level);
+        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level, exclude);
         
     } catch(const cmn::illegal_syntax& e) {
         FormatError("Illegal syntax in settings file.");
@@ -285,12 +285,12 @@ void execute_settings_string(const std::string &content, const file::Path& sourc
     }
 }
 
-bool execute_settings_file(const file::Path& source, AccessLevelType::Class level) {
+bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude) {
     if(source.exists()) {
         DebugHeader("LOADING ", source);
         try {
             auto content = utils::read_file(source.str());
-            execute_settings_string(content, source, level);
+            execute_settings_string(content, source, level, exclude);
             
         } catch(const cmn::illegal_syntax& e) {
             FormatError("Illegal syntax in settings file.");
@@ -571,7 +571,41 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"num_pixels", {}},
             {"ACCELERATION", {"RAW", "PCENTROID"}},
             //{"ACCELERATION", {"SMOOTH", "PCENTROID"}},
-            {"ACCELERATION", {"RAW", "WCENTROID"}}
+            {"ACCELERATION", {"RAW", "WCENTROID"}},
+            {"poseX0", {"RAW"}},
+            {"poseY0", {"RAW"}},
+            {"poseX1", {"RAW"}},
+            {"poseY1", {"RAW"}},
+            {"poseX2", {"RAW"}},
+            {"poseY2", {"RAW"}},
+            {"poseX3", {"RAW"}},
+            {"poseY3", {"RAW"}},
+            {"poseX4", {"RAW"}},
+            {"poseY4", {"RAW"}},
+            {"poseX5", {"RAW"}},
+            {"poseY5", {"RAW"}},
+            {"poseX6", {"RAW"}},
+            {"poseY6", {"RAW"}},
+            {"poseX7", {"RAW"}},
+            {"poseY7", {"RAW"}},
+            {"poseX8", {"RAW"}},
+            {"poseY8", {"RAW"}},
+            {"poseX9", {"RAW"}},
+            {"poseY9", {"RAW"}},
+            {"poseX10", {"RAW"}},
+            {"poseY10", {"RAW"}},
+            {"poseX11", {"RAW"}},
+            {"poseY11", {"RAW"}},
+            {"poseX12", {"RAW"}},
+            {"poseY12", {"RAW"}},
+            {"poseX13", {"RAW"}},
+            {"poseY13", {"RAW"}},
+            {"poseX14", {"RAW"}},
+            {"poseY14", {"RAW"}},
+            {"poseX15", {"RAW"}},
+            {"poseY15", {"RAW"}},
+            {"poseX16", {"RAW"}},
+            {"poseY16", {"RAW"}}
         };
         
         auto output_annotations = std::map<std::string, std::string>
@@ -955,7 +989,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     }
 
 
-void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, bool quiet) {
+void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, const std::vector<std::string>& exclude, bool quiet) {
     auto rejections = GlobalSettings::load_from_string(deprecations(), map, content, accessLevel);
     if(!rejections.empty()) {
         for (auto && [key, val] : rejections) {
