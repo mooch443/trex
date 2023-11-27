@@ -839,22 +839,33 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         if(properties && (reload_blobs || _fish_dirty))
         {
             set_of_individuals_t source;
-            if(Tracker::has_identities() && GUI_SETTINGS(gui_show_inactive_individuals))
+            if(Tracker::has_identities()
+                && GUI_SETTINGS(gui_show_inactive_individuals))
             {
-                for(auto [id, fish] : individuals)
+                for (auto [id, fish] : individuals) {
                     source.insert(fish);
+                }
                 //! TODO: Tracker::identities().count(id) ?
                 
             } else {
-                for(auto fish : active)
+                for (auto fish : active) {
                     source.insert(fish);
+                    //print("active: ", fish->identity().ID());
+                }
             }
+
+            std::unordered_set<Idx_t> ids;
             
             std::unique_lock g(Categorize::DataStore::cache_mutex());
             for (auto& fish : (source.empty() ? active : source)) {
+                auto id = fish->identity().ID();
+                ids.insert(id);
+
                 if (fish->empty()
-                    || fish->start_frame() > frameIndex)
+                    || fish->start_frame() > frameIndex) 
+                {
                     continue;
+                }
 
                 auto segment = fish->segment_for(frameIndex);
                 if (!GUI_SETTINGS(gui_show_inactive_individuals)
@@ -871,7 +882,6 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                     empty_map = NULL;*/
 
                 std::unique_lock guard(_fish_map_mutex);
-                auto id = fish->identity().ID();
                 if (not _fish_map.contains(id)) {
                     _fish_map[id] = std::make_unique<gui::Fish>(*fish);
                     fish->register_delete_callback(_fish_map[id].get(), [this](Individual* f) {
@@ -889,7 +899,19 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                 //base.wrap_object(*PD(cache)._fish_map[fish]);
                 //PD(cache)._fish_map[fish]->label(ptr, e);
             }
-            
+
+            {
+                std::unique_lock guard(_fish_map_mutex);
+                for (auto it = _fish_map.begin(); it != _fish_map.end();) {
+                    if (not ids.contains(it->first)) {
+                        //print("erasing from map ", it->first);
+                        it = _fish_map.erase(it);
+                    }
+                    else
+                        ++it;
+                }
+            }
+
             updated_blobs();
             updated_raw_blobs();
         }
