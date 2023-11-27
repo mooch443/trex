@@ -1,9 +1,10 @@
 {% set git_cmd = "git describe --tags --always --abbrev=0" %}
 {% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
-{% set git_tag = "main" %}
+{% set git_tag = "interface" %}
 {% set version_postfix = "" %}
 #{% set version_postfix = "i" %} # for installer packages
 
+####
 {% if git_tag != 'main' %}
 {% set version_prefix = '_' + git_tag %}
 {% else %}
@@ -97,16 +98,16 @@ requirements:
 
   host:
     - pthread-stubs  # [linux]
-    - python >=3 # [osx and arm64]
+    - python =3.11 # [osx and arm64]
     - python >=3.10 # [osx and not arm64]
     - python =3.9 # [win]
     - python =3.10 # [linux]
     - openblas # [arm64]
-    - conda-forge::ffmpeg =4 # [arm64]
+    - conda-forge::ffmpeg =6 # [arm64]
     - defaults::ffmpeg =4 # [not arm64]
     - openh264 # [osx] 
-    - numpy =1.23 # [osx]
-    - numpy =1.23 # [arm64]
+    - numpy =1.23 # [osx and not arm64]
+    - numpy =1.26.0 # [arm64]
     - numpy >=1.19,<=1.24 # [linux]
     - numpy >=1.21,<=1.24 # [win]
 
