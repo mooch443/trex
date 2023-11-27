@@ -2,7 +2,9 @@
 
 set env_name=trex
 set channels=pytorch nvidia defaults
+echo "macos: set channels=conda-forge"
 set packages=cmake python=3.10 numpy=1.23.5 "pytorch::pytorch-mutex=*=cuda" "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" "pytorch::torchvision=*=py3*" scikit-learn seaborn pip requests ffmpeg=4 git nasm
+echo "macos: set packages=cmake python=3.11 numpy=1.26.0 pytorch torchvision scikit-learn seaborn pip requests ffmpeg=6 git nasm"
 
 echo Creating Conda environment %env_name%...
 
@@ -31,6 +33,7 @@ echo Conda environment %env_name% activated successfully.
 
 echo Installing additional Python packages...
 python -m pip install opencv-python ultralytics "numpy==1.23.5" "tensorflow-gpu>=2,<2.12"
+echo "macos: python -m pip install opencv-python ultralytics tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.0"
 
 if not %errorlevel% equ 0 goto error
 
