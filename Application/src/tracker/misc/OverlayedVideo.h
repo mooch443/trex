@@ -39,6 +39,11 @@ public:
     VideoProcessor& operator=(const VideoProcessor&) = delete;
     VideoProcessor(VideoProcessor&&) = delete;
     VideoProcessor& operator=(VideoProcessor&&) = delete;
+    
+    ~VideoProcessor() {
+        std::scoped_lock guard(_index_mutex);
+        _source = nullptr;
+    }
 
     // Constructor for VideoSource
     template<typename SourceType, typename Callback>
@@ -78,6 +83,8 @@ public:
     AsyncResult retrieve_and_process_next(const std::function<void()>& callback) {
         std::scoped_lock guard(_index_mutex);
         Frame_t loaded_frame;
+        if(not _source)
+            return tl::unexpected("Video source is null.");
         
         try {
             Timer timer_;
