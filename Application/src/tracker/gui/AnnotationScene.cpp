@@ -243,13 +243,6 @@ void AnnotationScene::activate() {
     _frame_future = select_unique_frames();
     
     assert(not _next_frame.valid());
-    
-    _view.set_annotation(Annotation{
-        .type = AnnotationType::BOX,
-        .points = {
-            {10, 10}, {50, 50}
-        }
-    });
 }
 
 // Deactivate method implementation
@@ -559,8 +552,6 @@ void AnnotationScene::_draw(DrawStructure& graph) {
         
         for(auto &[ID, o] : _views)
             graph.wrap_object(*o);
-        
-        graph.wrap_object(_view);
     });
     
     graph.section("gui", [this](DrawStructure &, Section *){

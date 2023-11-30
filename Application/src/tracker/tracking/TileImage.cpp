@@ -40,13 +40,12 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
 
     }
     else {
-        useMat_t tile = useMat_t::zeros(tile_size.height, tile_size.width, CV_8UC3);
+        useMat_t tile = useMat_t::zeros(tile_size.height, tile_size.width, CV_8UC(source.channels()));
         for (int y = 0; y < source.rows; y += tile_size.height) {
             for (int x = 0; x < source.cols; x += tile_size.width) {
                 Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);
                 _offsets.push_back(Vec2(x, y));
                 bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
-
                 source(bds).copyTo(tile(Bounds{ bds.size() }));
 
                 auto buffer = buffers().get(source_location::current());

@@ -65,8 +65,6 @@ public:
 private:
     static inline constexpr uint32_t max_cache = 1000;
     
-    AnnotationView _view;
-    
     std::unordered_set<Frame_t> _selected_frames;
     std::unordered_map<Frame_t, Image::Ptr> _loaded_frames;
     std::unordered_map<Frame_t, std::vector<std::shared_ptr<dyn::VarBase_t>>> _gui_annotations;
