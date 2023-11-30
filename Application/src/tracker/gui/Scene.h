@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <gui/DrawBase.h>
 #include <gui/DrawStructure.h>
+#include <gui/types/Layout.h>
 
 namespace gui {
 

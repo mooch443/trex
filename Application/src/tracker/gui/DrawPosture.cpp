@@ -1,5 +1,4 @@
 #include "DrawPosture.h"
-#include <gui/gui.h>
 
 using namespace track;
 
@@ -242,8 +241,8 @@ namespace gui {
         
         if(fish)
             fish->register_delete_callback(this, [this](track::Individual*) {
-                if(GUI::instance()) {
-                    auto guard = GUI_LOCK(GUI::instance()->gui().lock());
+                if(stage()) {
+                    auto guard = GUI_LOCK(stage()->lock());
                     set_fish(NULL);
                 }
             });

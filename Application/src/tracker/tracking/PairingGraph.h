@@ -7,6 +7,7 @@
 #include <misc/ranges.h>
 #include <tracking/MotionRecord.h>
 #include <misc/idx_t.h>
+#include <tracking/TrackingSettings.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -99,10 +100,6 @@ struct hash<track::Match::fish_index_t>
 
 namespace track {
 namespace Match {
-    using prob_t = double;
-    using Blob_t = pv::bid;
-    using Fish_t = Idx_t;
-
     template<typename K, typename V>
     using pairing_map_t = robin_hood::unordered_flat_map<K, V>;
 

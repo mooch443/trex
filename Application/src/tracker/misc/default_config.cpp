@@ -121,7 +121,8 @@ ENUM_CLASS_DOCS(visual_identification_version_t,
 ENUM_CLASS_DOCS(TRexTask_t,
     "No task forced. Auto-select.",
     "Load an existing .pv file and track / edit individuals.",
-    "Convert source material to .pv file."
+    "Convert source material to .pv file.",
+    "Annotate video or image source material."
 )
 
     static const std::map<std::string, std::string> deprecated = {

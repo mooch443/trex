@@ -3,7 +3,6 @@
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
-#include <gui/gui.h>
 #include <tracking/Accumulation.h>
 
 #include <python/GPURecognition.h>
@@ -27,6 +26,9 @@ using namespace constraints;
     std::vector<RangedLabel> _ranged_labels;
     std::unordered_map<Idx_t, std::unordered_map<const SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
     std::unordered_map<Idx_t, std::unordered_map<const SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
+
+std::function<void()> _auto_quit_fn;
+std::function<void(std::string)> _set_status_fn;
 
 #if !COMMONS_NO_PYTHON
 // indexes in _samples array
@@ -119,7 +121,7 @@ struct Task {
     bool is_cached = false;
 };
 
-void start_learning();
+void start_learning(pv::File* video);
 void loop();
 void work_thread();
 Task _pick_front_thread();
@@ -791,6 +793,8 @@ Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob)
     return DataStore::label(_label_unsafe(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id()));
 }
 
+static pv::File *last_source{nullptr};
+
 void Work::add_training_sample(const Sample::Ptr& sample) {
     if(sample) {
         std::lock_guard guard(DataStore::mutex());
@@ -799,7 +803,7 @@ void Work::add_training_sample(const Sample::Ptr& sample) {
     }
     
     try {
-        Work::start_learning();
+        Work::start_learning(last_source);
         
         LearningTask task;
         task.sample = sample;
@@ -826,9 +830,15 @@ void terminate() {
     }
 }
 
-void show() {
-    if(!Work::visible() && Work::state() != Work::State::APPLY) {
-        Work::set_state(Work::State::SELECTION);
+void show(pv::File* video, const std::function<void()>& auto_quit,
+          const std::function<void(std::string)>& set_status)
+{
+    if(!Work::visible() && Work::state() != Work::State::APPLY) 
+    {
+        _auto_quit_fn = auto_quit;
+        _set_status_fn = set_status;
+        
+        Work::set_state(video, Work::State::SELECTION);
         Work::visible() = true;
     }
 }
@@ -898,7 +908,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
 }
 #endif
 
-void start_applying() {
+void start_applying(pv::File* video_source) {
     using namespace extract;
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
     if(normalize == default_config::individual_image_normalization_t::posture
@@ -927,10 +937,11 @@ void start_applying() {
     }
     
     print("[Categorize] Applying with settings ", settings);
-    GUI::set_status("Applying...");
+    if(_set_status_fn)
+        _set_status_fn("Applying...");
     Timer apply_timer;
     
-    ImageExtractor(*GUI::video_source(), [normalize](const Query& q) -> bool {
+    ImageExtractor(*video_source, [normalize](const Query& q) -> bool {
         return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
         
     }, [](std::vector<Result>&& results) {
@@ -1019,7 +1030,8 @@ void start_applying() {
         }
         
         if(finished) {
-            GUI::set_status("");
+            if(_set_status_fn)
+                _set_status_fn("");
             print("[Categorize] Finished applying after ", DurationUS{uint64_t(apply_timer.elapsed() * 1000 * 1000)},".");
             
             {
@@ -1079,14 +1091,15 @@ void start_applying() {
             }
             
             if(SETTING(auto_categorize) && SETTING(auto_quit)) {
-                GUI::auto_quit();
+                if(_auto_quit_fn)
+                    _auto_quit_fn();
             }
             
             if(SETTING(auto_categorize))
                 SETTING(auto_categorize) = false;
             
-        } else
-            GUI::set_status(text);
+        } else if(_set_status_fn)
+            _set_status_fn(text);
         
     }, std::move(settings));
 }
@@ -1095,7 +1108,7 @@ file::Path output_location() {
     return file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename() + "_categories.npz"));
 }
 
-void Work::start_learning() {
+void Work::start_learning(pv::File* video_source) {
     if(Work::learning()) {
         return;
     }
@@ -1103,7 +1116,7 @@ void Work::start_learning() {
     Work::learning() = true;
     namespace py = Python;
     
-    py::schedule(py::PackagedTask{._task = py::PromisedTask([]() -> void {
+    py::schedule(py::PackagedTask{._task = py::PromisedTask([video_source]() -> void {
         print("[Categorize] APPLY Initializing...");
         Work::status() = "Initializing...";
         Work::initialized() = false;
@@ -1114,7 +1127,7 @@ void Work::start_learning() {
         //py::import_module(module);
         py::check_module(module);
         
-        auto reset_variables = [](){
+        auto reset_variables = [video_source = video_source](){
             print("Reset python functions and variables...");
             const auto dims = FAST_SETTING(individual_image_size);
             std::map<std::string, int> keys;
@@ -1261,8 +1274,8 @@ void Work::start_learning() {
                         case LearningTask::Type::Apply: {
                             hide();
                             try {
-                                GUI::instance()->blob_thread_pool().enqueue([](){
-                                    start_applying();
+                                pool->enqueue([video_source = video_source](){
+                                    start_applying(video_source);
                                 });
                             } catch(const UtilsException&) {
                                 // pass
@@ -1828,8 +1841,8 @@ void paint_distributions(int64_t frame) {
 #endif
 }
 
-std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<SegmentInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
-    if(Work::terminate() || !GUI::instance())
+std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& frame, const std::shared_ptr<SegmentInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
+    if(Work::terminate())
         return nullptr;
     
     // debug information
@@ -1875,9 +1888,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        if(GUI::instance()) {
+        if(video_source) {
             pv::Frame video_frame;
-            auto& video_file = *GUI::instance()->video_source();
+            auto& video_file = *video_source;
             video_file.read_frame(video_frame, frame);
 
             Tracker::instance()->preprocess_frame(std::move(video_frame), *ptr, NULL, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
@@ -2031,6 +2044,7 @@ std::mutex debug_mutex;
 ///#endif
 
 Sample::Ptr DataStore::temporary(
+     pv::File* video_source,
      const std::shared_ptr<SegmentInformation>& segment,
      Individual* fish,
      const size_t sample_rate,
@@ -2164,7 +2178,7 @@ Sample::Ptr DataStore::temporary(
     for(auto &[index, frame, ptr] : stuff_indexes) {
 
         if(!ptr || !Work::initialized()) {
-            ptr = cache_pp_frame(frame, segment, _delete, _create, _reuse);
+            ptr = cache_pp_frame(video_source, frame, segment, _delete, _create, _reuse);
 
 //#ifndef NDEBUG
 //            ++_create;
@@ -2265,7 +2279,7 @@ Sample::Ptr DataStore::sample(
         }
     }
     
-    auto s = temporary(segment, fish, max_samples, min_samples);
+    auto s = temporary(last_source, segment, fish, max_samples, min_samples);
     if(s == Sample::Invalid())
         return Sample::Invalid();
     
@@ -2281,17 +2295,12 @@ std::string DataStore::Composition::toStr() const {
         + (Work::status().empty() ? "" : " "+Work::status());
 }
 
-void initialize(DrawStructure& base) {
-    Interface::get().init(base);
-    Work::variable().notify_one();
-}
-
 Work::State& Work::state() {
     static State _state = Work::State::NONE;
     return _state;
 }
 
-void Work::set_state(State state) {
+void Work::set_state(pv::File* video, State state) {
     static std::mutex thread_m;
     {
         std::lock_guard g(thread_m);
@@ -2300,10 +2309,13 @@ void Work::set_state(State state) {
         }
     }
     
+    if(not last_source)
+        last_source = video;
+    
     switch (state) {
         case State::LOAD: {
-            show();
-            Work::start_learning();
+            show(video, nullptr, nullptr);
+            Work::start_learning(video);
             
             LearningTask task;
             task.type = LearningTask::Type::Load;
@@ -2329,14 +2341,14 @@ void Work::set_state(State state) {
                     DataStore::clear();
                 };
                 Work::add_task(std::move(task));
-                Work::start_learning();
+                Work::start_learning(video);
                 
             } else {
                 Work::status() = "Initializing...";
                 Work::requested_samples() = Interface::per_row * 2;
                 Work::variable().notify_one();
                 Work::visible() = true;
-                Work::start_learning();
+                Work::start_learning(video);
             }
             
             break;
@@ -2364,11 +2376,11 @@ void Work::set_state(State state) {
     Work::state() = state;
 }
 
-void draw(gui::DrawStructure& base) {
+void draw(pv::File& video, IMGUIBase* window, gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     
-    Interface::get().draw(base);
+    Interface::get().draw(video, window, base);
 }
 
 void clear_labels() {

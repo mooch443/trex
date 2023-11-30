@@ -3,7 +3,7 @@
 #include <gui/Timeline.h>
 #include <gui/types/List.h>
 #include <misc/Output.h>
-#include <gui/gui.h>
+#include "gui.h"
 #include <gui/WorkProgress.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Tooltip.h>
@@ -262,7 +262,7 @@ public:
 #if !COMMONS_NO_PYTHON
                 case CATEGORIZE:
                     gui::WorkProgress::add_queue("", [](){
-                        Categorize::show();
+                        Categorize::show(GUI::instance()->video_source(), [](){GUI::instance()->auto_quit();}, [](std::string text){GUI::instance()->set_status(text);});
                     });
                     break;
 #endif
@@ -622,7 +622,7 @@ public:
         
         matching_gui();
 #if !COMMONS_NO_PYTHON
-        Categorize::draw(base);
+        Categorize::draw(*GUI::instance()->video_source(), (IMGUIBase*)GUI::instance()->best_base(), base);
 #endif
         
         if(_foi_items.empty() || _foi_ids != FOI::ids()) {

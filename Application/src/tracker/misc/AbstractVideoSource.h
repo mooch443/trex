@@ -28,13 +28,21 @@ protected:
     Frame_t i{0_f};
     useMatPtr_t tmp;
     VideoInfo info;
+
+    struct MatMaker {
+        useMatPtr_t operator()(source_location&& loc) const {
+            return MAKE_GPU_MAT_LOC(std::move(loc));
+        }
+    };
+
+    struct ImageMaker {
+        Image::Ptr operator()() const {
+            return Image::Make();
+        }
+    };
     
-    ImageBuffers<useMatPtr_t, decltype([](source_location&& loc){
-        return MAKE_GPU_MAT_LOC(std::move(loc));
-    })> mat_buffers;
-    ImageBuffers < Image::Ptr, decltype([]() {
-        return Image::Make();
-    }) > image_buffers;
+    ImageBuffers< useMatPtr_t, MatMaker > mat_buffers;
+    ImageBuffers< Image::Ptr, ImageMaker > image_buffers;
 
     using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*>()>>;
     using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>()>>;

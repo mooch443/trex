@@ -83,10 +83,6 @@ protected:
     friend class Individual;
     
 public:
-    struct Clique {
-        UnorderedVectorSet<pv::bid> bids;  // index of blob, not blob id
-        UnorderedVectorSet<Idx_t> fishs; // index of fish
-    };
     ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
     
     //set_of_individuals_t _active_individuals;
@@ -110,30 +106,6 @@ public:
     std::vector<IndividualStatus> _warn_individual_status;
     
 public:
-    struct Statistics {
-        float adding_seconds;
-        float combined_posture_seconds;
-        float number_fish;
-        float loading_seconds;
-        float posture_seconds;
-        float match_number_fish;
-        float match_number_blob;
-        float match_number_edges;
-        float match_stack_objects;
-        float match_max_edges_per_blob;
-        float match_max_edges_per_fish;
-        float match_mean_edges_per_blob;
-        float match_mean_edges_per_fish;
-        float match_improvements_made;
-        float match_leafs_visited;
-        float method_used;
-        
-        Statistics() {
-            std::fill((float*)this, (float*)this + sizeof(Statistics) / sizeof(float), infinity<float>());
-        }
-    };
-    
-    
     using stats_map_t = std::map<Frame_t, Statistics>;
     GETTER(stats_map_t, statistics)
     

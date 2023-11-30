@@ -2136,16 +2136,16 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     return max(0.5, 1 - 0.25 * (SQR(cmn::abs(min(2, num_pixels / cache.size_average) - 1))));
 }*/
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::CompressedBlob& blob) const {
+Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::CompressedBlob& blob) const {
     auto bounds = blob.calculate_bounds();
     return probability(label, cache, frameIndex, bounds.pos() + bounds.size() * 0.5, blob.num_pixels());
 }
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::Blob& blob) const {
+Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::Blob& blob) const {
     return probability(label, cache, frameIndex, blob.bounds().pos() + blob.bounds().size() * 0.5, blob.num_pixels());
 }
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
+Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
     assert(frameIndex >= _startFrame);
     //if (frameIndex < _startFrame)
     //    throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");

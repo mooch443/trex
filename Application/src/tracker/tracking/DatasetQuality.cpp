@@ -1,6 +1,5 @@
 #include "DatasetQuality.h"
 #include <tracking/Individual.h>
-#include <gui/gui.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>

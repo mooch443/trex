@@ -357,11 +357,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         PostureStuff* posture_stuff(Frame_t frameIndex) const;
         std::tuple<BasicStuff*, PostureStuff*> all_stuff(Frame_t frameIndex) const;
         
-        using Probability = Match::prob_t;
-        struct DetailProbability {
-            Match::prob_t p, p_time, p_pos, p_angle;
-        };
-        
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;

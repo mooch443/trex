@@ -1,12 +1,13 @@
 #include "IdentityHeatmap.h"
 #include <tracking/Tracker.h>
-#include <tracker/gui/gui.h>
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
 #include <tracking/Export.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+
+using namespace track;
 
 namespace gui {
 namespace heatmap {

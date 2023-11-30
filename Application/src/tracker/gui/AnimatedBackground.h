@@ -17,8 +17,14 @@ class AnimatedBackground : public Entangled {
     Image _local_buffer;
     gpuMat _buffer;
     gpuMat _resized;
+
+    struct ImageMaker {
+        Image::Ptr operator()() const {
+            return Image::Make();
+        }
+    };
     
-    ImageBuffers<Image::Ptr, decltype([]{ return Image::Make(); })> buffers;
+    ImageBuffers<Image::Ptr, ImageMaker> buffers;
     
     std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;

@@ -1,12 +1,11 @@
 #include "MouseDock.h"
 #include <misc/Timer.h>
-#include <gui/GUICache.h>
+//#include <gui/GUICache.h>
 
 namespace gui {
 IMPLEMENT(MouseDock::instance) = std::make_unique<MouseDock>();
 
-void MouseDock::draw_background(Entangled &graph) {
-}
+void MouseDock::draw_background(Entangled &graph) {}
 
     void MouseDock::update(double dt, const FindCoord& coord, Entangled& graph) {
         std::unique_lock lock_guard(mutex);
@@ -38,12 +37,12 @@ void MouseDock::draw_background(Entangled &graph) {
         constexpr const char* animator = "mouse-dock-animator";
         if (mag > 5) {
             instance->pos = animate_position<InterpolationType::EASE_OUT>(instance->pos, mp, dt, 1/6.0);
-            GUICache::instance().set_animating(animator, true, &graph);
+            //GUICache::instance().set_animating(animator, true, &graph);
             //GUICache::instance().set_blobs_dirty();
             //print("Set animating");
         }
         else {
-            GUICache::instance().set_animating(animator, false);
+            //GUICache::instance().set_animating(animator, false);
             //print("Stop animating");
         }
 

@@ -1,6 +1,6 @@
 #include "DrawDataset.h"
 #include <tracking/Tracker.h>
-#include <gui/gui.h>
+#include "gui.h"
 #include <gui/Timeline.h>
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualManager.h>

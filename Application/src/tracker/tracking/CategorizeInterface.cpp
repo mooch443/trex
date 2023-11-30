@@ -1,7 +1,6 @@
 #include "CategorizeInterface.h"
 #include <tracking/Categorize.h>
 #include <tracking/Tracker.h>
-#include <gui/gui.h>
 #include <misc/default_settings.h>
 #include <gui/IMGUIBase.h>
 
@@ -76,12 +75,15 @@ struct Row {
 Sample::Ptr retrieve() {
     Sample::Ptr sample = Work::front_sample();
         
-    if(sample != Sample::Invalid() && GUI::instance()) {
+    if(sample != Sample::Invalid()) {
         /**
          * Search current rows and cells to see whether the sample is already assigned
          * to any of the cells.
          */
-        auto gui_guard = GUI_LOCK(GUI::instance()->gui().lock());
+        LOGGED_LOCK_TYPE<std::recursive_mutex> gui_guard;
+        if(Interface::get().layout.stage()) {
+            gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
+        }
         for(auto &row : Row::rows()) {
             for(auto &c : row._cells) {
                 if(c._sample == sample) {
@@ -321,8 +323,8 @@ void Cell::update_scale() {
     if (base && _image->width() > 0) {
         Size2 bsize(base->width(), base->height());
         //print("DPI = ", ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale(), " bsize = ", bsize);
-        if(GUI::instance())
-            bsize = bsize / ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale();
+        if(Interface::get()._window)
+            bsize = bsize / Interface::get()._window->dpi_scale();
         bsize = bsize.div(base->scale());
 
         if (base->width() * s < base->height() / 4.0)
@@ -476,15 +478,13 @@ void Interface::clear_probabilities() {
 }
 
 void Interface::clear_rows() {
-    if(GUI::instance()) {
-        auto guard = GUI_LOCK(GUI::instance()->gui().lock());
-        for(auto &row : Row::rows()) {
-            row.clear();
-        }
-    } else {
-        for(auto &row : Row::rows()) {
-            row.clear();
-        }
+    LOGGED_LOCK_TYPE<std::recursive_mutex> gui_guard;
+    if(Interface::get().layout.stage()) {
+        gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
+    }
+    
+    for(auto &row : Row::rows()) {
+        row.clear();
     }
 }
 
@@ -501,7 +501,7 @@ void Interface::reset() {
     }
 }
 
-void Interface::init(DrawStructure& base) {
+void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
     static double R = 0, elap = 0;
     static Timer timer;
     //R += RADIANS(100) * timer.elapsed();
@@ -516,6 +516,9 @@ void Interface::init(DrawStructure& base) {
         elap = 0;
         initialized = true;
 
+        _window = window;
+        _video = &video; 
+
         layout.set_policy(gui::VerticalLayout::CENTER);
         layout.set_origin(Vec2(0.5));
         layout.set_pos(Size2(base.width(), base.height()) * 0.5);
@@ -528,27 +531,27 @@ void Interface::init(DrawStructure& base) {
 
         layout.add_child(stext);
 
-        apply->on_click([](auto) {
-            Work::set_state(Work::State::APPLY);
+        apply->on_click([video = _video](auto) {
+            Work::set_state(video, Work::State::APPLY);
+        });
+        close->on_click([video = _video](auto) {
+            Work::set_state(video, Work::State::NONE);
             });
-        close->on_click([](auto) {
-            Work::set_state(Work::State::NONE);
+        load->on_click([video = _video](auto) {
+            Work::set_state(video, Work::State::LOAD);
             });
-        load->on_click([](auto) {
-            Work::set_state(Work::State::LOAD);
-            });
-        restart->on_click([](auto) {
+        restart->on_click([video = _video](auto) {
             Work::learning() = false;
             Work::learning_variable().notify_all();
             DataStore::clear();
             //PythonIntegration::quit();
 
-            Work::set_state(Work::State::SELECTION);
+            Work::set_state(video, Work::State::SELECTION);
         });
-        reapply->on_click([](auto) {
+        reapply->on_click([video = _video](auto) {
             DataStore::clear();
             Categorize::clear_labels();
-            Work::set_state(Work::State::APPLY);
+            Work::set_state(video, Work::State::APPLY);
         });
         train->on_click([](auto) {
             if (Work::state() == Work::State::SELECTION) {
@@ -558,7 +561,11 @@ void Interface::init(DrawStructure& base) {
                 FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
             });
         shuffle->on_click([](auto) {
-            auto gui_guard = GUI_LOCK(GUI::instance()->gui().lock());
+            LOGGED_LOCK_TYPE<std::recursive_mutex> gui_guard;
+            if(Interface::get().layout.stage()) {
+                gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
+            }
+            
             for (auto& row : Row::rows()) {
                 for (size_t i = 0; i < row._cells.size(); ++i) {
                     row.update(i, retrieve());
@@ -608,7 +615,7 @@ void Interface::init(DrawStructure& base) {
     timer.reset();
 }
 
-void Interface::draw(DrawStructure& base) {
+void Interface::draw(pv::File& video, IMGUIBase* window, DrawStructure& base) {
     {
         std::lock_guard guard(DataStore::mutex());
         /*if(_labels.empty()) {
@@ -653,16 +660,16 @@ void Interface::draw(DrawStructure& base) {
     using namespace gui;
     static Rect rect(FillClr{Black.alpha(125)});
 
-    auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
-    auto center = window * 0.5;
+    auto screen_size = (window ? (window->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
+    auto center = screen_size * 0.5;
     layout.set_pos(center);
     
     rect.set_z_index(1);
-    rect.set_size(window);
+    rect.set_size(screen_size);
 
     base.wrap_object(rect);
 
-    init(base);
+    init(video, window, base);
 
     layout.auto_size();
     base.wrap_object(layout);
@@ -683,7 +690,7 @@ void Interface::draw(DrawStructure& base) {
 
     max_w = per_row * (max_w + 10);
     
-    const double hard_limit = min(1200, window.width * base.scale().x * 0.8);
+    const double hard_limit = min(1200, screen_size.width * base.scale().x * 0.8);
     max_w = min(hard_limit, abs(max_w));
     
 #if __APPLE__

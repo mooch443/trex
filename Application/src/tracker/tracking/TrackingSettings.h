@@ -156,4 +156,44 @@ struct slow {
 
 void initialize_slows();
 
+struct Clique {
+    UnorderedVectorSet<pv::bid> bids;  // index of blob, not blob id
+    UnorderedVectorSet<Idx_t> fishs; // index of fish
+};
+
+
+namespace Match {
+using prob_t = double;
+using Blob_t = pv::bid;
+using Fish_t = Idx_t;
+}
+
+using Probability = Match::prob_t;
+struct DetailProbability {
+    Match::prob_t p, p_time, p_pos, p_angle;
+};
+
+struct Statistics {
+    float adding_seconds;
+    float combined_posture_seconds;
+    float number_fish;
+    float loading_seconds;
+    float posture_seconds;
+    float match_number_fish;
+    float match_number_blob;
+    float match_number_edges;
+    float match_stack_objects;
+    float match_max_edges_per_blob;
+    float match_max_edges_per_fish;
+    float match_mean_edges_per_blob;
+    float match_mean_edges_per_fish;
+    float match_improvements_made;
+    float match_leafs_visited;
+    float method_used;
+    
+    Statistics() {
+        std::fill((float*)this, (float*)this + sizeof(Statistics) / sizeof(float), infinity<float>());
+    }
+};
+
 }

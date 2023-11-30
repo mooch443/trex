@@ -1,18 +1,23 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
 #include <gui/GuiTypes.h>
-#include <tracking/Individual.h>
-#include <tracking/Tracker.h>
 #include <tracking/ConfirmedCrossings.h>
 #include <gui/FramePreloader.h>
 #include <misc/Buffers.h>
+#include <tracker/misc/default_config.h>
+#include <pv.h>
+#include <tracking/TrackingSettings.h>
+#include <misc/ThreadPool.h>
 
 class Timer;
-namespace track { class Individual; }
+namespace track {
+class Individual;
+class PPFrame;
+}
 
 namespace gui {
-    namespace globals {
+namespace globals {
     CREATE_STRUCT(Cache,
         (bool, gui_run),
         (gui::mode_t::Class, gui_mode),
@@ -58,7 +63,7 @@ namespace gui {
         (Size2, gui_zoom_limit),
         (blob::Pose::Skeleton, meta_skeleton)
     )
-    }
+}
 
 #define GUI_SETTINGS(NAME) ::gui::globals::Cache::copy< ::gui::globals::Cache:: NAME >()
 
@@ -79,13 +84,18 @@ namespace gui {
     
     class GUICache {
         GenericThreadPool _pool;
-        Buffers< std::unique_ptr<PPFrame>, decltype([]() { return std::make_unique<PPFrame>(); }) > buffers;
+
+        struct PPFrameMaker {
+            std::unique_ptr<PPFrame> operator()() const;
+        };
+        
+        std::unique_ptr<PPFrame> _current_processed_frame;
+        Buffers< std::unique_ptr<PPFrame>, PPFrameMaker > buffers;
         pv::File* _video{ nullptr };
         gui::DrawStructure* _graph{ nullptr };
         using FramePtr = std::unique_ptr<PPFrame>;
         FramePreloader<FramePtr> _preloader;
         Timer _last_success;
-        std::unique_ptr<PPFrame> _current_processed_frame{std::make_unique<PPFrame>()};
         std::unique_ptr<PPFrame> _next_processed_frame;
         
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
@@ -127,8 +137,6 @@ namespace gui {
 
         static GUICache& instance();
         static bool exists();
-        std::tuple<Vec2, Vec2> scale_with_boundary(Bounds& boundary, bool recording, Base* base, DrawStructure& graph, Section* section, bool singular_boundary);
-        
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
@@ -149,16 +157,16 @@ namespace gui {
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
-        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
+        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Probability>> probabilities;
         std::set<Idx_t> checked_probs;
         
     public:
         std::mutex _fish_map_mutex;
         std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
-        std::map<Frame_t, track::Tracker::Statistics> _statistics;
+        std::map<Frame_t, track::Statistics> _statistics;
         std::unordered_map<pv::bid, int> _ranged_blob_labels;
         
-        std::vector<Tracker::Clique> _cliques;
+        std::vector<track::Clique> _cliques;
         
         Frame_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;
@@ -184,7 +192,7 @@ namespace gui {
         void deselect(Idx_t id);
         void deselect_all_select(Idx_t id);
         
-        const ska::bytell_hash_map<pv::bid, Individual::Probability>* probs(Idx_t fdx);
+        const ska::bytell_hash_map<pv::bid, Probability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();

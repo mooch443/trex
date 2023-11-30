@@ -1,7 +1,5 @@
 #include "InfoCard.h"
-//#include <gui/gui.h>
 #include <tracking/Tracker.h>
-#include <gui/Timeline.h>
 #include <gui/types/Tooltip.h>
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>

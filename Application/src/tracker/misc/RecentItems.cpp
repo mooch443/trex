@@ -1,5 +1,5 @@
 #include "RecentItems.h"
-#include <Scene.h>
+#include <gui/Scene.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <tracker/misc/default_config.h>

@@ -1,6 +1,6 @@
 #pragma once
 #include <commons.pc.h>
-#include <Scene.h>
+#include <gui/Scene.h>
 #include <gui/types/Button.h>
 #include <gui/types/Layout.h>
 #include <gui/DynamicGUI.h>

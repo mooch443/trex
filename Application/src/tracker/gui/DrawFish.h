@@ -7,11 +7,12 @@
 #include <gui/DrawStructure.h>
 #include <tracking/Individual.h>
 #include <tracking/Tracker.h>
-#include <gui/Timeline.h>
 #include <misc/EventAnalysis.h>
 #include <gui/Graph.h>
 #include <misc/OutputLibrary.h>
 #include <gui/Coordinates.h>
+#include <tracking/Outline.h>
+#include <tracking/Individual.h>
 
 namespace pv {
 struct CompressedBlob;
@@ -31,14 +32,14 @@ namespace gui {
         ExternalImage _image;
         int32_t _probability_radius = 0;
         Vec2 _probability_center;
-        Midline::Ptr _cached_midline;
-        MinimalOutline::Ptr _cached_outline;
+        track::Midline::Ptr _cached_midline;
+        track::MinimalOutline::Ptr _cached_outline;
         GETTER(Vec2, fish_pos)
         Circle _circle;
 
         std::vector<Vertex> _vertices;
         std::vector<std::unique_ptr<Vertices>> _paths;
-        const EventAnalysis::EventMap* _events;
+        const track::EventAnalysis::EventMap* _events;
         
         Vec2 _position;
         float _plus_angle;
@@ -64,20 +65,20 @@ namespace gui {
         blob::Pose _average_pose;
         Bounds _blob_bounds;
         int _match_mode;
-        IndividualCache _next_frame_cache;
+        track::IndividualCache _next_frame_cache;
         
-        Identity _id;
-        std::optional<BasicStuff> _basic_stuff;
-        std::optional<PostureStuff> _posture_stuff;
+        track::Identity _id;
+        std::optional<track::BasicStuff> _basic_stuff;
+        std::optional<track::PostureStuff> _posture_stuff;
         double _ML{0}; // midline length
-        Midline::Ptr _pp_midline;
+        track::Midline::Ptr _pp_midline;
         bool _empty{true};
         Range<Frame_t> _range;
         
         std::tuple<bool, FrameRange> _has_processed_segment;
-        decltype(Individual::average_recognition_segment)::mapped_type processed_segment;
-        std::shared_ptr<SegmentInformation> _segment;
-        Individual::IDaverage _qr_code;
+        decltype(track::Individual::average_recognition_segment)::mapped_type processed_segment;
+        std::shared_ptr<track::SegmentInformation> _segment;
+        track::Individual::IDaverage _qr_code;
         std::vector<float> _pred;
         
         Color _previous_color;
@@ -102,15 +103,15 @@ namespace gui {
         ~Fish();
         void update(const FindCoord&, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap* events);
+        void set_data(track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
         void paintPath(const Vec2& offset);
-        void updatePath(Individual&, Frame_t to = {}, Frame_t from = {});
+        void updatePath(track::Individual&, Frame_t to = {}, Frame_t from = {});
         //void paintPixels() const;
         void update_recognition_circle();
-        Color get_color(const BasicStuff*) const;
+        Color get_color(const track::BasicStuff*) const;
     public:
         void label(const FindCoord&, Entangled&);
         Drawable* shadow();

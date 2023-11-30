@@ -56,7 +56,6 @@ public:
     
     static GUI *_instance;
     static GUI* instance();
-    static Vec2 pad_image(cv::Mat& padded, Size2 output_size);
     static std::vector<gui::Drawable*>& static_pointers();
     
     struct StartupSettings {

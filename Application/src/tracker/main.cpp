@@ -44,7 +44,7 @@
 #include <tracking/HistorySplit.h>
 
 #include <misc/Image.h>
-#include <gui/gui.h>
+#include "gui.h"
 
 #include <tracking/DetectTag.h>
 #include <misc/PixelTree.h>

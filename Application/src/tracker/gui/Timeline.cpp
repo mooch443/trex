@@ -1,7 +1,6 @@
 #include "Timeline.h"
 #include <gui/DrawCVBase.h>
 #include <file/CSVExport.h>
-#include <gui/HttpGui.h>
 #include <processing/PadImage.h>
 #include <tracking/FOI.h>
 #include <misc/ReverseAdapter.h>
@@ -12,6 +11,7 @@
 #include <gui/GuiTypes.h>
 #include <misc/vec2.h>
 #include <tracking/IndividualManager.h>
+#include <misc/NetworkStats.h>
 
 namespace gui {
     //! NeighborDistances drawn out

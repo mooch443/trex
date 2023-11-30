@@ -74,6 +74,14 @@ file(GLOB SRCS
     main.cpp
     VideoOpener.cpp
     VideoOpener.h
+    gui.cpp
+    gui.h
+    HttpGui.cpp
+    HttpGui.h
+    DrawMenu.h
+    DrawMenu.cpp
+    DrawDataset.h
+    DrawDataset.cpp
     gfx/TRexIcon16.png
     gfx/TRexIcon32.png
     gfx/TRexIcon64.png
@@ -120,8 +128,6 @@ endif()
 
 # add actual executable
 set(TREXA_SRCS alter.cpp Alterface.cpp Alterface.h
-    Scene.h
-    Scene.cpp
     FileOpenerScene.cpp
     FileOpenerScene.h
     VideoOpenerScene.cpp
@@ -244,6 +250,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py
         ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json
@@ -428,10 +435,11 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json 
+        ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json
     DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 
 install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py 
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

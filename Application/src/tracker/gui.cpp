@@ -75,8 +75,8 @@ GUI* GUI::instance() {
 #include <gui/DrawGraph.h>
 #include <gui/DrawPosture.h>
 #include <gui/Timeline.h>
-#include <gui/DrawMenu.h>
-#include <gui/DrawDataset.h>
+#include "DrawMenu.h"
+#include "DrawDataset.h"
 #include <gui/RecognitionSummary.h>
 #include <gui/DrawFish.h>
 #include <gui/Label.h>
@@ -682,7 +682,7 @@ void GUI::load_connectivity_matrix() {
     auto path = SETTING(gui_connectivity_matrix_file).value<file::Path>();
     path = file::DataLocation::parse("input", path);
     
-    if(!path.exists())
+    if(not path.exists() || not path.is_regular())
         throw U_EXCEPTION("Cannot find connectivity matrix file ",path.str(),".");
     
     auto contents = utils::read_file(path.str());
@@ -1967,7 +1967,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             individuals_graph.set_scale(base.scale().reciprocal());
         }
         
-        DrawPreviewImage::draw(PD(cache).processed_frame(), frameNr, base);
+        DrawPreviewImage::draw(Tracker::average(), PD(cache).processed_frame(), frameNr, base);
         
 #if !COMMONS_NO_PYTHON
         if(SETTING(gui_show_uniqueness)) {
@@ -1986,7 +1986,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                     
                     WorkProgress::add_queue("generate images", [&]()
                     {
-                        auto && [data, images, image_map] = Accumulation::generate_discrimination_data();
+                        auto && [data, images, image_map] = Accumulation::generate_discrimination_data(*video_source());
                         auto && [u, umap, uq] = Accumulation::calculate_uniqueness(false, images, image_map);
                         
                         estimated_uniqueness.clear();
@@ -2226,7 +2226,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
 #if !COMMONS_NO_PYTHON
         else if(settings_dropdown.text() == "print_uniqueness") {
             WorkProgress::add_queue("discrimination", [](){
-                auto && [data, images, map] = Accumulation::generate_discrimination_data();
+                auto && [data, images, map] = Accumulation::generate_discrimination_data(*video_source());
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
                 
                 std::map<Frame_t, float> tmp;
@@ -3736,8 +3736,8 @@ void GUI::tracking_finished() {
     
 #if !COMMONS_NO_PYTHON
 void GUI::auto_categorize() {
-    Categorize::Work::set_state(Categorize::Work::State::LOAD);
-    Categorize::Work::set_state(Categorize::Work::State::APPLY);
+    Categorize::Work::set_state(video_source(), Categorize::Work::State::LOAD);
+    Categorize::Work::set_state(video_source(), Categorize::Work::State::APPLY);
 }
 
 void GUI::auto_train() {
@@ -4162,51 +4162,13 @@ void GUI::save_visual_fields() {
     SETTING(analysis_paused) = before;
 }
 
-Vec2 GUI::pad_image(cv::Mat& padded, Size2 output_size) {
-    Vec2 offset;
-    int left = 0, right = 0, top = 0, bottom = 0;
-    if(padded.cols < output_size.width) {
-        left = roundf(output_size.width - padded.cols);
-        right = left / 2;
-        left -= right;
-    }
-    
-    if(padded.rows < output_size.height) {
-        top = roundf(output_size.height - padded.rows);
-        bottom = top / 2;
-        top -= bottom;
-    }
-    
-    if(left || right || top || bottom) {
-        offset.x -= left;
-        offset.y -= top;
-        
-        cv::copyMakeBorder(padded, padded, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
-    }
-    
-    assert(padded.cols >= output_size.width && padded.rows >= output_size.height);
-    if(padded.cols > output_size.width || padded.rows > output_size.height) {
-        left = padded.cols - output_size.width;
-        right = left / 2;
-        left -= right;
-        
-        top = padded.rows - output_size.height;
-        bottom = top / 2;
-        top -= bottom;
-        
-        offset.x += left;
-        offset.y += top;
-        
-        padded(Bounds(left, top, padded.cols - left - right, padded.rows - top - bottom)).copyTo(padded);
-    }
-    return offset;
-}
+
 
 void GUI::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
     bool before = GUI::analysis()->is_paused();
     GUI::analysis()->set_paused(true).get();
     
-    track::export_data(PD(tracker), fdx, range);
+    track::export_data(*video_source(), PD(tracker), fdx, range);
     
     if(!before)
         GUI::analysis()->set_paused(false).get();
@@ -4391,7 +4353,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
         WorkProgress::set_item_abortable(true);
 
         try {
-            Accumulation acc(load);
+            Accumulation acc(video_source(), (IMGUIBase*) best_base(), load);
             if(current.valid())
                 current.get();
 

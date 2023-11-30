@@ -218,7 +218,7 @@ void TrackingScene::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> 
     bool before = _data->analysis.is_paused();
     _data->analysis.set_paused(true).get();
     
-    track::export_data(_data->tracker, fdx, range);
+    track::export_data(_data->video, _data->tracker, fdx, range);
     
     if(not before)
         _data->analysis.set_paused(false).get();

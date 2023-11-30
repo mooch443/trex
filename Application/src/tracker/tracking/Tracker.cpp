@@ -1489,7 +1489,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
         distribute_indexes(work_cliques, thread_pool, cliques.begin(), cliques.end());
         
         //! update cliques in the global array:
-        Tracker::Clique translated;
+        Clique translated;
         Tracker::instance()->_cliques[frameIndex].clear();
 
         for (auto& clique : cliques) {

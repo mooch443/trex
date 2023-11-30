@@ -708,8 +708,10 @@ FrameGrabber::~FrameGrabber() {
         
         {
             track::LockGuard guard(track::w_t{}, "GUI::save_state");
-            if(!SETTING(auto_no_tracking_data))
-                track::export_data(*tracker, track::Idx_t(), Range<Frame_t>());
+            if(!SETTING(auto_no_tracking_data)) {
+                pv::File video(_processed.filename(), pv::FileMode::READ);
+                track::export_data(video, *tracker, track::Idx_t(), Range<Frame_t>());
+            }
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;

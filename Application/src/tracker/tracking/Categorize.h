@@ -4,6 +4,10 @@
 #include <tracking/Individual.h>
 #include <file/DataFormat.h>
 
+namespace gui {
+class IMGUIBase;
+}
+
 namespace track {
 namespace Categorize {
 
@@ -162,6 +166,7 @@ struct DataStore {
          const size_t min_samples
     );
     static Sample::Ptr temporary(
+         pv::File* video_source,
          const std::shared_ptr<SegmentInformation>& segment,
          Individual* fish,
          const size_t max_samples,
@@ -247,7 +252,7 @@ enum class State {
 };
 
 State& state();
-void set_state(State);
+void set_state(pv::File* video_source, State);
 void add_task(LearningTask&&);
 
 /*
@@ -271,9 +276,9 @@ Sample::Ptr front_sample();
 
 }
 
-void show();
+void show(pv::File* video, const std::function<void()>& auto_quit, const std::function<void(std::string)>& set_status);
 void hide();
-void draw(gui::DrawStructure&);
+void draw(pv::File&, gui::IMGUIBase*, gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();

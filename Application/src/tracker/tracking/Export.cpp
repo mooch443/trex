@@ -4,7 +4,6 @@
 #include <tracking/Tracker.h>
 #include <tracker/misc/OutputLibrary.h>
 #include <tracker/gui/WorkProgress.h>
-#include <tracker/gui/gui.h>
 #include <tracker/gui/DrawGraph.h>
 #include <misc/cnpy_wrapper.h>
 #include <tracker/misc/MemoryStats.h>
@@ -14,6 +13,7 @@
 #include <tracking/FilterCache.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/IndividualManager.h>
+#include <processing/PadImage.h>
 
 #if WIN32
 #include <io.h>
@@ -167,7 +167,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
     return cmn::abs(area / 2.0f);
 }
 
-void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
+void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
     using namespace gui;
     using namespace track::image;
     
@@ -181,7 +181,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
     Output::Library::remove_calculation_options();
     
     auto previous_output_frame_window = SETTING(output_frame_window).value<uint32_t>();
-    auto output_image_per_tracklet = GUI::instance() ? SETTING(output_image_per_tracklet).value<bool>() : false;
+    auto output_image_per_tracklet = SETTING(output_image_per_tracklet).value<bool>();
     auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();
     auto output_min_frames = SETTING(output_min_frames).value<uint16_t>();
@@ -264,11 +264,12 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                     //added_frames += print_step_size;
                    // added_frames += counter % print_step_size;
                     
-                    if(GUI::instance()) {
+                    //if(GUI::instance())
+                    //{
                         WorkProgress::set_percent(overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f));
                         overall_percent = WorkProgress::percent();
-                    } else
-                        overall_percent = overall_percent / (float)all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
+                    //} else
+                    //    overall_percent = overall_percent / (float)all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
                 }
                 
                 // synchronize with debug messages
@@ -689,13 +690,13 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                 std::vector<float> statistics;
                 for(auto && [frame, stats] : Tracker::instance()->statistics()) {
                     frame_numbers.push_back(frame.get());
-                    statistics.insert(statistics.end(), (float*)&stats, (float*)&stats + sizeof(track::Tracker::Statistics) / sizeof(float));
+                    statistics.insert(statistics.end(), (float*)&stats, (float*)&stats + sizeof(track::Statistics) / sizeof(float));
                 }
                 
-                assert(sizeof(track::Tracker::Statistics) / sizeof(float) * frame_numbers.size() == statistics.size());
+                assert(sizeof(track::Statistics) / sizeof(float) * frame_numbers.size() == statistics.size());
                 
                 temporary_save(fishdata / path, [&](file::Path use_path) {
-                    cmn::npz_save(use_path.str(), "stats", statistics.data(), { frame_numbers.size(), sizeof(track::Tracker::Statistics) / sizeof(float) }, "w");
+                    cmn::npz_save(use_path.str(), "stats", statistics.data(), { frame_numbers.size(), sizeof(track::Statistics) / sizeof(float) }, "w");
                     cmn::npz_save(use_path.str(), "frames", frame_numbers, "a");
                     print("Saved statistics at ", fishdata.str(),".");
                 });
@@ -785,8 +786,8 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                     TakeTiming take(timing);
                     
                     pv::Frame vframe;
-                    GUI::instance()->video_source()->read_frame(vframe, frame);
-                    Tracker::instance()->preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, GUI::instance()->video_source()->header().resolution);
+                    video.read_frame(vframe, frame);
+                    Tracker::instance()->preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video.header().resolution);
                 }
                 
                 for(auto && [id, data] : vec) {
@@ -852,7 +853,7 @@ void export_data(Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
                         cv::Mat image;
                         reduced.image->get().copyTo(image);
                         
-                        GUI::pad_image(image, output_size);
+                        legacy_pad_image(image, output_size);
                         assert(image.cols == output_size.width && image.rows == output_size.height);
                         
                         queues[data.fdx][data.range].push({ frame, data.fdx, Image::Make(image) });

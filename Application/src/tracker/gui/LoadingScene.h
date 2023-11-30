@@ -1,5 +1,5 @@
 #pragma once
-#include <tracker/Scene.h>
+#include <gui/Scene.h>
 #include <gui/types/ScrollableList.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/Dropdown.h>

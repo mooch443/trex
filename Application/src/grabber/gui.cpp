@@ -507,7 +507,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
         return;
     
     base.section("tracking", [this, &scale](gui::DrawStructure& base, Section* section) {
-        track::LockGuard guard(ro_t{}, "drawing", 100);
+        track::LockGuard guard(track::ro_t{}, "drawing", 100);
         if (!guard.locked()) {
             section->reuse_objects();
             return;

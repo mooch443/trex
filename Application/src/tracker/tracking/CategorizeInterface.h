@@ -5,6 +5,11 @@
 #include <gui/types/Textfield.h>
 #include <gui/DrawStructure.h>
 #include <gui/types/Tooltip.h>
+#include <pv.h>
+
+namespace gui {
+class IMGUIBase;
+}
 
 namespace track {
 namespace Categorize {
@@ -31,14 +36,17 @@ struct Interface {
     Layout::Ptr shuffle = Layout::Make<Button>(Str("Shuffle"), Box(0, 0, 100, 33));
     Layout::Ptr buttons = Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{});
 
+    IMGUIBase *_window{nullptr};
+    pv::File *_video{nullptr};
+
     static Interface& get();
 
-    void init(DrawStructure& base);
-
-    void draw(DrawStructure& base);
+    void draw(pv::File& video, IMGUIBase*, DrawStructure& base);
     void clear_probabilities();
     void clear_rows();
     void reset();
+private:
+    void init(pv::File& video, IMGUIBase*, DrawStructure& base);
 };
 
 

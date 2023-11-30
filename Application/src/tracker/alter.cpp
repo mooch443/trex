@@ -14,7 +14,6 @@
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
 #include <misc/PixelTree.h>
-#include <gui/Timeline.h>
 #include <gui/GUICache.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>
@@ -27,7 +26,7 @@
 #include <opencv2/core/utils/logger.hpp>
 
 #include <misc/TaskPipeline.h>
-#include <Scene.h>
+#include <gui/Scene.h>
 
 #include <tracking/TileImage.h>
 #include <misc/AbstractVideoSource.h>
@@ -39,6 +38,7 @@
 #include <gui/StartingScene.h>
 #include <gui/SettingsScene.h>
 #include <gui/TrackingScene.h>
+#include <gui/AnnotationScene.h>
 
 #include <tracking/Yolo8.h>
 #include <tracking/Yolo7InstanceSegmentation.h>
@@ -146,6 +146,9 @@ void launch_gui() {
     
     SettingsScene settings_scene{ base };
     manager.register_scene(&settings_scene);
+    
+    AnnotationScene annotations{base};
+    manager.register_scene(&annotations);
 
     LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
@@ -157,7 +160,8 @@ void launch_gui() {
     std::unordered_map<TRexTask, Scene*> task_scenes {
         { TRexTask_t::none, &start },
 		{ TRexTask_t::convert, &converting },
-		{ TRexTask_t::track, &tracking_scene }
+		{ TRexTask_t::track, &tracking_scene },
+        { TRexTask_t::annotate, &annotations }
 	};
 
     {
@@ -470,12 +474,16 @@ int main(int argc, char**argv) {
             CommandLine::instance().add_setting("output_prefix", a.value);
         }
     }
-    
-    py::init();
-    py::schedule([](){
-        track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
-        track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
-    });
+    try {
+        py::init();
+        py::schedule([](){
+            track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+        });
+    } catch(const std::exception& e) {
+        FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());
+        exit(1);
+    }
     
     using namespace track;
     
@@ -621,6 +629,7 @@ int main(int argc, char**argv) {
         launch_gui();
     
     try {
+        Detection::deinit();
         py::deinit();
     } catch(const std::exception& e) {
         FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());

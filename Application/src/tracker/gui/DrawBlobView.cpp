@@ -10,9 +10,12 @@
 #include <gui/GuiTypes.h>
 #include <gui/WorkProgress.h>
 #include <gui/MouseDock.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Tracker.h>
 
 using namespace gui;
 using namespace cmn;
+using namespace pv;
 
 namespace tracker {
 namespace gui {

@@ -97,6 +97,7 @@ public:
                 return tl::unexpected(maybe_image.error());
 
             auto& [nix, buffer, image] = maybe_image.value();
+            loaded_frame = nix + 1_f;
             
             static double average_time = 0, sample_count = 0;
             average_time += timer_.elapsed() * 1000;
@@ -133,8 +134,6 @@ public:
                 cv::resize(*current_use, _resized_buffer, new_size);
                 current_use = &_resized_buffer;
             }
-            
-            loaded_frame = nix + 1_f;
 
             // tileimage barely uses the current_use / could probably use image here as well
             // but have to check - it is a const reference

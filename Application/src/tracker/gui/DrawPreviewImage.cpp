@@ -1,13 +1,14 @@
 #include "DrawPreviewImage.h"
 #include <gui/GUICache.h>
 #include <tracking/FilterCache.h>
-#include <gui/gui.h>
 #include <tracking/PPFrame.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Checkbox.h>
 #include <gui/types/SettingsTooltip.h>
 #include <grabber/misc/default_config.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Individual.h>
 
 namespace gui {
 namespace meta {
@@ -165,7 +166,7 @@ std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
 VerticalLayout layout;
 SettingsTooltip tooltip;
 
-void draw(const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
+void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     if(!SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
@@ -254,7 +255,7 @@ void draw(const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
                 U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", fish->identity(), " despite finding a blob ", *blob);
             
             auto filters = constraints::local_midline_length(fish, segment->range);
-            auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &Tracker::average());
+            auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &average);
             
             if(!image || image->empty())
                 continue;

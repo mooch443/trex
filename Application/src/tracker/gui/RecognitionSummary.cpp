@@ -1,6 +1,5 @@
 #include "RecognitionSummary.h"
 #include <tracking/Tracker.h>
-#include <gui/gui.h>
 #include <tracking/VisualIdentification.h>
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
@@ -10,7 +9,7 @@ namespace py = Python;
 
 namespace gui {
     void RecognitionSummary::update(gui::DrawStructure& base) {
-        auto & cache = GUI::instance()->cache();
+        auto & cache = GUICache::instance();
         
         const float interface_scale = gui::interface_scale();
         

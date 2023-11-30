@@ -6,10 +6,12 @@
 #include <gui/types/Layout.h>
 #include <tracking/TrainingData.h>
 #include <tracking/VisualIdentification.h>
+#include <pv.h>
 
 namespace gui {
 class Graph;
 class HorizontalLayout;
+class IMGUIBase;
 }
 
 namespace Python {
@@ -92,9 +94,11 @@ protected:
     
     std::mutex _coverage_mutex;
     Image::Ptr _raw_coverage;
+    pv::File * _video{nullptr};
+    gui::IMGUIBase* _base{nullptr};
     
 public:
-    Accumulation(TrainingMode::Class);
+    Accumulation(pv::File* video, gui::IMGUIBase* base, TrainingMode::Class);
     ~Accumulation();
     bool start();
     
@@ -118,7 +122,7 @@ public:
     void update_coverage(const TrainingData& data);
     
     static std::tuple<float, hash_map<Frame_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::SPtr>&, const std::map<Frame_t, Range<size_t>>&);
-    static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(const std::shared_ptr<TrainingData>& source = nullptr);
+    static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source = nullptr);
     static void setup();
     static void unsetup();
     static Accumulation* current();

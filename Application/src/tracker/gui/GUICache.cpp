@@ -4,7 +4,6 @@
 #include <tracking/Tracker.h>
 #include <gui/DrawFish.h>
 #include <tracking/Categorize.h>
-#include <gui/Timeline.h>
 #include <gui/DrawBase.h>
 #include <tracking/IndividualManager.h>
 #include <misc/default_config.h>
@@ -12,6 +11,10 @@
 
 namespace gui {
     
+std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
+    return std::make_unique<PPFrame>();
+}
+
     GUICache*& cache() {
         static GUICache* _cache{ nullptr };
         return _cache;
@@ -29,6 +32,7 @@ namespace gui {
 
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
         : _pool(saturate(cmn::hardware_concurrency(), 1u, 5u), "GUICache::_pool"),
+            _current_processed_frame(std::make_unique<PPFrame>()),
             _video(video), _graph(graph),
             _preloader([this](Frame_t frameIndex) -> FramePtr {
                 FramePtr ptr;
@@ -972,7 +976,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
         return probs(fdx) != nullptr;
     }
 
-    const ska::bytell_hash_map<pv::bid, Individual::Probability>* GUICache::probs(Idx_t fdx) {
+    const ska::bytell_hash_map<pv::bid, Probability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())
@@ -1015,175 +1019,5 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             ? base->window_dimensions().div(gui_scale) * gui::interface_scale()
             : Tracker::average().dimensions();
         return window_dimensions;
-    }
-
-    std::tuple<Vec2, Vec2> GUICache::scale_with_boundary(Bounds& boundary, bool recording, Base* base, DrawStructure& graph, Section* section, bool singular_boundary)
-    {
-        constexpr const char* animation_name { "scale-boundaries-animation" };
-        static Vec2 target_scale(1);
-        static Vec2 target_pos(0, 0);
-        static Size2 target_size(Tracker::average().dimensions());
-        static bool lost = true;
-        static float time_lost = 0;
-
-        auto&& [offset, max_w] = Timeline::timeline_offsets(base);
-
-        Size2 screen_dim = screen_dimensions(base, graph);
-        Size2 screen_center = screen_dim * 0.5;
-
-        if (screen_dim.max() <= 0)
-            return { Vec2(), Vec2() };
-        //if(_base)
-        //    offset = Vec2((_base->window_dimensions().width / PD(gui).scale().x * gui::interface_scale() - _average_image.cols) * 0.5, 0);
-
-
-        /**
-         * Automatically zoom in on the group.
-         */
-        if (singular_boundary) {//SETTING(gui_auto_scale) && (singular_boundary || !SETTING(gui_auto_scale_focus_one))) {
-            if (lost) {
-                GUICache::instance().set_animating(animation_name, false);
-            }
-
-            if (boundary.x != FLT_MAX) {
-                Size2 minimal_size = SETTING(gui_zoom_limit).value<Size2>();
-                //Size2(_average_image) * 0.15;
-
-                if (boundary.width < minimal_size.width) {
-                    boundary.x -= (minimal_size.width - boundary.width) * 0.5;
-                    boundary.width = minimal_size.width;
-                }
-                if (boundary.height < minimal_size.height) {
-                    boundary.y -= (minimal_size.height - boundary.height) * 0.5;
-                    boundary.height = minimal_size.height;
-                }
-
-                Vec2 scales(boundary.width / max_w,
-                    boundary.height / screen_dim.height);
-
-                float scale = 1.f / scales.max() * 0.8;
-
-                //Vec2 topleft(Size2(max_w / PD(gui).scale().x, _average_image.rows) * 0.5 - offset / PD(gui).scale().x - boundary.size() * scale * 0.5);
-
-                //boundary.pos() -= offset.div(scale);
-
-                target_scale = Vec2(scale);
-                Size2 image_center = boundary.pos() + boundary.size() * 0.5;
-
-                offset = screen_center - image_center * scale;
-                target_pos = offset;
-
-                target_size = boundary.size();
-
-                lost = false;
-            }
-
-        }
-        else {
-            static Timer lost_timer;
-            if (!lost) {
-                lost = true;
-                time_lost = GUICache::instance().gui_time();
-                lost_timer.reset();
-                GUICache::instance().set_animating(animation_name, true);
-            }
-
-            if ((recording && GUICache::instance().gui_time() - time_lost >= 0.5)
-                || (!recording && lost_timer.elapsed() >= 0.5))
-            {
-                target_scale = Vec2(1);
-                //target_pos = offset;//Vec2(0, 0);
-                target_size = Tracker::average().dimensions();
-                target_pos = screen_center - target_size * 0.5;
-                GUICache::instance().set_animating(animation_name, false);
-            }
-        }
-
-        Float2_t mw = Tracker::average().cols;
-        Float2_t mh = Tracker::average().rows;
-        if (target_pos.x / target_scale.x < -mw * 0.95) {
-#ifndef NDEBUG
-            print("target_pos.x = ", target_pos.x, " target_scale.x = ", target_scale.x);
-#endif
-            target_pos.x = -mw * target_scale.x * 0.95f;
-        }
-        if (target_pos.y / target_scale.y < -mh * 0.95f)
-            target_pos.y = -mh * target_scale.y * 0.95f;
-
-        if (target_pos.x / target_scale.x > mw * 0.95f) {
-#ifndef NDEBUG
-            //print("target_pos.x = ", target_pos.x, " target_scale.x = ", target_scale.x, " screen_center.x = ", screen_center.width, " screen_dimensions.x = ", screen_dimensions.width, " window_dimensions.x = ", base()->window_dimensions().width);
-#endif
-            target_pos.x = mw * target_scale.x * 0.95f;
-        }
-        if (target_pos.y / target_scale.y > mh * 0.95f)
-            target_pos.y = mh * target_scale.y * 0.95f;
-
-        GUICache::instance().set_zoom_level(target_scale.x);
-
-        static Timer timer;
-        auto e = recording ? GUICache::instance().dt() : timer.elapsed(); //PD(recording) ? (1 / float(FAST_SETTING(frame_rate))) : timer.elapsed();
-        //e = PD(cache).dt();
-
-        e = min(0.1, e);
-        e *= 3;
-
-        auto check_target = [](const Vec2& start, const Vec2& target, Float2_t e) {
-            Vec2 direction = (target - start) * e;
-            Float2_t speed = direction.length();
-            auto epsilon = max(target.abs().max(), start.abs().max()) * 0.000001;
-
-            if (speed <= epsilon)
-                return target;
-
-            if (speed > 0)
-                direction /= speed;
-
-            auto scale = start + direction * speed;
-
-            if ((direction.x > 0 && scale.x > target.x)
-                || (direction.x < 0 && scale.x < target.x))
-            {
-                scale.x = target.x;
-            }
-            if ((direction.y > 0 && scale.y > target.y)
-                || (direction.y < 0 && scale.y < target.y))
-            {
-                scale.y = target.y;
-            }
-
-            return scale;
-        };
-
-
-        target_pos.x = round(target_pos.x);
-        target_pos.y = round(target_pos.y);
-
-        if (!section->scale().Equals(target_scale)
-            || !section->pos().Equals(target_pos))
-        {
-            GUICache::instance().set_animating(animation_name, true);
-
-            auto playback_factor = max(1, sqrt(SETTING(gui_playback_speed).value<float>()));
-            auto scale = check_target(section->scale(), target_scale, e * playback_factor);
-
-            section->set_scale(scale);
-
-            auto next_pos = check_target(section->pos(), target_pos, e * playback_factor);
-            auto next_size = check_target(section->size(), target_size, e * playback_factor);
-
-            section->set_bounds(Bounds(next_pos, next_size));
-
-        }
-        else {
-            GUICache::instance().set_animating(animation_name, false);
-
-            section->set_scale(target_scale);
-            section->set_bounds(Bounds(target_pos, target_size));
-        }
-
-        timer.reset();
-
-        return { Vec2(), Vec2() };
     }
 }

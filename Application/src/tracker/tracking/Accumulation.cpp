@@ -1,7 +1,6 @@
 #include "Accumulation.h"
 
 #if !COMMONS_NO_PYTHON
-#include <gui/gui.h>
 #include <tracking/DatasetQuality.h>
 #include <tracking/TrainingData.h>
 #include <gui/WorkProgress.h>
@@ -24,6 +23,7 @@
 #include <python/GPURecognition.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+#include <gui/IMGUIBase.h>
 
 namespace py = Python;
 
@@ -92,7 +92,7 @@ Accumulation::Status& Accumulation::status() {
     return status;
 }
 
-void apply_network() {
+void apply_network(pv::File& video_source) {
     using namespace extract;
     uint8_t max_threads = 5u;
     extract::Settings settings{
@@ -108,7 +108,7 @@ void apply_network() {
     Accumulation::status().busy = true;
     
     ImageExtractor e{
-        *GUI::video_source(),
+        video_source,
         [](const Query& q)->bool {
             return !q.basic->blob.split();
         },
@@ -384,7 +384,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             }
         }
         
-        data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *GUI::instance()->video_source(), coverage, [](float percent) { gui::WorkProgress::set_progress("", percent); }, _generated_data.get());
+        data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *_video, coverage, [](float percent) { gui::WorkProgress::set_progress("", percent); }, _generated_data.get());
     } /*else {
         auto str = Meta::toStr(data);
         print("Dont need to generate images for ",str,".");
@@ -557,7 +557,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         _raw_coverage = std::move(image);
     }
     
-    if(GUI::instance())
+//    if(GUI::instance())
         gui::WorkProgress::update_additional([this](gui::Entangled& e) {
             std::lock_guard<std::mutex> guard(_current_assignment_lock);
             if(!_current_accumulation || _current_accumulation != this)
@@ -566,7 +566,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         });
 }
 
-std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(const std::shared_ptr<TrainingData>& source)
+std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source)
 {
     auto data = std::make_shared<TrainingData>();
     
@@ -608,7 +608,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
             });
         }
         
-        if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *GUI::instance()->video_source(), disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
+        if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), video, disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
         {
             FormatWarning("Couldnt generate proper training data (see previous warning messages).");
             return {nullptr, {}, {}};
@@ -729,14 +729,15 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337) {
+Accumulation::Accumulation(pv::File* video, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(video), _base(base) {
     
 }
 
 Accumulation::~Accumulation() {
-    if(!GUI::instance())
-        return;
-    auto lock = GUI_LOCK(GUI::instance()->gui().lock());
+    LOGGED_LOCK_TYPE<std::recursive_mutex> lock;
+    if(_textarea && _textarea->stage()) {
+        lock = GUI_LOCK(_textarea->stage()->lock());
+    }
     _textarea = nullptr;
     _graph = nullptr;
     _layout = nullptr;
@@ -791,7 +792,7 @@ bool Accumulation::start() {
         data->set_classes(Tracker::identities());
         _network->train(data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
         
-        elevate_task(apply_network);
+        elevate_task([video = _video](){ apply_network(*video); });
         return true;
     }
     
@@ -814,7 +815,7 @@ bool Accumulation::start() {
         
         individuals_per_frame = generate_individuals_per_frame(_initial_range, _collected_data.get(), nullptr);
         
-        if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *GUI::instance()->video_source(), individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
+        if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *_video, individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Couldnt generate proper training data (see previous warning messages).");
             } else
@@ -825,7 +826,7 @@ bool Accumulation::start() {
         _generated_data->merge_with(_collected_data, true);
     }
     
-    auto && [disc, disc_images, disc_map] = generate_discrimination_data(_collected_data);
+    auto && [disc, disc_images, disc_map] = generate_discrimination_data(*_video, _collected_data);
     _discrimination_data = disc;
     _disc_images = disc_images;
     _disc_frame_map = disc_map;
@@ -1505,7 +1506,10 @@ bool Accumulation::start() {
         
     }
     
-    if((GUI::instance() && !gui::WorkProgress::item_aborted() && !gui::WorkProgress::item_custom_triggered()) && SETTING(gpu_accumulation_enable_final_step))
+    if((//GUI::instance() &&
+        !gui::WorkProgress::item_aborted()
+        && !gui::WorkProgress::item_custom_triggered())
+       && SETTING(gpu_accumulation_enable_final_step))
     {
         std::map<Idx_t, size_t> images_per_class;
         size_t overall_images = 0;
@@ -1612,7 +1616,7 @@ bool Accumulation::start() {
                 std::map<Idx_t, std::vector<Image::SPtr>> images;
                 PPFrame pp;
                 pv::Frame video_frame;
-                auto &video_file = *GUI::instance()->video_source();
+                auto &video_file = *_video;
                 
                 size_t failed_blobs = 0, found_blobs = 0;
                 
@@ -1754,7 +1758,7 @@ bool Accumulation::start() {
     
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!gui::WorkProgress::item_aborted() && !uniqueness_history().empty()) {
-        elevate_task(apply_network);
+        elevate_task([this](){apply_network(*_video);});
     }
     
     return true;
@@ -1834,7 +1838,7 @@ void Accumulation::end_a_step(Result reason) {
         ++i;
     }
     
-    if(GUI::instance())
+    //if(GUI::instance())
         gui::WorkProgress::update_additional([this, text](gui::Entangled& e) {
             std::lock_guard<std::mutex> guard(_current_assignment_lock);
             if(!_current_accumulation || _current_accumulation != this)
@@ -1917,10 +1921,13 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
         }
     }
     
-    auto window = GUI::instance()->base();
-    auto &gui = GUI::instance()->gui();
+    //auto window = GUI::instance()->base();
+    //auto &gui = GUI::instance()->gui();
+    if(not e.stage())
+        return;
+    auto &gui = *e.stage();
     
-    Size2 screen_dimensions = (window ? window->window_dimensions().div(gui.scale()) * gui::interface_scale() : GUI::background_image().dimensions());
+    Size2 screen_dimensions = (_base ? _base->window_dimensions().div(gui.scale()) * gui::interface_scale() : (Size2)_video->size());
     //Vec2 center = (screen_dimensions * 0.5).mul(section->scale().reciprocal());
     screen_dimensions = screen_dimensions.mul(gui.scale());
     
