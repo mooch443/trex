@@ -682,7 +682,7 @@ void GUI::load_connectivity_matrix() {
     auto path = SETTING(gui_connectivity_matrix_file).value<file::Path>();
     path = file::DataLocation::parse("input", path);
     
-    if(not path.exists() || not path.is_regular())
+    if(not path.exists() || not path.is_regular())
         throw U_EXCEPTION("Cannot find connectivity matrix file ",path.str(),".");
     
     auto contents = utils::read_file(path.str());
