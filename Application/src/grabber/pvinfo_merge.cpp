@@ -76,8 +76,6 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(settings_file.exists()) {
             print("settings for ",name.str()," found");
             auto config = std::make_shared<sprite::Map>();
-            config->set_do_print(false);
-            
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(*config, docs, NULL);
             
@@ -197,7 +195,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     //auto start_time = output.header().timestamp;
     print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
-    GlobalSettings::map().dont_print("cm_per_pixel");
+    GlobalSettings::map()["cm_per_pixel"].get().set_do_print(false);
     const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
     //const float scaled_video_width = floor(sqrt(resolution.width * resolution.height / float(files.size())));
     

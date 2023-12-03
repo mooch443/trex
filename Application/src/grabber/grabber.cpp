@@ -419,8 +419,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, SETTING(cam_matrix).value<std::vector<float>>().data());
     cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, SETTING(cam_undistort_vector).value<std::vector<float>>().data());
     
-    GlobalSettings::map().dont_print("cam_undistort1");
-    GlobalSettings::map().dont_print("cam_undistort2");
+    GlobalSettings::map()["cam_undistort1"].get().set_do_print(false);
+    GlobalSettings::map()["cam_undistort2"].get().set_do_print(false);
     cv::Mat drawtransform = cv::getOptimalNewCameraMatrix(cam_matrix, cam_undistort_vector, size, 1.0, size);
     print_mat("draw_transform", drawtransform);
     print_mat("cam", cam_matrix);
@@ -715,9 +715,6 @@ FrameGrabber::~FrameGrabber() {
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;
-            config_grabber.set_do_print(false);
-            config_tracker.set_do_print(false);
-            
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(config_grabber, docs, nullptr);
             ::default_config::get(config_tracker, docs, nullptr);

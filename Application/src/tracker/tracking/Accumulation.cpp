@@ -734,7 +734,7 @@ Accumulation::Accumulation(pv::File* video, gui::IMGUIBase* base, TrainingMode::
 }
 
 Accumulation::~Accumulation() {
-    LOGGED_LOCK_TYPE<std::recursive_mutex> lock;
+    auto lock = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
     if(_textarea && _textarea->stage()) {
         lock = GUI_LOCK(_textarea->stage()->lock());
     }

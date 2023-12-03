@@ -80,7 +80,6 @@ RecentItems RecentItems::read() {
                     RecentItems::Item item{
                         ._name = name
                     };
-                    item._options.set_do_print(false);
                     print("RecentItem<", name,">");
 
                     auto settings = key.at("settings");
@@ -141,7 +140,6 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     Item item{
         ._name = name
     };
-    item._options.set_do_print(false);
     config.write_to(item._options);
     _items.emplace_back(std::move(item));
 }

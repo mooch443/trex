@@ -410,7 +410,6 @@ void TrackingScene::init_video() {
         combined.access_levels[name] = level;
     };
     
-    combined.map.set_do_print(false);
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     default_config::get(combined.map, combined.docs, nullptr);
     
@@ -427,11 +426,11 @@ void TrackingScene::init_video() {
     print("Remaining:", combined.map.keys());
 
     thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    GlobalSettings::map().dont_print("gui_frame");
-    GlobalSettings::map().dont_print("gui_focus_group");
+    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     
     auto&cmd = CommandLine::instance();
     for(auto &option : cmd.settings()) {
@@ -1061,8 +1060,8 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                     }
                     
                     auto& map = segments.at(i);
-                    if(map.do_print())
-                        map.set_do_print(false);
+                    //if(map.print_by_default())
+                    //    map.set_print_by_default(false);
                     map["color"] = wheel.next();
                     map["start"] = consec.at(i).start;
                     map["end"] = consec.at(i).end + 1_f;
@@ -1297,8 +1296,6 @@ void TrackingScene::load_state(file::Path from) {
             {
                 sprite::Map config;
                 GlobalSettings::docs_map_t docs;
-                config.set_do_print(false);
-                
                 default_config::get(config, docs, NULL);
                 try {
                     default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, {}, true);

@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -20,7 +20,7 @@ namespace gui {
 
 sprite::Map ConvertScene::fish = []() {
     sprite::Map fish;
-    fish.set_do_print(false);
+    fish.set_print_by_default(false);
     fish["name"] = std::string("fish0");
     fish["color"] = Red;
     fish["pos"] = Vec2(100, 150);
@@ -29,7 +29,7 @@ sprite::Map ConvertScene::fish = []() {
 
 sprite::Map ConvertScene::_video_info = []() {
     sprite::Map fish;
-    fish.set_do_print(false);
+    fish.set_print_by_default(false);
     fish["frame"] = Frame_t();
     fish["resolution"] = Size2();
     return fish;
@@ -94,10 +94,7 @@ spinner{
 _on_activate(on_activate),
 _on_deactivate(on_deactivate)
 
-{
-    _video_info.set_do_print(false);
-    fish.set_do_print(false);
-}
+{ }
 
 ConvertScene::~ConvertScene() {
     if (_segmenter)
@@ -186,6 +183,8 @@ void ConvertScene::activate()  {
     try {
         if(_on_activate)
             _on_activate(*this);
+
+        GlobalSettings::map().set_print_by_default(true);
         
         auto source = SETTING(source).value<file::PathArray>();
         print("Loading source = ", source);
@@ -445,7 +444,6 @@ void ConvertScene::drawBlobs(
         else {
             if (untracked >= _untracked_properties.size()) {
                 _untracked_properties.emplace_back();
-                _untracked_properties.back().set_do_print(false);
             }
 
             if (untracked >= _untracked_gui.size())

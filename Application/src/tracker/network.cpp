@@ -39,7 +39,7 @@ int main(int argc, char**argv) {
     video.print_info();
     
     file::Path settings_file(path.replace_extension("settings"));
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     DebugHeader("LOADING ", settings_file);
     try {
         auto content = utils::read_file(settings_file.str());

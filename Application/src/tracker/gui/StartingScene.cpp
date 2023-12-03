@@ -48,7 +48,7 @@ void StartingScene::activate() {
     }
     
     RecentItems::set_select_callback([](RecentItems::Item item){
-        item._options.set_do_print(true);
+        item._options.set_print_by_default(true);
         for (auto& key : item._options.keys())
             item._options[key].get().copy_to(&GlobalSettings::map());
         

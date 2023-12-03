@@ -492,7 +492,7 @@ pv::BlobPtr PPFrame::extract(pv::bid bdx) {
     return ptr;
 }
 
-const grid::ProximityGrid& PPFrame::blob_grid() noexcept {
+const grid::ProximityGrid& PPFrame::blob_grid() {
     std::scoped_lock guard(_blob_grid_mutex);
     if(_blob_grid.empty()) {
         // have to fill the grid

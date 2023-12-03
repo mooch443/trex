@@ -897,14 +897,12 @@ void VideoOpener::select_file(const file::Path &p) {
     using namespace file;
     
     auto ext = _file_chooser->current_tab().extension == "pv" ? "pv" : "";
-    GlobalSettings::map().dont_print("filename");
+    GlobalSettings::map()["filename"].get().set_do_print(false);
     _selected = p.remove_extension(ext);
     SETTING(filename) = p.remove_extension(ext);
     
     Path settings_file = file::DataLocation::parse("settings");
     sprite::Map tmp;
-    tmp.set_do_print(false);
-    
     GlobalSettings::docs_map_t docs;
     default_config::get(tmp, docs, [](auto, auto){});
     

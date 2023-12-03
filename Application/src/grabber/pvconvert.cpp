@@ -134,7 +134,7 @@ int main(int argc, char**argv) {
     SETTING(use_differences) = false;
     SETTING(crop) = CropOffsets();
     
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     
     CommandLine::init(argc, argv, true);
     

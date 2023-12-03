@@ -259,7 +259,7 @@ int main(int argc, char** argv)
 #endif
     
     default_config::register_default_locations();
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     
     gui::init_errorlog();
     set_thread_name("main");
@@ -295,7 +295,6 @@ int main(int argc, char** argv)
         combined.access_levels[name] = level;
     };
     
-    combined.map.set_do_print(false);
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     //default_config::get(combined.map, combined.docs, set_combined_access_level);
     
@@ -313,8 +312,8 @@ int main(int argc, char** argv)
     
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    GlobalSettings::map().dont_print("gui_frame");
-    GlobalSettings::map().dont_print("gui_focus_group");
+    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     
     if(argc == 2) {
         if(std::string(argv[1]) == "-options") {
@@ -821,8 +820,8 @@ int main(int argc, char** argv)
                                     CV_32FC1,
                                     map1, map2);
         
-        GlobalSettings::map().dont_print("cam_undistort1");
-        GlobalSettings::map().dont_print("cam_undistort2");
+        GlobalSettings::map()["cam_undistort1"].get().set_do_print(false);
+        GlobalSettings::map()["cam_undistort2"].get().set_do_print(false);
         GlobalSettings::get("cam_undistort1") = map1;
         GlobalSettings::get("cam_undistort2") = map2;
     }
@@ -1007,7 +1006,6 @@ int main(int argc, char** argv)
         FormatWarning("No settings file can be loaded, so the program will try to automatically determine individual sizes and numbers.");
         sprite::Map default_map;
         GlobalSettings::docs_map_t default_docs;
-        default_map.set_do_print(false);
         default_config::get(default_map, default_docs, NULL);
         
         if(SETTING(auto_number_individuals).value<bool>() == default_map.get<bool>("auto_number_individuals").value())
@@ -1376,7 +1374,6 @@ int main(int argc, char** argv)
         auto path = TrackingResults::expected_filename();
         auto str = get_settings_from_results(path);
         sprite::Map defaults;
-        defaults.set_do_print(false);
         
         GlobalSettings::docs_map_t docs;
         default_config::get(defaults, docs, NULL);

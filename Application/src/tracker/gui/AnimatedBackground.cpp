@@ -25,7 +25,6 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         SettingsMaps combined;
 
         try {
-            combined.map.set_do_print(false);
             grab::default_config::get(combined.map, combined.docs, nullptr);
             default_config::get(combined.map, combined.docs, nullptr);
 

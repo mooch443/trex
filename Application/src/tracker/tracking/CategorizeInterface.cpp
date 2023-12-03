@@ -80,7 +80,7 @@ Sample::Ptr retrieve() {
          * Search current rows and cells to see whether the sample is already assigned
          * to any of the cells.
          */
-        LOGGED_LOCK_TYPE<std::recursive_mutex> gui_guard;
+        auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
         if(Interface::get().layout.stage()) {
             gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
         }
@@ -478,7 +478,7 @@ void Interface::clear_probabilities() {
 }
 
 void Interface::clear_rows() {
-    LOGGED_LOCK_TYPE<std::recursive_mutex> gui_guard;
+    auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
     if(Interface::get().layout.stage()) {
         gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
     }
@@ -561,7 +561,7 @@ void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
                 FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
             });
         shuffle->on_click([](auto) {
-            LOGGED_LOCK_TYPE<std::recursive_mutex> gui_guard;
+            auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
             if(Interface::get().layout.stage()) {
                 gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
             }

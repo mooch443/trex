@@ -4012,8 +4012,6 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             {
                 sprite::Map config;
                 GlobalSettings::docs_map_t docs;
-                config.set_do_print(false);
-                
                 default_config::get(config, docs, NULL);
                 try {
                     default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, {}, true);

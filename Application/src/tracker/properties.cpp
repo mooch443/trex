@@ -352,7 +352,7 @@ int main(int argc, char**argv) {
     std::locale::global(std::locale(locale));
     
 	default_config::register_default_locations();
-	GlobalSettings::map().set_do_print(true);
+	GlobalSettings::map().set_print_by_default(true);
 
 	CommandLine::init(argc, argv);
     file::cd(file::DataLocation::parse("app"));

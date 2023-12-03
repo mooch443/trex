@@ -148,7 +148,7 @@ protected:
     std::mutex _blob_grid_mutex;
     
 public:
-    const grid::ProximityGrid& blob_grid() noexcept;
+    const grid::ProximityGrid& blob_grid();
     auto& unsafe_access_all_blobs() { return _blob_owner; }
     
     int label(const pv::bid&) const;

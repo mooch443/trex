@@ -753,7 +753,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             
             try {
                 sprite::Map map;
-                map.set_do_print(false);
                 map["quiet"] = true;
                 map["meta_real_width"] = float();
                 sprite::parse_values(map, metadata);

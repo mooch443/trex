@@ -110,7 +110,7 @@ void launch_gui() {
                     SETTING(terminate) = true;
             }
             else {
-                GlobalSettings::map().set_do_print(true);
+                GlobalSettings::map().set_print_by_default(true);
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
                 SETTING(source) = file::PathArray({ segmenter->output_file_name() });
 				manager.set_active("tracking-scene");
@@ -171,7 +171,7 @@ void launch_gui() {
             combined.access_levels[name] = level;
         };
 
-        combined.map.set_do_print(false);
+        combined.map.set_print_by_default(false);
         grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
         //default_config::get(combined.map, combined.docs, set_combined_access_level);
 
@@ -188,11 +188,11 @@ void launch_gui() {
         print("Remaining:", combined.map.keys());
 
         thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
-        GlobalSettings::map().set_do_print(true);
+        GlobalSettings::map().set_print_by_default(true);
         //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
         //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-        GlobalSettings::map().dont_print("gui_frame");
-        GlobalSettings::map().dont_print("gui_focus_group");
+        GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+        GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
 
         auto& cmd = CommandLine::instance();
         for (auto& option : cmd.settings()) {
@@ -487,8 +487,8 @@ int main(int argc, char**argv) {
     
     using namespace track;
     
-    GlobalSettings::map().set_do_print(true);
-    GlobalSettings::map().dont_print("gui_frame");
+    GlobalSettings::map().set_print_by_default(true);
+    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     SETTING(app_name) = std::string("TRexA");
     SETTING(threshold) = int(100);
     SETTING(track_do_history_split) = false;

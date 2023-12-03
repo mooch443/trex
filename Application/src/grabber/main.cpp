@@ -263,7 +263,7 @@ int main(int argc, char** argv)
         return settings_file;
     });
     
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     
     gui::init_errorlog();
     ocl::init_ocl();
