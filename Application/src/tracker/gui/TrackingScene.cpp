@@ -483,6 +483,7 @@ void TrackingScene::init_video() {
     }
     print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
     print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
+    print("exclude_parameters = ", exclude_parameters);
 
     try {
         if (!video.header().metadata.empty()) {
