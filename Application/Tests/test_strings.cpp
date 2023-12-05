@@ -1201,6 +1201,7 @@ TEST(ToStringTest, BasicTests) {
     EXPECT_EQ(to_string(100.0), "100");
     EXPECT_EQ(to_string(100.01), "100.01");
     EXPECT_EQ(to_string(100.01000), "100.01");
+    EXPECT_EQ(to_string(1080.0), "1080");
 }
 
 TEST(ToStringTest, NegativeNumbers) {

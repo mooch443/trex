@@ -120,8 +120,6 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
     static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
     static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
 
-    const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
-    size_t mask_index = 0;
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2) {
         if (data.image->dims == 3)
@@ -141,7 +139,6 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
     } else
         throw U_EXCEPTION("Invalid image mode ", mode);
 
-    auto image_dims = data.image->bounds() - Size2(1, 1);
     size_t N_rows = result.boxes().num_rows();
 
     auto& boxes = result.boxes();
@@ -218,12 +215,12 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
             }
 
             auto&& pair = blobs.at(midx);
-            size_t num_pixels{ 0u };
+            //size_t num_pixels{ 0u };
             for (auto& line : *pair.lines) {
                 line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
                 line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
                 line.y = saturate(coord_t(line.y + bounds.y), coord_t(0), h);
-                num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+                //num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
                 
                 if (line.x0 >= r3.cols
                     || line.x1 >= r3.cols
@@ -251,7 +248,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Re
     }
 }
 
-void Yolo8::receive(SegmentationData &data, Vec2 scale_factor, const std::span<float> &vector, const std::span<float> &keypoints, uint64_t bones) {
+void Yolo8::receive(SegmentationData &, Vec2 , const std::span<float> &, const std::span<float> &, uint64_t) {
     
 }
 
@@ -279,7 +276,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
         );
     }
 
-    const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
+    //const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
     size_t mask_index = 0;
     cv::Mat r3;
     if  (mode == ImageMode::R3G3B2)
