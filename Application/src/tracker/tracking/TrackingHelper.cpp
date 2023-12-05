@@ -302,15 +302,16 @@ void TrackingHelper::apply_automatic_matches() {
         .f_prev_prop = prev_props,
         .match_mode = default_config::matching_mode_t::none
         
-    }, std::move(automatic_assignments), [frameIndex](pv::bid, Idx_t, Individual* fish)
-    {
+    }, std::move(automatic_assignments), [frameIndex](pv::bid, Idx_t, Individual* fish) {
         fish->add_automatic_match(frameIndex);
-        
-    }, [frameIndex, this](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+    }
 #ifndef NDEBUG
+    , [frameIndex, this](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+
             FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(", _manager.fish_assigned(fdx) ? "assigned" : "unassigned",") and bdx ",bdx,"(",bdx.valid() ? (_manager.blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob","): ", error);
+      }
 #endif
-    });
+    );
 }
 
 void TrackingHelper::apply_matching() {

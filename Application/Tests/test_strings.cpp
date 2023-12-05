@@ -1518,3 +1518,67 @@ TYPED_TEST(ContainsTest, NeedleLongerThanStr) {
         // Do nothing, not applicable for char type
     }
 }
+
+// Test suite for ConstexprString
+TEST(ConstexprStringTest, ConstructorFromArray) {
+    const char testStr[] = "Test";
+    ConstString_t myStr(testStr);
+    EXPECT_STREQ(myStr.data(), testStr);
+}
+
+TEST(ConstexprStringTest, ConstructorFromStdArray) {
+    std::array<char, 4> testArray = {'T', 'e', 's', 't'};
+    ConstString_t myStr(testArray);
+    EXPECT_EQ(myStr[0], 'T');
+    EXPECT_EQ(myStr[3], 't');
+}
+
+TEST(ConstexprStringTest, ViewMethod) {
+    ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr.view(), "Hello");
+}
+
+TEST(ConstexprStringTest, SizeMethod) {
+    ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr.size(), 5);
+}
+
+TEST(ConstexprStringTest, SquareBracketsOperator) {
+    ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr[1], 'e');
+}
+
+TEST(ConstexprStringTest, EqualityOperator) {
+    ConstString_t myStr("Hello");
+    ConstString_t myStr2("Hello");
+    EXPECT_TRUE(myStr == myStr2);
+}
+
+TEST(ConstexprStringTest, ToStringConversion) {
+    ConstString_t myStr("Hello");
+    std::string stdStr = static_cast<std::string>(myStr);
+    EXPECT_EQ(stdStr, "Hello");
+}
+
+// Test suite for to_string function template
+TEST(ToStringTest, HandleNormalFloat) {
+    auto str = to_string(123.456f);
+    EXPECT_EQ(str, "123.456") << str.view() << " != " << "123.456";
+}
+
+TEST(ToStringTest, HandleNaN) {
+    float nanValue = std::numeric_limits<float>::quiet_NaN();
+    auto str = to_string(nanValue);
+    EXPECT_EQ(str, "nan");
+}
+
+TEST(ToStringTest, HandleInfinity) {
+    float infValue = std::numeric_limits<float>::infinity();
+    auto str = to_string(infValue);
+    EXPECT_EQ(str, "inf");
+}
+
+TEST(ToStringTest, PrecisionTest) {
+    auto str = to_string(0.0001f);
+    EXPECT_EQ(str, "0.0001");
+}

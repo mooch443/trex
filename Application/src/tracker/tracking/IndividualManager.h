@@ -94,6 +94,17 @@ public:
     }
     
     template<bool safe = true, class Map,
+             typename F>
+        requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
+              && is_map<std::remove_cvref_t<Map>>::value
+    void assign(AssignInfo&& info,
+                Map&& map,
+                F&& apply)
+    {
+        assign(std::move(info), std::move(map), std::move(apply), [](pv::bid, Idx_t, Individual*, const char*){});
+    }
+    
+    template<bool safe = true, class Map,
              typename F, typename ErrorF>
         requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
               && VoidTransformer<ErrorF, pv::bid, Idx_t, Individual*, const char*>

@@ -1734,7 +1734,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 .f_prev_prop = s.prev_props,
                 .match_mode = default_config::matching_mode_t::none
                 
-            }, std::move(optimal.pairings), [&new_pairings](pv::bid bdx, Idx_t fdx, Individual*) {
+            }, std::move(optimal.pairings), [](pv::bid bdx, Idx_t fdx, Individual*) {
                 //print("Test for ", bdx, " -> ", fdx);
                 /*if(not new_pairings.contains(fdx)) {
                     print("\t not accepting ", bdx, " -> ", fdx);
