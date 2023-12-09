@@ -856,8 +856,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 }
             }
             
-            print("active = ", _data->_cache->active_ids);
-            print("inactive = ", _data->_cache->inactive_ids);
+            //print("active = ", _data->_cache->active_ids);
+            //print("inactive = ", _data->_cache->inactive_ids);
             
             for(auto fdx: remove)
                 _data->_last_bounds.erase(fdx);
