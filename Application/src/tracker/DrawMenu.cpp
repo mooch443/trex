@@ -262,7 +262,12 @@ public:
 #if !COMMONS_NO_PYTHON
                 case CATEGORIZE:
                     gui::WorkProgress::add_queue("", [](){
-                        Categorize::show(GUI::instance()->video_source(), [](){GUI::instance()->auto_quit();}, [](std::string text){GUI::instance()->set_status(text);});
+                        Categorize::show(GUI::instance()->video_source(), 
+                            [](){GUI::instance()->auto_quit();}, 
+                            [](const std::string& text){
+                                GUI::instance()->set_status(text);
+                            }
+                        );
                     });
                     break;
 #endif

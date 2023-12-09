@@ -98,6 +98,8 @@ private:
     void activate() override;
 
     bool fetch_new_data();
+
+    dyn::DynamicGUI init_gui();
     
     // Helper function to calculate window dimensions
     Size2 calculateWindowSize(const Size2& output_size, const Size2& window_size);

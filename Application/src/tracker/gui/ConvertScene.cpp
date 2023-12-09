@@ -538,6 +538,92 @@ void ConvertScene::drawBlobs(
     }
 }
 
+dyn::DynamicGUI ConvertScene::init_gui() {
+    dyn::Context context;
+    context.actions = {
+        ActionFunc("terminate", [this](auto) {
+            if (_segmenter)
+                _segmenter->force_stop();
+            else
+                SceneManager::getInstance().set_active("starting-scene");
+        }),
+        ActionFunc("set", [this](const Action& action) {
+            auto name = action.parameters.at(0);
+            auto value = action.parameters.at(1);
+            if (GlobalSettings::has(name)) {
+                GlobalSettings::get(name).get().set_value_from_string(value);
+            }
+        }),
+        ActionFunc("FILTER", [](auto) {
+            static bool filter { false };
+            filter = not filter;
+            SETTING(do_filter) = filter;
+        })
+    };
+    context.variables = {
+        VarFunc("resizecvt", [this](const VarProps&) -> double {
+            return this->segmenter().overlayed_video()->source()->resize_cvt().average_fps.load();
+        }),
+        VarFunc("sourceframe", [this](const VarProps&) -> double {
+            return this->segmenter().overlayed_video()->source()->source_frame().average_fps.load();
+        }),
+        VarFunc("fps", [](const VarProps&) {
+            auto fps = AbstractBaseVideoSource::_fps.load();
+            auto samples = AbstractBaseVideoSource::_samples.load();
+            return samples > 0 ? fps / samples : 0;
+        }),
+        VarFunc("net_fps", [](const VarProps&) {
+            auto fps = AbstractBaseVideoSource::_network_fps.load();
+            auto samples = AbstractBaseVideoSource::_network_samples.load();
+            return samples > 0 ? fps / samples : 0;
+        }),
+        VarFunc("vid_fps", [](const VarProps&) {
+            auto fps = AbstractBaseVideoSource::_video_fps.load();
+            auto samples = AbstractBaseVideoSource::_video_samples.load();
+            return samples > 0 ? fps / samples : 0;
+        }),
+        VarFunc("window_size", [this](const VarProps&) -> Vec2 {
+            return this->window_size;
+        }),
+        VarFunc("gpu_device", [](const VarProps&) -> std::string {
+            auto gpu_torch_device = SETTING(gpu_torch_device).value<std::string>();
+            if (is_in(utils::lowercase(gpu_torch_device), "cpu")) {
+                if (is_in(utils::lowercase(python_gpu_name()), "metal")
+                    || utils::contains(python_gpu_name(), "nvidia"))
+                {
+                    return "CPU (settings override)";
+                }
+                return "CPU";
+            }
+            return python_gpu_name();
+        }),
+        VarFunc("fish", [](const VarProps&) -> sprite::Map& {
+            return fish;
+        }),
+        VarFunc("average_is_generating", [this](const VarProps&) {
+            return _segmenter->is_average_generating();
+        }),
+        VarFunc("actual_frame", [this](const VarProps&) {
+            return _actual_frame;
+        }),
+        VarFunc("video", [](const VarProps&) -> sprite::Map& {
+            return _video_info;
+        }),
+        VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
+            return _tracked_gui;
+        }),
+        VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
+            return _untracked_gui;
+        })
+    };
+
+    return dyn::DynamicGUI{
+        .path = "alter_layout.json",
+        .context = std::move(context),
+        .base = window()
+    };
+}
+
 // Main _draw function
 void ConvertScene::_draw(DrawStructure& graph) {
     bool dirty = fetch_new_data();
@@ -715,86 +801,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
     });
     
     if(not dynGUI) {
-        dynGUI = {
-            .path = "alter_layout.json",
-            .graph = &graph,
-            .context = dyn::Context{
-                ActionFunc("terminate", [this](auto) {
-                    if(_segmenter)
-                        _segmenter->force_stop();
-                    else
-                        SceneManager::getInstance().set_active("starting-scene");
-                }),
-                ActionFunc("set", [this](const Action& action) {
-                    auto name = action.parameters.at(0);
-					auto value = action.parameters.at(1);
-					if(GlobalSettings::has(name)) {
-                        GlobalSettings::get(name).get().set_value_from_string(value);
-				    }
-                }),
-                ActionFunc("FILTER", [](auto) {
-                    static bool filter { false };
-                    filter = not filter;
-                    SETTING(do_filter) = filter;
-                }),
-                VarFunc("resizecvt", [this](const VarProps&) -> double {
-                    return this->segmenter().overlayed_video()->source()->resize_cvt().average_fps.load();
-                }),
-                VarFunc("sourceframe", [this](const VarProps&) -> double {
-                    return this->segmenter().overlayed_video()->source()->source_frame().average_fps.load();
-                }),
-                VarFunc("fps", [](const VarProps&) {
-                    auto fps = AbstractBaseVideoSource::_fps.load();
-                    auto samples = AbstractBaseVideoSource::_samples.load();
-                    return samples>0 ? fps / samples : 0;
-                }),
-                VarFunc("net_fps", [](const VarProps&) {
-                    auto fps = AbstractBaseVideoSource::_network_fps.load();
-                    auto samples = AbstractBaseVideoSource::_network_samples.load();
-                    return samples>0 ? fps / samples : 0;
-                }),
-                VarFunc("vid_fps", [](const VarProps&) {
-                    auto fps = AbstractBaseVideoSource::_video_fps.load();
-                    auto samples = AbstractBaseVideoSource::_video_samples.load();
-                    return samples>0 ? fps / samples : 0;
-                }),
-                VarFunc("window_size", [this](const VarProps&) -> Vec2 {
-                    return this->window_size;
-                }),
-                VarFunc("gpu_device", [](const VarProps&) -> std::string {
-                    auto gpu_torch_device = SETTING(gpu_torch_device).value<std::string>();
-                    if(is_in(utils::lowercase(gpu_torch_device), "cpu")) {
-                        if(is_in(utils::lowercase(python_gpu_name()), "metal")
-                           || utils::contains(python_gpu_name(), "nvidia"))
-                        {
-                            return "CPU (settings override)";
-                        }
-                        return "CPU";
-                    }
-                    return python_gpu_name();
-                }),
-                VarFunc("fish", [](const VarProps&) -> sprite::Map& {
-                    return fish;
-                }),
-                VarFunc("average_is_generating", [this](const VarProps&) {
-                    return _segmenter->is_average_generating();
-                }),
-                VarFunc("actual_frame", [this](const VarProps&) {
-                    return _actual_frame;
-                }),
-                VarFunc("video", [](const VarProps&) -> sprite::Map& {
-                    return _video_info;
-                }),
-                VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
-                    return _tracked_gui;
-                }),
-                VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
-                    return _untracked_gui;
-                })
-            },
-            .base = window()
-        };
-
+        dynGUI = init_gui();
+        dynGUI.graph = &graph;
 
         dynGUI.context.custom_elements["label"] = CustomElement {
             .name = "label",
