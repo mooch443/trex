@@ -23,6 +23,7 @@
 #include <gui/Label.h>
 #include <misc/Output.h>
 #include <tracking/Export.h>
+#include <misc/IdentifiedTag.h>
 
 using namespace track;
 
@@ -228,6 +229,9 @@ bool TrackingScene::on_global_event(Event event) {
     if(event.type == EventType::MBUTTON) {
         _data->_zoom_dirty = true;
     }
+    if(event.type == EventType::WINDOW_RESIZED) {
+        _data->_zoom_dirty = true;
+    }
     if(event.type == EventType::KEY) {
         if(event.key.code == Keyboard::LShift)
             _data->_zoom_dirty = true;
@@ -379,10 +383,10 @@ bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
         static Timing after_track("Analysis::after_track", 10);
         TakeTiming after_trackt(after_track);
         
-        if(idx + 1_f == _data->video.length()) {
-            _data->please_stop_analysis = true;
-            _data->tracker.global_segment_order();
-            SETTING(analysis_paused) = true;
+        if(idx + 1_f == _data->video.length()
+           || idx + 1_f > Tracker::analysis_range().end())
+        {
+            on_tracking_done();
         }
         
         static Timer last_added;
@@ -540,6 +544,8 @@ void TrackingScene::init_video() {
             }
        }
     );
+    
+    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());
 }
 
 void TrackingScene::activate() {
@@ -841,9 +847,17 @@ void TrackingScene::_draw(DrawStructure& graph) {
             
             std::vector<Idx_t> remove;
             for(auto &[fdx, bds] : _data->_last_bounds) {
-                if(not contains(_data->_cache->selected, fdx))
+                if(not contains(_data->_cache->selected, fdx)
+                   || (not contains(_data->_cache->active_ids, fdx)
+                   && not contains(_data->_cache->inactive_ids, fdx)))
+                {
                     remove.push_back(fdx);
+                    print("* removing individual ", fdx);
+                }
             }
+            
+            print("active = ", _data->_cache->active_ids);
+            print("inactive = ", _data->_cache->inactive_ids);
             
             for(auto fdx: remove)
                 _data->_last_bounds.erase(fdx);
@@ -1024,7 +1038,51 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 SceneManager::getInstance().set_active(scene);
                 return true;
             }),
+            ActionFunc("reanalyse", [this](Action action) {
+                if(action.parameters.empty())
+                    _data->tracker._remove_frames(Frame_t{});
+                else {
+                    auto frame = Meta::fromStr<Frame_t>(action.first());
+                    _data->tracker._remove_frames(frame);
+                }
+            }),
+            ActionFunc("load_results", [this](Action){
+                load_state(Output::TrackingResults::expected_filename());
+            }),
+            ActionFunc("save_results", [this](Action) {
+                save_state(false);
+            }),
+            ActionFunc("export_data", [this](Action){
+                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks("", {}, {}); });
+            }),
+            ActionFunc("auto_correct", [this](Action){
+                auto_correct();
+            }),
             
+            VarFunc("is_segment", [this](const VarProps& props) -> bool {
+                if(props.parameters.size() != 1)
+                    throw InvalidArgumentException("Need exactly one argument for ", props);
+                
+                auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
+                for(auto &seg : _data->_cache->global_segment_order()) {
+                    if(FrameRange(seg).contains(frame)) {
+                        return true;
+                    }
+                }
+                return false;
+            }),
+            VarFunc("get_segment", [this](const VarProps& props) -> FrameRange {
+                if(props.parameters.size() != 1)
+                    throw InvalidArgumentException("Need exactly one argument for ", props);
+                
+                auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
+                for(auto &seg : _data->_cache->global_segment_order()) {
+                    if(FrameRange(seg).contains(frame)) {
+                        return FrameRange(seg);
+                    }
+                }
+                throw InvalidArgumentException("No frame range contains ", frame," for ", props);
+            }),
             VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                 return window_size;
             }),
@@ -1043,7 +1101,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 return _individuals;
             }),
             
-            VarFunc("consec", [this](const VarProps& props) -> auto& {
+            VarFunc("consec", [this](const VarProps&) -> auto& {
                 //auto consec = _data->tracker.global_segment_order();
                 auto &consec = _data->_cache->global_segment_order();
                 static std::vector<sprite::Map> segments;
@@ -1095,6 +1153,71 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             })
         }
     };
+}
+
+void TrackingScene::save_state(bool force_overwrite) {
+    static bool save_state_visible = false;
+    if(save_state_visible)
+        return;
+    
+    save_state_visible = true;
+    static file::Path file;
+    file = Output::TrackingResults::expected_filename();
+    
+    auto fn = [this]() {
+        bool before = _data->analysis.is_paused();
+        _data->analysis.set_paused(true).get();
+        
+        LockGuard guard(w_t{}, "GUI::save_state");
+        try {
+            Output::TrackingResults results(_data->tracker);
+            results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, file);
+        } catch(const UtilsException&e) {
+            auto what = std::string(e.what());
+            _data->_exec_main_queue.enqueue([what](auto, DrawStructure& graph){
+                graph.dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+what+"</i>", "Error");
+            });
+            
+            FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
+        
+        if(!before)
+            _data->analysis.set_paused(false).get();
+        
+        save_state_visible = false;
+    };
+    
+    if(file.exists() && !force_overwrite) {
+        _data->_exec_main_queue.enqueue([fn](auto, DrawStructure& graph){
+            graph.dialog([fn](Dialog::Result result) {
+                if(result == Dialog::Result::OKAY) {
+                    WorkProgress::add_queue("Saving results...", fn);
+                } else if(result == Dialog::Result::SECOND) {
+                    do {
+                        if(file.remove_filename().empty()) {
+                            file = file::Path("backup_" + file.str());
+                        } else
+                            file = file.remove_filename() / ("backup_" + (std::string)file.filename());
+                    } while(file.exists());
+                    
+                    auto expected = Output::TrackingResults::expected_filename();
+                    if(expected.move_to(file)) {
+                        file = expected;
+                        WorkProgress::add_queue("Saving backup...", fn);
+                    //if(std::rename(expected.str().c_str(), file->str().c_str()) == 0) {
+//                          *file = expected;
+//                            work().add_queue("Saving backup...", fn);
+                    } else {
+                        FormatExcept("Cannot rename ",expected," to ",file,".");
+                        save_state_visible = false;
+                    }
+                } else
+                    save_state_visible = false;
+                
+            }, "Overwrite tracking previous results at <i>"+file.str()+"</i>?", "Overwrite", "Yes", "Cancel", "Backup old one");
+        });
+        
+    } else
+        WorkProgress::add_queue("Saving results...", fn);
 }
 
 void TrackingScene::load_state(file::Path from) {
@@ -1404,5 +1527,47 @@ void TrackingScene::load_state(file::Path from) {
     WorkProgress::add_queue("Loading results...", fn);
 }
 
+void TrackingScene::auto_correct() {
+    static constexpr const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
+    static constexpr const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
+        
+    _data->_exec_main_queue.enqueue([this](auto, DrawStructure& graph) {
+        const bool tags_available = tags::available();
+        graph.dialog([this, tags_available](gui::Dialog::Result r) {
+            if(r == Dialog::ABORT)
+                return;
+            
+            correct_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
+            
+        }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
+    });
+
+}
+
+void TrackingScene::correct_identities(bool force_correct, IdentitySource source) {
+    WorkProgress::add_queue("checking identities...", [this, force_correct, source](){
+        Tracker::instance()->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            _data->_exec_main_queue.enqueue([this, fn, source](auto, DrawStructure&) {
+                _data->_tracking_callbacks.push([this, source](){
+                    correct_identities(false, source);
+                });
+                
+                fn();
+            });
+        });
+    });
+}
+
+void TrackingScene::on_tracking_done() {
+    _data->please_stop_analysis = true;
+    _data->tracker.global_segment_order();
+    SETTING(analysis_paused) = true;
+    
+    // tracking has ended
+    while(not _data->_tracking_callbacks.empty()) {
+        _data->_tracking_callbacks.front()();
+        _data->_tracking_callbacks.pop();
+    }
+}
 
 }

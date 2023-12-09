@@ -1303,6 +1303,12 @@ TEST(HtmlifyTests, Complex) {
     ASSERT_EQ(result, expected);
 }
 
+TEST(HtmlifyTests, QuotedText) {
+    std::string doc = "This \"is 'plain' text\".";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "This <str>\"is 'plain' text\"</str>.");
+}
+
 TEST(HtmlifyTests, PlainText) {
     std::string doc = "This is plain text.";
     std::string result = htmlify(doc, false);

@@ -3,7 +3,7 @@
         "type":"vlayout",
         "align":"center",
         "origin":[0.5,0.5],
-        "pos":"{left_center}",
+        "pos":"[{*:{window_size.x}:0.3},{*:{window_size.y}:0.45}]",
         "pad":[10,0,10,5],
         "children":[
             {
@@ -30,16 +30,18 @@
     {
         "type":"vlayout",
         "align":"center",
-        "pos":"{top_right}",
+        "line":[255,0,0,125],
+        "name":"recent",
+        "pos":"[{-:{window_size.x}:10},10]",
         "origin":[1,0],
         "pad":[10,8,10,0],
         "children":[
             {
                 "type":"list",
                 "var":"recent_items",
-                "size":"{list_size}",
+                "list_size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:120}]",
                 "line":[255,0,0,125],
-                "font":{
+                "item_font":{
                     "size":0.75,
                     "align":"center"
                 },

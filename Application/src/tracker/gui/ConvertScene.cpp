@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -662,12 +662,56 @@ void ConvertScene::_draw(DrawStructure& graph) {
 
                 graph.vertices(line);
             });
+        
+        if(dirty)
+            _visible_bdx = std::move(visible_bdx);
 
         //! do not need to continue further if the view isnt dirty
-        if (not dirty)
-            return;
+        if (not dirty) {
+            size_t untracked = 0;
+            auto coords = FindCoord::get();
+            for (auto& blob : _object_blobs) {
+                auto bds = blob->bounds();
+                bds = coords.convert(BowlRect(bds));
 
-        drawBlobs(_current_data.frame.index(), meta_classes, _bowl->_current_scale, _bowl->_current_pos, visible_bdx, dirty);
+                Idx_t tracked_id;
+                Color tracked_color;
+
+                if (contains(_visible_bdx, blob->blob_id())) {
+                    auto id = _visible_bdx.at(blob->blob_id());
+                    tracked_color = id.color();
+                    tracked_id = id.ID();
+                }
+                else if (blob->parent_id().valid() && contains(_visible_bdx, blob->parent_id()))
+                {
+                    auto id = _visible_bdx.at(blob->parent_id());
+                    tracked_color = id.color();
+                    tracked_id = id.ID();
+                }
+                else {
+                    tracked_color = Gray;
+                }
+                
+                sprite::Map* tmp = nullptr;
+
+                if (tracked_id.valid()) {
+                    tmp = &_individual_properties[tracked_id];
+                }
+                else {
+                    if(untracked < _untracked_properties.size())
+                        tmp = &_untracked_properties[untracked++];
+                }
+                
+                if(tmp) {
+                    (*tmp)["pos"] = bds.pos();
+                    (*tmp)["size"] = Size2(bds.size());
+                    (*tmp)["radius"] = bds.size().length() * 0.5;
+                }
+            }
+            return;
+        }
+
+        drawBlobs(_current_data.frame.index(), meta_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
     });
     
     if(not dynGUI) {

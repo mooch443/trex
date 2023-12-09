@@ -23,11 +23,13 @@ namespace track {
 
         struct TREX_EXPORT ModelConfig {
             ModelConfig(ModelTaskType task, 
-                        std::string model_path, 
+                        bool use_tracking,
+                        std::string model_path,
                         int trained_resolution = 640, 
                         int min_image_size = -1,
                         int max_image_size = -1)
                 :   task(task), 
+                    use_tracking(use_tracking),
                     model_path(model_path), 
                     trained_resolution(trained_resolution),
                     min_image_size(min_image_size != -1 ? min_image_size : trained_resolution), 
@@ -73,6 +75,7 @@ namespace track {
             }
 
             ModelTaskType task;
+            bool use_tracking;
             std::string model_path;
             int trained_resolution;
             int min_image_size;

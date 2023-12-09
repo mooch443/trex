@@ -53,7 +53,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     alpha = saturate(alpha, 0.5, 1.0);
     
     if(disabled)
-        alpha *= 0.5;
+        alpha *= 0.75;
 
     Vec2 target_origin(0.5, 1);
     const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
@@ -223,7 +223,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     }
     
 
-    _line.create(Line::Point_t{ _center }, LineClr{ _color.exposureHSL(0.5).alpha(_color.a * 0.75) }, Line::Point_t{ _text->pos() }, LineClr{ _color }, Line::Thickness_t{ 2 });
+    _line.create(Line::Point_t{ _center }, LineClr{ _color.exposure(0.5).alpha(_color.a * 0.75) }, Line::Point_t{ _text->pos() }, LineClr{ _color }, Line::Thickness_t{ 2 });
     //e.add<Line>(_center, _text->pos(), _color, 1);
     return d;
 }

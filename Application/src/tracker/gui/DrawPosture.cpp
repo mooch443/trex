@@ -119,7 +119,7 @@ namespace gui {
             // DRAW MIDLINE / SEGMENTS
             
             add<Circle>(zero, Radius{3}, LineClr{Green});
-            add<Line>(Line::Point_t(zero), Line::Point_t(zero.x + midline->len(), zero.y), LineClr{ White });
+            add<Line>(Line::Point_t(Vec2(zero)), Line::Point_t(zero.x + midline->len(), zero.y), LineClr{ White });
             
             std::vector<Vertex> midline_vertices;
             for (size_t i=0; i<midline_points.size(); i++) {
@@ -148,7 +148,7 @@ namespace gui {
             
             auto A = Vec2(midline_points.back().pos.x, 0) * fish_scale + Vec2(zero.x, zero.y);
             auto B = Vec2(midline_points.back().pos.x, midline_points.back().pos.y) * fish_scale + Vec2(zero.x, zero.y);
-            add<Line>(Line::Point_t(zero), Line::Point_t(zero.x + midline->len() * fish_scale, zero.y), LineClr(255, 0, 255, 255));
+            add<Line>(Line::Point_t(Vec2(zero)), Line::Point_t(zero.x + midline->len() * fish_scale, zero.y), LineClr(255, 0, 255, 255));
             add<Line>(Line::Point_t(A), Line::Point_t(B), LineClr(255, 100, 0, 255));
             
             if(midline->tail_index() != -1) {

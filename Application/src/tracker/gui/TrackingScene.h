@@ -167,6 +167,7 @@ class TrackingScene : public Scene {
         
         ScreenRecorder _recorder;
         TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
+        std::queue<std::function<void()>> _tracking_callbacks;
         
         struct Statistics {
             std::atomic<double> individuals_per_second{0};
@@ -216,6 +217,7 @@ class TrackingScene : public Scene {
     std::vector<std::shared_ptr<dyn::VarBase_t>> _individuals;
 
     void load_state(file::Path from);
+    void save_state(bool);
     
 public:
     TrackingScene(Base& window);
@@ -239,5 +241,9 @@ private:
     void prev_poi(Idx_t _s_fdx);
     
     void export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range);
+    void correct_identities(bool force_correct, track::IdentitySource);
+    void auto_correct();
+    
+    void on_tracking_done();
 };
 }

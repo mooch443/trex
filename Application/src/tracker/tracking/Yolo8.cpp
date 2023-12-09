@@ -28,10 +28,10 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     using namespace track::detect;
     std::vector<ModelConfig> models;
 
-
     if (SETTING(model).value<file::Path>().exists()) {
         models.emplace_back(
             ModelTaskType::detect,
+            SETTING(yolo8_tracking_enabled).value<bool>(),
             SETTING(model).value<file::Path>().str(),
             SETTING(detection_resolution).value<uint16_t>()
         );
@@ -43,6 +43,7 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
         if (std::regex_match(input_string, regex_pattern)) {
             models.emplace_back(
                 ModelTaskType::detect,
+                SETTING(yolo8_tracking_enabled).value<bool>(),
                 SETTING(model).value<file::Path>().str(),
                 SETTING(detection_resolution).value<uint16_t>()
             );
@@ -50,6 +51,7 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
         } else if(std::regex_match(input_string, regex_pattern2)) {
             models.emplace_back(
                 ModelTaskType::detect,
+                SETTING(yolo8_tracking_enabled).value<bool>(),
                 SETTING(model).value<file::Path>().str()+".pt",
                 SETTING(detection_resolution).value<uint16_t>()
             );
@@ -57,6 +59,7 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
         } else if (SETTING(segmentation_model).value<file::Path>().exists()) {
             models.emplace_back(
                 ModelTaskType::detect,
+                SETTING(yolo8_tracking_enabled).value<bool>(),
                 SETTING(segmentation_model).value<file::Path>().str(),
                 SETTING(detection_resolution).value<uint16_t>()
             );
@@ -66,6 +69,7 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     if(SETTING(region_model).value<file::Path>().exists())
         models.emplace_back(
             ModelTaskType::region,
+            false, // region models dont have tracking
             SETTING(region_model).value<file::Path>().str(),
             SETTING(region_resolution).value<uint16_t>()
         );
@@ -500,6 +504,8 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
                 //    TileImage::buffers.move_back(std::move(t));
                 
                 if(results.empty()) {
+                    if(not transfer.images.empty())
+                        tf::imshow("ma", transfer.images.front()->get());
                     for(size_t i=0; i< transfer.datas.size(); ++i) {
                         try {
                             transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));

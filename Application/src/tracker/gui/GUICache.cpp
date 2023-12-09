@@ -529,7 +529,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                             auto c = fish->cache_for_frame(previous, frameIndex, time);
                             if(c) {
                                 inactive_estimates.push_back(c.value().estimated_px);
-                                inactive_ids.insert(fish->identity().ID());
+                                //inactive_ids.insert(fish->identity().ID());
                             } else {
                                 FormatError("Cannot create cache_for_frame of ", fish->identity(), " in frame ", frameIndex," because: ", c.error());
                             }
@@ -859,11 +859,13 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             }
 
             std::unordered_set<Idx_t> ids;
+            std::unordered_map<Idx_t, Individual*> actives;
             
             std::unique_lock g(Categorize::DataStore::cache_mutex());
             for (auto& fish : (source.empty() ? active : source)) {
                 auto id = fish->identity().ID();
                 ids.insert(id);
+                actives[id] = fish;
 
                 if (fish->empty()
                     || fish->start_frame() > frameIndex) 
@@ -899,7 +901,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                         });
                 }
                 
-                _fish_map[id]->set_data(*fish, frameIndex, properties->time, nullptr);
+                
                 //base.wrap_object(*PD(cache)._fish_map[fish]);
                 //PD(cache)._fish_map[fish]->label(ptr, e);
             }
@@ -911,8 +913,11 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                         //print("erasing from map ", it->first);
                         it = _fish_map.erase(it);
                     }
-                    else
+                    else {
+                        auto fish = individuals.at(it->first);
+                        it->second->set_data(*fish, frameIndex, properties->time, nullptr);
                         ++it;
+                    }
                 }
             }
 

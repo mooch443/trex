@@ -38,6 +38,7 @@
                         "fill":[50,50,50],
                         "line":[75,75,75],
                         "size":[850,40],
+                        "list_size":[850,200],
                         "desc":"",
                         "preview":{
                             "font":{"size":0.5},
@@ -56,6 +57,7 @@
                     {
                         "type":"settings",
                         "var":"output_dir",
+                        "list_size":[850,200],
                         "fill":[50,50,50],
                         "line":[75,75,75],
                         "size":[850,40],
@@ -80,15 +82,15 @@
                 [
                     {
                         "type":"text",
-                        "text":"{if:global.track_background_subtraction:'averaging':'model'}",
+                        "text":"{if:{global.track_background_subtraction}:'averaging':'model'}",
                         "pos":[0,6]
                     },
                     {
                         "type":"settings",
-                        "var":"{if:global.track_background_subtraction:'averaging_method':'model'}",
+                        "var":"{if:{global.track_background_subtraction}:'averaging_method':'model'}",
                         "fill":[50,50,50],
                         "line":[75,75,75],
-                        "size":"{if:global.track_background_subtraction:[250,40]:[850,40]}",
+                        "size":"{if:{global.track_background_subtraction}:[250,40]:[850,40]}",
                         "desc":""
                     }
                 ],
@@ -96,12 +98,12 @@
                 [
                     {
                         "type":"text",
-                        "text":"{if:global.track_background_subtraction:'threshold':'region'}",
+                        "text":"{if:{global.track_background_subtraction}:'threshold':'region'}",
                         "pos":[0,6]
                     },
                     {
                         "type":"settings",
-                        "var":"{if:global.track_background_subtraction:'threshold':'region_model'}",
+                        "var":"{if:{global.track_background_subtraction}:'threshold':'region_model'}",
                         "fill":[50,50,50],
                         "line":[75,75,75],
                         "size":[850,40],
@@ -111,18 +113,10 @@
 
                 [
                     {
-                        "type":"hlayout",
-                        "pad":[0,0,10,0],
-                        "children":[
-                            {
-                                "type":"text",
-                                "text":"#animals",
-                                "pos":[0,6]
-                            }
-                        ]
+                        "type":"text",
+                        "text":"#animals",
+                        "pos":[0,6]
                     },
-
-
                     {
                         "type":"settings",
                         "var":"track_max_individuals",
@@ -132,8 +126,8 @@
                         "desc":""
                     }
                 ],
-                [
 
+                [
                     {
                         "type":"stext",
                         "text":"<b>kinematics</b>",

@@ -434,7 +434,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_paths", true, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_pixel_grid", false, "Shows the proximity grid generated for all blobs, which is used for history splitting.");
         CONFIG("gui_show_selections", true, "Show/hide circles around selected individual.");
-        CONFIG("gui_show_inactive_individuals", true, "Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.");
+        CONFIG("gui_show_inactive_individuals", false, "Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.");
         //config["gui_show_texts"] = true;
         CONFIG("gui_show_histograms", false, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_posture", true, "Show/hide the posture window on the top-right.");
@@ -707,6 +707,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
         CONFIG("gpu_torch_device", std::string(""), "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
+        CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("detect_iou_threshold", float(0.7), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
         CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");

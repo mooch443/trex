@@ -6,6 +6,7 @@
     "length":"{-:{global.video_length}:1}",
     "width":"{-:{window_size.x}:20}",
     "width23":"{-:{window_size.x}:22}",
+    "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
 
     "timeline_start":"[{+:10:{*:{/:{analysis_range.start}:{length}}:{width}}},-10]",
     "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
@@ -14,6 +15,19 @@
 }
 },
 "objects": [
+    {
+        "type":"condition",
+        "var":"{hovered:timeline}",
+        "then":{
+            "type":"stext",
+            "pad":[5,5,5,5],
+            "text":"{highlighted_frame} {if:{is_segment:{highlighted_frame}}:'<b>{.get_segment:{highlighted_frame}}</b>':'<i>no segment</i>'}",
+            "pos":"[{mouse.x},70]",
+            "fill":[25,25,25,200],
+            "font":{"size":0.6}
+        },
+        "else":{ "type":"rect", "size":[0,0] }
+    },
 {
 "type":"condition",
 "var":"{global.gui_show_timeline}",
@@ -38,6 +52,90 @@
                 ]
             },
             "else":{ "type":"collection", "children":[] }
+        },
+
+        {
+            "type":"hlayout",
+            "pad":[5,10,0,0],
+            "pos":"[{-:{window_size.x}:10},6]",
+            "origin":[1,0],
+            "children":[
+                {
+                    "type":"button",
+                    "text":"<sym>🗘</sym> retrack",
+                    "action":"reanalyse:{global.gui_frame}",
+                    "fill":[50,50,50],
+                    "line":[75,75,75],
+                    "color":[225,225,225],
+                    "font":{"size":0.6,"align":"center"},
+                    "size":[100,25]
+                },
+                { 
+                    "type":"list",
+                    "size":[20,25],
+                    "list_size":[200,300],
+                    "fill":"{if:{hovered}:[150,150,150]:[25,25,25]}",
+                    "foldable":true,
+                    "folded":true,
+                    "text":"<sym>⯆</sym>☰",
+                    "item_padding":[5,1],
+                    "item_font":{"size":0.6},
+                    "label_font":{"size":0.6},
+                    "items":[
+                        {
+                            "text":"<sym>🗁</sym> Open other",
+                            "detail":"opens another video",
+                            "action":"change_scene:'starting-scene'",
+                            "disabled":false
+                        },
+                        {
+                            "text":"<sym>📤</sym> Load",
+                            "detail":"loads existing .results file",
+                            "action":"load_results"
+                        },
+                        {
+                            "text":"<sym>📥</sym> Save",
+                            "detail":"save current state to a .results file",
+                            "action":"save_results"
+                        },
+                        {
+                            "text":"<sym>🖫</sym> Export",
+                            "detail":"exports tracking data",
+                            "action":"export_data"
+                        },
+                        {
+                            "text":"<sym>👽👁🐈</sym> Apply Identities",
+                            "detail":"applies VI or TAG information",
+                            "action":"auto_correct"
+                        },
+                        {
+                            "text":"<sym>⏻</sym> Quit",
+                            "detail":"exits the application",
+                            "action":"set:terminate:true"
+                        }
+                    ]
+                }
+            ]
+        },
+
+        {
+            "type":"condition",
+            "var":"{hovered:info_symbol}",
+            "then":{
+                "type":"hlayout",
+                "pos":"{mulVector:{window_size}:0.5}",
+                "origin":[0.5,0.5],
+                "fill": [25,25,25,200],
+                "pad":[10,10,10,10],
+                "children":[
+                    {
+                        "type":"stext",
+                        "max_size":"[{min:750:{-:{window_size.x}:100}},{-:{window_size.y}:100}]",
+                        "text":"<b>{basename:{global.source}}</b>\n{#global.video_info}"
+                    }
+                ]
+            },
+            "else":{ "type":"rect", "size":[0,0]}
         },
         
         {
@@ -66,6 +164,14 @@
                                 "color":"{if:{global.analysis_paused}:[30,80,30,100]:[200,120,80,100]}"
                             }
                         },
+                        {
+                            "type":"stext",
+                            "clickable":true,
+                            "name":"info_symbol",
+                            "text":"<sym>🛈</sym>",
+                            "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
+                            "pad":[-5,0,0,7.5]
+                        },
                         
                         {
                             "type": "stext",
@@ -78,6 +184,8 @@
                 },
                 {
                     "type":"collection",
+                    "name":"timeline",
+                    "clickable":true,
                     "children":[
                         {
                             "type": "rect",
@@ -158,53 +266,6 @@
         },
 
         {
-            "type":"condition",
-            "var":"{key.lctrl}",
-            "then":{ 
-                "type":"collection",
-                "children":[
-                    {
-                        "type":"button",
-                        "text":"Test",
-                        "pos":[300,100],
-                        "size":[100,40],
-                        "action":"change_scene:'starting-scene'"
-                    },
-                    {
-                        "type":"settings",
-                        "var":"gui_frame",
-                        "size":[100,40],
-                        "pos":[300,150],
-                        "fill":[50,50,50]
-                    },
-                    {
-                        "type":"settings",
-                        "var":"video_length",
-                        "size":[100,40],
-                        "pos":[300,200],
-                        "fill":[50,50,50]
-                    },
-
-                    {
-                        "type":"vlayout",
-                        "children":[
-                            {
-                                "type":"each",
-                                "var":"consec",
-                                "do": {
-                                    "type": "stext",
-                                    "text": "{i.start}-{i.end}",
-                                    "color":[255,255,255,255]
-                                }
-                            }
-                        ]
-                    }
-                ]
-            },
-            "else":{ "type":"rect", "size":[0,0] }
-        },
-        
-        {
             "type":"hlayout",
             "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
             "origin":[0,1],
@@ -212,14 +273,16 @@
             "children":[
                 {
                     "type":"list",
-                    "pos":[0,0],
-                    "size":[150,140],
-                    "fill":[50,50,50],
+                    "size":[90,40],
+                    "clickable":true,
+                    "list_size":[200,200],
+                    "fill":"{if:{hovered}:[150,150,150]:[25,25,25]}",
                     "foldable":true,
                     "folded":true,
-                    "text":"display",
-                    "item_height":1,
-                    "font":{"size":0.6},
+                    "text":"<sym>💻</sym> display",
+                    "item_padding":[5,1],
+                    "item_font":{"size":0.6},
+                    "label_font":{"size":0.6},
                     "items":[
                         {
                             "text":"selections",

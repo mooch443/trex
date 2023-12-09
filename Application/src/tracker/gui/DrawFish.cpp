@@ -286,8 +286,13 @@ Fish::~Fish() {
         _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f, frameIndex);
         if (not _skelett) {
             _skelett = std::make_unique<Skelett>();
-            _skelett->set_color(_color);
         }
+        if(frameIndex == _safe_frame)
+            _skelett->set_color(_color.alpha(150));
+        else
+            _skelett->set_color(Gray.alpha(100));
+        _skelett->set_name(Meta::toStr(_id.color()));
+        
         _skelett->set_pose(_average_pose);
         _skelett->set_skeleton(GUI_SETTINGS(meta_skeleton));
 
@@ -836,7 +841,7 @@ Fish::~Fish() {
                 pos = pos * radius + c_pos;
             
                 _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
-                _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(pos), LineClr{ circle_clr });
+                _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
             
                 if(FAST_SETTING(posture_direction_smoothing)) {
                     std::map<Frame_t, float> angles;
@@ -1096,22 +1101,6 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
         //const float max_speed = FAST_SETTING(track_max_speed);
         const float thickness = GUIOPTION(gui_outline_thickness);
         
-        /*auto clr = base_color.alpha(255);
-        if(!Graph::is_invalid(_library_y)) {
-            const auto single_identity = GUIOPTION(gui_single_identity_color);
-            auto percent = min(1.f, cmn::abs(_library_y));
-            if(single_identity.a != 0) {
-                clr = single_identity;
-            }
-            
-            clr = clr.alpha(255) * percent + Color(50, 50, 50, 255) * (1 - percent);
-            _previous_color = clr;
-        } else {
-            clr = _previous_color;
-        }
-        auto inactive_clr = clr.saturation(0.5);
-        Color use = clr;*/
-        
         ///TODO: could try to replace vertices 1by1 and get "did change" for free, before we even
         ///      try to update the object.
         const float max_distance = SQR(Individual::weird_distance() * 0.1 / slow::cm_per_pixel);
@@ -1175,101 +1164,6 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
         }
         if(paths_index + 1 < _paths.size())
             _paths.resize(paths_index + 1);
-
-            //window.line(vertices, 2.0f);
-        
-        /*auto last = _obj.find_frame(to)->centroid->pos(Units::PX_AND_SECONDS) + offset;
-        int count = 0;
-        
-        const float max_speed = SETTING(track_max_speed);
-        vertices.clear();
-        
-        long_t lastframe = to;
-        from = max(to-max_frames, from);
-        
-        std::vector<Drawable*> events;
-        
-        const bool timeline_visible = GUI::instance() && GUI::instance()->timeline().visible();
-        const float max_color = timeline_visible ? 255 : SETTING(gui_faded_brightness).value<uchar>();
-        const Font font(1 / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5)) * 0.7, Align::Center);
-        
-        // make it so that max_frames is actually the number of frames available
-        // even if more could be displayed.
-        if(max_frames != -1)
-            max_frames = min(max_frames, max(1, to - from + 1));
-        
-        MotionRecord* prev_centroid = NULL;
-        for (long_t i=to; i>=from; i--) {
-            // draw lines between previous locations
-            auto c = _obj.centroid_weighted(i);
-            if (c) {
-                auto pos = c->pos(Units::PX_AND_SECONDS) + offset;
-                auto clr = _obj.identity().color().alpha(255);
-                
-                float percent = c->speed(Units::CM_AND_SECONDS) / max_speed * 7;
-                percent = min(1.f, percent) * 0.8;
-                
-                //if (cmn::abs(lastframe - i) > 1)
-                //    clr = Transparent;
-                //else
-                    clr = clr * (1.0 - percent) + White * percent;
-                
-                float fade = (i - from) + 1;
-                if(max_frames != -1) {
-                    fade = min(float(max_frames), fade) / float(max_frames);
-                } else {
-                    fade /= float(max(1, to - from + 1));
-                }
-                
-                if(_events) {
-                    auto it = _events->events.find(i);
-                    if(it != _events->events.end()) {
-                        events.push_back(new Circle(pos, 1, White.alpha(0.7 * max_color * fade)));
-                    }
-                }
-                
-                if(_obj.is_manual_match(i) && SETTING(gui_show_manual_matches)) {
-                    auto blob = _obj.compressed_blob(i);
-                    events.push_back(new Circle(pos, 3, Transparent, _obj.identity().color().alpha(fade * max_color)));
-                    events.push_back(new Text(Meta::toStr(_obj.identity().ID())+"="+Meta::toStr(blob ? blob->blob_id() : -1), pos, _obj.identity().color().alpha(fade * max_color), font, window.scale().reciprocal()));
-                }
-                
-                //float distance = euclidean_distance(pos * FAST_SETTING(cm_per_pixel), vertices.back().position() * FAST_SETTING(cm_per_pixel));
-                if(!vertices.empty() && (!prev_centroid || prev_centroid->time() - c->time() >= FAST_SETTING(track_max_reassign_time) * 0.5))
-                {
-                    if(vertices.size() > 1)
-                        window.line(vertices, 2.0f);
-                    vertices.clear();
-                }
-                
-                Color clr0 = clr.alpha(fade * max_color);
-                vertices.push_back(Vertex(pos, clr0));
-                //cv::circle(target, pos, 1, clr * (1.0 - percent) + original * percent, -1);
-                //cv::line(target, last, pos, clr * (1.0 - percent) + original * percent);
-                last = pos;
-                
-                lastframe = i;
-                count++;
-                
-                prev_centroid = c;
-            }
-            
-            if (max_frames != -1 && count >= max_frames) {
-                break;
-            }
-        }
-        
-        if(vertices.size() > 1)
-            window.line(vertices, 2.0f);
-        
-        for(auto c : events) {
-            if(c->type() == Type::CIRCLE)
-                window.add_object((Circle*)c);
-            else if(c->type() == Type::TEXT)
-                window.add_object((Text*)c);
-            else
-                throw U_EXCEPTION("Unknown type.");
-        }*/
     }
     
     void Fish::update_recognition_circle() {
@@ -1416,18 +1310,27 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
 #endif
     
     auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
-    if(_basic_stuff.has_value()) {
-        if (!_label) {
-            _label = new Label(label_text, _basic_stuff->blob.calculate_bounds(), fish_pos());
-        }
-        else
-            _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), fish_pos());
+    if(not _basic_stuff.has_value())
+        return;
+    
+    auto pos = fish_pos();
+    if(not _average_pose.empty()) {
+        pos = _average_pose.points.front();
     }
+    
+    if (!_label) {
+        _label = new Label(label_text, _basic_stuff->blob.calculate_bounds(), pos);
+    }
+    else
+        _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), pos);
 
     //print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
+    
     e.advance_wrap(*_label);
-    _label->set_line_color(_color);
-    _label->update(coord, 1, 0, not _basic_stuff.has_value(), GUICache::instance().dt());
+    
+    auto disabled = _frame != _safe_frame;
+    _label->set_line_color(disabled ? Gray.alpha(150) : _color);
+    _label->update(coord, 1, 0, disabled, GUICache::instance().dt());
 }
 
 Drawable* Fish::shadow() {

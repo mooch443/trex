@@ -300,13 +300,15 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .export_values();
 
     py::class_<ModelConfig>(m, "ModelConfig")
-        .def(py::init<ModelTaskType, std::string, int, int, int>(),
+        .def(py::init<ModelTaskType, bool, std::string, int, int, int>(),
             py::arg("task"),
+            py::arg("use_tracking"),
             py::arg("model_path"),
             py::arg("trained_resolution") = 640,
             py::arg("min_image_size") = -1,
             py::arg("max_image_size") = -1)
         .def_readwrite("task", &ModelConfig::task)
+        .def_readonly("use_tracking", &ModelConfig::use_tracking)
         .def_readonly("model_path", &ModelConfig::model_path)
         .def_readonly("trained_resolution", &ModelConfig::trained_resolution)
         .def_readonly("min_image_size", &ModelConfig::min_image_size)

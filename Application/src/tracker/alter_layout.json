@@ -15,7 +15,7 @@
 							"type":"rect",
 							"pos":"{i.pos}",
 							"size":"{i.size}",
-							"fill":[0,255,0,30],
+							"fill":"{if:{hovered}:[0,255,0,30]:[255,255,0,30]}",
 							"line":"{i.color}",
 							"origin":[0,0],
 							"clickable":true,
@@ -160,6 +160,7 @@
 				"fill":[50,50,50],
 				"line":[75,75,75],
 				"size":[400,40],
+				"list_size":[400,200],
 				"color":[225,225,225],
 				"desc":"",
 				"highlight_clr":[75,75,75,255]

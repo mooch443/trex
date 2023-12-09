@@ -42,7 +42,7 @@ namespace gui {
                         Scale sca(Scale{ coord.bowl_scale().reciprocal() });
                         Font font(0.35);
 
-                        add<Line>(p0, p1, LineClr{ _color.exposureHSL(0.5) }, Line::Thickness_t{ 3 });
+                        add<Line>(p0, p1, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                         add<Text>(
                             Str(c.name),
                             Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
@@ -64,7 +64,7 @@ namespace gui {
                     add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{ 0.35 });
 
                     if (last.x > 0 && last.y > 0)
-                        add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposureHSL(0.5) }, Line::Thickness_t{ 3 });
+                        add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                     last = bone;
                 }
                 ++i;

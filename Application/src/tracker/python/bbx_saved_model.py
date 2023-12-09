@@ -346,7 +346,7 @@ def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     return coords
 
 class Model:
-    def __init__(self, config, use_tracking = False):
+    def __init__(self, config):
         """
         Initializes a Model object.
 
@@ -356,7 +356,6 @@ class Model:
         assert isinstance(config, TRex.ModelConfig)
         self.config = config
         self.ptr = None
-        self.use_tracking = use_tracking
 
         # if no device is specified, use cuda if available, otherwise use mps/cpu
         self.device = eval(TRex.setting("gpu_torch_device"))
@@ -411,7 +410,7 @@ class Model:
         if len(images) == 0:
             return []
         
-        if self.use_tracking:
+        if self.config.use_tracking:
             results = []
             for image in images:
                 results.append(self.ptr.track(image, persist=True, device=self.device, **kwargs)[0])

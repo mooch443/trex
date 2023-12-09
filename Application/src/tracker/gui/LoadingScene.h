@@ -239,7 +239,7 @@ public:
                 _on_open(_confirmed_file);
             });
 
-        _list->set_font(gui::Font(0.6f, gui::Align::Left));
+        _list->set(ItemFont_t(0.6f, gui::Align::Left));
 
         //update_size();
     }
