@@ -449,7 +449,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 //offset.x = offset.x + 5 - int(offset.x) % 5;
             }
 
-            offset.x += base.line(Line::Point_t{ (offset + Vec2(0, 0.5)).mul(scale) }, Line::Point_t{ (offset + Vec2(10, 0.5)).mul(scale) }, LineClr{ Gray }, Scale{ scale })->width() + 5;
+            offset.x += base.line(Line::Vertices_t{ {(offset + Vec2(0, 0.5)).mul(scale), Gray }, { (offset + Vec2(10, 0.5)).mul(scale), Gray }})->width() + 5;
             offset.x += (shadowed_text(offset, dec<2>(_grabber.fps().load()).toStr(), Cyan)) + 2;
             offset.x += shadowed_text(offset, "fps", text_color);
 
@@ -482,7 +482,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     continue;
                     
                 } else if(offset.x > 25) {
-                    offset.x += base.line(Line::Point_t{ (offset + Vec2(0, 0.5)).mul(scale) }, Line::Point_t{ (offset + Vec2(5, 0.5)).mul(scale) }, LineClr{ Gray }, Scale{ scale })->width() + 5;
+                    offset.x += base.line(Line::Vertices_t{ {(offset + Vec2(0, 0.5)).mul(scale), Gray}, { (offset + Vec2(5, 0.5)).mul(scale), Gray }}, Scale{ scale })->width() + 5;
                 }
                 
                 offset.x += shadowed_text(offset, values[i], darker ? (text_color.r < 100 ? Color(70,70,70,255) : text_color.exposure(0.8)) :text_color, 0.5, false) + 5;
