@@ -142,7 +142,7 @@
 			{
 				"type":"stext",
 				"font":{"size":0.5},
-				"none":"📤🌩🗬🗎🛈▶⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
+				"none":"📤🌩🗬🗎🛈▶🛠⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
 				"text":"<c>{shorten:{filename:{global.model}}:35}</c><sym> 🞙</sym> {global.detection_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 			}
 		]

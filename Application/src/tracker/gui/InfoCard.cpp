@@ -251,7 +251,7 @@ void InfoCard::update() {
                     size_t i=0;
                     while (bitset != 0) {
                         auto t = bitset & -bitset;
-                        int r = __builtin_ctz(bitset);
+                        int r = __builtin_ctz32(bitset);
                         if(size_t(r + 1) >= ReasonsNames.size())
                             tt += std::string(i > 0 ? "," : "")+" <key>invalid-key</key>";
                         else
