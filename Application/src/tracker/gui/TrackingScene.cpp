@@ -435,6 +435,8 @@ void TrackingScene::init_video() {
     //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     
     auto&cmd = CommandLine::instance();

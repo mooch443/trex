@@ -222,7 +222,7 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         if(GUI_SETTINGS(gui_mode) != gui::mode_t::tracking)
             return;
         
-        if(SETTING(gui_show_heatmap)) {
+        if(GUI_SETTINGS(gui_show_heatmap)) {
             if(!_heatmapController)
                 _heatmapController = new gui::heatmap::HeatmapController;
             _heatmapController->set_frame(frame);
@@ -233,7 +233,18 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
             if (_cache->has_selection()
                 && GUI_SETTINGS(gui_show_visualfield))
             {
-                _vf_widget->update(frame, coord, _cache->active);
+                {
+                    LockGuard guard(ro_t{}, "visual_field", 10);
+                    set_of_individuals_t s;
+                    for(auto idx : _cache->selected) {
+                        if(auto it = _cache->individuals.find(idx);
+                           it != _cache->individuals.end())
+                        {
+                            s.insert(it->second);
+                        }
+                    }
+                    _vf_widget->update(frame, coord, s);
+                }
                 advance_wrap(*_vf_widget);
             }
 
