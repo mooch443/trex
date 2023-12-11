@@ -14,7 +14,8 @@
     "timeline_start":"[{+:10:{*:{/:{analysis_range.start}:{length}}:{width}}},-10]",
     "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
 
-    "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}"
+    "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}",
+    "number_individuals":"{.active_individuals:{smart_highlighted}}"
 }
 },
 "objects": [
@@ -446,7 +447,7 @@
                     {
                         "type":"stext",
                         "pad":[5,5,5,5],
-                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no segment</i>'}\n{active_individuals:{smart_highlighted}} {global.individual_prefix}",
+                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no segment</i>'}\n{if:{number_individuals}:'{number_individuals} {global.individual_prefix}':''}",
                         "font":{"size":0.6}
                     }
                 ]

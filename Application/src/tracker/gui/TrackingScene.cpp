@@ -254,6 +254,11 @@ bool TrackingScene::on_global_event(Event event) {
             case Keyboard::T:
                 SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
                 break;
+            case Keyboard::Comma:
+                WorkProgress::add_queue("Pausing...", [this](){
+                    _data->analysis.set_paused(not _data->analysis.paused()).get();
+                });
+                break;
             case Keyboard::S:
                 WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks("", {}, {}); });
                 break;
