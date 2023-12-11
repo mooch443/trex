@@ -1,12 +1,15 @@
 #include "Bowl.h"
 #include <gui/GUICache.h>
 #include <gui/DrawFish.h>
+#include <gui/IdentityHeatmap.h>
+#include <gui/VisualFieldWidget.h>
+#include <gui/IdentityHeatmap.h>
 
 using namespace track;
 
 namespace gui {
 
-Bowl::Bowl(GUICache* cache) : _cache(cache) {
+Bowl::Bowl(GUICache* cache) : _cache(cache), _vf_widget(new VisualFieldWidget) {
     _current_scale = Vec2(1.0f, 1.0f);
     _target_scale = Vec2(1.0f, 1.0f);
     _current_pos = Vec2(0.0f, 0.0f);
@@ -16,6 +19,13 @@ Bowl::Bowl(GUICache* cache) : _cache(cache) {
     _screen_size = Vec2(0.0f, 0.0f);
     _center_of_screen = Vec2(0.0f, 0.0f);
     _timer.reset();
+}
+
+Bowl::~Bowl() {
+    if(_vf_widget)
+        delete _vf_widget;
+    if(_heatmapController)
+        delete _heatmapController;
 }
 
 bool Bowl::has_target_points_changed(const std::vector<Vec2>& new_target_points) const {
@@ -212,12 +222,19 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         if(GUI_SETTINGS(gui_mode) != gui::mode_t::tracking)
             return;
         
+        if(SETTING(gui_show_heatmap)) {
+            if(!_heatmapController)
+                _heatmapController = new gui::heatmap::HeatmapController;
+            _heatmapController->set_frame(frame);
+            advance_wrap(*_heatmapController);
+        }
+        
         if (_cache) {
             if (_cache->has_selection()
                 && GUI_SETTINGS(gui_show_visualfield))
             {
-                _vf_widget.update(frame, coord, _cache->active);
-                advance_wrap(_vf_widget);
+                _vf_widget->update(frame, coord, _cache->active);
+                advance_wrap(*_vf_widget);
             }
 
             std::scoped_lock guard(_cache->_fish_map_mutex);

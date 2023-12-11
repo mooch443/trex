@@ -3,7 +3,6 @@
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <gui/types/ListItemTypes.h>
-#include <nlohmann/json.hpp>
 #include <misc/RecentItems.h>
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
@@ -16,11 +15,8 @@
 #include <misc/OutputLibrary.h>
 #include <tracking/Categorize.h>
 #include <gui/CheckUpdates.h>
-#include <gui/DrawFish.h>
-#include <tracking/VisualField.h>
 #include <gui/WorkProgress.h>
 #include <gui/DrawBlobView.h>
-#include <gui/Label.h>
 #include <misc/Output.h>
 #include <tracking/Export.h>
 #include <misc/IdentifiedTag.h>
@@ -732,7 +728,6 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
         _data->_bowl->set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
         _data->_bowl->fit_to_screen(window_size);
-        _data->_vf_widget = std::make_unique<VisualFieldWidget>();
         
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
             tracker::gui::clicked_background(graph, *_data->_cache, pos, v, key);
@@ -885,7 +880,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_background->set_scale(_data->_bowl->scale());
         _data->_background->set_pos(_data->_bowl->pos());
     }
-
+    
     //if(GUI_SETTINGS(gui_mode) == mode_t::tracking)
     {
         graph.wrap_object(*_data->_bowl);
@@ -901,8 +896,6 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl.auto_size({});
     //_data->_bowl->set(LineClr{Cyan});
     //_data->_bowl.set(FillClr{Yellow});
-    
-    
     
     if(GUI_SETTINGS(gui_mode) == mode_t::blobs) {
         tracker::gui::draw_blob_view({
@@ -1045,6 +1038,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                     auto frame = Meta::fromStr<Frame_t>(action.first());
                     _data->tracker._remove_frames(frame);
                 }
+                _data->analysis.set_paused(false);
             }),
             ActionFunc("load_results", [this](Action){
                 load_state(Output::TrackingResults::expected_filename());
@@ -1082,6 +1076,19 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                     }
                 }
                 throw InvalidArgumentException("No frame range contains ", frame," for ", props);
+            }),
+            VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
+                if(props.parameters.size() != 1)
+                    throw std::invalid_argument("Need exactly one argument for "+props.toStr());
+                
+                auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
+                {
+                    LockGuard guard(ro_t{}, "active");
+                    if(_data->tracker.properties(frame))
+                        return Tracker::active_individuals(frame).size();
+                }
+                
+                throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
             }),
             VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                 return window_size;

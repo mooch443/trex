@@ -1,6 +1,5 @@
 #pragma once
 #include <commons.pc.h>
-#include <nlohmann/json.hpp>
 #include <gui/types/ScrollableList.h>
 #include <misc/SpriteMap.h>
 #include <gui/types/ListItemTypes.h>

@@ -139,13 +139,13 @@ class TrackingScene : public Scene {
         std::queue<std::unique_ptr<track::PPFrame>> unused;
         
         std::unique_ptr<GUICache> _cache;
-        std::unique_ptr<VisualFieldWidget> _vf_widget;
         
         std::unique_ptr<Bowl> _bowl;
         std::unordered_map<Idx_t, Bounds> _last_bounds;
         
         std::unique_ptr<AnimatedBackground> _background;
         std::unique_ptr<ExternalImage> _gui_mask;
+        
         std::function<void(Vec2, bool, std::string)> _clicked_background;
         double _time_since_last_frame{0};
 

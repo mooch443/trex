@@ -1,0 +1,234 @@
+{ "defaults": {
+    "font": {
+        "size": 0.75,
+        "align": "left"
+    },
+    "color":[225,225,225,255],
+    "highlight_clr":[50,50,75],
+    "window_color":[10,10,10]
+  },
+  "objects":[{
+    "type":"vlayout",
+    "align":"left",
+    "pad":[30,10,10,10],
+    "children":[
+        { "type":"stext",
+          "pad":[0,10,0,0],
+          "text":"<h2>Segmentation Settings</h2>Please choose how you want to process the video you provided.", 
+          "font":{ "size":0.8 }
+        },
+        {
+            "type":"gridlayout",
+            "vertical_clr":[0,0,0,50],
+            "pad":[5,5,5,5],
+            "clickable":true,
+            "halign":"left",
+            "valign":"top",
+            "children":[
+                [
+                    {
+                        "type":"text",
+                        "text":"source",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"source",
+                        "font":{"size":0.75},
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[850,40],
+                        "list_size":[850,200],
+                        "desc":"",
+                        "preview":{
+                            "font":{"size":0.5},
+                            "color":[125,125,125,125],
+                            "max_size":[850,80]
+                        }
+                    }
+                ],
+
+                [
+                    {
+                        "type":"text",
+                        "text":"target",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_dir",
+                        "list_size":[850,200],
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[850,40],
+                        "desc":""
+                    }
+                ],
+
+                [
+                    [],
+                    {
+                        "type":"settings",
+                        "var":"track_background_subtraction",
+                        "invert":true,
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[200,40],
+                        "pad":[0,0,10,0],
+                        "desc":"Use machine learning to detect animals"
+                    }
+                ],
+
+                [
+                    {
+                        "type":"text",
+                        "text":"{if:{global.track_background_subtraction}:'averaging':'model'}",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"{if:{global.track_background_subtraction}:'averaging_method':'model'}",
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":"{if:{global.track_background_subtraction}:[250,40]:[850,40]}",
+                        "desc":""
+                    }
+                ],
+
+                [
+                    {
+                        "type":"text",
+                        "text":"{if:{global.track_background_subtraction}:'threshold':'region'}",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"{if:{global.track_background_subtraction}:'threshold':'region_model'}",
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[850,40],
+                        "desc":""
+                    }
+                ],
+
+                [
+                    {
+                        "type":"text",
+                        "text":"#animals",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"track_max_individuals",
+                        "fill":[50,50,50],
+                        "line":[75,75,75],
+                        "size":[850,40],
+                        "desc":""
+                    }
+                ],
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"<b>kinematics</b>",
+                        "pos":[0,11]
+                    },
+                    {
+                        "type":"hlayout",
+                        "pad":[0,0,10,0],
+                        "children":[
+                        { "type":"hlayout",
+                            "pad":[0,0,10,0],
+                            "children":[
+
+                            {
+                                "type":"stext",
+                                "text":"max speed (cm/s)",
+                                "pos":[0,0]
+                            },
+                            {
+                                "type":"settings",
+                                "var":"track_max_speed",
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[200,45],
+                                "desc":""
+                            },
+                            {
+                                "type":"stext",
+                                "text":"conversion\n(cm/pixel)",
+                                "pos":[0,0]
+                            },
+                            {
+                                "type":"settings",
+                                "var":"cm_per_pixel",
+                                "fill":[50,50,50],
+                                "line":[75,75,75],
+                                "size":[200,45],
+                                "desc":""
+                            },
+                            {
+                                "type":"button",
+                                "text":"Calibrate",
+                                "fill":[50,90,50],
+                                "size":[150,45],
+                                "action":"calibrate"
+                            }
+                            ]
+                        }]
+                    }
+                ]
+            ]
+        },
+        
+        {
+            "type":"stext",
+            "max_size":[850,200],
+            "fade_out":1.0,
+            "color":[250,250,250],
+            "pad":[3,3,3,3],
+            "text":"<h2>Advanced Settings</h2>{#settings_summary}\ndetect_iou_threshold={#global.detect_iou_threshold} detect_conf_threshold={#global.detect_conf_threshold}\ntrack_threshold={#global.track_threshold} averaging_method={#global.averaging_method} track_posture_threshold={#global.track_posture_threshold}\ntrack_background_subtraction={#global.track_background_subtraction}\nmodel=<str>{global.model}</str>\nregion_model=<str>{global.region_model}</str>",
+            "font":{ "size":0.8 }
+        },
+        {
+            "type":"hlayout",
+            "align":"center",
+            "pad":[5,0,5,0],
+            "children":[
+                {
+                    "type":"settings",
+                    "var":"",
+                    "font":{"size":0.75,"align":"center"},
+                    "fill":[50,50,50],
+                    "line":[75,75,75],
+                    "size":[600,40],
+                    "color":[225,225,225],
+                    "desc":"",
+                    "highlight_clr":[75,75,75,255]
+                },
+                {
+                    "type":"button",
+                    "text":"< Back",
+                    "fill":[50,50,50],
+                    "size":[150,40],
+                    "font":{
+                        "align":"center",
+                        "size":0.65
+                    },
+                    "action": "go-back"
+                },
+                {
+                    "type":"button",
+                    "text":"Next >",
+                    "fill":[50,50,50],
+                    "size":[150,40],
+                    "font":{
+                        "align":"center",
+                        "size":0.65
+                    },
+                    "action": "convert"
+                }
+            ]
+        }
+  ]}
+]}

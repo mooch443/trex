@@ -37,6 +37,7 @@
 #include <gui/ConvertScene.h>
 #include <gui/StartingScene.h>
 #include <gui/SettingsScene.h>
+#include <gui/TrackingSettingsScene.h>
 #include <gui/TrackingScene.h>
 #include <gui/AnnotationScene.h>
 
@@ -80,7 +81,7 @@ namespace ind = indicators;
 void launch_gui() {
     IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
-        graph.draw_log_messages(Bounds(graph.dialog_window_size()));
+        graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
     }, [](auto&, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
@@ -146,6 +147,8 @@ void launch_gui() {
     
     SettingsScene settings_scene{ base };
     manager.register_scene(&settings_scene);
+    TrackingSettingsScene tsettings_scene{ base };
+    manager.register_scene(&tsettings_scene);
     
     AnnotationScene annotations{base};
     manager.register_scene(&annotations);

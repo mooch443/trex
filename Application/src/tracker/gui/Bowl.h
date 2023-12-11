@@ -1,21 +1,28 @@
 #pragma once
 
 #include <gui/types/Entangled.h>
-#include <gui/VisualFieldWidget.h>
 #include <gui/Coordinates.h>
 #include <misc/Timer.h>
 
 namespace gui {
+class VisualFieldWidget;
+namespace heatmap {
+class HeatmapController;
+}
 
 class GUICache;
 
 class Bowl : public Entangled {
-    GUICache* _cache;
-    VisualFieldWidget _vf_widget;
+    GUICache* _cache{nullptr};
+    VisualFieldWidget* _vf_widget{nullptr};
     Frame_t _last_frame;
+    
+    //! The heatmap controller.
+    gui::heatmap::HeatmapController* _heatmapController{nullptr};
     
 public:
     Bowl(GUICache* cache);
+    ~Bowl();
     void set_video_aspect_ratio(float video_width, float video_height);
     void fit_to_screen(const Vec2& screen_size);
     void set_target_focus(const std::vector<Vec2>& target_points);

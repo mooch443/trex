@@ -39,7 +39,10 @@
             {
                 "type":"list",
                 "var":"recent_items",
-                "list_size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:120}]",
+                "list":{
+                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:120}]",
+                    "fill":[25,25,25,220]
+                },
                 "line":[255,0,0,125],
                 "item_font":{
                     "size":0.75,

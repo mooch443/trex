@@ -6,7 +6,10 @@
     "length":"{-:{global.video_length}:1}",
     "width":"{-:{window_size.x}:20}",
     "width23":"{-:{window_size.x}:22}",
+
     "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
+    "locked_on":"{&&:{<:{{*:{/:{abs:{-:{highlighted_frame}:{global.gui_frame}}}:{length}}:{width23}}}:10}:{not:{key.lalt}}}",
+    "smart_highlighted":"{if:{locked_on}:{global.gui_frame}:{highlighted_frame}}",
 
     "timeline_start":"[{+:10:{*:{/:{analysis_range.start}:{length}}:{width}}},-10]",
     "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
@@ -50,16 +53,16 @@
                 
                 {
                     "type":"hlayout",
-                    "pad":[0,0,0,0],
-                    "line":[175,175,175,150],
+                    "pad":[-1,0,-1,0],
+                    "line":[255,255,255,0],
                     "children":[
                         {
                             "type":"button",
                             "text":"<sym>⭍</sym> tracked",
                             "font":{"size":0.6},
                             "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,200]:[40,40,40,200]}",
-                            "line":[75,75,75,0],
                             "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,200]:[250,250,250,200]}",
+                            "line":[100,100,100,200],
                             "size":[90,30],
                             "action":"set:gui_mode:tracking"
                         },
@@ -70,7 +73,7 @@
                             "font":{"size":0.6},
                             "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,200]:[40,40,40,200]}",
                             "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,200]:[250,250,250,200]}",
-                            "line":[75,75,75,0],
+                            "line":[100,100,100,200],
                             "size":[60,30],
                             "action":"set:gui_mode:blobs"
                         }
@@ -78,22 +81,32 @@
                 },
 
                 {
+                    "type":"button",
+                    "text":"<sym>🗘</sym>",
+                    "font":{"size":0.6},
+                    "size":[30,30],
+                    "action":"reanalyse:{global.gui_frame}",
+                    "fill":[30,30,30,200],
+                    "line":[100,100,100,200],
+                    "color":[250,250,250,200]
+                },
+
+                {
                     "type":"list",
                     "size":[90,30],
                     "clickable":true,
                     "list":{
-                        "size":[200,290],
+                        "size":"[200,{-:{window_size.y}:50}]",
                         "fill":[25,25,25,220],
-                        "line":[200,200,200,250]
+                        "line":[150,150,150,250]
                     },
-                    "line":[200,200,200,250],
+                    "line":[255,255,255,255],
                     "detail_color":[150,150,150,255],
                     "foldable":true,
                     "folded":true,
                     "text":" <sym>🖵</sym> Display",
                     "item_padding":[5,1],
                     "item_font":{"size":0.6},
-                    "item_color":[50,50,50,220],
                     "label_font":{"size":0.6},
                     "items":[
                         {
@@ -163,18 +176,17 @@
                     "type":"list",
                     "size":[70,30],
                     "list":{
-                        "size":[200,290],
+                        "size":"[200,{-:{window_size.y}:50}]",
                         "fill":[25,25,25,220],
-                        "line":[200,200,200,250]
+                        "line":[150,150,150,250]
                     },
-                    "line":[200,200,200,250],
+                    "line":[255,255,255,255],
                     "detail_color":[150,150,150,255],
                     "foldable":true,
                     "folded":true,
                     "text":"<sym>☰ Menu</sym>",
-                    "item_padding":[5,1],
+                    "item_padding":[5,5],
                     "item_font":{"size":0.6},
-                    "item_color":[50,50,50,220],
                     "label_font":{"size":0.75},
                     "items":[
                         {
@@ -198,15 +210,10 @@
                             "action":"auto_correct"
                         },
                         {
-                            "text":"<sym>🗘</sym> Retrack",
-                            "detail":"retrack from {global.gui_frame}",
-                            "action":"reanalyse:{global.gui_frame}"
-                        },
-                        {
                             "text":"<sym>🢤</sym> Close file",
                             "detail":"go back to the starting screen",
                             "action":"change_scene:'starting-scene'",
-                            "disabled":true
+                            "disabled":false
                         },
                         {
                             "text":"<sym>⏻</sym> Quit",
@@ -251,7 +258,7 @@
                         
                         {
                             "type":"condition",
-                            "var":"{equal:{+:1:{length}}:{tracker.end}}",
+                            "var":"{equal:{global.video_length}:{tracker.end}}",
                             "then": {
                                 "type":"rect",
                                 "size":[0,0]
@@ -261,7 +268,8 @@
                                 "action":"set:analysis_paused:{not:{global.analysis_paused}}",
                                 "text":"{if:{global.analysis_paused}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
                                 "size":[15,20],
-                                "pad":[0,-4,0,0],
+                                "pad":[0,-4.5,0,0],
+                                "shadow":0.5,
                                 "font":{"size":0.8},
                                 "fill":[10,0,0,0],
                                 "line":[100,100,100,0],
@@ -274,13 +282,14 @@
                             "clickable":true,
                             "name":"info_symbol",
                             "text":"<sym>🛈</sym>",
+                            "shadow":0.5,
                             "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
                             "pad":[-5,0,0,7.5]
                         },
                         
                         {
                             "type": "stext",
-                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{basename:{global.source}}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{length}:{tracker.end}}:'':{if:{global.analysis_paused}:'(<orange>paused</orange>)':'<i>processing @ <a>{int:{fps}}</a>fps</i>'}}",
+                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{basename:{global.source}}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.analysis_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
                             "font":{ "size":0.65 },
                             "shadow":0.5,
                             "pad":[-5,0,0,7.5]
@@ -412,10 +421,11 @@
         {
             "type":"condition",
             "var":"{||:{hovered:timeline}:{hovered}}",
+            "z-index":1,
             "then":
             {
                 "type":"vlayout",
-                "pos":"[{min:{-:{window_size.x}:55}:{max:58:{mouse.x}}},72]",
+                "pos":"[{min:{-:{window_size.x}:55}:{max:58:{mouse.x}}},69]",
                 "origin":[0.5,0],
                 "clickable":true,
                 "align":"center",
@@ -425,8 +435,8 @@
                     
                     {
                         "type":"button",
-                        "text":"<sym>🗘</sym> from {highlighted_frame}",
-                        "action":"reanalyse:{highlighted_frame}",
+                        "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
+                        "action":"reanalyse:{smart_highlighted}",
                         "fill":[50,50,50],
                         "line":[75,75,75],
                         "color":[225,225,225],
@@ -436,7 +446,7 @@
                     {
                         "type":"stext",
                         "pad":[5,5,5,5],
-                        "text":"{if:{is_segment:{highlighted_frame}}:'<b>{.get_segment:{highlighted_frame}}</b>':'<i>no segment</i>'}",
+                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no segment</i>'}\n{active_individuals:{smart_highlighted}} {global.individual_prefix}",
                         "font":{"size":0.6}
                     }
                 ]

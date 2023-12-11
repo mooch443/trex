@@ -3,7 +3,6 @@
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <gui/types/ListItemTypes.h>
-#include <nlohmann/json.hpp>
 #include <misc/RecentItems.h>
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
@@ -17,6 +16,34 @@ StartingScene::StartingScene(Base& window)
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     print(window.window_dimensions().mul(dpi), " and logo ", _logo_image->size());
+}
+
+file::Path pv_file_path_for(const file::PathArray& array) {
+    file::Path output_file;
+    bool pv_exists = false;
+    
+    if(array.empty()) {
+        // no source file?
+    } else if (auto front = array.get_paths().front();
+                array.size() == 1 /// TODO: not sure how this deals with patterns
+             )
+    {
+        front = front.filename();
+        output_file =
+            not front.has_extension()
+                ? file::DataLocation::parse("output", front.add_extension("pv"))
+                : file::DataLocation::parse("output", front.replace_extension("pv"));
+
+        if (output_file.exists()) {
+            //SETTING(source) = file::PathArray({ output_file });
+            pv_exists = true;
+        }
+        else {
+            //manager.set_active(&converting);
+            output_file = "";
+        }
+    }
+    return output_file;
 }
 
 void StartingScene::activate() {
@@ -36,6 +63,13 @@ void StartingScene::activate() {
         tmp["name"] = detail.name();
         tmp["detail"] = detail.detail();
         tmp["index"] = i;
+        
+        file::PathArray array;
+        if(item._options.has("source"))
+            array = item._options.get<file::PathArray>("source").value();
+        
+        tmp["pv_exists"] = pv_file_path_for(array);
+        
         _data.push_back(std::move(tmp));
         
         _recents_list.emplace_back(new Variable{
@@ -82,6 +116,12 @@ void StartingScene::_draw(DrawStructure& graph) {
                         if (_recents.items().size() > index) {
                             auto& item = _recents.items().at(index);
                             DetailItem details{item};
+                            
+                            file::PathArray array;
+                            if(item._options.has("source"))
+                                array = item._options.get<file::PathArray>("source").value();
+                            
+                            auto path = pv_file_path_for(array);
 
                             for (auto& key : item._options.keys())
                                 item._options[key].get().copy_to(&GlobalSettings::map());

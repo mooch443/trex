@@ -1,4 +1,4 @@
-#include "SettingsScene.h"
+#include "TrackingSettingsScene.h"
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
@@ -8,8 +8,8 @@
 
 namespace gui {
 
-SettingsScene::SettingsScene(Base& window)
-: Scene(window, "settings-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
+TrackingSettingsScene::TrackingSettingsScene(Base& window)
+: Scene(window, "tracking-settings-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
 _preview_image(std::make_shared<ExternalImage>())
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
@@ -32,7 +32,7 @@ _preview_image(std::make_shared<ExternalImage>())
     //_main_layout.set_origin(Vec2(1, 0));
 }
 
-void SettingsScene::activate() {
+void TrackingSettingsScene::activate() {
     // Create a new HorizontalLayout for the buttons
     // Fill the recent items list
     /*auto items = RecentItems::read();
@@ -58,18 +58,18 @@ void SettingsScene::activate() {
     });
 }
 
-void SettingsScene::deactivate() {
+void TrackingSettingsScene::deactivate() {
     // Logic to clear or save state if needed
     //RecentItems::set_select_callback(nullptr);
     dynGUI.clear();
     dyn::Modules::remove("follow");
 }
 
-void SettingsScene::_draw(DrawStructure& graph) {
+void TrackingSettingsScene::_draw(DrawStructure& graph) {
     using namespace dyn;
     if(not dynGUI)
         dynGUI = DynamicGUI{
-            .path = "settings_layout.json",
+            .path = "tracking_settings_layout.json",
             .graph = &graph,
             .context = {
                 ActionFunc("go-back", [](auto){
