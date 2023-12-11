@@ -30,6 +30,7 @@ class LoggerWriter:
         self.logger = logger
         self.level = level
         self.message = ''  # Buffer for messages
+        self.encoding = 'utf-8'
 
     def write(self, message):
         # Buffer the message
