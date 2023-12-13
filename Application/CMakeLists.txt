@@ -33,6 +33,8 @@ option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
 option(WITH_GITSHA1 "include git hash" ON)
+option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" ON)
+option(BUILD_LEGACY_TGRABS "Build the TGrabs (legacy) target" ON)
 
 if(COMMONS_NO_PYTHON)
     set(TREX_NO_PYTHON ON)
