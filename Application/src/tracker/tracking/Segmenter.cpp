@@ -177,6 +177,8 @@ void Segmenter::open_video() {
     print("source = ", SETTING(source).value<file::PathArray>());
     print("output = ", SETTING(filename).value<file::Path>());
     print("video_base = ", video_base.base());
+    print("length = ", video_base.length());
+    print("frame_rate = ", video_base.framerate());
 
     setDefaultSettings();
     _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
@@ -759,5 +761,15 @@ void Segmenter::printDebugInformation() {
     print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
 }
 
+std::optional<std::string_view> Segmenter::video_recovered_error() const {
+    std::unique_lock vlock(_mutex_video);
+    if(not _overlayed_video)
+        return std::nullopt;
+    auto e = _overlayed_video->source()->recovered_errors();
+    if(not e.empty()) {
+        return *e.begin();
+    }
+    return std::nullopt;
+}
 
 }

@@ -68,6 +68,7 @@ public:
     bool is_finite() const;
     file::Path output_file_name() const;
     void force_stop();
+    std::optional<std::string_view> video_recovered_error() const;
     
     std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
     

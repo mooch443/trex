@@ -79,4 +79,6 @@ public:
     
     virtual std::string toStr() const;
     static std::string class_name();
+    
+    virtual std::set<std::string_view> recovered_errors() const { return {}; }
 };

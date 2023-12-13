@@ -121,7 +121,7 @@
 					},
 					{
 						"type":"stext", 
-						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detection_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detection_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{video_error}:'\n<str>{video_error}</str>':''}", 
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					},
 					{

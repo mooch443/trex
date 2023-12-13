@@ -67,3 +67,7 @@ std::string VideoSourceVideoSource::toStr() const {
 uint8_t VideoSourceVideoSource::channels() const {
 	return source.colors() == ImageMode::GRAY ? 1 : 3;
 }
+
+std::set<std::string_view> VideoSourceVideoSource::recovered_errors() const {
+    return source.recovered_errors();
+}

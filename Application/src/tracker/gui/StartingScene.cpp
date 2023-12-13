@@ -127,7 +127,11 @@ void StartingScene::_draw(DrawStructure& graph) {
                                 item._options[key].get().copy_to(&GlobalSettings::map());
 
                             CommandLine::instance().load_settings();
-                            SceneManager::getInstance().set_active("settings-scene");
+                            
+                            if(not path.empty())
+                                SceneManager::getInstance().set_active("tracking-settings-scene");
+                            else
+                                SceneManager::getInstance().set_active("settings-scene");
                         }
                     }),
                     ActionFunc("open_file", [](auto) {

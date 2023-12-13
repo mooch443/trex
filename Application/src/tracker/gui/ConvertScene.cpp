@@ -547,7 +547,7 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             else
                 SceneManager::getInstance().set_active("starting-scene");
         }),
-        ActionFunc("set", [this](const Action& action) {
+        ActionFunc("set", [](const Action& action) {
             auto name = action.parameters.at(0);
             auto value = action.parameters.at(1);
             if (GlobalSettings::has(name)) {
@@ -614,6 +614,13 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         }),
         VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
             return _untracked_gui;
+        }),
+        VarFunc("video_error", [this](const VarProps&) -> std::string {
+            auto e = _segmenter->video_recovered_error();
+            if(not e.has_value()) {
+                return "";
+            }
+            return (std::string)e.value();
         })
     };
 
