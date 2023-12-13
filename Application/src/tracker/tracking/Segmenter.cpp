@@ -473,11 +473,17 @@ void Segmenter::generator_thread() {
                 // images
                 Detection::manager().set_weight_limit(1);
 
-                if (_overlayed_video->eof()) {
+                if (_overlayed_video->eof())
+                {
 					thread_print("TM EOF: ", result.error());
 					//_next_frame_data = {};
 					//_cv_ready_for_tracking.notify_one();
 					ThreadManager::getInstance().notify(_tracker_group_id);
+                    
+                    if(_output_file && _output_file->length() == 0_f && not _next_frame_data && not items.empty()) {
+                        if(error_callback)
+                            error_callback("Cannot generate results: EOF before anything was written.");
+                    }
 					return;
 				}
                 //_overlayed_video->reset(0_f);
@@ -689,6 +695,7 @@ void Segmenter::tracking_thread() {
                 && _overlayed_video->eof())
             )
         {
+            print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
             if (eof_callback) {
                 eof_callback();
                 eof_callback = nullptr;

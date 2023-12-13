@@ -176,7 +176,23 @@ ENUM_CLASS_DOCS(meta_encoding_t,
         CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", STARTUP);
         CONFIG("meta_video_size", Size2(), "Resolution of the original video.", STARTUP);
         CONFIG("meta_video_scale", float(1), "Scale applied to the original video / footage.", STARTUP);
-        CONFIG("meta_classes", std::vector<std::string>{}, "Class names for object classification in video during conversion.");
+        
+        static const auto meta_classes = std::vector<std::string>{
+            "person", "bicycle", "car", "motorcycle", "airplane",
+            "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
+            "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse",
+            "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+            "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard",
+            "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork",
+            "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+            "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+            "couch", "potted plant", "bed", "dining table", "toilet", "tv",
+            "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave",
+            "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
+            "scissors", "teddy bear", "hair drier", "toothbrush"
+        };
+        CONFIG("meta_classes", meta_classes, "Class names for object classification in video during conversion.");
         CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", STARTUP);
         
         CONFIG("mask_path", Path(""), "Path to a video file containing a mask to be applied to the video while recording. Only works for conversions.");

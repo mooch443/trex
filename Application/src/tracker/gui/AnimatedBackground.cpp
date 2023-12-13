@@ -35,16 +35,16 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             FormatExcept("Failed to load metadata from: ", metadata);
         }
 
-        if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.get<std::string>("meta_source_path").value()))
+        if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
             && combined.map.has("meta_video_scale"))
         {
-            _source_scale = combined.map.get<float>("meta_video_scale");
+            _source_scale = combined.map.at("meta_video_scale").value<float>();
         }
 
         if (meta_source_path.empty()
             && combined.map.has("meta_source_path"))
         {
-            meta_source_path = combined.map.get<std::string>("meta_source_path").value();
+            meta_source_path = combined.map.at("meta_source_path").value<std::string>();
         }
     }
 

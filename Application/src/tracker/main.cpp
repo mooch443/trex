@@ -298,7 +298,7 @@ int main(int argc, char** argv)
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     //default_config::get(combined.map, combined.docs, set_combined_access_level);
     
-    std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.get<std::vector<std::string>>("meta_write_these").value() : std::vector<std::string>{};
+    std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.at("meta_write_these").value<std::vector<std::string>>() : std::vector<std::string>{};
     print("Have these keys:", combined.map.keys());
     std::set<std::string> deleted_keys;
     for(auto key : combined.map.keys()) {
@@ -797,7 +797,7 @@ int main(int argc, char** argv)
         GlobalSettings::docs_map_t docs;
         default_config::get(config, docs, NULL);
         
-        SETTING(output_graphs) = config.get<std::vector<std::pair<std::string, std::vector<std::string>>>>("output_graphs").value();
+        SETTING(output_graphs) = config.at("output_graphs").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
     }
     
     if(SETTING(cam_undistort)) {
@@ -1008,14 +1008,14 @@ int main(int argc, char** argv)
         GlobalSettings::docs_map_t default_docs;
         default_config::get(default_map, default_docs, NULL);
         
-        if(SETTING(auto_number_individuals).value<bool>() == default_map.get<bool>("auto_number_individuals").value())
+        if(SETTING(auto_number_individuals).value<bool>() == default_map.at("auto_number_individuals").value<bool>())
         {
-            SETTING(auto_number_individuals) = SETTING(track_max_individuals).value<uint32_t>() == default_map.get<uint32_t>("track_max_individuals").value();
+            SETTING(auto_number_individuals) = SETTING(track_max_individuals).value<uint32_t>() == default_map.at("track_max_individuals").value<uint32_t>();
         }
         
-        if(SETTING(auto_minmax_size).value<bool>() == default_map.get<bool>("auto_minmax_size").value())
+        if(SETTING(auto_minmax_size).value<bool>() == default_map.at("auto_minmax_size").value<bool>())
         {
-            SETTING(auto_minmax_size) = SETTING(blob_size_ranges).value<BlobSizeRange>() == default_map.get<BlobSizeRange>("blob_size_ranges").value();
+            SETTING(auto_minmax_size) = SETTING(blob_size_ranges).value<BlobSizeRange>() == default_map.at("blob_size_ranges").value<BlobSizeRange>();
         }
     }
     

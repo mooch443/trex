@@ -178,7 +178,7 @@ void launch_gui() {
         grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
         //default_config::get(combined.map, combined.docs, set_combined_access_level);
 
-        std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.get<std::vector<std::string>>("meta_write_these").value() : std::vector<std::string>{};
+        std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.at("meta_write_these").value<std::vector<std::string>>() : std::vector<std::string>{};
         print("Have these keys:", combined.map.keys());
         std::set<std::string> deleted_keys;
         for (auto key : combined.map.keys()) {
@@ -407,7 +407,7 @@ int main(int argc, char**argv) {
      * Some settings related to tracking and
      * object detection
      */
-    SETTING(meta_video_scale) = float(1);
+    //SETTING(meta_video_scale) = float(1);
     SETTING(source) = file::PathArray();
     SETTING(model) = file::Path("");
     SETTING(segmentation_resolution) = uint16_t(128);
@@ -416,7 +416,7 @@ int main(int argc, char**argv) {
     SETTING(region_resolution) = uint16_t(320);
     SETTING(detection_resolution) = uint16_t(640);
     SETTING(filename) = file::Path("");
-    SETTING(meta_classes) = std::vector<std::string>{ };
+    //SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo8;
     SETTING(tile_image) = size_t(0);
     SETTING(batch_size) = uchar(10);

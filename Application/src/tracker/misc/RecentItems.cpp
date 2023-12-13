@@ -94,8 +94,10 @@ RecentItems RecentItems::read() {
                             if (not item._options.has(key)) {
                                 if (GlobalSettings::map().has(key)) {
                                     GlobalSettings::map()[key].get().copy_to(&item._options);
-                                }
+                                } else
+                                    throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
                             }
+                            
                             item._options[key].get().set_value_from_string(value);
                         }
                         catch (const std::exception& e) {

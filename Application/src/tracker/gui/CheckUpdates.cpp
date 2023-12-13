@@ -123,7 +123,7 @@ void init(gui::DrawStructure* gui) {
     std::string contents;
     try {
         if (!file::Path("update_check").exists()) {
-            if (!SETTING(quiet))
+            if (GlobalSettings::is_runtime_quiet())
                 print("Initial start, no update_check file exists.");
             return;
         }

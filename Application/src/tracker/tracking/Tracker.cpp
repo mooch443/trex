@@ -287,18 +287,23 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
     _instance = this;
     set_average(std::move(average));
     
-    if(not GlobalSettings::map().has("meta_real_width")
+    if(not GlobalSettings::has("meta_real_width")
        || SETTING(meta_real_width).value<float>() == 0)
     {
         SETTING(meta_real_width) = meta_real_width;
     }
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
+    if(!GlobalSettings::has("cm_per_pixel")
+       || SETTING(cm_per_pixel).value<float>() == 0)
+    {
         SETTING(cm_per_pixel) = infer_cm_per_pixel();
+    }
     
-    if(!SETTING(quiet))
+    if(GlobalSettings::is_runtime_quiet())
+    {
         print("Initialized with ", _thread_pool.num_threads()," threads.");
+    }
     
     Settings::set_callback(Settings::outline_resample, [](auto&, auto&value){
         static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
@@ -394,10 +399,12 @@ Tracker::~Tracker() {
     Individual::shutdown();
     
     _thread_pool.force_stop();
-    if(!SETTING(quiet))
+    
+    const bool quiet = GlobalSettings::is_runtime_quiet();
+    if(!quiet)
         print("Waiting for recognition...");
     recognition_pool.force_stop();
-    if(!SETTING(quiet))
+    if(!quiet)
         print("Done waiting.");
     
     _instance = NULL;

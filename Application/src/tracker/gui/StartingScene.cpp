@@ -66,7 +66,7 @@ void StartingScene::activate() {
         
         file::PathArray array;
         if(item._options.has("source"))
-            array = item._options.get<file::PathArray>("source").value();
+            array = item._options.at("source").value<file::PathArray>();
         
         tmp["pv_exists"] = pv_file_path_for(array);
         
@@ -119,7 +119,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                             
                             file::PathArray array;
                             if(item._options.has("source"))
-                                array = item._options.get<file::PathArray>("source").value();
+                                array = item._options.at("source").value<file::PathArray>();
                             
                             auto path = pv_file_path_for(array);
 

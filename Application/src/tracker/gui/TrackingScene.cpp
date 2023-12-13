@@ -418,7 +418,7 @@ void TrackingScene::init_video() {
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     default_config::get(combined.map, combined.docs, nullptr);
     
-    std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.get<std::vector<std::string>>("meta_write_these").value() : std::vector<std::string>{};
+    std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.at("meta_write_these").value<std::vector<std::string>>() : std::vector<std::string>{};
     print("Have these keys:", combined.map.keys());
     std::set<std::string> deleted_keys;
     for(auto key : combined.map.keys()) {

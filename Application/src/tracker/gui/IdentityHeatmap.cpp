@@ -130,7 +130,7 @@ void HeatmapController::save() {
 
     std::vector<double> per_frame;
     uint64_t expected = uint64_t((max_frames + 1) * N * N * 2);
-    const bool be_quiet = SETTING(quiet);
+    const bool be_quiet = GlobalSettings::is_runtime_quiet();
     //if (!be_quiet) 
     {
         print("Likely memory size: ", FileSize{ expected * sizeof(double) });

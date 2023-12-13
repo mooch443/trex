@@ -759,7 +759,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                     print("Key: ", key, " Value: ", map[key].get().valueString());
                 }*/
                 if(map.has("meta_real_width"))
-                    meta_real_width = map.get<float>("meta_real_width");
+                    meta_real_width = map["meta_real_width"].value<float>();
             } catch(...) {
                 FormatExcept("Error parsing settings metadata from ", ref.filename(), ".");
             }

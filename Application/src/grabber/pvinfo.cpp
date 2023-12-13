@@ -185,7 +185,7 @@ int main(int argc, char**argv) {
     bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
 
     cmd.load_settings();
-    be_quiet = SETTING(quiet).value<bool>();
+    be_quiet = GlobalSettings::is_runtime_quiet();
     set_runtime_quiet(be_quiet);
     
     auto default_path = file::DataLocation::parse("default.settings");
@@ -348,7 +348,7 @@ int main(int argc, char**argv) {
         }
         
         if(SETTING(frame_rate).value<uint32_t>() == 0) {
-            if(!SETTING(quiet))
+            if(!GlobalSettings::is_runtime_quiet())
                 FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
             video.generate_average_tdelta();
             SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));

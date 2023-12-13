@@ -361,13 +361,14 @@ bool can_initialize_python() {
                 // search conda
                 auto conda_prefix = (const char*)getenv("CONDA_PREFIX");
                 if(conda_prefix) {
-                    if(!SETTING(quiet))
+                    const bool quiet = GlobalSettings::is_runtime_quiet();
+                    if(!quiet)
                         print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
                     p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
-                    if(!SETTING(quiet))
+                    if(!quiet)
                         print("Full path: ", p);
                     if(p.exists()) {
-                        if(!SETTING(quiet))
+                        if(!quiet)
                             print("Found in conda environment ",std::string(conda_prefix)," at ",p);
                         exec = p.str()+" 2> /dev/null";
                     } else {
@@ -433,7 +434,8 @@ void fix_paths(bool force_init, cmn::source_location loc) {
         //print("Checking python at ", home);
 
         if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
-            if (!SETTING(quiet))
+            const bool quiet = GlobalSettings::is_runtime_quiet();
+            if (!quiet)
                 FormatWarning("Python environment does not appear to be setup correctly. Trying to fix using python path = ",home,"...");
 
             // this is now the home folder of python
@@ -466,7 +468,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
             setenv("PATH", set.c_str(), 1);
             setenv("PYTHONHOME", home.c_str(), 1);
 #endif
-            if (!SETTING(quiet)) {
+            if (!quiet) {
                 print("Set PATH=",set);
                 print("Set PYTHONHOME=",home);
 

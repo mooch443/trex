@@ -36,7 +36,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     file::DataLocation::register_path("merge", [](file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-            if(!SETTING(quiet))
+            if(GlobalSettings::is_runtime_quiet())
                 print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
@@ -82,12 +82,12 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             GlobalSettings::load_from_string({}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
             if(!file->header().metadata.empty())
                 sprite::parse_values(*config, file->header().metadata);
-            if(!config->has("meta_real_width") || config->get<float>("meta_real_width").value() == 0)
-                config->get<float>("meta_real_width").value(30);
-            if(!config->has("cm_per_pixel") || config->get<float>("cm_per_pixel").value() == 0)
-                config->get<float>("cm_per_pixel") = config->get<float>("meta_real_width").value() / float(file->average().cols);
+            if(!config->has("meta_real_width") || config->at("meta_real_width").value<float>() == 0)
+                (*config)["meta_real_width"].value<float>(30);
+            if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<float>() == 0)
+                (*config)["cm_per_pixel"] = config->at("meta_real_width").value<float>() / float(file->average().cols);
             
-            cms_per_pixel[file.get()] = config->get<float>("cm_per_pixel");
+            cms_per_pixel[file.get()] = config->at("cm_per_pixel").value<float>();
             configs.push_back(config);
             
         } else {
@@ -264,8 +264,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
             Vec2 scale = merge_mode == merge_mode_t::centered ? Vec2(1) : Vec2(Size2(average).div(Size2(file->average())));
-            auto blob_size_range = configs.at(vdx)->get<Rangef>("blob_size_range").value();
-            const int track_threshold = configs.at(vdx)->get<int>("track_threshold").value();
+            auto blob_size_range = configs.at(vdx)->at("blob_size_range").value<Rangef>();
+            const int track_threshold = configs.at(vdx)->at("track_threshold").value<int>();
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {

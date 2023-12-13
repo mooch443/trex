@@ -431,8 +431,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         using namespace pybind11::literals;
         using namespace cmn;
         pybind11::dict d;
-        auto w = _settings->map().get<cmn::Size2>("video_size").value().width,
-            h = _settings->map().get<cmn::Size2>("video_size").value().height;
+        auto w = _settings->map().at("video_size").value<cmn::Size2>().width,
+            h = _settings->map().at("video_size").value<cmn::Size2>().height;
 
         d["width"] = w;
         d["height"] = h;
@@ -479,7 +479,9 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         if (info.ndim != 3 && info.ndim != 2)
             throw std::runtime_error("Incompatible buffer dimension!");
 
-        if (!_settings->map().get<bool>("nowindow").value()) {
+        if (_settings->map().has("nowindow")
+            && !_settings->map().at("nowindow").value<bool>())
+        {
             auto map = cv::Mat((int)info.shape[0], (int)info.shape[1], (int)CV_8UC(info.ndim == 2 ? 1 : info.shape[2]), static_cast<uint8_t*>(info.ptr));
             _mat_display(name, map);
             //tf::imshow(name, map);

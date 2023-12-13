@@ -194,7 +194,7 @@ file::Path conda_environment_path() {
 
     if(is_in(home, "CONDA_PREFIX", "", compiled_path)) {
 #ifndef NDEBUG
-        if(!SETTING(quiet))
+        if(!GlobalSettings::is_runtime_quiet())
             print("Reset conda prefix ",home," / ",compiled_path);
 #endif
         auto conda_prefix = getenv("CONDA_PREFIX");
@@ -341,7 +341,22 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
         
         CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
-        CONFIG("meta_classes", std::vector<std::string>{}, "Class names for object classification in video during conversion.");
+        static const auto meta_classes = std::vector<std::string>{
+            "person", "bicycle", "car", "motorcycle", "airplane",
+            "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
+            "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse",
+            "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+            "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard",
+            "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork",
+            "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+            "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+            "couch", "potted plant", "bed", "dining table", "toilet", "tv",
+            "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave",
+            "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
+            "scissors", "teddy bear", "hair drier", "toothbrush"
+        };
+        CONFIG("meta_classes", meta_classes, "Class names for object classification in video during conversion.");
         CONFIG("meta_skeleton", blob::Pose::Skeleton("human", {
                 {0, 1, "Nose to Left Eye"},
                 {0, 2, "Nose to Right Eye"},
@@ -952,7 +967,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         file::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-                if(!SETTING(quiet))
+                if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
@@ -968,7 +983,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         file::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-                if(!SETTING(quiet))
+                if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
