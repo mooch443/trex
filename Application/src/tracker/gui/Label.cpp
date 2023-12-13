@@ -117,7 +117,9 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
 
 
         float distance = (_text->height() + _source.height) * scale.y; // scale.y;
-        float percent = vec.length() / sqrtf(SQR(screen_size.width) + SQR(screen_size.height));
+        float percent = screen_size.empty()
+            ? 1
+            : vec.length() / sqrtf(SQR(screen_size.width) + SQR(screen_size.height));
         //print("percent = ", percent, " center=", _center, " alternative=",alternative, " screen=", screen.size());
 
         // maybe something about max_zoom_limit and current scale vs. video size?

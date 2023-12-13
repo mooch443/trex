@@ -2462,7 +2462,8 @@ void GUI::draw_footer(DrawStructure& base) {
     
     pie.set_scale(base.scale().reciprocal() * gui::interface_scale());
     
-    if(SETTING(enable_pie_chart))
+    if(GlobalSettings::has("enable_pie_chart")
+       && SETTING(enable_pie_chart))
         base.wrap_object(pie);
 #endif
     

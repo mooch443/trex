@@ -55,7 +55,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         _source->set_lazy_loader(true);
 
         if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
-            _source_scale = SETTING("meta_video_scale").value<float>();
+            _source_scale = SETTING(meta_video_scale).value<float>();
         }
     }
     catch (const UtilsException& e) {

@@ -734,7 +734,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                                 && tracker_startframe.load().valid()
                                 && _frame_info->frameIndex.load().valid())
                             {
-                                for (auto& fish : index >= tracker_startframe.load() && index < tracker_endframe.load() ? Tracker::active_individuals(index) : set_of_individuals_t{}) {
+                                for (auto& fish : index >= tracker_startframe.load() && index < tracker_endframe.load() && Tracker::properties(index) ? Tracker::active_individuals(index) : set_of_individuals_t{}) {
                                     if (fish->frame_count() < FAST_SETTING(frame_rate) * 3u) {
                                         _frame_info->small_count++;
                                     }

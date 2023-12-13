@@ -315,6 +315,8 @@ int main(int argc, char** argv)
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     
+    CommandLine::init(argc, argv, true);
+    
     if(argc == 2) {
         if(std::string(argv[1]) == "-options") {
             for(auto arg : Arguments::names) {
@@ -418,7 +420,6 @@ int main(int argc, char** argv)
     
     print("CWD: ", file::cwd());
     DebugHeader("LOADING COMMANDLINE");
-    CommandLine::init(argc, argv, true);
     file::cd(file::DataLocation::parse("app"));
     print("CWD: ", file::cwd());
     

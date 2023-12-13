@@ -493,8 +493,8 @@ void fix_paths(bool force_init, cmn::source_location loc) {
     
     if(counter == 1 // only do this if we are the first thread arriving here
        && (force_init
-           || SETTING(enable_closed_loop)
-           || SETTING(tags_recognize)))
+           || (GlobalSettings::has("enable_closed_loop") && SETTING(enable_closed_loop))
+           || (GlobalSettings::has("tags_recognize") && SETTING(tags_recognize))))
     {
         if(can_initialize_python()) {
             // redundant with the counter, but OK:
