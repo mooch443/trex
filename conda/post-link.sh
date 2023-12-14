@@ -12,14 +12,14 @@ fi
 
 # install pip packages
 if [ "$(uname -p)" == "arm" ]; then
-	{ python -m pip install 'tensorflow-macos' 'tensorflow-metal' opencv-python ultralytics tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.0 2>&1; }  >> $PREFIX/.messages.txt;
+	{ python -m pip install 'tensorflow-macos' 'tensorflow-metal' opencv-python 'ultralytics<=8.0.227' tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.2 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
 
 elif [ "$(uname)" == "Darwin" ]; then
-    { python -m pip install opencv-python ultralytics tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.0 2>&1; } >> $PREFIX/.messages.txt;
+    { python -m pip install opencv-python 'ultralytics<=8.0.227' tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.2 2>&1; } >> $PREFIX/.messages.txt;
     echo "" >> $PREFIX/.messages.txt;
 
 else
-	{ python -m pip install opencv-python ultralytics tensorflow-gpu==2.10 tensorflow-estimator==2.10 2>&1; }  >> $PREFIX/.messages.txt;
+	{ python -m pip install opencv-python 'ultralytics<=8.0.227' tensorflow-gpu==2.10 tensorflow-estimator==2.10 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
 fi

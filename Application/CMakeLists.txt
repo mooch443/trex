@@ -36,6 +36,23 @@ option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" ON)
 option(BUILD_LEGACY_TGRABS "Build the TGrabs (legacy) target" ON)
 
+if(APPLE)
+    option(BUILD_FOR_ARM64 "Build for arm64 architecture" ON)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+        set(BUILD_FOR_ARM64 ON)
+    else()
+        set(BUILD_FOR_ARM64 OFF)
+    endif()
+
+    if(BUILD_FOR_ARM64)
+        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architecture for macOS" FORCE)
+    else()
+        set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architecture for macOS" FORCE)
+    endif()
+
+    message(STATUS "Architectures: ${CMAKE_OSX_ARCHITECTURES}")
+endif()
+
 if(COMMONS_NO_PYTHON)
     set(TREX_NO_PYTHON ON)
 endif()
