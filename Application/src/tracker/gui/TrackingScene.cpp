@@ -651,9 +651,15 @@ void TrackingScene::deactivate() {
     Categorize::terminate();
 #endif
     
+    if(_data && _data->_callback)
+        GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
+    
     if(_data)
         _data->analysis.terminate();
     _data = nullptr;
+    
+    SETTING(filename) = file::Path();
+    SETTING(source) = file::PathArray();
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex) {

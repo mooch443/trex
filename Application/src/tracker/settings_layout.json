@@ -34,11 +34,14 @@
                     {
                         "type":"settings",
                         "var":"source",
-                        "font":{"size":0.75},
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":[850,200]
+                        },
                         "size":[850,40],
-                        "list_size":[850,200],
                         "desc":"",
                         "preview":{
                             "font":{"size":0.5},
@@ -57,9 +60,13 @@
                     {
                         "type":"settings",
                         "var":"output_dir",
-                        "list_size":[850,200],
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":[850,200]
+                        },
                         "size":[850,40],
                         "desc":""
                     }
@@ -71,8 +78,10 @@
                         "type":"settings",
                         "var":"track_background_subtraction",
                         "invert":true,
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,240]:[50,50,50,240]}"
+                        },
                         "size":[200,40],
                         "pad":[0,0,10,0],
                         "desc":"Use machine learning to detect animals"
@@ -88,8 +97,17 @@
                     {
                         "type":"settings",
                         "var":"{if:{global.track_background_subtraction}:'averaging_method':'model'}",
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,240]:[50,50,50,240]}"
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":[850,200]
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
                         "size":"{if:{global.track_background_subtraction}:[250,40]:[850,40]}",
                         "desc":""
                     }
@@ -104,10 +122,59 @@
                     {
                         "type":"settings",
                         "var":"{if:{global.track_background_subtraction}:'threshold':'region_model'}",
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":[850,200]
+                        },
                         "size":[850,40],
                         "desc":""
+                    }
+                ],
+
+                [
+                    {
+                        "type":"text",
+                        "text":"{if:{global.track_background_subtraction}:'invert':'GPU'}",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"hlayout",
+                        "pad":[0,0,10,0],
+                        "children":[
+                        { "type":"hlayout",
+                            "pad":[0,0,10,0],
+                            "children":[
+                                {
+                                    "type":"settings",
+                                    "var":"{if:{global.track_background_subtraction}:'image_invert':'gpu_torch_device'}",
+                                    "label":{
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,240]:[50,50,50,240]}"
+                                    },
+                                    "size":[200,45],
+                                    "desc":""
+                                },
+                                {
+                                    "type":"condition",
+                                    "var":"{&&:{not:{global.track_background_subtraction}}:{not:{equal:{global.gpu_torch_device}:automatic}}}",
+                                    "then":{
+                                        "type":"settings",
+                                        "var":"{if:{global.track_background_subtraction}:'image_invert':'gpu_torch_index'}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                        "size":[200,45],
+                                        "desc":""
+                                    },
+                                    "else":{
+                                        "type":"rect",
+                                        "size":[0,0]
+                                    }
+                                }
+                            ]
+                        }]
                     }
                 ],
 
@@ -120,8 +187,8 @@
                     {
                         "type":"settings",
                         "var":"track_max_individuals",
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                         "size":[850,40],
                         "desc":""
                     }
@@ -149,8 +216,8 @@
                             {
                                 "type":"settings",
                                 "var":"track_max_speed",
-                                "fill":[50,50,50],
-                                "line":[75,75,75],
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                 "size":[200,45],
                                 "desc":""
                             },
@@ -162,8 +229,8 @@
                             {
                                 "type":"settings",
                                 "var":"cm_per_pixel",
-                                "fill":[50,50,50],
-                                "line":[75,75,75],
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                 "size":[200,45],
                                 "desc":""
                             },
@@ -188,7 +255,7 @@
             "color":[250,250,250],
             "pad":[3,3,3,3],
             "text":"<h2>Advanced Settings</h2>{#settings_summary}\ndetect_iou_threshold={#global.detect_iou_threshold} detect_conf_threshold={#global.detect_conf_threshold}\ntrack_threshold={#global.track_threshold} averaging_method={#global.averaging_method} track_posture_threshold={#global.track_posture_threshold}\ntrack_background_subtraction={#global.track_background_subtraction}\nmodel=<str>{global.model}</str>\nregion_model=<str>{global.region_model}</str>",
-            "font":{ "size":0.8 }
+            "font":{ "size":0.65 }
         },
         {
             "type":"hlayout",
@@ -198,29 +265,38 @@
                 {
                     "type":"settings",
                     "var":"",
-                    "font":{"size":0.75,"align":"center"},
-                    "fill":[50,50,50],
-                    "line":[75,75,75],
-                    "size":[600,40],
+                    "font":{"size":0.6,"align":"center"},
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "placeholder":"<sym>🔍</sym> Parameters",
+                    "postfix":"test",
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":[640,300]
+                    },
+                    "size":[640,40],
                     "color":[225,225,225],
                     "desc":"",
                     "highlight_clr":[75,75,75,255]
                 },
                 {
                     "type":"button",
-                    "text":"< Back",
-                    "fill":[50,50,50],
+                    "text":"<sym>🛇</sym> Cancel",
+                    "fill":[40,40,40,220],
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                     "size":[150,40],
                     "font":{
                         "align":"center",
                         "size":0.65
                     },
-                    "action": "go-back"
+                    "action": "change_scene:'starting-scene'"
                 },
                 {
                     "type":"button",
-                    "text":"Next >",
-                    "fill":[50,50,50],
+                    "text":"Next <sym>⮞</sym>",
+                    "fill":[40,40,40,220],
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                     "size":[150,40],
                     "font":{
                         "align":"center",

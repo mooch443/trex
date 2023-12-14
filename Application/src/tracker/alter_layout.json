@@ -101,8 +101,26 @@
 				"type":"hlayout", 
 				"pad":[0,0,5,0],
 				"children": [
-					{ "type":"button", "text":"Quit", "action":"terminate" },
-					{ "type":"button", "text":"Filter", "action":"FILTER" }
+					{ 
+						"type":"button", 
+						"text":"Quit", 
+						"action":"terminate",
+						"font":{"size":0.6},
+
+						"fill":[40,40,40,220],
+                   		"line":"{if:{||:{selected}:{hovered}}:[100,175,250,220]:[120,120,120,200]}",
+						"color":[225,225,225]
+					},
+					{ 
+						"type":"button", 
+						"text":"Filter", 
+						"action":"FILTER",
+						"font":{"size":0.6},
+
+						"fill":[40,40,40,220],
+                    	"line":"{if:{||:{selected}:{hovered}}:[100,175,250,220]:[120,120,120,200]}",
+						"color":[225,225,225]
+					}
 				]
 			},
 
@@ -113,7 +131,7 @@
 						"type":"condition",
 						"var":"{average_is_generating}",
 						"then":{
-							"type":"text", "text":"detecting the background...", "font":{"size":0.75}, "color":[220,220,220], "shadow":0.75
+							"type":"text", "text":"detecting the background...", "font":{"size":0.6}, "color":[220,220,220], "shadow":0.75
 						},
 						"else":{
 							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''}", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
@@ -156,12 +174,17 @@
 			{
 				"type":"settings",
 				"var":"",
-				"font":{"size":0.75,"align":"center"},
-				"fill":[50,50,50],
-				"line":[75,75,75],
-				"size":[400,40],
-				"list_size":[400,200],
+				"font":{"size":0.6,"align":"center"},
 				"color":[225,225,225],
+				"placeholder":"<sym>🔍</sym> Parameters",
+				"size":[500,40],
+				"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+				"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+				"list":{
+					"line":[220,220,220,200],
+					"fill":[25,25,25,220],
+					"size":[640,300]
+				},
 				"desc":"",
 				"highlight_clr":[75,75,75,255]
 			}

@@ -26,6 +26,9 @@ endif()
 add_dependencies(framegrabber_misc commons) #Commons::OpenCV)
 
 
+if(WITH_FFMPEG)
+    target_compile_definitions(framegrabber_misc PRIVATE WITH_FFMPEG=true)
+endif()
 
 option(WITH_PYLON "use pylon support" OFF)
 

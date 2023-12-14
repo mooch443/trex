@@ -419,10 +419,11 @@ int main(int argc, char**argv) {
     //SETTING(meta_classes) = std::vector<std::string>{ };
     SETTING(detection_type) = ObjectDetectionType::yolo8;
     SETTING(tile_image) = size_t(0);
-    SETTING(batch_size) = uchar(10);
+    SETTING(batch_size) = uchar(1);
     SETTING(track_do_history_split) = false;
     SETTING(track_background_subtraction) = false;
     SETTING(scene_crash_is_fatal) = false;
+    SETTING(output_size) = Size2();
     
     SETTING(do_filter) = false;
     SETTING(filter_classes) = std::vector<uint8_t>{};
@@ -493,13 +494,12 @@ int main(int argc, char**argv) {
     GlobalSettings::map().set_print_by_default(true);
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     SETTING(app_name) = std::string("TRexA");
-    SETTING(threshold) = int(100);
     SETTING(track_do_history_split) = false;
-    SETTING(track_max_speed) = Settings::track_max_speed_t(300);
+    SETTING(track_max_speed) = Settings::track_max_speed_t(50);
     SETTING(track_threshold) = Settings::track_threshold_t(0);
     SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);
     SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
-        Rangef(1,300)
+        Rangef(0.01,300)
     });
     SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
     SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);

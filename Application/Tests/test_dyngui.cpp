@@ -93,6 +93,7 @@ std::string _parse_text(const T& _pattern, const Context& context, State& state)
                     std::string resolved_word;
                     if(auto it = state._variable_values.find(current_word);
                        current_word != "hovered"
+                       && current_word != "selected"
                        && it != state._variable_values.end())
                     {
                         resolved_word = it->second;

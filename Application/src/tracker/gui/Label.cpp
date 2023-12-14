@@ -11,6 +11,7 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
     _text->set_clickable(false);
     //set_z_index(1);
     _text->set(StaticText::Shadow_t{ 1 });
+    _text->set(Loc{center});
 }
 
 Label::~Label() {

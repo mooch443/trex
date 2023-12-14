@@ -240,6 +240,8 @@ void FramePreloader<FrameType>::preload_frames() {
         return;
     
     if(not image) {
+        //thread_print("*** [jump] loading ", current, " last_next=",last_next);
+        
         promise = typename decltype(promise)::value_type{};
         {
             std::unique_lock guard(future_mutex);
@@ -250,7 +252,14 @@ void FramePreloader<FrameType>::preload_frames() {
         
         image = retrieve_next(current);
         if(not image) {
-            thread_print("Cannot load frame ", current);
+            static std::mutex complain_mutex;
+            static Frame_t last_complain;
+            if(std::unique_lock g(complain_mutex);
+               current != last_complain)
+            {
+                thread_print("Cannot load frame ", current);
+                last_complain = current;
+            }
         }
     }
 

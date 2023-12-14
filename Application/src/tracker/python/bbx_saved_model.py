@@ -357,14 +357,19 @@ class Model:
         assert isinstance(config, TRex.ModelConfig)
         self.config = config
         self.ptr = None
+        self.device = None
 
         # if no device is specified, use cuda if available, otherwise use mps/cpu
-        self.device = eval(TRex.setting("gpu_torch_device"))
-        if self.device == "":
-            self.device = None
-        else:
-            print(f"Using device {self.device} from settings.")
-            self.device = torch.device(self.device)
+        device_from_settings = TRex.setting("gpu_torch_device")
+        if device_from_settings != "":
+            if device_from_settings == "automatic":
+                device_from_settings = ""
+            else:
+                device_index = eval(TRex.setting("gpu_torch_index"))
+                if device_index >= 0:
+                    device_from_settings = f"{device_from_settings}:{device_index}"
+                print(f"Using device {device_from_settings} from settings.")
+                self.device = torch.device(device_from_settings)
 
         if self.device is None:
             if torch.cuda.is_available():
@@ -389,11 +394,26 @@ class Model:
     def load(self):
         from ultralytics import YOLO
         self.ptr = YOLO(self.config.model_path)
+        #self.device = None
 
-        device_from_settings = eval(TRex.setting("gpu_torch_device"))
+        device_from_settings = TRex.setting("gpu_torch_device")
         if device_from_settings != "":
-            print(f"Using device {device_from_settings} from settings.")
-            self.device = torch.device(device_from_settings)
+            if device_from_settings == "automatic":
+                device_from_settings = ""
+            else:
+                device_index = eval(TRex.setting("gpu_torch_index"))
+                if device_index >= 0:
+                    device_from_settings = f"{device_from_settings}:{device_index}"
+                print(f"Using device {device_from_settings} from settings.")
+                self.device = torch.device(device_from_settings)
+
+        if self.device is None:
+            if torch.cuda.is_available():
+                self.device = torch.device("cuda:0")
+            elif torch.backends.mps.is_available():
+                self.device = torch.device("mps") #mps
+            else:
+                self.device = torch.device("cpu")
 
         if self.config.task == ModelTaskType.detect or self.config.task == ModelTaskType.segment:
             if self.ptr.task == "segment":

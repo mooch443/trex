@@ -4,6 +4,7 @@
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
 #include <misc/Output.h>
+#include <misc/CommandLine.h>
 
 namespace track {
 Timer start_timer;
@@ -101,7 +102,7 @@ Segmenter::~Segmenter() {
         std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
         _overlayed_video = nullptr;
 
-        if(_tracker && _tracker->end_frame().valid()) {
+        if(_tracker && _tracker->end_frame().valid() && (not _output_file || _output_file->length() > 0_f)) {
             Output::TrackingResults results(*_tracker);
             results.save();
         }
@@ -293,12 +294,23 @@ void Segmenter::open_camera() {
                                                  : camera.frame_rate());
     if (SETTING(filename).value<file::Path>().empty())
         SETTING(filename) = file::Path("webcam");
+    
+    if(SETTING(filename).value<file::Path>() == file::Path("webcam")) {
+        if(not CommandLine::instance().settings_keys().contains("model"))
+            SETTING(model) = file::Path("yolov8n-pose");
+        if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
+        {
+            SETTING(save_raw_movie) = true;
+        }
+    }
 
     setDefaultSettings();
     _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = _output_size;
     SETTING(meta_video_size).value<Size2>() = camera.size();
-
+    
+    SETTING(video_conversion_range) = std::pair<long_t,long_t>(-1,-1);
+    
     {
         std::unique_lock vlock(_mutex_video);
         _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
@@ -756,10 +768,9 @@ void Segmenter::printDebugInformation() {
     print("average at: ", average_name());
     if (detection_type() != ObjectDetectionType::yolo8) {
         print("model: ", SETTING(model).value<file::Path>());
-        print("segmentation model: ", SETTING(segmentation_path).value<file::Path>());
     }
     else
-        print("model: ", SETTING(model).value<file::Path>() != "" ? SETTING(model).value<file::Path>() : SETTING(segmentation_path).value<file::Path>());
+        print("model: ", SETTING(model).value<file::Path>());
     print("region model: ", SETTING(region_model).value<file::Path>());
     print("video: ", SETTING(source).value<file::PathArray>());
     print("model resolution: ", SETTING(detection_resolution).value<uint16_t>());

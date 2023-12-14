@@ -752,7 +752,9 @@ void HeatmapController::set_frame(Frame_t current_frame) {
         if(updated.added != 0 || updated.removed != 0)
             has_to_paint = true;
         
-        if(_frame.get() % 50 == 0){
+        if(_frame.valid()
+           && _frame.get() % 50 == 0)
+        {
             print("-------------------");
             Grid::print_stats("STATS (frame "+Meta::toStr(_frame)+", "+Meta::toStr(_grid.root()->IDs())+")");
             print("");

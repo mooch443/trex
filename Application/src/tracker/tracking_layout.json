@@ -55,15 +55,16 @@
                 {
                     "type":"hlayout",
                     "pad":[-1,0,-1,0],
-                    "line":[255,255,255,0],
+                    "line":[255,255,255,255],
+                    "fill":[1,0,0,0],
                     "children":[
                         {
                             "type":"button",
                             "text":"<sym>⭍</sym> tracked",
                             "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,200]:[40,40,40,200]}",
-                            "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,200]:[250,250,250,200]}",
-                            "line":[100,100,100,200],
+                            "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,220]:[40,40,40,220]}",
+                            "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,220]:[250,250,250,220]}",
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                             "size":[90,30],
                             "action":"set:gui_mode:tracking"
                         },
@@ -72,9 +73,9 @@
                             "type":"button",
                             "text":"<sym>🎞</sym> raw",
                             "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,200]:[40,40,40,200]}",
-                            "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,200]:[250,250,250,200]}",
-                            "line":[100,100,100,200],
+                            "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,220]:[40,40,40,220]}",
+                            "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,220]:[250,250,250,220]}",
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                             "size":[60,30],
                             "action":"set:gui_mode:blobs"
                         }
@@ -87,8 +88,8 @@
                     "font":{"size":0.6},
                     "size":[30,30],
                     "action":"reanalyse:{global.gui_frame}",
-                    "fill":[30,30,30,200],
-                    "line":[100,100,100,200],
+                    "fill":[40,40,40,220],
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                     "color":[250,250,250,200]
                 },
 
@@ -99,16 +100,20 @@
                     "list":{
                         "size":"[200,{-:{window_size.y}:50}]",
                         "fill":[25,25,25,220],
-                        "line":[150,150,150,250]
+                        "line":[120,120,120,220]
                     },
-                    "line":[255,255,255,255],
+                    "label":{
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "font":{"size":0.6}
+                    },
+                    "item_color":[60,60,60,100],
                     "detail_color":[150,150,150,255],
                     "foldable":true,
                     "folded":true,
                     "text":" <sym>🖵</sym> Display",
                     "item_padding":[5,1],
                     "item_font":{"size":0.6},
-                    "label_font":{"size":0.6},
                     "items":[
                         {
                             "text":"selections",
@@ -179,16 +184,20 @@
                     "list":{
                         "size":"[200,{-:{window_size.y}:50}]",
                         "fill":[25,25,25,220],
-                        "line":[150,150,150,250]
+                        "line":[120,120,120,220]
                     },
-                    "line":[255,255,255,255],
+                    "label":{
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "font":{"size":0.6}
+                    },
                     "detail_color":[150,150,150,255],
                     "foldable":true,
                     "folded":true,
-                    "text":"<sym>☰ Menu</sym>",
+                    "text":"<sym>☰</sym> Menu",
                     "item_padding":[5,5],
                     "item_font":{"size":0.6},
-                    "label_font":{"size":0.75},
+                    "item_color":[60,60,60,100],
                     "items":[
                         {
                             "text":"<sym>📤</sym> Load state",
@@ -309,7 +318,7 @@
                             "pos": [10, -10],
                             "size": "[{width},30]",
                             "fill": [30,30,30,0],
-                            "line": [255,255,255,255],
+                            "line": [255,255,255,220],
                             "clickable":true,
                             "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
                         },
@@ -354,7 +363,7 @@
                             "pos": "{timeline_start}",
                             "size": "[{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}},30]",
                             "fill": [20,20,20,180],
-                            "line": [255,255,255,255],
+                            "line": [255,255,255,220],
                             "clickable":false
                         },
 
@@ -363,7 +372,7 @@
                             "pos": "{timeline_start}",
                             "size": "[{+:{-:{*:{/:{end}:{length}}:{width}}:{at:0:{timeline_start}}}:10},30]",
                             "fill": [50,150,50,0],
-                            "line": [150,150,150,125],
+                            "line": [150,150,150,0],
                             "clickable":false
                         },
                         
@@ -392,10 +401,14 @@
                 {
                     "type":"settings",
                     "var":"",
-                    "font":{"size":0.75,"align":"center"},
-                    "fill":[50,50,50],
-                    "line":[75,75,75],
-                    "list_size":[600,300],
+                    "font":{"size":0.6,"align":"center"},
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":[600,300]
+                    },
                     "size":[600,40],
                     "color":[225,225,225],
                     "desc":"",
@@ -438,8 +451,8 @@
                         "type":"button",
                         "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
                         "action":"reanalyse:{smart_highlighted}",
-                        "fill":[50,50,50],
-                        "line":[75,75,75],
+                        "fill":[40,40,40,220],
+                        "line":[100,100,100,100],
                         "color":[225,225,225],
                         "font":{"size":0.6,"align":"center"},
                         "size":[120,25]

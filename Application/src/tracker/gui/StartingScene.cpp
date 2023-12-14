@@ -128,18 +128,24 @@ void StartingScene::_draw(DrawStructure& graph) {
 
                             CommandLine::instance().load_settings();
                             
-                            if(not path.empty())
-                                SceneManager::getInstance().set_active("tracking-settings-scene");
-                            else
+                            //if(not path.empty())
+                            //    SceneManager::getInstance().set_active("tracking-settings-scene");
+                            //else
                                 SceneManager::getInstance().set_active("settings-scene");
                         }
                     }),
                     ActionFunc("open_file", [](auto) {
-                        SceneManager::getInstance().set_active("convert-scene");
+                        SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
                         SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
-                        SceneManager::getInstance().set_active("convert-scene");
+                        if(not CommandLine::instance().settings_keys().contains("model"))
+                            SETTING(model) = file::Path("yolov8n-pose");
+                        if(not CommandLine::instance().settings_keys().contains("save_raw_movie")) 
+                        {
+                            SETTING(save_raw_movie) = true;
+                        }
+                        SceneManager::getInstance().set_active("settings-scene");
                     })
                 };
 

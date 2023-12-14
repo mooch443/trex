@@ -84,6 +84,17 @@ void SettingsScene::_draw(DrawStructure& graph) {
                 ActionFunc("choose-source", [](auto){
                     print("choose-source");
                 }),
+                
+                ActionFunc("change_scene", [](Action action) {
+                    if(action.parameters.empty())
+                        throw U_EXCEPTION("Invalid arguments for ", action, ".");
+
+                    auto scene = Meta::fromStr<std::string>(action.first());
+                    if(not SceneManager::getInstance().is_scene_registered(scene))
+                        return false;
+                    SceneManager::getInstance().set_active(scene);
+                    return true;
+                }),
                 ActionFunc("choose-target", [](auto){
                     print("choose-target");
                 }),

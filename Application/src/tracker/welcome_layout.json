@@ -1,7 +1,7 @@
 {"objects":[
     {
         "type":"vlayout",
-        "align":"center",
+        "align":"center", 
         "origin":[0.5,0.5],
         "pos":"[{*:{window_size.x}:0.3},{*:{window_size.y}:0.45}]",
         "pad":[10,0,10,5],
@@ -30,7 +30,6 @@
     {
         "type":"vlayout",
         "align":"center",
-        "line":[255,0,0,125],
         "name":"recent",
         "pos":"[{-:{window_size.x}:10},10]",
         "origin":[1,0],
@@ -39,11 +38,14 @@
             {
                 "type":"list",
                 "var":"recent_items",
+				"fill":[40,40,40,220],
+				"color":[225,225,225],
+                "item_line":[100,100,100,150],
                 "list":{
                     "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:120}]",
-                    "fill":[25,25,25,220]
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+					"fill":[25,25,25,220]
                 },
-                "line":[255,0,0,125],
                 "item_font":{
                     "size":0.75,
                     "align":"center"
@@ -63,13 +65,17 @@
                         "type":"button",
                         "text":"Open file",
                         "action":"open_file",
-                        "size":[120,50]
+                        "size":[120,50],
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}"
                     },
                     {
                         "type":"button",
                         "text":"Webcam",
                         "action":"open_camera",
-                        "size":[120,50]
+                        "size":[120,50],
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}"
                     }
                 ]
             }

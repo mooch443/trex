@@ -143,7 +143,7 @@ void ConvertScene::deactivate() {
         spinner.set_progress(100);
         spinner.mark_as_completed();
         
-        _segmenter = nullptr;
+        
         _object_blobs.clear();
         _current_data = {};
         dynGUI.clear();
@@ -151,6 +151,8 @@ void ConvertScene::deactivate() {
         if(_on_deactivate)
             _on_deactivate(*this);
         
+        _segmenter = nullptr;
+        _bowl = nullptr;
         _scene_promise.set_value();
         
     } catch(const std::exception& e){
@@ -170,6 +172,7 @@ void ConvertScene::open_video() {
 void ConvertScene::open_camera() {
     spinner.set_option(ind::option::PrefixText{"Recording"});
     spinner.set_option(ind::option::ShowPercentage{false});
+    
     segmenter().open_camera();
     
     _video_info["resolution"] = segmenter().size();
@@ -180,87 +183,74 @@ void ConvertScene::activate()  {
     _scene_promise = {};
     _scene_active = _scene_promise.get_future().share();
 
-    try {
-        if(_on_activate)
-            _on_activate(*this);
+    if(_on_activate)
+        _on_activate(*this);
 
-        GlobalSettings::map().set_print_by_default(true);
-        
-        auto source = SETTING(source).value<file::PathArray>();
-        print("Loading source = ", source);
-        SETTING(meta_source_path) = source.source();
-        if (source == file::PathArray("webcam"))
-            open_camera();
-        else
-            open_video();
+    GlobalSettings::map().set_print_by_default(true);
+    
+    auto source = SETTING(source).value<file::PathArray>();
+    print("Loading source = ", source);
+    SETTING(meta_source_path) = source.source();
+    if (source == file::PathArray("webcam"))
+        open_camera();
+    else
+        open_video();
 
-        RecentItems::open(source, GlobalSettings::map());
+    RecentItems::open(source, GlobalSettings::map());
 
-        video_size = _segmenter->size();
-        if(video_size.empty()) {
-            video_size = Size2(640,480);
-            FormatError("Cannot determine size of the video input. Defaulting to ", video_size, ".");
-        }
-        
-        output_size = SETTING(output_size).value<Size2>();
-        TileImage::buffers().set_image_size(video_size);
-        
-        auto work_area = ((const IMGUIBase*)window())->work_area();
-        print("work_area = ", work_area);
-        auto window_size = Size2(
-            (work_area.width - work_area.x) * 0.75,
-            video_size.height / video_size.width * (work_area.width - work_area.x) * 0.75
-        );
-        print("prelim window size = ", window_size);
-        if (window_size.height > work_area.height - work_area.y) {
-            auto ratio = window_size.width / window_size.height;
-            window_size = Size2(
-                ratio * (work_area.height - work_area.y),
-                work_area.height - work_area.y
-            );
-            print("Restricting window size to ", window_size, " based on ratio ", ratio);
-        }
-        if (window_size.width > work_area.width - work_area.x) {
-            auto ratio = window_size.height / window_size.width;
-            auto h = min(ratio * (work_area.width - work_area.x), window_size.height);
-            window_size = Size2(
-                h / ratio,
-                h
-            );
-            print("Restricting window size to width ", window_size, " based on ratio ", ratio);
-        }
-
-        Bounds bounds(
-            Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
-                work_area.height / 2 - window_size.height / 2 + work_area.y),
-            window_size);
-        print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
-        bounds.restrict_to(work_area);
-        print("Restricting bounds to work area: ", work_area, " -> ", bounds);
-
-        print("setting bounds = ", bounds);
-        window()->set_window_bounds(bounds);
-        window()->set_title(window_title());
-        bar.set_progress(0);
-        
-        auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
-        if (range.first == -1 && range.second == -1) {
-			SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());
-        }
-        else if(range.first >= 0) {
-            SETTING(gui_frame) = Frame_t(range.first);
-        }
+    video_size = _segmenter->size();
+    if(video_size.empty()) {
+        video_size = Size2(640,480);
+        FormatError("Cannot determine size of the video input. Defaulting to ", video_size, ".");
     }
-    catch (const std::exception& e) {
-        FormatExcept("Exception when switching scenes: ", e.what());
-        //_scene_promise.set_value();
-        //deactivate();
-        SceneManager::set_switching_error(e.what());
-        SceneManager::getInstance().set_active("starting-scene");
-        
-        if(SETTING(scene_crash_is_fatal)) {
-            throw U_EXCEPTION(e.what());
-        }
+    
+    output_size = SETTING(output_size).value<Size2>();
+    TileImage::buffers().set_image_size(video_size);
+    
+    auto work_area = ((const IMGUIBase*)window())->work_area();
+    print("work_area = ", work_area);
+    auto window_size = Size2(
+        (work_area.width - work_area.x) * 0.75,
+        video_size.height / video_size.width * (work_area.width - work_area.x) * 0.75
+    );
+    print("prelim window size = ", window_size);
+    if (window_size.height > work_area.height - work_area.y) {
+        auto ratio = window_size.width / window_size.height;
+        window_size = Size2(
+            ratio * (work_area.height - work_area.y),
+            work_area.height - work_area.y
+        );
+        print("Restricting window size to ", window_size, " based on ratio ", ratio);
+    }
+    if (window_size.width > work_area.width - work_area.x) {
+        auto ratio = window_size.height / window_size.width;
+        auto h = min(ratio * (work_area.width - work_area.x), window_size.height);
+        window_size = Size2(
+            h / ratio,
+            h
+        );
+        print("Restricting window size to width ", window_size, " based on ratio ", ratio);
+    }
+
+    Bounds bounds(
+        Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
+            work_area.height / 2 - window_size.height / 2 + work_area.y),
+        window_size);
+    print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
+    bounds.restrict_to(work_area);
+    print("Restricting bounds to work area: ", work_area, " -> ", bounds);
+
+    print("setting bounds = ", bounds);
+    window()->set_window_bounds(bounds);
+    window()->set_title(window_title());
+    bar.set_progress(0);
+    
+    auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
+    if (range.first == -1 && range.second == -1) {
+        SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());
+    }
+    else if(range.first >= 0) {
+        SETTING(gui_frame) = Frame_t(range.first);
     }
 }
 
@@ -586,12 +576,14 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             return this->window_size;
         }),
         VarFunc("gpu_device", [](const VarProps&) -> std::string {
-            auto gpu_torch_device = SETTING(gpu_torch_device).value<std::string>();
-            if (is_in(utils::lowercase(gpu_torch_device), "cpu")) {
-                if (is_in(utils::lowercase(python_gpu_name()), "metal")
-                    || utils::contains(python_gpu_name(), "nvidia"))
+            using namespace default_config;
+            auto gpu_torch_device = SETTING(gpu_torch_device).value<gpu_torch_device_t::Class>();
+            if (gpu_torch_device == gpu_torch_device_t::cpu) {
+                if (utils::contains(utils::lowercase(python_gpu_name()), "metal")
+                    || utils::contains(utils::lowercase(python_gpu_name()), "cuda")
+                    || utils::contains(utils::lowercase(python_gpu_name()), "nvidia"))
                 {
-                    return "CPU (settings override)";
+                    return "CPU ("+python_gpu_name()+")";
                 }
                 return "CPU";
             }
@@ -832,7 +824,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                 }
 
                 if (not ptr)
-                    ptr = std::make_shared<Label>();
+                    ptr = std::make_shared<Label>(text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
 
                 ptr->set_line_length(line_length);
                 ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());

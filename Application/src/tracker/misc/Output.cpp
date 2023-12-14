@@ -1321,7 +1321,8 @@ namespace Output {
         filename = filename.add_extension("tmp01");
         
         ResultsFormat file(filename.str(), update_progress);
-        file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
+        auto gui_frame = SETTING(gui_frame).value<Frame_t>();
+        file.header().gui_frame = sign_cast<uint64_t>(gui_frame.valid() ? gui_frame.get() : 0);
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
         file.write_file(_tracker._added_frames, IndividualManager::_all_frames(), IndividualManager::individuals());
