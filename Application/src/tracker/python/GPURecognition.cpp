@@ -294,7 +294,6 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     using namespace track::detect;
 
     py::enum_<track::detect::ModelTaskType>(m, "ModelTaskType")
-        .value("segment", track::detect::ModelTaskType::segment)
         .value("detect", track::detect::ModelTaskType::detect)
         .value("region", track::detect::ModelTaskType::region)
         .export_values();

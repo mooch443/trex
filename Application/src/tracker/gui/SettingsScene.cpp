@@ -47,6 +47,7 @@ void SettingsScene::activate() {
      //SceneManager::getInstance().set_active("convert-scene");
      SceneManager::getInstance().set_active("settings-menu");
      });*/
+    window()->set_window_size({1024,850});
     
     dyn::Modules::add(dyn::Modules::Module{
         ._name = "follow",
@@ -112,6 +113,9 @@ void SettingsScene::_draw(DrawStructure& graph) {
                 }),
                 VarFunc("settings_summary", [](const VarProps&) -> std::string {
                     return std::string(GlobalSettings::map().toStr());
+                }),
+                VarFunc("window_size", [this](const VarProps&) -> Vec2 {
+                    return window_size;
                 })
             }
         };
@@ -120,6 +124,9 @@ void SettingsScene::_draw(DrawStructure& graph) {
     auto max_w = window()->window_dimensions().width * 0.65;
     auto max_h = window()->window_dimensions().height - _button_layout->height() - 25;
     auto scale = Vec2(max_w * 0.4 / max(_preview_image->width(), 1));
+    
+    window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height);
+    
     _preview_image->set_scale(scale);
     
     graph.wrap_object(_main_layout);

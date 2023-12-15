@@ -39,7 +39,7 @@ sprite::Map ConvertScene::_video_info = []() {
 //    return segmenter().output_size();
 //}
 
-std::string window_title() {
+std::string ConvertScene::window_title() const {
     auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
     auto output_prefix = SETTING(output_prefix).value<std::string>();
     return SETTING(app_name).value<std::string>()
@@ -247,7 +247,10 @@ void ConvertScene::activate()  {
     
     auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
     if (range.first == -1 && range.second == -1) {
-        SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());
+        if(_segmenter->is_finite())
+            SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());
+        else
+            SETTING(video_conversion_range) = std::pair<long_t, long_t>(-1,-1);
     }
     else if(range.first >= 0) {
         SETTING(gui_frame) = Frame_t(range.first);

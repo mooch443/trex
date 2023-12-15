@@ -46,11 +46,55 @@ file::Path pv_file_path_for(const file::PathArray& array) {
     return output_file;
 }
 
+std::string window_title() {
+    auto output_prefix = SETTING(output_prefix).value<std::string>();
+    return SETTING(app_name).value<std::string>()
+        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
+        + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
+}
+
 void StartingScene::activate() {
     using namespace dyn;
     // Fill the recent items list
     _recents = RecentItems::read();
+    window()->set_title(window_title());
     //_recents.show(*_recent_items);
+    
+    auto video_size = Size2(1024,850);
+    auto work_area = ((const IMGUIBase*)window())->work_area();
+    /*auto window_size = Size2(
+        (work_area.width - work_area.x) * 0.75,
+        video_size.height / video_size.width * (work_area.width - work_area.x) * 0.75
+    );
+    if (window_size.height > work_area.height - work_area.y) {
+        auto ratio = window_size.width / window_size.height;
+        window_size = Size2(
+            ratio * (work_area.height - work_area.y),
+            work_area.height - work_area.y
+        );
+    }
+    if (window_size.width > work_area.width - work_area.x) {
+        auto ratio = window_size.height / window_size.width;
+        auto h = min(ratio * (work_area.width - work_area.x), window_size.height);
+        window_size = Size2(
+            h / ratio,
+            h
+        );
+    }*/
+    auto window_size = video_size;
+
+    Bounds bounds(
+        Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
+            work_area.height / 2 - window_size.height / 2 + work_area.y),
+        window_size);
+    
+    print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
+    bounds.restrict_to(work_area);
+    print("Restricting bounds to work area: ", work_area, " -> ", bounds);
+
+    print("setting bounds = ", bounds);
+    //window()->set_window_size(window_size);
+    window()->set_window_bounds(bounds);
     
     // Fill list variable
     _recents_list.clear();

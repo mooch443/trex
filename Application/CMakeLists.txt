@@ -216,6 +216,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     elseif(NOT TREX_CONDA_PACKAGE_INSTALL)
         set(M1OPTIONS "-march=native")
     endif()
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+        set(M1OPTIONS "")
+    endif()
 
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-stack-address -Wthread-safety")
@@ -358,7 +361,9 @@ if(NOT WIN32 AND ${TREX_BUILD_DOCS})
           doc ALL
           COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
           COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND PATH=$ENV{PATH}:${SPHINX_DIR} make html
+          COMMAND export PATH="$ENV{PATH}:${SPHINX_DIR}"
+          COMMAND echo "CONDA_PREFIX=${CONDA_PREFIX} PATH=${PATH}"
+          COMMAND make html
           DEPENDS
             TRex
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs

@@ -19,11 +19,8 @@ std::atomic<bool> yolo8_initialized{false};
 void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
-    if(SETTING(segmentation_model).value<file::Path>().empty()) {
-        if(SETTING(model).value<file::Path>().empty())
-            throw U_EXCEPTION("When using yolov8, please set model using command-line argument -sm <path> to set an instance segmentation model (pytorch), or -m <path> to set an object detection model, or both to use the segmentation model only for segmentation of cropped object detections.");
-    } else if(not SETTING(segmentation_model).value<file::Path>().exists())
-        FormatWarning("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
+    if(SETTING(model).value<file::Path>().empty())
+        throw U_EXCEPTION("When using YOLOv8, please provide a model path using the command-line argument -m <path> for object detection.");
 
     using namespace track::detect;
     std::vector<ModelConfig> models;
@@ -53,14 +50,6 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
                 ModelTaskType::detect,
                 SETTING(yolo8_tracking_enabled).value<bool>(),
                 SETTING(model).value<file::Path>().str()+".pt",
-                SETTING(detection_resolution).value<uint16_t>()
-            );
-            
-        } else if (SETTING(segmentation_model).value<file::Path>().exists()) {
-            models.emplace_back(
-                ModelTaskType::detect,
-                SETTING(yolo8_tracking_enabled).value<bool>(),
-                SETTING(segmentation_model).value<file::Path>().str(),
                 SETTING(detection_resolution).value<uint16_t>()
             );
         }

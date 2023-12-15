@@ -410,8 +410,6 @@ int main(int argc, char**argv) {
     //SETTING(meta_video_scale) = float(1);
     SETTING(source) = file::PathArray();
     SETTING(model) = file::Path("");
-    SETTING(segmentation_resolution) = uint16_t(128);
-    SETTING(segmentation_model) = file::Path("");
     SETTING(region_model) = file::Path("");
     SETTING(region_resolution) = uint16_t(320);
     SETTING(detection_resolution) = uint16_t(640);
@@ -449,10 +447,6 @@ int main(int argc, char**argv) {
         else if(a.name == "m") {
             SETTING(model) = file::Path(a.value);
             CommandLine::instance().add_setting("model", a.value);
-        }
-        else if(a.name == "sm") {
-            SETTING(segmentation_model) = file::Path(a.value);
-            CommandLine::instance().add_setting("segmentation_model", a.value);
         }
         else if (a.name == "bm") {
             SETTING(region_model) = file::Path(a.value);

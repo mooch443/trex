@@ -16,7 +16,6 @@ namespace track {
 
     namespace detect {
         enum class TREX_EXPORT ModelTaskType {
-            segment,
             detect,
             region
         };

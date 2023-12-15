@@ -42,7 +42,7 @@
 				"color":[225,225,225],
                 "item_line":[100,100,100,150],
                 "list":{
-                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:120}]",
+                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:90}]",
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
 					"fill":[25,25,25,220]
                 },

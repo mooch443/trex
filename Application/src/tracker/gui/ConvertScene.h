@@ -111,6 +111,8 @@ private:
 
     // Main _draw function
     void _draw(DrawStructure& graph);
+    
+    std::string window_title() const;
 };
 
 } // namespace gui

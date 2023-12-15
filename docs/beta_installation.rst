@@ -64,8 +64,6 @@ Below is a list of various command-line arguments that you can use with the TRex
     - `meta_video_scale` (float, default=1)  # Scale of the video
     - `source` (string, no default)  # Source video file
     - `model` (file path, no default)  # Path to the object detection or instance segmentation model
-    - `segmentation_resolution` (uint16_t, default=128)  # Resolution for segmentation tasks
-    - `segmentation_model` (file path, no default)  # Path to the segmentation model
     - `region_model` (file path, no default)  # Path to the region prediction model
     - `region_resolution` (uint16_t, default=320)  # Resolution for region prediction tasks
     - `detection_resolution` (uint16_t, default=640)  # Resolution for detection tasks

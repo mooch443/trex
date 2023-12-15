@@ -20,6 +20,7 @@ class SettingsScene : public Scene {
 
     // The HorizontalLayout for the two buttons and the image
     HorizontalLayout _main_layout;
+    Size2 window_size;
     dyn::DynamicGUI dynGUI;
     
 public:

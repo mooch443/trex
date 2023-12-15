@@ -374,7 +374,7 @@ class Model:
         if self.device is None:
             if torch.cuda.is_available():
                 self.device = torch.device("cuda:0")
-            elif torch.backends.mps.is_available():
+            elif torch.backends.mps.is_available() and platform.processor() == "arm":
                 self.device = torch.device("mps") #mps
             else:
                 self.device = torch.device("cpu")
@@ -410,18 +410,10 @@ class Model:
         if self.device is None:
             if torch.cuda.is_available():
                 self.device = torch.device("cuda:0")
-            elif torch.backends.mps.is_available():
+            elif torch.backends.mps.is_available() and platform.processor() == "arm":
                 self.device = torch.device("mps") #mps
             else:
                 self.device = torch.device("cpu")
-
-        if self.config.task == ModelTaskType.detect or self.config.task == ModelTaskType.segment:
-            if self.ptr.task == "segment":
-                self.config.task = ModelTaskType.segment
-                if self.device == torch.device("mps") and device_from_settings == "":
-                    self.device = torch.device("cpu")
-            elif self.ptr.task == "detect":
-                self.config.task = ModelTaskType.detect
 
         self.ptr.to(self.device)
         self.ptr.fuse()
@@ -556,15 +548,6 @@ class TRexYOLO8:
         """
         return any(model.task == ModelTaskType.detect for model in self.models)
 
-    def has_segment_model(self) -> bool:
-        """
-        Check if the list of models contains a segmentation model.
-
-        Returns:
-            bool: True if a segmentation model is found, False otherwise.
-        """
-        return any(model.task == ModelTaskType.segment for model in self.models)
-
     def region_proposal(self, images: List[Image], **kwargs) -> List[List[Tuple[BBox, Image]]]:
         """
         Performs region proposals on a list of input images using the region model.
@@ -640,7 +623,7 @@ class TRexYOLO8:
         Raises:
             Exception: If no detect or segment model is found.
         """
-        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect or model.task == ModelTaskType.segment), None)
+        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect), None)
         if detect_model is not None:
             return detect_model.config.trained_resolution
         raise Exception("No detect or segment model found")
@@ -655,7 +638,7 @@ class TRexYOLO8:
         Raises:
             Exception: If no detect or segment model is found.
         """
-        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect or model.task == ModelTaskType.segment), None)
+        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect), None)
         if detect_model is not None:
             return detect_model
         raise Exception("No detect or segment model found")
@@ -673,7 +656,7 @@ class TRexYOLO8:
         Raises:
             Exception: If no detect or segment model is found.
         """
-        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect or model.task == ModelTaskType.segment), None)
+        detect_model = next((model for model in self.models if model.task == ModelTaskType.detect), None)
         if detect_model is not None:
             return detect_model.predict(**kwargs)
         raise Exception("No detect or segment model found")
