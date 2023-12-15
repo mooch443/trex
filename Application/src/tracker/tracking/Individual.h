@@ -165,18 +165,18 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
     protected:
         //! dense array of all the basic stuff we want to save
-        GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff)
-        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using)
+        GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff);
+        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using);
         
     protected:
         //! dense array of all posture related stuff we are saving
-        GETTER(std::vector<std::unique_ptr<PostureStuff>>, posture_stuff)
+        GETTER(std::vector<std::unique_ptr<PostureStuff>>, posture_stuff);
         Frame_t _last_posture_added;
         
     public:
         
     protected:
-        //GETTER(std::set<Frame_t>, manually_matched)
+        //GETTER(std::set<Frame_t>, manually_matched);
         std::set<Frame_t> automatically_matched;
         std::mutex _delete_callback_mutex;
         
@@ -192,8 +192,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         using small_segment_map = std::map<Frame_t, FrameRange>;
         
     protected:
-        GETTER(segment_map, frame_segments)
-        GETTER(small_segment_map, recognition_segments)
+        GETTER(segment_map, frame_segments);
+        GETTER(small_segment_map, recognition_segments);
         
         //! Contains a map with individual -> probability for the blob that has been
         //  assigned to this individual.
@@ -203,7 +203,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Contains a map from fish id to probability that averages over
         //  all available segments when "check identities" was last clicked
         std::map<Idx_t, float> _average_recognition;
-        GETTER(size_t, average_recognition_samples)
+        GETTER(size_t, average_recognition_samples);
         
         Frame_t _startFrame, _endFrame;
         

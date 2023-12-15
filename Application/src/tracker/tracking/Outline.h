@@ -128,14 +128,14 @@ namespace track {
         GETTER_NCONST(float, confidence)
         
         //! the uncorrected angle of the posture detection
-        GETTER(float, original_angle)
-        GETTER(bool, inverted_because_previous)
+        GETTER(float, original_angle);
+        GETTER(bool, inverted_because_previous);
         
-        //GETTER(long_t, tail_index)
-        //GETTER(long_t, head_index)
+        //GETTER(long_t, tail_index);
+        //GETTER(long_t, head_index);
         
         //! When set to true, this Outline cannot be changed anymore.
-        GETTER(bool, concluded)
+        GETTER(bool, concluded);
         
         int curvature_range;
         
@@ -143,7 +143,7 @@ namespace track {
          * Temporary memory
          */
         std::vector<float> _curvature;
-        //GETTER(bool, needs_invert)
+        //GETTER(bool, needs_invert);
         
     public:
         Outline(std::shared_ptr<std::vector<Vec2>> points, Frame_t f = {});
@@ -227,7 +227,7 @@ namespace track {
         static constexpr int factor = 10;
         
     protected:
-        GETTER(Vec2, first)
+        GETTER(Vec2, first);
         std::vector<uint16_t> _points;
         //GETTER_NCONST(long_t, tail_index)
         //GETTER_NCONST(long_t, head_index)

@@ -13,15 +13,15 @@ namespace track {
         using Type = default_config::recognition_border_t::data::values;
         
     protected:
-        GETTER(Type, type)
-        GETTER(float, max_distance)
-        GETTER(float, min_distance)
+        GETTER(Type, type);
+        GETTER(float, max_distance);
+        GETTER(float, min_distance);
         std::vector<Rangef> x_range;
         std::vector<Rangef> y_range;
-        GETTER(std::vector<std::vector<Vec2>>, vertices)
+        GETTER(std::vector<std::vector<Vec2>>, vertices);
         bool poly_set;
         std::mutex mutex;
-        GETTER(Image::Ptr, mask)
+        GETTER(Image::Ptr, mask);
         std::vector<bool> x_valid, y_valid;
         std::map<std::tuple<uint16_t, uint16_t>, uint32_t> grid_cells;
         float _recognition_border_size_rescale;

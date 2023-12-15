@@ -186,8 +186,8 @@ namespace track {
         class Keypoint;
     
         class TREX_EXPORT KeypointData {
-            GETTER(uint64_t, num_bones)
-            GETTER(std::vector<float>, xy_conf)
+            GETTER(uint64_t, num_bones);
+            GETTER(std::vector<float>, xy_conf);
             
         public:
             KeypointData(std::vector<float>&& data, size_t bones);
@@ -230,17 +230,17 @@ namespace track {
             }
 
         protected:
-            GETTER(int, index)
-            GETTER(Boxes, boxes)
-            GETTER(std::vector<MaskData>, masks)
-            GETTER(KeypointData, keypoints)
+            GETTER(int, index);
+            GETTER(Boxes, boxes);
+            GETTER(std::vector<MaskData>, masks);
+            GETTER(KeypointData, keypoints);
         };
 
         class TREX_EXPORT YoloInput {
-            GETTER(std::vector<Image::Ptr>, images)
-            GETTER(std::vector<Vec2>, offsets)
-            GETTER(std::vector<Vec2>, scales)
-            GETTER(std::vector<size_t>, orig_id)
+            GETTER(std::vector<Image::Ptr>, images);
+            GETTER(std::vector<Vec2>, offsets);
+            GETTER(std::vector<Vec2>, scales);
+            GETTER(std::vector<size_t>, orig_id);
             std::function<void(std::vector<Image::Ptr>&&)> _delete;
 
         public:

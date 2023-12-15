@@ -13,15 +13,15 @@ class Label : public Entangled {
     GETTER_SETTER_I(float, line_length, 60)
     GETTER_I(Color, line_color, Cyan)
     GETTER_I(Color, fill_color, Transparent)
-    GETTER(Color, color)
-    GETTER(derived_ptr<StaticText>, text)
+    GETTER(Color, color);
+    GETTER(derived_ptr<StaticText>, text);
     Line _line;
-    GETTER(Bounds, source)
-    GETTER(Vec2, center)
+    GETTER(Bounds, source);
+    GETTER(Vec2, center);
     Timer animation_timer;
     const std::string animator;
     bool _registered{false};
-    GETTER(Frame_t, frame)
+    GETTER(Frame_t, frame);
     GETTER_I(bool, position_override, false)
     GETTER_SETTER(Vec2, override_position)
     

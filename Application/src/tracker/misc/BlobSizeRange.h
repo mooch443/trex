@@ -7,8 +7,8 @@
 namespace cmn {
 
 class BlobSizeRange {
-    GETTER(std::set<Rangef>, ranges)
-    GETTER(Rangef, max_range)
+    GETTER(std::set<Rangef>, ranges);
+    GETTER(Rangef, max_range);
     
 public:
     BlobSizeRange(const std::vector<Rangef>& ranges = {});

@@ -63,16 +63,16 @@ namespace gui {
         }
         
     protected:
-        GETTER(std::unique_ptr<ExternalImage>, bar)
-        GETTER(std::unique_ptr<ExternalImage>, consecutives)
+        GETTER(std::unique_ptr<ExternalImage>, bar);
+        GETTER(std::unique_ptr<ExternalImage>, consecutives);
         
         float tdelta;
         
         bool _visible;
-        GETTER(Frame_t, mOverFrame)
+        GETTER(Frame_t, mOverFrame);
 
         GETTER_SETTER_PTR_I(Base*, base, nullptr)
-        GETTER(std::atomic_bool, update_thread_updated_once)
+        GETTER(std::atomic_bool, update_thread_updated_once);
         std::function<void()> _updated_recognition_rect;
         std::function<void(bool)> _hover_status_text;
         

@@ -12,7 +12,7 @@ using namespace dyn;
 
 class LoadingScene : public Scene {
     class FileItem {
-        GETTER(file::Path, path)
+        GETTER(file::Path, path);
 
     public:
         FileItem(const file::Path& path = "");
@@ -73,7 +73,7 @@ protected:
 
     std::set<file::Path, std::function<bool(const file::Path&, const file::Path&)>> _files;
     file::Path _selected_file;
-    GETTER(file::Path, confirmed_file)
+    GETTER(file::Path, confirmed_file);
         std::function<void(const file::Path&, std::string)> _callback, _on_select_callback;
     std::function<void(DrawStructure&)> _on_update;
     std::function<bool(file::Path)> _validity;
@@ -82,7 +82,7 @@ protected:
     std::queue<std::function<void()>> _execute;
     std::mutex _execute_mutex;
     std::map<std::string, Settings> _tabs;
-    GETTER(Settings, current_tab)
+    GETTER(Settings, current_tab);
         Settings _default_tab;
 
     // The HorizontalLayout for the two buttons and the image

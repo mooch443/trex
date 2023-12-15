@@ -36,8 +36,8 @@ struct split_expectation {
 
 struct PrefilterBlobs {
 private:
-    GETTER(std::vector<pv::BlobPtr>, filtered)
-    GETTER(std::vector<pv::BlobPtr>, filtered_out)
+    GETTER(std::vector<pv::BlobPtr>, filtered);
+    GETTER(std::vector<pv::BlobPtr>, filtered_out);
 public:
     std::vector<pv::BlobPtr> big_blobs;
     

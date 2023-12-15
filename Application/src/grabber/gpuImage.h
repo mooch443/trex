@@ -6,11 +6,11 @@
 namespace cmn {
 /*struct gpuImage {
     typedef cv::Mat mat_t;
-    GETTER(long_t, index)
+    GETTER(long_t, index);
     
     typedef Image* Imageptr;
     GETTER_NCONST(Imageptr, mat)
-    GETTER(uint64_t, timestamp)
+    GETTER(uint64_t, timestamp);
     
 public:
     int rows, cols;
@@ -58,7 +58,7 @@ class ImagePair {
     GETTER_NCONST(Image, image)
     GETTER_PTR_I(Image*, mask, nullptr)
     GETTER_I(long_t, index, -1)
-    GETTER(timestamp_t, timestamp)
+    GETTER(timestamp_t, timestamp);
     
 public:
     void set_mask(Image* mask) {

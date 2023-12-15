@@ -18,11 +18,11 @@ class Segmenter {
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
     ThreadGroupId _generator_group_id, _tracker_group_id;
-    GETTER(Range<Frame_t>, video_conversion_range)
+    GETTER(Range<Frame_t>, video_conversion_range);
     file::Path _output_file_name;
     
     // Overlayed video with detections and tracker for object tracking
-    GETTER(std::unique_ptr<VideoProcessor<Detection>>, overlayed_video)
+    GETTER(std::unique_ptr<VideoProcessor<Detection>>, overlayed_video);
     std::unique_ptr<Tracker> _tracker;
     
     std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
@@ -31,7 +31,7 @@ class Segmenter {
     std::unique_ptr<pv::File> _output_file;
     
     // Size of output and start time for timing operations
-    GETTER(Size2, output_size)
+    GETTER(Size2, output_size);
     std::chrono::time_point<std::chrono::system_clock> _start_time;
     
     // Segmentation data for the next frame

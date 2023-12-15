@@ -147,12 +147,12 @@ private:
     GETTER_SETTER_PTR(std::shared_ptr<TrainingData>, data_source)
     
     using d_type = std::set<std::shared_ptr<DataRange>>;
-    GETTER(d_type, data)
-    GETTER(std::set<Idx_t>, all_classes)
+    GETTER(d_type, data);
+    GETTER(std::set<Idx_t>, all_classes);
     GETTER_NCONST(MidlineFilters, filters)
     
     using s_type = std::map<Idx_t, std::set<FrameRange>>;
-    GETTER(s_type, included_segments)
+    GETTER(s_type, included_segments);
     
     //FrameRanges frames;
     

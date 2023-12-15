@@ -65,10 +65,10 @@ namespace track {
         const Properties* _props;
         
     protected:
-        GETTER(Range<Frame_t>, frames)
-        GETTER(std::set<fdx_t>, fdx)
-        GETTER(std::set<bdx_t>, bdx)
-        GETTER(std::string, description)
+        GETTER(Range<Frame_t>, frames);
+        GETTER(std::set<fdx_t>, fdx);
+        GETTER(std::set<bdx_t>, bdx);
+        GETTER(std::string, description);
         
     public:
         FOI() : _props(NULL), _frames({}, {}) {}

@@ -67,8 +67,8 @@ class ConvertScene : public Scene {
     double dt = 0;
     
     // Frame data
-    GETTER(Frame_t, actual_frame)
-    GETTER(Frame_t, video_frame)
+    GETTER(Frame_t, actual_frame);
+    GETTER(Frame_t, video_frame);
     
     std::function<void(ConvertScene&)> _on_activate, _on_deactivate;
     ScreenRecorder _recorder;

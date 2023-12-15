@@ -18,7 +18,7 @@ concept overlay_function = requires {
 template<typename F>
     requires track::ObjectDetection<F>
 class VideoProcessor {
-    GETTER(std::unique_ptr<AbstractBaseVideoSource>, source)  // Video source
+    GETTER(std::unique_ptr<AbstractBaseVideoSource>, source);  // Video source
     F _processor_fn;  // Processing function to apply to each frame
 
     mutable std::mutex _index_mutex;  // Mutex for synchronizing frame index updates

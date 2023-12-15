@@ -107,7 +107,7 @@ public:
     
 public:
     using stats_map_t = std::map<Frame_t, Statistics>;
-    GETTER(stats_map_t, statistics)
+    GETTER(stats_map_t, statistics);
     
     struct SecondsPerFrame {
         double _seconds_per_frame, _frames_sampled;
@@ -126,7 +126,7 @@ private:
 public:
     static double average_seconds_per_individual();
     
-    GETTER(std::deque<Range<Frame_t>>, consecutive)
+    GETTER(std::deque<Range<Frame_t>>, consecutive);
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
 public:

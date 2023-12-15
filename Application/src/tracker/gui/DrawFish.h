@@ -26,7 +26,7 @@ namespace gui {
         Entangled _view;
         Label* _label { nullptr };
 
-        GETTER(Frame_t, frame)
+        GETTER(Frame_t, frame);
         Frame_t _safe_frame;
         double _time;
         ExternalImage _image;
@@ -34,7 +34,7 @@ namespace gui {
         Vec2 _probability_center;
         track::Midline::Ptr _cached_midline;
         track::MinimalOutline::Ptr _cached_outline;
-        GETTER(Vec2, fish_pos)
+        GETTER(Vec2, fish_pos);
         Circle _circle;
 
         std::vector<Vertex> _vertices;

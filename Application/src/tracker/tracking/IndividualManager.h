@@ -19,7 +19,7 @@ class Individual;
 // collect all the currently active individuals
 class IndividualManager {
     const Frame_t _frame;
-    GETTER(set_of_individuals_t, current)
+    GETTER(set_of_individuals_t, current);
     mutable std::shared_mutex current_mutex;
     
 private:

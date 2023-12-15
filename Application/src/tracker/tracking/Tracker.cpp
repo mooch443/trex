@@ -549,7 +549,7 @@ class PairProbability {
 private:
     GETTER_PTR(Individual*, idx)
     GETTER_PTR(pv::bid, bdx)
-    GETTER(Match::prob_t, p)
+    GETTER(Match::prob_t, p);
     
 public:
     PairProbability() = default;
@@ -2411,7 +2411,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         std::map<long_t, Rangel> ranges;
         TrainingData::MidlineFilters filters;
         
-        GETTER(default_config::individual_image_normalization_t::Class, normalized)
+        GETTER(default_config::individual_image_normalization_t::Class, normalized);
         
     public:
         SplitData();

@@ -118,7 +118,7 @@ namespace globals {
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
         
-        GETTER(std::vector<Range<Frame_t>>, global_segment_order)
+        GETTER(std::vector<Range<Frame_t>>, global_segment_order);
         GETTER_I(bool, blobs_dirty, false)
         GETTER_I(bool, raw_blobs_dirty, false)
         GETTER_I(bool, fish_dirty, false)
@@ -130,7 +130,7 @@ namespace globals {
         
         std::unordered_map<std::string_view, gui::Drawable*> _animator_map;
         std::unordered_map<gui::Drawable*, Drawable::delete_function_handle_t> _delete_handles;
-        GETTER(std::set<std::string_view>, animators)
+        GETTER(std::set<std::string_view>, animators);
         
     public:
         bool recognition_updated = false;

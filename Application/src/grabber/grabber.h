@@ -48,12 +48,12 @@ public:
     };
     
 protected:
-    GETTER(Task, task)
+    GETTER(Task, task);
     std::unique_ptr<AveragingAccumulator> _accumulator;
     
-    GETTER(cv::Size, cam_size)
-    GETTER(cv::Size, cropped_size)
-    GETTER(Bounds, crop_rect)
+    GETTER(cv::Size, cam_size);
+    GETTER(cv::Size, cropped_size);
+    GETTER(Bounds, crop_rect);
 
     //! to ensure that all frames are processed, this will have to be zero in the end
     //! (meaning all added frames have been removed)
@@ -67,14 +67,14 @@ protected:
     std::mutex _current_image_lock;
     Image::Ptr _current_image;
     gpuMat _average;
-    GETTER(cv::Mat, original_average)
+    GETTER(cv::Mat, original_average);
     cv::Mat _current_average;
     cmn::atomic<uint64_t> _current_average_timestamp;
     std::atomic<double> _tracking_time, _saving_time;
     
-    GETTER(std::atomic_bool, average_finished)
-    GETTER(uint32_t, average_samples)
-    GETTER(std::atomic_long, last_index)
+    GETTER(std::atomic_bool, average_finished);
+    GETTER(uint32_t, average_samples);
+    GETTER(std::atomic_long, last_index);
     
     //std::chrono::time_point<Image::clock_> _start_timing;
     timestamp_t _start_timing;
@@ -90,7 +90,7 @@ public:
     
 protected:
 	long _current_fps;
-	GETTER(std::atomic<float>, fps)
+	GETTER(std::atomic<float>, fps);
 	Timer _fps_timer;
     
 	std::mutex _lock;

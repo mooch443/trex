@@ -131,8 +131,8 @@ namespace Match {
         };
         
     protected:
-        GETTER(row_t, rows)
-        GETTER(col_t, cols)
+        GETTER(row_t, rows);
+        GETTER(col_t, cols);
         
         fish_index_t _num_rows{0};
         blob_index_t _num_cols{0};
@@ -140,7 +140,7 @@ namespace Match {
         std::vector<size_t> _offsets;
         std::vector<size_t> _degree;
         std::vector<prob_t> _row_max_probs;
-        GETTER(std::vector<Edge>, probabilities) //! size is individuals + edges per individual
+        GETTER(std::vector<Edge>, probabilities); //! size is individuals + edges per individual
         
         pairing_map_t<row_t::value_type, fish_index_t> _row_index;
         pairing_map_t<col_t::value_type, blob_index_t> _col_index;
@@ -280,14 +280,14 @@ namespace Match {
         };
         
     protected:
-        GETTER(Frame_t, frame)
-        GETTER(float, time)
+        GETTER(Frame_t, frame);
+        GETTER(float, time);
         GETTER_NCONST(PairedProbabilities, paired)
         
         std::vector<prob_t> _ordered_max_probs;
         GETTER_PTR(Result*, optimal_pairing)
         
-        //GETTER(EdgeMap, edges)
+        //GETTER(EdgeMap, edges);
         
     public:
         PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired);

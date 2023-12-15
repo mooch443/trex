@@ -42,11 +42,11 @@ namespace track {
     protected:
         const float max_d;
         std::array<eye, 2> _eyes;
-        GETTER(Vec2, fish_pos)
-        GETTER(double, fish_angle)
+        GETTER(Vec2, fish_pos);
+        GETTER(double, fish_angle);
         
-        GETTER(Idx_t, fish_id)
-        GETTER(Frame_t, frame)
+        GETTER(Idx_t, fish_id);
+        GETTER(Frame_t, frame);
         
     public:
         VisualField(Idx_t fish_id, Frame_t frame,const BasicStuff& basic, const PostureStuff* posture, bool blocking);

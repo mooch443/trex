@@ -78,7 +78,7 @@ private:
     GETTER_NCONST(GenericThreadPool, blob_thread_pool)
     GETTER_NCONST(std::mutex, blob_thread_pool_mutex)
 
-    GETTER(bool, properties_visible)
+    GETTER(bool, properties_visible);
     PrivateData* _private_data = nullptr;
 
     gui::FrameInfo _frameinfo;

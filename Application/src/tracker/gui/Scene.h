@@ -8,7 +8,7 @@
 namespace gui {
 
 class Scene {
-    GETTER(std::string, name)
+    GETTER(std::string, name);
         std::vector<Layout::Ptr> _children;
     Base* _window{ nullptr };
     std::function<void(Scene&, DrawStructure& base)> _draw;

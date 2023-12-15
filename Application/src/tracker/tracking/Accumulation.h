@@ -69,7 +69,7 @@ protected:
     size_t _counted_steps, _last_step;
     std::vector<file::Path> _coverage_paths;
     std::vector<float> _uniquenesses;
-    GETTER(std::vector<Result>, accumulation_results)
+    GETTER(std::vector<Result>, accumulation_results);
     GETTER_SETTER(std::string, last_stop_reason)
     
     /**

@@ -115,9 +115,9 @@ public:
     
 private:
     std::vector<pv::BlobPtr> _tags;
-    //GETTER(std::vector<pv::bid>, blobs)
-    //GETTER(std::vector<pv::bid>, original_blobs)
-    //GETTER(std::vector<pv::bid>, noise)
+    //GETTER(std::vector<pv::bid>, blobs);
+    //GETTER(std::vector<pv::bid>, original_blobs);
+    //GETTER(std::vector<pv::bid>, noise);
     std::vector<pv::BlobPtr> _blob_owner;
     std::vector<pv::BlobPtr> _noise_owner;
     robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _blob_map;
@@ -130,7 +130,7 @@ private:
     
     GETTER_NCONST(cache_map_t, individual_cache)
     
-    GETTER(std::vector<Idx_t>, previously_active_identities)
+    GETTER(std::vector<Idx_t>, previously_active_identities);
     
 public:
     const IndividualCache* cached(Idx_t) const;

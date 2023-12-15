@@ -24,7 +24,7 @@ public:
     };
     
 protected:
-    GETTER(std::vector<Item>, items)
+    GETTER(std::vector<Item>, items);
 
     void add(std::string name, const cmn::sprite::Map& options);
     void write();

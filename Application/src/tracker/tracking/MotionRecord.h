@@ -100,7 +100,7 @@ public:
 
 protected:
     friend class DataFormat;
-    GETTER(double, time)
+    GETTER(double, time);
 
     std::array<Vec2, MotionRecord::max_derivatives> _pos;
     std::array<float, MotionRecord::max_derivatives> _angle;

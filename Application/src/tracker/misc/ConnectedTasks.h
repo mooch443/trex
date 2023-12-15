@@ -40,7 +40,7 @@ namespace cmn {
         std::mutex _finish_mutex;
         std::condition_variable _finish_condition;
         
-        GETTER(std::atomic_bool,  paused)
+        GETTER(std::atomic_bool,  paused);
         
     public:
         ConnectedTasks(std::vector<std::function<bool(Type&&, const Stage&)>>&&);

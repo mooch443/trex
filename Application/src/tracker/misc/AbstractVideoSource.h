@@ -47,8 +47,8 @@ protected:
     using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*>()>>;
     using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>()>>;
     
-    GETTER(VideoFunction, source_frame)
-    GETTER(PreprocessFunction, resize_cvt)
+    GETTER(VideoFunction, source_frame);
+    GETTER(PreprocessFunction, resize_cvt);
     
 public:
     AbstractBaseVideoSource(VideoInfo info);

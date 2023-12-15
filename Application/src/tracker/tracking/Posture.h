@@ -32,7 +32,7 @@ namespace track {
         
         Frame_t frameIndex;
         Idx_t fishID;
-        GETTER(Outline, outline)
+        GETTER(Outline, outline);
         GETTER_PTR(Midline::Ptr, normalized_midline)
         
     public:

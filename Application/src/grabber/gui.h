@@ -23,10 +23,10 @@ public:
     
 protected:
     FrameGrabber &_grabber;
-    GETTER(CropOffsets, crop_offsets)
-    GETTER(cv::Size, size)
-    GETTER(cv::Size, cropped_size)
-    //GETTER(float, window_scale)
+    GETTER(CropOffsets, crop_offsets);
+    GETTER(cv::Size, size);
+    GETTER(cv::Size, cropped_size);
+    //GETTER(float, window_scale);
     
     bool _redraw;
     float _record_alpha;

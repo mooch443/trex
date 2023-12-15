@@ -105,7 +105,7 @@ class DrawMenuPrivate {
     
 protected:
     gui::derived_ptr<gui::List> menu;
-    GETTER(gui::derived_ptr<gui::List>, list)
+    GETTER(gui::derived_ptr<gui::List>, list);
     gui::derived_ptr<gui::List> second_list;
     gui::derived_ptr<gui::List> foi_list;
     gui::derived_ptr<gui::HorizontalLayout> layout;

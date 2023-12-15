@@ -292,7 +292,7 @@ namespace pv {
         std::mutex _lock;
         Header _header;
         cv::Mat _average, _mask;
-        GETTER(file::Path, filename)
+        GETTER(file::Path, filename);
         timestamp_t _prev_frame_time;
         
         // debug compression
