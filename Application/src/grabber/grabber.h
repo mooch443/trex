@@ -63,7 +63,7 @@ protected:
     
     AnalysisType* _analysis = nullptr;
 
-    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0)
+    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0);
     std::mutex _current_image_lock;
     Image::Ptr _current_image;
     gpuMat _average;
@@ -80,9 +80,9 @@ protected:
     timestamp_t _start_timing;
     std::chrono::time_point<std::chrono::system_clock> _real_timing;
 	
-    GETTER_PTR(VideoSource*, video)
+    GETTER_PTR(VideoSource*, video);
     VideoSource * _video_mask;
-    GETTER_PTR(fg::Camera*, camera)
+    GETTER_PTR(fg::Camera*, camera);
     
 public:
     std::mutex _fps_lock;
@@ -97,7 +97,7 @@ protected:
     std::mutex _camera_lock;
 	
 	//std::vector<std::thread*> _pool;
-    GETTER_NCONST(pv::File, processed)
+    GETTER_NCONST(pv::File, processed);
     std::atomic_bool _paused;
     
     std::queue<ImagePtr> _image_queue;

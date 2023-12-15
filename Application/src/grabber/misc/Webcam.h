@@ -9,7 +9,7 @@ namespace fg {
     class Webcam : public Camera {
         Size2 _size;
         cv::VideoCapture _capture;
-        GETTER_SETTER_I(ImageMode, color_mode, ImageMode::GRAY)
+        GETTER_SETTER_I(ImageMode, color_mode, ImageMode::GRAY);
         mutable std::mutex _mutex;
         cv::Mat _cache;
         gpuMat _gpu_cache;

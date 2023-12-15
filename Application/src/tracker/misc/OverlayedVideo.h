@@ -22,7 +22,7 @@ class VideoProcessor {
     F _processor_fn;  // Processing function to apply to each frame
 
     mutable std::mutex _index_mutex;  // Mutex for synchronizing frame index updates
-    GETTER_I(Frame_t, current_frame_index, 0_f)  // Current frame index
+    GETTER_I(Frame_t, current_frame_index, 0_f); // Current frame index
 
     useMat_t _resized_buffer;  // Buffer for resized image
 

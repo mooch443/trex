@@ -93,21 +93,21 @@ namespace pv {
     
     class Frame {
     private:
-        GETTER_SETTER(Frame_t, index)
+        GETTER_SETTER(Frame_t, index);
         
         //! time since movie start in microseconds
-        GETTER_SETTER(timestamp_t, timestamp)
+        GETTER_SETTER(timestamp_t, timestamp);
         //! number of mask/pixel arrays
-        GETTER_I(uint16_t, n, 0u)
-        GETTER_SETTER_I(float, loading_time, 0.f)
-        GETTER_SETTER(Frame_t, source_index)
+        GETTER_I(uint16_t, n, 0u);
+        GETTER_SETTER_I(float, loading_time, 0.f);
+        GETTER_SETTER(Frame_t, source_index);
         
-        GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
-        GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
-        GETTER_NCONST(std::vector<uint8_t>, flags)
+        GETTER_NCONST(std::vector<blob::line_ptr_t>, mask);
+        GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels);
+        GETTER_NCONST(std::vector<uint8_t>, flags);
         
         //! predictions either empty or same size as _mask
-        GETTER_NCONST(std::vector<blob::Prediction>, predictions)
+        GETTER_NCONST(std::vector<blob::Prediction>, predictions);
         
     public:
         Frame& operator=(const Frame& other) = delete;
@@ -234,7 +234,7 @@ namespace pv {
         uint64_t _index_offset{0u};
         uint64_t _timestamp_offset{0u};
         double _running_average_tdelta{0.0};
-        GETTER_I(uint64_t, meta_offset, 0u)
+        GETTER_I(uint64_t, meta_offset, 0u);
         
     public:
         void write(DataFormat& ref);
@@ -296,7 +296,7 @@ namespace pv {
         timestamp_t _prev_frame_time;
         
         // debug compression
-        GETTER_I(std::atomic<double>, compression_ratio, 0.0)
+        GETTER_I(std::atomic<double>, compression_ratio, 0.0);
         double _compression_value = 0;
         uint32_t _compression_samples = 0;
         

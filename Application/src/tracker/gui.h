@@ -71,12 +71,12 @@ private:
     //! Saved reference to the average image.
     Image _average_image;
     
-    GETTER_NCONST(bool, direction_change)
-    GETTER_NCONST(int, play_direction)
+    GETTER_NCONST(bool, direction_change);
+    GETTER_NCONST(int, play_direction);
 
-    GETTER_PTR(gui::Base*, base)
-    GETTER_NCONST(GenericThreadPool, blob_thread_pool)
-    GETTER_NCONST(std::mutex, blob_thread_pool_mutex)
+    GETTER_PTR(gui::Base*, base);
+    GETTER_NCONST(GenericThreadPool, blob_thread_pool);
+    GETTER_NCONST(std::mutex, blob_thread_pool_mutex);
 
     GETTER(bool, properties_visible);
     PrivateData* _private_data = nullptr;
@@ -91,7 +91,7 @@ public:
     static pv::File* video_source();
 
 protected:    
-    GETTER_SETTER(bool, info_visible)
+    GETTER_SETTER(bool, info_visible);
     
 public:
     GUI(gui::DrawStructure* graph, pv::File &video_source, const Image& average, Tracker& tracker);

@@ -107,10 +107,10 @@ constexpr std::array<const char*, 8> ReasonsNames {
     
     class Identity {
     protected:
-        GETTER_SETTER(gui::Color, color)
+        GETTER_SETTER(gui::Color, color);
         Idx_t _myID;
         std::string _name;
-        GETTER_SETTER(bool, manual)
+        GETTER_SETTER(bool, manual);
         
     public:
         static void set_running_id(Idx_t value);

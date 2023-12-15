@@ -13,7 +13,7 @@ struct Cell {
 private:
     std::vector<Layout::Ptr> _buttons;
     GETTER(std::shared_ptr<HorizontalLayout>, button_layout);
-    GETTER_SETTER_I(bool, selected, false)
+    GETTER_SETTER_I(bool, selected, false);
     
 public:
     Row *_row = nullptr;

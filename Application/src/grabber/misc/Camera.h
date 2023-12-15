@@ -10,7 +10,7 @@ namespace fg {
     using namespace cmn;
     
     class Camera {
-        GETTER_SETTER(cv::Rect2f, crop)
+        GETTER_SETTER(cv::Rect2f, crop);
         
     public:
         Camera(const cv::Rect2f& crop = cv::Rect2f()) : _crop(crop) {}

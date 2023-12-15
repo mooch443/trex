@@ -10,9 +10,9 @@
 namespace gui {
 
 class Label : public Entangled {
-    GETTER_SETTER_I(float, line_length, 60)
-    GETTER_I(Color, line_color, Cyan)
-    GETTER_I(Color, fill_color, Transparent)
+    GETTER_SETTER_I(float, line_length, 60);
+    GETTER_I(Color, line_color, Cyan);
+    GETTER_I(Color, fill_color, Transparent);
     GETTER(Color, color);
     GETTER(derived_ptr<StaticText>, text);
     Line _line;
@@ -22,8 +22,8 @@ class Label : public Entangled {
     const std::string animator;
     bool _registered{false};
     GETTER(Frame_t, frame);
-    GETTER_I(bool, position_override, false)
-    GETTER_SETTER(Vec2, override_position)
+    GETTER_I(bool, position_override, false);
+    GETTER_SETTER(Vec2, override_position);
     
 public:
     Label(const std::string& txt = "", const Bounds& source = {}, const Vec2& center = {});

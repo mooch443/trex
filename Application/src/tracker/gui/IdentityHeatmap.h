@@ -145,7 +145,7 @@ public:
     
 protected:
     //GETTER(std::shared_ptr<Region>, root);
-    GETTER_PTR(Region*, root)
+    GETTER_PTR(Region*, root);
     size_t _elements;
     GETTER(std::vector<uint32_t>, identities);
     GETTER(alias_map_t, identity_aliases);

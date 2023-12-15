@@ -21,7 +21,7 @@ namespace gui {
 
 class BlobItem : public gui::List::Item {
 protected:
-    GETTER_SETTER(std::string, name)
+    GETTER_SETTER(std::string, name);
     
 public:
     BlobItem(const std::string& n = "", long_t bdx = -1)
@@ -45,9 +45,9 @@ public:
 
 class ItemIndividual : public gui::List::Item {
 protected:
-    GETTER_SETTER(std::string, name)
-    GETTER_SETTER(Idx_t, ptr)
-    GETTER_SETTER(pv::bid, selected_blob_id)
+    GETTER_SETTER(std::string, name);
+    GETTER_SETTER(Idx_t, ptr);
+    GETTER_SETTER(pv::bid, selected_blob_id);
     
 public:
     ItemIndividual(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid)

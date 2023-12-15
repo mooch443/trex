@@ -52,7 +52,7 @@ public:
     static GenericThreadPool& thread_pool() { return instance()->_thread_pool; }
     
 protected:
-    GETTER_NCONST(Border, border)
+    GETTER_NCONST(Border, border);
     
 protected:
     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> _vi_predictions;
@@ -77,7 +77,7 @@ public:
 protected:
     CallbackCollection _callback;
     Image::Ptr _average;
-    GETTER_SETTER(cv::Mat, mask)
+    GETTER_SETTER(cv::Mat, mask);
     
     //! All the individuals that have been detected and are being maintained
     friend class Individual;

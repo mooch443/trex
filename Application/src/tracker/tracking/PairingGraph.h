@@ -282,10 +282,10 @@ namespace Match {
     protected:
         GETTER(Frame_t, frame);
         GETTER(float, time);
-        GETTER_NCONST(PairedProbabilities, paired)
+        GETTER_NCONST(PairedProbabilities, paired);
         
         std::vector<prob_t> _ordered_max_probs;
-        GETTER_PTR(Result*, optimal_pairing)
+        GETTER_PTR(Result*, optimal_pairing);
         
         //GETTER(EdgeMap, edges);
         

@@ -70,7 +70,7 @@ protected:
     std::vector<file::Path> _coverage_paths;
     std::vector<float> _uniquenesses;
     GETTER(std::vector<Result>, accumulation_results);
-    GETTER_SETTER(std::string, last_stop_reason)
+    GETTER_SETTER(std::string, last_stop_reason);
     
     /**
      * The following stuff is needed for the GUI elements in WorkProgress.

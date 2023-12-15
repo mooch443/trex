@@ -13,7 +13,7 @@ class Individual;
 class PairDistance {
     GETTER_SETTER_PTR(const Individual*, fish0)
     GETTER_SETTER_PTR(const Individual*, fish1)
-    GETTER_SETTER(float, d)
+    GETTER_SETTER(float, d);
         
 public:
     PairDistance(const Individual* fish0, const Individual* fish1, float d)

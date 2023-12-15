@@ -547,8 +547,8 @@ double Tracker::average_seconds_per_individual() {
 
 class PairProbability {
 private:
-    GETTER_PTR(Individual*, idx)
-    GETTER_PTR(pv::bid, bdx)
+    GETTER_PTR(Individual*, idx);
+    GETTER_PTR(pv::bid, bdx);
     GETTER(Match::prob_t, p);
     
 public:

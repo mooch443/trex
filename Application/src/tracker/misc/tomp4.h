@@ -43,7 +43,7 @@ class FFMPEGQueue {
     };
     
     cmn::timestamp_t _last_timestamp;
-    GETTER_NCONST(std::atomic_bool, terminate)
+    GETTER_NCONST(std::atomic_bool, terminate);
     std::vector<uint64_t> timestamps;
     std::vector<long> mp4_indexes;
     std::deque<std::shared_ptr<Package>> packages;

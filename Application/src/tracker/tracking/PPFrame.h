@@ -96,16 +96,16 @@ public:
     double time{0};
     
     CacheHints hints;
-    GETTER_SETTER_I(double, loading_time, 0)
+    GETTER_SETTER_I(double, loading_time, 0);
     
 public:
     //! Original timestamp
     timestamp_t timestamp;
     
     //! Original frame index
-    GETTER_SETTER(Frame_t, index)
+    GETTER_SETTER(Frame_t, index);
     //! Original frame index in the video
-    GETTER_SETTER(Frame_t, source_index)
+    GETTER_SETTER(Frame_t, source_index);
 
 public:
     bool _finalized = false;
@@ -124,11 +124,11 @@ private:
     robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _noise_map;
     robin_hood::unordered_flat_set<pv::bid> _big_ids;
     
-    GETTER_I(size_t, num_pixels, 0)
-    GETTER_I(size_t, pixel_samples, 0)
-    GETTER_SETTER(Size2, resolution)
+    GETTER_I(size_t, num_pixels, 0);
+    GETTER_I(size_t, pixel_samples, 0);
+    GETTER_SETTER(Size2, resolution);
     
-    GETTER_NCONST(cache_map_t, individual_cache)
+    GETTER_NCONST(cache_map_t, individual_cache);
     
     GETTER(std::vector<Idx_t>, previously_active_identities);
     

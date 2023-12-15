@@ -9,7 +9,7 @@ namespace cmn {
     GETTER(long_t, index);
     
     typedef Image* Imageptr;
-    GETTER_NCONST(Imageptr, mat)
+    GETTER_NCONST(Imageptr, mat);
     GETTER(uint64_t, timestamp);
     
 public:
@@ -55,9 +55,9 @@ public:
 };*/
 
 class ImagePair {
-    GETTER_NCONST(Image, image)
-    GETTER_PTR_I(Image*, mask, nullptr)
-    GETTER_I(long_t, index, -1)
+    GETTER_NCONST(Image, image);
+    GETTER_PTR_I(Image*, mask, nullptr);
+    GETTER_I(long_t, index, -1);
     GETTER(timestamp_t, timestamp);
     
 public:

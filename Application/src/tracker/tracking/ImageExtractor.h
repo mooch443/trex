@@ -80,8 +80,8 @@ public:
     static bool is(uint32_t flags, Flag flag);
     
 protected:
-    GETTER_I(uint64_t, pushed_items, 0)
-    GETTER_I(uint64_t, collected_items, 0)
+    GETTER_I(uint64_t, pushed_items, 0);
+    GETTER_I(uint64_t, collected_items, 0);
     
 private:
     Settings _settings{};

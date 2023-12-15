@@ -41,16 +41,16 @@ namespace track {
         typedef std::shared_ptr<Midline> Ptr;
         
     private:
-        GETTER_NCONST(float, len)
-        GETTER_NCONST(float, angle)
-        GETTER_NCONST(Vec2, offset)
-        GETTER_NCONST(Vec2, front)
-        GETTER_NCONST(std::vector<MidlineSegment>, segments)
-        GETTER_NCONST(long_t, head_index)
-        GETTER_NCONST(long_t, tail_index)
-        GETTER_NCONST(bool, inverted_because_previous)
+        GETTER_NCONST(float, len);
+        GETTER_NCONST(float, angle);
+        GETTER_NCONST(Vec2, offset);
+        GETTER_NCONST(Vec2, front);
+        GETTER_NCONST(std::vector<MidlineSegment>, segments);
+        GETTER_NCONST(long_t, head_index);
+        GETTER_NCONST(long_t, tail_index);
+        GETTER_NCONST(bool, inverted_because_previous);
         
-        GETTER_NCONST(bool, is_normalized)
+        GETTER_NCONST(bool, is_normalized);
         
     public:
         bool empty() const { return _segments.empty(); }
@@ -125,7 +125,7 @@ namespace track {
         std::shared_ptr<std::vector<Vec2>> _points;
         
         //! confidence in the results
-        GETTER_NCONST(float, confidence)
+        GETTER_NCONST(float, confidence);
         
         //! the uncorrected angle of the posture detection
         GETTER(float, original_angle);
@@ -229,8 +229,8 @@ namespace track {
     protected:
         GETTER(Vec2, first);
         std::vector<uint16_t> _points;
-        //GETTER_NCONST(long_t, tail_index)
-        //GETTER_NCONST(long_t, head_index)
+        //GETTER_NCONST(long_t, tail_index);
+        //GETTER_NCONST(long_t, head_index);
         
         friend class Output::ResultsFormat;
         friend class cmn::Data;

@@ -216,7 +216,7 @@ using namespace Hist;
 template<globals::Cache::Variables M>
 class DirectSettingsItem : public List::Item {
 protected:
-    GETTER_SETTER(std::string, description)
+    GETTER_SETTER(std::string, description);
     
 public:
     DirectSettingsItem(const std::string& description = "", long idx = -1) {
