@@ -387,9 +387,9 @@ void Segmenter::start_recording_ffmpeg() {
             }
 
             if(path.has_extension())
-                path = path.replace_extension("mov");
+                path = path.replace_extension("mp4");
             else
-                path = path.add_extension("mov");
+                path = path.add_extension("mp4");
 
             SETTING(save_raw_movie_path).value<file::Path>() = path;
             SETTING(meta_source_path).value<std::string>() = path.str();

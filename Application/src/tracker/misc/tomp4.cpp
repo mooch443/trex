@@ -263,6 +263,16 @@ FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, ImageMode mode, const f
 {
     ffmpeg::Settings::init();
 
+    // print out information about the ffmpeg library used:
+    print("FFMPEG version: ", av_version_info());
+    print("Macro: ", LIBAVCODEC_VERSION_MAJOR, ".", LIBAVCODEC_VERSION_MINOR);
+    print("FFMPEG configuration: ", avcodec_configuration());
+#if defined(__aarch64__)
+    print("Architecture: arm64");
+#else
+    print("Architecture: x86_64");
+#endif
+
     frame_ms = 1000.0 / FFMPEG_SETTING(frame_rate); // ms / frame
 
     if(!direct)
@@ -584,7 +594,9 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
             }
             
             if (_codec->id == AV_CODEC_ID_H264) {
-                int ret = av_opt_set(tempContext->priv_data, "profile", "baseline", 0);
+                int ret;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(60, 0, 0)
+                /*ret = av_opt_set(tempContext->priv_data, "profile", "baseline", 0);
                 if (ret < 0)
                     FormatWarning("Failed to set profile for H264 codec.");
 
@@ -597,11 +609,21 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
                     tempContext->level = 42; // Level 4.2 for 1080p
                 } else {
                     tempContext->level = 51; // Level 5.1 for higher resolutions
-                }
+                }*/
                 
-                ret = av_opt_set(tempContext->priv_data, "realtime", "true", 0);
+                //ret = av_opt_set(tempContext->priv_data, "realtime", "true", 0);
+                //if (ret < 0)
+                //    FormatWarning("Failed to set realtime option for H264 codec.");
+                ret = av_opt_set_int(tempContext->priv_data, "profile", AV_PROFILE_H264_BASELINE, AV_OPT_SEARCH_CHILDREN);
                 if (ret < 0)
-                    FormatWarning("Failed to set realtime option for H264 codec.");
+                    FormatWarning("Failed to set profile for H264 codec.");
+#else
+                ret = av_opt_set_int(tempContext->priv_data, "profile", 0, AV_OPT_SEARCH_CHILDREN);
+                if (ret < 0)
+                    FormatWarning("Failed to set profile for H264 codec.");
+#endif
+                
+                tempContext->level = 0;
             }
 
             /* frames per second */
@@ -617,8 +639,8 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
              * then gop_size is ignored and the output of encoder
              * will always be I frame irrespective to gop_size
              */
-            tempContext->gop_size = 0;
-            tempContext->max_b_frames = 1;
+            //tempContext->gop_size = 0;
+            //tempContext->max_b_frames = 1;
             tempContext->pix_fmt = AV_PIX_FMT_YUV420P;
             
             //if (_codec->id == AV_CODEC_ID_H264)
@@ -628,7 +650,7 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
             if (ret >= 0) {
                 print("[FFMPEG::Output] Using codec ", codecInfo.name, " for ", _size.width, "x", _size.height, " video.");
 
-                if (_codec->id == AV_CODEC_ID_H264) {
+                /*if (_codec->id == AV_CODEC_ID_H264) {
                     print("\tLevel: ", tempContext->level);
                     
                     uint8_t *realtimeOption{nullptr};
@@ -644,7 +666,7 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
                         print("\tProfile: ", (const char*)profileOption);
                         av_free(profileOption);
                     }
-                }
+                }*/
                 
                 avcodec_close(tempContext);
                 avcodec_free_context(&tempContext);
@@ -690,7 +712,9 @@ void FFMPEGQueue::open_video() {
     }
     
     if (codec->id == AV_CODEC_ID_H264) {
-        int ret = av_opt_set(c->priv_data, "profile", "baseline", 0);
+        int ret;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(60, 0, 0)
+        /*ret = av_opt_set(c->priv_data, "profile", "baseline", 0);
         if (ret < 0)
             FormatWarning("Failed to set profile for H264 codec.");
 
@@ -703,11 +727,21 @@ void FFMPEGQueue::open_video() {
             c->level = 42; // Level 4.2 for 1080p
         } else {
             c->level = 51; // Level 5.1 for higher resolutions
-        }
-
-        ret = av_opt_set(c->priv_data, "realtime", "true", 0);
+        }*/
+        
+        //ret = av_opt_set(c->priv_data, "realtime", "true", 0);
+        //if (ret < 0)
+        //    FormatWarning("Failed to set realtime option for H264 codec.");
+        ret = av_opt_set_int(c->priv_data, "profile", AV_PROFILE_H264_BASELINE, AV_OPT_SEARCH_CHILDREN);
         if (ret < 0)
-            FormatWarning("Failed to set realtime option for H264 codec.");
+            FormatWarning("Failed to set profile for H264 codec.");
+#else
+        ret = av_opt_set_int(c->priv_data, "profile", 0, AV_OPT_SEARCH_CHILDREN);
+        if (ret < 0)
+            FormatWarning("Failed to set profile for H264 codec.");
+#endif
+        
+        c->level = 0;
     }
     
     if(c->width % 2 || c->height % 2)
@@ -726,8 +760,8 @@ void FFMPEGQueue::open_video() {
      * then gop_size is ignored and the output of encoder
      * will always be I frame irrespective to gop_size
      */
-    c->gop_size = 0;
-    c->max_b_frames = 1;
+    //c->gop_size = 0;
+    //c->max_b_frames = 10;
     c->pix_fmt = AV_PIX_FMT_YUV420P;
     
     //if (codec->id == AV_CODEC_ID_H264)
@@ -760,8 +794,11 @@ void FFMPEGQueue::open_video() {
         }
     }
     
+    AVDictionary* options = NULL;
+    av_dict_set(&options, "movflags", "faststart", 0);
+    
     int error;
-    if((error = avformat_write_header(outFmtCtx, nullptr)) < 0) {
+    if((error = avformat_write_header(outFmtCtx, &options)) < 0) {
         throw U_EXCEPTION("Error creating a header for output: ", error);
     }
     
