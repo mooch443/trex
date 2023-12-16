@@ -12,6 +12,8 @@
 #include <misc/frame_t.h>
 #include <video/Video.h>
 
+struct AVCodec;
+
 namespace ffmpeg {
 
 CREATE_STRUCT(Settings,
@@ -93,6 +95,7 @@ private:
     void open_video();
     void close_video();
     void update_statistics(double ms, double image_size);
+    static const AVCodec* check_and_select_codec(const cmn::Size2& _codec);
 };
 
 #endif

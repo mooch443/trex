@@ -57,7 +57,11 @@ unsigned long long getTotalSystemMemory()
 
 using namespace cmn;
 
+#if defined(__APPLE__)
+const char *codec_name = "h264_videotoolbox";
+#else
 const char *codec_name = "h264_nvenc";
+#endif
 const AVCodec *codec;
 AVCodecContext *c= NULL;
 int i, ret, x, y;
@@ -544,22 +548,82 @@ void FFMPEGQueue::update_statistics(double ms, double image_size) {
     }
 }
 
+const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
+    struct CodecInfo {
+        const char* name;
+    };
+
+    static constexpr CodecInfo codecList[] = {
+#if defined(__APPLE__)
+        {"h264_videotoolbox"},
+#else
+        {"h264_nvenc"},
+#endif
+        {"libx264"},
+        {"libopenh264"}
+    };
+
+    for (auto& codecInfo : codecList) {
+        auto _codec = avcodec_find_encoder_by_name(codecInfo.name);
+        if (_codec) {
+            AVCodecContext* tempContext = avcodec_alloc_context3(_codec);
+            if (!tempContext) {
+                FormatExcept("Could not allocate temporary video codec context for ", codecInfo.name);
+                continue;
+            }
+
+            tempContext->bit_rate = 0;
+            tempContext->width = _size.width;
+            tempContext->height = _size.height;
+
+            auto crf = Meta::toStr(SETTING(ffmpeg_crf).value<uint32_t>());
+            av_opt_set(tempContext, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN);
+
+            /* frames per second */
+            int frame_rate = SETTING(frame_rate).value<uint32_t>();
+            if(frame_rate <= 0 || frame_rate > 256)
+                frame_rate = 25;
+            tempContext->time_base = AVRational{1, frame_rate};
+            tempContext->framerate = AVRational{frame_rate, 1}; // For setting frame rate explicitly
+
+            /* emit one intra frame every ten frames
+             * check frame pict_type before passing frame
+             * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+             * then gop_size is ignored and the output of encoder
+             * will always be I frame irrespective to gop_size
+             */
+            tempContext->gop_size = 0;
+            tempContext->max_b_frames = 1;
+            tempContext->pix_fmt = AV_PIX_FMT_YUV420P;
+            
+            if (_codec->id == AV_CODEC_ID_H264)
+                av_opt_set(tempContext->priv_data, "preset", "fast", 0);
+
+            int ret = avcodec_open2(tempContext, _codec, NULL);
+            if (ret >= 0) {
+                avcodec_close(tempContext);
+                avcodec_free_context(&tempContext);
+                return _codec;
+            }
+
+            char errBuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errBuf, AV_ERROR_MAX_STRING_SIZE);
+            //auto str = av_err2str(ret);
+            FormatExcept("Could not open codec ",codecInfo.name,": ", errBuf,".");
+            avcodec_free_context(&tempContext);
+        } else {
+            FormatWarning("Could not find encoder for codec ", codecInfo.name);
+        }
+    }
+
+    throw U_EXCEPTION("No suitable codec found.");
+}
+
 void FFMPEGQueue::open_video() {
     pts = 0;
-    /* find the mpeg1video encoder */
-    codec = avcodec_find_encoder_by_name(codec_name);
-    if (!codec) {
-        print("Cannot record with '",codec_name,"'. Searching for 'h264'.");
-        codec = avcodec_find_encoder_by_name("h264_videotoolbox");
-    }
-    
-    if(!codec)
-        throw U_EXCEPTION("Codec ",codec_name," not found, and 'h264_videotoolbox' could not be found either.");
 
-    /*if (!(codec->capabilities & AV_CODEC_CAP_INTRA_ONLY)) {
-        // This codec doesn't support only intra frames (i.e., I-frames)
-        throw U_EXCEPTION("Codec ",codec_name," does not support only intra frames.");
-    }*/
+    // try to find a suitable codec
+    codec = check_and_select_codec(_size);
 
     c = avcodec_alloc_context3(codec);
     if (!c)
@@ -727,6 +791,11 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
     rgb_frame->format = AV_PIX_FMT_RGB24;*/
     //if(av_frame_make_writable(input_frame) < 0)
     //    throw U_EXCEPTION("Cannot write input frame.");
+    
+    auto ptr = const_cast<Image*>(&image);
+    auto mat = ptr->get();
+    cv::putText(mat, Meta::toStr(image.index()), Vec2(100,150), 1, cv::FONT_HERSHEY_PLAIN, gui::Red);
+    
     input_frame->data[0] = image.data();
 
     // Convert the RGB frame to the codec context's pixel format (usually YUV)
