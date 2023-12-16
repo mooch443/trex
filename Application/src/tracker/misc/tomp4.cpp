@@ -618,9 +618,17 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
                 if (ret < 0)
                     FormatWarning("Failed to set profile for H264 codec.");
 #else
+    #if defined(WIN32) || defined(__linux__)
+                if (codecInfo.name == "h264_nvenc") {
+                    ret = av_opt_set_int(tempContext->priv_data, "preset", 3, AV_OPT_SEARCH_CHILDREN);
+                    if (ret < 0)
+                        FormatWarning("Failed to set preset for H264 codec.");
+                }
+    #else
                 ret = av_opt_set_int(tempContext->priv_data, "profile", 0, AV_OPT_SEARCH_CHILDREN);
                 if (ret < 0)
                     FormatWarning("Failed to set profile for H264 codec.");
+    #endif
 #endif
                 
                 tempContext->level = 0;
@@ -639,8 +647,10 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
              * then gop_size is ignored and the output of encoder
              * will always be I frame irrespective to gop_size
              */
-            //tempContext->gop_size = 0;
-            //tempContext->max_b_frames = 1;
+            if (_codec->name == "h264_nvenc") {
+                tempContext->gop_size = 0;
+                tempContext->max_b_frames = 1;
+            }
             tempContext->pix_fmt = AV_PIX_FMT_YUV420P;
             
             //if (_codec->id == AV_CODEC_ID_H264)
@@ -736,9 +746,17 @@ void FFMPEGQueue::open_video() {
         if (ret < 0)
             FormatWarning("Failed to set profile for H264 codec.");
 #else
+    #if defined(WIN32) || defined(__linux__)
+        if (codec->name == "h264_nvenc") {
+            ret = av_opt_set_int(c->priv_data, "preset", 3, AV_OPT_SEARCH_CHILDREN);
+            if (ret < 0)
+                FormatWarning("Failed to set preset for H264 codec.");
+        }
+    #else
         ret = av_opt_set_int(c->priv_data, "profile", 0, AV_OPT_SEARCH_CHILDREN);
         if (ret < 0)
             FormatWarning("Failed to set profile for H264 codec.");
+    #endif
 #endif
         
         c->level = 0;
@@ -760,8 +778,10 @@ void FFMPEGQueue::open_video() {
      * then gop_size is ignored and the output of encoder
      * will always be I frame irrespective to gop_size
      */
-    //c->gop_size = 0;
-    //c->max_b_frames = 10;
+    if (codec->name == "h264_nvenc") {
+        c->gop_size = 0;
+        c->max_b_frames = 1;
+    }
     c->pix_fmt = AV_PIX_FMT_YUV420P;
     
     //if (codec->id == AV_CODEC_ID_H264)
