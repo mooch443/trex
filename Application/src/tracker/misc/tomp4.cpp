@@ -619,7 +619,7 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
                     FormatWarning("Failed to set profile for H264 codec.");
 #else
     #if defined(WIN32) || defined(__linux__)
-                if (codecInfo.name == "h264_nvenc") {
+                if (std::string(codecInfo.name) == "h264_nvenc") {
                     ret = av_opt_set_int(tempContext->priv_data, "preset", 3, AV_OPT_SEARCH_CHILDREN);
                     if (ret < 0)
                         FormatWarning("Failed to set preset for H264 codec.");
@@ -647,7 +647,7 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
              * then gop_size is ignored and the output of encoder
              * will always be I frame irrespective to gop_size
              */
-            if (_codec->name == "h264_nvenc") {
+            if (std::string(_codec->name) == "h264_nvenc") {
                 tempContext->gop_size = 0;
                 tempContext->max_b_frames = 1;
             }
@@ -747,7 +747,7 @@ void FFMPEGQueue::open_video() {
             FormatWarning("Failed to set profile for H264 codec.");
 #else
     #if defined(WIN32) || defined(__linux__)
-        if (codec->name == "h264_nvenc") {
+        if (std::string(codec->name) == "h264_nvenc") {
             ret = av_opt_set_int(c->priv_data, "preset", 3, AV_OPT_SEARCH_CHILDREN);
             if (ret < 0)
                 FormatWarning("Failed to set preset for H264 codec.");
@@ -778,7 +778,7 @@ void FFMPEGQueue::open_video() {
      * then gop_size is ignored and the output of encoder
      * will always be I frame irrespective to gop_size
      */
-    if (codec->name == "h264_nvenc") {
+    if (std::string(codec->name) == "h264_nvenc") {
         c->gop_size = 0;
         c->max_b_frames = 1;
     }
