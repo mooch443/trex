@@ -132,36 +132,38 @@ void flush_encoder(AVCodecContext* enc_ctx) {
 
     while (ret >= 0) {
         // Create a new packet for the encoded data
-        AVPacket pkt;
-        av_init_packet(&pkt);
-        pkt.data = nullptr;    // packet data will be allocated by the encoder
-        pkt.size = 0;
+        auto pkt = av_packet_alloc();
+        pkt->data = nullptr;    // packet data will be allocated by the encoder
+        pkt->size = 0;
 
         // Receive the encoded data from the encoder
-        ret = avcodec_receive_packet(enc_ctx, &pkt);
+        ret = avcodec_receive_packet(enc_ctx, pkt);
 
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             // EAGAIN means the encoder needs more input to produce more output
             // EOF means the encoder has flushed all data
+            av_packet_free(&pkt);
             break;
         }
         else if (ret < 0) {
             std::cerr << "Error during encoding while flushing: " << ret << std::endl;
+            av_packet_free(&pkt);
             break;
         }
 
         // Rescale timestamps from codec time base to stream time base
-        pkt.pts = av_rescale_q(pkt.pts, enc_ctx->time_base, outStream->time_base);
-        pkt.dts = av_rescale_q(pkt.dts, enc_ctx->time_base, outStream->time_base);
+        pkt->pts = av_rescale_q(pkt->pts, enc_ctx->time_base, outStream->time_base);
+        pkt->dts = av_rescale_q(pkt->dts, enc_ctx->time_base, outStream->time_base);
 
         //pkt->dts = AV_NOPTS_VALUE;
         // Write the packet
-        if (av_interleaved_write_frame(outFmtCtx, &pkt) < 0) {
+        if (av_interleaved_write_frame(outFmtCtx, pkt) < 0) {
             throw U_EXCEPTION("Error while writing packet to output file");
         }
         //printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
         //fwrite(pkt->data, 1, pkt->size, outfile);
-        av_packet_unref(&pkt);
+        av_packet_unref(pkt);
+        av_packet_free(&pkt);
     }
 }
 
@@ -577,7 +579,30 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
             tempContext->height = _size.height;
 
             auto crf = Meta::toStr(SETTING(ffmpeg_crf).value<uint32_t>());
-            av_opt_set(tempContext, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN);
+            if(av_opt_set(tempContext, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN) != 0) {
+                FormatWarning("Setting CRF was not successful in codec ", codecInfo.name);
+            }
+            
+            if (_codec->id == AV_CODEC_ID_H264) {
+                int ret = av_opt_set(tempContext->priv_data, "profile", "baseline", 0);
+                if (ret < 0)
+                    FormatWarning("Failed to set profile for H264 codec.");
+
+                // Set the level based on the resolution
+                if (tempContext->width <= 720 && tempContext->height <= 480) {
+                    tempContext->level = 30; // Level 3.0 for 480p
+                } else if (tempContext->width <= 1280 && tempContext->height <= 720) {
+                    tempContext->level = 31; // Level 3.1 for 720p
+                } else if (tempContext->width <= 1920 && tempContext->height <= 1080) {
+                    tempContext->level = 42; // Level 4.2 for 1080p
+                } else {
+                    tempContext->level = 51; // Level 5.1 for higher resolutions
+                }
+                
+                ret = av_opt_set(tempContext->priv_data, "realtime", "true", 0);
+                if (ret < 0)
+                    FormatWarning("Failed to set realtime option for H264 codec.");
+            }
 
             /* frames per second */
             int frame_rate = SETTING(frame_rate).value<uint32_t>();
@@ -596,11 +621,31 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
             tempContext->max_b_frames = 1;
             tempContext->pix_fmt = AV_PIX_FMT_YUV420P;
             
-            if (_codec->id == AV_CODEC_ID_H264)
-                av_opt_set(tempContext->priv_data, "preset", "fast", 0);
+            //if (_codec->id == AV_CODEC_ID_H264)
+            //    av_opt_set(tempContext->priv_data, "preset", "fast", 0);
 
             int ret = avcodec_open2(tempContext, _codec, NULL);
             if (ret >= 0) {
+                print("[FFMPEG::Output] Using codec ", codecInfo.name, " for ", _size.width, "x", _size.height, " video.");
+
+                if (_codec->id == AV_CODEC_ID_H264) {
+                    print("\tLevel: ", tempContext->level);
+                    
+                    uint8_t *realtimeOption{nullptr};
+                    if(av_opt_get((void*)&_codec->priv_class, "realtime", 0, &realtimeOption) == 0)
+                    {
+                        print("\tRealtime option: ", (const char*)realtimeOption);
+                        av_free(realtimeOption);
+                    }
+
+                    uint8_t *profileOption{nullptr};
+                    if(av_opt_get((void*)&_codec->priv_class, "profile", 0, &profileOption) == 0)
+                    {
+                        print("\tProfile: ", (const char*)profileOption);
+                        av_free(profileOption);
+                    }
+                }
+                
                 avcodec_close(tempContext);
                 avcodec_free_context(&tempContext);
                 return _codec;
@@ -640,7 +685,30 @@ void FFMPEGQueue::open_video() {
     c->height = _size.height;
     
     auto crf = Meta::toStr(SETTING(ffmpeg_crf).value<uint32_t>());
-    av_opt_set(c, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN);
+    if(av_opt_set(c, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN) != 0) {
+        FormatWarning("Setting CRF was not successful in codec ", codec->name);
+    }
+    
+    if (codec->id == AV_CODEC_ID_H264) {
+        int ret = av_opt_set(c->priv_data, "profile", "baseline", 0);
+        if (ret < 0)
+            FormatWarning("Failed to set profile for H264 codec.");
+
+        // Set the level based on the resolution
+        if (c->width <= 720 && c->height <= 480) {
+            c->level = 30; // Level 3.0 for 480p
+        } else if (c->width <= 1280 && c->height <= 720) {
+            c->level = 31; // Level 3.1 for 720p
+        } else if (c->width <= 1920 && c->height <= 1080) {
+            c->level = 42; // Level 4.2 for 1080p
+        } else {
+            c->level = 51; // Level 5.1 for higher resolutions
+        }
+
+        ret = av_opt_set(c->priv_data, "realtime", "true", 0);
+        if (ret < 0)
+            FormatWarning("Failed to set realtime option for H264 codec.");
+    }
     
     if(c->width % 2 || c->height % 2)
         throw U_EXCEPTION("Dimensions must be a multiple of 2. (",c->width,"x",c->height,")");
@@ -662,8 +730,8 @@ void FFMPEGQueue::open_video() {
     c->max_b_frames = 1;
     c->pix_fmt = AV_PIX_FMT_YUV420P;
     
-    if (codec->id == AV_CODEC_ID_H264)
-        av_opt_set(c->priv_data, "preset", "fast", 0);
+    //if (codec->id == AV_CODEC_ID_H264)
+    //    av_opt_set(c->priv_data, "preset", "fast", 0);
     
     /* open it */
     ret = avcodec_open2(c, codec, NULL);
