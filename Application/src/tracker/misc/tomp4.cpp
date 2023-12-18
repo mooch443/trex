@@ -917,9 +917,9 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
     //if(av_frame_make_writable(input_frame) < 0)
     //    throw U_EXCEPTION("Cannot write input frame.");
     
-    auto ptr = const_cast<Image*>(&image);
-    auto mat = ptr->get();
-    cv::putText(mat, Meta::toStr(image.index()), Vec2(100,150), 1, cv::FONT_HERSHEY_PLAIN, gui::Red);
+    //auto ptr = const_cast<Image*>(&image);
+    //auto mat = ptr->get();
+    //cv::putText(mat, Meta::toStr(image.index()), Vec2(100,150), 1, cv::FONT_HERSHEY_PLAIN, gui::Red);
     
     input_frame->data[0] = image.data();
 
