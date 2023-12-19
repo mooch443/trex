@@ -12,22 +12,40 @@ concept overlay_function = requires {
 //{ std::invoke_result<T, const Image&>::type } -> std::convertible_to<Image::Ptr>;
 };
 
+class BasicProcessor {
+    GETTER(std::unique_ptr<AbstractBaseVideoSource>, source);  // Video source
+public:
+    // Type alias for the result of an asynchronous network call
+    using AsyncResult = tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*>;
+
+    BasicProcessor() = default;
+    BasicProcessor(const BasicProcessor&) = delete;
+    BasicProcessor& operator=(const BasicProcessor&) = delete;
+    BasicProcessor(BasicProcessor&&) = delete;
+    BasicProcessor& operator=(BasicProcessor&&) = delete;
+
+    BasicProcessor(std::unique_ptr<AbstractBaseVideoSource>&& src)
+        : _source(std::move(src))
+    {}
+    
+    virtual ~BasicProcessor() = default;
+    virtual bool eof() const noexcept = 0;
+    virtual void reset_to_frame(Frame_t frame) = 0;
+    virtual AsyncResult generate() noexcept = 0;
+};
+
 // Class that represents a video processor. It takes a video source as input
 // and applies a function (e.g., machine learning model, background subtraction, etc.)
 // to each frame asynchronously.
 template<typename F>
     requires track::ObjectDetection<F>
-class VideoProcessor {
-    GETTER(std::unique_ptr<AbstractBaseVideoSource>, source);  // Video source
+class VideoProcessor : public BasicProcessor {
     F _processor_fn;  // Processing function to apply to each frame
 
     mutable std::mutex _index_mutex;  // Mutex for synchronizing frame index updates
     GETTER_I(Frame_t, current_frame_index, 0_f); // Current frame index
 
     useMat_t _resized_buffer;  // Buffer for resized image
-
-    // Type alias for the result of an asynchronous network call
-    using AsyncResult = tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, const char*>;
 
     // Queue for asynchronous operations
     RepeatedDeferral<std::function<AsyncResult()>> _async_queue;
@@ -49,7 +67,7 @@ public:
     template<typename SourceType, typename Callback>
         requires _clean_same<SourceType, VideoSource>
     VideoProcessor(F&& fn, SourceType&& src, Callback&& callback)
-        : _source(std::make_unique<VideoSourceVideoSource>(std::move(src))),
+        : BasicProcessor(std::make_unique<VideoSourceVideoSource>(std::move(src))),
           _processor_fn(std::move(fn)),
           _async_queue(10u, 5u, "ApplyProcessor", [this, callback = std::move(callback)]() {
               return retrieve_and_process_next(callback);
@@ -62,7 +80,7 @@ public:
     template<typename SourceType, typename Callback>
         requires _clean_same<SourceType, fg::Webcam>
     VideoProcessor(F&& fn, SourceType&& src, Callback&& callback)
-        : _source(std::make_unique<WebcamVideoSource>(std::move(src))),
+        : BasicProcessor(std::make_unique<WebcamVideoSource>(std::move(src))),
           _processor_fn(std::move(fn)),
           _async_queue(10u, 5u, "ApplyProcessor", [this, callback = std::move(callback)]() {
               return retrieve_and_process_next(callback);
@@ -72,7 +90,7 @@ public:
     }
 
     // Checks if EOF has been reached for finite video sources
-    bool eof() const noexcept {
+    bool eof() const noexcept override {
         assert(_source);
         if (not _source->is_finite())
             return false;
@@ -157,7 +175,7 @@ public:
     }
 
     // Resets the video source to a specified frame
-    void reset_to_frame(Frame_t frame) {
+    void reset_to_frame(Frame_t frame) override {
         std::scoped_lock guard(_index_mutex);
         _current_frame_index = frame;
         assert(_source);
@@ -166,7 +184,7 @@ public:
     }
 
     // Generates the next frame and applies the processing function on it
-    AsyncResult generate() noexcept {
+    AsyncResult generate() noexcept override {
         //if (eof())
         //    return tl::unexpected("End of file reached.");
         return _async_queue.next();

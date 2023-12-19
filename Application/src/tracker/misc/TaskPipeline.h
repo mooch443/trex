@@ -153,14 +153,16 @@ public:
     }
 };
 
-template<typename Data>
+template<typename Data, bool init_paused = false>
 class PipelineManager {
     typename BaseTask<Data>::Ptr _c;
     std::shared_mutex _mutex;
-    std::mutex _future_mutex;
+    std::mutex _future_mutex, _pause_mutex;
+    std::condition_variable _pause_variable;
     std::future<void> _future;
     double _weight_limit{ 0 };
     std::function<void()> _create;
+    bool _paused{false};
     
     template <typename... Args>
     auto bind_arguments_to_lambda(Args&&... args) {
@@ -176,7 +178,7 @@ class PipelineManager {
 public:
     template<typename... Args>
     PipelineManager(double weight_limit, Args... args)
-        : _weight_limit(weight_limit), _create(bind_arguments_to_lambda(std::forward<Args>(args)...))
+        : _weight_limit(weight_limit), _create(bind_arguments_to_lambda(std::forward<Args>(args)...)), _paused(init_paused)
     {
         CMN_ASSERT(not Data{}, "Default constructed values should evaluate to 'false'.");
     }
@@ -203,6 +205,14 @@ public:
         std::unique_lock g(_mutex);
         _c = nullptr;
     }
+    
+    void set_paused(bool v) {
+        {
+            std::unique_lock g(_pause_mutex);
+            _paused = v;
+            _pause_variable.notify_all();
+        }
+    }
 
     /*void enqueue(std::vector<Data>&& v) {
         {
@@ -225,6 +235,10 @@ public:
     }*/
 
     void enqueue(Data&& ptr) {
+        std::unique_lock p(_pause_mutex);
+        if(_paused)
+            _pause_variable.wait(p, [&](){ return not _paused; });
+        
         std::scoped_lock g(_future_mutex);
         if (_future.valid())
             _future.get();

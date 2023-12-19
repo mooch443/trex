@@ -39,7 +39,11 @@ void Identity::set_running_id(Idx_t value) { RUNNING_ID = value.get(); }
 Idx_t Identity::running_id() { return Idx_t(RUNNING_ID.load()); }
 
 Identity::Identity(Idx_t myID)
-    : _color(myID.valid() ? ColorWheel(myID.get()).next() : ColorWheel(RUNNING_ID).next()), _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)), _name(Meta::toStr(_myID))
+    : _color(myID.valid() 
+             ? ColorWheel(myID.get()).next()
+             : ColorWheel(RUNNING_ID).next()),
+    _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)),
+    _name(Meta::toStr(_myID))
 {
     if(myID.valid() && RUNNING_ID < myID.get()) {
         RUNNING_ID = (myID + Idx_t(1)).get();

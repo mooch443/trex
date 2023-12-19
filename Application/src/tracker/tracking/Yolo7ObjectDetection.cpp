@@ -116,7 +116,10 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
         else
             FormatWarning("Cannot use oimages with tiled.");
         
-        promises.push_back(std::move(tiled.promise));
+        if(not tiled.promise)
+            throw U_EXCEPTION("Promise was not set.");
+        promises.push_back(std::move(*tiled.promise));
+        tiled.promise = nullptr;
         
         scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
         //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);

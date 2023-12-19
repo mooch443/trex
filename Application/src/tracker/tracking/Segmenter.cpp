@@ -186,8 +186,19 @@ void Segmenter::open_video() {
     SETTING(meta_video_size).value<Size2>() = video_base.size();
     SETTING(output_size) = _output_size;
 
+    if(std::unique_lock vlock(_mutex_video);
+       SETTING(track_background_subtraction))
     {
-        std::unique_lock vlock(_mutex_video);
+        _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
+           BackgroundSubtraction{},
+           std::move(video_base),
+           [this]() {
+               ThreadManager::getInstance().notify(_generator_group_id);
+               //_cv_messages.notify_one();
+           }
+        );
+        
+    } else {
         _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
            Detection{},
            std::move(video_base),
@@ -255,14 +266,17 @@ void Segmenter::open_video() {
             bg.setTo(255);
             
             VideoSource tmp(SETTING(source).value<file::PathArray>());
+            tmp.set_colors(ImageMode::GRAY);
             tmp.generate_average(bg, 0);
             cv::imwrite(average_name().str(), bg);
             
-            print("** generated average");
+            print("** generated average ", bg.channels());
+            BackgroundSubtraction::set_background(Image::Make(bg));
             callback_after_generating(bg);
         });
         
     } else {
+        BackgroundSubtraction::set_background(Image::Make(bg));
         callback_after_generating(bg);
     }
 
@@ -277,11 +291,6 @@ void Segmenter::open_video() {
     };
 
     _overlayed_video->reset_to_frame(_video_conversion_range.start);
-
-    start_recording_ffmpeg();
-
-    ThreadManager::getInstance().startGroup(_generator_group_id);
-    ThreadManager::getInstance().startGroup(_tracker_group_id);
 }
 
 void Segmenter::open_camera() {
@@ -311,8 +320,19 @@ void Segmenter::open_camera() {
     
     SETTING(video_conversion_range) = std::pair<long_t,long_t>(-1,-1);
     
+    if(std::unique_lock vlock(_mutex_video);
+       SETTING(track_background_subtraction))
     {
-        std::unique_lock vlock(_mutex_video);
+        _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
+           BackgroundSubtraction{},
+           std::move(camera),
+           [this]() {
+               ThreadManager::getInstance().notify(_generator_group_id);
+               //_cv_messages.notify_one();
+           }
+        );
+        
+    } else {
         _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
            Detection{},
            std::move(camera),
@@ -321,9 +341,9 @@ void Segmenter::open_camera() {
                //_cv_messages.notify_one();
            }
         );
-        
-        _overlayed_video->source()->notify();
     }
+    
+    _overlayed_video->source()->notify();
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
@@ -368,9 +388,11 @@ void Segmenter::open_camera() {
     }
 
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };
+}
 
+void Segmenter::start() {
     start_recording_ffmpeg();
-    
+
     ThreadManager::getInstance().startGroup(_generator_group_id);
     ThreadManager::getInstance().startGroup(_tracker_group_id);
 }

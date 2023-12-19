@@ -72,6 +72,8 @@ class ConvertScene : public Scene {
     
     std::function<void(ConvertScene&)> _on_activate, _on_deactivate;
     ScreenRecorder _recorder;
+    std::future<std::string> _retrieve_video_info;
+    std::string _recovered_error;
     
 public:
     ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate);
@@ -113,6 +115,8 @@ private:
     void _draw(DrawStructure& graph);
     
     std::string window_title() const;
+    
+    void check_video_info(bool wait, std::string*);
 };
 
 } // namespace gui

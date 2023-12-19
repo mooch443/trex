@@ -24,7 +24,7 @@ struct TileImage {
     std::vector<Image::Ptr> images;
     std::vector<Vec2> _offsets;
     Size2 source_size, original_size;
-    std::promise<SegmentationData> promise;
+    std::unique_ptr<std::promise<SegmentationData>> promise;
     std::function<void()> callback;
 
     static void move_back(Image::Ptr&& ptr);

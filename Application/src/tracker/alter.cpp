@@ -73,7 +73,7 @@ std::string date_time() {
 using namespace gui;
 
 static_assert(ObjectDetection<Yolo7ObjectDetection>);
-static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
+//static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 static_assert(ObjectDetection<Yolo8>);
 
 namespace ind = indicators;

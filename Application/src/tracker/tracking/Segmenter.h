@@ -22,7 +22,7 @@ class Segmenter {
     file::Path _output_file_name;
     
     // Overlayed video with detections and tracker for object tracking
-    GETTER(std::unique_ptr<VideoProcessor<Detection>>, overlayed_video);
+    GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);
     std::unique_ptr<Tracker> _tracker;
     
     std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
@@ -58,6 +58,7 @@ public:
     void reset(Frame_t);
     void open_video();
     void open_camera();
+    void start();
     
     bool is_average_generating() const;
     

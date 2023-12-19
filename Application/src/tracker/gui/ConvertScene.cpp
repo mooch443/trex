@@ -148,6 +148,8 @@ void ConvertScene::deactivate() {
         _current_data = {};
         dynGUI.clear();
         
+        check_video_info(true, nullptr);
+        
         if(_on_deactivate)
             _on_deactivate(*this);
         
@@ -158,6 +160,24 @@ void ConvertScene::deactivate() {
     } catch(const std::exception& e){
         FormatExcept(e.what());
         _scene_promise.set_exception(std::current_exception());
+    }
+}
+
+void ConvertScene::check_video_info(bool wait, std::string* result) {
+    if(_retrieve_video_info.valid()
+       && (wait || _retrieve_video_info.wait_for(std::chrono::milliseconds(0)) 
+                        == std::future_status::ready))
+    {
+        try {
+            // invalidate existing future and throw away
+            if(result)
+                *result = _retrieve_video_info.get();
+            else
+                (void)_retrieve_video_info.get();
+            
+        } catch(const std::exception& e) {
+            FormatError("There was in error retrieving video info from the future: ", e.what());
+        }
     }
 }
 
@@ -198,7 +218,7 @@ void ConvertScene::activate()  {
 
     RecentItems::open(source, GlobalSettings::map());
 
-    video_size = _segmenter->size();
+    video_size = _video_info["resolution"].value<Size2>();
     if(video_size.empty()) {
         video_size = Size2(640,480);
         FormatError("Cannot determine size of the video input. Defaulting to ", video_size, ".");
@@ -255,6 +275,8 @@ void ConvertScene::activate()  {
     else if(range.first >= 0) {
         SETTING(gui_frame) = Frame_t(range.first);
     }
+    
+    _segmenter->start();
 }
 
 bool ConvertScene::on_global_event(Event e) {
@@ -280,7 +302,9 @@ bool ConvertScene::fetch_new_data() {
     std::call_once(flag, []() {
         set_thread_name("GUI");
     });
-
+    
+    check_video_info(false, &_recovered_error);
+    
     bool dirty = false;
     auto&& [data, obj] = segmenter().grab();
     if(data.image) {
@@ -353,7 +377,7 @@ uint64_t interleaveBits(const Vec2& pos) {
     uint32_t x(pos.x), y(pos.y);
     uint64_t z = 0;
     for (uint64_t i = 0; i < sizeof(uint32_t) * 8; ++i) {
-        z |= (x & (1 << i)) << i | (y & (1 << i)) << (i + 1);
+        z |= (x & (1ULL << i)) << i | (y & (1ULL << i)) << (i + 1);
     }
     return z;
 }
@@ -533,6 +557,18 @@ void ConvertScene::drawBlobs(
 
 dyn::DynamicGUI ConvertScene::init_gui() {
     dyn::Context context;
+    check_video_info(true, nullptr);
+    _retrieve_video_info = std::async(std::launch::async, [this]() 
+        -> std::string
+    {
+        // we need to throw this away since this may be blocking
+        auto e = _segmenter->video_recovered_error();
+        if(not e.has_value()) {
+            return "";
+        }
+        return (std::string)e.value();
+    });
+    
     context.actions = {
         ActionFunc("terminate", [this](auto) {
             if (_segmenter)
@@ -611,11 +647,7 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             return _untracked_gui;
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
-            auto e = _segmenter->video_recovered_error();
-            if(not e.has_value()) {
-                return "";
-            }
-            return (std::string)e.value();
+            return _recovered_error;
         })
     };
 

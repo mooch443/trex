@@ -423,7 +423,11 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
     size_t i = 0;
     for(auto&& tiled : tiles) {
         transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
-        transfer.promises.emplace_back(std::move(tiled.promise));
+        
+        if(not tiled.promise)
+            throw U_EXCEPTION("Promise was not set.");
+        transfer.promises.emplace_back(std::move(*tiled.promise));
+        tiled.promise = nullptr;
         
         //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
         
