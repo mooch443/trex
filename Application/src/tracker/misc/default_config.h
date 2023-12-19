@@ -8,7 +8,7 @@
 namespace default_config {
     using namespace cmn;
     
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn);
+    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn);
 
     void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
     bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});

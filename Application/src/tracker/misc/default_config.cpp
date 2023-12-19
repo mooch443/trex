@@ -311,7 +311,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     return false;
 }
     
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn)
+    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn)
     {
         auto old = config.print_by_default();
         config.set_print_by_default(true);
@@ -939,6 +939,17 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(path.has_extension() && path.extension() == "pv")
                     path = path.remove_extension();
             }
+            if(path.empty()) {
+                auto array = SETTING(source).value<file::PathArray>();
+                if(array.size() == 1) {
+                    path = array.get_paths().front();
+                    if(path.has_extension())
+                        path = path.remove_extension();
+                }
+            }
+            
+            if(path.empty())
+                return "";
             
             if(!path.has_extension() || path.extension() != "settings")
                 path = path.add_extension("settings");
@@ -1013,7 +1024,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 
 
 void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, const std::vector<std::string>& exclude, bool quiet) {
-    auto rejections = GlobalSettings::load_from_string(deprecations(), map, content, accessLevel);
+    auto rejections = GlobalSettings::load_from_string(deprecations(), map, content, accessLevel, false, exclude);
     if(!rejections.empty()) {
         for (auto && [key, val] : rejections) {
             if (default_config::is_deprecated(key)) {
