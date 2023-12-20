@@ -372,7 +372,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     }
     
     if(need == NeedGrid::NoNeed) {
-        std::scoped_lock guard(_blob_grid_mutex);
+        std::unique_lock guard(_blob_grid_mutex);
         _blob_grid.clear();
     }
 }

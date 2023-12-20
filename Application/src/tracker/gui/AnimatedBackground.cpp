@@ -3,6 +3,7 @@
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
+#include <file/DataLocation.h>
 
 namespace gui {
 
@@ -48,18 +49,28 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         }
     }
 
-    try {
-        std::unique_lock guard(_source_mutex);
-        _source = std::make_unique<VideoSource>(meta_source_path);
-        _source->set_colors(ImageMode::RGB);
-        _source->set_lazy_loader(true);
-
-        if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
-            _source_scale = SETTING(meta_video_scale).value<float>();
+    std::array<std::string, 3> tests {
+        meta_source_path,
+        file::DataLocation::parse("input", meta_source_path).str(),
+        file::DataLocation::parse("output", meta_source_path).str()
+    };
+    for(auto &test : tests) {
+        try {
+            std::unique_lock guard(_source_mutex);
+            _source = std::make_unique<VideoSource>(test);
+            _source->set_colors(ImageMode::RGB);
+            _source->set_lazy_loader(true);
+            
+            if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
+                _source_scale = SETTING(meta_video_scale).value<float>();
+            }
+            
+            // found it, so we escape
+            break;
         }
-    }
-    catch (const UtilsException& e) {
-        FormatError("Cannot load animated gui background: ", e.what());
+        catch (const UtilsException& e) {
+            FormatError("Cannot load animated gui background: ", e.what());
+        }
     }
 
     if (_source_scale <= 0)

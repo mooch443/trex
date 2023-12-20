@@ -202,8 +202,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     const bool do_normalize_output = SETTING(output_normalize_midline_data);
     const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
     
-    auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
+    auto data_prefix = SETTING(data_prefix).value<file::Path>();
+    auto fishdata = file::DataLocation::parse("output", data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");

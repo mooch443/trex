@@ -8,6 +8,7 @@
 namespace default_config {
     using namespace cmn;
     
+    const std::string& homedir();
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn);
 
     void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});

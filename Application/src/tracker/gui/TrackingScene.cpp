@@ -20,6 +20,7 @@
 #include <misc/Output.h>
 #include <tracking/Export.h>
 #include <misc/IdentifiedTag.h>
+#include <misc/SettingsInitializer.h>
 
 using namespace track;
 
@@ -409,8 +410,10 @@ bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
 }
 
 void TrackingScene::init_video() {
-    SettingsMaps combined;
     
+    settings::load(default_config::TRexTask_t::track, {});
+    
+    /*SettingsMaps combined;
     const auto set_combined_access_level = [&combined](auto& name, AccessLevel level) {
         combined.access_levels[name] = level;
     };
@@ -434,10 +437,6 @@ void TrackingScene::init_video() {
     GlobalSettings::map().set_print_by_default(true);
     //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     
     auto&cmd = CommandLine::instance();
     for(auto &option : cmd.settings()) {
@@ -458,35 +457,23 @@ void TrackingScene::init_video() {
     //! TODO: have to delegate this to another thread
     //! otherwise we will get stuck here
     bool executed_a_settings{false};
-    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
-    auto path = SETTING(source).value<file::PathArray>().empty()
-        ? file::Path()
-        : SETTING(source).value<file::PathArray>().get_paths().front();
-
-    file::Path filename = file::DataLocation::parse("input", path);
-    SETTING(filename) = filename.remove_extension();
+    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());*/
+    auto filename = SETTING(filename).value<file::Path>();
     pv::File video(filename, pv::FileMode::READ);
     
     if(video.header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
         
         file::Path settings_file = file::DataLocation::parse("settings");
-        if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP))
-            executed_a_settings = true;
+        default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP);
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            if(default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP))
-                executed_a_settings = true;
+            default_config::execute_settings_file(output_settings, AccessLevelType::STARTUP);
         }
     }
     
-    std::vector<std::string> exclude_parameters{
-        "source"
-    };
-    for (auto& [key, value] : cmd.settings_keys()) {
-        exclude_parameters.push_back(key);
-    }
+    /*
     print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
     print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
     print("exclude_parameters = ", exclude_parameters);
@@ -497,7 +484,7 @@ void TrackingScene::init_video() {
         }
     } catch(const UtilsException& e) {
         // dont do anything, has been printed already
-    }
+    }*/
     
     Image::Ptr average = Image::Make(video.average());
     SETTING(video_size) = Size2(average->cols, average->rows);
@@ -514,7 +501,7 @@ void TrackingScene::init_video() {
     Output::Library::InitVariables();
     Output::Library::Init();
     
-    auto settings_file = file::DataLocation::parse("settings");
+    /*auto settings_file = file::DataLocation::parse("settings");
     if(settings_file.exists()) {
         if(default_config::execute_settings_file(settings_file, AccessLevelType::STARTUP, exclude_parameters))
             executed_a_settings = true;
@@ -522,7 +509,7 @@ void TrackingScene::init_video() {
             SETTING(settings_file) = file::Path();
             FormatWarning("Settings file ",settings_file," does not exist.");
         }
-    }
+    }*/
     
     /**
      * Try to load Settings from the command-line that have been

@@ -1,4 +1,12 @@
-{"objects":[
+{
+	"defaults":{
+		"vars":{
+			"same_folder":"{equal:{folder:{global.source}}:{folder:{output_name}}}",
+			"same_parent":"{equal:{folder:{global.source}}:{folder:{folder:{output_name}}}}",
+			"indent":"{if:{same_parent}:'   ':''}"
+		}
+	},
+	"objects":[
 	{
 		"type":"each",
 		"var":"fishes",
@@ -134,6 +142,8 @@
 							"type":"text", "text":"detecting the background...", "font":{"size":0.6}, "color":[220,220,220], "shadow":0.75
 						},
 						"else":{
+							"name":"desc",
+							"clickable":true,
 							"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''}", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
 						}
 					},
@@ -189,5 +199,22 @@
 				"highlight_clr":[75,75,75,255]
 			}
 		]
+	},
+
+	{
+		"type":"condition",
+		"var":"{hovered:desc}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,150],
+			"pad":[10,5,10,5],
+			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
+			"origin":[0,0],
+			"font":{"size":0.5},
+			"color":[255,255,255],
+			"text":"{if:{||:{same_folder}:{same_parent}}:'<sym>🗁</sym> {folder:{global.source}}{if:{not:{same_folder}}:\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>:''}\n{indent}':''}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}}\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>🗎</sym> {output_base}.pv\n   {indent}<sym>🗎</sym> {output_base}.settings\n   {indent}<sym>🗎</sym> {output_base}.results{if:{same_folder}:'\n   {indent}<sym>🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}"
+		},
+		"else":{"type":"rect", "size":[0,0]}
 	}
+	
 ]}

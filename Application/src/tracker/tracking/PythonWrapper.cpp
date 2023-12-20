@@ -40,7 +40,13 @@ void update(std::promise<void>&& init_promise) {
                 _initialized = true;
                 _initializing = false;
             }
+            catch(const std::exception& ex) {
+                FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error initializing python: ", ex.what());
+                _initializing = false;
+                throw;
+            }
             catch (...) {
+                FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Unknown error initializing python.");
                 _initializing = false;
                 throw;
             }
@@ -114,7 +120,7 @@ void update(std::promise<void>&& init_promise) {
                     guard.lock();
                     throw;
                 }
-                    
+                
                 guard.lock();
             }
             
@@ -125,6 +131,10 @@ void update(std::promise<void>&& init_promise) {
         _initialized = false;
         //_terminate = false;
         _exit_promise.set_value();
+        
+    } catch(const std::exception& ex) {
+        FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Critical exception in python thread: ", ex.what());
+        _exit_promise.set_exception(std::current_exception());
         
     } catch(...) {
         _exit_promise.set_exception(std::current_exception());

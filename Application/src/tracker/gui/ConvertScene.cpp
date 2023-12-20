@@ -614,6 +614,23 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         VarFunc("window_size", [this](const VarProps&) -> Vec2 {
             return this->window_size;
         }),
+        VarFunc("mouse", [this](const VarProps&) -> Vec2 {
+            return this->_last_mouse;
+        }),
+        VarFunc("output", [](const VarProps& props) -> file::Path {
+            if(props.parameters.empty())
+                return file::DataLocation::parse("output");
+            return file::DataLocation::parse("output", props.first());
+        }),
+        VarFunc("output_name", [](const VarProps& props) -> file::Path {
+            auto source = SETTING(source).value<file::PathArray>();
+            auto base = file::find_basename(source);
+            return file::DataLocation::parse("output", base);
+        }),
+        VarFunc("output_base", [](const VarProps& props) -> file::Path {
+            auto source = SETTING(source).value<file::PathArray>();
+            return file::find_basename(source);
+        }),
         VarFunc("gpu_device", [](const VarProps&) -> std::string {
             using namespace default_config;
             auto gpu_torch_device = SETTING(gpu_torch_device).value<gpu_torch_device_t::Class>();
@@ -677,6 +694,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
         _bowl->set_video_aspect_ratio(coord.video_size().width, coord.video_size().height);
         _bowl->fit_to_screen(window_size);
     }
+    
+    _last_mouse = graph.mouse_position();
 
     /*Vec2 _aspect_ratio = Vec2(output_size.width, output_size.height);
     Vec2 _screen_size = FindCoord::get().screen_size();

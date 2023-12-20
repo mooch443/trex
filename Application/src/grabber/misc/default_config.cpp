@@ -106,7 +106,7 @@ ENUM_CLASS_DOCS(meta_encoding_t,
         
         CONFIG("video_conversion_range", std::pair<long_t, long_t>(-1, -1), "If set to a valid value (!= -1), start and end values determine the range converted.");
         
-        CONFIG("output_dir", Path(std::string(homedir)+"/Videos"), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
+        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
         CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", STARTUP);
         CONFIG("video_source", std::string("webcam"), "Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].", STARTUP);
         CONFIG("test_image", std::string("checkerboard"), "Defines, which test image will be used if `video_source` is set to 'test_image'.", STARTUP);

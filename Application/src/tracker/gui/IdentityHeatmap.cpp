@@ -150,8 +150,8 @@ void HeatmapController::save() {
     std::vector<long_t> frames;
     size_t package_index = 0;
     
-    auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
+    auto data_prefix = SETTING(data_prefix).value<file::Path>();
+    auto fishdata = file::DataLocation::parse("output", data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");

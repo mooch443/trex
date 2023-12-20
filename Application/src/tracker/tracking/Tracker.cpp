@@ -256,9 +256,18 @@ float Tracker::infer_meta_real_width_from(const pv::File &file) {
 
 float Tracker::infer_cm_per_pixel() {
     // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-        return SETTING(meta_real_width).value<float>() / float(average().cols);
-    return 1;
+    if(not GlobalSettings::map().has("cm_per_pixel")
+       || SETTING(cm_per_pixel).value<float>() == 0)
+    {
+        auto w = SETTING(meta_real_width).value<float>();
+        if(w <= 0) {
+            return 1;
+        }
+        
+        return 1 / max(1.0, w * 0.1);
+        //return w / float(average().cols);
+    }
+    return FAST_SETTING(cm_per_pixel);
 }
 
 Tracker::Tracker(Image::Ptr&& average, const pv::File& video)

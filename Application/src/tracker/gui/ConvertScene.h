@@ -57,6 +57,7 @@ class ConvertScene : public Scene {
     Size2 window_size;
     Size2 output_size;
     Size2 video_size;
+    Vec2 _last_mouse;
     //Alterface menu;
     
     ind::ProgressBar bar;

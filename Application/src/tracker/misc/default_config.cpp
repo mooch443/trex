@@ -39,6 +39,10 @@ using namespace file;
 #define CONFIG adding.add<ParameterCategoryType::CONVERTING>
 
 namespace default_config {
+    const std::string& homedir() {
+        return ::homedir;
+    }
+
     ENUM_CLASS_DOCS(recognition_border_t,
         "No border at all. All points are inside the recognition boundary. (default)", // none
         "Looks at a subset of frames from the video, trying to find out where individuals go and masking all the places they do not.", // "heatmap"
@@ -313,8 +317,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn)
     {
-        auto old = config.print_by_default();
-        config.set_print_by_default(true);
+        //auto old = config.print_by_default();
+        //config.set_print_by_default(true);
         //constexpr auto PUBLIC = AccessLevelType::PUBLIC;
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
@@ -323,6 +327,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         Adding adding(config, docs, fn);
         
         CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
+        CONFIG("cwd", file::Path(""), "Working directory the program was started from.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
         CONFIG("app_last_update_check", uint64_t(0), "Time-point of when the application has last checked for an update.", SYSTEM);
         CONFIG("app_last_update_version", std::string(), "");
@@ -339,8 +344,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("postures_per_thread", 1.f, "Number of individuals for which postures will be estimated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
         CONFIG("filename", Path("").remove_extension(), "Opened filename (without .pv).", STARTUP);
-        CONFIG("output_dir", Path(std::string(homedir)+"/Videos"), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
-        CONFIG("fishdata_dir", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
+        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
+        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
 
@@ -777,7 +782,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         config["nowindow"] = true;
 #endif
         
-        config.set_print_by_default(old);
+        //config.set_print_by_default(old);
     }
 
     std::string Config::to_settings() const {
@@ -941,11 +946,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             }
             if(path.empty()) {
                 auto array = SETTING(source).value<file::PathArray>();
-                if(array.size() == 1) {
-                    path = array.get_paths().front();
-                    if(path.has_extension())
-                        path = path.remove_extension();
-                }
+                auto base = file::find_basename(array);
+                path = base;
             }
             
             if(path.empty())
@@ -954,14 +956,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(!path.has_extension() || path.extension() != "settings")
                 path = path.add_extension("settings");
             
-            auto settings_file = file::DataLocation::parse("input", path);
+            auto settings_file = file::DataLocation::parse("output", path);
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        file::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
+        file::DataLocation::register_path("output_settings", [](file::Path path) -> file::Path {
+            return file::DataLocation::parse("settings", path);
             file::Path settings_file = SETTING(filename).value<Path>().filename();
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
@@ -989,36 +992,64 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
-                return filename;
+                return filename.absolute();
             }
             
-            auto path = SETTING(output_dir).value<file::Path>();
-            if(path.empty())
-                return filename;
-            else
-                return path / filename;
+            auto path = SETTING(cwd).value<file::Path>();
+            if(path.empty()) {
+                auto d = SETTING(output_dir).value<file::Path>();
+                if(d.empty())
+                    return filename.absolute();
+                else
+                    return (d / filename).absolute();
+            } else
+                return (path / filename).absolute();
         });
         
-        file::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
-            if(!filename.empty() && filename.is_absolute()) {
+        file::DataLocation::register_path("output", [](file::Path filename) -> file::Path 
+        {
+            auto prefix = SETTING(output_prefix).value<std::string>();
+            auto output_path = SETTING(output_dir).value<file::Path>();
+            
+            if(output_path.empty()) {
+                auto source = SETTING(source).value<file::PathArray>();
+                auto base = file::find_parent(source);
+                if(not base) {
+                    output_path = SETTING(cwd).value<file::Path>();
+                } else {
+                    output_path = base.value();
+                }
+            }
+            
+            //! an output file is specified, we want to change whatever folder
+            //! the input comes from to whatever folder we want to write to:
+            if(not filename.is_absolute()) {
+                //! file is not an absolute path
+                if(not output_path.empty()) {
+                    filename = output_path / filename.filename();
+                } else {
+                    filename = (SETTING(cwd).value<file::Path>() / filename);
+                }
+                
+            } else if(not filename.has_extension() || filename.extension() == "pv") {
+                if(not output_path.empty())
+                    filename = output_path / filename.filename();
+            }
+            
+            if(!prefix.empty()) {
+                //! insert a prefix in between the filename and the path
+                filename = filename.remove_filename() / prefix / filename.filename();
+            }
+            
+            /*if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
-            }
+            }*/
             
-            auto prefix = SETTING(output_prefix).value<std::string>();
-            auto path = SETTING(output_dir).value<file::Path>();
-            
-            if(!prefix.empty()) {
-                path = path / prefix;
-            }
-            
-            if(path.empty())
-                return filename;
-            else
-                return path / filename;
+            return filename.absolute();
         });
     }
 

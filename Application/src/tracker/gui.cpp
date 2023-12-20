@@ -3494,7 +3494,7 @@ void GUI::key_event(const gui::Event &event) {
                 LockGuard guard(w_t{}, "Codes::I");
                 Results results(PD(tracker));
                 
-                file::Path fishdata = file::DataLocation::parse("output", SETTING(fishdata_dir).value<file::Path>());
+                file::Path fishdata = file::DataLocation::parse("output", SETTING(data_prefix).value<file::Path>());
                 
                 if(!fishdata.exists())
                     if(!fishdata.create_folder())
@@ -4129,8 +4129,8 @@ void GUI::save_visual_fields() {
     LockGuard guard(w_t{}, "GUI::save_visual_fields");
     Individual *selected = PD(cache).primary_selection();
     
-    auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
+    auto data_prefix = SETTING(data_prefix).value<file::Path>();
+    auto fishdata = file::DataLocation::parse("output", data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");

@@ -29,8 +29,10 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
     //if (recent.has(name)) {
     //    return;
     //}
-
-    recent.add(name.source(), options);
+    
+    file::Path basepath = file::DataLocation::parse("output", file::find_basename(name));
+    
+    recent.add(basepath.str(), options);
     recent.write();
 }
 
@@ -86,9 +88,9 @@ RecentItems RecentItems::read() {
                     for (auto& i : settings.items()) {
                         auto key = i.key();
                         auto value = Meta::fromStr<std::string>(i.value().dump());
-                        if(key == "source") {
+                        /*if(key == "source") {
                             value = name;
-                        }
+                        }*/
 
                         try {
                             if (not item._options.has(key)) {
