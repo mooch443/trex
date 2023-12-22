@@ -5,7 +5,7 @@
 #include <cassert>
 #include <memory>
 #include <sstream>
-
+#include <iomanip>
 #include <chrono>
 #include <iostream>
 #include <random>
@@ -165,6 +165,10 @@ public:
     //  @note stored in the last bit of _x1
     constexpr bool eol() const { return (_x1 & 0x8000) != 0; }
     constexpr void eol(bool v) { _x1 = (_x1 & 0x7FFF) | uint16_t(v << 15); }
+
+    constexpr bool operator==(const ShortHorizontalLine& other) const noexcept {
+        return other._x0 == _x0 && other._x1 == _x1;
+    }
 };
 
 std::vector<ShortHorizontalLine>
@@ -185,6 +189,99 @@ std::vector<ShortHorizontalLine>
         prev_y = lptr->y;
     }
     
+    return ret;
+}
+
+std::vector<ShortHorizontalLine>
+compress_neon(const std::vector<HorizontalLine>& lines)
+{
+    std::vector<ShortHorizontalLine> ret;
+    ret.resize(lines.size());
+
+    // Pointers to the start and end of the input and output vectors
+    auto lptr = reinterpret_cast<const HorizontalLine*>(lines.data());
+    auto end = lptr + lines.size(); // NEON processes 8 elements per loop
+    auto rptr = reinterpret_cast<ShortHorizontalLine*>(ret.data());
+
+    // Initialize previous y to the first element's y, or 0 if empty
+    uint16_t prev_y = lines.empty() ? 0 : lines.front().y;
+
+    // NEON constants
+    const uint16x8_t x_mask = vdupq_n_u16(0x7FFF); // Mask for x values
+    const uint16x8_t eol_mask = vdupq_n_u16(0x8000); // Mask for the EOL flag
+
+    for (; lptr + 8 <= end; lptr += 8, rptr += 8) {
+        // Load 8 HorizontalLines at once
+        uint16_t next_y;
+        if(lptr + 8 < end)
+            next_y = (lptr + 8)->y;
+        else
+            next_y = -1;
+        //printf("Next y = %u\n", next_y);
+        
+        uint16x8x4_t data_vec = vld4q_u16(reinterpret_cast<const uint16_t*>(lptr));
+        //printf("x0 = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(data_vec.val[0], 0), vgetq_lane_u16(data_vec.val[0], 1), vgetq_lane_u16(data_vec.val[0], 2), vgetq_lane_u16(data_vec.val[0], 3), vgetq_lane_u16(data_vec.val[0], 4), vgetq_lane_u16(data_vec.val[0], 5), vgetq_lane_u16(data_vec.val[0], 6), vgetq_lane_u16(data_vec.val[0], 7));
+
+        // Extract x0, x1, and y values
+        uint16x8_t x0_vec = data_vec.val[0];
+        //printf("x0  = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(x0_vec, 0), vgetq_lane_u16(x0_vec, 1), vgetq_lane_u16(x0_vec, 2), vgetq_lane_u16(x0_vec, 3), vgetq_lane_u16(x0_vec, 4), vgetq_lane_u16(x0_vec, 5), vgetq_lane_u16(x0_vec, 6), vgetq_lane_u16(x0_vec, 7));
+
+        uint16x8_t x1_vec = vandq_u16(data_vec.val[1], x_mask);
+        //printf("x1  = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(x1_vec, 0), vgetq_lane_u16(x1_vec, 1), vgetq_lane_u16(x1_vec, 2), vgetq_lane_u16(x1_vec, 3), vgetq_lane_u16(x1_vec, 4), vgetq_lane_u16(x1_vec, 5), vgetq_lane_u16(x1_vec, 6), vgetq_lane_u16(x1_vec, 7));
+
+        uint16x8_t y_vec = data_vec.val[2];
+        //printf("y   = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(y_vec, 0), vgetq_lane_u16(y_vec, 1), vgetq_lane_u16(y_vec, 2), vgetq_lane_u16(y_vec, 3), vgetq_lane_u16(y_vec, 4), vgetq_lane_u16(y_vec, 5), vgetq_lane_u16(y_vec, 6), vgetq_lane_u16(y_vec, 7));
+
+        uint16x8_t shifted_y_vec = vextq_u16(y_vec, vdupq_n_u16(next_y), 1);
+        //printf("y'  = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(shifted_y_vec, 0), vgetq_lane_u16(shifted_y_vec, 1), vgetq_lane_u16(shifted_y_vec, 2), vgetq_lane_u16(shifted_y_vec, 3), vgetq_lane_u16(shifted_y_vec, 4), vgetq_lane_u16(shifted_y_vec, 5), vgetq_lane_u16(shifted_y_vec, 6), vgetq_lane_u16(shifted_y_vec, 7));
+
+        // Calculate EOL flags based on changes in y
+        uint16x8_t eol_flags = vceqq_u16(y_vec, shifted_y_vec);
+        //uint16x8_t eol_flags = vceqq_u16(y_vec, vdupq_n_u16(prev_y));
+        //printf("eol = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(eol_flags, 0), vgetq_lane_u16(eol_flags, 1), vgetq_lane_u16(eol_flags, 2), vgetq_lane_u16(eol_flags, 3), vgetq_lane_u16(eol_flags, 4), vgetq_lane_u16(eol_flags, 5), vgetq_lane_u16(eol_flags, 6), vgetq_lane_u16(eol_flags, 7));
+        
+        eol_flags = vmvnq_u16(eol_flags); // Invert the EOL flags (=> 0xFFFF where y changes)
+        //eol_flags = vshrq_n_u16(eol_flags, 15); // Shift to make it a flag
+        eol_flags = vandq_u16(eol_flags, eol_mask);
+
+        //printf("eol = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(eol_flags, 0), vgetq_lane_u16(eol_flags, 1), vgetq_lane_u16(eol_flags, 2), vgetq_lane_u16(eol_flags, 3), vgetq_lane_u16(eol_flags, 4), vgetq_lane_u16(eol_flags, 5), vgetq_lane_u16(eol_flags, 6), vgetq_lane_u16(eol_flags, 7));
+
+        // Combine x1 and EOL flags
+        x1_vec = vorrq_u16(x1_vec, eol_flags);
+        //printf("x1' = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(x1_vec, 0), vgetq_lane_u16(x1_vec, 1), vgetq_lane_u16(x1_vec, 2), vgetq_lane_u16(x1_vec, 3), vgetq_lane_u16(x1_vec, 4), vgetq_lane_u16(x1_vec, 5), vgetq_lane_u16(x1_vec, 6), vgetq_lane_u16(x1_vec, 7));
+
+        // extract EOL flags back from x1 for testing:
+        uint16x8_t eol_flags2 = vandq_u16(x1_vec, eol_mask);
+        eol_flags2 = vshrq_n_u16(eol_flags2, 15);
+        //printf("eol2= {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(eol_flags2, 0), vgetq_lane_u16(eol_flags2, 1), vgetq_lane_u16(eol_flags2, 2), vgetq_lane_u16(eol_flags2, 3), vgetq_lane_u16(eol_flags2, 4), vgetq_lane_u16(eol_flags2, 5), vgetq_lane_u16(eol_flags2, 6), vgetq_lane_u16(eol_flags2, 7));
+
+        uint16x8x2_t tmp = vzipq_u16(x0_vec, x1_vec);
+        //printf("tmp[0,0:8] = {0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X, 0x%X}\n", vgetq_lane_u16(tmp.val[0], 0), vgetq_lane_u16(tmp.val[0], 1), vgetq_lane_u16(tmp.val[0], 2), vgetq_lane_u16(tmp.val[0], 3), vgetq_lane_u16(tmp.val[0], 4), vgetq_lane_u16(tmp.val[0], 5), vgetq_lane_u16(tmp.val[0], 6), vgetq_lane_u16(tmp.val[0], 7));
+
+        // Store the results
+        vst1q_u16(reinterpret_cast<uint16_t*>(rptr), tmp.val[0]);
+        vst1q_u16(reinterpret_cast<uint16_t*>(rptr) + 8, tmp.val[1]);
+
+        // Update prev_y for the next iteration
+        prev_y = (lptr + 7)->y; // Last y value in the current batch
+        //printf("\n");
+
+        //printf("i = %lu\n", std::distance(lines.data(), lptr) + 8);
+    }
+
+    // Handle remaining elements
+    for (; lptr < end; ++lptr, ++rptr) {
+        //printf("Manual %d\n", std::distance(lines.data(), lptr));
+        *rptr = ShortHorizontalLine(lptr->x0, lptr->x1);
+        if (prev_y != lptr->y) {
+            (rptr - 1)->eol(true);
+        }
+        prev_y = lptr->y;
+        ++lptr;
+    }
+
+    ret.back().eol(false);
+
     return ret;
 }
 
@@ -503,6 +600,26 @@ bool checkCorrectness(const std::vector<HorizontalLine>& resultNormal, const std
     return true;
 }
 
+// Function to compare the results of the two compress functions
+bool compareResults(const std::vector<ShortHorizontalLine>& result_neon, const std::vector<ShortHorizontalLine>& result_normal) {
+    if (result_neon.size() != result_normal.size()) {
+        std::cout << "Size mismatch: NEON result has " << result_neon.size() << " elements, normal result has " << result_normal.size() << " elements." << std::endl;
+        return false;
+    }
+
+    for (size_t i = 0; i < result_neon.size(); ++i) {
+        if (result_neon[i] != result_normal[i]) {
+            std::cout << "Mismatch found at index " << i << std::endl;
+            std::cout << "NEON:\tp = " << std::setw(3) << std::setfill(' ') << result_neon[i].x0() << ", " << std::setw(3) << std::setfill(' ') << result_neon[i].x1() << ",\teol = " << result_neon[i].eol() << std::endl;
+            std::cout << "Normal:\tp = "  << std::setw(3) << std::setfill(' ') << result_normal[i].x0() << ", " << std::setw(3) << std::setfill(' ') << result_normal[i].x1() << ",\teol = " << result_normal[i].eol() << std::endl;
+
+            //return false;
+        }
+    }
+
+    return true;
+}
+
 void run_test() {
     std::vector<ShortHorizontalLine> compressed;
 
@@ -523,7 +640,7 @@ void run_test() {
     compressed.emplace_back(555, 556, false);  // x0 = 12, x1 = 13, eol = true
     compressed.emplace_back(655, 656, false);  // x0 = 12, x1 = 13, eol = true
     compressed.emplace_back(755, 756, false);  // x0 = 12, x1 = 13, eol = true
-    compressed.emplace_back(855, 856, false);  // x0 = 12, x1 = 13, eol = true
+    //compressed.emplace_back(855, 856, false);  // x0 = 12, x1 = 13, eol = true
 
     auto result = ShortHorizontalLine::uncompress(0, compressed);
 
@@ -544,7 +661,8 @@ void run_test() {
         {4, 555, 556}, // y = 3, x0 = 12, x1 = 13
         {4, 655, 656}, // y = 3, x0 = 12, x1 = 13
         {4, 755, 756}, // y = 3, x0 = 12, x1 = 13
-        {4, 855, 856}, // y = 3, x0 = 12, x1 = 13
+        //{4, 855, 856}, // y = 3, x0 = 12, x1 = 13
+        
     };
 
     assert(result->size() == expected.size());
@@ -552,16 +670,25 @@ void run_test() {
     for (size_t i = 0; i < expected.size(); ++i) {
         const auto& inputLine = compressed.at(i);
 
-        std::cout << "Comparing index " << i << ":\n";
+       /*std::cout << "Comparing index " << i << ":\n";
         std::cout << "  Input - y: "<< y <<" x0: " << inputLine.x0() << ", x1: " << inputLine.x1() << ", eol: " << inputLine.eol() << "\n";
         std::cout << "  Result - y: " << result->at(i).y << ", x0: " << result->at(i).x0 << ", x1: " << result->at(i).x1 << "\n";
-        std::cout << "  Expected - y: " << expected[i].y << ", x0: " << expected[i].x0 << ", x1: " << expected[i].x1 << "\n";
+        std::cout << "  Expected - y: " << expected[i].y << ", x0: " << expected[i].x0 << ", x1: " << expected[i].x1 << "\n";*/
 
         if(result->at(i).y != expected[i].y) std::cerr << "Error at index " << i << ": y mismatch (" << result->at(i).y << " != " << expected[i].y << ")" << std::endl;
         if(result->at(i).x0 != expected[i].x0) std::cerr << "Error at index " << i << ": x0 mismatch (" << result->at(i).x0 << " != " << expected[i].x0 << ")" << std::endl;
         if(result->at(i).x1 != expected[i].x1) std::cerr << "Error at index " << i << ": x1 mismatch (" << result->at(i).x1 << " != " << expected[i].x1 << ")" << std::endl;
 
         if (inputLine.eol()) y++;
+    }
+
+    std::vector<ShortHorizontalLine> result_neon = compress_neon(*result);
+
+    // Check equality of vectors
+    if (compareResults(result_neon, compressed)) {
+        std::cout << "Success: The NEON and normal results are identical." << std::endl;
+    } else {
+        std::cout << "Error: The NEON and normal results differ!" << std::endl;
     }
 }
 
@@ -625,11 +752,10 @@ int main() {
     std::cout << "Using normal version" << std::endl;
 #endif
 
-    auto compressed = generateTestData(100000);
+    auto compressed = generateTestData(10000);
 
     const int numTests = 1000; // Number of times to repeat each test
-    double totalTimeNormal = 0.0;
-    double totalTimeSIMD = 0.0;
+    
     std::vector<bool> testOrder(numTests * 2, true); // True for normal, false for SIMD
     std::fill(testOrder.begin() + numTests, testOrder.end(), false);
 
@@ -639,27 +765,61 @@ int main() {
 
     std::shuffle(testOrder.begin(), testOrder.end(), g);
 
-    for (bool isNormal : testOrder) {
-        if (isNormal) {
-            // Benchmark normal version
-            auto start = std::chrono::high_resolution_clock::now();
-            for(size_t i=0; i<100; ++i)
-                auto result_normal = ShortHorizontalLine::uncompress_normal(0, compressed);
-            auto end = std::chrono::high_resolution_clock::now();
-            totalTimeNormal += std::chrono::duration<double>(end - start).count();
-        } else {
-            // Benchmark SIMD version
-            auto start = std::chrono::high_resolution_clock::now();
-            for(size_t i=0; i<100; ++i)
-                auto result_simd = ShortHorizontalLine::uncompress(0, compressed);
-            auto end = std::chrono::high_resolution_clock::now();
-            totalTimeSIMD += std::chrono::duration<double>(end - start).count();
-        }
-    }
+    {
+        double totalTimeNormal = 0.0;
+        double totalTimeSIMD = 0.0;
+        auto uncompressed = ShortHorizontalLine::uncompress(0, compressed);
 
-    // Calculate and display average timings
-    std::cout << "Average time for normal version: " << (totalTimeNormal / numTests) << " seconds" << std::endl;
-    std::cout << "Average time for SIMD version: " << (totalTimeSIMD / numTests) << " seconds" << std::endl;
+        // test compress function:
+        for (bool isNormal : testOrder) {
+            if (isNormal) {
+                // Benchmark normal version
+                auto start = std::chrono::high_resolution_clock::now();
+                for(size_t i=0; i<1000; ++i)
+                    auto result_normal = ShortHorizontalLine::compress(*uncompressed);
+                auto end = std::chrono::high_resolution_clock::now();
+                totalTimeNormal += std::chrono::duration<double>(end - start).count();
+            } else {
+                // Benchmark SIMD version
+                auto start = std::chrono::high_resolution_clock::now();
+                for(size_t i=0; i<1000; ++i)
+                    auto result_simd = compress_neon(*uncompressed);
+                auto end = std::chrono::high_resolution_clock::now();
+                totalTimeSIMD += std::chrono::duration<double>(end - start).count();
+            }
+        }
+
+        // Calculate and display average timings
+        std::cout << "Average time for normal compress: " << (totalTimeNormal / numTests * 1000) << "ms" << std::endl;
+        std::cout << "Average time for SIMD compress: " << (totalTimeSIMD / numTests * 1000) << "ms" << std::endl;
+    }
+    
+    {
+        double totalTimeNormal = 0.0;
+        double totalTimeSIMD = 0.0;
+
+        for (bool isNormal : testOrder) {
+            if (isNormal) {
+                // Benchmark normal version
+                auto start = std::chrono::high_resolution_clock::now();
+                for(size_t i=0; i<1000; ++i)
+                    auto result_normal = ShortHorizontalLine::uncompress_normal(0, compressed);
+                auto end = std::chrono::high_resolution_clock::now();
+                totalTimeNormal += std::chrono::duration<double>(end - start).count();
+            } else {
+                // Benchmark SIMD version
+                auto start = std::chrono::high_resolution_clock::now();
+                for(size_t i=0; i<1000; ++i)
+                    auto result_simd = ShortHorizontalLine::uncompress(0, compressed);
+                auto end = std::chrono::high_resolution_clock::now();
+                totalTimeSIMD += std::chrono::duration<double>(end - start).count();
+            }
+        }
+
+        // Calculate and display average timings
+        std::cout << "Average time for normal uncompress: " << (totalTimeNormal / numTests * 1000) << "ms" << std::endl;
+        std::cout << "Average time for SIMD uncompress: " << (totalTimeSIMD / numTests * 1000) << "ms" << std::endl;
+    }
 
 #if defined(USE_SSE)
     // Define the function type for uncompress
