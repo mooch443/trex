@@ -19,6 +19,7 @@
 using namespace file;
 
 namespace cmn {
+
 template<> void Data::read(blob::Prediction& pred) {
     auto version = (pv::Version)pred.clid;
     
@@ -153,8 +154,8 @@ File::File(const file::Path& filename, FileMode mode)
         
         //! perform deep-copy
         for (size_t i=0; i<other.n(); ++i) {
-            _mask.emplace_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
-            _pixels.emplace_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
+            _mask.emplace_back(new blob::line_ptr_t::element_type(*other._mask[i]));
+            _pixels.emplace_back(new blob::pixel_ptr_t::element_type(*other._pixels[i]));
         }
     }
 
@@ -205,6 +206,11 @@ File::File(const file::Path& filename, FileMode mode)
     }
     
     void Frame::clear() {
+        for(auto &m : _mask) {
+            if(m)
+                buffers().move_back(std::move(m));
+        }
+        
         _mask.clear();
         _pixels.clear();
         _flags.clear();
@@ -216,6 +222,8 @@ File::File(const file::Path& filename, FileMode mode)
         
         set_index({});
     }
+
+
     
     void Frame::read_from(pv::File &ref, Frame_t idx) {
         //for(auto m: _mask)
@@ -335,7 +343,8 @@ File::File(const file::Path& filename, FileMode mode)
             pixels.resize(num_pixels, false);
             ptr->read_data(num_pixels, pixels.data());
             
-            auto uncompressed = Header::line_type::uncompress(start_y, mask);
+            auto uncompressed = buffers().get(source_location::current());
+            Header::line_type::uncompress(*uncompressed, start_y, mask);
             
             if(use_differences) {
                 uint64_t idx = 0;
@@ -348,7 +357,7 @@ File::File(const file::Path& filename, FileMode mode)
                 }
             }
             
-            _mask.push_back(std::move(uncompressed));
+            _mask.emplace_back(std::move(uncompressed));
             auto v = std::make_unique<std::vector<uchar>>((uchar*)pixels.data(),
                                                  (uchar*)pixels.data()+num_pixels);
             _pixels.emplace_back(std::move(v));
@@ -393,7 +402,7 @@ File::File(const file::Path& filename, FileMode mode)
         assert(pixel_count == pair.pixels->size());
 #endif
         
-        _mask.push_back(std::move(pair.lines));
+        _mask.emplace_back(std::move(pair.lines));
         _pixels.push_back(std::move(pair.pixels));
         _flags.push_back(pair.extra_flags);
         //if(pair.pred.valid() or not _predictions.empty()) {
@@ -422,7 +431,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     assert(pixel_count == pixels.size());
 #endif
 
-    _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
+    _mask.emplace_back(new blob::line_ptr_t::element_type(mask));
     _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _flags.push_back(flags);
     //if(pred.valid()) {

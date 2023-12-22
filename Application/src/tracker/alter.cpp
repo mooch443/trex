@@ -80,6 +80,38 @@ static_assert(ObjectDetection<Yolo8>);
 namespace ind = indicators;
 using namespace default_config;
 
+TRexTask determineTaskType() {
+    if (auto array = SETTING(source).value<file::PathArray>();
+        array.empty())
+    {
+        return TRexTask_t::none;
+    } else if (auto output_file = SETTING(filename).value<file::Path>();
+               not output_file.empty()
+               && output_file.add_extension("pv").exists())
+    {
+        SETTING(source) = file::PathArray({ output_file });
+        return TRexTask_t::track;
+        
+    } else if (auto front = array.get_paths().front();
+               array.size() == 1)
+    { // TODO: not sure how this deals with patterns
+        front = front.filename();
+        output_file = !front.has_extension() ?
+                      file::DataLocation::parse("output", front.add_extension("pv")) :
+                      file::DataLocation::parse("output", front.replace_extension("pv"));
+
+        if (output_file.exists()) {
+            SETTING(source) = file::PathArray({ output_file });
+            return TRexTask_t::track;
+        } else {
+            return TRexTask_t::convert;
+        }
+        
+    } else {
+        return TRexTask_t::convert;
+    }
+}
+
 void launch_gui() {
     IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
@@ -170,51 +202,14 @@ void launch_gui() {
 	};
 
     if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
-        if (auto array = SETTING(source).value<file::PathArray>();
-            array.empty())
-        {
-            settings::load(TRexTask_t::none, {});
-            manager.set_active(&start);
-        }
-        else if (auto output_file = SETTING(filename).value<file::Path>();
-            not output_file.empty()
-            && output_file.add_extension("pv").exists())
-        {
-            SETTING(source) = file::PathArray({ output_file });
-            settings::load(TRexTask_t::track, {});
-            manager.set_active(&tracking_scene);
-        }
-        else if (auto front = array.get_paths().front();
-            array.size() == 1 /// TODO: not sure how this deals with patterns
-            )
-        {
-            front = front.filename();
-            output_file =
-                not front.has_extension()
-                    ? file::DataLocation::parse("output", front.add_extension("pv"))
-                    : file::DataLocation::parse("output", front.replace_extension("pv"));
-
-            if (output_file.exists()) {
-                SETTING(source) = file::PathArray({ output_file });
-                settings::load(TRexTask_t::track, {});
-                manager.set_active(&tracking_scene);
-            }
-            else {
-                settings::load(TRexTask_t::convert, {});
-                manager.set_active(&converting);
-            }
-        }
-        else {
-            settings::load(TRexTask_t::convert, {});
-            manager.set_active(&converting);
-        }
+        TRexTask taskType = determineTaskType();
+        settings::load(taskType, {});
+        manager.set_active(task_scenes[taskType]);
 
     } else {
         if (auto it = task_scenes.find(SETTING(task).value<TRexTask>()); 
             it != task_scenes.end())
         {
-            //SETTING(cm_per_pixel) = float(0);
-            
             if(it->second == &converting) {
                 //SETTING(cm_per_pixel) = float(0.01);
                 //load_settings({});
@@ -522,40 +517,47 @@ int main(int argc, char**argv) {
     
     std::string last_error;
     if(SETTING(nowindow)) {
-        settings::load(TRexTask_t::convert, {});
+        auto task = SETTING(task).value<TRexTask>();
+        if(task == TRexTask_t::none)
+            task = determineTaskType();
+        if(task == TRexTask_t::none)
+            throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
         
-        Segmenter segmenter(
-            []() {
-                SETTING(terminate) = true;
-            },
-           [&last_error](std::string error) {
-            SETTING(error_terminate) = true;
-            SETTING(terminate) = true;
-            last_error = error;
-        });
-        print("Loading source = ", SETTING(source).value<file::PathArray>());
+        settings::load(task, {});
         
-        ind::ProgressBar bar{
-            ind::option::BarWidth{50},
+        if(task == TRexTask_t::convert) {
+            Segmenter segmenter(
+                                []() {
+                                    SETTING(terminate) = true;
+                                },
+                                [&last_error](std::string error) {
+                                    SETTING(error_terminate) = true;
+                                    SETTING(terminate) = true;
+                                    last_error = error;
+                                });
+            print("Loading source = ", SETTING(source).value<file::PathArray>());
+            
+            ind::ProgressBar bar{
+                ind::option::BarWidth{50},
                 ind::option::Start{"["},
-        #ifndef _WIN32
+#ifndef _WIN32
                 ind::option::Fill{"█"},
                 ind::option::Lead{"▂"},
                 ind::option::Remainder{"▁"},
-        #else
+#else
                 ind::option::Fill{"="},
                 ind::option::Lead{">"},
                 ind::option::Remainder{" "},
-        #endif
+#endif
                 ind::option::End{"]"},
                 ind::option::PostfixText{"Converting video..."},
                 ind::option::ShowPercentage{true},
                 ind::option::ForegroundColor{ind::Color::white},
                 ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-        };
-
-        ind::ProgressSpinner spinner{
-            ind::option::PostfixText{"Recording..."},
+            };
+            
+            ind::ProgressSpinner spinner{
+                ind::option::PostfixText{"Recording..."},
                 ind::option::ForegroundColor{ind::Color::white},
                 ind::option::SpinnerStates{std::vector<std::string>{
                     //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
@@ -565,51 +567,64 @@ int main(int argc, char**argv) {
                     //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
                 }},
                 ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-        };
-        
-        Timer last_tick;
-        segmenter.set_progress_callback([&](float percent){
-            if(percent >= 0)
-                bar.set_progress(percent);
-            else if(last_tick.elapsed() > 1) {
-                spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
-                spinner.set_option(ind::option::ShowPercentage{false});
-                spinner.tick();
-                last_tick.reset();
-            }
-        });
-        
-        if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
-            segmenter.open_camera();
-        else
-            segmenter.open_video();
-        
-        auto finite = segmenter.is_finite();
-        segmenter.start();
-        
-        //! get the python init future at this point
-        f.get();
-        
-        while(not SETTING(terminate))
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        
-        if(not SETTING(error_terminate)) {
-            spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
-            spinner.set_option(ind::option::PrefixText{"✔"});
-            spinner.set_option(ind::option::ShowSpinner{false});
-            spinner.set_option(ind::option::PostfixText{"Done."});
-        } else {
-            spinner.set_option(ind::option::ForegroundColor{ind::Color::red});
-            spinner.set_option(ind::option::PrefixText{"X"});
-            spinner.set_option(ind::option::ShowSpinner{false});
-            spinner.set_option(ind::option::PostfixText{"Failed."});
-        }
+            };
             
-        if(finite) {
-            bar.set_progress(100);
-            bar.mark_as_completed();
-        } else
-            spinner.mark_as_completed();
+            Timer last_tick;
+            segmenter.set_progress_callback([&](float percent){
+                if(percent >= 0)
+                    bar.set_progress(percent);
+                else if(last_tick.elapsed() > 1) {
+                    spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
+                    spinner.set_option(ind::option::ShowPercentage{false});
+                    spinner.tick();
+                    last_tick.reset();
+                }
+            });
+            
+            if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
+                segmenter.open_camera();
+            else
+                segmenter.open_video();
+            
+            auto finite = segmenter.is_finite();
+            segmenter.start();
+            
+            //! get the python init future at this point
+            f.get();
+            
+            while(not SETTING(terminate))
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            
+            if(not SETTING(error_terminate)) {
+                spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+                spinner.set_option(ind::option::PrefixText{"✔"});
+                spinner.set_option(ind::option::ShowSpinner{false});
+                spinner.set_option(ind::option::PostfixText{"Done."});
+            } else {
+                spinner.set_option(ind::option::ForegroundColor{ind::Color::red});
+                spinner.set_option(ind::option::PrefixText{"X"});
+                spinner.set_option(ind::option::ShowSpinner{false});
+                spinner.set_option(ind::option::PostfixText{"Failed."});
+            }
+            
+            if(finite) {
+                bar.set_progress(100);
+                bar.mark_as_completed();
+            } else
+                spinner.mark_as_completed();
+            
+        } else if(task == TRexTask_t::track) {
+            TrackingState state;
+            state.init_video();
+            
+            RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());
+            
+            //! get the python init future at this point
+            f.get();
+            
+            while(not SETTING(terminate))
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
         
     } else {
         // get the python init future

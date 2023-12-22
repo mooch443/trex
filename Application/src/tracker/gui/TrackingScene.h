@@ -93,6 +93,82 @@ private:
     std::condition_variable _cond;
 };
 
+using GUITaskQueue_t = TaskQueue<IMGUIBase*, DrawStructure&>;
+
+struct TrackingState {
+    /**
+     * @brief Represents the current frame ID being processed.
+     */
+    std::atomic<Frame_t> currentID;
+
+    /**
+     * @brief Represents the video file being analyzed.
+     */
+    pv::File video;
+
+    /**
+     * @brief Tracker used for tracking objects/entities in the video.
+     */
+    track::Tracker tracker;
+    
+    /**
+     * @brief Flag indicating whether to stop the analysis process.
+     *
+     * Setting this to 'true' can be used to request a halt to ongoing analysis.
+     */
+    std::atomic<bool> please_stop_analysis{false};
+
+    /**
+     * @brief Manages the analysis tasks and their inter-dependencies.
+     */
+    ConnectedTasks analysis;
+    
+    /**
+     * @brief Pool of threads used for parallel processing of analysis tasks.
+     */
+    GenericThreadPool pool;
+    
+    /**
+     * @brief A queue of unused frames. Frames can be reused to avoid frequent allocations.
+     */
+    std::queue<std::unique_ptr<track::PPFrame>> unused;
+    
+    struct Statistics {
+        std::atomic<double> individuals_per_second{0};
+        std::atomic<double> frames_per_second{0};
+        
+        double acc_frames{0}, frames_count{0}, sample_frames{0};
+        double acc_individuals{0}, sample_individuals{0};
+        
+        Timer timer, print_timer;
+        
+        void update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force);
+        void calculateRates(double elapsed);
+        void updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool end);
+        void printProgress(float percent, const std::string& status);
+        void logProgress(float percent, const std::string& status);
+        
+    } _stats;
+    
+    TrackingState();
+    
+    std::mutex _task_mutex;
+    std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
+        
+    std::queue<std::function<void()>> _tracking_callbacks;
+    
+    bool stage_0(ConnectedTasks::Type&&);
+    bool stage_1(ConnectedTasks::Type&&);
+    
+    void init_video();
+    
+    void export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range);
+    void correct_identities(GUITaskQueue_t* gui, bool force_correct, track::IdentitySource);
+    void auto_correct(GUITaskQueue_t* gui = nullptr);
+    
+    void on_tracking_done();
+};
+
 class TrackingScene : public Scene {
     /**
      * @struct Data
@@ -100,43 +176,6 @@ class TrackingScene : public Scene {
      * Represents a container for video analysis data and associated utilities.
      */
     struct Data {
-        
-        /**
-         * @brief Represents the video file being analyzed.
-         */
-        pv::File video;
-
-        /**
-         * @brief Tracker used for tracking objects/entities in the video.
-         */
-        track::Tracker tracker;
-
-        /**
-         * @brief Flag indicating whether to stop the analysis process.
-         *
-         * Setting this to 'true' can be used to request a halt to ongoing analysis.
-         */
-        std::atomic<bool> please_stop_analysis{false};
-
-        /**
-         * @brief Manages the analysis tasks and their inter-dependencies.
-         */
-        ConnectedTasks analysis;
-
-        /**
-         * @brief Represents the current frame ID being processed.
-         */
-        std::atomic<Frame_t> currentID;
-
-        /**
-         * @brief Pool of threads used for parallel processing of analysis tasks.
-         */
-        GenericThreadPool pool;
-
-        /**
-         * @brief A queue of unused frames. Frames can be reused to avoid frequent allocations.
-         */
-        std::queue<std::unique_ptr<track::PPFrame>> unused;
         
         std::unique_ptr<GUICache> _cache;
         
@@ -167,24 +206,6 @@ class TrackingScene : public Scene {
         
         ScreenRecorder _recorder;
         TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
-        std::queue<std::function<void()>> _tracking_callbacks;
-        
-        struct Statistics {
-            std::atomic<double> individuals_per_second{0};
-            std::atomic<double> frames_per_second{0};
-            
-            double acc_frames{0}, frames_count{0}, sample_frames{0};
-            double acc_individuals{0}, sample_individuals{0};
-            
-            Timer timer, print_timer;
-            
-            void update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force);
-            void calculateRates(double elapsed);
-            void updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool end);
-            void printProgress(float percent, const std::string& status);
-            void logProgress(float percent, const std::string& status);
-            
-        } _stats;
         
         /**
          * @brief Constructor for the Data struct.
@@ -196,16 +217,14 @@ class TrackingScene : public Scene {
          * @param functions A list of functions representing the analysis stages.
          */
         Data(Image::Ptr&& average,
-             pv::File&& video,
-             std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>&& functions);
+             const pv::File& video);
     };
+    
+    std::unique_ptr<TrackingState> _state;
     
     //! All the gui related data that is supposed to go away between
     //! scene switches:
     std::unique_ptr<Data> _data;
-    std::mutex _task_mutex;
-    
-    std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
     
     // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
@@ -228,22 +247,12 @@ public:
     void _draw(DrawStructure& graph);
     
 private:
-    bool stage_0(ConnectedTasks::Type&&);
-    bool stage_1(ConnectedTasks::Type&&);
-    
     dyn::DynamicGUI init_gui(DrawStructure& graph);
-    void init_video();
     void set_frame(Frame_t);
     bool on_global_event(Event) override;
     void update_run_loop();
     
     void next_poi(Idx_t _s_fdx);
     void prev_poi(Idx_t _s_fdx);
-    
-    void export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range);
-    void correct_identities(bool force_correct, track::IdentitySource);
-    void auto_correct();
-    
-    void on_tracking_done();
 };
 }

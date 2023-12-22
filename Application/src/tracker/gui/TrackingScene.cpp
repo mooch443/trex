@@ -39,19 +39,26 @@ const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map
     {"ralt", Keyboard::RAlt}
 };
 
-TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>&& stages)
-    : video(std::move(video)),
-      tracker(std::move(average), this->video),
-      analysis(std::move(stages)),
-      pool(4u, "preprocess_main")
+TrackingState::TrackingState()
+  : video(SETTING(filename).value<file::Path>(), pv::FileMode::READ),
+    tracker(Image::Make(this->video.average()), this->video),
+    analysis(
+      {
+         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+             return stage_0(std::move(ptr));
+         },
+         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+             return stage_1(std::move(ptr));
+         }
+      }),
+    pool(4u, "preprocess_main")
 {
-    gpuMat bg;
-    video.average().copyTo(bg);
-    video.processImage(bg, bg, false);
-    cv::Mat original;
-    bg.copyTo(original);
-    
-    _background = std::make_unique<AnimatedBackground>(Image::Make(original), &this->video);
+}
+
+
+TrackingScene::Data::Data(Image::Ptr&& average, const pv::File& video)
+{
+    _background = std::make_unique<AnimatedBackground>(std::move(average), &video);
     
     _background->add_event_handler(EventType::MBUTTON, [this](Event e){
         if(e.mbutton.pressed) {
@@ -72,7 +79,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File&& video, std::vector<st
         _keymap[key] = false;
 }
 
-void TrackingScene::Data::Statistics::calculateRates(double elapsed) {
+void TrackingState::Statistics::calculateRates(double elapsed) {
     const auto frames_sec = frames_count / elapsed;
     frames_per_second = frames_sec;
     individuals_per_second = acc_individuals / sample_individuals;
@@ -85,7 +92,7 @@ void TrackingScene::Data::Statistics::calculateRates(double elapsed) {
     acc_individuals = 0;
 }
 
-void TrackingScene::Data::Statistics::printProgress(float percent, const std::string& status) {
+void TrackingState::Statistics::printProgress(float percent, const std::string& status) {
     // Assuming we have a terminal width of 50 characters for the progress bar.
     constexpr int bar_width = 50;
     int pos = int(bar_width * (percent / 100.0f));
@@ -100,7 +107,7 @@ void TrackingScene::Data::Statistics::printProgress(float percent, const std::st
     fflush(stdout); // Flush the output to ensure it appears immediately
 }
 
-void TrackingScene::Data::Statistics::logProgress(float percent, const std::string& status) {
+void TrackingState::Statistics::logProgress(float percent, const std::string& status) {
     if (print_timer.elapsed() > 30) {
         // Here we use print(...) as if it's a member function similar to printf, but with
         // the behavior as specified (e.g., taking arbitrary arguments and producing reasonable
@@ -118,7 +125,7 @@ constexpr const char* time_unit() {
 #endif
 }
 
-void TrackingScene::Data::Statistics::updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool) {
+void TrackingState::Statistics::updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool) {
     float percent = min(1.f, (frame - analysis_range.start()).get() / float(analysis_range.length().try_sub(1_f).get())) * 100.f;
     DurationUS us{ uint64_t(max(0, (double)(analysis_range.end() - frame).get() / double( acc_frames / sample_frames ) * 1000 * 1000)) };
 
@@ -152,7 +159,7 @@ void TrackingScene::Data::Statistics::updateProgress(Frame_t frame, const FrameR
 }
 
 
-void TrackingScene::Data::Statistics::update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force)
+void TrackingState::Statistics::update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force)
 {
     frames_count++;
     acc_individuals += num_individuals;
@@ -212,14 +219,14 @@ Idx_t find_wrapped_id(const Set& ids, track::Idx_t current_id, Comparator comp) 
     }
 }
 
-void TrackingScene::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
-    bool before = _data->analysis.is_paused();
-    _data->analysis.set_paused(true).get();
+void TrackingState::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
+    bool before = analysis.is_paused();
+    analysis.set_paused(true).get();
     
-    track::export_data(_data->video, _data->tracker, fdx, range);
+    track::export_data(video, tracker, fdx, range);
     
     if(not before)
-        _data->analysis.set_paused(false).get();
+        analysis.set_paused(false).get();
 }
 
 bool TrackingScene::on_global_event(Event event) {
@@ -257,11 +264,11 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             case Keyboard::Comma:
                 WorkProgress::add_queue("Pausing...", [this](){
-                    _data->analysis.set_paused(not _data->analysis.paused()).get();
+                    _state->analysis.set_paused(not _state->analysis.paused()).get();
                 });
                 break;
             case Keyboard::S:
-                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks("", {}, {}); });
+                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->export_tracks("", {}, {}); });
                 break;
             case Keyboard::Left:
                 set_frame(GUI_SETTINGS(gui_frame).try_sub(1_f));
@@ -328,12 +335,16 @@ bool TrackingScene::on_global_event(Event event) {
     return false;
 }
 
-bool TrackingScene::stage_0(ConnectedTasks::Type && ptr) {
+bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
     auto idx = ptr->index();
-    auto range = _data->tracker.analysis_range();
-    if(!range.contains(idx) && idx != range.end() && (not Tracker::end_frame().valid() || idx > Tracker::end_frame())) {
+    auto range = tracker.analysis_range();
+    if(not range.contains(idx)
+       && idx != range.end()
+       && (not Tracker::end_frame().valid()
+           || idx > Tracker::end_frame()))
+    {
         std::unique_lock lock(_task_mutex);
-        _data->unused.emplace(std::move(ptr));
+        unused.emplace(std::move(ptr));
         return false;
     }
 
@@ -343,8 +354,8 @@ bool TrackingScene::stage_0(ConnectedTasks::Type && ptr) {
     Timer timer;
     try {
         pv::Frame frame;
-        _data->video.read_frame(frame, idx);
-        Tracker::preprocess_frame(std::move(frame), *ptr, _data->pool.num_threads() > 1 ? &_data->pool : NULL, PPFrame::NeedGrid::NoNeed, _data->video.header().resolution, false);
+        video.read_frame(frame, idx);
+        Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
 
         ptr->set_loading_time(timer.elapsed());
     }
@@ -359,7 +370,7 @@ bool TrackingScene::stage_0(ConnectedTasks::Type && ptr) {
     return true;
 }
 
-bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
+bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
     static Timer fps_timer;
     static Image empty(0, 0, 0);
 
@@ -376,16 +387,19 @@ bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
 
     auto idx = ptr->index();
     if (idx >= range.start()
-        && max(range.start(), _data->tracker.end_frame().valid() ? (_data->tracker.end_frame() + 1_f) : 0_f) == idx
-        && _data->tracker.properties(idx) == nullptr
+        && max(range.start(), tracker.end_frame().valid()
+                                ? (tracker.end_frame() + 1_f)
+                                : 0_f)
+           == idx
+        && tracker.properties(idx) == nullptr
         && idx <= Tracker::analysis_range().end())
     {
-        _data->tracker.add(*ptr);
+        tracker.add(*ptr);
 
         static Timing after_track("Analysis::after_track", 10);
         TakeTiming after_trackt(after_track);
         
-        if(idx + 1_f == _data->video.length()
+        if(idx + 1_f == video.length()
            || idx + 1_f > Tracker::analysis_range().end())
         {
             on_tracking_done();
@@ -393,23 +407,23 @@ bool TrackingScene::stage_1(ConnectedTasks::Type && ptr) {
         
         static Timer last_added;
         if(last_added.elapsed() > 10) {
-            _data->tracker.global_segment_order();
+            tracker.global_segment_order();
             last_added.reset();
         }
         
         //print(_data->tracker.active_individuals(idx));
-        _data->_stats.update(idx, range, _data->video.length(), _data->tracker.statistics().at(idx).number_fish, idx == range.end());
+        _stats.update(idx, range, video.length(), tracker.statistics().at(idx).number_fish, idx == range.end());
     }
 
     static Timing procpush("Analysis::process::unused.push", 10);
     TakeTiming ppush(procpush);
     std::unique_lock lock(_task_mutex);
-    _data->unused.emplace(std::move(ptr));
+    unused.emplace(std::move(ptr));
 
     return true;
 }
 
-void TrackingScene::init_video() {
+void TrackingState::init_video() {
     
     settings::load(default_config::TRexTask_t::track, {});
     
@@ -458,8 +472,6 @@ void TrackingScene::init_video() {
     //! otherwise we will get stuck here
     bool executed_a_settings{false};
     thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());*/
-    auto filename = SETTING(filename).value<file::Path>();
-    pv::File video(filename, pv::FileMode::READ);
     
     if(video.header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
@@ -486,8 +498,7 @@ void TrackingScene::init_video() {
         // dont do anything, has been printed already
     }*/
     
-    Image::Ptr average = Image::Make(video.average());
-    SETTING(video_size) = Size2(average->cols, average->rows);
+    SETTING(video_size) = Size2(video.size());
     SETTING(video_mask) = video.has_mask();
     SETTING(video_length) = uint64_t(video.length().get());
     SETTING(video_info) = std::string(video.get_info());
@@ -520,61 +531,12 @@ void TrackingScene::init_video() {
     SETTING(gui_interface_scale) = float(1);
     print("cm_per_pixel = ", SETTING(cm_per_pixel).value<float>());
     
-    //! Stages
-    _data = std::make_unique<Data>(
-       std::move(average),
-       std::move(video),
-       std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>>
-       {
-            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-                return stage_0(std::move(ptr));
-            },
-            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-                return stage_1(std::move(ptr));
-            }
-       }
-    );
-    
-    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());
-}
-
-void TrackingScene::activate() {
-    using namespace dyn;
-    
-    init_video();
-    
-    _data->_callback = GlobalSettings::map().register_callbacks({
-        "gui_focus_group",
-        "gui_run",
-        "analysis_paused",
-        "analysis_range"
-        
-    }, [this](std::string_view key) {
-        if(key == "gui_focus_group" && _data->_bowl)
-            _data->_bowl->_screen_size = Vec2();
-        else if(key == "gui_run") {
-            
-        } else if(key == "analysis_paused") {
-            gui::WorkProgress::add_queue("pausing...", [this](){
-                _data->analysis.bump();
-                bool pause = SETTING(analysis_paused).value<bool>();
-                if(_data->analysis.paused() != pause) {
-                    _data->analysis.set_paused(pause).get();
-                }
-            });
-        } else if(key == "analysis_range") {
-            _data->_analysis_range = Tracker::analysis_range();
-        }
-        
-    });
-    
-    _data->_analysis_range = Tracker::analysis_range();
-    
     for (auto i=0_f; i<cache_size; ++i)
-        _data->unused.emplace(std::make_unique<PPFrame>(_data->tracker.average().bounds().size()));
+        unused.emplace(std::make_unique<PPFrame>(tracker.average().bounds().size()));
     
-    _data->analysis.start(// main thread
-        [this, &analysis = _data->analysis, &please_stop_analysis = _data->please_stop_analysis, &currentID = _data->currentID, &tracker = _data->tracker, &video = _data->video]() {
+    analysis.start(// main thread
+        [this, &analysis = analysis, &please_stop_analysis = please_stop_analysis, &currentID = currentID, &tracker = tracker, &video = video]()
+        {
             auto endframe = tracker.end_frame();
             if(not currentID.load().valid()
                || not endframe.valid()
@@ -607,11 +569,11 @@ void TrackingScene::activate() {
                       && currentID.load() + 1_f < video.length()))
             {
                 std::scoped_lock lock(_task_mutex);
-                if(_data->unused.empty())
+                if(unused.empty())
                     break;
                 
-                auto ptr = std::move(_data->unused.front());
-                _data->unused.pop();
+                auto ptr = std::move(unused.front());
+                unused.pop();
                 
                 if(not currentID.load().valid())
                     currentID = range.start();
@@ -623,6 +585,52 @@ void TrackingScene::activate() {
             }
         }
     );
+}
+
+void TrackingScene::activate() {
+    using namespace dyn;
+    
+    
+    _state = std::make_unique<TrackingState>();
+    
+    //! Stages
+    _data = std::unique_ptr<Data>{
+        new Data{
+            Image::Make(_state->video.average()),
+            _state->video
+        }
+    };
+    
+    _data->_callback = GlobalSettings::map().register_callbacks({
+        "gui_focus_group",
+        "gui_run",
+        "analysis_paused",
+        "analysis_range"
+        
+    }, [this](std::string_view key) {
+        if(key == "gui_focus_group" && _data->_bowl)
+            _data->_bowl->_screen_size = Vec2();
+        else if(key == "gui_run") {
+            
+        } else if(key == "analysis_paused") {
+            gui::WorkProgress::add_queue("pausing...", [this](){
+                _state->analysis.bump();
+                bool pause = SETTING(analysis_paused).value<bool>();
+                if(_state->analysis.paused() != pause) {
+                    _state->analysis.set_paused(pause).get();
+                }
+            });
+        } else if(key == "analysis_range") {
+            _data->_analysis_range = Tracker::analysis_range();
+        }
+        
+    });
+    
+    _data->_analysis_range = Tracker::analysis_range();
+    _state->init_video();
+    
+    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());
+    
 }
 
 void TrackingScene::deactivate() {
@@ -641,8 +649,9 @@ void TrackingScene::deactivate() {
     if(_data && _data->_callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
     
-    if(_data)
-        _data->analysis.terminate();
+    if(_state)
+        _state->analysis.terminate();
+    _state = nullptr;
     _data = nullptr;
     
     SETTING(filename) = file::Path();
@@ -650,7 +659,7 @@ void TrackingScene::deactivate() {
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex) {
-    if(frameIndex <= _data->video.length()
+    if(frameIndex <= _state->video.length()
        && GUI_SETTINGS(gui_frame) != frameIndex)
     {
         SETTING(gui_frame) = frameIndex;
@@ -683,8 +692,11 @@ void TrackingScene::update_run_loop() {
     
     if(_data->_recorder.recording()) {
         index += 1_f;
-        if(index >= _data->video.length()) {
-            index = _data->video.length().try_sub(1_f);
+        
+        if(auto L = _state->video.length();
+           index >= L) 
+        {
+            index = L.try_sub(1_f);
             SETTING(gui_run) = false;
         }
         set_frame(index);
@@ -695,8 +707,10 @@ void TrackingScene::update_run_loop() {
         double advances = _data->_time_since_last_frame * frame_rate;
         if(advances >= 1) {
             index += Frame_t(uint(advances));
-            if(index >= _data->video.length()) {
-                index = _data->video.length().try_sub(1_f);
+            if(auto L = _state->video.length();
+               index >= L)
+            {
+                index = L.try_sub(1_f);
                 SETTING(gui_run) = false;
             }
             set_frame(index);
@@ -724,9 +738,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height).div(((IMGUIBase*)window())->dpi_scale()) * gui::interface_scale();
     
     if(not _data->_cache) {
-        _data->_cache = std::make_unique<GUICache>(&graph, &_data->video);
+        _data->_cache = std::make_unique<GUICache>(&graph, &_state->video);
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
-        _data->_bowl->set_video_aspect_ratio(_data->video.size().width, _data->video.size().height);
+        _data->_bowl->set_video_aspect_ratio(_state->video.size().width, _state->video.size().height);
         _data->_bowl->fit_to_screen(window_size);
         
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
@@ -1033,12 +1047,12 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             }),
             ActionFunc("reanalyse", [this](Action action) {
                 if(action.parameters.empty())
-                    _data->tracker._remove_frames(Frame_t{});
+                    _state->tracker._remove_frames(Frame_t{});
                 else {
                     auto frame = Meta::fromStr<Frame_t>(action.first());
-                    _data->tracker._remove_frames(frame);
+                    _state->tracker._remove_frames(frame);
                 }
-                _data->analysis.set_paused(false);
+                _state->analysis.set_paused(false);
             }),
             ActionFunc("load_results", [this](Action){
                 load_state(Output::TrackingResults::expected_filename());
@@ -1047,10 +1061,10 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 save_state(false);
             }),
             ActionFunc("export_data", [this](Action){
-                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks("", {}, {}); });
+                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->export_tracks("", {}, {}); });
             }),
             ActionFunc("auto_correct", [this](Action){
-                auto_correct();
+                _state->auto_correct();
             }),
             
             VarFunc("is_segment", [this](const VarProps& props) -> bool {
@@ -1084,7 +1098,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 {
                     LockGuard guard(ro_t{}, "active");
-                    if(_data->tracker.properties(frame))
+                    if(_state->tracker.properties(frame))
                         return Tracker::active_individuals(frame).size();
                 }
                 
@@ -1099,7 +1113,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             }),
             
             VarFunc("fps", [this](const VarProps&) -> double {
-                return _data->_stats.frames_per_second.load();
+                return _state->_stats.frames_per_second.load();
             }),
             
             VarFunc("fishes", [this](const VarProps&)
@@ -1136,13 +1150,13 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             }),
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {
-                if(not _data->tracker.start_frame().valid())
+                if(not _state->tracker.start_frame().valid())
                     return Range<Frame_t>(_data->_analysis_range.load().start(), _data->_analysis_range.load().start());
-                return Range<Frame_t>{ _data->tracker.start_frame(), _data->tracker.end_frame() + 1_f };
+                return Range<Frame_t>{ _state->tracker.start_frame(), _state->tracker.end_frame() + 1_f };
             }),
             
             VarFunc("analysis_range", [this](const VarProps&) -> Range<Frame_t> {
-                auto range = _data->tracker.analysis_range().range;
+                auto range = _state->tracker.analysis_range().range;
                 range.end += 1_f;
                 return range;
             }),
@@ -1172,12 +1186,12 @@ void TrackingScene::save_state(bool force_overwrite) {
     file = Output::TrackingResults::expected_filename();
     
     auto fn = [this]() {
-        bool before = _data->analysis.is_paused();
-        _data->analysis.set_paused(true).get();
+        bool before = _state->analysis.is_paused();
+        _state->analysis.set_paused(true).get();
         
         LockGuard guard(w_t{}, "GUI::save_state");
         try {
-            Output::TrackingResults results(_data->tracker);
+            Output::TrackingResults results(_state->tracker);
             results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, file);
         } catch(const UtilsException&e) {
             auto what = std::string(e.what());
@@ -1188,7 +1202,7 @@ void TrackingScene::save_state(bool force_overwrite) {
             FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
         
         if(!before)
-            _data->analysis.set_paused(false).get();
+            _state->analysis.set_paused(false).get();
         
         save_state_visible = false;
     };
@@ -1235,13 +1249,13 @@ void TrackingScene::load_state(file::Path from) {
     state_visible = true;
 
     auto fn = [this, from]() {
-        bool before = _data->analysis.is_paused();
-        _data->analysis.set_paused(true).get();
+        bool before = _state->analysis.is_paused();
+        _state->analysis.set_paused(true).get();
         
         Categorize::DataStore::clear();
         
         LockGuard guard(w_t{}, "GUI::load_state");
-        Output::TrackingResults results{_data->tracker};
+        Output::TrackingResults results{_state->tracker};
         
         try {
             auto header = results.load([](const std::string& title, float value, const std::string& desc) {
@@ -1257,7 +1271,7 @@ void TrackingScene::load_state(file::Path from) {
                 size_t N = 0;
                 
                 for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
-                    _data->video.read_frame(f, k);
+                    _state->video.read_frame(f, k);
                     auto blobs = f.get_blobs();
                     N += v.size();
                     
@@ -1363,7 +1377,7 @@ void TrackingScene::load_state(file::Path from) {
                                 
                             } else {
                                 const pv::CompressedBlob* found = nullptr;
-                                _data->video.read_frame(f, k);
+                                _state->video.read_frame(f, k);
                                 for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {
@@ -1534,29 +1548,29 @@ void TrackingScene::load_state(file::Path from) {
     WorkProgress::add_queue("Loading results...", fn);
 }
 
-void TrackingScene::auto_correct() {
+void TrackingState::auto_correct(GUITaskQueue_t* gui) {
     static constexpr const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
     static constexpr const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
         
-    _data->_exec_main_queue.enqueue([this](auto, DrawStructure& graph) {
+    gui->enqueue([this, gui](auto, DrawStructure& graph) {
         const bool tags_available = tags::available();
-        graph.dialog([this, tags_available](gui::Dialog::Result r) {
+        graph.dialog([this, tags_available, gui](gui::Dialog::Result r) {
             if(r == Dialog::ABORT)
                 return;
             
-            correct_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
+            correct_identities(gui, r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
             
         }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
     });
 
 }
 
-void TrackingScene::correct_identities(bool force_correct, IdentitySource source) {
-    WorkProgress::add_queue("checking identities...", [this, force_correct, source](){
-        Tracker::instance()->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-            _data->_exec_main_queue.enqueue([this, fn, source](auto, DrawStructure&) {
-                _data->_tracking_callbacks.push([this, source](){
-                    correct_identities(false, source);
+void TrackingState::correct_identities(GUITaskQueue_t* gui, bool force_correct, IdentitySource source) {
+    WorkProgress::add_queue("checking identities...", [this, force_correct, source, gui](){
+        tracker.check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            gui->enqueue([this, fn, source, gui](auto, DrawStructure&) {
+                _tracking_callbacks.push([this, source, gui](){
+                    correct_identities(gui, false, source);
                 });
                 
                 fn();
@@ -1565,15 +1579,15 @@ void TrackingScene::correct_identities(bool force_correct, IdentitySource source
     });
 }
 
-void TrackingScene::on_tracking_done() {
-    _data->please_stop_analysis = true;
-    _data->tracker.global_segment_order();
+void TrackingState::on_tracking_done() {
+    please_stop_analysis = true;
+    tracker.global_segment_order();
     SETTING(analysis_paused) = true;
     
     // tracking has ended
-    while(not _data->_tracking_callbacks.empty()) {
-        _data->_tracking_callbacks.front()();
-        _data->_tracking_callbacks.pop();
+    while(not _tracking_callbacks.empty()) {
+        _tracking_callbacks.front()();
+        _tracking_callbacks.pop();
     }
 }
 
