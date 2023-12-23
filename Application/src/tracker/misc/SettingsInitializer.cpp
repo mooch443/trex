@@ -12,7 +12,7 @@ using namespace track;
 
 namespace settings {
 
-void load(default_config::TRexTask, std::vector<std::string> exclude_parameters) {
+void load(default_config::TRexTask task, std::vector<std::string> exclude_parameters) {
     DebugHeader("Reloading settings");
     
     SettingsMaps combined;
@@ -95,23 +95,32 @@ void load(default_config::TRexTask, std::vector<std::string> exclude_parameters)
     
     cmd.load_settings(&combined);
     
-    file::Path path = file::find_basename(SETTING(source).value<file::PathArray>());
-    if(path.has_extension()
-       && path.extension() != "pv")
-    {
-        // did we mean .mp4.pv?
-        auto prefixed = file::DataLocation::parse("output", path.add_extension("pv"));
-        if(not prefixed.exists()) {
-            path = path.remove_extension();
-            
-            //! do we remove the full path, or do we put the .pv file next
-            //! to the original video file?
-            //path = path.filename();
-        } // else we can open it, so prefer it
+    const auto source = SETTING(source).value<file::PathArray>();
+    if(task == default_config::TRexTask_t::track) {
+        file::Path path;
+        if(source.size() == 1)
+            path = source.get_paths().front();
+        file::Path filename = file::DataLocation::parse("input", path);
+        SETTING(filename) = filename.remove_extension();
+    } else {
+        file::Path path = file::find_basename(source);
+        if(path.has_extension()
+           && path.extension() != "pv")
+        {
+            // did we mean .mp4.pv?
+            auto prefixed = file::DataLocation::parse("output", path.add_extension("pv"));
+            if(not prefixed.exists()) {
+                path = path.remove_extension();
+                
+                //! do we remove the full path, or do we put the .pv file next
+                //! to the original video file?
+                //path = path.filename();
+            } // else we can open it, so prefer it
+        }
+        
+        file::Path filename = file::DataLocation::parse("output", path);
+        SETTING(filename) = filename.remove_extension();
     }
-
-    file::Path filename = file::DataLocation::parse("output", path);
-    SETTING(filename) = filename.remove_extension();
     
     if(SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>() == 0) {
         if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {

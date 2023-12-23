@@ -320,7 +320,9 @@ bool TrackingScene::on_global_event(Event event) {
                     _data->_exec_main_queue.enqueue([this](IMGUIBase* base, DrawStructure& graph){
                         if(_data->_recorder.recording()) {
                             _data->_recorder.stop_recording(base, &graph);
+                            _data->_background->set_strict(false);
                         } else {
+                            _data->_background->set_strict(true);
                             _data->_recorder.start_recording(base, GUI_SETTINGS(gui_frame));
                         }
                     });
@@ -635,6 +637,11 @@ void TrackingScene::activate() {
 
 void TrackingScene::deactivate() {
     ThreadManager::getInstance().printThreadTree();
+    if(_data && _data->_recorder.recording()) {
+        _data->_recorder.stop_recording(nullptr, nullptr);
+        if(_data->_background)
+            _data->_background->set_strict(false);
+    }
     
     WorkProgress::stop();
     dynGUI.clear();

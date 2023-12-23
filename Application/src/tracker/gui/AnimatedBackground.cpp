@@ -182,7 +182,7 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
 }
 
 void AnimatedBackground::before_draw() {
-    bool is_recording{false}; // GUI::instance->is_recording
+    //bool is_recording{false}; // GUI::instance->is_recording
     bool value = PRELOAD_CACHE(gui_show_video_background);
     if(value != gui_show_video_background) {
         gui_show_video_background = value;
@@ -204,10 +204,21 @@ void AnimatedBackground::before_draw() {
        && frame != _current_frame
        && _source)
     {
-        auto maybe_image = preloader.get_frame(frame);
-        if(maybe_image.has_value() && maybe_image.value()) {
-            auto image = std::move(maybe_image.value());
-            if(image->index() != frame.get()) 
+        Image::Ptr image;
+        
+        if(_strict) {
+            image = preloader.load_exactly(frame);
+        } else {
+            auto maybe_image = preloader.get_frame(frame);
+            if(maybe_image.has_value() 
+               && maybe_image.value())
+            {
+                image = std::move(maybe_image.value());
+            }
+        }
+        
+        if(image) {
+            if(image->index() != frame.get())
             {
                 Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
                 cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);

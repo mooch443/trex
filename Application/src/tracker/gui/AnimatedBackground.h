@@ -41,6 +41,7 @@ class AnimatedBackground : public Entangled {
     bool gui_show_video_background{true};
     
     FramePreloader<Image::Ptr> preloader;
+    std::atomic<bool> _strict{false};
     
 public:
     AnimatedBackground(Image::Ptr&&, const pv::File* = nullptr);
@@ -56,6 +57,8 @@ public:
     
     void before_draw() override;
     using Entangled::update;
+    
+    void set_strict(bool v) { _strict = v; }
     
     Image::Ptr preload(Frame_t);
 };

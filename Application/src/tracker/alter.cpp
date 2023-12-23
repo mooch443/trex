@@ -95,10 +95,10 @@ TRexTask determineTaskType() {
     } else if (auto front = array.get_paths().front();
                array.size() == 1)
     { // TODO: not sure how this deals with patterns
-        front = front.filename();
+        //front = front.filename();
         output_file = !front.has_extension() ?
-                      file::DataLocation::parse("output", front.add_extension("pv")) :
-                      file::DataLocation::parse("output", front.replace_extension("pv"));
+                      file::DataLocation::parse("input", front.add_extension("pv")) :
+                      file::DataLocation::parse("input", front.replace_extension("pv"));
 
         if (output_file.exists()) {
             SETTING(source) = file::PathArray({ output_file });

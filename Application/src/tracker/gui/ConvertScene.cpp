@@ -622,12 +622,12 @@ dyn::DynamicGUI ConvertScene::init_gui() {
                 return file::DataLocation::parse("output");
             return file::DataLocation::parse("output", props.first());
         }),
-        VarFunc("output_name", [](const VarProps& props) -> file::Path {
+        VarFunc("output_name", [](const VarProps& ) -> file::Path {
             auto source = SETTING(source).value<file::PathArray>();
             auto base = file::find_basename(source);
             return file::DataLocation::parse("output", base);
         }),
-        VarFunc("output_base", [](const VarProps& props) -> file::Path {
+        VarFunc("output_base", [](const VarProps& ) -> file::Path {
             auto source = SETTING(source).value<file::PathArray>();
             return file::find_basename(source);
         }),
