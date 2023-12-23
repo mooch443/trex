@@ -468,7 +468,8 @@ blob::line_ptr_t ShortHorizontalLine::uncompress(
     static bool use_avx512f = false;
     static std::once_flag cpu_check_flag;  // Global flag for std::call_once
     std::call_once(cpu_check_flag, check_cpu_features, std::ref(use_avx512f));
-    return uncompress_normal(start_y, compressed);
+    if(not use_avx512f)
+        return uncompress_normal(start_y, compressed);
 #endif
 
     auto result = std::make_unique<std::vector<HorizontalLine>>();
@@ -505,7 +506,7 @@ blob::line_ptr_t ShortHorizontalLine::uncompress(
 
         auto runC = [&]<int i>() {
             uptr[i].y = y;
-            y += _mm256_extract_epi32(eol_flags, i % 4);
+            y += _mm256_extract_epi32(eol_flags, i % 8);
         };
 
         LambdaCaller<0, 8>::call(runC);
