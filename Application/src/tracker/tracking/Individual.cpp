@@ -1077,7 +1077,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
         if(cached->individual_empty /* || frameIndex < start_frame() */)
             p = 0;
         else
-            p = probability(cached->consistent_categories
+            p = probability(SLOW_SETTING(track_consistent_categories)
                                 ? info.frame->label(blob.blob_id())
                                 : -1,
                             *cached,
@@ -1602,7 +1602,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
         return tl::unexpected("Invalid frame in cache_for_frame");
     
     IndividualCache cache;
-    cache._idx = Idx_t(identity().ID());
+    //cache._idx = Idx_t(identity().ID());
     if(empty() || !_startFrame.valid() || frameIndex <= _startFrame) {
         cache.individual_empty = true;
         return tl::unexpected("The individual is empty.");
@@ -1619,12 +1619,12 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     
     //! collect samples from previous segments
     //bool manually_matched_segment = false;
-    cache.last_frame_manual = false;
+    bool last_frame_manual = false;
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = -1;
-    cache.cm_per_pixel = SLOW_SETTING(cm_per_pixel);
-    cache.consistent_categories = FAST_SETTING(track_consistent_categories);
-    cache.track_max_speed_px = SLOW_SETTING(track_max_speed) / cache.cm_per_pixel;
+    const auto cm_per_pixel = SLOW_SETTING(cm_per_pixel);
+    const auto consistent_categories = SLOW_SETTING(track_consistent_categories);
+    const auto track_max_speed_px = SLOW_SETTING(track_max_speed) / cm_per_pixel;
     const auto frame_rate = SLOW_SETTING(frame_rate);
     const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
     
@@ -1738,10 +1738,10 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(SLOW_SETTING(frame_rate)) + time);
     
     assert(time >= ptime);
-    cache.tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
+    auto tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
     cache.local_tdelta = prev_props ? time - prev_props->time : 0;
     
-    if(cache.tdelta == 0) {
+    if(tdelta == 0) {
         long_t bdx = -1, pdx = -1;
         
         if(!_frame_segments.empty()) {
@@ -1836,7 +1836,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     std::unordered_map<int, size_t> labels;
     size_t samples = 0;
     
-    if(cache.consistent_categories
+    if(consistent_categories
        && cache.previous_frame.valid())
     {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
@@ -1858,7 +1858,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
 
     // cm/s / (cm/px)
     // (cm/s)^2 / (cm/px)^2 = (cm^2/s^2) / (cm^2/px^2) = 1 * px^2/s^2
-    const auto track_max_px_sq = SQR(cache.track_max_speed_px);
+    const auto track_max_px_sq = SQR(track_max_speed_px);
     const FrameProperties *properties = nullptr;
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
@@ -1866,7 +1866,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const BasicStuff* basic, auto) -> bool
     {
         if(is_manual_match(frame)) {
-            cache.last_frame_manual = true;
+            last_frame_manual = true;
             return true;
         }
         
@@ -1911,7 +1911,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
             //!         D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise}
             //!     \end{cases}
             if(L_sq >= track_max_px_sq) {
-                v *= cache.track_max_speed_px / sqrt(L_sq);
+                v *= track_max_speed_px / sqrt(L_sq);
                 L_sq = track_max_px_sq;
             }
             
@@ -2006,25 +2006,43 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
             h = pp_posture->centroid_posture;
     }
     
-    cache.speed = h ? h->speed<Units::CM_AND_SECONDS>() : 0;
-    cache.h = h;
+    //cache.speed = h ? h->speed<Units::CM_AND_SECONDS>() : 0;
+    //cache.h = h;
     cache.estimated_px = est;
-    cache.time_probability = time_probability(cache, recent_number_samples);
     
-    assert(!std::isnan(cache.estimated_px.x) && !std::isnan(cache.estimated_px.y));
+    if(not FAST_SETTING(track_time_probability_enabled)
+       || last_frame_manual)
+    {
+        cache.time_probability = 1;
+    } else if(tdelta > SLOW_SETTING(track_max_reassign_time)) {
+        cache.time_probability = 0;
+    } else {
+        cache.time_probability = time_probability(tdelta, cache.previous_frame, recent_number_samples);
+    }
+    
+    cache.valid_frame = !h || last_frame_manual;
+    
+    assert(!std::isnan(cache.estimated_px.x) 
+           && !std::isnan(cache.estimated_px.y));
     cache.valid = true;
     
     return cache;
 }
 
-prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_number_samples) const {
-    if(!FAST_SETTING(track_time_probability_enabled))
-        return 1;
-    if (cache.tdelta > SLOW_SETTING(track_max_reassign_time))
-        return 0.0;
+struct TimeCache {
     
-    if(cache.last_frame_manual)
-        return 1;
+};
+
+prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) const {
+    
+    /// handled in cache_for_frame:
+    //if(!FAST_SETTING(track_time_probability_enabled))
+    //    return 1;
+    //if (cache.tdelta > SLOW_SETTING(track_max_reassign_time))
+    //    return 0.0;
+    
+    //if(cache.last_frame_manual)
+    //    return 1;
     
     const float Tdelta = 1.f / float(SLOW_SETTING(frame_rate));
     
@@ -2043,8 +2061,8 @@ prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_
         \end{equation}
      */
     
-    float p = 1.0f - min(1.0f, max(0, (cache.tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
-    if(cache.previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
+    float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
+    if(previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
         p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + FAST_SETTING(matching_probability_threshold));
     
     return p * 0.75 + 0.25;
@@ -2063,7 +2081,7 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
     return -atan2(-B.y*A.x+B.x*A.y, B.x*A.x+B.y*A.y);
 }
 
-prob_t Individual::position_probability(const IndividualCache& cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
+prob_t Individual::position_probability(const IndividualCache cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
 {
     UNUSED(frameIndex)
 #ifndef NDEBUG
@@ -2077,11 +2095,11 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     //! S_{i,b}(t) &= \left(1 + \frac{\norm{ (\mathbf{p}_b(\tau_i) - \dot{\mathbf{p}}_i(t)) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
     
     Vec2 velocity;
-    if(cache.local_tdelta != 0)
-        velocity = (position - cache.estimated_px) / cache.local_tdelta;
+    //if(cache.local_tdelta != 0)
+        velocity = (cache.local_tdelta != 0) * (position - cache.estimated_px) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = velocity.length() / cache.track_max_speed_px;
+    auto speed = velocity.length() / SLOW_SETTING(track_max_speed) * SLOW_SETTING(cm_per_pixel);
     speed = 1 / SQR(1 + speed);
     
     /*if((frameIndex >= 48181 && identity().ID() == 368) || frameIndex == 48182)
@@ -2097,37 +2115,38 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     
     // additional condition, if blobs are apart more than a pixel,
     // check for their angular difference
-    if(cache.h && !cache.last_frame_manual) {
-        /*
-             \begin{equation} \label{eq:speed_prob}
-                 S_{i}\given{t | B_j} = \left(1 + \frac{\norm{ \left(\mathbf{p}_{B_j}(t) - \dot{\mathbf{p}}_i(t) \right) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
-             \end{equation}
-             
-             $$ \mathbf{a} = \dot{\mathbf{p}}_i(t) - \mathbf{p}_i(\tau_i)  $$
-             $$ \mathbf{b} = \mathbf{p}_{B_j}(t) - \mathbf{p}_i(\tau_i) $$
-             
-             \begin{equation} \label{eq:angle_prob}
-                 A_{i}\given{t,\tau_i | B_j } =
-                 \begin{cases}
-                     1 - \frac{1}{\pi}\left|\atantwo\left\{\norm{ \mathbf{a}\times \mathbf{b} }, \mathbf{a}\cdot \mathbf{b}\right\}\right| & \mathrm{if} \norm{\mathbf{a}} > 1 \wedge \norm{\mathbf{b}} > 1 \\
-                     1 & \mathrm{otherwise}
-                 \end{cases}
-             \end{equation}
-        */
-        auto line_center_last = blob_center - cache.last_seen_px;
-        auto line_est_last = cache.estimated_px - cache.last_seen_px;
+    if(not cache.valid_frame)
+        return speed;
+    
+    /*
+         \begin{equation} \label{eq:speed_prob}
+             S_{i}\given{t | B_j} = \left(1 + \frac{\norm{ \left(\mathbf{p}_{B_j}(t) - \dot{\mathbf{p}}_i(t) \right) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
+         \end{equation}
+         
+         $$ \mathbf{a} = \dot{\mathbf{p}}_i(t) - \mathbf{p}_i(\tau_i)  $$
+         $$ \mathbf{b} = \mathbf{p}_{B_j}(t) - \mathbf{p}_i(\tau_i) $$
+         
+         \begin{equation} \label{eq:angle_prob}
+             A_{i}\given{t,\tau_i | B_j } =
+             \begin{cases}
+                 1 - \frac{1}{\pi}\left|\atantwo\left\{\norm{ \mathbf{a}\times \mathbf{b} }, \mathbf{a}\cdot \mathbf{b}\right\}\right| & \mathrm{if} \norm{\mathbf{a}} > 1 \wedge \norm{\mathbf{b}} > 1 \\
+                 1 & \mathrm{otherwise}
+             \end{cases}
+         \end{equation}
+    */
+    auto line_center_last = blob_center - cache.last_seen_px;
+    auto line_est_last = cache.estimated_px - cache.last_seen_px;
+    
+    if(line_center_last.sqlength() > 1
+       && line_est_last.sqlength() > 1)
+    {
+        float a = adiffangle(line_center_last, line_est_last);
+        assert(!std::isnan(a));
         
-        if(line_center_last.sqlength() > 1
-           && line_est_last.sqlength() > 1)
-        {
-            float a = adiffangle(line_center_last, line_est_last);
-            assert(!std::isnan(a));
-            
-            a = abs(a / M_PI);
-            a = 0.9 + SQR(1 - a) * 0.1;
-            
-            return speed * a;
-        }
+        a = abs(a / M_PI);
+        a = 0.9 + SQR(1 - a) * 0.1;
+        
+        return speed * a;
     }
     
     return speed;
@@ -2155,19 +2174,22 @@ Probability Individual::probability(int label, const IndividualCache& cache, Fra
     //    throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
     assert(!cache.individual_empty);
 
-    if (cache.consistent_categories && cache.current_category != -1) {
+    //if (//cache.consistent_categories &&
+    //    cache.current_category != -1)
+    //{
         //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
         //if(identity().ID() == 38)
         //    FormatWarning("Frame ",frameIndex,": blob ",blob.blob_id()," -> ",l ? l->name.c_str() : "N/A"," (",l ? l->id : -1,") and previous is ",cache.current_category);
-        if (label != -1) {
-            if (label != cache.current_category) {
-                //if(identity().ID() == 38)
-                 //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id());
-                //return Probability{ 0, 0, 0, 0 };
-                return 0;
-            }
+        if (label != -1
+            && label != cache.current_category
+            && cache.current_category != -1) /// label can be -1
+        {
+            //if(identity().ID() == 38)
+             //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id());
+            //return Probability{ 0, 0, 0, 0 };
+            return 0;
         }
-    }
+    //}
 
     const Vec2& blob_pos = position;
     //auto && [ p_position, p_speed, p_angle ] = 
@@ -2179,7 +2201,7 @@ Probability Individual::probability(int label, const IndividualCache& cache, Fra
          \end{equation}
      */
     //return {
-    return (cache.last_frame_manual ? 1.0f : 1.0f) * p_position * cache.time_probability;
+    return p_position * cache.time_probability;
     //    cache.time_probability,
     //    p_position,
     //    p_angle

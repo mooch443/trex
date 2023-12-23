@@ -50,7 +50,9 @@ void initialize_slows() {
         
         DEF_CALLBACK(frame_rate);
         DEF_CALLBACK(track_max_speed);
+        DEF_CALLBACK(track_consistent_categories);
         DEF_CALLBACK(cm_per_pixel);
+        //DEF_CALLBACK(analysis_range);
         DEF_CALLBACK(track_threshold);
         DEF_CALLBACK(track_max_reassign_time);
         DEF_CALLBACK(calculate_posture);

@@ -132,6 +132,7 @@ CREATE_STRUCT(Settings,
 struct slow {
     DEF_SLOW_SETTINGS(frame_rate);
     DEF_SLOW_SETTINGS(track_max_speed);
+    DEF_SLOW_SETTINGS(track_consistent_categories);
     DEF_SLOW_SETTINGS(cm_per_pixel);
     DEF_SLOW_SETTINGS(analysis_range);
     DEF_SLOW_SETTINGS(track_threshold);

@@ -1002,7 +1002,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
                     
                     auto p = individuals.at(fdx)->probability(processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
-                        probabilities[c->_idx][blob.blob_id()] = p;
+                        probabilities[fdx][blob.blob_id()] = p;
                 });
             }
         }

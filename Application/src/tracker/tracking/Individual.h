@@ -361,10 +361,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
-        Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
-        //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
-        Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
+    private:
+        Match::prob_t time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) const;
+        //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
+        Match::prob_t position_probability(const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
+        
+    public:
         const BasicStuff* find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
