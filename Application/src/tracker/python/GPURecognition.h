@@ -1,14 +1,17 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/SoftException.h>
-#include <misc/GlobalSettings.h>
 #include <misc/idx_t.h>
 #include <misc/PackLambda.h>
 
 namespace file {
     class DataLocation;
+}
+
+namespace cmn {
+    class GlobalSettings;
 }
 
 namespace track {
@@ -352,45 +355,6 @@ namespace track {
                                  cmn::package::F<void(std::vector<T>)>&&, const std::string & = "") = delete;
         
         static void unset_function(const char* name_, const std::string &m = "");
-        
-        struct ModuleProxy {
-            bool _unset;
-            std::string m;
-            std::set<std::string> set_functions;
-            ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit, bool unset = false)
-                : _unset(unset), m(name)
-            {
-                if(PythonIntegration::check_module("bbx_saved_model"))
-                    reinit(*this);
-            }
-            ~ModuleProxy() {
-                if (not _unset)
-                    return;
-
-                try {
-                    //print("** unsetting functions ", set_functions);
-                    for (auto p : set_functions)
-                        unset_function(p.c_str());
-                }
-                catch (...) {
-                    FormatExcept("Unknown exception when unsetting functions ", set_functions, " in module ", m);
-                }
-            }
-            void set_function(const char* name, auto &&fn) {
-                set_functions.insert(name);
-                PythonIntegration::set_function(name, std::forward<decltype(fn)>(fn), m);
-            }
-            void set_variable(const char* name, auto&& value) {
-                //set_functions.insert(name);
-                PythonIntegration::set_variable(name, std::forward<decltype(value)>(value), m);
-            }
-            void run(const char* name) {
-                PythonIntegration::run(m, name);
-            }
-            void unset_function(const char*name) {
-                PythonIntegration::unset_function(name, m);
-            }
-        };
         
     public:
         static void check_correct_thread_id();

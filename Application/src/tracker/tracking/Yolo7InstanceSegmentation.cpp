@@ -3,10 +3,11 @@
 #include <processing/CPULabeling.h>
 #include <misc/AbstractVideoSource.h>
 #include <misc/PixelTree.h>
+#include <python/ModuleProxy.h>
 
 namespace track {
 
-void Yolo7InstanceSegmentation::reinit(track::PythonIntegration::ModuleProxy& proxy) {
+void Yolo7InstanceSegmentation::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
     if(SETTING(segmentation_model).value<file::Path>().empty())
@@ -22,7 +23,7 @@ void Yolo7InstanceSegmentation::reinit(track::PythonIntegration::ModuleProxy& pr
 void Yolo7InstanceSegmentation::init() {
     Python::schedule([](){
         using py = track::PythonIntegration;
-        py::ModuleProxy proxy{"bbx_saved_model", reinit};
+        ModuleProxy proxy{"bbx_saved_model", reinit};
         
     }).get();
 }
@@ -165,7 +166,7 @@ tl::expected<SegmentationData, const char*> Yolo7InstanceSegmentation::apply(Til
     
     py::schedule([&tiled, scale, offsets = tiled.offsets()]() mutable {
         using py = track::PythonIntegration;
-        py::ModuleProxy bbx("bbx_saved_model", reinit);
+        ModuleProxy bbx("bbx_saved_model", reinit);
         bbx.set_variable("offsets", std::move(offsets));
         bbx.set_variable("image", tiled.images);
         

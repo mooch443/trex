@@ -16,44 +16,55 @@ std::future<void> init_future;
 
 std::atomic<bool> yolo8_initialized{false};
 
-void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
+std::string Yolo8::default_model() {
+    return "yolov8n-pose.pt";
+}
+
+bool Yolo8::valid_model(const file::Path& path) {
+    std::string input_string = SETTING(model).value<file::Path>().str();
+    std::regex regex_pattern("yolov8.*\\.pt");
+    std::regex regex_pattern2("yolov8.*$");
+
+    if (std::regex_match(input_string, regex_pattern)) {
+        return true;
+
+    } else if(std::regex_match(input_string, regex_pattern2)) {
+        return true;
+    }
+    
+    if(path.exists() && path.has_extension() && path.extension() == "pt")
+        return true;
+    
+    return false;
+}
+
+void Yolo8::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
-    if(SETTING(model).value<file::Path>().empty())
-        throw U_EXCEPTION("When using YOLOv8, please provide a model path using the command-line argument -m <path> for object detection.");
+    if(SETTING(model).value<file::Path>().empty()) {
+        print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
+        SETTING(model) = file::Path("yolov8n-pose");
+    }
 
     using namespace track::detect;
     std::vector<ModelConfig> models;
 
-    if (SETTING(model).value<file::Path>().exists()) {
+    // caching here since it can be modified above
+    auto path = SETTING(model).value<file::Path>();
+    if(valid_model(path)) {
+        if(not path.has_extension()) {
+            path = path.add_extension("pt"); // pytorch model
+        }
+        
         models.emplace_back(
             ModelTaskType::detect,
             SETTING(yolo8_tracking_enabled).value<bool>(),
-            SETTING(model).value<file::Path>().str(),
+            path.str(),
             SETTING(detection_resolution).value<uint16_t>()
         );
-    } else {
-        std::string input_string = SETTING(model).value<file::Path>().str();
-        std::regex regex_pattern("yolov8.*\\.pt");
-        std::regex regex_pattern2("yolov8.*$");
-
-        if (std::regex_match(input_string, regex_pattern)) {
-            models.emplace_back(
-                ModelTaskType::detect,
-                SETTING(yolo8_tracking_enabled).value<bool>(),
-                SETTING(model).value<file::Path>().str(),
-                SETTING(detection_resolution).value<uint16_t>()
-            );
-
-        } else if(std::regex_match(input_string, regex_pattern2)) {
-            models.emplace_back(
-                ModelTaskType::detect,
-                SETTING(yolo8_tracking_enabled).value<bool>(),
-                SETTING(model).value<file::Path>().str()+".pt",
-                SETTING(detection_resolution).value<uint16_t>()
-            );
-        }
-    }
+        
+    } else
+        throw U_EXCEPTION("This does not seem like a valid model to use: ", path,". When using object detection, please provide a model path using the command-line argument -m <path>.");
 
     if(SETTING(region_model).value<file::Path>().exists())
         models.emplace_back(
@@ -64,8 +75,8 @@ void Yolo8::reinit(track::PythonIntegration::ModuleProxy& proxy) {
         );
 
     if(models.empty()) {
-        if(not SETTING(model).value<file::Path>().empty())
-            throw U_EXCEPTION("Cannot find model ", SETTING(model).value<file::Path>());
+        if(not path.empty())
+            throw U_EXCEPTION("Cannot find model ", path);
         
         throw U_EXCEPTION("Please provide at least one model to use for segmentation.");
     }
@@ -81,8 +92,7 @@ void Yolo8::init() {
             init_future.get();
         
         init_future = Python::schedule([](){
-            using py = track::PythonIntegration;
-            py::ModuleProxy proxy{
+            ModuleProxy proxy{
                 "bbx_saved_model",
                 Yolo8::reinit
             };
@@ -478,7 +488,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
             //thread_print("** transfer of ", (uint64_t)& transfer);
             
             const size_t _N = transfer.datas.size();
-            py::ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
+            ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
             //bbx.set_variable("offsets", std::move(transfer.offsets));
             //bbx.set_variable("image", transfer.images);
             //bbx.set_variable("oimages", transfer.oimages);

@@ -15,6 +15,8 @@
 #include <python/GPURecognition.h>
 #include <gui/Label.h>
 #include <gui/ParseLayoutTypes.h>
+#include <tracking/Yolo8.h>
+#include <misc/CommandLine.h>
 
 namespace gui {
 
@@ -190,6 +192,17 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
+    if(SETTING(model).value<file::Path>().empty()
+       || (not SETTING(model).value<file::Path>().exists() && not Yolo8::valid_model(SETTING(model).value<file::Path>().str())))
+    {
+        SETTING(model) = file::Path(Yolo8::default_model());
+    }
+    
+    if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
+    {
+        SETTING(save_raw_movie) = true;
+    }
+    
     spinner.set_option(ind::option::PrefixText{"Recording"});
     spinner.set_option(ind::option::ShowPercentage{false});
     

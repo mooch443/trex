@@ -1,14 +1,14 @@
 #pragma once
 
 #include <tracking/Detection.h>
-#include <python/GPURecognition.h>
+#include <python/ModuleProxy.h>
 
 namespace track {
 
 struct Yolo7ObjectDetection {
     Yolo7ObjectDetection() = delete;
     
-    static void reinit(track::PythonIntegration::ModuleProxy& proxy);
+    static void reinit(ModuleProxy& proxy);
     
     static void init();
     

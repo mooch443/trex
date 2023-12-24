@@ -7,7 +7,7 @@
 
 namespace track {
 
-void Yolo7ObjectDetection::reinit(track::PythonIntegration::ModuleProxy& proxy) {
+void Yolo7ObjectDetection::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detection_type().toStr());
     
     if(SETTING(model).value<file::Path>().empty())
@@ -27,7 +27,7 @@ void Yolo7ObjectDetection::reinit(track::PythonIntegration::ModuleProxy& proxy) 
 void Yolo7ObjectDetection::init() {
     Python::schedule([](){
         using py = track::PythonIntegration;
-        py::ModuleProxy proxy{
+        ModuleProxy proxy{
             "bbx_saved_model",
             Yolo7ObjectDetection::reinit
         };
@@ -146,7 +146,7 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
         using py = track::PythonIntegration;
 
         const size_t _N = datas.size();
-        py::ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
+        ModuleProxy bbx("bbx_saved_model", Yolo7ObjectDetection::reinit);
         bbx.set_variable("offsets", std::move(offsets));
         bbx.set_variable("image", images);
         bbx.set_variable("oimages", oimages);

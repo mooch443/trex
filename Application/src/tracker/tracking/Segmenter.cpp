@@ -5,6 +5,7 @@
 #include <tracking/IndividualManager.h>
 #include <misc/Output.h>
 #include <misc/CommandLine.h>
+#include <tracking/Yolo8.h>
 
 namespace track {
 Timer start_timer;
@@ -302,11 +303,11 @@ void Segmenter::open_camera() {
                                                  ? 25
                                                  : camera.frame_rate());
     if (SETTING(filename).value<file::Path>().empty())
-        SETTING(filename) = file::Path("webcam");
+        SETTING(filename) = file::Path(file::find_basename(SETTING(source).value<file::PathArray>()));
     
-    if(SETTING(filename).value<file::Path>() == file::Path("webcam")) {
+    if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
         if(not CommandLine::instance().settings_keys().contains("model"))
-            SETTING(model) = file::Path("yolov8n-pose");
+            SETTING(model) = file::Path(Yolo8::default_model());
         if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
         {
             SETTING(save_raw_movie) = true;

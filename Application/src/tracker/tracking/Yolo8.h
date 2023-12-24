@@ -1,14 +1,14 @@
 #pragma once
 
 #include <tracking/Detection.h>
-#include <python/GPURecognition.h>
+#include <python/ModuleProxy.h>
 
 namespace track {
 
 struct Yolo8 {
     Yolo8() = delete;
     
-    static void reinit(track::PythonIntegration::ModuleProxy& proxy);
+    static void reinit(track::ModuleProxy& proxy);
     
     static void init();
     static void deinit();
@@ -22,6 +22,8 @@ struct Yolo8 {
         const std::span<float>& keypoints, uint64_t bones);
     
     static void apply(std::vector<TileImage>&& tiles);
+    static bool valid_model(const file::Path&);
+    static std::string default_model();
 };
 
 } // namespace track
