@@ -753,7 +753,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
         ColorWheel wheel;
         using Skeleton = blob::Pose::Skeleton;
-        auto coord = FindCoord::get();
+        //auto coord = FindCoord::get();
         //print(coord.bowl_scale());
         
         size_t pose_index{ 0 };
@@ -894,7 +894,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
                     ptr = std::make_shared<Label>(text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
 
                 ptr->set_line_length(line_length);
-                ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
+                ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);//Bounds(layout.pos, layout.size).center());
                 auto font = parse_font(layout.obj, layout._defaults.font);
                 ptr->text()->set(font);
                 ptr->text()->set(color);

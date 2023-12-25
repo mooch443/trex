@@ -1023,7 +1023,7 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
 
 dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
     using namespace dyn;
-    return dyn::DynamicGUI {
+    dyn::DynamicGUI g{
         .path = "tracking_layout.json",
         .graph = &graph,
         .context = {
@@ -1181,6 +1181,19 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
             })
         }
     };
+    
+    g.context.custom_elements["image"] = CustomElement{
+        .name = "image",
+        .create = [this](LayoutContext& layout) -> Layout::Ptr {
+            auto ptr = Layout::Make<ExternalImage>();
+            
+        },
+        .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+            
+        }
+    };
+    
+    return g;
 }
 
 void TrackingScene::save_state(bool force_overwrite) {

@@ -104,6 +104,8 @@ void load(default_config::TRexTask task, std::vector<std::string> exclude_parame
         SETTING(filename) = filename.remove_extension();
     } else {
         file::Path path = file::find_basename(source);
+        if(path.empty())
+            path = "webcam";
         if(path.has_extension()
            && path.extension() != "pv")
         {

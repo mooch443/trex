@@ -173,7 +173,7 @@ void Segmenter::open_video() {
     SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
     
     if (SETTING(filename).value<file::Path>().empty()) {
-        SETTING(filename) = file::Path(file::Path(video_base.base()).filename());
+        SETTING(filename) = file::DataLocation::parse("output", file::Path(file::Path(video_base.base()).filename()));
     }
     
     print("source = ", SETTING(source).value<file::PathArray>());
@@ -303,7 +303,7 @@ void Segmenter::open_camera() {
                                                  ? 25
                                                  : camera.frame_rate());
     if (SETTING(filename).value<file::Path>().empty())
-        SETTING(filename) = file::Path(file::find_basename(SETTING(source).value<file::PathArray>()));
+        SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(SETTING(source).value<file::PathArray>())));
     
     if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
         if(not CommandLine::instance().settings_keys().contains("model"))
