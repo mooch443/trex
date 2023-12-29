@@ -6,14 +6,13 @@
 #include <pv.h>
 #include <misc/ThreadPool.h>
 #include <processing/Background.h>
-#include <tracking/FOI.h>
 #include <tracking/Border.h>
 #include <misc/Timer.h>
 #include <misc/BlobSizeRange.h>
 #include <misc/idx_t.h>
 #include <misc/create_struct.h>
 #include <tracker/misc/default_config.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/LockGuard.h>
 

@@ -4,6 +4,7 @@
 #include <misc/pretty.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/IndividualManager.h>
+#include <misc/FOI.h>
 
 namespace track {
 

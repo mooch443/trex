@@ -415,6 +415,10 @@ class Model:
             else:
                 self.device = torch.device("cpu")
 
+        if self.ptr.task == "segment" and self.device.type == "mps" and TRex.setting("gpu_torch_no_fixes") == "false":
+            TRex.log(f"Model {self} cannot be run on MPS due to a bug in PyTorch or Ultralytics. Automatically switching to CPU for this model only. Use -gpu_torch_no_fixes parameter to disable this.")
+            self.device = torch.device("cpu")
+
         self.ptr.to(self.device)
         self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))

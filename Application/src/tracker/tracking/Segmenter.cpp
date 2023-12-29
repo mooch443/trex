@@ -3,9 +3,9 @@
 #include <grabber/misc/default_config.h>
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
-#include <misc/Output.h>
+#include <tracking/Output.h>
 #include <misc/CommandLine.h>
-#include <tracking/Yolo8.h>
+#include <python/Yolo8.h>
 
 namespace track {
 Timer start_timer;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <gui/DrawBase.h>
+//#include <gui/DrawBase.h>
 #include <gui/Scene.h>
 #include <misc/Image.h>
 #include <misc/ObjectManager.h>

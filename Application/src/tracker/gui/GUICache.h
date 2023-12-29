@@ -2,12 +2,12 @@
 
 #include <commons.pc.h>
 #include <gui/GuiTypes.h>
-#include <tracking/ConfirmedCrossings.h>
+#include <gui/ConfirmedCrossings.h>
 #include <gui/FramePreloader.h>
 #include <misc/Buffers.h>
 #include <tracker/misc/default_config.h>
 #include <pv.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <misc/ThreadPool.h>
 
 class Timer;

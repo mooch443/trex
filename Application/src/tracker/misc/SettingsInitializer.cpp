@@ -5,7 +5,7 @@
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <file/DataLocation.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 
 using namespace cmn;
 using namespace track;
@@ -101,7 +101,12 @@ void load(default_config::TRexTask task, std::vector<std::string> exclude_parame
         if(source.size() == 1)
             path = source.get_paths().front();
         file::Path filename = file::DataLocation::parse("input", path);
-        SETTING(filename) = filename.remove_extension();
+        if(filename.exists() || filename.add_extension("pv").exists()) {
+            SETTING(filename) = filename.remove_extension();
+        } else {
+            filename = file::DataLocation::parse("output", path);
+            SETTING(filename) = filename.remove_extension();
+        }
     } else {
         file::Path path = file::find_basename(source);
         if(path.empty())

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <gui/types/Basic.h>
 #include <gui/colors.h>
 #include <misc/ranges.h>
 #include <misc/idx_t.h>

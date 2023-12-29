@@ -6,7 +6,8 @@
 #include <misc/RecentItems.h>
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
-#include <tracking/Yolo8.h>
+#include <python/Yolo8.h>
+#include <gui/dyn/Action.h>
 
 namespace gui {
 
@@ -183,7 +184,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
-                        SETTING(source).value<file::PathArray>() = file::PathArray({file::Path("webcam")});
+                        SETTING(source) = file::PathArray("webcam");
                         if(not CommandLine::instance().settings_keys().contains("model"))
                             SETTING(model) = file::Path(track::Yolo8::default_model());
                         if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))

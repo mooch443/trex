@@ -8,7 +8,6 @@
 #include <misc/Timer.h>
 #include <misc/stacktrace.h>
 #include <misc/CircularGraph.h>
-#include <gui/Graph.h>
 #include <gui/DrawCVBase.h>
 #include <misc/default_config.h>
 #include <misc/create_struct.h>
@@ -559,12 +558,12 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             for(auto peak : high_peaks)
                 highmax.push_back(Vec2(peak.position.x, (ma - mi) * 0.5 + mi));
             
-            using namespace gui;
+           /* using namespace gui;
             gui::Graph graph(Bounds(0, 0, 800, 400), "curvature", Rangef(0, size()), Rangef(mi, ma));
             graph.add_function(Graph::Function("curv", Graph::Type::DISCRETE, [&](float x) -> float {
                 if(x>=0 && x<curv->size())
                     return curv->at(x);
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             }));
             graph.add_points("max", maximums);
             graph.add_points("high", highmax);
@@ -584,7 +583,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             cv::Mat mat = cv::Mat::zeros(400, 800, CV_8UC4);
             CVBase base(mat);
             base.paint(g);
-            base.display();
+            base.display();*/
         }
         
         scalar_t idx = -1;

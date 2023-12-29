@@ -1,7 +1,7 @@
 #include "PrefilterBlobs.h"
 #include <processing/Background.h>
 #include <misc/ThreadPool.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
 #include <tracking/PPFrame.h>
@@ -248,7 +248,7 @@ void PrefilterBlobs::split_big(
     
     if(big_blobs.size() >= 2 && pool) {
         distribute_indexes(work, *pool, std::make_move_iterator(big_blobs.begin()), std::make_move_iterator(big_blobs.end()));
-    } else
+    } else if(not big_blobs.empty())
         work(0,
              std::make_move_iterator(big_blobs.begin()),
              std::make_move_iterator(big_blobs.end()),

@@ -4,6 +4,8 @@
 #include <misc/BlobSizeRange.h>
 #include <misc/idx_t.h>
 #include "GitSHA1.h"
+#include <misc/bid.h>
+#include <gui/colors.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -31,9 +33,7 @@ const auto homedir = []() {
 #endif
 }();
 
-#include <tracking/Tracker.h>
 #include <misc/default_settings.h>
-#include <misc/OutputLibrary.h>
 
 using namespace file;
 #define CONFIG adding.add<ParameterCategoryType::CONVERTING>
@@ -647,7 +647,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"global", "px"}
         };
         
-        auto output_default_options = Output::Library::default_options_type
+        auto output_default_options = default_options_type
         {
             {"NEIGHBOR_DISTANCE", {"/10"}},
             {"DOT_V", {"/10"}},
@@ -735,6 +735,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
+        CONFIG("gpu_torch_no_fixes", false, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
         CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("detect_iou_threshold", float(0.7), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
         CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.");

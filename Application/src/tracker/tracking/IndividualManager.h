@@ -3,7 +3,7 @@
 #include <commons.pc.h>
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Stuffs.h>
 

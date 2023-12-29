@@ -15,8 +15,10 @@
 #include <python/GPURecognition.h>
 #include <gui/Label.h>
 #include <gui/ParseLayoutTypes.h>
-#include <tracking/Yolo8.h>
+#include <python/Yolo8.h>
 #include <misc/CommandLine.h>
+#include <gui/dyn/Action.h>
+#include <gui/dyn/ParseText.h>
 
 namespace gui {
 

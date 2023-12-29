@@ -7,7 +7,7 @@
 #include <misc/ranges.h>
 #include <tracking/MotionRecord.h>
 #include <misc/idx_t.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 
 //! Can transport Individual/Blob
 namespace track {

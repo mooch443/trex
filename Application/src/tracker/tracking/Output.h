@@ -6,9 +6,13 @@
 #include <pv.h>
 #include <tracking/Individual.h>
 #include <tracking/MotionRecord.h>
-#include <tracking/Tracker.h>
 #include <misc/ThreadPool.h>
 #include <file/Path.h>
+
+namespace track {
+class Tracker;
+class Individual;
+}
 
 namespace cmn {
     template<> void Data::read(track::FrameProperties&);

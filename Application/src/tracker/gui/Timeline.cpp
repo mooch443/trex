@@ -2,11 +2,11 @@
 #include <gui/DrawCVBase.h>
 #include <file/CSVExport.h>
 #include <processing/PadImage.h>
-#include <tracking/FOI.h>
+#include <misc/FOI.h>
 #include <misc/ReverseAdapter.h>
 #include <tracking/DatasetQuality.h>
 #include <gui/types/Button.h>
-#include <misc/EventAnalysis.h>
+#include <tracking/EventAnalysis.h>
 #include <gui/GUICache.h>
 #include <gui/GuiTypes.h>
 #include <misc/vec2.h>

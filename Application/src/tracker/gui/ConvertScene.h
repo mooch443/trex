@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <gui/Scene.h>
-#include <tracking/Detection.h>
+#include <python/Detection.h>
 #include <gui/DynamicGUI.h>
 
 #include <indicators/progress_bar.hpp>

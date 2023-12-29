@@ -5,20 +5,13 @@
 #include <misc/Timer.h>
 
 namespace gui {
-class VisualFieldWidget;
-namespace heatmap {
-class HeatmapController;
-}
 
 class GUICache;
 
 class Bowl : public Entangled {
-    GUICache* _cache{nullptr};
-    VisualFieldWidget* _vf_widget{nullptr};
-    Frame_t _last_frame;
-    
-    //! The heatmap controller.
-    gui::heatmap::HeatmapController* _heatmapController{nullptr};
+    struct Data;
+    std::unique_ptr<Data> _data;
+    GUICache* _cache;
     
 public:
     Bowl(GUICache* cache);
@@ -38,6 +31,9 @@ public:
     void update_goals();
     void update_blobs(const Frame_t& frame);
     void set_data(Frame_t frame);
+    
+    void draw_shapes(DrawStructure&, const FindCoord&);
+    void update_shapes();
     
     Vec2 _current_scale;
     Vec2 _target_scale;

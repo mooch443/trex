@@ -1,6 +1,6 @@
 #pragma once
 #include <commons.pc.h>
-#include <tracking/TileImage.h>
+#include <misc/TileImage.h>
 #include <misc/TaskPipeline.h>
 
 namespace track {

@@ -3,7 +3,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/Layout.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 
 namespace track {
     class Individual;

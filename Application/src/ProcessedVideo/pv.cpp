@@ -953,7 +953,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         /**
          * Display time related information.
          */
-        std::chrono::microseconds ns_l, ns_e;
+        std::chrono::microseconds ns_l{0}, ns_e{0};
         
         if(bool(_mode & FileMode::READ)
            or bool(_mode & FileMode::MODIFY))
@@ -1161,7 +1161,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     void fix_file(File& file) {
         print("Starting file copy and fix (",file.filename(),")...");
         
-        File copy(file.filename()+"_fix", FileMode::WRITE | FileMode::OVERWRITE);
+        File copy((std::string)file.filename()+"_fix", FileMode::WRITE | FileMode::OVERWRITE);
         copy.set_resolution(file.header().resolution);
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
@@ -1216,7 +1216,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     void File::try_compress() {
         _check_opened();
         
-        File copy(filename()+"_test", FileMode::WRITE);
+        File copy((std::string)filename()+"_test", FileMode::WRITE);
         copy.set_resolution(header().resolution);
         copy.set_offsets(crop_offsets());
         copy.set_average(average());
@@ -1253,7 +1253,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         {
             print_info();
             
-            File test(filename()+"_test", FileMode::READ);
+            File test((std::string)filename()+"_test", FileMode::READ);
             test.start_reading();
         }
         

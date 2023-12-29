@@ -3,7 +3,7 @@
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
-#include <tracking/Export.h>
+#include <gui/Export.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 
@@ -574,7 +574,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                         double v = 1;
                         if(!_source.empty())
                             v = Output::Library::get_with_modifiers(_source, info, frame);
-                        if(!Graph::is_invalid(v)) {
+                        if(!GlobalSettings::is_invalid(v)) {
                             data.push_back(heatmap::DataPoint{
                                 .frame   = frame,
                                 .x       = uint32_t(pos.x),

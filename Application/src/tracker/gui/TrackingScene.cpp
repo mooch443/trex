@@ -12,15 +12,16 @@
 #include <tracking/IndividualManager.h>
 #include <file/DataLocation.h>
 #include <grabber/misc/default_config.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <tracking/Categorize.h>
 #include <gui/CheckUpdates.h>
 #include <gui/WorkProgress.h>
 #include <gui/DrawBlobView.h>
-#include <misc/Output.h>
-#include <tracking/Export.h>
+#include <tracking/Output.h>
+#include <gui/Export.h>
 #include <misc/IdentifiedTag.h>
 #include <misc/SettingsInitializer.h>
+#include <gui/dyn/Action.h>
 
 using namespace track;
 

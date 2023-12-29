@@ -854,7 +854,19 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
     static std::shared_ptr<Dropdown> dropdown = nullptr;
     
     base.section("boundary", [&](DrawStructure &base, Section*s) {
-        if(!_current_boundary.empty()) {
+        auto bdry = _current_boundary;
+        
+#ifdef __APPLE__
+        if(base.is_key_pressed(Codes::LSystem)) {
+#else
+        if(base.is_key_pressed(Codes::LControl)) {
+#endif
+            auto mp = Vec2(FindCoord::get().convert(HUDCoord(base.mouse_position())));
+            if(not bdry.empty())
+                bdry.back().push_back(mp);
+        }
+        
+        if(!bdry.empty()) {
             s->set_scale(bowl->scale());
             s->set_pos(bowl->pos());
             
@@ -865,7 +877,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             Vec2 bottom_right(0, 0);
             Rotation a{0};
             
-            for(auto &boundary : _current_boundary) {
+            for(auto &boundary : bdry) {
                 if(boundary.size() > 2) {
                     static ::gui::Polygon polygon(nullptr);
                     
@@ -926,20 +938,20 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
-                    if(_current_boundary.size() == 1 && _current_boundary.front().size() == 2)
+                    if(bdry.size() == 1 && bdry.front().size() == 2)
                         name = "use known length to calibrate";
                     else
                         name = "print vectors";
                     
                 } else {
                     if(_selected_setting_type == SelectedSettingType::ARRAY_OF_VECTORS) {
-                        if(_current_boundary.size() >= 1 && _current_boundary.back().size() >= 3)
+                        if(bdry.size() >= 1 && bdry.back().size() >= 3)
                             name = "append shape to "+_selected_setting_name;
                         else
                             name = "delete invalid shape";
                         
                     } else if(_selected_setting_type == SelectedSettingType::ARRAY_OF_BOUNDS) {
-                        if(_current_boundary.size() >= 1 && _current_boundary.back().size() >= 2)
+                        if(bdry.size() >= 1 && bdry.back().size() >= 2)
                             name = "append bounds to "+_selected_setting_name;
                         else
                             name = "delete invalid bounds";

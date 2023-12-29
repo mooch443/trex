@@ -4,12 +4,41 @@
 #include <gui/IdentityHeatmap.h>
 #include <gui/VisualFieldWidget.h>
 #include <gui/IdentityHeatmap.h>
+#include <gui/DrawBase.h>
 
 using namespace track;
 
 namespace gui {
 
-Bowl::Bowl(GUICache* cache) : _cache(cache), _vf_widget(new VisualFieldWidget) {
+struct Shape {
+    std::vector<Vec2> points;
+    bool operator<(const Shape& rhs) const {
+        return points < rhs.points;
+    }
+
+    std::string toStr() const {
+        return "Shape<" + Meta::toStr(points) + ">";
+    }
+};
+
+struct Bowl::Data {
+    VisualFieldWidget _vf_widget;
+    Frame_t _last_frame;
+    
+    //! The heatmap controller.
+    gui::heatmap::HeatmapController* _heatmapController{nullptr};
+    
+    std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes;
+    
+    ~Data() {
+        if(_heatmapController)
+            delete _heatmapController;
+    }
+};
+
+Bowl::Bowl(GUICache* cache) :
+    _data(new Data{ }), _cache(cache)
+{
     _current_scale = Vec2(1.0f, 1.0f);
     _target_scale = Vec2(1.0f, 1.0f);
     _current_pos = Vec2(0.0f, 0.0f);
@@ -21,12 +50,7 @@ Bowl::Bowl(GUICache* cache) : _cache(cache), _vf_widget(new VisualFieldWidget) {
     _timer.reset();
 }
 
-Bowl::~Bowl() {
-    if(_vf_widget)
-        delete _vf_widget;
-    if(_heatmapController)
-        delete _heatmapController;
-}
+Bowl::~Bowl() {}
 
 bool Bowl::has_target_points_changed(const std::vector<Vec2>& new_target_points) const {
     return _target_points != new_target_points;
@@ -62,6 +86,143 @@ void Bowl::set_target_focus(const std::vector<Vec2>& target_points) {
     }
     _target_points = target_points;
     update_goals();
+}
+
+void Bowl::update_shapes() {
+    if(!FAST_SETTING(track_include).empty())
+    {
+        auto keys = extract_keys(_data->_include_shapes);
+        
+        for(auto &rect : FAST_SETTING(track_include)) {
+            Shape shape{rect};
+            auto it = _data->_include_shapes.find(shape);
+            if(it == _data->_include_shapes.end()) {
+                if(rect.size() == 2) {
+                    auto ptr = std::make_unique<Rect>(Box(rect[0], rect[1] - rect[0]), FillClr{Green.alpha(25)}, LineClr{Green.alpha(100)});
+                    //ptr->set_clickable(true);
+                    _data->_include_shapes[shape] = std::move(ptr);
+                    
+                } else if(rect.size() > 2) {
+                    //auto r = std::make_shared<std::vector<Vec2>>(rect);
+                    auto r = poly_convex_hull(&rect); // force a convex polygon for these shapes, as thats the only thing that the in/out polygon test works with
+                    auto ptr = std::make_unique<gui::Polygon>(r);
+                    ptr->set_fill_clr(Green.alpha(25));
+                    ptr->set_border_clr(Green.alpha(100));
+                    //ptr->set_clickable(true);
+                    _data->_include_shapes[shape] = std::move(ptr);
+                }
+            }
+            keys.erase(shape);
+        }
+        
+        for(auto &key : keys) {
+            _data->_include_shapes.erase(key);
+        }
+        
+        _cache->set_raw_blobs_dirty();
+        
+    } else if(FAST_SETTING(track_include).empty()
+              && !_data->_include_shapes.empty())
+    {
+        _data->_include_shapes.clear();
+        _cache->set_raw_blobs_dirty();
+    }
+    
+    if(!FAST_SETTING(track_ignore).empty())
+    {
+        auto keys = extract_keys(_data->_ignore_shapes);
+        
+        for(auto &rect : FAST_SETTING(track_ignore)) {
+            Shape shape{rect};
+            auto it = _data->_ignore_shapes.find(shape);
+            if(it == _data->_ignore_shapes.end()) {
+                if(rect.size() == 2) {
+                    auto ptr = std::make_unique<Rect>(Box(rect[0], rect[1] - rect[0]), FillClr{Red.alpha(25)}, LineClr{Red.alpha(100)});
+                    //ptr->set_clickable(true);
+                    _data->_ignore_shapes[shape] = std::move(ptr);
+                    
+                } else if(rect.size() > 2) {
+                    //auto r = std::make_shared<std::vector<Vec2>>(rect);
+                    auto r = poly_convex_hull(&rect); // force convex polygon
+                    auto ptr = std::make_unique<gui::Polygon>(r);
+                    ptr->set_fill_clr(Red.alpha(25));
+                    ptr->set_border_clr(Red.alpha(100));
+                    //ptr->set_clickable(true);
+                    _data->_ignore_shapes[shape] = std::move(ptr);
+                }
+            }
+            keys.erase(shape);
+        }
+        
+        for(auto &key : keys) {
+            _data->_ignore_shapes.erase(key);
+        }
+        
+        _cache->set_raw_blobs_dirty();
+        
+    } else if(FAST_SETTING(track_ignore).empty() && !_data->_ignore_shapes.empty()) {
+        _data->_ignore_shapes.clear();
+        _cache->set_raw_blobs_dirty();
+    }
+}
+
+void Bowl::draw_shapes(DrawStructure &graph, const FindCoord &coord) {
+    //! TODO: Thread-safety?
+    const auto size = coord.video_size();
+    const float max_w = size.width;
+    const float max_h = size.height;
+    
+    /*if((PD(tracking)._recognition_image.source()->cols != max_w || PD(tracking)._recognition_image.source()->rows != max_h) && Tracker::instance()->border().type() != Border::Type::none) {
+        auto border_distance = Image::Make(max_h, max_w, 4);
+        border_distance->set_to(0);
+        
+        auto worker = [&border_distance, max_h](ushort x) {
+            for (ushort y = 0; y < max_h; ++y) {
+                if(Tracker::instance()->border().in_recognition_bounds(Vec2(x, y)))
+                    border_distance->set_pixel(x, y, DarkCyan.alpha(15));
+            }
+        };
+        
+        {
+            print("Calculating border...");
+            
+            std::lock_guard<std::mutex> guard(blob_thread_pool_mutex());
+            try {
+                for(ushort x = 0; x < max_w; ++x) {
+                    blob_thread_pool().enqueue(worker, x);
+                }
+            } catch(...) {
+                FormatExcept("blob_thread_pool error when enqueuing worker to calculate border.");
+            }
+            blob_thread_pool().wait();
+        }
+        
+        PD(tracking)._recognition_image.set_source(std::move(border_distance));
+        PD(cache).set_tracking_dirty();
+        PD(cache).set_blobs_dirty();
+        PD(cache).set_raw_blobs_dirty();
+        PD(cache).set_redraw();
+    }*/
+    update_shapes();
+    
+    Scale scale{coord.bowl_scale()};
+    for(auto && [rect, ptr] : _data->_include_shapes) {
+        advance_wrap(*ptr);
+        
+        if(ptr->hovered()) {
+            const Font font(0.85 / (1 - ((1 - _cache->zoom_level()) * 0.5)), Align::VerticalCenter);
+            add<Text>(Str("allowing "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
+        }
+    }
+    
+    for(auto && [rect, ptr] : _data->_ignore_shapes) {
+        advance_wrap(*ptr);
+        
+        if(ptr->hovered()) {
+            const Font font(0.85 / (1 - ((1 - _cache->zoom_level()) * 0.5)), Align::VerticalCenter);
+            add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
+        }
+    }
 }
 
 void Bowl::update_goals() {
@@ -217,16 +378,18 @@ void Bowl::update_scaling() {
 
 void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
     update([this, &frame, &graph, &coord](auto&) {
+        draw_shapes(graph, coord);
+        
         update_blobs(frame);
         
         if(GUI_SETTINGS(gui_mode) != gui::mode_t::tracking)
             return;
         
         if(GUI_SETTINGS(gui_show_heatmap)) {
-            if(!_heatmapController)
-                _heatmapController = new gui::heatmap::HeatmapController;
-            _heatmapController->set_frame(frame);
-            advance_wrap(*_heatmapController);
+            if(!_data->_heatmapController)
+                _data->_heatmapController = new gui::heatmap::HeatmapController;
+            _data->_heatmapController->set_frame(frame);
+            advance_wrap(*_data->_heatmapController);
         }
         
         if (_cache) {
@@ -243,9 +406,9 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
                             s.insert(it->second);
                         }
                     }
-                    _vf_widget->update(frame, coord, s);
+                    _data->_vf_widget.update(frame, coord, s);
                 }
-                advance_wrap(*_vf_widget);
+                advance_wrap(_data->_vf_widget);
             }
 
             std::scoped_lock guard(_cache->_fish_map_mutex);

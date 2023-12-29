@@ -8,7 +8,7 @@
 #include <tracking/Individual.h>
 #include <tracking/Tracker.h>
 #include <gui/Graph.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 
 namespace gui {
     class PropertiesGraph {

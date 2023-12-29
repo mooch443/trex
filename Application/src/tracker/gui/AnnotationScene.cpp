@@ -1,10 +1,13 @@
 #include "AnnotationScene.h"
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <misc/Buffers.h>
 #include <gui/ParseLayoutTypes.h>
 #include <gui/Skelett.h>
+#include <gui/dyn/ParseText.h>
+#include <gui/dyn/Action.h>
+#include <gui/dyn/VarProps.h>
 
 namespace gui {
 

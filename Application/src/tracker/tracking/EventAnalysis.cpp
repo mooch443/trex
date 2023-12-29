@@ -1,9 +1,8 @@
 #include "EventAnalysis.h"
-#include <tracking/Tracker.h>
-#include <numeric>
+#include <misc/vec2.h>
 #include <misc/Timer.h>
 #include <misc/checked_casts.h>
-#include <gui/Graph.h>
+#include <tracking/Individual.h>
 
 namespace track {
 namespace EventAnalysis {
@@ -41,7 +40,7 @@ bool _callback_registered;
         Vec2 v_current;
         float v_samples;
         
-        AnalysisState() : in_tailbeat(false), frame(0), prev(0), prev_raw(gui::Graph::invalid()) {}
+        AnalysisState() : in_tailbeat(false), frame(0), prev(0), prev_raw(GlobalSettings::invalid()) {}
         size_t memory_size() const {
             return sizeof(AnalysisState)
                  + sizeof(decltype(threshold_reached)::value_type) * threshold_reached.capacity()
@@ -106,25 +105,25 @@ bool _callback_registered;
         float current = state.offsets.at(state.offsets.size()-2);
         float next = state.offsets.at(state.offsets.size()-1);
         
-        if(gui::Graph::is_invalid(next))
+        if(GlobalSettings::is_invalid(next))
             next = current;
-        if(gui::Graph::is_invalid(previous))
+        if(GlobalSettings::is_invalid(previous))
             previous = current;
         
-        current = gui::Graph::is_invalid(current) ? gui::Graph::invalid() : ((previous + current + next) / 3);
+        current = GlobalSettings::is_invalid(current) ? GlobalSettings::invalid() : ((previous + current + next) / 3);
         
-        float offset = (gui::Graph::is_invalid(current) || gui::Graph::is_invalid(state.prev_raw))
+        float offset = (GlobalSettings::is_invalid(current) || GlobalSettings::is_invalid(state.prev_raw))
                          ? current
-                         : (current - (gui::Graph::is_invalid(state.prev_raw) ? 0 : state.prev_raw));
+                         : (current - (GlobalSettings::is_invalid(state.prev_raw) ? 0 : state.prev_raw));
         
         float prev = state.prev;
         state.prev = offset;
         state.prev_raw = current;
         
-        Vec2 pt0(frame.get() - 1, gui::Graph::is_invalid(prev) ? 0 : prev), pt1(frame.get(), offset);
+        Vec2 pt0(frame.get() - 1, GlobalSettings::is_invalid(prev) ? 0 : prev), pt1(frame.get(), offset);
         state.current_energy.push_back(0.5f * FAST_SETTING(meta_mass_mg) * SQR(offset));
         
-        if(gui::Graph::is_invalid(offset)) {
+        if(GlobalSettings::is_invalid(offset)) {
             if(state.last_event_start.valid()) {
                 state.last_threshold_reached.invalidate();
                 state.last_event_start.invalidate();
@@ -201,17 +200,17 @@ bool _callback_registered;
         ///** ZEBRAFISH **
         auto midline = fish->fixed_midline(frame);
         if (!midline)
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         
         auto posture = fish->posture_stuff(frame);
         if(!posture || !posture->cached())
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         
         float ratio = posture->midline_length / midline->len();
         if(ratio > 1)
             ratio = 1/ratio;
         if(ratio < 0.6)
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         
         auto &pts = midline->segments();
         auto complete = (pts.back().pos - pts.front().pos);
@@ -240,8 +239,8 @@ bool _callback_registered;
         for (auto& fish : individuals) {
             if(individual_maps.find(fish) == individual_maps.end())
                 fish->register_delete_callback(&mutex, [](Individual* fish){
-                    if(!Tracker::instance())
-                        return;
+                    //if(!Tracker::instance())
+                    //    return;
                     fish_deleted(fish);
                 });
             

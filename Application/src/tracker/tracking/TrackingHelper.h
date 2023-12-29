@@ -4,7 +4,7 @@
 #include <tracking/Stuffs.h>
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/IndividualManager.h>
 
 namespace track {
