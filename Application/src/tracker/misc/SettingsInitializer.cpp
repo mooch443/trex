@@ -6,13 +6,55 @@
 #include <grabber/misc/default_config.h>
 #include <file/DataLocation.h>
 #include <misc/TrackingSettings.h>
+#include <gui/DrawStructure.h>
 
 using namespace cmn;
 using namespace track;
+using namespace default_config;
 
 namespace settings {
 
-void load(default_config::TRexTask task, std::vector<std::string> exclude_parameters) {
+/**
+ * When calling "load" or "open", what we expect is:
+ *  1. Settings are reset to default
+ *  2. load default.settings
+ *  3. load command-line (except exclude) => exclude?
+ *  4. IF `source` / `filename` is empty, generate them based on task
+ *  5. load `source` + `filename` .settings
+ *  6. load sprite::Map passed to function
+ *
+ * <=> IMPORTANT <=>
+ *  1. the `source` + `filename` .settings files are not allowed
+ *     to contain any of the following parameters:
+ *       `{ "source", "filename", "output dir", "output prefix" }`
+ *     as to not confuse the entire process of loading parameters.
+ *  2. the same goes for the sprite::Map, since that would be
+ *     confusing as well.
+ *
+ * So for opening directly via command-line we need to:
+ *  1. command-line in sprite::Map
+ *  2. call
+ *
+ * For opening tracking after switching from ConvertScene:
+ *  1. pass `source` and `filename`
+ *  2. call
+ *
+ * For opening converting after settings:
+ *  1. put all settings in sprite::Map
+ *  2. pass source + filename
+ *  3. call
+ *
+ * => output is: `source` set to MP4 file, `filename` set
+ *    to (prospective) pv file. all settings loaded as far
+ *    as they are available.
+ */
+
+void load(file::PathArray source, 
+          file::Path filename,
+          TRexTask task,
+          ExtendableVector exclude_parameters,
+          const cmn::sprite::Map& source_map)
+{
     DebugHeader("Reloading settings");
     
     SettingsMaps combined;
@@ -22,100 +64,57 @@ void load(default_config::TRexTask task, std::vector<std::string> exclude_parame
     };
     
     combined.map.set_print_by_default(false);
+    
+    /// 1. setting default values, saved in combined:
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     default_config::get(combined.map, combined.docs, set_combined_access_level);
     
-    std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.at("meta_write_these").value<std::vector<std::string>>() : std::vector<std::string>{};
-    print("Have these keys:", combined.map.keys());
-    std::set<std::string> deleted_keys;
-    for (auto key : combined.map.keys()) {
-        if (not contains(save, key)) {
-            deleted_keys.insert(key);
-            combined.map.erase(key);
-        }
-        
-        if(GlobalSettings::has(key)
-           && combined.map.has(key)
-           && GlobalSettings::map().at(key) != combined.map.at(key))
-        {
-            auto A = GlobalSettings::map().at(key);
-            auto B = combined.map.at(key);
-            print(key, " differs from default: ", A.get().valueString()," != ", B.get().valueString());
-            exclude_parameters.push_back(key);
-        }
-    }
-    print("Deleted keys:", deleted_keys);
-    print("Remaining:", combined.map.keys());
-    
-    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
-    GlobalSettings::map().set_print_by_default(true);
-    //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
-    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
-    
-    // get cmd arguments
-    auto& cmd = CommandLine::instance();
-    
-    // preload options to be excluded and get output prefix, since
-    // that is important for finding the right settings file
-    for (auto& option : cmd.settings()) {
-        if (utils::lowercase(option.name) == "output_prefix") {
-            SETTING(output_prefix) = option.value;
-        }
-        exclude_parameters.push_back(option.name);
-    }
-    
-    auto default_path = file::DataLocation::parse("default.settings");
+    /// 2. load default.settings from app folder:
+    auto default_path = file::DataLocation::parse("default.settings", {}, &combined.map);
     if (default_path.exists()) {
         try {
-            default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP, exclude_parameters));
+            warn_deprecated(default_path, GlobalSettings::load_from_file(deprecations(), default_path.str(), AccessLevelType::STARTUP, exclude_parameters, &combined.map));
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",default_path,": ", ex.what() );
         }
     }
     
-    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
+    /// 3. get cmd arguments and overwrite stuff with them:
+    auto& cmd = CommandLine::instance();
+    combined.map.set_print_by_default(true);
     
-    auto settings_file = file::DataLocation::parse("settings");
-    if(settings_file.exists()) {
-        try {
-            default_config::warn_deprecated(settings_file, GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, exclude_parameters));
-            
-        } catch(const std::exception& ex) {
-            FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
-        }
-        
-    } else if(not settings_file.empty()) {
-        FormatError("Settings file ", settings_file, " was not found.");
+    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
+    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
+    
+    auto copy = exclude_parameters + std::array{ "filename", "source" };
+    cmd.load_settings(nullptr, &combined.map, copy.toVector());
+    
+    /// 4. set the source / filename properties:
+    if(not filename.empty())
+    {
+        combined.map["filename"] = filename;
     }
     
-    cmd.load_settings(&combined);
+    if(not source.empty())
+    {
+        combined.map["source"] = source;
+        combined.map["meta_source_path"] = source.source();
+    }
     
-    const auto source = SETTING(source).value<file::PathArray>();
-    if(task == default_config::TRexTask_t::track) {
-        file::Path path;
-        if(source.size() == 1)
-            path = source.get_paths().front();
-        file::Path filename = file::DataLocation::parse("input", path);
-        if(filename.exists() || filename.add_extension("pv").exists()) {
-            SETTING(filename) = filename.remove_extension();
-        } else {
-            filename = file::DataLocation::parse("output", path);
-            SETTING(filename) = filename.remove_extension();
-        }
-    } else {
+    if(source.empty()
+       && task == TRexTask_t::convert)
+    {
+        const auto source = combined.map.at("source").value<file::PathArray>();
+        
         file::Path path = file::find_basename(source);
-        if(path.empty())
-            path = "webcam";
         if(path.has_extension()
            && path.extension() != "pv")
         {
             // did we mean .mp4.pv?
-            auto prefixed = file::DataLocation::parse("output", path.add_extension("pv"));
+            auto prefixed = file::DataLocation::parse("output", path.add_extension("pv"), &combined.map);
             if(not prefixed.exists()) {
                 path = path.remove_extension();
                 
@@ -125,13 +124,151 @@ void load(default_config::TRexTask task, std::vector<std::string> exclude_parame
             } // else we can open it, so prefer it
         }
         
-        file::Path filename = file::DataLocation::parse("output", path);
-        SETTING(filename) = filename.remove_extension();
+        if(CommandLine::instance().settings_keys().contains("filename")) {
+            // automatic filename overwritten
+            auto name = CommandLine::instance().settings_keys().at("filename");
+            file::Path filename = file::DataLocation::parse("output", name, &combined.map);
+            combined.map["filename"] = filename.remove_extension();
+            
+        } else {
+            file::Path filename = file::DataLocation::parse("output", path, &combined.map);
+            combined.map["filename"] = filename.remove_extension();
+        }
+        
+    }
+        
+    if(filename.empty()
+              //&& task == TRexTask_t::track
+       )
+    {
+        const auto _source = source.empty()
+            ? combined.map.at("source").value<file::PathArray>()
+            : source;
+        
+        auto name = combined.map.at("filename").value<file::Path>();
+        auto filename = name.empty() ? name : file::DataLocation::parse("output", name, &combined.map);
+        if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
+        {
+            combined.map["filename"] = filename;
+        } else {
+            file::Path path;
+            if(_source.size() == 1)
+                path = _source.get_paths().front();
+            file::Path filename = file::DataLocation::parse("input", path, &combined.map);
+            if(filename.is_regular() || filename.add_extension("pv").is_regular()) {
+                combined.map["filename"] = filename.remove_extension();
+            } else {
+                filename = file::DataLocation::parse("output", path, &combined.map);
+                combined.map["filename"] = filename.remove_extension();
+            }
+        }
     }
     
-    if(SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>() == 0) {
-        if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
-            SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
+    /// add additional prefixes to exclude, only used for name resolution
+    copy = copy + std::array{
+        "output_dir",
+        "output_prefix"
+    };
+    
+    /// 5. load the video settings (if they exist):
+    auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
+    if(settings_file.exists()) {
+        try {
+            warn_deprecated(settings_file, GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, copy.toVector(), &combined.map));
+            
+        } catch(const std::exception& ex) {
+            FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
+        }
+        
+    } else if(not settings_file.empty()) {
+        FormatError("Settings file ", settings_file, " was not found.");
+    }
+    
+    /// --------------------------------------
+    /// 6. copy potential sprite map contents:
+    /// --------------------------------------
+    for(auto& key : source_map.keys()) {
+        if(contains(copy.toVector(), key))
+        {
+            print("Not allowed to copy ", key, " from source map.");
+            continue;
+        }
+        source_map.at(key).get().copy_to(&combined.map);
+    }
+    
+    if(combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0) {
+        if(combined.map.has("source")
+           && combined.map.at("source").value<file::PathArray>() == file::PathArray("webcam"))
+        {
+            combined.map["cm_per_pixel"] = Settings::cm_per_pixel_t(0.01);
+        }
+    }
+    
+    for(auto &key : combined.map.keys()) {
+        if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
+           && (not GlobalSettings::has(key)
+               || GlobalSettings::map().at(key).get() != combined.map.at(key).get())
+           )
+        {
+            //if(not contains(filename_relevant_keys, key))
+            {
+                print("Updating ",combined.map.at(key));
+                combined.map.at(key).get().copy_to(&GlobalSettings::map());
+            } 
+            /*else {
+                print("Would be updating ",combined.map.at(key), " but is forbidden.");
+            }*/
+        }
+    }
+    
+    print(SETTING(filename));
+    print(SETTING(output_dir));
+    print(SETTING(output_prefix));
+    print(SETTING(source));
+    print(SETTING(model));
+    print(SETTING(region_model));
+    print(SETTING(meta_source_path));
+}
+
+void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {
+    auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
+    auto text = default_config::generate_delta_config().to_settings();
+    
+    if(filename.exists() && !overwrite) {
+        if(queue) {
+            queue->enqueue([text, filename](auto, gui::DrawStructure& graph){
+                graph.dialog([str = text, filename](gui::Dialog::Result r) {
+                    if(r == gui::Dialog::OKAY) {
+                        if(!filename.remove_filename().exists())
+                            filename.remove_filename().create_folder();
+                        
+                        FILE *f = fopen(filename.str().c_str(), "wb");
+                        if(f) {
+                            print("Overwriting file ",filename.str(),".");
+                            fwrite(str.data(), 1, str.length(), f);
+                            fclose(f);
+                        } else {
+                            FormatExcept("Dont have write permissions for file ",filename.str(),".");
+                        }
+                    }
+                    
+                }, "Overwrite file <i>"+filename/*.filename()*/.str()+"</i> ?", "Write configuration", "Yes", "No");
+            });
+            
+        } else
+            print("Settings file ",filename.str()," already exists. To overwrite, please add the keyword 'force'.");
+        
+    } else {
+        if(!filename.remove_filename().exists())
+            filename.remove_filename().create_folder();
+        
+        FILE *f = fopen(filename.str().c_str(), "wb");
+        if(f) {
+            fwrite(text.data(), 1, text.length(), f);
+            fclose(f);
+            DebugCallback("Saved ", filename, ".");
+        } else {
+            FormatExcept("Cannot write file ",filename,".");
         }
     }
 }

@@ -153,7 +153,13 @@ void launch_gui() {
             else {
                 GlobalSettings::map().set_print_by_default(true);
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
-                SETTING(source) = file::PathArray(segmenter->output_file_name());
+                
+                /// preserve all parameters
+                sprite::Map parm;
+                for(auto &key : GlobalSettings::map().keys())
+                    GlobalSettings::map().at(key).get().copy_to(&parm);
+                    
+                settings::load(SETTING(source).value<file::PathArray>(), file::Path(segmenter->output_file_name()), default_config::TRexTask_t::track, {}, parm);
 				manager.set_active("tracking-scene");
 			}
         },
@@ -209,7 +215,7 @@ void launch_gui() {
 
     if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
         TRexTask taskType = determineTaskType();
-        settings::load(taskType, {});
+        settings::load({}, {}, taskType, {}, {});
         manager.set_active(task_scenes[taskType]);
 
     } else {
@@ -218,19 +224,18 @@ void launch_gui() {
         {
             if(it->second == &converting) {
                 //SETTING(cm_per_pixel) = float(0.01);
-                //load_settings({});
-                settings::load(TRexTask_t::convert, {});
+                
+                settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), TRexTask_t::convert, {}, {});
             } else if(it->second == &tracking_scene) {
-                //load_settings({});
-                settings::load(TRexTask_t::track, {});
+                settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), TRexTask_t::track, {}, {});
                 
             } else
-                settings::load(TRexTask_t::none, {});
+                settings::load({}, {}, TRexTask_t::none, {}, {});
             
             manager.set_active(it->second);
         }
         else {
-            settings::load(TRexTask_t::none, {});
+            settings::load({}, {}, TRexTask_t::none, {}, {});
             manager.set_active(&start);
         }
 	}
@@ -379,25 +384,6 @@ int main(int argc, char**argv) {
      * object detection
      */
     //SETTING(meta_video_scale) = float(1);
-    SETTING(source) = file::PathArray();
-    SETTING(source).get().set_do_print(true);
-    SETTING(model) = file::Path("");
-    SETTING(region_model) = file::Path("");
-    SETTING(region_resolution) = uint16_t(320);
-    SETTING(detection_resolution) = uint16_t(640);
-    SETTING(filename) = file::Path("");
-    //SETTING(meta_classes) = std::vector<std::string>{ };
-    SETTING(detection_type) = ObjectDetectionType::yolo8;
-    SETTING(tile_image) = size_t(0);
-    SETTING(batch_size) = uchar(1);
-    SETTING(track_do_history_split) = false;
-    SETTING(track_background_subtraction) = false;
-    SETTING(scene_crash_is_fatal) = false;
-    SETTING(output_size) = Size2();
-    
-    SETTING(do_filter) = false;
-    SETTING(filter_classes) = std::vector<uint8_t>{};
-    SETTING(is_writing) = false;
     
     using namespace cmn;
     namespace py = Python;
@@ -413,13 +399,19 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename"}, [](auto key){
+    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detection_type", "cm_per_pixel", "track_background_subtraction"}, [](auto key){
         if(key == "source")
             print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
             print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
         else if(key == "filename")
             print("Changed filename to ", SETTING(filename).value<file::Path>());
+        else if(key == "detection_type")
+            print("Changed detection type to ", SETTING(detection_type));
+        else if(key == "cm_per_pixel")
+            print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
+        else if(key == "track_background_subtraction")
+            print("Changed track_background_subtraction to ", SETTING(track_background_subtraction));
     });
     
     for(auto a : CommandLine::instance()) {
@@ -489,6 +481,28 @@ int main(int argc, char**argv) {
     SETTING(terminate) = false;
     SETTING(calculate_posture) = false;
     SETTING(gui_interface_scale) = float(1);
+    SETTING(track_background_subtraction) = false;
+    
+    
+    SETTING(source) = file::PathArray();
+    SETTING(source).get().set_do_print(true);
+    //SETTING(model) = file::Path("");
+    //SETTING(region_model) = file::Path("");
+    //SETTING(region_resolution) = uint16_t(320);
+    //SETTING(detection_resolution) = uint16_t(640);
+    SETTING(filename) = file::Path("");
+    //SETTING(meta_classes) = std::vector<std::string>{ };
+    //SETTING(detection_type) = ObjectDetectionType::yolo8;
+    SETTING(tile_image) = size_t(0);
+    SETTING(batch_size) = uchar(1);
+    SETTING(track_do_history_split) = false;
+    //SETTING(track_background_subtraction) = false;
+    SETTING(scene_crash_is_fatal) = false;
+    SETTING(output_size) = Size2();
+    
+    SETTING(do_filter) = false;
+    SETTING(filter_classes) = std::vector<uint8_t>{};
+    SETTING(is_writing) = false;
     //SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
 
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0);
@@ -532,7 +546,7 @@ int main(int argc, char**argv) {
         if(task == TRexTask_t::none)
             throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
         
-        settings::load(task, {});
+        settings::load({}, {}, task, {}, {});
         
         if(task == TRexTask_t::convert) {
             Segmenter segmenter(

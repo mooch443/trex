@@ -6,6 +6,7 @@
 #include "GitSHA1.h"
 #include <misc/bid.h>
 #include <gui/colors.h>
+#include <misc/DetectionTypes.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -338,12 +339,14 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);
+        CONFIG("wd", file::Path(), "Working directory that the software was started from (defaults to the user directory).", SYSTEM);
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
         CONFIG("individuals_per_thread", 1.f, "Number of individuals for which positions will be estimated per thread.");
         CONFIG("postures_per_thread", 1.f, "Number of individuals for which postures will be estimated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", Path("").remove_extension(), "Opened filename (without .pv).", STARTUP);
+        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", STARTUP);
+        CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", STARTUP);
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
         CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
@@ -736,7 +739,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
         CONFIG("gpu_torch_no_fixes", false, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
+        CONFIG("detection_type", track::detect::ObjectDetectionType::yolo8, "The detection type for video segmentation.");
         CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
+        CONFIG("model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
+        CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
+        CONFIG("region_resolution", uint16_t(320), "The resolution of the region proposal network (`region_model`).");
+        CONFIG("detection_resolution", uint16_t(640), "The input resolution of the object detection model (`model`).");
         CONFIG("detect_iou_threshold", float(0.7), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
         CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
@@ -814,7 +822,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         std::vector<std::string> exclude_fields = {
             "analysis_paused",
-            "filename",
+            //"filename",
             "app_name",
             "app_check_for_updates",
             "app_last_update_version",
@@ -839,18 +847,18 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_frame",
             "gui_source_video_frame",
             "gui_run",
-            "settings_file",
+            //"settings_file",
             "nowindow",
             "task",
             "wd",
             "gui_show_fish",
             "auto_quit",
             "auto_apply",
-            "output_dir",
+            //"output_dir",
             "auto_categorize",
             "tags_path",
             "analysis_range",
-            "output_prefix",
+            //"output_prefix",
             "cmd_line",
             "ffmpeg_path",
             "httpd_port",
@@ -914,8 +922,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     }
     
     void register_default_locations() {
-        file::DataLocation::register_path("app", [](file::Path path) -> file::Path {
-            auto wd = SETTING(wd).value<file::Path>();
+        file::DataLocation::register_path("app", [](const sprite::Map& map, file::Path path) -> file::Path {
+            auto wd = map.at("wd").value<file::Path>();
 #if defined(TREX_CONDA_PACKAGE_INSTALL)
             auto conda_prefix = ::default_config::conda_environment_path();
             if(!conda_prefix.empty()) {
@@ -929,24 +937,24 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             return wd / path;
         });
         
-        file::DataLocation::register_path("default.settings", [](file::Path) -> file::Path {
-            auto settings_file = file::DataLocation::parse("app", "default.settings");
+        file::DataLocation::register_path("default.settings", [](const sprite::Map& map, file::Path) -> file::Path {
+            auto settings_file = file::DataLocation::parse("app", "default.settings", &map);
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+        file::DataLocation::register_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
             if(path.empty())
-                path = SETTING(settings_file).value<Path>();
+                path = map.at("settings_file").value<Path>();
             if(path.empty()) {
-                path = SETTING(filename).value<Path>();
+                path = map.at("filename").value<Path>();
                 if(path.has_extension() && path.extension() == "pv")
                     path = path.remove_extension();
             }
             if(path.empty()) {
-                auto array = SETTING(source).value<file::PathArray>();
+                auto array = map.at("source").value<file::PathArray>();
                 auto base = file::find_basename(array);
                 path = base;
             }
@@ -957,38 +965,38 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(!path.has_extension() || path.extension() != "settings")
                 path = path.add_extension("settings");
             
-            auto settings_file = file::DataLocation::parse("output", path);
+            auto settings_file = file::DataLocation::parse("output", path, &map);
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        file::DataLocation::register_path("output_settings", [](file::Path path) -> file::Path {
-            return file::DataLocation::parse("settings", path);
-            file::Path settings_file = SETTING(filename).value<Path>().filename();
+        file::DataLocation::register_path("output_settings", [](const sprite::Map& map, file::Path path) -> file::Path {
+            return file::DataLocation::parse("settings", path, &map);
+            file::Path settings_file = map.at("filename").value<Path>().filename();
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
-            return file::DataLocation::parse("output", settings_file);
+            return file::DataLocation::parse("output", settings_file, &map);
         });
         
-        file::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
-            file::Path settings_file(SETTING(filename).value<Path>().filename());
+        file::DataLocation::register_path("backup_settings", [](const sprite::Map& map, file::Path) -> file::Path {
+            file::Path settings_file(map.at("filename").value<Path>().filename());
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
             
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
-            return file::DataLocation::parse("output", "backup") / settings_file;
+            return file::DataLocation::parse("output", "backup", &map) / settings_file;
         });
         
-        file::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
-            if(!filename.empty() && filename.is_absolute()) {
+        file::DataLocation::register_path("input", [](const sprite::Map& map, file::Path filename) -> file::Path {
+            if(not filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
@@ -996,9 +1004,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 return filename.absolute();
             }
             
-            auto path = SETTING(cwd).value<file::Path>();
+            auto path = map.at("cwd").value<file::Path>();
             if(path.empty()) {
-                auto d = SETTING(output_dir).value<file::Path>();
+                auto d = map.at("output_dir").value<file::Path>();
                 if(d.empty())
                     return filename.absolute();
                 else
@@ -1007,16 +1015,16 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 return (path / filename).absolute();
         });
         
-        file::DataLocation::register_path("output", [](file::Path filename) -> file::Path 
+        file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path
         {
-            auto prefix = SETTING(output_prefix).value<std::string>();
-            auto output_path = SETTING(output_dir).value<file::Path>();
+            auto prefix = map.at("output_prefix").value<std::string>();
+            auto output_path = map.at("output_dir").value<file::Path>();
             
             if(output_path.empty()) {
-                auto source = SETTING(source).value<file::PathArray>();
+                auto source = map.at("source").value<file::PathArray>();
                 auto base = file::find_parent(source);
                 if(not base) {
-                    output_path = SETTING(cwd).value<file::Path>();
+                    output_path = map.at("cwd").value<file::Path>();
                 } else {
                     output_path = base.value();
                 }
@@ -1029,7 +1037,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(not output_path.empty()) {
                     filename = output_path / filename.filename();
                 } else {
-                    filename = (SETTING(cwd).value<file::Path>() / filename);
+                    filename = (map.at("cwd").value<file::Path>() / filename);
                 }
                 
             } else if(not filename.has_extension() || filename.extension() == "pv") {

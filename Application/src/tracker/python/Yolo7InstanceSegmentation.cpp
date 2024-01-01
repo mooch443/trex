@@ -8,7 +8,7 @@
 namespace track {
 
 void Yolo7InstanceSegmentation::reinit(ModuleProxy& proxy) {
-    proxy.set_variable("model_type", detection_type().toStr());
+    proxy.set_variable("model_type", detect::detection_type().toStr());
     
     if(SETTING(segmentation_model).value<file::Path>().empty())
         throw U_EXCEPTION("When using yolov7 instance segmentation, please set model using command-line argument -sm <path> to set a model (pytorch model).");
@@ -16,7 +16,7 @@ void Yolo7InstanceSegmentation::reinit(ModuleProxy& proxy) {
         throw U_EXCEPTION("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
     
     proxy.set_variable("model_path", SETTING(segmentation_model).value<file::Path>().str());
-    proxy.set_variable("image_size", get_model_image_size());
+    proxy.set_variable("image_size", detect::get_model_image_size());
     proxy.run("load_model");
 }
 

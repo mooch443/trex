@@ -1,5 +1,4 @@
 #include "Export.h"
-#include <types.h>
 
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>

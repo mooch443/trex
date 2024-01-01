@@ -1,7 +1,6 @@
 #include "Outline.h"
 #include "Posture.h"
 #include "DebugDrawing.h"
-#include <types.h>
 #include <misc/GlobalSettings.h>
 #include "Tracker.h"
 #include <misc/curve_discussion.h>

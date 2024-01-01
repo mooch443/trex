@@ -81,6 +81,8 @@ void SettingsScene::_draw(DrawStructure& graph) {
                     print("Going back");
                 }),
                 ActionFunc("convert", [](auto){
+                    DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
+                    //SETTING(filename) = file::Path();
                     SceneManager::getInstance().set_active("convert-scene");
                 }),
                 ActionFunc("choose-source", [](auto){

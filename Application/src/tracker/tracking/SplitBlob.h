@@ -1,6 +1,7 @@
 #ifndef _SPLIT_BLOB_H
 #define _SPLIT_BLOB_H
 
+#include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <misc/PVBlob.h>
 

@@ -131,7 +131,7 @@ public:
             
             // could use image here
             Size2 original_size(current_use->cols, current_use->rows);
-            Size2 resized_size = track::get_model_image_size();
+            Size2 resized_size = track::detect::get_model_image_size();
 
             Size2 new_size(resized_size);
             if(SETTING(tile_image).value<size_t>() > 1) {

@@ -1,7 +1,7 @@
 #ifndef _OUTPUT_H
 #define _OUTPUT_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <file/DataFormat.h>
 #include <pv.h>
 #include <tracking/Individual.h>

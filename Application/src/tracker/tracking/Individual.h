@@ -1,7 +1,7 @@
 #ifndef _FISHP_H
 #define _FISHP_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <tracker/misc/idx_t.h>
 #include <gui/colors.h>
 #include <misc/Blob.h>

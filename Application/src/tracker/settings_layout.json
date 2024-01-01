@@ -76,6 +76,27 @@
                 ],
 
                 [
+                    {
+                        "type":"text",
+                        "text":"target",
+                        "pos":[0,6]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"filename",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{element_w},200]"
+                        },
+                        "size":"[{element_w},40]",
+                        "desc":""
+                    }
+                ],
+
+                [
                     [],
                     {
                         "type":"settings",

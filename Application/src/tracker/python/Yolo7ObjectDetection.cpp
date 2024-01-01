@@ -8,7 +8,7 @@
 namespace track {
 
 void Yolo7ObjectDetection::reinit(ModuleProxy& proxy) {
-    proxy.set_variable("model_type", detection_type().toStr());
+    proxy.set_variable("model_type", detect::detection_type().toStr());
     
     if(SETTING(model).value<file::Path>().empty())
         throw U_EXCEPTION("When using yolov7 object detection, please set model using command-line argument -m <path> to set a model (tensorflow saved model).");
@@ -20,7 +20,7 @@ void Yolo7ObjectDetection::reinit(ModuleProxy& proxy) {
         proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
         proxy.set_variable("segmentation_resolution", (uint64_t)SETTING(segmentation_resolution).value<uint16_t>());
     }
-    proxy.set_variable("image_size", get_model_image_size());
+    proxy.set_variable("image_size", detect::get_model_image_size());
     proxy.run("load_model");
 }
 

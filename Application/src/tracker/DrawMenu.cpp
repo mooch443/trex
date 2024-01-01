@@ -1,5 +1,5 @@
 #include "DrawMenu.h"
-#include <types.h>
+
 #include <gui/Timeline.h>
 #include <gui/types/List.h>
 #include <misc/Output.h>

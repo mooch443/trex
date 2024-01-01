@@ -267,7 +267,7 @@ float Tracker::infer_cm_per_pixel() {
             return 1;
         }
         
-        return 1 / max(1.0, w * 0.1);
+        return 1 / max(1.0, w * 0.05);
         //return w / float(average().cols);
     }
     return FAST_SETTING(cm_per_pixel);

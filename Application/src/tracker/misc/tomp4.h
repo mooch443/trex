@@ -2,7 +2,6 @@
 #if WITH_FFMPEG
 
 #include <commons.pc.h>
-#include <types.h>
 #include <misc/Image.h>
 #include <file/Path.h>
 #include <lzo/minilzo.h>

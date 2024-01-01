@@ -39,7 +39,7 @@ bool Yolo8::valid_model(const file::Path& path) {
 }
 
 void Yolo8::reinit(ModuleProxy& proxy) {
-    proxy.set_variable("model_type", detection_type().toStr());
+    proxy.set_variable("model_type", detect::detection_type().toStr());
     
     if(SETTING(model).value<file::Path>().empty()) {
         print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");

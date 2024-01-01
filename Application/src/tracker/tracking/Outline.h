@@ -1,7 +1,7 @@
 #ifndef _OUTLINE_H
 #define _OUTLINE_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataFormat.h>
 #include <gui/Transform.h>
