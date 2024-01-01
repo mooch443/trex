@@ -67,7 +67,7 @@ void load(file::PathArray source,
     
     /// 1. setting default values, saved in combined:
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
-    default_config::get(combined.map, combined.docs, set_combined_access_level);
+    ::default_config::get(combined.map, combined.docs, set_combined_access_level);
     
     /// 2. load default.settings from app folder:
     auto default_path = file::DataLocation::parse("default.settings", {}, &combined.map);
@@ -187,6 +187,8 @@ void load(file::PathArray source,
     /// --------------------------------------
     /// 6. copy potential sprite map contents:
     /// --------------------------------------
+    print(source_map.at("track_background_subtraction"));
+    print(source_map.at("track_threshold"));
     for(auto& key : source_map.keys()) {
         if(contains(copy.toVector(), key))
         {
@@ -210,7 +212,7 @@ void load(file::PathArray source,
                || GlobalSettings::map().at(key).get() != combined.map.at(key).get())
            )
         {
-            //if(not contains(filename_relevant_keys, key))
+            //if(not contains(copy.toVector(), key))
             {
                 print("Updating ",combined.map.at(key));
                 combined.map.at(key).get().copy_to(&GlobalSettings::map());

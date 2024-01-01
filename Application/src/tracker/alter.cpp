@@ -471,26 +471,26 @@ int main(int argc, char**argv) {
     SETTING(app_name) = std::string("TRexA");
     SETTING(track_do_history_split) = false;
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
-    SETTING(track_threshold) = Settings::track_threshold_t(0);
-    SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);
-    SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
+    //SETTING(track_threshold) = Settings::track_threshold_t(0);
+    //SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);
+    /*SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
         Rangef(0.01,300)
-    });
-    SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
-    SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
+    });*/
+    //SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
+    //SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
     SETTING(terminate) = false;
-    SETTING(calculate_posture) = false;
-    SETTING(gui_interface_scale) = float(1);
-    SETTING(track_background_subtraction) = false;
+    //SETTING(calculate_posture) = false;
+    //SETTING(gui_interface_scale) = float(1);
+    //SETTING(track_background_subtraction) = false;
     
     
-    SETTING(source) = file::PathArray();
-    SETTING(source).get().set_do_print(true);
+    //SETTING(source) = file::PathArray();
+    //SETTING(source).get().set_do_print(true);
     //SETTING(model) = file::Path("");
     //SETTING(region_model) = file::Path("");
     //SETTING(region_resolution) = uint16_t(320);
     //SETTING(detection_resolution) = uint16_t(640);
-    SETTING(filename) = file::Path("");
+    //SETTING(filename) = file::Path("");
     //SETTING(meta_classes) = std::vector<std::string>{ };
     //SETTING(detection_type) = ObjectDetectionType::yolo8;
     SETTING(tile_image) = size_t(0);
