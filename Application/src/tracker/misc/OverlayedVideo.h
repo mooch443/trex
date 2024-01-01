@@ -1,8 +1,8 @@
 #pragma once
 #include <commons.pc.h>
 #include <misc/AbstractVideoSource.h>
-#include <tracking/TileImage.h>
-#include <tracking/Detection.h>
+#include <misc/TileImage.h>
+#include <python/Detection.h>
 #include <misc/VideoVideoSource.h>
 #include <misc/WebcamVideoSource.h>
 

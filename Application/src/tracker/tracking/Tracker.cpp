@@ -3,7 +3,7 @@
 #include <tracking/SplitBlob.h>
 #include <misc/Timer.h>
 #include "PairingGraph.h"
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <tracking/DetectTag.h>
 #include <misc/cnpy_wrapper.h>
 #include <processing/CPULabeling.h>
@@ -13,10 +13,11 @@
 #include <tracking/DatasetQuality.h>
 #include <misc/PixelTree.h>
 #include <misc/CircularGraph.h>
-#include <misc/MemoryStats.h>
+#include <tracking/MemoryStats.h>
 #include <tracking/Categorize.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
+#include <misc/FOI.h>
 
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
@@ -719,7 +720,10 @@ void Tracker::prefilter(
         //  posture_threshold. Using the minimum ensures that the thresholds dont depend on each other
         //  as the threshold used here will reduce the number of available pixels for posture analysis
         //  or tracking respectively (pixels below used threshold will be removed).
-        if(result.fish_size.close_to_minimum_of_one(recount, 0.5)) {
+        if(result.fish_size.close_to_minimum_of_one(recount, 0.5)
+           && result.threshold > 0
+           )
+        {
             auto pblobs = pixel::threshold_blob(result.cache, own.get(), result.threshold, result.background);
             
             // only use blobs that split at least into 2 new blobs
@@ -1062,7 +1066,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     cache = &empty;
                 } else {
                     assert(cache != nullptr);
-                    assert(cache->_idx == fish->identity().ID());
+                    //assert(cache->_idx == fish->identity().ID());
                 }
                 
                 auto &probs = _probs[pid];

@@ -5,6 +5,7 @@
 #include <tracking/Tracker.h>
 #include <misc/frame_t.h>
 #include <tracking/IndividualManager.h>
+#include <misc/PixelTree.h>
 #include <filesystem>
 
 using ::testing::TestWithParam;
@@ -242,6 +243,52 @@ TEST_P(TestPairing, TestOrder) {
     };
     
     initialize.operator()(table_->switch_order);
+}
+
+TEST(TestLines, Threshold) {
+    SETTING(track_background_subtraction) = false;
+    
+    auto black = Image::Make(cv::Mat::zeros(320, 240, CV_8UC3));
+    cv::Mat gray;
+    convert_to_r3g3b2<3>(black->get(), gray);
+    //cv::cvtColor(black->get(), gray, cv::COLOR_BGR2GRAY);
+    Background bg(Image::Make(gray), nullptr);
+    cv::circle(black->get(), Vec2(90,80), 25, gui::Cyan, -1);
+    cv::rectangle(black->get(), Vec2(100,100), Vec2(125,125), gui::Purple, -1);
+    
+    cv::Mat gs;
+    convert_to_r3g3b2<3>(black->get(), gs);
+    //cv::cvtColor(black->get(), gs, cv::COLOR_BGR2GRAY);
+    cv::imwrite("/Users/tristan/Desktop/test_image.png", gs);
+    auto blobs = CPULabeling::run(gs);
+    ASSERT_EQ(blobs.size(), 1u);
+    
+    
+    auto blob = pv::Blob(std::move(blobs.front().lines), std::move(blobs.front().pixels), blobs.front().extra_flags, blob::Prediction());
+    
+    auto bds = blob.bounds();
+    print(blob.hor_lines());
+    
+    //cv::imshow("bg", black->get());
+    //cv::imshow("gs", gs);
+    
+    auto [off,img] = blob.image(&bg, Bounds(), 0);
+    cv::Mat g;
+    convert_from_r3g3b2(img->get(), g);
+    cv::imshow("img", g);
+    cv::waitKey(0);
+    
+    CPULabeling::ListCache_t cache;
+    auto b = pixel::threshold_blob(cache, pv::BlobWeakPtr(&blob), 0, &bg);
+    ASSERT_EQ(b.size(), 1u);
+    //ASSERT_EQ(b.front()->hor_lines().size(), blob.hor_lines().size());
+    ASSERT_EQ(b.front()->hor_lines(), blob.hor_lines()) << _format(b.front()->hor_lines());
+    //line_without_grid<DifferenceMethod::none>(&bg, blobs.front()->hor_lines(), px, threshold, lines, pixels);
+    
+    auto next = CPULabeling::run(img->get());
+    ASSERT_EQ(next.size(), 1u) << _format(next.size());
+    blob.add_offset(-blob.bounds().pos());
+    ASSERT_EQ(*next.front().lines, blob.hor_lines()) << _format(*next.front().lines);
 }
 
 TEST_P(TestPairing, TestInit) {

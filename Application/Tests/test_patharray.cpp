@@ -5,6 +5,7 @@
 #include <misc/Timer.h>
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
+#include <misc/checked_casts.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -12,6 +13,62 @@
 
 using namespace file;
 bool matched;
+using namespace cmn;
+
+// Integer to Integer Conversions
+TEST(NarrowCast, IntToIntSameSignedness) {
+    EXPECT_TRUE(check_narrow_cast<int>(12345L));  // long to int, within range
+    EXPECT_TRUE(check_narrow_cast<short>(-12345));  // int to short, within range
+    unsigned int largeUnsigned = static_cast<unsigned int>(std::numeric_limits<int>::max()) + 1;
+    EXPECT_FALSE(check_narrow_cast<int>(largeUnsigned));  // unsigned int to int, out of range
+}
+
+TEST(NarrowCast, SignedToUnsigned) {
+    EXPECT_TRUE(check_narrow_cast<unsigned int>(12345));  // int to unsigned int, positive value
+    EXPECT_FALSE(check_narrow_cast<unsigned int>(-1));  // int to unsigned int, negative value
+}
+
+TEST(NarrowCast, UnsignedToSigned) {
+    EXPECT_TRUE(check_narrow_cast<int>(12345u));  // unsigned int to int, within range
+    EXPECT_FALSE(check_narrow_cast<int>(std::numeric_limits<unsigned int>::max()));  // unsigned int to int, out of range
+}
+
+// Floating-Point to Integer Conversions
+TEST(NarrowCast, FloatToSignedInt) {
+    EXPECT_TRUE(check_narrow_cast<int>(12345.67f));  // float to int, within range
+    EXPECT_TRUE(check_narrow_cast<int>(-12345.67f));  // float to int, within range
+    EXPECT_FALSE(check_narrow_cast<int>(static_cast<float>(std::numeric_limits<int>::max()) + 10000.0f));  // float to int, out of range
+}
+
+TEST(NarrowCast, FloatToUnsignedInt) {
+    EXPECT_TRUE(check_narrow_cast<unsigned int>(12345.67f));  // float to unsigned int, within range
+    EXPECT_FALSE(check_narrow_cast<unsigned int>(-1.0f));  // float to unsigned int, negative
+    EXPECT_FALSE(check_narrow_cast<unsigned int>(static_cast<float>(std::numeric_limits<unsigned int>::max()) + 10000.0f));  // float to unsigned int, out of range
+}
+
+// Integer to Floating-Point Conversions
+TEST(NarrowCast, SignedIntToFloat) {
+    EXPECT_TRUE(check_narrow_cast<float>(12345));  // int to float, within range
+    EXPECT_TRUE(check_narrow_cast<float>(-12345));  // int to float, within range
+}
+
+TEST(NarrowCast, UnsignedIntToFloat) {
+    EXPECT_TRUE(check_narrow_cast<float>(12345u));  // unsigned int to float, within range
+}
+
+// Floating-Point to Floating-Point Conversions
+TEST(NarrowCast, FloatToDouble) {
+    EXPECT_TRUE(check_narrow_cast<double>(123.456f));  // float to double, valid conversion
+    EXPECT_TRUE(check_narrow_cast<double>(-123.456f));  // float to double, valid conversion
+}
+
+// Edge Cases
+TEST(NarrowCast, EdgeCases) {
+    EXPECT_FALSE(check_narrow_cast<int>(static_cast<long>(std::numeric_limits<long>::min())));  // long to int, out of range
+    EXPECT_FALSE(check_narrow_cast<int>(static_cast<long>(std::numeric_limits<long>::max())));  // long to int, out of range
+    EXPECT_TRUE(check_narrow_cast<long>(std::numeric_limits<int>::min()));  // int to long, within range
+    EXPECT_TRUE(check_narrow_cast<long>(std::numeric_limits<int>::max()));  // int to long, within range
+}
 
 TEST(PathArrayTest, AddPath) {
     file::_PathArray<> pa;
@@ -510,7 +567,7 @@ TEST(FindBasenameTest, MultipleElementsAndSamePrefix) {
 
 TEST(FindBasenameTest, DifferentDirectories) {
     file::PathArray differentDirs{
-        std::vector<file::Path>{ "/first/path/to/file.txt", "/second/path/to/file.txt" }
+        { "/first/path/to/file.txt", "/second/path/to/file.txt" }
     };
   // Replace with your expected result
   EXPECT_EQ("file", find_basename(differentDirs));
@@ -532,6 +589,187 @@ TEST(SanitizeFilenameTest, TrailingSpaces) {
   EXPECT_EQ("filename.txt", sanitize_filename("filename.txt  "));
 }
 
+// Test concatenation of two relative paths
+TEST(PathConcatenation, RelativeToRelative) {
+    Path lhs("path/to");
+    Path rhs("relative");
+    EXPECT_EQ((lhs / rhs).str(), "path/to/relative");  // Expect paths to be concatenated with separator
+}
+
+// Test concatenation where the lhs path has a trailing separator
+TEST(PathConcatenation, TrailingSeparator) {
+    Path lhs("path/to/");
+    Path rhs("relative");
+    EXPECT_EQ((lhs / rhs).str(), "path/to/relative");  // Trailing separator should be removed from lhs
+}
+
+// Test concatenation where the rhs is an absolute path
+TEST(PathConcatenation, AbsoluteRhs) {
+    Path lhs("path/to");
+    Path rhs("/absolute/path");
+    EXPECT_THROW(lhs / rhs, std::invalid_argument);  // Should throw due to absolute rhs
+}
+
+// Test concatenation where the lhs is empty
+TEST(PathConcatenation, EmptyLhs) {
+    Path lhs("");
+    Path rhs("relative");
+    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
+}
+
+// Test concatenation where the rhs is empty
+TEST(PathConcatenation, EmptyRhs) {
+    Path lhs("path/to");
+    Path rhs("");
+    EXPECT_EQ((lhs / rhs).str(), "path/to");  // Empty rhs should result in only lhs
+}
+
+// Test concatenation where both paths are empty
+TEST(PathConcatenation, BothEmpty) {
+    Path lhs("");
+    Path rhs("");
+    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
+}
+
+// Test concatenation with various special characters in paths
+TEST(PathConcatenation, SpecialCharacters) {
+    Path lhs("path/with space");
+    Path rhs("file@123");
+    EXPECT_EQ((lhs / rhs).str(), "path/with space/file@123");  // Special characters should be handled correctly
+}
+
+// Test concatenation with dot and dot-dot segments
+/*TEST(PathConcatenation, DotAndDotDot) {
+    Path lhs("path/to/.");
+    Path rhs("../relative");
+    EXPECT_EQ((lhs / rhs).str(), "path/relative");  // Dot and dot-dot should be preserved
+}
+
+// Test handling of multiple separators
+TEST(PathConcatenation, MultipleSeparators) {
+    Path lhs("path//to");
+    Path rhs("//relative");
+    EXPECT_EQ((lhs / rhs).str(), "path/to/relative");  // Multiple separators should be handled correctly
+}*/
+
+// Test handling of multiple separators
+TEST(PathConcatenation, AbsoluteToRelative) {
+    Path lhs("/path/to");
+    Path rhs("relative");
+    EXPECT_EQ((lhs / rhs).str(), "/path/to/relative");  // Multiple separators should be handled correctly
+}
+
+// Test the constructor and normalization of path separators
+TEST(PathNormalization, SeparatorNormalization) {
+    Path p1("path\\to\\directory");  // Assuming NOT_OS_SEP is '\\'
+    EXPECT_EQ(p1.str(), "path/to/directory");  // Backslashes should be converted to OS_SEP
+
+    Path p2("path/to/directory/");  // Trailing separator
+    EXPECT_EQ(p2.str(), "path/to/directory");  // Trailing separator should be removed
+}
+
+// Test the constructor with only a root slash
+TEST(PathNormalization, RootSlashPreservation) {
+    Path root("/");
+    EXPECT_EQ(root.str(), "/");  // Single root slash should be preserved
+}
+
+// Test concatenation with an absolute right-hand side path
+TEST(PathConcatenation, AbsoluteRhsError) {
+    Path lhs("path/to");
+    Path rhs("/absolute/path");
+    EXPECT_THROW(lhs / rhs, std::invalid_argument);  // Should throw due to absolute rhs
+}
+
+// Test concatenation where both paths are empty
+TEST(PathConcatenation, BothEmpty2) {
+    Path lhs("");
+    Path rhs("");
+    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
+}
+
+// Test concatenation with empty rhs and lhs having a trailing separator
+TEST(PathConcatenation, EmptyRhsWithTrailingSeparator) {
+    Path lhs("path/to/");
+    Path rhs("");
+    EXPECT_EQ((lhs / rhs).str(), "path/to");  // Trailing separator should be removed, and only lhs returned
+}
+
+// Test concatenation with both paths non-empty
+TEST(PathConcatenation, NonEmptyPaths) {
+    Path lhs("path/to");
+    Path rhs("next/dir");
+    EXPECT_EQ((lhs / rhs).str(), "path/to/next/dir");  // Paths should be concatenated with separator
+}
+
+// Test existence checks with empty paths
+TEST(PathExistence, EmptyPathCheck) {
+    Path emptyPath("");
+    EXPECT_FALSE(emptyPath.exists());  // Empty path should not exist
+    EXPECT_FALSE(emptyPath.is_folder());  // Empty path should not be considered a folder
+    EXPECT_FALSE(emptyPath.is_regular());  // Empty path should not be considered a regular file
+}
+
+// Define a custom mock filesystem for the test cases
+struct MockFilesystem : public file::FilesystemInterface {
+    std::set<file::Path> find_files(const file::Path& path) const override {
+        // Define the mock behavior for finding files
+#if defined(_WIN32)
+        return { file::Path("C:\\mock\\path1"), file::Path("C:\\mock\\path2") };
+#else
+        return { file::Path("/mock/path1"), file::Path("/mock/path2") };
+#endif
+    }
+    bool is_folder(const file::Path& path) const override {
+        // Define the mock behavior for checking if a path is a folder
+        return true;
+    }
+    bool exists(const file::Path& path) const override {
+        // Define the mock behavior for checking if a path exists
+        return find_files(path).count(path) > 0;
+    }
+};
+
+// Test constructor with empty string
+TEST(PathArrayTest, EmptyConstructor) {
+    file::PathArray paths;
+    EXPECT_TRUE(paths.get_paths().empty());  // Expect no paths
+}
+
+// Test constructor with a single path
+TEST(PathArrayTest, SinglePathConstructor) {
+    file::_PathArray<MockFilesystem> paths("path/to/file");
+    EXPECT_EQ(paths.get_paths().size(), 1);  // Expect one path
+    EXPECT_EQ(paths.get_paths().front().str(), "path/to/file");  // Check the path is correct
+}
+
+// Test constructor with array of paths as string
+TEST(PathArrayTest, ArrayOfStringConstructor) {
+    file::_PathArray<MockFilesystem> paths("[\"path/to/file1\", \"path/to/file2\"]");
+    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
+    EXPECT_EQ(paths.get_paths()[0].str(), "path/to/file1");  // Check the first path
+    EXPECT_EQ(paths.get_paths()[1].str(), "path/to/file2");  // Check the second path
+}
+
+// Test constructor with vector of strings
+TEST(PathArrayTest, VectorOfStringConstructor) {
+    std::vector<std::string> vec_paths = {"path/to/file1", "path/to/file2"};
+    file::_PathArray<MockFilesystem> paths(vec_paths);
+    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
+    EXPECT_EQ(paths.get_paths()[0].str(), "path/to/file1");  // Check the first path
+    EXPECT_EQ(paths.get_paths()[1].str(), "path/to/file2");  // Check the second path
+}
+
+// Test copy and move constructors
+TEST(PathArrayTest, CopyAndMoveConstructors) {
+    file::_PathArray<MockFilesystem> original("path/to/file");
+    auto copied = original;  // Copy constructor
+    EXPECT_EQ(copied.get_paths().size(), 1);  // Expect one path in the copied object
+
+    file::_PathArray<MockFilesystem> moved = std::move(original);  // Move constructor
+    EXPECT_EQ(moved.get_paths().size(), 1);  // Expect one path in the moved object
+    EXPECT_TRUE(original.get_paths().empty());  // Original should be empty after move
+}
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

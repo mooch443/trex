@@ -1,10 +1,10 @@
 #include "Detection.h"
-#include <tracking/Yolo7InstanceSegmentation.h>
-#include <tracking/Yolo8.h>
-#include <tracking/Yolo7ObjectDetection.h>
+#include <python/Yolo7InstanceSegmentation.h>
+#include <python/Yolo8.h>
+#include <python/Yolo7ObjectDetection.h>
 #include <processing/RawProcessing.h>
 #include <grabber/misc/default_config.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <video/Video.h>
 #include <processing/CPULabeling.h>
 #include <misc/Timer.h>

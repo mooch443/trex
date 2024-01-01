@@ -5,6 +5,7 @@
 #include <misc/RecentItems.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Checkbox.h>
+#include <gui/dyn/Action.h>
 
 namespace gui {
 

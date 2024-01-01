@@ -12,7 +12,7 @@ void SettingsDropdown::selected_setting(long_t index, const std::string& name, T
             auto options = val.get().is_enum() ? val.get().enum_values()() : std::vector<std::string>{ "true", "false" };
             auto index = val.get().is_enum() ? val.get().enum_index()() : (val ? 0 : 1);
             
-            std::vector<std::shared_ptr<List::Item>> items;
+            std::vector<std::shared_ptr<gui::Item>> items;
             std::map<std::string, bool> selected_option;
             for(size_t i=0; i<options.size(); ++i) {
                 selected_option[options[i]] = i == index;
@@ -22,7 +22,7 @@ void SettingsDropdown::selected_setting(long_t index, const std::string& name, T
             
             print("options: ", selected_option);
             
-            _settings_choice = std::make_shared<List>(Bounds(0, 0, 150, textfield.height()), "", items, [&textfield, this](List*, const List::Item& item){
+            _settings_choice = std::make_shared<List>(Bounds(0, 0, 150, textfield.height()), "", items, [&textfield, this](List*, const gui::Item& item){
                 print("Clicked on item ", item.ID());
                 textfield.set_text(item);
                 textfield.enter();

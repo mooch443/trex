@@ -2,11 +2,11 @@
 #include <types.h>
 
 #include <tracking/Tracker.h>
-#include <tracker/misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <tracker/gui/WorkProgress.h>
 #include <tracker/gui/DrawGraph.h>
 #include <misc/cnpy_wrapper.h>
-#include <tracker/misc/MemoryStats.h>
+#include <tracking/MemoryStats.h>
 #include <file/DataLocation.h>
 #include <misc/checked_casts.h>
 #include <gui/IdentityHeatmap.h>
@@ -175,8 +175,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     LockGuard guard(ro_t{}, "GUI::export_tracks");
     
     // save old values and remove all calculation/scaling options from output
-    auto previous_graphs = SETTING(output_graphs).value<Output::Library::graphs_type>();
-    auto previous_options = SETTING(output_default_options).value<Output::Library::default_options_type>();
+    auto previous_graphs = SETTING(output_graphs).value<default_config::graphs_type>();
+    auto previous_options = SETTING(output_default_options).value<default_config::default_options_type>();
     
     Output::Library::remove_calculation_options();
     

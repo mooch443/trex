@@ -10,7 +10,7 @@
 #include <gui/DynamicVariable.h>
 #include <misc/RecentItems.h>
 #include <misc/ThreadPool.h>
-#include <misc/ConnectedTasks.h>
+#include <tracking/ConnectedTasks.h>
 #include <tracking/Tracker.h>
 #include <gui/GUICache.h>
 #include <gui/AnimatedBackground.h>

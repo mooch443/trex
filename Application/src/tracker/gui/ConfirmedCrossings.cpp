@@ -3,9 +3,9 @@
 #include <gui/types/StaticText.h>
 #include <misc/metastring.h>
 #include <misc/default_settings.h>
-#include <tracking/Tracker.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>
+#include <misc/TrackingSettings.h>
 
 namespace track {
 static std::map<Frame_t, std::set<FOI>> _fois;

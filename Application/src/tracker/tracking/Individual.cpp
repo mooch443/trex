@@ -18,6 +18,7 @@
 #include <file/DataLocation.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/IndividualManager.h>
+#include <misc/FOI.h>
 
 #if !COMMONS_NO_PYTHON
 #include <tracking/PythonWrapper.h>
@@ -901,11 +902,11 @@ void Individual::LocalCache::regenerate(Individual* fish) {
 
 float Individual::midline_length() const {
     return _local_cache._midline_samples == 0
-        ? gui::Graph::invalid()
+        ? GlobalSettings::invalid()
         : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f);
 }
 size_t Individual::midline_samples() const { return _local_cache._midline_samples; }
-float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? gui::Graph::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
+float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? GlobalSettings::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
 
 Vec2 Individual::LocalCache::add(Frame_t /*frameIndex*/, const track::MotionRecord *current) {
     const auto frame_rate = track::slow::frame_rate;
@@ -2317,7 +2318,7 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     //for(size_t i=0; i<all_head_positions.size(); ++i) {
     //}
     
-    Vec2 last_head(gui::Graph::invalid());
+    Vec2 last_head(GlobalSettings::invalid());
     if(!all_head_positions.empty()) {
         last_head = all_head_positions.front();
     }

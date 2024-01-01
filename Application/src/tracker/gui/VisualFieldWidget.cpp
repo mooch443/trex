@@ -1,7 +1,7 @@
 #include "VisualFieldWidget.h"
 #include <tracking/VisualField.h>
 #include <gui/Coordinates.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 
 using namespace track;
 

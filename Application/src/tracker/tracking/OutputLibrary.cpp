@@ -1,11 +1,10 @@
 #include "OutputLibrary.h"
 #include <tracking/Tracker.h>
 #include <cmath>
-#include <misc/EventAnalysis.h>
+#include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
-#include <gui/Graph.h>
 #include <tracker/misc/default_config.h>
 #include <tracking/Categorize.h>
 #include <misc/IdentifiedTag.h>
@@ -17,7 +16,7 @@ namespace Output {
     LibraryCache::Ptr _default_cache = std::make_shared<LibraryCache>();
     std::map<std::string, Library::FunctionType> _cache_func;
     std::map<std::string, std::vector<std::pair<Options_t, Calculation>>> _options_map;
-    Output::Library::default_options_type _output_defaults;
+    default_config::default_options_type _output_defaults;
     std::mutex _output_variables_lock;
     CallbackCollection _callback_id;
 
@@ -89,7 +88,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     }
     
     if(!ptr0 || !ptr1) {
-        percent = gui::Graph::invalid(); // there are no segments after this frame, cannot interpolate
+        percent = GlobalSettings::invalid(); // there are no segments after this frame, cannot interpolate
         return {ptr0, ptr1};
     }
     
@@ -135,12 +134,12 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func[Functions::X.name()] = LIBGLFNC( {
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 float percent;
                 auto tup = interpolate_1d(info, frame, percent);
                 if(!std::get<0>(tup) || !std::get<1>(tup))
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
                      + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
@@ -153,12 +152,12 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func[Functions::Y.name()] = LIBGLFNC( {
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 float percent;
                 auto tup = interpolate_1d(info, frame, percent);
                 if(!std::get<0>(tup) || !std::get<1>(tup))
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
                      + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
@@ -186,7 +185,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 float _average = 0;
                 for(Frame_t i = frame.try_sub(Frame_t(FAST_SETTING(smooth_window))); i <= frame + Frame_t(FAST_SETTING(smooth_window)); ++i) {
                     auto v = get(Functions::SPEED.name(), LibInfo(info.fish, options, info._cache), i);
-                    if(v != Graph::invalid()) {
+                    if(v != GlobalSettings::invalid()) {
                         _average += v;
                         ++_samples;
                     }
@@ -198,12 +197,12 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 float percent;
                 auto tup = interpolate_1d(info, frame, percent);
                 if(!std::get<0>(tup) || !std::get<1>(tup))
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 return (1 - percent) * std::get<0>(tup)->speed<Units::CM_AND_SECONDS>(smooth)
                      + percent       * std::get<1>(tup)->speed<Units::CM_AND_SECONDS>(smooth);
@@ -224,7 +223,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             {
                 auto midline = normalize ? fish->fixed_midline(frame) : fish->midline(frame);
                 if (!midline)
-                    return gui::Graph::invalid();
+                    return GlobalSettings::invalid();
                 
                 auto &pts = midline->segments();
                 
@@ -261,7 +260,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             }
             
             if(samples == 0 || !fish->midline(frame))
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             
             mean = mean / samples;
             float mean_angle = cmn::atan2(mean.y, mean.x);
@@ -285,8 +284,8 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         
         _cache_func["normalized_midline"] = LIBFNC({
             float value = EventAnalysis::midline_offset(info.fish, frame);
-            if(gui::Graph::is_invalid(value))
-                return gui::Graph::invalid();
+            if(GlobalSettings::is_invalid(value))
+                return GlobalSettings::invalid();
             
             long_t samples = 1;
             
@@ -294,7 +293,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             {
                 if(f != frame) {
                     float sample = EventAnalysis::midline_offset(info.fish, f);
-                    if(!gui::Graph::is_invalid(sample)) {
+                    if(!GlobalSettings::is_invalid(sample)) {
                         value += sample;
                         samples++;
                     }
@@ -308,10 +307,10 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto current = get("normalized_midline", info, frame);
             auto previous = get("normalized_midline", info, frame - 1_f);
             
-            if(gui::Graph::is_invalid(previous))
+            if(GlobalSettings::is_invalid(previous))
                 previous = 0;
-            if(gui::Graph::is_invalid(current))
-                return gui::Graph::invalid();
+            if(GlobalSettings::is_invalid(current))
+                return GlobalSettings::invalid();
             
             return narrow_cast<float>(current - previous);
         });
@@ -324,10 +323,10 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 Vec2 p2(frame.get()+1, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame+1_f));
                 
                 int c = crosses_abs_height(p1, p2, SETTING(limit).value<float>());
-                return c == 0 ? gui::Graph::invalid() : c;
+                return c == 0 ? GlobalSettings::invalid() : c;
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func[Functions::BORDER_DISTANCE.name()] = LIBFNC({
@@ -353,7 +352,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return min(d0, d1);
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func[Functions::NEIGHBOR_DISTANCE.name()] = LIBFNC({
@@ -372,14 +371,14 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 }
             }
             
-            return samples > 0 ? d / samples : gui::Graph::invalid();
+            return samples > 0 ? d / samples : GlobalSettings::invalid();
         });
         
         _cache_func["time"] = LIBGLFNC({
             (void)info;
             auto props = Tracker::properties(frame);
             if(!props)
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             return props->time;
         });
         
@@ -388,7 +387,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             auto props = Tracker::properties(frame);
             if(!props)
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             return props->org_timestamp.get();
         });
         
@@ -397,7 +396,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             auto props = Tracker::properties(frame);
             if(!props)
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             return frame.get();
         });
         
@@ -450,7 +449,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                }
            }
            
-           return gui::Graph::invalid();
+           return GlobalSettings::invalid();
         });
         
         _cache_func["RELATIVE_ANGLE"] = LIBFNC({
@@ -488,7 +487,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                }
            }
            
-           return gui::Graph::invalid();
+           return GlobalSettings::invalid();
         });
         
         _cache_func["L_V"] = LIBFNC({
@@ -527,21 +526,21 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                   float n = length(v) * length(ov);
                   
                   if(length(v) > 0 || length(ov) > 0)
-                      return gui::Graph::invalid();
+                      return GlobalSettings::invalid();
                   
                   return cmn::abs(atan2(v.y, v.x) - atan2(ov.y,  ov.x));
               }
             }
 
             FormatWarning("NO OTHER FISH");
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["tailbeat_threshold"] = LIBFNC( return SETTING(limit).value<float>(); );
         _cache_func["tailbeat_peak"] = LIBFNC( return SETTING(event_min_peak_offset).value<float>(); );
         
         _cache_func["threshold_reached"] = LIBFNC({
-            return EventAnalysis::threshold_reached(info.fish, frame) ? float(M_PI * 0.3) : gui::Graph::invalid();
+            return EventAnalysis::threshold_reached(info.fish, frame) ? float(M_PI * 0.3) : GlobalSettings::invalid();
         });
         
         _cache_func["sqrt_a"] = LIBFNC({
@@ -553,7 +552,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if(o)
                 return o->size();
             else
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
         });
         
         _cache_func["outline_std"] = LIBFNC({
@@ -569,7 +568,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             }
             
             if(all.empty())
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             if(all.size() == 1)
                 return 1;
             
@@ -641,7 +640,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if (blob && blob->pred.valid()) {
                 return blob->pred.clid;
             }
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["detection_p"] = LIB_NO_CHECK_FNC({
@@ -649,7 +648,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if (blob && blob->pred.valid()) {
                 return blob->pred.probability();
             }
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
 #if !COMMONS_NO_PYTHON
@@ -660,7 +659,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 if (l)
                     return l->id;
             }
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["average_category"] = LIB_NO_CHECK_FNC({
@@ -668,7 +667,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if (l) {
                 return l->id;
             }
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
 #endif
         
@@ -741,7 +740,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return length(midline->segments().at(1).pos - midline->segments().at(0).pos) * FAST_SETTING(cm_per_pixel);
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["consecutive"] = LIB_NO_CHECK_FNC({
@@ -751,7 +750,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return segment->length().get();
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
 
         _cache_func["consecutive_segment_id"] = LIB_NO_CHECK_FNC({
@@ -760,7 +759,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return (uint64_t)segment.get();
             }
 
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["blobid"] = LIB_NO_CHECK_FNC({
@@ -770,7 +769,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return (uint32_t)blob->blob_id();
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["num_pixels"] = LIB_NO_CHECK_FNC({
@@ -780,7 +779,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return blob->num_pixels();
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["pixels_squared"] = LIB_NO_CHECK_FNC({
@@ -790,7 +789,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return blob->bounds().width * blob->bounds().height;
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["midline_x"] = LIBFNC({
@@ -801,7 +800,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return (blob->bounds().pos().x + midline->offset().x) * FAST_SETTING(cm_per_pixel);
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["midline_y"] = LIBFNC({
@@ -812,7 +811,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return (blob->bounds().pos().y + midline->offset().y) * FAST_SETTING(cm_per_pixel);
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["global"] = LIBGLFNC({
@@ -893,7 +892,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return (pts.back().pos - pts.front().pos).y;
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["midline_length"] = LIBFNC({
@@ -903,26 +902,26 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 return posture->midline_length; //* FAST_SETTING(cm_per_pixel);
             }
             
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         });
         
         _cache_func["qr_id"] = LIBGLFNC({
             auto blob = info.fish->compressed_blob(frame);
             if(!blob)
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             auto tag = tags::find(frame, blob->blob_id());
             if(!tag.valid())
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             return tag.id.get();
         });
         
         _cache_func["qr_p"] = LIBGLFNC({
             auto blob = info.fish->compressed_blob(frame);
             if(!blob)
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             auto tag = tags::find(frame, blob->blob_id());
             if(!tag.valid())
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             return tag.p;
         });
         
@@ -941,16 +940,16 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         }, [](std::string_view name) {
             if(name == "output_invalid_value") {
                 if(SETTING(output_invalid_value).value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
-                    gui::Graph::set_invalid(std::numeric_limits<float>::quiet_NaN());
+                    GlobalSettings::set_invalid(std::numeric_limits<float>::quiet_NaN());
                 else
-                    gui::Graph::set_invalid(std::numeric_limits<float>::infinity());
+                    GlobalSettings::set_invalid(std::numeric_limits<float>::infinity());
                 
                 clear_cache();
                 
             } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
             {
                 auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-                _output_defaults = SETTING(output_default_options).value<Output::Library::default_options_type>();
+                _output_defaults = SETTING(output_default_options).value<default_config::default_options_type>();
                 _options_map.clear();
                 
                 
@@ -987,7 +986,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                          } else
                              FormatWarning("No midline.");
                          
-                         return gui::Graph::invalid();
+                         return GlobalSettings::invalid();
                     }));
                     
                     //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
@@ -1047,18 +1046,18 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
 
     double Library::pose(uint8_t index, uint8_t component, LibInfo info, Frame_t frame) {
         if(not info.fish)
-            return Graph::invalid();
+            return GlobalSettings::invalid();
         auto ptr = info.fish->basic_stuff(frame);
         if(not ptr)
-            return Graph::invalid();
+            return GlobalSettings::invalid();
         
         auto& pose = ptr->blob.pred.pose;
         if(pose.size() <= index)
-            return Graph::invalid();
+            return GlobalSettings::invalid();
         
         auto& pt = pose.point(index);
         if(pt.x == 0 && pt.y == 0)
-            return Graph::invalid();
+            return GlobalSettings::invalid();
         
         if(component == 0)
             return pt.x;
@@ -1083,7 +1082,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                     // cannot parse pose
                 }
             }
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         }
         
         size_t cache_size = _cache->_cache.size();
@@ -1131,7 +1130,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 warning = name;
                 print("Cannot find output function ",name,".");
             }
-            return gui::Graph::invalid();
+            return GlobalSettings::invalid();
         }
         
         Options_t modifiers = info.modifiers;
@@ -1300,6 +1299,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     }
     
     void Library::remove_calculation_options() {
+        using namespace default_config;
         auto &graphs = SETTING(output_graphs).value<graphs_type>();
         
         auto previous = _output_defaults;
@@ -1358,15 +1358,15 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             if(left == 0) {
                 auto v_l = Library::get(Functions::BINARY.name(), info, f_l);
-                if(!gui::Graph::is_invalid(v_l)) {
+                if(!GlobalSettings::is_invalid(v_l)) {
                     left = v_l;
                     //l_idx = f_l;
                 } else {
                     auto y = Library::get("fixed_midline", info, f_l);
-                    if(gui::Graph::is_invalid(y))
+                    if(GlobalSettings::is_invalid(y))
                         return 0;
                     
-                    if (!gui::Graph::is_invalid(y) && cmn::abs(y) > cmn::abs(mx))
+                    if (!GlobalSettings::is_invalid(y) && cmn::abs(y) > cmn::abs(mx))
                         mx = y;
                     if (y < mi)
                         mi = y;
@@ -1375,15 +1375,15 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             if(right == 0 && offset != 0_f) {
                 auto v_r = Library::get(Functions::BINARY.name(), info, f_r);
-                if(!gui::Graph::is_invalid(v_r)) {
+                if(!GlobalSettings::is_invalid(v_r)) {
                     right = v_r;
                     //r_idx = f_r;
                 } else {
                     auto y = Library::get("fixed_midline", info, f_r);
-                    if(gui::Graph::is_invalid(y))
+                    if(GlobalSettings::is_invalid(y))
                         return 0;
                     
-                    if (!gui::Graph::is_invalid(y) && cmn::abs(y) > cmn::abs(mx))
+                    if (!GlobalSettings::is_invalid(y) && cmn::abs(y) > cmn::abs(mx))
                         mx = y;
                     if (y < mi)
                         mi = y;

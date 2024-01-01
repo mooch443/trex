@@ -8,7 +8,7 @@
 #include <misc/vec2.h>
 #include <tracking/IndividualCache.h>
 #include <misc/ProximityGrid.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <misc/ThreadPool.h>
 
 //#ifndef NDEBUG

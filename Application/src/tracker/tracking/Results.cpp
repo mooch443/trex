@@ -1,8 +1,10 @@
 #include "Results.h"
 #include <file/CSVExport.h>
 #include <tracking/Outline.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/LockGuard.h>
+#include <tracking/EventAnalysis.h>
 
 using namespace file;
 using namespace Output;

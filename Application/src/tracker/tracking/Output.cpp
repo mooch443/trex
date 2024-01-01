@@ -1,15 +1,16 @@
 #include "Output.h"
 #include <misc/Timer.h>
-#include <tracking/FOI.h>
+#include <misc/FOI.h>
 #include <misc/default_config.h>
 #include <lzo/minilzo.h>
 #include <misc/checked_casts.h>
 #include <tracking/Categorize.h>
 #include <misc/frame_t.h>
 #include <misc/IdentifiedTag.h>
-#include <tracking/DatasetQuality.h>
+#include <tracking/Tracker.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/DatasetQuality.h>
 
 using namespace track;
 typedef int64_t data_long_t;

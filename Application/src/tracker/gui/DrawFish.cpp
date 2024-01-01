@@ -1,6 +1,6 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <tracking/Individual.h>
 #include <tracking/VisualField.h>
 #include <misc/CircularGraph.h>
@@ -164,7 +164,7 @@ Fish::~Fish() {
         _path_dirty = true;
         _frame = frameIndex;
         
-        _library_y = Graph::invalid();
+        _library_y = GlobalSettings::invalid();
         _avg_cat = -1;
         _next_frame_cache.valid = false;
         if (_image.source())
@@ -238,7 +238,7 @@ Fish::~Fish() {
         auto color_source = GUIOPTION(gui_fish_color);
         if(color_source != "identity" && blob) {
             _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
-            if(!Graph::is_invalid(_library_y)) {
+            if(!GlobalSettings::is_invalid(_library_y)) {
                 if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTING(cm_per_pixel);
                 else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTING(cm_per_pixel);
             }
@@ -576,7 +576,7 @@ Fish::~Fish() {
                 angle = -head->angle();
             }
         
-            auto radius = (slow::calculate_posture && _ML != Graph::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
+            auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
                 if(_next_frame_cache.valid) {
                     auto estimated = _next_frame_cache.estimated_px + offset;
@@ -696,7 +696,7 @@ Fish::~Fish() {
                     return false;
                 });
             
-            } else if(not Graph::is_invalid(_library_y)) {
+            } else if(not GlobalSettings::is_invalid(_library_y)) {
                 auto percent = min(1.f, cmn::abs(_library_y));
                 Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
             
@@ -961,7 +961,7 @@ Color Fish::get_color(const BasicStuff * basic) const {
     if(color_source != "identity") {
         auto y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
         
-        if(not Graph::is_invalid(y)) {
+        if(not GlobalSettings::is_invalid(y)) {
             if(color_source == "X")
                 y /= float(Tracker::average().cols) * slow::cm_per_pixel; //FAST_SETTING(cm_per_pixel);
             else if(color_source == "Y")

@@ -7,12 +7,12 @@
 #include <gui/DrawStructure.h>
 #include <tracking/Individual.h>
 #include <tracking/Tracker.h>
-#include <misc/EventAnalysis.h>
-#include <gui/Graph.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/EventAnalysis.h>
+#include <tracking/OutputLibrary.h>
 #include <gui/Coordinates.h>
 #include <tracking/Outline.h>
 #include <tracking/Individual.h>
+#include <gui/Graph.h>
 
 namespace pv {
 struct CompressedBlob;
@@ -83,7 +83,7 @@ namespace gui {
         
         Color _previous_color;
         Output::Library::LibInfo _info;
-        double _library_y = Graph::invalid();
+        double _library_y = GlobalSettings::invalid();
         std::string circle_animator{ "recognition-circle-"+Meta::toStr((uint64_t)this) };
         bool _path_dirty{false};
         //ExternalImage _colored;

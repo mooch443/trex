@@ -1,6 +1,6 @@
 #include "FOI.h"
 #include <misc/GlobalSettings.h>
-#include <tracking/ConfirmedCrossings.h>
+#include <gui/types/Basic.h>
 
 namespace track {
     IMPLEMENT(FOI::_mutex);
@@ -99,7 +99,7 @@ namespace track {
     }
 
     void FOI::add(FOI&& obj) {
-        ConfirmedCrossings::add_foi(obj);
+        //ConfirmedCrossings::add_foi(obj);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         _frames_of_interest[obj.id()].insert(std::move(obj));
@@ -132,7 +132,7 @@ namespace track {
     }
         
     void FOI::remove_frames(Frame_t frameIndex) {
-        ConfirmedCrossings::remove_frames(frameIndex);
+        //ConfirmedCrossings::remove_frames(frameIndex);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         for(auto && [type, set] : _frames_of_interest) {
@@ -146,7 +146,7 @@ namespace track {
     }
     
     void FOI::remove_frames(Frame_t frameIndex, long_t id) {
-        ConfirmedCrossings::remove_frames(frameIndex, id);
+        //ConfirmedCrossings::remove_frames(frameIndex, id);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         for(auto && [type, set] : _frames_of_interest) {

@@ -1,7 +1,8 @@
 #include "MemoryStats.h"
 #include <misc/pretty.h>
 #include <tracking/Tracker.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
+#include <misc/FOI.h>
 
 namespace mem {
 

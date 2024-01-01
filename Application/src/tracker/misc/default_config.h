@@ -7,6 +7,9 @@
 
 namespace default_config {
     using namespace cmn;
+
+    using graphs_type = std::vector<std::pair<std::string, std::vector<std::string>>>;
+    using default_options_type = std::unordered_map<std::string, std::vector<std::string>>;
     
     const std::string& homedir();
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn);

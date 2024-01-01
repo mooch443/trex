@@ -28,7 +28,6 @@
 #include <misc/TaskPipeline.h>
 #include <gui/Scene.h>
 
-#include <tracking/TileImage.h>
 #include <misc/AbstractVideoSource.h>
 #include <misc/VideoVideoSource.h>
 #include <misc/WebcamVideoSource.h>
@@ -41,9 +40,9 @@
 #include <gui/TrackingScene.h>
 #include <gui/AnnotationScene.h>
 
-#include <tracking/Yolo8.h>
-#include <tracking/Yolo7InstanceSegmentation.h>
-#include <tracking/Yolo7ObjectDetection.h>
+#include <python/Yolo8.h>
+#include <python/Yolo7InstanceSegmentation.h>
+#include <python/Yolo7ObjectDetection.h>
 
 #include <file/PathArray.h>
 #include <misc/SettingsInitializer.h>
@@ -55,8 +54,6 @@
 #endif
 
 using namespace cmn;
-
-struct TileImage;
 
 std::string date_time() {
     time_t rawtime;
@@ -89,7 +86,7 @@ TRexTask determineTaskType() {
                not output_file.empty()
                && output_file.add_extension("pv").exists())
     {
-        SETTING(source) = file::PathArray({ output_file });
+        SETTING(source) = file::PathArray(output_file);
         return TRexTask_t::track;
         
     } else if (auto front = array.get_paths().front();
@@ -101,10 +98,19 @@ TRexTask determineTaskType() {
                       file::DataLocation::parse("input", front.replace_extension("pv"));
 
         if (output_file.exists()) {
-            SETTING(source) = file::PathArray({ output_file });
+            SETTING(source) = file::PathArray(output_file);
             return TRexTask_t::track;
         } else {
-            return TRexTask_t::convert;
+            output_file = !front.has_extension() ?
+                          file::DataLocation::parse("output", front.add_extension("pv")) :
+                          file::DataLocation::parse("output", front.replace_extension("pv"));
+            if (output_file.exists()) {
+                SETTING(source) = file::PathArray(output_file);
+                SETTING(filename) = file::Path(output_file);
+                return TRexTask_t::track;
+            } else {
+                return TRexTask_t::convert;
+            }
         }
         
     } else {
@@ -147,7 +153,7 @@ void launch_gui() {
             else {
                 GlobalSettings::map().set_print_by_default(true);
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
-                SETTING(source) = file::PathArray({ segmenter->output_file_name() });
+                SETTING(source) = file::PathArray(segmenter->output_file_name());
 				manager.set_active("tracking-scene");
 			}
         },
@@ -374,6 +380,7 @@ int main(int argc, char**argv) {
      */
     //SETTING(meta_video_scale) = float(1);
     SETTING(source) = file::PathArray();
+    SETTING(source).get().set_do_print(true);
     SETTING(model) = file::Path("");
     SETTING(region_model) = file::Path("");
     SETTING(region_resolution) = uint16_t(320);
@@ -406,11 +413,13 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    GlobalSettings::map().register_callbacks({"source", "meta_source_path"}, [](auto key){
+    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename"}, [](auto key){
         if(key == "source")
             print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
             print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
+        else if(key == "filename")
+            print("Changed filename to ", SETTING(filename).value<file::Path>());
     });
     
     for(auto a : CommandLine::instance()) {

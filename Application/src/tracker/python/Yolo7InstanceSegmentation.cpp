@@ -1,4 +1,4 @@
-#include <tracking/Yolo7InstanceSegmentation.h>
+#include <python/Yolo7InstanceSegmentation.h>
 #include <tracking/PythonWrapper.h>
 #include <processing/CPULabeling.h>
 #include <misc/AbstractVideoSource.h>

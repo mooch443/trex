@@ -3,7 +3,7 @@
 #include <commons.pc.h>
 #include <misc/SoftException.h>
 #include <misc/GlobalSettings.h>
-#include <tracking/Network.h>
+#include <python/Network.h>
 #include <misc/PackLambda.h>
 
 namespace Python {

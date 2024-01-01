@@ -29,7 +29,7 @@ namespace Output {
     // , const std::function<float(float)>& options
 #define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
 #define _LIBFNC(CONTENT) LIBPARAM -> float \
-{ auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return gui::Graph::invalid(); CONTENT }
+{ auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
     
 #define _LIBGLFNC(CONTENT) LIBPARAM -> double \
@@ -99,8 +99,6 @@ namespace Output {
         
         
     public:
-        typedef std::vector<std::pair<std::string, std::vector<std::string>>> graphs_type;
-        typedef std::unordered_map<std::string, std::vector<std::string>> default_options_type;
         
         struct LibInfo {
             size_t rec_depth;
