@@ -38,6 +38,10 @@ struct Detection {
         static auto instance = PipelineManager<TileImage>(max(1u, SETTING(batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full
             // i.e. py::execute()
+#ifndef NDEBUG
+            if(images.empty())
+                FormatExcept("Images is empty :(");
+#endif
             Detection::apply(std::move(images));
         });
         return instance;

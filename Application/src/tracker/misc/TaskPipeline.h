@@ -132,6 +132,10 @@ public:
             static decltype(_images) packet;
             {
                 std::scoped_lock guard(_mutex, _task_mutex);
+#ifndef NDEBUG
+                if(_images.empty())
+                    FormatError("Images empty: ", BaseTask<Data>::_weight);
+#endif
                 std::swap(_images, packet);
                 _images.clear();
                 BaseTask<Data>::_weight = 0;
