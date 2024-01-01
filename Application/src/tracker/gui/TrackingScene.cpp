@@ -41,7 +41,7 @@ const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map
 };
 
 TrackingState::TrackingState()
-  : video(SETTING(filename).value<file::Path>(), pv::FileMode::READ),
+  : video(file::DataLocation::parse("output", SETTING(filename).value<file::Path>()), pv::FileMode::READ),
     tracker(Image::Make(this->video.average()), this->video),
     analysis(
       {
@@ -427,9 +427,6 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
 }
 
 void TrackingState::init_video() {
-    
-    settings::load(default_config::TRexTask_t::track, {});
-    
     /*SettingsMaps combined;
     const auto set_combined_access_level = [&combined](auto& name, AccessLevel level) {
         combined.access_levels[name] = level;

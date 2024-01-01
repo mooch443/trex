@@ -2,15 +2,9 @@
 #include <commons.pc.h>
 #include <misc/TileImage.h>
 #include <misc/TaskPipeline.h>
+#include <misc/DetectionTypes.h>
 
 namespace track {
-
-ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg, yolo8, customseg, background_subtraction);
-static inline ObjectDetectionType::Class detection_type() {
-    return SETTING(detection_type).value<ObjectDetectionType::Class>();
-}
-
-Size2 get_model_image_size();
 
 template<typename T>
 concept MultiObjectDetection = requires (std::vector<TileImage> tiles) {
@@ -30,7 +24,7 @@ concept ObjectDetection = MultiObjectDetection<T> || SingleObjectDetection<T>;
 struct Detection {
     Detection();
     
-    static ObjectDetectionType::Class type();
+    static detect::ObjectDetectionType::Class type();
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
 
@@ -55,7 +49,7 @@ struct BackgroundSubtraction {
     BackgroundSubtraction(Image::Ptr&& = nullptr);
     static void set_background(Image::Ptr&&);
     
-    static ObjectDetectionType::Class type() { return ObjectDetectionType::background_subtraction; }
+    static detect::ObjectDetectionType::Class type() { return detect::ObjectDetectionType::background_subtraction; }
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
 

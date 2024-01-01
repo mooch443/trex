@@ -1,11 +1,44 @@
 #include "DetectionTypes.h"
 #include <misc/metastring.h>
 #include <misc/SoftException.h>
-
+#include <misc/GlobalSettings.h>
 
 using namespace cmn;
 
 namespace track::detect {
+ObjectDetectionType::Class detection_type() {
+    return SETTING(detection_type).value<ObjectDetectionType::Class>();
+}
+
+Size2 get_model_image_size() {
+    auto detection_resolution = Size2(SETTING(detection_resolution).value<uint16_t>());
+    if(detection_type() == ObjectDetectionType::background_subtraction) {
+        return SETTING(meta_video_size).value<Size2>();
+        
+    } else if (detection_type() == ObjectDetectionType::yolo8) {
+        const auto meta_video_size = SETTING(meta_video_size).value<Size2>();
+        const auto detection_resolution = SETTING(detection_resolution).value<uint16_t>();
+        const auto region_resolution = SETTING(region_resolution).value<uint16_t>();
+
+        Size2 size;
+        const float ratio = meta_video_size.height / meta_video_size.width;
+        if (region_resolution > 0 && not SETTING(region_model).value<file::Path>().empty()) {
+            const auto max_w = max((float)detection_resolution, (float)region_resolution * 2);
+            size = Size2(max_w, ratio * max_w);
+            size = meta_video_size;//.div(4);
+        }
+        else
+            size = Size2(detection_resolution, ratio * detection_resolution);
+
+        //print("Using a resolution of meta_video_size = ", meta_video_size, " and detection_resolution = ", detection_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
+        //return meta_video_size.div(2);
+        return size;
+    }
+    else {
+        return Size2(detection_resolution);
+    }
+}
+
     std::string Keypoint::toStr() const {
         return "Keypoint<" + Meta::toStr(bones) + ">";
     }

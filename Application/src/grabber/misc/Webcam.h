@@ -1,7 +1,7 @@
 #ifndef _WEBCAM_H
 #define _WEBCAM_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <video/Video.h>
 #include "Camera.h"
 

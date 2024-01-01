@@ -8,6 +8,7 @@
 #include <file/PathArray.h>
 #include <python/Yolo8.h>
 #include <gui/dyn/Action.h>
+#include <misc/SettingsInitializer.h>
 
 namespace gui {
 
@@ -132,7 +133,7 @@ void StartingScene::activate() {
         for (auto& key : item._options.keys())
             item._options[key].get().copy_to(&GlobalSettings::map());
         
-        CommandLine::instance().load_settings();
+        //CommandLine::instance().load_settings();
         
         //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
         //SceneManager::getInstance().set_active("convert-scene");
@@ -166,13 +167,19 @@ void StartingScene::_draw(DrawStructure& graph) {
                             file::PathArray array;
                             if(item._options.has("source"))
                                 array = item._options.at("source").value<file::PathArray>();
+                            if(array.empty()
+                               && item._options.has("meta_source_path")) 
+                            {
+                                array = { item._options.at("meta_source_path").value<std::string>() };
+                            }
+                            file::Path filename;
+                            if(item._options.has("filename"))
+                                filename = item._options.at("filename").value<file::Path>();
                             
                             auto path = pv_file_path_for(array);
+                            settings::load(array, filename, default_config::TRexTask_t::convert, {}, item._options);
 
-                            for (auto& key : item._options.keys())
-                                item._options[key].get().copy_to(&GlobalSettings::map());
-
-                            CommandLine::instance().load_settings();
+                            //CommandLine::instance().load_settings();
                             
                             //if(not path.empty())
                             //    SceneManager::getInstance().set_active("tracking-settings-scene");

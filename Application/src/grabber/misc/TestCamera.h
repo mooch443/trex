@@ -1,7 +1,7 @@
 #ifndef _TESTCAM_H
 #define _TESTCAM_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include "Camera.h"
 
 namespace fg {

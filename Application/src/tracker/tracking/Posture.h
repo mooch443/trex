@@ -1,7 +1,7 @@
 #ifndef _POSTURE_H
 #define _POSTURE_H
 
-#include <types.h>
+#include <commons.pc.h>
 
 #include "Outline.h"
 #include <misc/bid.h>

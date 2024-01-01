@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
 #if WITH_MHD
 #include <http/httpd.h>
 #include <gui/DrawHTMLBase.h>

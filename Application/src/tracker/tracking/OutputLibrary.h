@@ -1,7 +1,7 @@
 #ifndef _OUTPUT_LIBRARY_H
 #define _OUTPUT_LIBRARY_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <tracking/Individual.h>
 #include <misc/GlobalSettings.h>
 #include <gui/Graph.h>

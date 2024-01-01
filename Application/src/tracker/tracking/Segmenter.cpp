@@ -173,22 +173,25 @@ void Segmenter::open_video() {
     SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
     
     if (SETTING(filename).value<file::Path>().empty()) {
+        throw U_EXCEPTION("Filename was empty for converting a video.");
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::Path(video_base.base()).filename()));
     }
     
+    _output_file_name = SETTING(filename).value<file::Path>();
+    
     print("source = ", SETTING(source).value<file::PathArray>());
-    print("output = ", SETTING(filename).value<file::Path>());
+    print("output = ", _output_file_name);
     print("video_base = ", video_base.base());
     print("length = ", video_base.length());
     print("frame_rate = ", video_base.framerate());
 
     setDefaultSettings();
     _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
-    SETTING(meta_video_size).value<Size2>() = video_base.size();
+    SETTING(meta_video_size) = Size2(video_base.size());
     SETTING(output_size) = _output_size;
 
     if(std::unique_lock vlock(_mutex_video);
-       SETTING(track_background_subtraction))
+       track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction)
     {
         _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
            BackgroundSubtraction{},
@@ -238,7 +241,7 @@ void Segmenter::open_video() {
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
-    _output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    //_output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", _output_file_name);
 
     auto path = _output_file_name.remove_filename();
@@ -249,7 +252,7 @@ void Segmenter::open_video() {
     auto callback_after_generating = [this](cv::Mat& bg){
         {
             std::unique_lock guard(_mutex_tracker);
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
         }
         
         {
@@ -369,7 +372,7 @@ void Segmenter::open_camera() {
 
     {
         std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(get_model_image_size().width * 10));
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
     }
     static_assert(ObjectDetection<Detection>);
 
@@ -789,6 +792,7 @@ void Segmenter::setDefaultSettings() {
 void Segmenter::printDebugInformation() {
     DebugHeader("Starting tracking of");
     print("average at: ", average_name());
+    using namespace track::detect;
     if (detection_type() != ObjectDetectionType::yolo8) {
         print("model: ", SETTING(model).value<file::Path>());
     }

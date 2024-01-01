@@ -299,7 +299,7 @@
                         
                         {
                             "type": "stext",
-                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{basename:{global.source}}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.analysis_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
+                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{basename:{global.filename}}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.analysis_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
                             "font":{ "size":0.65 },
                             "shadow":0.5,
                             "pad":[-5,0,0,7.5]
