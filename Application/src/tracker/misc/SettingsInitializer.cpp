@@ -7,6 +7,7 @@
 #include <file/DataLocation.h>
 #include <misc/TrackingSettings.h>
 #include <gui/DrawStructure.h>
+#include <pv.h>
 
 using namespace cmn;
 using namespace track;
@@ -19,6 +20,8 @@ namespace settings {
  *  1. Settings are reset to default
  *  2. load default.settings
  *  3. load command-line (except exclude) => exclude?
+ *      3.1. if task == convert, load specific settings for the model type
+ *           but exclude everything from the command-line
  *  4. IF `source` / `filename` is empty, generate them based on task
  *  5. load `source` + `filename` .settings
  *  6. load sprite::Map passed to function
@@ -65,11 +68,15 @@ void load(file::PathArray source,
     
     combined.map.set_print_by_default(false);
     
+    /// ---------------------------------------------
     /// 1. setting default values, saved in combined:
+    /// ---------------------------------------------
     grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     ::default_config::get(combined.map, combined.docs, set_combined_access_level);
     
+    /// -----------------------------------------
     /// 2. load default.settings from app folder:
+    /// -----------------------------------------
     auto default_path = file::DataLocation::parse("default.settings", {}, &combined.map);
     if (default_path.exists()) {
         try {
@@ -80,7 +87,9 @@ void load(file::PathArray source,
         }
     }
     
+    /// ---------------------------------------------------
     /// 3. get cmd arguments and overwrite stuff with them:
+    /// ---------------------------------------------------
     auto& cmd = CommandLine::instance();
     combined.map.set_print_by_default(true);
     
@@ -90,9 +99,35 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
     
     auto copy = exclude_parameters + std::array{ "filename", "source" };
+    auto all = copy + extract_keys(cmd.settings_keys());
     cmd.load_settings(nullptr, &combined.map, copy.toVector());
     
+    /// ---------------------------
+    /// 3.1. defaults based on task
+    /// ---------------------------
+    if(task == TRexTask_t::convert) {
+        static const sprite::Map values {
+            "track_threshold", 0,
+            "track_posture_threshold", 0,
+            "track_background_subtraction", false,
+            "calculate_posture", false,
+            "meta_encoding", grab::default_config::meta_encoding_t::r3g3b2,
+            "track_do_history_split", false
+        };
+        
+        auto exclude = exclude_parameters + extract_keys( cmd.settings_keys() );
+        combined.map.set_print_by_default(true);
+        for(auto &key : values.keys()) {
+            if(contains(exclude.toVector(), key))
+                continue;
+            values.at(key).get().copy_to(&combined.map);
+            //all.emplace_back(key); // < not technically "custom"
+        }
+    }
+    
+    /// ----------------------------------------
     /// 4. set the source / filename properties:
+    /// ----------------------------------------
     if(not filename.empty())
     {
         combined.map["filename"] = filename;
@@ -146,21 +181,29 @@ void load(file::PathArray source,
             : source;
         
         auto name = combined.map.at("filename").value<file::Path>();
-        auto filename = name.empty() ? name : file::DataLocation::parse("output", name, &combined.map);
+        auto filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &combined.map);
         if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
         {
             combined.map["filename"] = filename;
         } else {
-            file::Path path;
-            if(_source.size() == 1)
-                path = _source.get_paths().front();
-            file::Path filename = file::DataLocation::parse("input", path, &combined.map);
-            if(filename.is_regular() || filename.add_extension("pv").is_regular()) {
-                combined.map["filename"] = filename.remove_extension();
+            file::Path path = file::find_basename(_source);
+            if(task == TRexTask_t::track) {
+                file::Path filename = file::DataLocation::parse("input", path, &combined.map);
+                if(filename.is_regular() || filename.add_extension("pv").is_regular()) 
+                {
+                    
+                } else {
+                    filename = file::DataLocation::parse("output", path, &combined.map);
+                    
+                }
             } else {
                 filename = file::DataLocation::parse("output", path, &combined.map);
-                combined.map["filename"] = filename.remove_extension();
             }
+            
+            if(filename.has_extension() && filename.extension() != "pv")
+                filename = filename.remove_extension();
+            
+            combined.map["filename"] = filename;
         }
     }
     
@@ -174,7 +217,14 @@ void load(file::PathArray source,
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
     if(settings_file.exists()) {
         try {
-            warn_deprecated(settings_file, GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, copy.toVector(), &combined.map));
+            sprite::Map map;
+            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, copy.toVector(), &map, &combined.map);
+            warn_deprecated(settings_file, rejected);
+            
+            for(auto &key : map.keys()) {
+                map.at(key).get().copy_to(&combined.map);
+            }
+            all = all + map.keys();
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
@@ -189,6 +239,22 @@ void load(file::PathArray source,
     /// --------------------------------------
     print(source_map.at("track_background_subtraction"));
     print(source_map.at("track_threshold"));
+    
+    if(task == TRexTask_t::track) {
+        auto path = SETTING(filename).value<file::Path>();
+        
+        try {
+            pv::File f(path, pv::FileMode::READ);
+            const auto& meta = f.header().metadata;
+            combined.map.set_print_by_default(true);
+            
+            sprite::parse_values(combined.map, meta, &combined, all.toVector());
+            //default_config::warn_deprecated({}, GlobalSettings::load_from_string(default_config::deprecations(), combined.map, meta, AccessLevelType::PUBLIC));
+        } catch(const std::exception& ex) {
+            FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
+        }
+    }
+    
     for(auto& key : source_map.keys()) {
         if(contains(copy.toVector(), key))
         {
@@ -230,6 +296,13 @@ void load(file::PathArray source,
     print(SETTING(model));
     print(SETTING(region_model));
     print(SETTING(meta_source_path));
+    print(SETTING(track_background_subtraction));
+    print(SETTING(settings_file));
+    print(SETTING(track_threshold));
+    print(SETTING(calculate_posture));
+    print(SETTING(meta_encoding));
+    print(SETTING(track_do_history_split));
+    print("TRexTask = ", task);
 }
 
 void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {

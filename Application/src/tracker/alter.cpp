@@ -89,10 +89,8 @@ TRexTask determineTaskType() {
         SETTING(source) = file::PathArray(output_file);
         return TRexTask_t::track;
         
-    } else if (auto front = array.get_paths().front();
-               array.size() == 1)
-    { // TODO: not sure how this deals with patterns
-        //front = front.filename();
+    } else { // TODO: not sure how this deals with patterns
+        auto front = file::Path(file::find_basename(array));
         output_file = !front.has_extension() ?
                       file::DataLocation::parse("input", front.add_extension("pv")) :
                       file::DataLocation::parse("input", front.replace_extension("pv"));
@@ -112,10 +110,9 @@ TRexTask determineTaskType() {
                 return TRexTask_t::convert;
             }
         }
-        
-    } else {
-        return TRexTask_t::convert;
     }
+    
+    return TRexTask_t::convert;
 }
 
 void launch_gui() {
@@ -215,7 +212,7 @@ void launch_gui() {
 
     if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
         TRexTask taskType = determineTaskType();
-        settings::load({}, {}, taskType, {}, {});
+        settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), taskType, {}, {});
         manager.set_active(task_scenes[taskType]);
 
     } else {

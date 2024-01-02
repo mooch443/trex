@@ -765,10 +765,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 map["meta_real_width"] = float();
                 sprite::parse_values(map, metadata);
                 /*for(auto key : map.keys()) {
-                    print("Key: ", key, " Value: ", map[key].get().valueString());
-                }*/
+                 print("Key: ", key, " Value: ", map[key].get().valueString());
+                 }*/
                 if(map.has("meta_real_width"))
                     meta_real_width = map["meta_real_width"].value<float>();
+            } catch(const std::exception& ex) {
+                FormatExcept("Error parsing settings metadata from ", ref.filename(), ": ", ex.what());
             } catch(...) {
                 FormatExcept("Error parsing settings metadata from ", ref.filename(), ".");
             }
