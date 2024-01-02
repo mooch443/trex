@@ -273,19 +273,23 @@ void load(file::PathArray source,
     }
     
     for(auto &key : combined.map.keys()) {
-        if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
-           && (not GlobalSettings::has(key)
-               || GlobalSettings::map().at(key).get() != combined.map.at(key).get())
-           )
-        {
-            //if(not contains(copy.toVector(), key))
+        try {
+            if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
+               && (not GlobalSettings::has(key)
+                   || GlobalSettings::map().at(key).get() != combined.map.at(key).get())
+               )
             {
-                print("Updating ",combined.map.at(key));
-                combined.map.at(key).get().copy_to(&GlobalSettings::map());
-            } 
-            /*else {
-                print("Would be updating ",combined.map.at(key), " but is forbidden.");
-            }*/
+                //if(not contains(copy.toVector(), key))
+                {
+                    print("Updating ",combined.map.at(key));
+                    combined.map.at(key).get().copy_to(&GlobalSettings::map());
+                }
+                /*else {
+                 print("Would be updating ",combined.map.at(key), " but is forbidden.");
+                 }*/
+            }
+        } catch(const std::exception& ex) {
+            FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
         }
     }
     
