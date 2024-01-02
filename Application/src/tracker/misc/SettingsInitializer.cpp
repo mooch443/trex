@@ -301,6 +301,7 @@ void load(file::PathArray source,
     print(SETTING(region_model));
     print(SETTING(meta_source_path));
     print(SETTING(track_background_subtraction));
+    print(SETTING(cm_per_pixel));
     print(SETTING(settings_file));
     print(SETTING(track_threshold));
     print(SETTING(calculate_posture));

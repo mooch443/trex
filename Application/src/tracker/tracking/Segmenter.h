@@ -81,6 +81,7 @@ private:
     void setDefaultSettings();
     void printDebugInformation();
     void start_recording_ffmpeg();
+    void graceful_end();
 };
 
 }

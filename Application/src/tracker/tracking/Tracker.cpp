@@ -1722,12 +1722,15 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                         assert(ptr != nullptr);
                         auto pos_blob = ptr->center();
                         Match::prob_t dist = sqdistance(pos_fish.value().last_seen_px, pos_blob);
-                        Match::prob_t p = dist > 0 ?
-                                Match::prob_t(1.0) / dist / pos_fish.value().tdelta
-                             :  Match::prob_t(1.0) / pos_fish.value().tdelta;
+                        Match::prob_t p =
+                        pos_fish.value().local_tdelta == 0 ?
+                            std::numeric_limits<float>::infinity() :
+                              (dist > 0 ?
+                                    Match::prob_t(1.0) / dist / pos_fish.value().local_tdelta
+                                 :  Match::prob_t(1.0) / pos_fish.value().local_tdelta);
 #ifndef NDEBUG
                         if (std::isinf(p)) {
-                            throw U_EXCEPTION("Probability is invalid for ", fish->identity(), " in ", frameIndex, " (", pos_fish.value().last_seen_px, " -> ", pos_blob, ", tdelta=", pos_fish.value().tdelta,") => ", p);
+                            throw U_EXCEPTION("Probability is invalid for ", fish->identity(), " in ", frameIndex, " (", pos_fish.value().last_seen_px, " -> ", pos_blob, ", tdelta=", pos_fish.value().local_tdelta,") => ", p);
                         }
 #endif
                         for_this[blob] = p_threshold + p * (1 - p_threshold);

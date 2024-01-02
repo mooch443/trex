@@ -31,7 +31,7 @@ struct IndividualCache {
         return flags.test(static_cast<size_t>(flag));
     }*/
 
-    float tdelta;
+    //float tdelta;
     float local_tdelta;
     Frame_t previous_frame;
     int current_category;

@@ -252,7 +252,8 @@ void Segmenter::open_video() {
     auto callback_after_generating = [this](cv::Mat& bg){
         {
             std::unique_lock guard(_mutex_tracker);
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
+            if(not _tracker)
+                _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
         }
         
         {
@@ -265,19 +266,37 @@ void Segmenter::open_video() {
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
     if(do_generate_average) {
-        average_generator = std::async(std::launch::async, [callback_after_generating, size = _output_size](){
+        average_generator = std::async(std::launch::async, [callback_after_generating, size = _output_size]()
+        {
             cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC1);
             bg.setTo(255);
+            float last_percent = 0;
+            last_percent = 0;
             
             VideoSource tmp(SETTING(source).value<file::PathArray>());
             tmp.set_colors(ImageMode::GRAY);
-            tmp.generate_average(bg, 0);
+            tmp.generate_average(bg, 0, [&last_percent](float percent) {
+                if(percent > last_percent + 10
+                   || percent >= 0.99)
+                {
+                    print("[average] Generating average ", int(percent * 100), "%");
+                    last_percent = percent;
+                }
+            });
             cv::imwrite(average_name().str(), bg);
             
             print("** generated average ", bg.channels());
-            BackgroundSubtraction::set_background(Image::Make(bg));
+            if(detect::detection_type() == detect::ObjectDetectionType::background_subtraction)
+                BackgroundSubtraction::set_background(Image::Make(bg));
             callback_after_generating(bg);
         });
+        
+        /// if background subtraction is disabled for tracking, we don't need to
+        /// wait for the average image to generate first:
+        if(not FAST_SETTING(track_background_subtraction)) {
+            auto image_size = _output_size;
+            _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, 1), float(track::detect::get_model_image_size().width * 10));
+        }
         
     } else {
         BackgroundSubtraction::set_background(Image::Make(bg));
@@ -649,7 +668,9 @@ void Segmenter::tracking_thread() {
         return;
     
     {
-        if(average_generator.valid()) {
+        if(average_generator.valid()
+           && FAST_SETTING(track_background_subtraction))
+        {
             guard.unlock();
             try {
                 Timer timer;
@@ -669,6 +690,11 @@ void Segmenter::tracking_thread() {
                 guard.lock();
                 throw;
             }
+            
+        } else if(average_generator.valid()
+                  && average_generator.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+        {
+            average_generator.get();
         }
         
         Frame_t index;
@@ -734,10 +760,9 @@ void Segmenter::tracking_thread() {
             )
         {
             print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
-            if (eof_callback) {
-                eof_callback();
-                eof_callback = nullptr;
-            }
+            guard.unlock();
+            graceful_end();
+            guard.lock();
         }
 
         //thread_print("Waiting for next...");
@@ -753,6 +778,17 @@ void Segmenter::tracking_thread() {
 }
 
 void Segmenter::force_stop() {
+    graceful_end();
+}
+
+void Segmenter::graceful_end() {
+    std::unique_lock guard(_mutex_general);
+    if(average_generator.valid()) {
+        guard.unlock();
+        average_generator.get();
+        guard.lock();
+    }
+    
     if (eof_callback) {
         eof_callback();
         eof_callback = nullptr;

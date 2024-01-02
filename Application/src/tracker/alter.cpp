@@ -103,7 +103,7 @@ TRexTask determineTaskType() {
                           file::DataLocation::parse("output", front.add_extension("pv")) :
                           file::DataLocation::parse("output", front.replace_extension("pv"));
             if (output_file.exists()) {
-                SETTING(source) = file::PathArray(output_file);
+                //SETTING(source) = file::PathArray(output_file);
                 SETTING(filename) = file::Path(output_file);
                 return TRexTask_t::track;
             } else {
