@@ -242,16 +242,19 @@ void load(file::PathArray source,
     
     if(task == TRexTask_t::track) {
         auto path = SETTING(filename).value<file::Path>();
-        
-        try {
-            pv::File f(path, pv::FileMode::READ);
-            const auto& meta = f.header().metadata;
-            combined.map.set_print_by_default(true);
-            
-            sprite::parse_values(combined.map, meta, &combined, all.toVector());
-            //default_config::warn_deprecated({}, GlobalSettings::load_from_string(default_config::deprecations(), combined.map, meta, AccessLevelType::PUBLIC));
-        } catch(const std::exception& ex) {
-            FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
+        if(not path.has_extension() || path.extension() != "pv")
+            path = path.add_extension("pv");
+        if(path.is_regular()) {
+            try {
+                pv::File f(path, pv::FileMode::READ);
+                const auto& meta = f.header().metadata;
+                combined.map.set_print_by_default(true);
+                
+                sprite::parse_values(combined.map, meta, &combined, all.toVector());
+                //default_config::warn_deprecated({}, GlobalSettings::load_from_string(default_config::deprecations(), combined.map, meta, AccessLevelType::PUBLIC));
+            } catch(const std::exception& ex) {
+                FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
+            }
         }
     }
     
@@ -307,6 +310,7 @@ void load(file::PathArray source,
     print(SETTING(calculate_posture));
     print(SETTING(meta_encoding));
     print(SETTING(track_do_history_split));
+    print(SETTING(gpu_torch_device));
     print("TRexTask = ", task);
 }
 

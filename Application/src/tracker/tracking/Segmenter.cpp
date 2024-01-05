@@ -6,6 +6,7 @@
 #include <tracking/Output.h>
 #include <misc/CommandLine.h>
 #include <python/Yolo8.h>
+#include <misc/SettingsInitializer.h>
 
 namespace track {
 Timer start_timer;
@@ -40,6 +41,12 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 _output_file->close();
                 _output_file = nullptr;
                 
+                /// preserve all parameters
+                sprite::Map parm;
+                for(auto &key : GlobalSettings::map().keys())
+                    GlobalSettings::map().at(key).get().copy_to(&parm);
+                    
+                ::settings::load(SETTING(source).value<file::PathArray>(), file::Path(output_file_name()), default_config::TRexTask_t::track, {}, parm);
                 
                 try {
                     pv::File test(filename, pv::FileMode::READ);

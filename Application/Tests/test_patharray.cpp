@@ -6,6 +6,7 @@
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
 #include <misc/checked_casts.h>
+#include <file/Path.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -659,6 +660,90 @@ TEST(PathConcatenation, AbsoluteToRelative) {
     EXPECT_EQ((lhs / rhs).str(), "/path/to/relative");  // Multiple separators should be handled correctly
 }
 
+TEST(ExtensionTests, DotsInPath) {
+    Path lhs("/path/to/a.file.with.dots/thatsalso.with.dots");
+    EXPECT_EQ(lhs.extension(), "dots");
+}
+
+TEST(ExtensionTests, NoDotsInPath) {
+    Path lhs("/path/to/afilewithoutdots/thatsalso.with.dots");
+    EXPECT_EQ(lhs.extension(), "dots");
+}
+
+TEST(ExtensionTests, CommonExtensions) {
+    Path lhs1("/path/to/file.txt");
+    EXPECT_EQ(lhs1.extension(), "txt");
+
+    Path lhs2("/another/path/image.jpeg");
+    EXPECT_EQ(lhs2.extension(), "jpeg");
+}
+
+TEST(ExtensionTests, NoExtension) {
+    Path lhs("/path/to/afilewithoutextension/");
+    EXPECT_EQ(lhs.extension(), "");
+}
+
+TEST(ExtensionTests, MultipleDotsInFilename) {
+    Path lhs("/path/to.a/file.with.many.dots.ext");
+    EXPECT_EQ(lhs.extension(), "ext");
+}
+
+TEST(ExtensionTests, HiddenFiles) {
+    Path lhs("/path/.hiddenfile");
+    EXPECT_EQ(lhs.extension(), "");
+    
+    Path lhs2("/path/to/.another.hidden.ext");
+    EXPECT_EQ(lhs2.extension(), "ext");
+}
+
+TEST(ExtensionTests, DotAtEnd) {
+    Path lhs("/path/to/filewithdotatend.");
+    EXPECT_EQ(lhs.extension(), "");
+}
+
+TEST(ExtensionTests, MultipleExtensions) {
+    Path lhs("/path/to/file.tar.gz");
+    EXPECT_EQ(lhs.extension(), "gz");
+}
+
+TEST(ExtensionTests, NoBasename) {
+    Path lhs("/path/to/.ext");
+    EXPECT_EQ(lhs.extension(), "ext");
+}
+
+TEST(ExtensionTests, UnusualCharactersInExtension) {
+    Path lhs("/path/to/file.@#$.weird");
+    EXPECT_EQ(lhs.extension(), "weird");
+}
+
+TEST(ExtensionTests, EmptyString) {
+    Path lhs("");
+    EXPECT_EQ(lhs.extension(), "");
+}
+
+TEST(ExtensionTests, OnlyDots) {
+    Path lhs("....");
+    EXPECT_EQ(lhs.extension(), "");
+    
+    Path lhs2("/path/to/....");
+    EXPECT_EQ(lhs2.extension(), "");
+}
+
+TEST(ExtensionTests, SpacesInPath) {
+    Path lhs("/path/ to /file with spaces.ext");
+    EXPECT_EQ(lhs.extension(), "ext");
+}
+
+TEST(ExtensionTests, SpecialCharactersInPath) {
+    Path lhs("/path/to/file!@#$%^&*().ext");
+    EXPECT_EQ(lhs.extension(), "ext");
+}
+
+TEST(ExtensionTests, DotsOnlyInPath) {
+    Path lhs("/path/to/a.file.without/dots");
+    EXPECT_EQ(lhs.extension(), "");
+}
+
 // Test the constructor and normalization of path separators
 TEST(PathNormalization, SeparatorNormalization) {
     Path p1("path\\to\\directory");  // Assuming NOT_OS_SEP is '\\'
@@ -769,6 +854,119 @@ TEST(PathArrayTest, CopyAndMoveConstructors) {
     file::_PathArray<MockFilesystem> moved = std::move(original);  // Move constructor
     EXPECT_EQ(moved.get_paths().size(), 1);  // Expect one path in the moved object
     EXPECT_TRUE(original.get_paths().empty());  // Original should be empty after move
+}
+
+
+// Define a struct to hold the parameters
+struct PathTestParams {
+    std::string path;
+    std::string expectedStr;
+    std::string expectedFilename;
+};
+
+// Define PrintTo for PathTestParams
+void PrintTo(const PathTestParams& params, std::ostream* os) {
+    *os << "PathTestParams{ path: \"" << params.path
+        << "\", expectedStr: \"" << params.expectedStr
+        << "\", expectedFilename: \"" << params.expectedFilename << "\" }";
+}
+
+// Optionally, define PrintTo for the Path class if you want more detailed output
+void PrintTo(const Path& p, std::ostream* os) {
+    *os << "Path{ str: \"" << p.str() << "\", filename: \"" << p.filename() << "\" }";
+}
+
+
+// Define the test fixture class
+class PathTest : public ::testing::TestWithParam<PathTestParams> {
+protected:
+    // You can set up variables here that will be used in each test
+};
+
+// Now, use the TEST_P macro to create your parameterized test cases
+TEST_P(PathTest, CorrectlyHandlesSeparators) {
+    auto params = GetParam();
+    Path p(params.path);
+    EXPECT_EQ(p.str(), params.expectedStr);
+    EXPECT_EQ(p.filename(), params.expectedFilename);
+}
+
+// Instantiate the test cases with the parameters for OS_SEP and NOT_OS_SEP
+INSTANTIATE_TEST_SUITE_P(Default, PathTest, ::testing::Values(
+  PathTestParams{file::make_path({"path", "to", "file"}),
+                 file::make_path({"path", "to", "file"}), "file"},
+
+  PathTestParams{file::make_path({"path", "to", "file"}, UseNotOsSep{}),
+                 file::make_path({"path", "to", "file"}), "file"},
+  PathTestParams{file::make_path({"path", "to.with.ext", "file"}, UseNotOsSep{}),
+                 file::make_path({"path", "to.with.ext", "file"}), "file"},
+  PathTestParams{file::make_path({"path", "to.with.ext", "file"}),
+                 file::make_path({"path", "to.with.ext", "file"}), "file"},
+
+  PathTestParams{file::make_path({"path", "to", "directory", ""}),
+                 file::make_path({"path", "to", "directory"}), "directory"},
+
+  PathTestParams{file::make_path({"path", "to", "directory", ""}, UseNotOsSep{}),
+                 file::make_path({"path", "to", "directory"}), "directory"},
+
+  PathTestParams{file::make_path({""}), file::make_path({""}), ""},
+  PathTestParams{file::make_path({""}, UseNotOsSep{}), file::make_path({""}), ""},
+  PathTestParams{"file", "file", "file"},
+  PathTestParams{"", "", ""},
+  
+  PathTestParams{file::make_path({"path", "to", ""}),
+                 file::make_path({"path", "to"}), "to"},
+
+  PathTestParams{file::make_path({"path", "to", ""}, UseNotOsSep{}),
+                 file::make_path({"path", "to"}), "to"},
+
+  PathTestParams{file::make_path({"path", "to", ".", "..", "file"}),
+                 file::make_path({"path", "to", ".", "..", "file"}), "file"},
+
+  PathTestParams{file::make_path({"path", "to", ".", "..", "file"}, UseNotOsSep{}),
+                 file::make_path({"path", "to", ".", "..", "file"}), "file"}
+  // Add more test cases as necessary
+));
+
+struct MakePathTestParams {
+    char separator;
+    std::vector<const char*> parts;
+    std::string expected;
+};
+
+class PathUtilTest : public ::testing::TestWithParam<MakePathTestParams> {
+protected:
+    // Setup and teardown, if needed
+};
+
+TEST_P(PathUtilTest, CorrectlyCreatesPath) {
+    auto &params = GetParam();
+    auto path = (params.separator == file::Path::os_sep()) ?
+        file::make_path(params.parts) :
+        file::make_path(params.parts, file::UseNotOsSep());
+    
+    EXPECT_EQ(path, params.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Default,
+    PathUtilTest,
+    ::testing::Values(
+        // Assuming file::Path::os_sep() returns '/' and file::Path::not_os_sep() returns '\\'
+      MakePathTestParams{file::Path::os_sep(), {"home", "user", "documents", "file.txt"}, "home/user/documents/file.txt"},
+      MakePathTestParams{file::Path::not_os_sep(), {"home", "user", "documents", "file.txt"}, "home\\user\\documents\\file.txt"},
+      MakePathTestParams{file::Path::os_sep(), {"", "", "home", "file.txt"}, "/home/file.txt"},
+      MakePathTestParams{file::Path::not_os_sep(), {"home", "", "", "file.txt"}, "home\\file.txt"},
+      MakePathTestParams{file::Path::os_sep(), {"home", "file.txt", "", ""}, "home/file.txt"},
+    MakePathTestParams{file::Path::os_sep(), {"", "home", "file.txt", "", ""}, "/home/file.txt"}
+        // Add more test cases as necessary
+    )
+);
+
+// Define PrintTo for PathTestParams
+void PrintTo(const MakePathTestParams& params, std::ostream* os) {
+    *os << "PathTestParams{ path: " << Meta::toStr(params.parts)
+        << ", expectedStr: \"" << params.expected<< "\" }";
 }
 
 int main(int argc, char **argv) {

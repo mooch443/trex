@@ -86,29 +86,24 @@ TRexTask determineTaskType() {
                not output_file.empty()
                && output_file.add_extension("pv").exists())
     {
-        SETTING(source) = file::PathArray(output_file);
+        //SETTING(source) = file::PathArray(output_file);
         return TRexTask_t::track;
         
-    } else { // TODO: not sure how this deals with patterns
+    } else if(output_file.empty()) {
         auto front = file::Path(file::find_basename(array));
-        output_file = !front.has_extension() ?
+        /*output_file = !front.has_extension() ?
                       file::DataLocation::parse("input", front.add_extension("pv")) :
-                      file::DataLocation::parse("input", front.replace_extension("pv"));
+                      file::DataLocation::parse("input", front.replace_extension("pv"));*/
 
+        output_file = (not front.has_extension() || front.extension() != "pv") ?
+                      file::DataLocation::parse("output", front.add_extension("pv")) :
+                      file::DataLocation::parse("output", front.replace_extension("pv"));
         if (output_file.exists()) {
-            SETTING(source) = file::PathArray(output_file);
+            //SETTING(source) = file::PathArray(output_file);
+            //SETTING(filename) = file::Path(output_file);
             return TRexTask_t::track;
         } else {
-            output_file = !front.has_extension() ?
-                          file::DataLocation::parse("output", front.add_extension("pv")) :
-                          file::DataLocation::parse("output", front.replace_extension("pv"));
-            if (output_file.exists()) {
-                //SETTING(source) = file::PathArray(output_file);
-                SETTING(filename) = file::Path(output_file);
-                return TRexTask_t::track;
-            } else {
-                return TRexTask_t::convert;
-            }
+            return TRexTask_t::convert;
         }
     }
     
@@ -150,13 +145,6 @@ void launch_gui() {
             else {
                 GlobalSettings::map().set_print_by_default(true);
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
-                
-                /// preserve all parameters
-                sprite::Map parm;
-                for(auto &key : GlobalSettings::map().keys())
-                    GlobalSettings::map().at(key).get().copy_to(&parm);
-                    
-                settings::load(SETTING(source).value<file::PathArray>(), file::Path(segmenter->output_file_name()), default_config::TRexTask_t::track, {}, parm);
 				manager.set_active("tracking-scene");
 			}
         },
