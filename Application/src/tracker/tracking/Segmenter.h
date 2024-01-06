@@ -44,6 +44,8 @@ class Segmenter {
     
     std::function<void(float)> progress_callback;
     std::future<void> average_generator;
+    std::atomic<bool> _average_terminate_requested{false};
+    std::atomic<float> _average_percent{0};
     std::function<void(std::string)> error_callback;
     std::function<void()> eof_callback;
     
@@ -70,7 +72,7 @@ public:
     file::Path output_file_name() const;
     void force_stop();
     std::optional<std::string_view> video_recovered_error() const;
-    
+    float average_percent() const { return min(_average_percent.load(), 1.f); }
     std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
     
 private:

@@ -278,7 +278,7 @@
             "fade_out":1.0,
             "color":[250,250,250],
             "pad":[3,3,3,3],
-            "text":"<h2>Advanced Settings</h2>detect_iou_threshold={#global.detect_iou_threshold} detect_conf_threshold={#global.detect_conf_threshold} track_threshold={#global.track_threshold} averaging_method={#global.averaging_method} track_posture_threshold={#global.track_posture_threshold} track_background_subtraction={#global.track_background_subtraction} model=<str>{global.model}</str> region_model=<str>{global.region_model}</str>",
+            "text":"<h2>Advanced Settings</h2>detect_iou_threshold={#global.detect_iou_threshold} detect_conf_threshold={#global.detect_conf_threshold} track_threshold={#global.track_threshold} averaging_method={#global.averaging_method} track_posture_threshold={#global.track_posture_threshold} track_background_subtraction={#global.track_background_subtraction} model=<str>{global.detect_model}</str> region_model=<str>{global.region_model}</str>",
             "font":{ "size":0.65 }
         }
     ]},

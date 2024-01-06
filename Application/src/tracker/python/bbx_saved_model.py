@@ -617,7 +617,7 @@ class TRexYOLO8:
 
         return results
     
-    def detection_resolution(self) -> int:
+    def detect_resolution(self) -> int:
         """
         Retrieves the trained resolution of the detection or segmentation model.
 
@@ -715,7 +715,7 @@ class TRexYOLO8:
             images = all_images, 
             conf = confs, 
             iou = ious, 
-            imgsz = self.detection_resolution(),
+            imgsz = self.detect_resolution(),
             #imgsz=160,
             classes=None, 
             agnostic_nms=True,
@@ -930,7 +930,7 @@ class TRexYOLO8:
 
         w, h, c = tensor[0].shape[1], tensor[0].shape[0], tensor[0].shape[2]
         #print("tensor[0].shape = ",tensor[0].shape)
-        #print("resolution = ",self.detection_resolution())
+        #print("resolution = ",self.detect_resolution())
 
         # get total memory of the gpu:
         total_memory = TRexYOLO8.get_free_memory(self.detection_model().device) * 0.75
@@ -953,7 +953,7 @@ class TRexYOLO8:
                                             conf = conf_threshold, 
                                             iou = iou_threshold, 
                                             #offsets = offsets, 
-                                            imgsz = self.detection_resolution(),
+                                            imgsz = self.detect_resolution(),
                                             classes=None, 
                                             agnostic_nms=True,
                                             verbose = False,
@@ -969,7 +969,7 @@ class TRexYOLO8:
                                         conf = conf_threshold, 
                                         iou = iou_threshold, 
                                         #offsets = offsets, 
-                                        imgsz = self.detection_resolution(),
+                                        imgsz = self.detect_resolution(),
                                         classes=None, 
                                         agnostic_nms=True,
                                         verbose = False,

@@ -41,9 +41,9 @@ Once installed, you can execute TRex using the following command:
 
 .. code-block:: bash
 
-    trexa -i video.mp4 -m model.pt -detection_resolution 640
+    trexa -i video.mp4 -m model.pt -detect_resolution 640
 
-The `detection_resolution` parameter is 640 by default, so in most cases you won't need to specify it. This works for both segmentation and object detection.
+The `detect_resolution` parameter is 640 by default, so in most cases you won't need to specify it. This works for both segmentation and object detection.
 
 Advanced Usage
 ==============
@@ -66,7 +66,7 @@ Below is a list of various command-line arguments that you can use with the TRex
     - `model` (file path, no default)  # Path to the object detection or instance segmentation model
     - `region_model` (file path, no default)  # Path to the region prediction model
     - `region_resolution` (uint16_t, default=320)  # Resolution for region prediction tasks
-    - `detection_resolution` (uint16_t, default=640)  # Resolution for detection tasks
+    - `detect_resolution` (uint16_t, default=640)  # Resolution for detection tasks
     - `filename` (file path, no default)  # Output file name
     - `meta_classes` (std::vector<std::string>{}, default=empty)  # Class names for object classification in video during conversion
     - `detection_type` (enum, default=yolo8)  # Type of object detection model. Possible values: yolo7, yolo7seg, yolo8, customseg

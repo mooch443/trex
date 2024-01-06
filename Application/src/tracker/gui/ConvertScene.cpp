@@ -586,10 +586,18 @@ dyn::DynamicGUI ConvertScene::init_gui() {
     
     context.actions = {
         ActionFunc("terminate", [this](auto) {
-            if (_segmenter)
-                _segmenter->force_stop();
-            else
-                SceneManager::getInstance().set_active("starting-scene");
+            _exec_main_queue.enqueue([&](IMGUIBase*, DrawStructure& graph){
+                graph.dialog([&](Dialog::Result result){
+                    
+                    if(result == Dialog::OKAY) {
+                        if (_segmenter)
+                            _segmenter->force_stop();
+                        else
+                            SceneManager::getInstance().set_active("starting-scene");
+                    }
+                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to ");
+            });
+            
         }),
         ActionFunc("set", [](const Action& action) {
             auto name = action.parameters.at(0);
@@ -638,13 +646,10 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             return file::DataLocation::parse("output", props.first());
         }),
         VarFunc("output_name", [](const VarProps& ) -> file::Path {
-            auto source = SETTING(source).value<file::PathArray>();
-            auto base = file::find_basename(source);
-            return file::DataLocation::parse("output", base);
+            return SETTING(filename).value<file::Path>();
         }),
         VarFunc("output_base", [](const VarProps& ) -> file::Path {
-            auto source = SETTING(source).value<file::PathArray>();
-            return file::find_basename(source);
+            return SETTING(filename).value<file::Path>().filename();
         }),
         VarFunc("gpu_device", [](const VarProps&) -> std::string {
             using namespace default_config;
@@ -666,11 +671,24 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         VarFunc("average_is_generating", [this](const VarProps&) {
             return _segmenter->is_average_generating();
         }),
+        VarFunc("average_percent", [this](const VarProps&) {
+            return _segmenter->average_percent();
+        }),
         VarFunc("actual_frame", [this](const VarProps&) {
             return _actual_frame;
         }),
         VarFunc("video", [](const VarProps&) -> sprite::Map& {
             return _video_info;
+        }),
+        VarFunc("num_tracked", [this](const VarProps&) -> size_t {
+            size_t count{0u};
+            for(auto &v : _tracked_properties) {
+                if(not v || not v->has("visible") || not v->has("tracked"))
+                    continue;
+                if(v->at("tracked").value<bool>() && v->at("visible").value<bool>())
+                    ++count;
+            }
+            return count;
         }),
         VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
             return _tracked_gui;
@@ -694,6 +712,8 @@ dyn::DynamicGUI ConvertScene::init_gui() {
 void ConvertScene::_draw(DrawStructure& graph) {
     bool dirty = fetch_new_data();
     dirty = true;
+    
+    _exec_main_queue.processTasks(static_cast<IMGUIBase*>(window()), graph);
 
     if(window()) {
         auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());

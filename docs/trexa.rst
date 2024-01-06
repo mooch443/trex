@@ -60,7 +60,7 @@ Here is a table of parameters for TRexA:
 - `-i path/to/video.mp4`: Defines the input video.
 - `-d path/to/output/folder`: Specifies the directory for the output .pv file and other resulting files.
 - `-m path/to/model.pt`: Specifies a PyTorch model for segmentation/bbx detection/keypoint detection of video frames or a region cropped by a region model.
-- `-dim/-detection_resolution`: Sets the resolution for the `-m` model.
+- `-dim/-detect_resolution`: Sets the resolution for the `-m` model.
 - `-region_resolution`: Sets the resolution for the region proposal network.
 - `-bm path/to/region_model.pt` (optional): Specifies a region proposal network (bounding box detection) that crops out certain regions from a larger image.
 - `-tile_image N`: Tiles the image into a grid of `N` crops, each of which will be processed by the `-m` model.
@@ -76,7 +76,7 @@ I use both trex and trexa for the conversions with the following parameters:
 
 .. code-block:: bash
 
-    trexa -d output/folder/path -i GH014629.MP4 -m /path/to/160-yolov8n-seg-cropped-2023-06-07-22_dtcrop_-1-mAP5095_0.74629-mAP50_0.995.pt -bm /path/to/480-yolov8n-2023-06-07-23_joint_dataset_dts1_dttr2-1-mAP5095_0.65648-mAP50_0.96707.pt -detection_resolution 160 -region_resolution 480 -detect_iou_threshold 0.5
+    trexa -d output/folder/path -i GH014629.MP4 -m /path/to/160-yolov8n-seg-cropped-2023-06-07-22_dtcrop_-1-mAP5095_0.74629-mAP50_0.995.pt -bm /path/to/480-yolov8n-2023-06-07-23_joint_dataset_dts1_dttr2-1-mAP5095_0.65648-mAP50_0.96707.pt -detect_resolution 160 -region_resolution 480 -detect_iou_threshold 0.5
 
 This launches a user interface where you can experiment with the impact of various parameters on tracking and other tasks. Please note that the `cm_per_pixel` parameter may be incorrectly set, and tracking may not work optimally at this time. If the program closes without reporting any issues, you can open the resulting file for tracking:
 

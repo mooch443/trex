@@ -15,6 +15,8 @@
 #include <gui/Skelett.h>
 #include <gui/Bowl.h>
 
+#include <gui/GUITaskQueue.h>
+
 namespace gui {
 
 using namespace dyn;
@@ -75,6 +77,7 @@ class ConvertScene : public Scene {
     ScreenRecorder _recorder;
     std::future<std::string> _retrieve_video_info;
     std::string _recovered_error;
+    TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
     
 public:
     ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate);

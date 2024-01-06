@@ -273,7 +273,7 @@ void Segmenter::open_video() {
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
     if(do_generate_average) {
-        average_generator = std::async(std::launch::async, [callback_after_generating, size = _output_size]()
+        average_generator = std::async(std::launch::async, [this, callback_after_generating, size = _output_size]()
         {
             cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC1);
             bg.setTo(255);
@@ -282,13 +282,16 @@ void Segmenter::open_video() {
             
             VideoSource tmp(SETTING(source).value<file::PathArray>());
             tmp.set_colors(ImageMode::GRAY);
-            tmp.generate_average(bg, 0, [&last_percent](float percent) {
+            tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
                 if(percent > last_percent + 10
                    || percent >= 0.99)
                 {
                     print("[average] Generating average ", int(percent * 100), "%");
                     last_percent = percent;
                 }
+                _average_percent = percent;
+                
+                return not _average_terminate_requested.load();
             });
             cv::imwrite(average_name().str(), bg);
             
@@ -792,7 +795,9 @@ void Segmenter::graceful_end() {
     std::unique_lock guard(_mutex_general);
     if(average_generator.valid()) {
         guard.unlock();
+        _average_terminate_requested = true;
         average_generator.get();
+        _average_terminate_requested = false;
         guard.lock();
     }
     

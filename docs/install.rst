@@ -90,21 +90,27 @@ Both are obviously similar in result, but there *are* differences (the local cha
 Local conda channel
 ===================
 
-In order to get your own (local) conda channel, all you need to do is make sure you have Anaconda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages from within the base environment (use ``conda deactivate``, until it says ``base`` on the left). It creates a virtual environment, within which it compiles/tests the software you are trying to build. You can install it using::
+In order to get your own (local) conda channel, all you need to do is make sure you have conda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages locally (use ``conda deactivate``, until it says ``base`` on the left). Now you should probably create a new build environment first, keeping your base environment clean::
 
-	conda install conda-build
+	conda create -n build conda-build git python
+	conda activate build
 
-After that, from within the conda ``base`` environment, clone the |trex| repository using::
+Once this is done, you can clone the |trex| repository and change your directory to the ``conda`` folder::
 
 	git clone --recursive https://github.com/mooch443/trex
 	cd trex/conda
 
-Now, from within that folder, run::
+Next, make sure you have Visual Studio 2019 installed (yes, this is an older version that you need to download from Microsoft's archive), or Xcode on macOS. Linux should work out of the box, and if not you could try to install `build-essential` first.
+
+Finally, you can build the package using::
 
 	./build_conda_package.bat # Windows
 	./build_conda_package.sh  # Linux, macOS
 
-This runs ``conda build .``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that. Although beware that you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
+This runs ``conda build .`` (+ possibly additional arguments), which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that.
+
+.. NOTE::
+	Note that if you want to add Pylon SDKs etc., you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
 
 After compilation was successful, |trex| can be installed using::
 

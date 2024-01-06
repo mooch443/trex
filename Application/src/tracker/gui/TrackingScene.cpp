@@ -1116,6 +1116,25 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 
                 throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
             }),
+            VarFunc("live_individuals", [this](const VarProps& props) -> size_t {
+                if(props.parameters.size() != 1)
+                    throw std::invalid_argument("Need exactly one argument for "+props.toStr());
+                
+                auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
+                {
+                    LockGuard guard(ro_t{}, "active");
+                    if(_state->tracker.properties(frame)) {
+                        size_t count{0u};
+                        for(auto fish : Tracker::active_individuals(frame)) {
+                            if(fish->has(frame))
+                                ++count;
+                        }
+                        return count;
+                    }
+                }
+                
+                throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
+            }),
             VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                 return window_size;
             }),
