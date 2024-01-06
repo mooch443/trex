@@ -225,10 +225,10 @@ ENUM_CLASS_DOCS(meta_encoding_t,
             "track_background_subtraction",
             "model",
             "region_model",
-            "detection_resolution",
+            "detect_resolution",
             "region_resolution",
             "video_conversion_range",
-            "batch_size"
+            "detect_batch_size"
 
         }, "The given settings values will be written to the video file.");
 

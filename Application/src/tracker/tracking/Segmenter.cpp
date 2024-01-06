@@ -20,7 +20,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
     : error_callback(error_callback), eof_callback(eof_callback)
 {
     start_timer.reset();
-    Detection::manager().set_weight_limit(SETTING(batch_size).value<uchar>());
+    Detection::manager().set_weight_limit(SETTING(detect_batch_size).value<uchar>());
     _generator_group_id = REGISTER_THREAD_GROUP("Segmenter::GeneratorT");
     
     ThreadManager::getInstance().addThread(_generator_group_id, "generator-thread", ManagedThread{
@@ -335,8 +335,8 @@ void Segmenter::open_camera() {
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(SETTING(source).value<file::PathArray>())));
     
     if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
-        if(not CommandLine::instance().settings_keys().contains("model"))
-            SETTING(model) = file::Path(Yolo8::default_model());
+        if(not CommandLine::instance().settings_keys().contains("detect_model"))
+            SETTING(detect_model) = file::Path(Yolo8::default_model());
         if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
         {
             SETTING(save_raw_movie) = true;
@@ -837,13 +837,13 @@ void Segmenter::printDebugInformation() {
     print("average at: ", average_name());
     using namespace track::detect;
     if (detection_type() != ObjectDetectionType::yolo8) {
-        print("model: ", SETTING(model).value<file::Path>());
+        print("model: ", SETTING(detect_model).value<file::Path>());
     }
     else
-        print("model: ", SETTING(model).value<file::Path>());
+        print("model: ", SETTING(detect_model).value<file::Path>());
     print("region model: ", SETTING(region_model).value<file::Path>());
     print("video: ", SETTING(source).value<file::PathArray>());
-    print("model resolution: ", SETTING(detection_resolution).value<uint16_t>());
+    print("model resolution: ", SETTING(detect_resolution).value<uint16_t>());
     print("output size: ", SETTING(output_size).value<Size2>());
     print("output path: ", _output_file_name);
     print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());

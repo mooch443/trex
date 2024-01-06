@@ -21,7 +21,7 @@ std::string Yolo8::default_model() {
 }
 
 bool Yolo8::valid_model(const file::Path& path) {
-    std::string input_string = SETTING(model).value<file::Path>().str();
+    std::string input_string = SETTING(detect_model).value<file::Path>().str();
     std::regex regex_pattern("yolov8.*\\.pt");
     std::regex regex_pattern2("yolov8.*$");
 
@@ -41,16 +41,16 @@ bool Yolo8::valid_model(const file::Path& path) {
 void Yolo8::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
-    if(SETTING(model).value<file::Path>().empty()) {
+    if(SETTING(detect_model).value<file::Path>().empty()) {
         print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
-        SETTING(model) = file::Path("yolov8n-pose");
+        SETTING(detect_model) = file::Path("yolov8n-pose");
     }
 
     using namespace track::detect;
     std::vector<ModelConfig> models;
 
     // caching here since it can be modified above
-    auto path = SETTING(model).value<file::Path>();
+    auto path = SETTING(detect_model).value<file::Path>();
     if(valid_model(path)) {
         if(not path.has_extension()) {
             path = path.add_extension("pt"); // pytorch model
@@ -60,7 +60,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
             ModelTaskType::detect,
             SETTING(yolo8_tracking_enabled).value<bool>(),
             path.str(),
-            SETTING(detection_resolution).value<uint16_t>()
+            SETTING(detect_resolution).value<uint16_t>()
         );
         
     } else

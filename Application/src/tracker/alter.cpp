@@ -86,7 +86,7 @@ TRexTask determineTaskType() {
                not output_file.empty()
                && output_file.add_extension("pv").exists())
     {
-        //SETTING(source) = file::PathArray(output_file);
+        SETTING(filename) = file::Path(output_file);
         return TRexTask_t::track;
         
     } else if(output_file.empty()) {
@@ -100,7 +100,7 @@ TRexTask determineTaskType() {
                       file::DataLocation::parse("output", front.replace_extension("pv"));
         if (output_file.exists()) {
             //SETTING(source) = file::PathArray(output_file);
-            //SETTING(filename) = file::Path(output_file);
+            SETTING(filename) = file::Path(output_file);
             return TRexTask_t::track;
         } else {
             return TRexTask_t::convert;
@@ -384,15 +384,15 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detection_type", "cm_per_pixel", "track_background_subtraction"}, [](auto key){
+    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction"}, [](auto key){
         if(key == "source")
             print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
             print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
         else if(key == "filename")
             print("Changed filename to ", SETTING(filename).value<file::Path>());
-        else if(key == "detection_type")
-            print("Changed detection type to ", SETTING(detection_type));
+        else if(key == "detect_type")
+            print("Changed detection type to ", SETTING(detect_type));
         else if(key == "cm_per_pixel")
             print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
         else if(key == "track_background_subtraction")
@@ -409,8 +409,8 @@ int main(int argc, char**argv) {
             CommandLine::instance().add_setting("source", a.value);
         }
         else if(a.name == "m") {
-            SETTING(model) = file::Path(a.value);
-            CommandLine::instance().add_setting("model", a.value);
+            SETTING(detect_model) = file::Path(a.value);
+            CommandLine::instance().add_setting("detect_model", a.value);
         }
         else if (a.name == "bm") {
             SETTING(region_model) = file::Path(a.value);
@@ -421,8 +421,8 @@ int main(int argc, char**argv) {
             CommandLine::instance().add_setting("output_dir", a.value);
         }
         else if(a.name == "dim") {
-            SETTING(detection_resolution) = Meta::fromStr<uint16_t>(a.value);
-            CommandLine::instance().add_setting("detection_resolution", a.value);
+            SETTING(detect_resolution) = Meta::fromStr<uint16_t>(a.value);
+            CommandLine::instance().add_setting("detect_resolution", a.value);
         }
         else if(a.name == "o") {
             auto path = file::Path(a.value);
@@ -475,12 +475,12 @@ int main(int argc, char**argv) {
     //SETTING(model) = file::Path("");
     //SETTING(region_model) = file::Path("");
     //SETTING(region_resolution) = uint16_t(320);
-    //SETTING(detection_resolution) = uint16_t(640);
+    //SETTING(detect_resolution) = uint16_t(640);
     //SETTING(filename) = file::Path("");
     //SETTING(meta_classes) = std::vector<std::string>{ };
-    //SETTING(detection_type) = ObjectDetectionType::yolo8;
-    SETTING(tile_image) = size_t(0);
-    SETTING(batch_size) = uchar(1);
+    //SETTING(detect_type) = ObjectDetectionType::yolo8;
+    SETTING(detect_tile_image) = uchar(0);
+    SETTING(detect_batch_size) = uchar(1);
     SETTING(track_do_history_split) = false;
     //SETTING(track_background_subtraction) = false;
     SETTING(scene_crash_is_fatal) = false;

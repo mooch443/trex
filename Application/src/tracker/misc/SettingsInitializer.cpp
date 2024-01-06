@@ -301,7 +301,7 @@ void load(file::PathArray source,
     print(SETTING(output_dir));
     print(SETTING(output_prefix));
     print(SETTING(source));
-    print(SETTING(model));
+    print(SETTING(detect_model));
     print(SETTING(region_model));
     print(SETTING(meta_source_path));
     print(SETTING(track_background_subtraction));

@@ -29,7 +29,7 @@ struct TREX_EXPORT Detection {
     static void deinit();
 
     static auto& manager() {
-        static auto instance = PipelineManager<TileImage>(max(1u, SETTING(batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
+        static auto instance = PipelineManager<TileImage>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full
             // i.e. py::execute()
 #ifndef NDEBUG
@@ -54,7 +54,7 @@ struct TREX_EXPORT BackgroundSubtraction {
     static void deinit();
 
     static auto& manager() {
-        static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
+        static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full
             // i.e. py::execute()
             if(images.empty())

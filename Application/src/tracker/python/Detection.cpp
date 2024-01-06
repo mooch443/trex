@@ -40,7 +40,7 @@ void Detection::deinit() {
 }
 
 ObjectDetectionType::Class Detection::type() {
-    return SETTING(detection_type).value<ObjectDetectionType::Class>();
+    return SETTING(detect_type).value<ObjectDetectionType::Class>();
 }
 
 std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
