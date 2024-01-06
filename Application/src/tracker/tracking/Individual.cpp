@@ -21,7 +21,7 @@
 #include <misc/FOI.h>
 
 #if !COMMONS_NO_PYTHON
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
 

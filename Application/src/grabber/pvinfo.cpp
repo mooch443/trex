@@ -11,7 +11,7 @@
 #include <tracker/misc/default_config.h>
 #include <processing/CPULabeling.h>
 #include "pvinfo_merge.h"
-#include <misc/Output.h>
+#include <tracking/Output.h>
 #include <gui/IdentityHeatmap.h>
 #include <opencv2/core/utils/logger.hpp>
 #include <misc/ocl.h>
@@ -317,7 +317,7 @@ int main(int argc, char**argv) {
         SETTING(crop_offsets) = video.header().offsets;
         
         if(!video.header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata);
+            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata);
         
         if(!be_quiet)
             video.print_info();
@@ -481,15 +481,15 @@ int main(int argc, char**argv) {
             // new instance with modify rights
             pv::File video(name, pv::FileMode::MODIFY);
             
-            std::vector<std::string> keys = sprite::parse_values(video.header().metadata).keys();
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata);
+            std::vector<std::string> keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata).keys();
+            sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata);
             
             for (auto &[k,v] : updated_settings) {
                 if(!contains(keys, k)) {
                     keys.push_back(k);
                 }
                 
-                sprite::parse_values(GlobalSettings::map(), "{'"+k+"':"+v+"}");
+                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), "{'"+k+"':"+v+"}");
             }
             
             for (auto &p : remove_settings) {
@@ -646,7 +646,7 @@ int main(int argc, char**argv) {
         
         cmd.load_settings();
         
-        GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
+        GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
         track::Tracker tracker(Image::Make(average), SETTING(meta_real_width).value<float>());

@@ -5,7 +5,7 @@
 
 namespace track {
 
-struct Yolo8 {
+struct TREX_EXPORT Yolo8 {
     Yolo8() = delete;
     
     static void reinit(track::ModuleProxy& proxy);

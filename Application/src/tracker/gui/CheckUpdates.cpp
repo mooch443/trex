@@ -7,7 +7,7 @@
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
 #include <gui/GUICache.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>

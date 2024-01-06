@@ -29,15 +29,15 @@
 #include <tracking/Tracker.h>
 #include <gui/DrawStructure.h>
 #include <misc/default_config.h>
-#include <misc/OutputLibrary.h>
-#include <misc/Output.h>
+#include <tracking/OutputLibrary.h>
+#include <tracking/Output.h>
 #include <gui/WorkProgress.h>
 #include <gui/CheckUpdates.h>
 #include <tracking/IndividualManager.h>
 
 #include <tracking/SplitBlob.h>
 
-#include <misc/ConnectedTasks.h>
+#include <tracking/ConnectedTasks.h>
 #include <processing/PadImage.h>
 #include <processing/LuminanceGrid.h>
 #include <processing/CPULabeling.h>
@@ -62,12 +62,12 @@
 #include <gui/IMGUIBase.h>
 #include <gui/FileChooser.h>
 #include <gui/types/Checkbox.h>
-#include <misc/MemoryStats.h>
+#include <tracking/MemoryStats.h>
 #include <tracking/Categorize.h>
 #include <gui/DrawCVBase.h>
 #include <gui/GUICache.h>
 #include "VideoOpener.h"
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <gui/DrawBlobView.h>
 
 #if WIN32
@@ -698,7 +698,7 @@ int main(int argc, char** argv)
     
     try {
         if(!video.header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata, &combined);
+            sprite::parse_values(sprite::MapSource{video.filename()}, GlobalSettings::map(), video.header().metadata, &combined);
     } catch(const UtilsException& e) {
         // dont do anything, has been printed already
     }
@@ -839,7 +839,7 @@ int main(int argc, char** argv)
     
     //! if we used the open file dialog and changed settings, use them
     if(!opening_result.extra_command_lines.empty()) {
-        GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), opening_result.extra_command_lines, AccessLevelType::STARTUP);
+        GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), opening_result.extra_command_lines, AccessLevelType::STARTUP);
     }
     
     Tracker tracker(Image::Make(average), video);
@@ -953,7 +953,7 @@ int main(int argc, char** argv)
             if(size_t(threshold) < values.size()) {
                 return values.at(size_t(threshold)).y / max_val;
             }
-            return gui::Graph::invalid();
+            return gui::GlobalSettings::invalid();
         }));
         
         max_value = 0;
@@ -970,7 +970,7 @@ int main(int argc, char** argv)
             if(size_t(threshold) < numbers.size()) {
                 return numbers.at(size_t(threshold)) / max_val;
             }
-            return gui::Graph::invalid();
+            return gui::GlobalSettings::invalid();
         }));
         
         max_value = 0;
@@ -984,7 +984,7 @@ int main(int argc, char** argv)
             if(size_t(threshold) < numbers.size()) {
                 return medians.at(size_t(threshold)).getValue() / max_val;
             }
-            return gui::Graph::invalid();
+            return gui::GlobalSettings::invalid();
         }));
         
         size_t j=0;
@@ -1341,7 +1341,9 @@ int main(int argc, char** argv)
                 auto str = get_settings_from_results(load_results_from.empty() ? path : load_results_from);
                 print("Loading settings from ",path,"...");
                 try {
-                    default_config::warn_deprecated(path.str(), GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), str, AccessLevelType::STARTUP));
+                    default_config::warn_deprecated(path.str(), 
+                        GlobalSettings::load_from_string(sprite::MapSource{path}, 
+                            default_config::deprecations(), GlobalSettings::map(), str, AccessLevelType::STARTUP));
                     executed_a_settings = true;
                 } catch(const UtilsException& e) {
                     FormatExcept("Cannot load settings from results file. Skipping.");
@@ -1378,7 +1380,7 @@ int main(int argc, char** argv)
         
         GlobalSettings::docs_map_t docs;
         default_config::get(defaults, docs, NULL);
-        auto added = GlobalSettings::load_from_string(default_config::deprecations(), defaults, str, AccessLevelType::STARTUP, true);
+        auto added = GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), defaults, str, AccessLevelType::STARTUP, true);
         
         DebugHeader("LOADING SETTINGS FROM ", path);
         
@@ -1642,7 +1644,7 @@ int main(int argc, char** argv)
                 }
                 
                 if(!executed)
-                    default_config::warn_deprecated("input", GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
+                    default_config::warn_deprecated("input", GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
                 
                 if(!before)
                     SETTING(analysis_paused) = false;

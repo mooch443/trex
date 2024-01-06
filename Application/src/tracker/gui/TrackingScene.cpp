@@ -1096,6 +1096,13 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
                 }
                 throw InvalidArgumentException("No frame range contains ", frame," for ", props);
             }),
+            VarFunc("is_tracked", [this](const VarProps& props) -> bool {
+                if (props.parameters.size() != 1)
+                    throw InvalidArgumentException("Need exactly one argument for ", props);
+
+                auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
+                return _data->_cache->tracked_frames.contains(frame);
+            }),
             VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
                     throw std::invalid_argument("Need exactly one argument for "+props.toStr());
@@ -1184,7 +1191,7 @@ dyn::DynamicGUI TrackingScene::init_gui(DrawStructure& graph) {
         .name = "image",
         .create = [this](LayoutContext& layout) -> Layout::Ptr {
             auto ptr = Layout::Make<ExternalImage>();
-            
+            return ptr;
         },
         .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
             

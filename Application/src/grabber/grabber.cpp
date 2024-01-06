@@ -12,15 +12,15 @@
 #include <processing/CPULabeling.h>
 #include <misc/PVBlob.h>
 #include <tracking/Tracker.h>
-#include <tracker/misc/OutputLibrary.h>
-#include <tracking/Export.h>
-#include <tracker/misc/Output.h>
+#include <tracker/tracking/OutputLibrary.h>
+#include <gui/Export.h>
+#include <tracker/tracking/Output.h>
 #include <tracking/VisualField.h>
 #include <grabber/misc/default_config.h>
 #if !COMMONS_NO_PYTHON
 #include <pybind11/numpy.h>
 #include <python/GPURecognition.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
 #include <misc/SpriteMap.h>
@@ -590,7 +590,11 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
             _video = new VideoSource(filenames.front().str());
             //_video->set_colors(ImageMode::R3G3B2);
         } else {
-            _video = new VideoSource(filenames);
+            std::vector<std::string> names;
+            for(auto &name : filenames) {
+				names.push_back(name.str());
+			}
+            _video = new VideoSource(file::PathArray{ names });
             //_video->set_colors(ImageMode::R3G3B2);
         }
         
@@ -1286,7 +1290,7 @@ void FrameGrabber::update_tracker_queue() {
                                 {
                                     points.resize(0);
                                     for(uint32_t i=0; i<FAST_SETTING(midline_resolution); ++i)
-                                        points.push_back(gui::Graph::invalid());
+                                        points.push_back(gui::GlobalSettings::invalid());
                                     midline_points.insert(midline_points.end(), points.begin(), points.end());
                                     
                                 } else {

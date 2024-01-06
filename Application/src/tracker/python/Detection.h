@@ -21,7 +21,7 @@ concept SingleObjectDetection = requires (TileImage tiles) {
 template<typename T>
 concept ObjectDetection = MultiObjectDetection<T> || SingleObjectDetection<T>;
 
-struct Detection {
+struct TREX_EXPORT Detection {
     Detection();
     
     static detect::ObjectDetectionType::Class type();
@@ -45,7 +45,7 @@ private:
     static void apply(std::vector<TileImage>&& tiled);
 };
 
-struct BackgroundSubtraction {
+struct TREX_EXPORT BackgroundSubtraction {
     BackgroundSubtraction(Image::Ptr&& = nullptr);
     static void set_background(Image::Ptr&&);
     

@@ -20,6 +20,7 @@
 #include <misc/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
+#include <misc/PythonWrapper.h>
 
 #include <misc/DetectionTypes.h>
 
@@ -543,9 +544,10 @@ std::shared_mutex initialize_mutex;
 std::thread::id _saved_id;
 std::unique_ptr<py::scoped_interpreter> _interpreter;
 
-void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance) {
+void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance, void *python_wrapper) {
     GlobalSettings::set_instance(obj);
     file::DataLocation::set_instance(instance);
+    Python::set_instance(python_wrapper);
     _settings = obj;
 }
 

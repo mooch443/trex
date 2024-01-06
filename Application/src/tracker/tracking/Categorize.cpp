@@ -10,7 +10,7 @@
 #include <processing/Background.h>
 
 #include <tracking/FilterCache.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 
 #include <tracking/CategorizeInterface.h>
 #include <tracking/ImageExtractor.h>

@@ -15,7 +15,7 @@
     "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
 
     "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}",
-    "number_individuals":"{.active_individuals:{smart_highlighted}}"
+    "number_individuals":"{if:{is_tracked:{smart_highlighted}}:{active_individuals:{smart_highlighted}}:''}"
 }
 },
 "objects": [

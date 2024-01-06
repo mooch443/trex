@@ -25,7 +25,7 @@
 #include <tracking/IndividualManager.h>
 
 #if !COMMONS_NO_PYTHON
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #include <tracking/Accumulation.h>
 namespace py = Python;

@@ -187,8 +187,9 @@ void load(file::PathArray source,
             combined.map["filename"] = filename;
         } else {
             file::Path path = file::find_basename(_source);
+            print("found basename = ", path);
             if(task == TRexTask_t::track) {
-                file::Path filename = file::DataLocation::parse("input", path, &combined.map);
+                filename = file::DataLocation::parse("input", path, &combined.map);
                 if(filename.is_regular() || filename.add_extension("pv").is_regular()) 
                 {
                     
@@ -250,8 +251,8 @@ void load(file::PathArray source,
                 const auto& meta = f.header().metadata;
                 combined.map.set_print_by_default(true);
                 
-                sprite::parse_values(combined.map, meta, &combined, all.toVector());
-                //default_config::warn_deprecated({}, GlobalSettings::load_from_string(default_config::deprecations(), combined.map, meta, AccessLevelType::PUBLIC));
+                sprite::parse_values(sprite::MapSource{ path }, combined.map, meta, & combined, all.toVector());
+
             } catch(const std::exception& ex) {
                 FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
             }

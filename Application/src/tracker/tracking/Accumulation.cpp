@@ -16,7 +16,7 @@
 #include <misc/checked_casts.h>
 #include <gui/DrawBase.h>
 #include <tracking/FilterCache.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <tracking/FilterCache.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/ImageExtractor.h>

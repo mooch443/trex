@@ -33,7 +33,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     std::map<pv::File*, float> cms_per_pixel;
     Size2 resolution;
     
-    file::DataLocation::register_path("merge", [](file::Path filename) -> file::Path {
+    file::DataLocation::register_path("merge", [](const sprite::Map& map, file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(GlobalSettings::is_runtime_quiet())
@@ -42,9 +42,9 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             return filename;
         }
         
-        auto path = SETTING(merge_dir).value<file::Path>();
+        auto path = map.at("merge_dir").value<file::Path>();
         if(path.empty()) {
-            return file::DataLocation::parse("input", filename);
+            return file::DataLocation::parse("input", filename, &map);
         } else
             return path / filename;
     });
@@ -79,9 +79,9 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(*config, docs, NULL);
             
-            GlobalSettings::load_from_string({}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
+            GlobalSettings::load_from_string(sprite::MapSource{settings_file}, {}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
             if(!file->header().metadata.empty())
-                sprite::parse_values(*config, file->header().metadata);
+                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata);
             if(!config->has("meta_real_width") || config->at("meta_real_width").value<float>() == 0)
                 (*config)["meta_real_width"].value<float>(30);
             if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<float>() == 0)
@@ -91,7 +91,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             configs.push_back(config);
             
         } else {
-            throw U_EXCEPTION("Cant find settings for '",name.str(),"' at '",settings_file.str(),"'");
+            throw U_EXCEPTION("Cant find settings for ",name.str()," at ",settings_file.str());
         }
     }
     
@@ -141,7 +141,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(!files.front()->header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), files.front()->header().metadata);
+            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata);
         
         //SETTING(frame_rate) = int(1000 * 1000 / float(frame.timestamp()));
     }

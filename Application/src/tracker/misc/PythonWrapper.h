@@ -36,6 +36,8 @@ bool python_available();
 bool python_initialized();
 bool python_initializing();
 void fix_paths(bool force_init, cmn::source_location loc = cmn::source_location::current());
+void set_instance(void*);
+void* get_instance();
 
 template<typename T>
 concept not_a_task = !cmn::_clean_same<PackagedTask, T>;

@@ -104,14 +104,14 @@ int main(int argc, char**argv) {
     const char* locale = "C";
     std::locale::global(std::locale(locale));
     
-    file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+    file::DataLocation::register_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
         using namespace file;
-        auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
+        auto settings_file = path.str().empty() ? map.at("settings_file").value<Path>() : path;
         if(settings_file.empty())
             throw U_EXCEPTION("settings_file is an empty string.");
         
         if(!settings_file.is_absolute()) {
-            settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
+            settings_file = map.at("output_dir").value<file::Path>() / settings_file;
         }
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")

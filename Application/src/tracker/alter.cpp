@@ -7,7 +7,7 @@
 #include <opencv2/dnn.hpp>
 #include <pv.h>
 #include <python/GPURecognition.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
 #include <misc/default_config.h>
@@ -441,7 +441,8 @@ int main(int argc, char**argv) {
     try {
         py::init();
         f = py::schedule([](){
-            track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
+            print("Python = ", py::get_instance());
+            track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
             track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         });
     } catch(const std::exception& e) {

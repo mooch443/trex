@@ -2,13 +2,13 @@
 
 #include <gui/Timeline.h>
 #include <gui/types/List.h>
-#include <misc/Output.h>
+#include <tracking/Output.h>
 #include "gui.h"
 #include <gui/WorkProgress.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Tooltip.h>
 #include <tracking/Individual.h>
-#include <misc/MemoryStats.h>
+#include <tracking/MemoryStats.h>
 #include <gui/CheckUpdates.h>
 #include <tracking/Categorize.h>
 #include <gui/GUICache.h>
@@ -19,31 +19,31 @@
 
 namespace gui {
 
-class BlobItem : public gui::List::Item {
+class BlobItem : public gui::Item {
 protected:
     GETTER_SETTER(std::string, name);
     
 public:
     BlobItem(const std::string& n = "", long_t bdx = -1)
-    : gui::List::Item(bdx), _name(n)
+    : gui::Item(bdx), _name(n)
     { }
     
     operator const std::string&() const override {
         return _name;
     }
-    bool operator==(const gui::List::Item& other) const override {
+    bool operator==(const gui::Item& other) const override {
         return other.ID() == ID();
     }
     
-    void operator=(const gui::List::Item& other) override {
-        gui::List::Item::operator=(other);
+    void operator=(const gui::Item& other) override {
+        gui::Item::operator=(other);
         
         assert(dynamic_cast<const BlobItem*>(&other));
         _name = static_cast<const BlobItem*>(&other)->_name;
     }
 };
 
-class ItemIndividual : public gui::List::Item {
+class ItemIndividual : public gui::Item {
 protected:
     GETTER_SETTER(std::string, name);
     GETTER_SETTER(Idx_t, ptr);
@@ -51,7 +51,7 @@ protected:
     
 public:
     ItemIndividual(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid)
-        : gui::List::Item(fish.valid() ? fish.get() : -1),
+        : gui::Item(fish.valid() ? fish.get() : -1),
         _ptr(fish),
         _selected_blob_id(blob)
     {
@@ -73,7 +73,7 @@ public:
     operator const std::string&() const override {
         return _name;
     }
-    bool operator==(const gui::List::Item& other) const override {
+    bool operator==(const gui::Item& other) const override {
         auto p = dynamic_cast<const ItemIndividual*>(&other);
         if(!p)
             return false;
@@ -111,11 +111,11 @@ protected:
     gui::derived_ptr<gui::HorizontalLayout> layout;
     gui::derived_ptr<Button> reanalyse;
     
-    std::vector<std::shared_ptr<gui::List::Item>> _individual_items;
-    std::vector<std::shared_ptr<gui::List::Item>> _blob_items;
+    std::vector<std::shared_ptr<gui::Item>> _individual_items;
+    std::vector<std::shared_ptr<gui::Item>> _blob_items;
     
 
-    std::vector<std::shared_ptr<List::Item>> _foi_items;
+    std::vector<std::shared_ptr<Item>> _foi_items;
     std::set<long_t> _foi_ids;
     
 public:
@@ -125,8 +125,8 @@ public:
         _list = std::make_shared<gui::List>(
             Box(GUI::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
             Str("match"),
-            std::vector<std::shared_ptr<List::Item>>{},
-            [this](gui::List*, const List::Item& item){
+            std::vector<std::shared_ptr<Item>>{},
+            [this](gui::List*, const Item& item){
                 if(item == _list->selected_item()) {
                     
                 } else {
@@ -146,8 +146,8 @@ public:
         });
         
         
-        second_list = std::make_shared<gui::List>(Box(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), Str("blobs"), std::vector<std::shared_ptr<List::Item>>{},
-          [this](List*, const List::Item& item) {
+        second_list = std::make_shared<gui::List>(Box(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), Str("blobs"), std::vector<std::shared_ptr<Item>>{},
+          [this](List*, const Item& item) {
               print(item.ID()," ",item.selected());
               if(!item.selected() && item.ID() >= 0) {
                   GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? Idx_t(_list->selected_item()) : Idx_t(), (uint32_t)item.ID());
@@ -158,7 +158,7 @@ public:
         second_list->set_toggle(true);
         second_list->set_foldable(false);
         
-        menu = std::make_shared<gui::List>(Box(Vec2(), Size2(200,33)), Str("menu"), std::vector<std::shared_ptr<List::Item>>{
+        menu = std::make_shared<gui::List>(Box(Vec2(), Size2(200,33)), Str("menu"), std::vector<std::shared_ptr<Item>>{
             std::make_shared<TextItem>("load state [L]", LOAD),
             std::make_shared<TextItem>("save state [Z]", SAVE),
             std::make_shared<TextItem>("save config", CONFIG),
@@ -180,7 +180,7 @@ public:
             std::make_shared<TextItem>("check updates", CHECK_UPDATE),
             std::make_shared<TextItem>("quit [Esc]", QUIT)
             
-        }, [this](auto, const List::Item& item) {
+        }, [this](auto, const Item& item) {
             auto gPtr = GUI::instance();
             if(!gPtr)
                 return;
@@ -219,7 +219,7 @@ public:
                                 if(path.exists()) {
                                     try {
                                         auto header = Output::TrackingResults::load_header(path);
-                                        default_config::warn_deprecated(path.str(), GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::PUBLIC));
+                                        default_config::warn_deprecated(path.str(), GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::PUBLIC));
                                     } catch(const UtilsException& e) {
                                         GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load settings from results file. Check out this error message:\n<i>"+std::string(e.what())+"</i>", "Error");
                                         FormatExcept("Cannot load settings from results file. Skipping that step...");
@@ -316,7 +316,7 @@ public:
         
         menu->set_folded(true);
         
-        foi_list = std::make_shared<gui::List>(Box(0, 0, 150, 33), Str("foi type"), std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
+        foi_list = std::make_shared<gui::List>(Box(0, 0, 150, 33), Str("foi type"), std::vector<std::shared_ptr<Item>>{}, [&](auto, const Item& item) {
             SETTING(gui_foi_name) = ((TextItem)item).text();
             foi_list->set_folded(true);
         });
@@ -354,7 +354,7 @@ public:
                 FishAndBlob(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid) : fish(fish), blob(blob)
                 {}
                 
-                void convert(std::shared_ptr<List::Item> ptr) {
+                void convert(std::shared_ptr<Item> ptr) {
                     Identity id(fish);
                     auto obj = static_cast<ItemIndividual*>(ptr.get());
                     auto name = id.name();
@@ -385,7 +385,7 @@ public:
         
         
         if(_individual_items.size() < 100) {
-            update_vector_elements<List::Item, ItemIndividual>(_individual_items, fish_and_blob);
+            update_vector_elements<Item, ItemIndividual>(_individual_items, fish_and_blob);
             
             _list->set_items(_individual_items);
             //base.wrap_object(_list);
@@ -398,7 +398,7 @@ public:
                     pv::bid id;
                     BlobID(pv::bid id = pv::bid::invalid) : id(id) {}
                     
-                    void convert(std::shared_ptr<List::Item> ptr) {
+                    void convert(std::shared_ptr<Item> ptr) {
                         auto item = static_cast<BlobItem*>(ptr.get());
                         
                         if(item->ID() != (uint32_t)id || (!id.valid() && item->name() != "none")) {
@@ -441,7 +441,7 @@ public:
                 for(auto && [id, ptr] : ordered)
                     blobs.push_back(ptr);
                 
-                update_vector_elements<List::Item, BlobItem>(_blob_items, blobs);
+                update_vector_elements<Item, BlobItem>(_blob_items, blobs);
                 
                 // set items and display
                 second_list->set_items(_blob_items);

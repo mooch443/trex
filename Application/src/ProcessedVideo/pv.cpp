@@ -763,7 +763,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 sprite::Map map;
                 map["quiet"] = true;
                 map["meta_real_width"] = float();
-                sprite::parse_values(map, metadata);
+                sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata);
                 /*for(auto key : map.keys()) {
                  print("Key: ", key, " Value: ", map[key].get().valueString());
                  }*/
@@ -1168,8 +1168,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
         
-        auto keys = sprite::parse_values(file.header().metadata).keys();
-        sprite::parse_values(GlobalSettings::map(), file.header().metadata);
+        auto keys = sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata).keys();
+        sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata);
         SETTING(meta_write_these) = keys;
         
         if(file.has_mask())
@@ -1233,7 +1233,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         sprite::Map map;
         if(!header().metadata.empty())
-            sprite::parse_values(map, header().metadata);
+            sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata);
         SETTING(meta_write_these) = map.keys();
         
         pv::Frame frame;

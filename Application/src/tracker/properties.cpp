@@ -36,7 +36,7 @@ void async_main(void*) {
 
 	//SETTING(do_history_split) = false;
 
-	GlobalSettings::load_from_string({}, GlobalSettings::map(),
+	GlobalSettings::load_from_string(sprite::MapSource::defaults, {}, GlobalSettings::map(),
 		"blob_size_ranges = [[0.001,0.07]]\n"
 		//"blob_size_ranges = [[80, 400]]\n"
 		"blob_split_global_shrink_limit = 0.005\n"

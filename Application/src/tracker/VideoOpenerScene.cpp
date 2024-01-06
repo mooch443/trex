@@ -918,6 +918,7 @@ void VideoOpener::select_file(const file::Path &p) {
     if(settings_file.exists()) {
         try {
             GlobalSettings::load_from_string(
+                sprite::MapSource{settings_file},
                 default_config::deprecations(),
                 tmp,
                 utils::read_file(settings_file.str()),

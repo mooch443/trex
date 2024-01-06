@@ -1,7 +1,7 @@
 #include "Yolo8.h"
 #include <misc/AbstractVideoSource.h>
 #include <misc/PixelTree.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>
 

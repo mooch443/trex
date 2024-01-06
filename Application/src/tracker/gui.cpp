@@ -21,17 +21,17 @@
 #include <tracking/Tracker.h>
 #include <tracking/DatasetQuality.h>
 #include <tracking/VisualField.h>
-#include <tracking/Export.h>
+#include <gui/Export.h>
 #include <tracking/Accumulation.h>
 #include <tracking/Categorize.h>
 #include <python/GPURecognition.h>
 
-#include <misc/ConnectedTasks.h>
+#include <tracking/ConnectedTasks.h>
 #include <misc/default_settings.h>
-#include <misc/Output.h>
-#include <misc/MemoryStats.h>
+#include <tracking/Output.h>
+#include <tracking/MemoryStats.h>
 #include <processing/PadImage.h>
-#include <misc/Results.h>
+#include <tracking/Results.h>
 
 #include <gui/DrawBlobView.h>
 #include <gui/DrawTrackingView.h>
@@ -85,7 +85,7 @@ GUI* GUI::instance() {
 #include <gui/FlowMenu.h>
 #endif
 
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 
 using namespace gui;
 namespace py = Python;
@@ -214,7 +214,7 @@ const gui::Timeline& GUI::timeline() {
 using namespace Hist;
 
 template<globals::Cache::Variables M>
-class DirectSettingsItem : public List::Item {
+class DirectSettingsItem : public Item {
 protected:
     GETTER_SETTER(std::string, description);
     
@@ -237,14 +237,14 @@ public:
     }
     
 private:
-    void operator=(const gui::List::Item&) override {
+    void operator=(const gui::Item&) override {
         assert(false);
     }
     
 public:
     void set_selected(bool s) override {
         if(s != selected()) {
-            List::Item::set_selected(s);
+            Item::set_selected(s);
             GlobalSettings::get(globals::Cache::name<M>()) = s;
         }
     }
@@ -1857,7 +1857,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         }
                         
                         auto fish0 = PD(cache).individuals.at(Idx_t(i));
-                        Vec2 p0(gui::Graph::invalid());
+                        Vec2 p0(gui::GlobalSettings::invalid());
                         
                         if(!fish0->has(frameIndex)) {
                             auto c = PD(cache).processed_frame().cached(fish0->identity().ID());
@@ -1866,7 +1866,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         } else
                             p0 = fish0->centroid_weighted(frameIndex)->pos<Units::PX_AND_SECONDS>();
                         
-                        if(Graph::is_invalid(p0.x))
+                        if(GlobalSettings::is_invalid(p0.x))
                             continue;
                         
                         for(uint32_t j=i+1; j<number_fish; ++j) {
@@ -1885,7 +1885,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             } else
                                 p1 = fish1->centroid_weighted(frameIndex)->pos<Units::PX_AND_SECONDS>();
                             
-                            if(Graph::is_invalid(p1.x))
+                            if(GlobalSettings::is_invalid(p1.x))
                                 continue;
                             
                             auto value = PD(cache).connectivity_matrix.at(FAST_SETTING(track_max_individuals) * i + j);
@@ -1935,7 +1935,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         if(it != PD(cache)._statistics.end()) {
                             return it->second.number_fish;
                         }
-                        return gui::Graph::invalid();
+                        return gui::GlobalSettings::invalid();
                     }));
                 }
                 individuals_graph.set_draggable();
@@ -1957,7 +1957,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         if(it != PD(cache)._statistics.end()) {
                             return it->second.adding_seconds * 1000;
                         }
-                        return gui::Graph::invalid();
+                        return gui::GlobalSettings::invalid();
                     }));
                 }
                 individuals_graph.set_draggable();
@@ -2038,7 +2038,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             if(it != uq->end() && it->second <= x) {
                                 return it->second;
                             }
-                            return gui::Graph::invalid();
+                            return gui::GlobalSettings::invalid();
                         }, Cyan));
                         /*graph.add_function(Graph::Function("smooth", Graph::Type::DISCRETE, [uq = &smooth_points](float x) -> float {
                             std::lock_guard<std::mutex> guard(mutex);
@@ -2048,7 +2048,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             if(it != uq->end() && it->second <= x) {
                                 return it->second;
                             }
-                            return gui::Graph::invalid();
+                            return gui::GlobalSettings::invalid();
                         }));*/
                         graph.add_points("", uniquenesses);
                     }
@@ -2117,7 +2117,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             auto options = val.get().is_enum() ? val.get().enum_values()() : std::vector<std::string>{ "true", "false" };
             auto index = val.get().is_enum() ? val.get().enum_index()() : (val ? 0 : 1);
             
-            std::vector<std::shared_ptr<List::Item>> items;
+            std::vector<std::shared_ptr<Item>> items;
             std::map<std::string, bool> selected_option;
             for(size_t i=0; i<options.size(); ++i) {
                 selected_option[options[i]] = i == index;
@@ -2127,7 +2127,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
             print("options: ", selected_option);
             
-            _settings_choice = std::make_shared<List>(Bounds(0, PD(gui).height() / PD(gui).scale().y, 150, textfield.height()), "", items, [&textfield](List*, const List::Item& item){
+            _settings_choice = std::make_shared<List>(Bounds(0, PD(gui).height() / PD(gui).scale().y, 150, textfield.height()), "", items, [&textfield](List*, const Item& item){
                 print("Clicked on item ", item.ID());
                 textfield.set_text(item);
                 textfield.enter();
@@ -2372,7 +2372,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             graph.add_function(Graph::Function("dt", Graph::Type::DISCRETE, [&](float x) ->float {
                 if(x > 0 && x < values.size())
                     return values.at(x);
-                return gui::Graph::invalid();
+                return gui::GlobalSettings::invalid();
             }, Red, "ms"));
             
             print(min_val,"-",max_val," ",values.size());
@@ -3492,7 +3492,7 @@ void GUI::key_event(const gui::Event &event) {
                 PD(analysis).set_paused(true).get();
                 
                 LockGuard guard(w_t{}, "Codes::I");
-                Results results(PD(tracker));
+                Results results;
                 
                 file::Path fishdata = file::DataLocation::parse("output", SETTING(data_prefix).value<file::Path>());
                 

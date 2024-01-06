@@ -5,7 +5,7 @@
 
 namespace track {
 
-struct Yolo7ObjectDetection {
+struct TREX_EXPORT Yolo7ObjectDetection {
     Yolo7ObjectDetection() = delete;
     
     static void reinit(ModuleProxy& proxy);

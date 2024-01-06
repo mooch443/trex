@@ -5,7 +5,7 @@
 
 namespace track {
 
-struct Yolo7InstanceSegmentation {
+struct TREX_EXPORT Yolo7InstanceSegmentation {
     Yolo7InstanceSegmentation() = delete;
 
     static void reinit(ModuleProxy& proxy);

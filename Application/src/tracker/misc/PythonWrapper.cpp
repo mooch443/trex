@@ -2,160 +2,381 @@
 #include <python/GPURecognition.h>
 #include <tracker/misc/default_config.h>
 #include <file/DataLocation.h>
+#include <misc/ThreadManager.h>
 
 namespace Python {
 using namespace track;
 using py = track::PythonIntegration;
 
-std::atomic<bool> _terminate{false};
-std::mutex _queue_mutex;
-std::deque<PackagedTask> _queue;
-std::condition_variable _queue_update;
-std::promise<void> _exit_promise;
-std::shared_future<void> _init_future;
-std::unique_ptr<std::thread> _thread;
+struct Data {
+private:
+    static Data* _data;
+    static std::mutex _data_mutex, _termination_mutex;
 
-std::atomic<int> last_python_try{0};
+    std::atomic<bool> _terminate{ false };
+    std::atomic<int> _last_python_try{ 0 };
+    std::atomic<bool> _initialized{ false }, _initializing{ false };
 
-std::atomic<bool> _initialized{false}, _initializing{false};
+    std::mutex _queue_mutex;
+    std::deque<PackagedTask> _queue;
+    PersistentCondition _queue_update;
+    std::promise<void> _exit_promise;
+    std::shared_future<void> _init_future;
+    std::unique_ptr<std::thread> _thread;
+
+public:
+    struct Guard {
+        Guard() {
+            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "init()");
+
+            std::unique_lock guard(_data_mutex);
+            _data->_initialized = false;
+            try {
+                py::init();
+                _data->_initialized = true;
+                _data->_initializing = false;
+            }
+            catch (const std::exception& ex) {
+                FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error initializing python: ", ex.what());
+                _data->_initializing = false;
+                throw;
+            }
+            catch (...) {
+                FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Unknown error initializing python.");
+                _data->_initializing = false;
+                throw;
+            }
+        }
+
+        ~Guard() {
+            std::unique_lock guard(_data_mutex);
+            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "...");
+            py::deinit();
+            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "deinit()");
+
+            _data->_initialized = false;
+            _data->_initializing = false;
+        }
+    };
+
+    static void set(void* ptr) {
+        Data* data{ nullptr };
+        {
+            std::unique_lock guard(_data_mutex);
+            if (_data == ptr) {
+                print("Data and ptr are the same");
+                return; // these are the same, exit quickly
+            }
+
+            print("Setting data to ", ptr, " from ", _data, ".");
+
+            if (_data && _data->_thread) {
+                data = _data;
+                print("Data and thread.");
+            }
+            else if (_data && not _data->_initialized) {
+                print("Data and not initialized.");
+                if (_data->_initializing) {
+                    if (_data->_init_future.valid()) {
+                        std::unique_lock t(_termination_mutex);
+                        guard.unlock();
+                        _data->_init_future.get();
+                    }
+
+                    data = _data;
+                }
+                else {
+                    print("Not initializing.");
+                    delete _data;
+                    _data = nullptr;
+                }
+            }
+            else if (_data) {
+                print("Should be safe to delete _data.");
+                delete _data;
+                _data = nullptr;
+            }
+        }
+
+        if (data) {
+            // deinitialize last instance
+            deinit().get();
+            print("Deinitialized last instance.");
+        }
+
+        std::scoped_lock guard(_data_mutex, _termination_mutex);
+        if (_data)
+            throw U_EXCEPTION("Data cannot be set twice.");
+		_data = static_cast<Data*>(ptr);
+    }
+    static void* get() {
+		std::unique_lock guard(_data_mutex);
+		return _data;
+    }
+    static void create() {
+        std::scoped_lock guard(_data_mutex);
+        if(_data)
+            return;
+        _data = new Data;
+    }
+
+    static bool initialized() {
+        std::unique_lock guard(_data_mutex);
+		return _data->_initialized;
+    }
+    static void initialized(bool val) {
+		std::unique_lock guard(_data_mutex);
+        _data->_initialized = val;
+	}
+	static bool initializing() {
+        std::unique_lock guard(_data_mutex);
+		return _data->_initializing;
+	}
+    static void initializing(bool val) {
+		std::unique_lock guard(_data_mutex);
+		_data->_initializing = val;
+	}
+    static void add_task(PackagedTask&& task) {
+        std::unique_lock guard(_data_mutex);
+        {
+            std::unique_lock guard2(_data->_queue_mutex);
+            _data->_queue.emplace_back(std::move(task));
+        }
+        _data->_queue_update.notify();
+    }
+    static void notify() {
+		std::unique_lock guard(_data_mutex);
+		_data->_queue_update.notify();
+    }
+    static bool terminate() {
+		std::unique_lock guard(_data_mutex);
+		return _data->_terminate;
+    }
+    static void terminate(bool val) {
+        std::unique_lock guard(_data_mutex);
+        _data->_terminate = val;
+    }
+    static void update() {
+        std::unique_lock guard(_data_mutex);
+        try {
+            Data* data{ nullptr };
+            while (not _data->_terminate) {
+                data = _data; // fetch up to date pointer
+
+                std::unique_lock t(_termination_mutex);
+                guard.unlock();
+                data->step();
+                t.unlock();
+                guard.lock();
+            }
+
+            // only call this if we are still talking about the same data
+            if (_data == data) {
+                _data->_exit_promise.set_value();
+                _data->_initialized = false;
+            }
+        }
+        catch (const std::exception& ex) {
+            FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Critical exception in python thread: ", ex.what());
+            _data->_exit_promise.set_exception(std::current_exception());
+            _data->_initialized = false;
+
+        }
+        catch (...) {
+            _data->_exit_promise.set_exception(std::current_exception());
+            _data->_initialized = false;
+        }
+	}
+    static auto init_future() {
+		std::unique_lock guard(_data_mutex);
+		return _data->_init_future;
+    }
+    static void init_future(std::shared_future<void> future) {
+        std ::unique_lock guard(_data_mutex);
+        _data->_init_future = future;
+    }
+    static void join_if_present() {
+		std::unique_lock guard(_data_mutex);
+        _data->_join_if_present();
+	}
+
+    static void thread(std::unique_ptr<std::thread>&& thread) {
+        std::unique_lock guard(_data_mutex);
+        assert(not _data->_thread);
+        _data->_thread = std::move(thread);
+    }
+    static std::future<void> deinit() {
+        std::unique_lock guard(_data_mutex);
+        auto ptr = _data;
+
+        if (!_data->_init_future.valid()) {
+            std::promise<void> p;
+            auto f = p.get_future();
+            p.set_value();
+            return f;
+        }
+
+        if (_data->_terminate)
+            throw U_EXCEPTION("PythonWrapper was not started when deinit() was called.");
+
+        auto future = _data->_exit_promise.get_future();
+        _data->_terminate = true;
+        _data->_queue_update.notify();
+
+        auto prev = _data;
+
+        std::unique_lock t(_termination_mutex);
+        guard.unlock();
+        _data->_thread->join();
+        guard.lock();
+        t.unlock();
+
+        if(_data && _data == prev)
+            _data->_thread = nullptr;
+
+        delete _data;
+        _data = nullptr;
+        return future;
+    }
+    static void last_python_try(int val) {
+		std::unique_lock guard(_data_mutex);
+        _data->_last_python_try = val;
+    }
+    static int last_python_try() {
+        std::unique_lock guard(_data_mutex);
+        return _data->_last_python_try;
+    }
+
+private:
+    void _join_if_present() {
+        if (_thread && not _thread->joinable()) {
+            throw U_EXCEPTION("There is already a thread running. Cannot initialize Python twice.");
+        }
+        else if (_thread) {
+            _thread->join();
+        }
+
+        _thread = nullptr;
+        _terminate = false;
+        _exit_promise = {};
+    }
+
+    void step() {
+        std::unique_lock guard(_queue_mutex);
+        if (!_terminate)
+            _queue_update.wait(guard);
+
+        //! in the python queue
+        while (!_queue.empty()) {
+            auto it = _queue.begin();
+
+            if (!python_gpu_initialized()
+                && !_queue.front()._can_run_before_init
+                && python_init_error().empty())
+            {
+                for (; it != _queue.end(); ++it) {
+                    if (it->_can_run_before_init) {
+                        break;
+                    }
+                }
+
+                if (it == _queue.end()) {
+                    guard.unlock();
+                    try {
+
+                    }
+                    catch (...) {
+                        FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error during initialization (trex_init.py).");
+                        guard.lock();
+                        _queue.clear();
+                        throw;
+                    }
+                    guard.lock();
+                    continue;
+                }
+            }
+
+            auto item = std::move(*it);
+            _queue.erase(it);
+
+            guard.unlock();
+            try {
+                if (item._network)
+                    item._network->activate();
+                else {
+                    // deactivate active item?
+                }
+
+                item._task();
+
+            }
+            catch (...) {
+                item._task.promise.set_exception(std::current_exception());
+                guard.lock();
+                throw;
+            }
+
+            guard.lock();
+        }
+    }
+};
+
+IMPLEMENT(Data::_data){ new Data() };
+IMPLEMENT(Data::_data_mutex){};
+IMPLEMENT(Data::_termination_mutex) {};
+
+void set_instance(void* ptr) {
+    Data::set(ptr);
+}
+void* get_instance() {
+    return Data::get();
+}
 
 bool python_initialized() {
-    return _initialized.load();
+    return Data::initialized();
 }
 
 bool python_initializing() {
-    return _initializing.load();
+    return Data::initializing();
 }
 
 void update(std::promise<void>&& init_promise) {
     set_thread_name("Python::update");
     
-    struct Guard {
-        Guard() {
-            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "init()");
-
-            _initialized = false;
-            try {
-                py::init();
-                _initialized = true;
-                _initializing = false;
-            }
-            catch(const std::exception& ex) {
-                FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error initializing python: ", ex.what());
-                _initializing = false;
-                throw;
-            }
-            catch (...) {
-                FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Unknown error initializing python.");
-                _initializing = false;
-                throw;
-            }
-        }
-        
-        ~Guard() {
-            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "...");
-            py::deinit();
-            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "deinit()");
-        }
-    };
-    
-    std::unique_ptr<Guard> py_guard;
+    std::unique_ptr<Data::Guard> py_guard;
     
     try {
-        py_guard = std::make_unique<Guard>();
+        py_guard = std::make_unique<Data::Guard>();
     } catch(...) {
         init_promise.set_exception(std::current_exception());
         return;
     }
     
     init_promise.set_value();
-    
-    try {
-        std::unique_lock guard(_queue_mutex);
-        while(!Python::_terminate || !_queue.empty()) {
-            //! in the python queue
-            while (!_queue.empty()) {
-                auto it = _queue.begin();
-                
-                if(!python_gpu_initialized()
-                   && !_queue.front()._can_run_before_init
-                   && python_init_error().empty())
-                {
-                    for (; it != _queue.end(); ++it) {
-                        if(it->_can_run_before_init) {
-                            break;
-                        }
-                    }
-                    
-                    if(it == _queue.end()) {
-                        guard.unlock();
-                        try {
-                            
-                        } catch(...) {
-                            FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Error during initialization (trex_init.py).");
-                            guard.lock();
-                            _queue.clear();
-                            throw;
-                        }
-                        guard.lock();
-                        continue;
-                    }
-                }
-                
-                auto item = std::move(*it);
-                _queue.erase(it);
-                
-                guard.unlock();
-                try {
-                    if(item._network)
-                        item._network->activate();
-                    else {
-                        // deactivate active item?
-                    }
-                    
-                    item._task();
-                    
-                } catch(...) {
-                    item._task.promise.set_exception(std::current_exception());
-                    guard.lock();
-                    throw;
-                }
-                
-                guard.lock();
-            }
-            
-            if(!_terminate)
-                _queue_update.wait(guard);
-        }
-        
-        _initialized = false;
-        //_terminate = false;
-        _exit_promise.set_value();
-        
-    } catch(const std::exception& ex) {
-        FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Critical exception in python thread: ", ex.what());
-        _exit_promise.set_exception(std::current_exception());
-        
-    } catch(...) {
-        _exit_promise.set_exception(std::current_exception());
-    }
+    Data::update();
 }
 
 std::shared_future<void> init() {
+    Data::create();
+
     fix_paths(false);
 
-    if(python_initialized()) {
-        assert(_init_future.valid());
-        return _init_future;
-        
-    } else if(python_initializing()) {
-        assert(_init_future.valid());
-        return _init_future;
+    if(auto f = Data::init_future(); 
+        python_initialized()) 
+    {
+        assert(f.valid());
+        return f;
+    }
+    else if (python_initializing()) 
+    {
+        assert(f.valid());
+        return f;
     }
     
-    if(Python::_terminate) {
+    if(Data::terminate()) {
         std::promise<void> init_promise;
-        _init_future = init_promise.get_future().share();
+        auto f = init_promise.get_future().share();
+        Data::init_future(f);
         
         try {
             throw SoftException("Python is terminating. Cannot initialize.");
@@ -163,26 +384,22 @@ std::shared_future<void> init() {
             init_promise.set_exception(std::current_exception());
         }
         
-        return _init_future;
+        return f;
     }
-    
-    if(_thread && not _thread->joinable()) {
-        throw U_EXCEPTION("There is already a thread running. Cannot initialize Python twice.");
-        //Python::_terminate = true;
-        //_thread->join();
-        //_thread = nullptr;
-    } else if(_thread) {
-        _thread->join();
-    }
+
+    Data::join_if_present();
     
     std::promise<void> init_promise;
     //python_init_error() = "";
-    _init_future = init_promise.get_future().share();
-    Python::_terminate = false;
-    _initializing = true;
+    auto f = init_promise.get_future().share();
+    Data::init_future(f);
+    //data->_init_future = init_promise.get_future().share();
+    //data->_terminate = false;
+    Data::initializing(true);
+    //data->_initializing = true;
     
-    _exit_promise = {};
-    _thread = std::make_unique<std::thread>(update, std::move(init_promise));
+    //data->_exit_promise = {};
+    Data::thread(std::make_unique<std::thread>(update, std::move(init_promise)));
     
     /*schedule(PackagedTask{
         ._task = package::F([](){
@@ -199,26 +416,11 @@ std::shared_future<void> init() {
         ._can_run_before_init = false
     });*/
     
-    return _init_future;
+    return f;
 }
 
 std::future<void> deinit() {
-    if (!_init_future.valid()) {
-        std::promise<void> p;
-        auto f = p.get_future();
-        p.set_value();
-        return f;
-    }
-
-    if(_terminate)
-        throw U_EXCEPTION("PythonWrapper was not started when deinit() was called.");
-    
-    auto future = _exit_promise.get_future();
-    _terminate = true;
-    _queue_update.notify_all();
-    _thread->join();
-    _thread = nullptr;
-    return future;
+    return Data::deinit();
 }
 
 
@@ -298,7 +500,7 @@ std::future<void> deinit() {
 std::future<void> schedule(PackagedTask && task, Flag flag) {
     auto future = task._task.get_future();
     auto init_future = init();
-    if(_terminate)
+    if(Data::terminate())
     {
         try {
             init_future.get();
@@ -325,9 +527,7 @@ std::future<void> schedule(PackagedTask && task, Flag flag) {
         if(!python_init_error().empty())
             throw SoftException("Calling on an already erroneous python thread.");
         
-        std::unique_lock guard(_queue_mutex);
-        _queue.emplace_back(std::move(task));
-        _queue_update.notify_one();
+        Data::add_task(std::move(task));
     }
     
     return future;
@@ -395,7 +595,7 @@ bool can_initialize_python() {
 #if WIN32
     SetErrorMode(0);
 #endif
-    last_python_try = ret ? 1 : -1;
+    Data::last_python_try(ret ? 1 : -1);
     return ret;
 }
 
@@ -404,10 +604,10 @@ bool python_available() {
     return false;
 #else
     fix_paths(false);
-    if(last_python_try == 0) {
+    if(Data::last_python_try() == 0) {
         can_initialize_python();
     }
-    return last_python_try > 0;
+    return Data::last_python_try() > 0;
 #endif
 }
 
@@ -510,7 +710,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
             // redundant with the counter, but OK:
             static std::once_flag flag2;
             std::call_once(flag2, [](){
-                track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance());
+                track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
                 track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
             });
             

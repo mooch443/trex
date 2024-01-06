@@ -4,7 +4,7 @@
 #include <python/Network.h>
 #include <tracker/misc/default_config.h>
 #include <misc/Image.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <misc/idx_t.h>
 #include <file/Path.h>
 #include <tracking/TrainingData.h>

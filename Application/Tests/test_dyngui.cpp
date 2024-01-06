@@ -7,6 +7,8 @@
 #include <gmock/gmock.h>
 #include <gui/DynamicGUI.h>
 #include <gui/DynamicVariable.h>
+#include <gui/dyn/ParseText.h>
+#include <gui/dyn/ResolveVariable.h>
 
 using namespace gui;
 using namespace dyn;
@@ -89,7 +91,9 @@ std::string _parse_text(const T& _pattern, const Context& context, State& state)
                     //if(utils::contains(current_word, "segment"))
                     print("@", output.str(), " > parsing ", current_word);
                     
+#ifndef NDEBUG
                     CTimer timer(current_word);
+#endif
                     std::string resolved_word;
                     if(auto it = state._variable_values.find(current_word);
                        current_word != "hovered"

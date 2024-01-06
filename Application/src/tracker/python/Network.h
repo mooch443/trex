@@ -4,7 +4,7 @@
 
 namespace Python {
 
-class Network {
+class TREX_EXPORT Network {
     inline static std::shared_mutex network_mutex;
     inline static Network* active_network{nullptr};
     

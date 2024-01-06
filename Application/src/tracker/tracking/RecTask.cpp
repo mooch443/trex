@@ -7,7 +7,7 @@
 #include <misc/Image.h>
 #include <misc/GlobalSettings.h>
 #include <python/GPURecognition.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <file/DataLocation.h>
 
 namespace py = Python;

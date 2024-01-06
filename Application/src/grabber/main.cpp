@@ -246,15 +246,15 @@ int main(int argc, char** argv)
     
     ::default_config::register_default_locations();
     
-    file::DataLocation::replace_path("settings", [](file::Path path) -> file::Path {
-        auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
+    file::DataLocation::replace_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
+        auto settings_file = path.str().empty() ? map.at("settings_file").value<Path>() : path;
         if(settings_file.empty()) {
             print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s 'path/to/file.settings'");
             return settings_file;
         }
 		
         if(!settings_file.is_absolute()) {
-            settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
+            settings_file = map.at("output_dir").value<file::Path>() / settings_file;
         }
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")

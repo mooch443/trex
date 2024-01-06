@@ -4,8 +4,8 @@
 #include <tracking/Individual.h>
 #include <tracking/Tracker.h>
 #include <misc/default_config.h>
-#include <misc/Output.h>
-#include <tracking/PythonWrapper.h>
+#include <tracking/Output.h>
+#include <misc/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <tracking/ImageExtractor.h>
 #include <tracking/VisualIdentification.h>

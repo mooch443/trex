@@ -29,7 +29,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             grab::default_config::get(combined.map, combined.docs, nullptr);
             default_config::get(combined.map, combined.docs, nullptr);
 
-            sprite::parse_values(combined.map, metadata);
+            sprite::parse_values(sprite::MapSource{video->filename()}, combined.map, metadata);
 
         }
         catch (...) {
