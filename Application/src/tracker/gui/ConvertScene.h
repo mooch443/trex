@@ -48,6 +48,8 @@ class ConvertScene : public Scene {
     std::vector<sprite::Map> _untracked_properties;
     std::vector<sprite::Map*> _tracked_properties;
     std::unordered_map<pv::bid, Identity> _visible_bdx;
+    std::vector<Idx_t> _inactive_ids;
+    std::vector<Idx_t> _active_ids;
 
     std::unordered_map<Idx_t, std::shared_ptr<Label>> _labels;
     std::vector<std::unique_ptr<Skelett>> _skeletts;

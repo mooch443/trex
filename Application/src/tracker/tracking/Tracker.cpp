@@ -239,27 +239,8 @@ void Tracker::analysis_state(AnalysisState pause) {
     tmp.detach();
 }
 
-float Tracker::infer_meta_real_width_from(const pv::File &file) {
-    if(not GlobalSettings::has("meta_real_width")
-        || SETTING(meta_real_width).value<float>() == 0)
-    {
-        if(file.header().meta_real_width <= 0) {
-            FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
-            return float(30.0);
-        } else {
-            if(not GlobalSettings::has("meta_real_width")
-                || SETTING(meta_real_width).value<float>() == 0)
-            {
-                return file.header().meta_real_width;
-            }
-        }
-    }
-    
-    return SETTING(meta_real_width).value<float>();
-}
-
 Tracker::Tracker(Image::Ptr&& average, const pv::File& video)
-    : Tracker(std::move(average), infer_meta_real_width_from(video))
+    : Tracker(std::move(average), settings::infer_meta_real_width_from(video))
 { }
 
 Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
@@ -279,6 +260,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
             return a->end_frame() > b->end_frame() || (a->end_frame() == b->end_frame() && A > B);
         })*/
 {
+    Identity::Reset(); // reset Identities if the tracker is created
     initialize_slows();
     
     _instance = this;

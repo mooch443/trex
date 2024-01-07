@@ -136,6 +136,11 @@
 						"type":"stext", 
 						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{video_error}:'\n<str>{video_error}</str>':''}{if:{&&:{video.frame}:{average_is_generating}}:\n<sym>{if:{equal:{mod:{video.frame}:5}:0}:'○':''}{if:{equal:{mod:{video.frame}:5}:1}:'◔':''}{if:{equal:{mod:{video.frame}:5}:2}:'◑':''}{if:{equal:{mod:{video.frame}:5}:3}:'◕':''}{if:{equal:{mod:{video.frame}:5}:4}:'●':''}</sym> generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					{
+						"type":"stext",
+						"text":"{+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} total, {array_length:{inactive_ids}} inactive, {array_length:{active_ids}} active",
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					}
 				]
 			}

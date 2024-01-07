@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -480,7 +480,7 @@ void ConvertScene::drawBlobs(
             }
 
             if (untracked >= _untracked_gui.size())
-                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps& props) -> sprite::Map& {
+                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> sprite::Map& {
                     //print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                     return _untracked_properties.at(i);
                 }));
@@ -690,6 +690,12 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             }
             return count;
         }),
+        VarFunc("inactive_ids", [this](const VarProps&) {
+            return _inactive_ids;
+        }),
+        VarFunc("active_ids", [this](const VarProps&) {
+            return _active_ids;
+        }),
         VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
             return _tracked_gui;
         }),
@@ -800,6 +806,21 @@ void ConvertScene::_draw(DrawStructure& graph) {
             //_gui_objects.clear();
             //_individual_properties.clear();
             dirty = true;
+            
+            _active_ids.clear();
+            _inactive_ids.clear();
+            
+            auto a = IndividualManager::active_individuals(last_frame);
+            if(a && a.value()) {
+                for(auto fish : *a.value()) {
+                    _active_ids.emplace_back(fish->identity().ID());
+                }
+            }
+            
+            IndividualManager::transform_all([this](Idx_t id, auto) {
+                if(not contains(_active_ids, id))
+                    _inactive_ids.emplace_back(id);
+            });
         }
 
         // Draw outlines
@@ -820,8 +841,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
 
                 if (dirty) {
                     if (basic->parent_id.valid())
-                        visible_bdx[basic->parent_id] = fish->identity();
-                    visible_bdx[basic->blob_id()] = fish->identity();
+                        visible_bdx.emplace(basic->parent_id, fish->identity());
+                    visible_bdx.emplace(basic->blob_id(), fish->identity());
                 }
 
                 std::vector<Vertex> line;

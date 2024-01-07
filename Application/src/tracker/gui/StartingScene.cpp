@@ -176,8 +176,21 @@ void StartingScene::_draw(DrawStructure& graph) {
                             if(item._options.has("filename"))
                                 filename = item._options.at("filename").value<file::Path>();
                             
-                            auto path = pv_file_path_for(array);
-                            settings::load(array, filename, default_config::TRexTask_t::convert, {}, item._options);
+                            SettingsMaps tmp;
+                            default_config::get(tmp.map, tmp.docs, [](auto,auto){});
+                            
+                            auto type =
+                                item._options.has("detect_type")
+                                ? item._options.at("detect_type").value<track::detect::ObjectDetectionType::Class>()
+                                : GlobalSettings::defaults().at("detect_type");
+                            
+                            //auto path = pv_file_path_for(array);
+                            settings::load(array,
+                                           filename,
+                                           default_config::TRexTask_t::convert,
+                                           type,
+                                           {},
+                                           item._options);
 
                             //CommandLine::instance().load_settings();
                             

@@ -14,7 +14,7 @@ struct ShadowSegment {
 };
 struct InfoCard::ShadowIndividual {
     Idx_t fdx{};
-    track::Identity identity;
+    track::Identity identity{track::Identity::Temporary({})};
     pv::CompressedBlob blob;
     Frame_t frame;
     FrameRange current_range{};

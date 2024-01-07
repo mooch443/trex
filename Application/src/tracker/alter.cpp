@@ -200,7 +200,11 @@ void launch_gui() {
 
     if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
         TRexTask taskType = determineTaskType();
-        settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), taskType, {}, {});
+        settings::load(SETTING(source).value<file::PathArray>(),
+                       SETTING(filename).value<file::Path>(),
+                       taskType,
+                       SETTING(detect_type),
+                       {}, {});
         manager.set_active(task_scenes[taskType]);
 
     } else {
@@ -210,17 +214,31 @@ void launch_gui() {
             if(it->second == &converting) {
                 //SETTING(cm_per_pixel) = float(0.01);
                 
-                settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), TRexTask_t::convert, {}, {});
+                settings::load(SETTING(source).value<file::PathArray>(),
+                               SETTING(filename).value<file::Path>(),
+                               TRexTask_t::convert,
+                               SETTING(detect_type),
+                               {}, {});
             } else if(it->second == &tracking_scene) {
-                settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), TRexTask_t::track, {}, {});
+                settings::load(SETTING(source).value<file::PathArray>(),
+                               SETTING(filename).value<file::Path>(),
+                               TRexTask_t::track,
+                               SETTING(detect_type),
+                               {}, {});
                 
             } else
-                settings::load({}, {}, TRexTask_t::none, {}, {});
+                settings::load({}, {}, 
+                               TRexTask_t::none,
+                               SETTING(detect_type),
+                               {}, {});
             
             manager.set_active(it->second);
         }
         else {
-            settings::load({}, {}, TRexTask_t::none, {}, {});
+            settings::load({}, {}, 
+                           TRexTask_t::none,
+                           SETTING(detect_type),
+                           {}, {});
             manager.set_active(&start);
         }
 	}
@@ -531,7 +549,10 @@ int main(int argc, char**argv) {
         if(task == TRexTask_t::none)
             throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
         
-        settings::load({}, {}, task, {}, {});
+        settings::load({}, {}, 
+                       task,
+                       SETTING(detect_type),
+                       {}, {});
         
         if(task == TRexTask_t::convert) {
             Segmenter segmenter(

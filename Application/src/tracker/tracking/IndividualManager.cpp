@@ -175,7 +175,7 @@ void IndividualManager::clear() noexcept {
     track::last_active = nullptr;
     _individuals.clear();
     inactive_individuals.clear();
-    Identity::set_running_id(Idx_t(0));
+    Identity::Reset();
     
 #ifndef NDEBUG
     print("[IManager] Cleared all individuals.");
@@ -264,9 +264,9 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
         track::last_active = nullptr;
     
     if(not largest_valid.valid())
-        Identity::set_running_id(Idx_t(0));
+        Identity::Reset();
     else
-        Identity::set_running_id(largest_valid + Idx_t(1));
+        Identity::Reset(largest_valid + Idx_t(1));
     
 #ifndef NDEBUG
     print("[IManager] Removed frames from ", from, ".");
@@ -284,11 +284,12 @@ bool IndividualManager::has_individual(Idx_t fdx) noexcept {
 Individual* IndividualManager::make_individual(Idx_t fdx) {
     assert(not fdx.valid() || not has_individual(fdx));
     
-    auto fish = std::make_unique<Individual>(fdx);
+    auto fish = std::make_unique<Individual>(Identity::Make(fdx));
     auto raw = fish.get();
     
-    if(Tracker::identities().contains(fish->identity().ID()))
+    if(Tracker::identities().contains(fish->identity().ID())) {
         fish->identity().set_manual(true);
+    }
     
     {
         std::unique_lock guard(individual_mutex);
@@ -296,6 +297,8 @@ Individual* IndividualManager::make_individual(Idx_t fdx) {
         // and move the pointer:
         _individuals[fish->identity().ID()] = std::move(fish);
     }
+    
+    print("Make individual ", raw->identity());
     
     return raw;
 }

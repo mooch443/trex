@@ -113,15 +113,26 @@ constexpr std::array<const char*, 8> ReasonsNames {
         GETTER_SETTER(bool, manual);
         
     public:
-        static void set_running_id(Idx_t value);
-        static Idx_t running_id();
-        Identity(Idx_t myID = Idx_t());
-        Idx_t ID() const { return _myID; }
+        static Identity Make(Idx_t);
+        static Identity Temporary(Idx_t);
+        static void Reset(Idx_t = {});
+        
+    private:
+        Identity(Idx_t myID);
         void set_ID(Idx_t val) {
             _color = ColorWheel(val.get()).next();
             _myID = val;
             _name = Meta::toStr(_myID);
         }
+        
+    public:
+        Identity(const Identity&) noexcept = default;
+        Identity(Identity&&) noexcept = default;
+        Identity& operator=(const Identity&) noexcept = default;
+        Identity& operator=(Identity&&) noexcept = default;
+        
+        Idx_t ID() const { return _myID; }
+        
         const std::string& raw_name();
         std::string raw_name() const;
         std::string name() const;
@@ -282,7 +293,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         CacheHints _hints;
         
     public:
-        Individual(Identity&& id = Identity());
+        Individual(std::optional<Identity>&& id = std::nullopt);
         ~Individual();
         
 #if DEBUG_ORIENTATION

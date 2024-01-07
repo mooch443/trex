@@ -46,7 +46,12 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 for(auto &key : GlobalSettings::map().keys())
                     GlobalSettings::map().at(key).get().copy_to(&parm);
                     
-                ::settings::load(SETTING(source).value<file::PathArray>(), file::Path(output_file_name()), default_config::TRexTask_t::track, {}, parm);
+                ::settings::load(SETTING(source).value<file::PathArray>(),
+                                 file::Path(output_file_name()),
+                                 default_config::TRexTask_t::track,
+                                 SETTING(detect_type),
+                                 {},
+                                 parm);
                 
                 try {
                     pv::File test(filename, pv::FileMode::READ);

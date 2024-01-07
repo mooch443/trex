@@ -36,19 +36,42 @@ using prob_t = track::Match::prob_t;
 
 std::atomic<uint32_t> RUNNING_ID(0);
 
-void Identity::set_running_id(Idx_t value) { RUNNING_ID = value.get(); }
-Idx_t Identity::running_id() { return Idx_t(RUNNING_ID.load()); }
-
 Identity::Identity(Idx_t myID)
-    : _color(myID.valid() 
+    : _color(myID.valid()
              ? ColorWheel(myID.get()).next()
-             : ColorWheel(RUNNING_ID).next()),
-    _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)),
+             : ColorWheel().next()),
+    _myID(myID),
     _name(Meta::toStr(_myID))
-{
-    if(myID.valid() && RUNNING_ID < myID.get()) {
-        RUNNING_ID = (myID + Idx_t(1)).get();
+{ }
+
+void Identity::Reset(Idx_t idx) {
+    RUNNING_ID = idx.valid() ? idx.get() : 0;
+}
+
+Identity Identity::Temporary(Idx_t idx) {
+    //if(not idx.valid())
+    //    throw std::invalid_argument("Cannot create an invalid temporary.");
+    return Identity(idx);
+}
+
+Identity Identity::Make(Idx_t idx) {
+    if(not idx.valid()) {
+        idx = Idx_t(RUNNING_ID.fetch_add(1));
+    } else {
+        // the current value might be smaller than our current idx,
+        // we need to check. we cannot overwrite existing IDs in the future.
+        auto value = RUNNING_ID.load();
+        while(value < idx.get()) {
+            uint32_t desired = idx.get() + 1;
+            if(not RUNNING_ID.compare_exchange_weak(value, desired)) {
+                // somebody else changed it! we need to check again
+                value = RUNNING_ID.load();
+            } else
+                break; // successfully updated
+        }
     }
+    
+    return Identity(idx);
 }
 
 const std::string& Identity::raw_name() {
@@ -561,8 +584,10 @@ MinimalOutline::Ptr Individual::outline(Frame_t frameIndex) const {
     return ptr ? ptr->outline : nullptr;
 }
 
-Individual::Individual(Identity&& id)
-    : _identity(std::move(id))
+Individual::Individual(std::optional<Identity>&& id)
+    : _identity(id.has_value()
+                ? std::move(id.value())
+                : Identity::Make({}))
 { }
 
 Individual::~Individual() {

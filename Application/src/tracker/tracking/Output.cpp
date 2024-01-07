@@ -366,7 +366,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         std::string name;
         ref.read<std::string>(name);
         
-        Identity id( Idx_t{ID} );
+        auto id = Identity::Temporary( Idx_t{ID} );
         if(name != id.raw_name() && !name.empty()) {
             auto map = FAST_SETTING(individual_names);
             map[ID] = name;
@@ -386,7 +386,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
     
-    fish->identity().set_ID(Idx_t(ID));
+    if(fish->identity().ID() != Idx_t{ID})
+        throw U_EXCEPTION("Failed to load ID ", ID," from file ", filename());
+    //fish->identity().set_ID(Idx_t(ID));
     
     //MotionRecord *prev = NULL;
     //MotionRecord *prev_weighted = NULL;
@@ -1528,7 +1530,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             }
         }
         
-        track::Identity::set_running_id(Idx_t(biggest_id+1));
+        track::Identity::Reset(Idx_t(biggest_id+1));
         
         uint64_t n;
         data_long_t ID;

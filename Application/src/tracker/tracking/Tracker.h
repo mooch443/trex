@@ -133,8 +133,6 @@ public:
     Tracker(Image::Ptr&& average, const pv::File& file);
     ~Tracker();
     
-    static float infer_meta_real_width_from(const pv::File& file);
-    
     /**
      * Adds a frame to the known frames.
      */

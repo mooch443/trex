@@ -55,6 +55,7 @@ namespace cmn::settings {
 void load(file::PathArray source, 
           file::Path filename,
           TRexTask task,
+          track::detect::ObjectDetectionType::Class type,
           ExtendableVector exclude_parameters,
           const cmn::sprite::Map& source_map)
 {
@@ -121,28 +122,31 @@ void load(file::PathArray source,
 
     std::vector<std::string> defaults;
     for (auto& key : GlobalSettings::map().keys()) {
-        if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM)
-		    defaults.emplace_back(key);
+        if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM) {
+            defaults.emplace_back(key);
+        }
 	}
-    print("Default excludes = ", defaults);
     
-    auto copy = exclude_parameters + default_excludes;
-    cmd.load_settings(nullptr, &combined.map, (copy + defaults).toVector());
+    auto exclude_cmd = exclude_parameters + default_excludes + defaults;
+    print("Excluding from command-line: ", exclude_cmd);
+    cmd.load_settings(nullptr, &combined.map, exclude_cmd.toVector());
 
     for (auto& key : GlobalSettings::map().keys()) {
-        if (GlobalSettings::access_level(key) >= AccessLevelType::STARTUP)
+        if (GlobalSettings::access_level(key) >= AccessLevelType::STARTUP) {
             defaults.emplace_back(key);
+        }
     }
 
-    //copy = copy + defaults;
-    print("Default excludes = ", defaults);
-
-    auto all = copy + extract_keys(cmd.settings_keys()) + defaults;
+    /// append cmd parameters so they wont be overwritten
+    auto exclude = exclude_parameters + default_excludes + defaults;
+    //exclude = exclude + extract_keys( cmd.settings_keys() );
 
     /// ---------------------------
     /// 3.1. defaults based on task
     /// ---------------------------
-    if(task == TRexTask_t::convert) {
+    if(task == TRexTask_t::convert
+       || (task == TRexTask_t::track && type != track::detect::ObjectDetectionType::background_subtraction))
+    {
         static const sprite::Map values {
             "track_threshold", 0,
             "track_posture_threshold", 0,
@@ -152,7 +156,6 @@ void load(file::PathArray source,
             "track_do_history_split", false
         };
         
-        auto exclude = copy + extract_keys( cmd.settings_keys() );
         for(auto &key : values.keys()) {
             if(contains(exclude.toVector(), key))
                 continue;
@@ -250,10 +253,13 @@ void load(file::PathArray source,
     }
     
     /// add additional prefixes to exclude, only used for name resolution
-    copy = copy + std::array{
+    exclude = exclude + std::array{
         "output_dir",
         "output_prefix"
-    } + defaults;
+    };
+    
+    //auto all = copy + extract_keys(cmd.settings_keys());
+    auto exclude_from_pv = exclude;
     
     /// 5. load the video settings (if they exist):
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
@@ -262,7 +268,7 @@ void load(file::PathArray source,
             sprite::Map map;
             map.set_print_by_default(false);
 
-            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, copy.toVector(), &map, &combined.map);
+            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, exclude.toVector(), &map, &combined.map);
             warn_deprecated(settings_file, rejected);
             
             auto before = combined.map.print_by_default();
@@ -273,7 +279,7 @@ void load(file::PathArray source,
                 map.at(key).get().copy_to(&combined.map);
             }
             //combined.map.set_print_by_default(before);
-            all = all + map.keys();
+            exclude_from_pv = exclude_from_pv + map.keys();
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
@@ -298,7 +304,13 @@ void load(file::PathArray source,
                 G g(path.str());
                 pv::File f(path, pv::FileMode::READ);
                 const auto& meta = f.header().metadata;
-                sprite::parse_values(sprite::MapSource{ path }, combined.map, meta, & combined.map, all.toVector());
+                sprite::parse_values(sprite::MapSource{ path }, combined.map, meta, & combined.map, exclude_from_pv.toVector());
+                
+                if (not combined.map.has("meta_real_width")
+                    || combined.map.at("meta_real_width").value<float>() == 0)
+                {
+                    combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                }
 
             } catch(const std::exception& ex) {
                 FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
@@ -307,7 +319,7 @@ void load(file::PathArray source,
     }
     
     for(auto& key : source_map.keys()) {
-        if(contains(copy.toVector(), key))
+        if(contains(exclude.toVector(), key))
         {
             if (combined.map.has(key)
                 && combined.map.at(key) == source_map.at(key))
@@ -320,6 +332,12 @@ void load(file::PathArray source,
         source_map.at(key).get().copy_to(&combined.map);
     }
 
+    if (not combined.map.has("meta_real_width")
+        || combined.map.at("meta_real_width").value<float>() == 0)
+    {
+        combined.map["meta_real_width"] = 1000.f;
+    }
+    
     if (combined.map.has("cm_per_pixel")
         && combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
     {
@@ -435,6 +453,28 @@ float infer_cm_per_pixel(const sprite::Map* map) {
     }
 
     return map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
+}
+
+float infer_meta_real_width_from(const pv::File &file, const sprite::Map* map) {
+    if(not map)
+        map = &GlobalSettings::map();
+    
+    if(not map->has("meta_real_width")
+        || map->at("meta_real_width").value<float>() == 0)
+    {
+        if(file.header().meta_real_width <= 0) {
+            FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
+            return float(30.0);
+        } else {
+            if(not map->has("meta_real_width")
+                || map->at("meta_real_width").value<float>() == 0)
+            {
+                return file.header().meta_real_width;
+            }
+        }
+    }
+    
+    return map->at("meta_real_width").value<float>();
 }
 
 }
