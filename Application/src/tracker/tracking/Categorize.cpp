@@ -1900,7 +1900,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
         }
 
 #ifndef NDEBUG
-        log_event("Created", frame, Idx_t( - 1 ));
+        log_event("Created", frame, Identity::Temporary(Idx_t( - 1 )));
 #endif
     }
     else {

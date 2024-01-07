@@ -21,12 +21,13 @@ public:
     ExtendableVector operator+(const ExtendableVector& other) const {
         ExtendableVector result(*this);  // Start with a copy of the current object
         result.insert(result.end(), other.begin(), other.end());
+        result.clean();
         return result;
     }
     
     // Templated + operator to handle StringLike types
     template<typename Container>
-    requires utils::StringLike<typename Container::value_type>
+        requires utils::StringLike<typename Container::value_type>
     ExtendableVector operator+(const Container& other) const {
         ExtendableVector result(*this);
         for (const auto& element : other) {
@@ -38,7 +39,37 @@ public:
                 result.emplace_back(element);  // Convert to string and add
             }
         }
+        result.clean();
         return result;
+    }
+    
+    // Templated += operator to handle StringLike types
+    template<typename Container>
+        requires utils::StringLike<typename Container::value_type>
+    ExtendableVector& operator+=(const Container& other) {
+        for (const auto& element : other) {
+            if constexpr (std::is_array_v<std::remove_cvref_t<typename Container::value_type>>) {
+                // Handle C-style strings (char arrays) specifically
+                emplace_back(element, std::size(element) - 1);  // -1 to ignore null terminator
+            } else {
+                // Handle other string-like types
+                emplace_back(element);  // Convert to string and add
+            }
+        }
+        clean();
+        return *this;
+    }
+    
+    void clean() {
+        std::set<std::string> unique;
+        for(auto it = begin(); it != end(); ) {
+            if(not unique.contains(*it)) {
+                unique.insert(*it);
+                ++it;
+            } else {
+                it = erase(it);
+            }
+        }
     }
     
     // Method to get a const reference to the vector
