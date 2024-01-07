@@ -56,8 +56,7 @@ public:
         _selected_blob_id(blob)
     {
         if(fish.valid()) {
-            Identity id(_ptr);
-            _name = id.name();
+            _name = Identity::Temporary(_ptr).name();
         }
     }
     
@@ -355,11 +354,13 @@ public:
                 {}
                 
                 void convert(std::shared_ptr<Item> ptr) {
-                    Identity id(fish);
                     auto obj = static_cast<ItemIndividual*>(ptr.get());
-                    auto name = id.name();
+                    auto name = Identity::Temporary(fish).name();
                     
-                    if(fish.get() != obj->ID() || blob != obj->selected_blob_id() || name != obj->name()) {
+                    if(fish.get() != obj->ID() 
+                       || blob != obj->selected_blob_id()
+                       || name != obj->name())
+                    {
                         obj->set_ID(fish.get());
                         obj->set_name(name);
                         obj->set_ptr(fish);

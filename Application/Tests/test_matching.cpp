@@ -41,11 +41,11 @@ struct PairingTest {
     match_mode(match_mode),
     switch_order(switch_order),
     individuals({
-        new Individual(Identity(Idx_t(0))),
-        new Individual(Identity(Idx_t(1))),
-        new Individual(Identity(Idx_t(2))),
-        new Individual(Identity(Idx_t(3))),
-        new Individual(Identity(Idx_t(4)))
+        new Individual(Identity::Make(Idx_t(0))),
+        new Individual(Identity::Make(Idx_t(1))),
+        new Individual(Identity::Make(Idx_t(2))),
+        new Individual(Identity::Make(Idx_t(3))),
+        new Individual(Identity::Make(Idx_t(4)))
     }) {
         blobs.emplace_back(pv::Blob::Make(std::vector<HorizontalLine>{
             HorizontalLine(0, 0, 10),

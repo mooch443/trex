@@ -3169,8 +3169,7 @@ void GUI::key_event(const gui::Event &event) {
     
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
         auto lock = GUI_LOCK(PD(gui).lock());
-        Identity id(Idx_t(narrow_cast<uint32_t>(key.code - Codes::Num0)));
-        PD(cache).deselect_all_select(id.ID());
+        PD(cache).deselect_all_select(Identity::Temporary(Idx_t(narrow_cast<uint32_t>(key.code - Codes::Num0))).ID());
         GUI::set_redraw();
         return;
     }
@@ -3337,7 +3336,7 @@ void GUI::key_event(const gui::Event &event) {
             
         case Codes::P: {
             auto lock = GUI_LOCK(PD(gui).lock());
-            Identity id;
+            Idx_t id;
             
             if(PD(cache).has_selection() && !PD(cache).active_ids.empty()) {
                 auto it = PD(cache).active_ids.find(PD(cache).selected.front());
@@ -3347,20 +3346,20 @@ void GUI::key_event(const gui::Event &event) {
                 } else
                     it = PD(cache).active_ids.begin();
                 
-                id = Identity(*it);
+                id = *it;
                 
             } else if(!PD(cache).active_ids.empty()) {
-                id = Identity(*PD(cache).active_ids.begin());
+                id = *PD(cache).active_ids.begin();
             } else
                 break;
             
-            PD(cache).deselect_all_select(id.ID());
+            PD(cache).deselect_all_select(id);
             break;
         }
             
         case Codes::O: {
             auto lock = GUI_LOCK(PD(gui).lock());
-            Identity id;
+            Idx_t id;
             
             if(PD(cache).has_selection() && !PD(cache).active_ids.empty()) {
                 auto it = PD(cache).active_ids.find(PD(cache).selected.front());
@@ -3371,14 +3370,14 @@ void GUI::key_event(const gui::Event &event) {
                 } else
                     it = --PD(cache).active_ids.end();
                 
-                id = Identity(*it);
+                id = *it;
                 
             } else if(!PD(cache).active_ids.empty()) {
-                id = Identity(*(--PD(cache).active_ids.end()));
+                id = *(--PD(cache).active_ids.end());
             } else
                 break;
             
-            PD(cache).deselect_all_select(id.ID());
+            PD(cache).deselect_all_select(id);
             break;
         }
             
