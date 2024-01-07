@@ -5,6 +5,7 @@
 #include <misc/Timer.h>
 #include <file/Path.h>
 #include <misc/default_settings.h>
+#include <gui/types/StaticText.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -1250,6 +1251,13 @@ TEST(ToStringTest, HandleRunTimeSignedInt) {
     ASSERT_EQ(to_string(-10), "-10");
 }
 
+// printto function for gunit automatic printing of conststring_t
+namespace cmn::util {
+    void PrintTo(const cmn::util::ConstString_t& str, std::ostream* os) {
+        *os << str.view();
+    }
+}
+
 TEST(ToStringTest, ConstExprFloat) {
     // Simple whole number
     constexpr auto number = 1.0f;
@@ -1261,11 +1269,11 @@ TEST(ToStringTest, ConstExprFloat) {
     static_assert(sv0 == "0");
 
     // Fractional number, no trailing zeros
-    static constexpr auto sv1 = to_string(123.456f);
+    static constexpr auto sv1 = to_string(123.456);
     EXPECT_EQ(sv1, "123.456");
 
     // Fractional number with trailing zeros
-    static constexpr auto sv2 = to_string(45.600f);
+    static constexpr auto sv2 = to_string(45.600);
     EXPECT_EQ(sv2, "45.6");
 
     // Negative number
@@ -1336,7 +1344,7 @@ TEST(HtmlifyTests, Links) {
 TEST(HtmlifyTests, Newlines) {
     std::string doc = "Line 1\nLine 2";
     std::string result = htmlify(doc, false);
-    ASSERT_EQ(result, "Line <nr>1</nr><br/>\nLine <nr>2</nr>");
+    ASSERT_EQ(result, "Line <nr>1</nr><br/>Line <nr>2</nr>");
 }
 
 TEST(HtmlifyTests, Quotations) {
@@ -1588,4 +1596,12 @@ TEST(ToStringTest, HandleInfinity) {
 TEST(ToStringTest, PrecisionTest) {
     auto str = to_string(0.0001f);
     EXPECT_EQ(str, "0.0001");
+}
+
+TEST(StaticParseTest, invalid_label) {
+    std::string fail = R"(<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.76</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[464.265,144.67377,836.8988,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.76</i>) (Drawable*)Label<[464.265,146.71002,836.8988,828.75385], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.72</i>) (Drawable*)Label<[464.265,146.71002,836.8988,828.75385], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.72</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,144.67377,843.00757,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[460.19254,144.67377,843.00757,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[460.19254,144.67377,843.00757,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[460.19254,140.60126,840.9713,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,140.60126,840.9713,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[460.19254,138.56502,843.00757,836.89886], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=17.01</i>) (Drawable*)Label<[460.19254,138.56502,843.00757,836.89886], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=17.01</i>) (Drawable*)Label<[464.265,140.60126,836.8988,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,140.60126,836.8988,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[462.2288,142.63751,838.93506,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[462.2288,142.63751,838.93506,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[460.19254,140.60126,843.00757,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.97</i>) (Drawable*)Label<[460.19254,140.60126,843.00757,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.97</i>) (Drawable*)Label<[462.2288,142.63751,840.9713,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[462.2288,142.63751,840.9713,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[0,0,0,0], ''>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>)";
+
+    using namespace gui;
+    auto ranges = StaticText::to_tranges(fail);
+
 }

@@ -58,6 +58,8 @@ protected:
 
         // Initialize a Background object
         bg = std::make_unique<Background>(std::move(image), grid);
+        //cv::imshow("bg", bg->image().get());
+        //cv::waitKey(0);
     }
 
     Image::Ptr image;
@@ -169,6 +171,28 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     ASSERT_EQ(pixels, expected_pixels);
 }
 
+namespace cmn {
+    // gunit test printto method for printing std::vector<HorizontalLine>
+    void PrintTo(const std::vector<HorizontalLine>& lines, std::ostream* os) {
+        *os << "[";
+        for (const auto& line : lines) {
+            *os << line.toStr() << ", ";
+        }
+        *os << "]";
+    }
+}
+
+// PrintTo method for std::vector<uchar>
+namespace std {
+    void PrintTo(const std::vector<uchar>& pixels, std::ostream* os) {
+        *os << "[";
+        for (const auto& pixel : pixels) {
+            *os << static_cast<int>(pixel) << ", ";
+        }
+        *os << "]";
+    }
+}
+
 TEST_F(LineWithoutGridTest, SignDifferenceMethod) {
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
     uchar* px = new uchar[20];
@@ -182,8 +206,9 @@ TEST_F(LineWithoutGridTest, SignDifferenceMethod) {
     line_without_grid<DifferenceMethod::sign>(bg.get(), input, px, threshold, lines, pixels);
 
     // Expected results
-    std::vector<HorizontalLine> expected_lines = {{0, 1, 2}, {1, 1, 2}};
-    std::vector<uchar> expected_pixels = {255, 0, 255, 0};
+    using HL = HorizontalLine;
+    std::vector<HorizontalLine> expected_lines = { HL(0,0,0), HL(0,2,2), HL(0,4,4), HL(0,6,6), HL(0,8,8), HL(1,0,0), HL(1,2,2), HL(1,4,4), HL(1,6,6), HL(1,8,8) };
+    std::vector<uchar> expected_pixels = {150, 150, 150, 150, 150, 150, 150, 150, 150, 150 };
 
     // Perform assertions to check if the results are as expected
     ASSERT_EQ(lines, expected_lines);
@@ -192,19 +217,23 @@ TEST_F(LineWithoutGridTest, SignDifferenceMethod) {
 
 TEST_F(LineWithoutGridTest, NoneDifferenceMethod) {
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
-    uchar* px = new uchar[20];
-    for (int i = 0; i < 20; ++i) {
-        px[i] = static_cast<uchar>(i);
-    }
+
+    std::array <uchar, 20> input_pixels = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    										10,11,12,13,14,15,16,17,18,19 };
     int threshold = 5;
     std::vector<HorizontalLine> lines;
     std::vector<uchar> pixels;
 
-    line_without_grid<DifferenceMethod::none>(bg.get(), input, px, threshold, lines, pixels);
+    auto start = input_pixels.data();
+    line_without_grid<DifferenceMethod::none>(bg.get(), input, start, threshold, lines, pixels);
 
     // Expected results
-    std::vector<HorizontalLine> expected_lines = {{0, 0, 4}, {0, 6, 9}, {1, 0, 4}, {1, 6, 9}};
-    std::vector<uchar> expected_pixels = {0, 1, 2, 3, 4, 6, 7, 8, 9, 0, 1, 2, 3, 4, 6, 7, 8, 9};
+    std::vector<HorizontalLine> expected_lines = { {0, 5, 9}, {1, 0, 9}};
+
+    // in the first row, the last 5 pixels are above the threshold
+    // in the second row, all pixels are above the threshold, so all are added
+    std::vector<uchar> expected_pixels = {                      5,  6,  7,  8,  9, 
+                                           10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
     // Perform assertions to check if the results are as expected
     ASSERT_EQ(lines, expected_lines);

@@ -42,4 +42,23 @@ void Network::deactivate() {
     }
 }
 
+
+Network::Network(const std::string& name,
+    std::function<void()>&& setup,
+    std::function<void()>&& unsetup)
+    : name(name), setup(std::move(setup)), unsetup(std::move(unsetup))
+{
+
+}
+
+
+
+bool Network::is_active(Network* net) {
+    std::shared_lock guard(network_mutex);
+    return net == active_network;
+}
+
+Network::~Network() {
+}
+
 }

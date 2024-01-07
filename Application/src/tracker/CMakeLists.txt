@@ -450,6 +450,7 @@ endif()
 
 #target_precompile_headers(properties REUSE_FROM commons)
 #target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
+#target_precompile_headers(${TREXA_EXEC_NAME} REUSE_FROM commons)
 
 install(TARGETS ${targets}
     EXPORT TRex

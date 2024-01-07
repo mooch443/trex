@@ -31,6 +31,18 @@ target_compile_definitions(test_patharray PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CU
 add_executable(test_dyngui test_dyngui.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dyngui PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+# always compile in debug mode
+set(TARGETS test_matching test_strings test_pixels test_patharray test_dyngui)
+if(WIN32)
+        foreach(target ${TARGETS})
+                target_compile_options(${target} PRIVATE /W4 /EHsc /Zi /Od)
+        endforeach()
+else()
+        foreach(target ${TARGETS})
+                target_compile_options(${target} PRIVATE -Wall -Wextra -pedantic -g -O0)
+        endforeach()
+endif()
+
 # Standard linking to gtest stuff.
 target_link_libraries(test_matching PUBLIC gtest gtest_main)
 target_link_libraries(test_strings PUBLIC gtest gtest_main)

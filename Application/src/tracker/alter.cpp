@@ -488,7 +488,6 @@ int main(int argc, char**argv) {
     
     SETTING(do_filter) = false;
     SETTING(filter_classes) = std::vector<uint8_t>{};
-    SETTING(is_writing) = false;
     //SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
 
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0);

@@ -13,7 +13,7 @@ using namespace cmn;
 using namespace track;
 using namespace default_config;
 
-namespace settings {
+namespace cmn::settings {
 
 /**
  * When calling "load" or "open", what we expect is:
@@ -58,14 +58,24 @@ void load(file::PathArray source,
           ExtendableVector exclude_parameters,
           const cmn::sprite::Map& source_map)
 {
-    DebugHeader("Reloading settings");
+    DebugHeader("Reloading settings"); 
+
+    struct G {
+        std::string s;
+        G(const std::string& name) : s(name) {
+            DebugHeader("// LOADING FROM ", s);
+        }
+        ~G() {
+            DebugHeader("// LOADED ", s);
+        }
+    };
     
     SettingsMaps combined;
     const auto set_combined_access_level =
     [&combined](auto& name, AccessLevel level) {
         combined.access_levels[name] = level;
     };
-    
+
     combined.map.set_print_by_default(false);
     
     /// ---------------------------------------------
@@ -97,11 +107,38 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
+
+    auto default_excludes = std::array{
+        "meta_cmd",
+        "app_name",
+        "nowindow",
+        "gui_interface_scale",
+        "auto_quit",
+        "task",
+        "filename",
+        "source"
+    };
+
+    std::vector<std::string> defaults;
+    for (auto& key : GlobalSettings::map().keys()) {
+        if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM)
+		    defaults.emplace_back(key);
+	}
+    print("Default excludes = ", defaults);
     
-    auto copy = exclude_parameters + std::array{ "filename", "source" };
-    auto all = copy + extract_keys(cmd.settings_keys());
-    cmd.load_settings(nullptr, &combined.map, copy.toVector());
-    
+    auto copy = exclude_parameters + default_excludes;
+    cmd.load_settings(nullptr, &combined.map, (copy + defaults).toVector());
+
+    for (auto& key : GlobalSettings::map().keys()) {
+        if (GlobalSettings::access_level(key) >= AccessLevelType::STARTUP)
+            defaults.emplace_back(key);
+    }
+
+    //copy = copy + defaults;
+    print("Default excludes = ", defaults);
+
+    auto all = copy + extract_keys(cmd.settings_keys()) + defaults;
+
     /// ---------------------------
     /// 3.1. defaults based on task
     /// ---------------------------
@@ -115,8 +152,7 @@ void load(file::PathArray source,
             "track_do_history_split", false
         };
         
-        auto exclude = exclude_parameters + extract_keys( cmd.settings_keys() );
-        combined.map.set_print_by_default(true);
+        auto exclude = copy + extract_keys( cmd.settings_keys() );
         for(auto &key : values.keys()) {
             if(contains(exclude.toVector(), key))
                 continue;
@@ -138,6 +174,11 @@ void load(file::PathArray source,
         combined.map["source"] = source;
         combined.map["meta_source_path"] = source.source();
     }
+
+    if(source_map.has("output_dir"))
+        source_map.at("output_dir").get().copy_to(&combined.map);
+    if(source_map.has("output_prefix"))
+        source_map.at("output_prefix").get().copy_to(&combined.map);
     
     if(source.empty()
        && task == TRexTask_t::convert)
@@ -212,19 +253,26 @@ void load(file::PathArray source,
     copy = copy + std::array{
         "output_dir",
         "output_prefix"
-    };
+    } + defaults;
     
     /// 5. load the video settings (if they exist):
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
     if(settings_file.exists()) {
         try {
             sprite::Map map;
+            map.set_print_by_default(false);
+
             auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, copy.toVector(), &map, &combined.map);
             warn_deprecated(settings_file, rejected);
             
+            auto before = combined.map.print_by_default();
+            //combined.map.set_print_by_default(false);
+
+            G g(settings_file.str());
             for(auto &key : map.keys()) {
                 map.at(key).get().copy_to(&combined.map);
             }
+            //combined.map.set_print_by_default(before);
             all = all + map.keys();
             
         } catch(const std::exception& ex) {
@@ -247,11 +295,10 @@ void load(file::PathArray source,
             path = path.add_extension("pv");
         if(path.is_regular()) {
             try {
+                G g(path.str());
                 pv::File f(path, pv::FileMode::READ);
                 const auto& meta = f.header().metadata;
-                combined.map.set_print_by_default(true);
-                
-                sprite::parse_values(sprite::MapSource{ path }, combined.map, meta, & combined, all.toVector());
+                sprite::parse_values(sprite::MapSource{ path }, combined.map, meta, & combined.map, all.toVector());
 
             } catch(const std::exception& ex) {
                 FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
@@ -262,20 +309,31 @@ void load(file::PathArray source,
     for(auto& key : source_map.keys()) {
         if(contains(copy.toVector(), key))
         {
+            if (combined.map.has(key)
+                && combined.map.at(key) == source_map.at(key))
+            {
+                continue;
+            }
             print("Not allowed to copy ", key, " from source map.");
             continue;
         }
         source_map.at(key).get().copy_to(&combined.map);
     }
-    
-    if(combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0) {
-        if(combined.map.has("source")
-           && combined.map.at("source").value<file::PathArray>() == file::PathArray("webcam"))
+
+    if (combined.map.has("cm_per_pixel")
+        && combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
+    {
+        if (combined.map.has("source")
+            && combined.map.at("source").value<file::PathArray>() == file::PathArray("webcam"))
         {
             combined.map["cm_per_pixel"] = Settings::cm_per_pixel_t(0.01);
-        }
+        } else
+            combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
     }
     
+    /// --------------------------------------
+    DebugHeader("// FINAL CONFIG");
+
     for(auto &key : combined.map.keys()) {
         try {
             if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
@@ -285,7 +343,7 @@ void load(file::PathArray source,
             {
                 //if(not contains(copy.toVector(), key))
                 {
-                    print("Updating ",combined.map.at(key));
+                    //print("Updating ",combined.map.at(key));
                     combined.map.at(key).get().copy_to(&GlobalSettings::map());
                 }
                 /*else {
@@ -296,6 +354,7 @@ void load(file::PathArray source,
             FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
         }
     }
+    DebugHeader("// -------------");
     
     print(SETTING(filename));
     print(SETTING(output_dir));
@@ -356,6 +415,26 @@ void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string&
             FormatExcept("Cannot write file ",filename,".");
         }
     }
+}
+
+float infer_cm_per_pixel(const sprite::Map* map) {
+    if(map == nullptr)
+        map = &GlobalSettings::map();
+
+    // setting cm_per_pixel after average has been generated (and offsets have been set)
+    if(not map->has("cm_per_pixel")
+       || map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
+    {
+        auto w = map->at("meta_real_width").value<float>();
+        if(w <= 0) {
+            return 1;
+        }
+        
+        return 1 / max(1.0, w * 0.05);
+        //return w / float(average().cols);
+    }
+
+    return map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
 }
 
 }

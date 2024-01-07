@@ -82,12 +82,12 @@
                 [
                     {
                         "type":"text",
-                        "text":"{if:{global.track_background_subtraction}:'averaging':'model'}",
+                        "text":"{if:{global.track_background_subtraction}:'averaging':'detect_model'}",
                         "pos":[0,6]
                     },
                     {
                         "type":"settings",
-                        "var":"{if:{global.track_background_subtraction}:'averaging_method':'model'}",
+                        "var":"{if:{global.track_background_subtraction}:'averaging_method':'detect_model'}",
                         "fill":[50,50,50],
                         "line":[75,75,75],
                         "size":"{if:{global.track_background_subtraction}:[250,40]:[850,40]}",

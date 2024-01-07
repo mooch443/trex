@@ -609,7 +609,7 @@ int main(int argc, char** argv)
     gui::VideoOpener::Result opening_result;
     
     if(SETTING(filename).value<Path>().empty()) {
-        cmd.load_settings(&combined);
+        cmd.load_settings(&combined.map);
         
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             SETTING(settings_file) = file::Path();
@@ -698,7 +698,7 @@ int main(int argc, char** argv)
     
     try {
         if(!video.header().metadata.empty())
-            sprite::parse_values(sprite::MapSource{video.filename()}, GlobalSettings::map(), video.header().metadata, &combined);
+            sprite::parse_values(sprite::MapSource{video.filename()}, GlobalSettings::map(), video.header().metadata, &combined.map);
     } catch(const UtilsException& e) {
         // dont do anything, has been printed already
     }
@@ -737,7 +737,7 @@ int main(int argc, char** argv)
      * Try to load Settings from the command-line that have been
      * ignored previously.
      */
-    cmd.load_settings(&combined);
+    cmd.load_settings(&combined.map);
     
     if(SETTING(settings_file).value<file::Path>().empty()) {
         auto output_settings = file::DataLocation::parse("output_settings");

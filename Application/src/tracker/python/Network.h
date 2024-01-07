@@ -13,10 +13,7 @@ class TREX_EXPORT Network {
 public:
     std::function<void()> setup, unsetup;
 
-    static bool is_active(Network* net) {
-        std::shared_lock guard(network_mutex);
-        return net == active_network;
-    }
+    static bool is_active(Network* net);
     
     //! sets this network to active and calls the setup
     //! function if it hasn't been yet.
@@ -25,16 +22,11 @@ public:
     
 public:
     Network(const std::string& name,
-            std::function<void()>&& setup = nullptr,
-            std::function<void()>&& unsetup = nullptr)
-        : name(name), setup(std::move(setup)), unsetup(std::move(unsetup))
-    {
-        
-    }
+        std::function<void()>&& setup = nullptr,
+        std::function<void()>&& unsetup = nullptr);
     Network(const Network&) = delete;
     Network(Network&&) = delete;
-    
-    ~Network() { }
+    ~Network();
 };
 
 }

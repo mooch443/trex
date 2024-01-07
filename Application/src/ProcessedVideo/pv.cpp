@@ -761,14 +761,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             
             try {
                 sprite::Map map;
+                map.set_print_by_default(false);
                 map["quiet"] = true;
                 map["meta_real_width"] = float();
-                SettingsMaps sources{
-                    .map = GlobalSettings::map(),
-                    .docs = GlobalSettings::docs(),
-                    .access_levels = GlobalSettings::access_levels()
-                };
-                sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &sources);
+                sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map());
                 /*for(auto key : map.keys()) {
                  print("Key: ", key, " Value: ", map[key].get().valueString());
                  }*/

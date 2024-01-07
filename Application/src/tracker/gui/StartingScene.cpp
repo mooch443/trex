@@ -192,8 +192,8 @@ void StartingScene::_draw(DrawStructure& graph) {
                     }),
                     ActionFunc("open_camera", [](auto) {
                         SETTING(source) = file::PathArray("webcam");
-                        if(not CommandLine::instance().settings_keys().contains("model"))
-                            SETTING(model) = file::Path(track::Yolo8::default_model());
+                        if(not CommandLine::instance().settings_keys().contains("detect_model"))
+                            SETTING(detect_model) = file::Path(track::Yolo8::default_model());
                         if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
                         {
                             SETTING(save_raw_movie) = true;

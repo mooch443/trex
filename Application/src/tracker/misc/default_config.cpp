@@ -323,6 +323,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         //constexpr auto PUBLIC = AccessLevelType::PUBLIC;
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
+        constexpr auto LOAD = AccessLevelType::LOAD;
         
         using namespace settings;
         Adding adding(config, docs, fn);
@@ -345,15 +346,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("individuals_per_thread", 1.f, "Number of individuals for which positions will be estimated per thread.");
         CONFIG("postures_per_thread", 1.f, "Number of individuals for which postures will be estimated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", STARTUP);
-        CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", STARTUP);
-        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
-        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
-        CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
-        CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
+        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
+        CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
+        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", LOAD);
+        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).", LOAD);
+        CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
+        CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
 
-        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.", SYSTEM);
-        CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
+        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.");
+        CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
         static const auto meta_classes = std::vector<std::string>{
@@ -390,12 +391,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 {12, 14, "Right Thigh"},
                 {14, 16, "Right Shin"}
             }), "Skeleton to be used when displaying pose data.");
-        CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
-        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
+        CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
+        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", LOAD);
         CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
-        CONFIG("video_length", uint64_t(0), "The length of the video in frames", STARTUP);
-        CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", SYSTEM);
-        CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
+        CONFIG("video_length", uint64_t(0), "The length of the video in frames", LOAD);
+        CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", LOAD);
+        CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", LOAD);
         
         /*
          * According to @citation the average zebrafish larvae weight would be >200mg after 9-week trials.
@@ -414,12 +415,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_paused", false, "Halts the analysis.");
         CONFIG("limit", 0.09f, "Limit for tailbeat event detection.");
         CONFIG("event_min_peak_offset", 0.15f, "");
-        CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.");
+        CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.", STARTUP);
         CONFIG("log_file", file::Path(), "Set this to a path you want to save the log file to.", STARTUP);
         CONFIG("httpd_port", 8080, "This is where the webserver tries to establish a socket. If it fails, this will be set to the port that was chosen.", STARTUP);
         CONFIG("httpd_accepted_ip", std::string(), "Set this to an IP address that you want to accept exclusively.");
         CONFIG("error_terminate", false, "", SYSTEM);
-        CONFIG("terminate", false, "If set to true, the application terminates.");
+        CONFIG("terminate", false, "If set to true, the application terminates.", SYSTEM);
         
         CONFIG("gui_transparent_background", false, "If enabled, fonts might look weird but you can record movies (and images) with transparent background (if gui_background_color.alpha is < 255).");
         
@@ -510,7 +511,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("outline_curvature_range_ratio", float(0.03), "Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).");
         CONFIG("midline_walk_offset", float(0.025), "This percentage of the number of outline points is the amount of points that the midline-algorithm is allowed to move left and right upon each step. Higher numbers will make midlines more straight, especially when extremities are present (that need to be skipped over), but higher numbers will also potentially decrease accuracy for less detailed objects.");
         CONFIG("midline_stiff_percentage", float(0.15), "Percentage of the midline that can be assumed to be stiff. If the head position seems poorly approximated (straighened out too much), then decrease this value.");
-        CONFIG("midline_resolution", uint32_t(25), "Number of midline points that are saved. Higher number increases detail.", STARTUP);
+        CONFIG("midline_resolution", uint32_t(25), "Number of midline points that are saved. Higher number increases detail.", LOAD);
         CONFIG("posture_head_percentage", float(0.1), "The percentage of the midline-length that the head is moved away from the front of the body.");
         CONFIG("posture_closing_steps", uint8_t(0), "When enabled (> 0), posture will be processed using a combination of erode / dilate in order to close holes in the shape and get rid of extremities. An increased number of steps will shrink the shape, but will also be more time intensive.");
         CONFIG("posture_closing_size", uint8_t(2), "The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  `posture_closing_steps` > 0.");
@@ -766,10 +767,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_trusted_probability", float(0.5), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
-        CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", STARTUP);
+        CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", LOAD);
         
         CONFIG("gui_connectivity_matrix_file", file::Path(), "Path to connectivity table. Expected structure is a csv table with columns [frame | #(track_max_individuals^2) values] and frames in y-direction.");
-        CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.", STARTUP);
+        CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.");
         
         std::vector<float> buffer {
             -0.2576632f , -0.19233586f,  0.00245493f,  0.00398822f,  0.35924019f

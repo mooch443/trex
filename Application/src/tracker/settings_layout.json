@@ -115,12 +115,12 @@
                 [
                     {
                         "type":"text",
-                        "text":"{if:{global.track_background_subtraction}:'averaging':'model'}",
+                        "text":"{if:{global.track_background_subtraction}:'averaging':'detect_model'}",
                         "pos":[0,6]
                     },
                     {
                         "type":"settings",
-                        "var":"{if:{global.track_background_subtraction}:'averaging_method':'model'}",
+                        "var":"{if:{global.track_background_subtraction}:'averaging_method':'detect_model'}",
                         "label":{
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,240]:[50,50,50,240]}"

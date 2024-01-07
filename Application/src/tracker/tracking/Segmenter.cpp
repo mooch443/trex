@@ -123,8 +123,6 @@ Segmenter::~Segmenter() {
         _transferred_blobs.clear();
         _progress_blobs.clear();
         _transferred_current_data = {};
-
-        SETTING(is_writing) = false;
         //SETTING(source) = file::PathArray();
         //SETTING(filename) = file::Path();
         //SETTING(frame_rate) = uint32_t(-1);
@@ -597,7 +595,7 @@ void Segmenter::perform_tracking() {
         _progress_blobs.emplace_back(_progress_data.frame.blob_at(i));
     }
 
-    if (SETTING(is_writing) && _output_file) {
+    if (_output_file) {
         if (not _output_file->is_open()) {
             _output_file->set_start_time(_start_time);
             _output_file->set_resolution(_output_size);
@@ -833,7 +831,6 @@ void Segmenter::reset(Frame_t frame) {
 void Segmenter::setDefaultSettings() {
     SETTING(do_filter) = false;
     SETTING(filter_classes) = std::vector<uint8_t>{};
-    SETTING(is_writing) = true;
     SETTING(track_label_confidence_threshold) = SETTING(detect_conf_threshold).value<float>();
 }
 

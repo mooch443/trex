@@ -27,4 +27,4 @@ target_link_libraries(tracker_misc PUBLIC
 )
 
 #add_dependencies(tracker_misc commons) #Commons::OpenCV)
-target_precompile_headers(tracker_misc REUSE_FROM commons)
+#target_precompile_headers(tracker_misc REUSE_FROM commons)

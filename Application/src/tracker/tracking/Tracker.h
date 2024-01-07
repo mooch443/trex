@@ -134,7 +134,6 @@ public:
     ~Tracker();
     
     static float infer_meta_real_width_from(const pv::File& file);
-    static float infer_cm_per_pixel();
     
     /**
      * Adds a frame to the known frames.

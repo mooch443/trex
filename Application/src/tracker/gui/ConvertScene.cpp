@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -194,10 +194,11 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    if(SETTING(model).value<file::Path>().empty()
-       || (not SETTING(model).value<file::Path>().exists() && not Yolo8::valid_model(SETTING(model).value<file::Path>().str())))
+    if(SETTING(detect_model).value<file::Path>().empty()
+       || (not SETTING(detect_model).value<file::Path>().exists() 
+            && not Yolo8::valid_model(SETTING(detect_model).value<file::Path>().str())))
     {
-        SETTING(model) = file::Path(Yolo8::default_model());
+        SETTING(detect_model) = file::Path(Yolo8::default_model());
     }
     
     if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
@@ -588,14 +589,13 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         ActionFunc("terminate", [this](auto) {
             _exec_main_queue.enqueue([&](IMGUIBase*, DrawStructure& graph){
                 graph.dialog([&](Dialog::Result result){
-                    
                     if(result == Dialog::OKAY) {
                         if (_segmenter)
                             _segmenter->force_stop();
                         else
                             SceneManager::getInstance().set_active("starting-scene");
                     }
-                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to ");
+                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c>"+SETTING(filename).value<file::Path>().str()+"</c>.", "End recording", "Yes, stop", "Cancel");
             });
             
         }),

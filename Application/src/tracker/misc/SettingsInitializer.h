@@ -3,7 +3,11 @@
 #include <tracker/misc/default_config.h>
 #include <gui/GUITaskQueue.h>
 
-namespace settings {
+namespace cmn::sprite {
+    class Map;
+}
+
+namespace cmn::settings {
 class ExtendableVector : public std::vector<std::string> {
 public:
     // Inherit constructors
@@ -43,4 +47,6 @@ void load(file::PathArray source, file::Path filename, default_config::TRexTask 
           ExtendableVector exclude_parameters, const cmn::sprite::Map&);
 
 void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix = "");
+float infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);
+
 }

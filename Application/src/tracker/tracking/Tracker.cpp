@@ -23,6 +23,7 @@
 #include <tracking/AutomaticMatches.h>
 #include <tracking/HistorySplit.h>
 #include <tracking/IndividualManager.h>
+#include <misc/SettingsInitializer.h>
 
 #if !COMMONS_NO_PYTHON
 #include <misc/PythonWrapper.h>
@@ -257,22 +258,6 @@ float Tracker::infer_meta_real_width_from(const pv::File &file) {
     return SETTING(meta_real_width).value<float>();
 }
 
-float Tracker::infer_cm_per_pixel() {
-    // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(not GlobalSettings::map().has("cm_per_pixel")
-       || SETTING(cm_per_pixel).value<float>() == 0)
-    {
-        auto w = SETTING(meta_real_width).value<float>();
-        if(w <= 0) {
-            return 1;
-        }
-        
-        return 1 / max(1.0, w * 0.05);
-        //return w / float(average().cols);
-    }
-    return FAST_SETTING(cm_per_pixel);
-}
-
 Tracker::Tracker(Image::Ptr&& average, const pv::File& video)
     : Tracker(std::move(average), infer_meta_real_width_from(video))
 { }
@@ -309,7 +294,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
     if(!GlobalSettings::has("cm_per_pixel")
        || SETTING(cm_per_pixel).value<float>() == 0)
     {
-        SETTING(cm_per_pixel) = infer_cm_per_pixel();
+        SETTING(cm_per_pixel) = settings::infer_cm_per_pixel();
     }
     
     if(GlobalSettings::is_runtime_quiet())

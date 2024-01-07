@@ -174,6 +174,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten") #-pthread -s PTHREAD_POOL_SIZE=8  
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -pthread")
 
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --preload-file fonts --preload-file group_1.pv -s TOTAL_MEMORY=1000MB")
+    #set(CMAKE_CONFIGURATION_TYPES Debug;Release FORCE)
     set(CMAKE_CONFIGURATION_TYPES "Release" FORCE)
 endif()
 
