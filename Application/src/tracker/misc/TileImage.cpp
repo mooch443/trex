@@ -1,14 +1,11 @@
 #include "TileImage.h"
+#include <python/TileBuffers.h>
 
 useMat_t resized, converted, thresholded;
 cv::Mat download_buffer;
-/*useMat_t TileImage::resized;
-useMat_t TileImage::converted;
-useMat_t TileImage::thresholded;
-cv::Mat TileImage::download_buffer;*/
 
 void TileImage::move_back(Image::Ptr&& ptr) {
-    buffers().move_back(std::move(ptr));
+    buffers::TileBuffers::get().move_back(std::move(ptr));
 }
 
 TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
@@ -22,7 +19,7 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
         && tile_size.height == source.rows)
     {
         source_size = tile_size;
-        auto buffer = buffers().get(source_location::current());
+        auto buffer = buffers::TileBuffers::get().get(source_location::current());
         buffer->create(source);
         images.emplace_back(std::move(buffer));
         _offsets = { Vec2() };
@@ -33,7 +30,7 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
         source_size = tile_size;
         cv::resize(source, resized, tile_size);
 
-        auto buffer = buffers().get(source_location::current());
+        auto buffer = buffers::TileBuffers::get().get(source_location::current());
         buffer->create(resized);
         images.emplace_back(std::move(buffer));
         _offsets = { Vec2() };
@@ -48,7 +45,7 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
                 bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
                 source(bds).copyTo(tile(Bounds{ bds.size() }));
 
-                auto buffer = buffers().get(source_location::current());
+                auto buffer = buffers::TileBuffers::get().get(source_location::current());
                 buffer->create(tile);
                 images.emplace_back(std::move(buffer));
                 tile.setTo(0);

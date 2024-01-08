@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -19,6 +19,7 @@
 #include <misc/CommandLine.h>
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>
+#include <python/TileBuffers.h>
 
 namespace gui {
 
@@ -241,13 +242,13 @@ void ConvertScene::activate()  {
     }
     
     output_size = SETTING(output_size).value<Size2>();
-    TileImage::buffers().set_image_size(video_size);
+    buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
     auto work_area = ((const IMGUIBase*)window())->work_area();
     print("work_area = ", work_area);
     auto window_size = Size2(
         (work_area.width - work_area.x) * 0.75,
-        video_size.height / video_size.width * (work_area.width - work_area.x) * 0.75
+        output_size.height / output_size.width * (work_area.width - work_area.x) * 0.75
     );
     print("prelim window size = ", window_size);
     if (window_size.height > work_area.height - work_area.y) {
@@ -624,10 +625,11 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             auto samples = AbstractBaseVideoSource::_samples.load();
             return samples > 0 ? fps / samples : 0;
         }),
-        VarFunc("net_fps", [](const VarProps&) {
-            auto fps = AbstractBaseVideoSource::_network_fps.load();
-            auto samples = AbstractBaseVideoSource::_network_samples.load();
-            return samples > 0 ? fps / samples : 0;
+        VarFunc("net_fps", [this](const VarProps&) {
+            return this->segmenter().overlayed_video()->network_fps();
+        }),
+        VarFunc("time", [this](const VarProps&) {
+            return uint64_t(_time.load() * 4);
         }),
         VarFunc("vid_fps", [](const VarProps&) {
             auto fps = AbstractBaseVideoSource::_video_fps.load();
@@ -721,7 +723,6 @@ dyn::DynamicGUI ConvertScene::init_gui() {
 void ConvertScene::_draw(DrawStructure& graph) {
     bool dirty = fetch_new_data();
     dirty = true;
-    
     _exec_main_queue.processTasks(static_cast<IMGUIBase*>(window()), graph);
 
     if(window()) {
@@ -1009,6 +1010,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
         static Timer timer;
         dt = timer.elapsed();
         timer.reset();
+
+        _time += dt;
 
         dynGUI.update(nullptr);
     });

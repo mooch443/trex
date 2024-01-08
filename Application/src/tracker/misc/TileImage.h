@@ -5,20 +5,11 @@
 #include <misc/vec2.h>
 #include <misc/Image.h>
 #include <misc/TaskPipeline.h>
-#include <misc/Buffers.h>
 #include <misc/DetectionImageTypes.h>
 
 using namespace cmn;
 
 struct TileImage {
-    using Buffers_t = ImageBuffers < Image::Ptr, decltype([]() {
-        return Image::Make();
-    }) > ;
-    static Buffers_t& buffers() {
-        static TileImage::Buffers_t buffers{ "TileImage" };
-        return buffers;
-    }
-
     Size2 tile_size;
     SegmentationData data;
     std::vector<Image::Ptr> images;

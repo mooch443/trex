@@ -13,12 +13,12 @@ elseif(WIN32)
 endif()
 
 if(WIN32)
-    target_link_libraries(tracker_python PUBLIC
+    target_compile_definitions(tracker_python PRIVATE TREX_EXPORTS)
+    target_link_libraries(tracker_python PRIVATE
         tracker_misc
         pv
         commons
     )
-    target_compile_options(tracker_python PUBLIC /D"TREX_EXPORTS")
 else()
     target_link_libraries(tracker_python PUBLIC pv commons)
 endif()

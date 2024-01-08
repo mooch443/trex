@@ -1,9 +1,9 @@
 #include "Yolo8.h"
-#include <misc/AbstractVideoSource.h>
 #include <misc/PixelTree.h>
 #include <misc/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>
+#include <misc/Timer.h>
 
 namespace track {
 
@@ -15,6 +15,8 @@ std::mutex init_mutex;
 std::future<void> init_future;
 
 std::atomic<bool> yolo8_initialized{false};
+std::atomic<double> _network_fps{0.0};
+std::atomic<size_t> _network_samples{0u};
 
 std::string Yolo8::default_model() {
     return "yolov8n-pose.pt";
@@ -87,6 +89,8 @@ void Yolo8::reinit(ModuleProxy& proxy) {
 void Yolo8::init() {
     bool expected = false;
     if(yolo8_initialized.compare_exchange_strong(expected, true)) {
+        _network_fps = _network_samples = 0;
+
         std::unique_lock guard(init_mutex);
         if(init_future.valid())
             init_future.get();
@@ -404,6 +408,12 @@ bool Yolo8::is_initializing() {
     return init_future.valid();
 }
 
+double Yolo8::fps() {
+    if(_network_samples.load() == 0u)
+		return 0.0;
+    return _network_fps.load() / double(_network_samples.load());
+}
+
 void Yolo8::apply(std::vector<TileImage>&& tiles) {
     while(true) {
         if(std::unique_lock guard(init_mutex);
@@ -583,11 +593,13 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
                 throw;
             }
             
-            if (AbstractBaseVideoSource::_network_samples.load() > 10) {
-                AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_fps = 0;
+            auto samples = _network_samples.load();
+            auto fps = _network_fps.load();
+            if (samples > 10u) {
+                fps = fps = 0;
             }
-            AbstractBaseVideoSource::_network_fps = AbstractBaseVideoSource::_network_fps.load() + (double(_N) / timer.elapsed());
-            AbstractBaseVideoSource::_network_samples = AbstractBaseVideoSource::_network_samples.load() + 1;
+            _network_fps = fps + (double(_N) / timer.elapsed());
+            _network_samples = samples + 1;
             
         }).get();
         

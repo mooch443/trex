@@ -270,7 +270,9 @@ void Segmenter::open_video() {
         
         {
             std::unique_lock vlock(_mutex_general);
-            _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+            if (not _output_file) {
+                _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+            }
             _output_file->set_average(bg);
         }
     };
@@ -309,8 +311,14 @@ void Segmenter::open_video() {
         /// if background subtraction is disabled for tracking, we don't need to
         /// wait for the average image to generate first:
         if(not FAST_SETTING(track_background_subtraction)) {
-            auto image_size = _output_size;
-            _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, 1), float(track::detect::get_model_image_size().width * 10));
+            {
+                std::unique_lock guard(_mutex_tracker);
+                auto image_size = _output_size;
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, 1), float(track::detect::get_model_image_size().width * 10));
+            }
+
+            std::unique_lock vlock(_mutex_general);
+            _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
         }
         
     } else {
@@ -603,11 +611,20 @@ void Segmenter::perform_tracking() {
     }
 
     if (_output_file) {
-        if (not _output_file->is_open()) {
-            _output_file->set_start_time(_start_time);
-            _output_file->set_resolution(_output_size);
+        try {
+            if (not _output_file->is_open()) {
+                _output_file->set_start_time(_start_time);
+                _output_file->set_resolution(_output_size);
+            }
+            _output_file->add_individual(pv::Frame(_progress_data.frame));
         }
-        _output_file->add_individual(pv::Frame(_progress_data.frame));
+        catch (const std::exception& ex) {
+            // we cannot write to the file for some reason!
+            FormatExcept("Exception while writing to file: ", ex.what());
+            //_should_terminate = true;
+            //return;
+            throw;
+        }
     }
 
     auto index = _progress_data.frame.index();
@@ -755,7 +772,22 @@ void Segmenter::tracking_thread() {
                 //spinner.tick();
             }
             
-            perform_tracking();
+
+            try {
+                perform_tracking();
+            }
+            catch (const std::exception& e) {
+				FormatExcept("Exception while tracking: ", e.what());
+                guard.unlock();
+
+                if (error_callback)
+                    error_callback("Tracking failed: " + std::string(e.what()));
+                error_callback = nullptr;
+                eof_callback = nullptr;
+
+                graceful_end();
+                return;
+			}
             //guard.lock();
         //} catch(...) {
         //    FormatExcept("Exception while tracking");

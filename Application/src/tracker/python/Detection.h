@@ -28,6 +28,7 @@ struct TREX_EXPORT Detection {
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
     static bool is_initializing();
+    static double fps();
 
     static auto& manager() {
         static auto instance = PipelineManager<TileImage>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
@@ -53,6 +54,7 @@ struct TREX_EXPORT BackgroundSubtraction {
     static detect::ObjectDetectionType::Class type() { return detect::ObjectDetectionType::background_subtraction; }
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
+    static double fps();
 
     static auto& manager() {
         static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {

@@ -32,6 +32,7 @@ public:
     virtual bool eof() const noexcept = 0;
     virtual void reset_to_frame(Frame_t frame) = 0;
     virtual AsyncResult generate() noexcept = 0;
+    virtual double network_fps() noexcept = 0;
 };
 
 // Class that represents a video processor. It takes a video source as input
@@ -188,5 +189,10 @@ public:
         //if (eof())
         //    return tl::unexpected("End of file reached.");
         return _async_queue.next();
+    }
+
+    // Returns the FPS of the video source
+    double network_fps() noexcept override {
+        return F::fps();
     }
 };

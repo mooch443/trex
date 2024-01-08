@@ -8,6 +8,7 @@
 #include <video/Video.h>
 #include <processing/CPULabeling.h>
 #include <misc/Timer.h>
+#include <misc/AbstractVideoSource.h>
 
 namespace track {
 using namespace detect;
@@ -43,6 +44,12 @@ bool Detection::is_initializing() {
     if(type() == ObjectDetectionType::yolo8)
         return Yolo8::is_initializing();
     return false;
+}
+
+double Detection::fps() {
+    if(type() == ObjectDetectionType::yolo8)
+        return Yolo8::fps();
+    return AbstractBaseVideoSource::_network_fps.load();
 }
 
 ObjectDetectionType::Class Detection::type() {
@@ -136,6 +143,10 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
 }
 
 void BackgroundSubtraction::deinit() {}
+
+double BackgroundSubtraction::fps() {
+	return AbstractBaseVideoSource::_network_fps.load();
+}
 
 void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();

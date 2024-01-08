@@ -241,7 +241,7 @@ void load(file::PathArray source,
             : source;
         
         auto name = combined.map.at("filename").value<file::Path>();
-        auto filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &combined.map);
+        filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &combined.map);
         if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
         {
             combined.map["filename"] = filename;
@@ -282,7 +282,7 @@ void load(file::PathArray source,
     /// -----------------------------------------------
     auto exclude_from_default = exclude;
     if(task == TRexTask_t::track) {
-        auto path = SETTING(filename).value<file::Path>();
+        auto path = combined.map.at("filename").value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");
         if(path.is_regular()) {
@@ -325,7 +325,8 @@ void load(file::PathArray source,
     /// ---------------------------
     /// 11. defaults based on task
     /// ---------------------------
-    if(type != track::detect::ObjectDetectionType::background_subtraction)
+    if(G g(type.toStr() + "-defaults");
+       type != track::detect::ObjectDetectionType::background_subtraction)
     {
         static const sprite::Map values {
             "track_threshold", 0,
@@ -464,6 +465,7 @@ void load(file::PathArray source,
     print(SETTING(output_dir));
     print(SETTING(output_prefix));
     print(SETTING(source));
+    print(SETTING(detect_type));
     print(SETTING(detect_model));
     print(SETTING(region_model));
     print(SETTING(meta_source_path));

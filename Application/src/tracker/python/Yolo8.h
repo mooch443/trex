@@ -26,6 +26,7 @@ struct TREX_EXPORT Yolo8 {
     static std::string default_model();
     
     static bool is_initializing();
+    static double fps();
 };
 
 } // namespace track

@@ -80,6 +80,8 @@ class ConvertScene : public Scene {
     std::future<std::string> _retrieve_video_info;
     std::string _recovered_error;
     TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
+
+    std::atomic<double> _time{0};
     
 public:
     ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate);
