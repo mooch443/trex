@@ -39,6 +39,12 @@ void Detection::deinit() {
         BackgroundSubtraction::deinit();
 }
 
+bool Detection::is_initializing() {
+    if(type() == ObjectDetectionType::yolo8)
+        return Yolo8::is_initializing();
+    return false;
+}
+
 ObjectDetectionType::Class Detection::type() {
     return SETTING(detect_type).value<ObjectDetectionType::Class>();
 }

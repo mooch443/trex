@@ -27,6 +27,7 @@ struct TREX_EXPORT Detection {
     static detect::ObjectDetectionType::Class type();
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
+    static bool is_initializing();
 
     static auto& manager() {
         static auto instance = PipelineManager<TileImage>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {

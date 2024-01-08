@@ -704,6 +704,9 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             return _recovered_error;
+        }),
+        VarFunc("is_initializing", [this](const VarProps&) {
+            return Detection::is_initializing();
         })
     };
 

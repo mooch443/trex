@@ -199,6 +199,8 @@ void Segmenter::open_video() {
     _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(meta_video_size) = Size2(video_base.size());
     SETTING(output_size) = _output_size;
+    
+    _processor_initializing = true;
 
     if(std::unique_lock vlock(_mutex_video);
        track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction)

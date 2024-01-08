@@ -24,6 +24,8 @@ struct TREX_EXPORT Yolo8 {
     static void apply(std::vector<TileImage>&& tiles);
     static bool valid_model(const file::Path&);
     static std::string default_model();
+    
+    static bool is_initializing();
 };
 
 } // namespace track

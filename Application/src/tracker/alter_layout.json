@@ -5,7 +5,8 @@
 			"same_parent":"{equal:{folder:{global.source}}:{folder:{folder:{output_name}}}}",
 			"indent":"{if:{same_parent}:'   ':''}",
 			"movie_in_sub":"{&&:{equal:{folder:{global.save_raw_movie_path}}:{folder:{output_name}}}:{global.save_raw_movie}}",
-			"movie_elsewhere":"{&&:{global.save_raw_movie}:{not:{movie_in_sub}}}"
+			"movie_elsewhere":"{&&:{global.save_raw_movie}:{not:{movie_in_sub}}}",
+			"animation":"<sym>{if:{equal:{mod:{video.frame}:5}:0}:'○':''}{if:{equal:{mod:{video.frame}:5}:1}:'◔':''}{if:{equal:{mod:{video.frame}:5}:2}:'◑':''}{if:{equal:{mod:{video.frame}:5}:3}:'◕':''}{if:{equal:{mod:{video.frame}:5}:4}:'●':''}</sym>"
 		}
 	},
 	"objects":[
@@ -134,7 +135,7 @@
 					},
 					{
 						"type":"stext", 
-						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{video_error}:'\n<str>{video_error}</str>':''}{if:{&&:{video.frame}:{average_is_generating}}:\n<sym>{if:{equal:{mod:{video.frame}:5}:0}:'○':''}{if:{equal:{mod:{video.frame}:5}:1}:'◔':''}{if:{equal:{mod:{video.frame}:5}:2}:'◑':''}{if:{equal:{mod:{video.frame}:5}:3}:'◕':''}{if:{equal:{mod:{video.frame}:5}:4}:'●':''}</sym> generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{video_error}:'\n<str>{video_error}</str>':''}{if:{&&:{video.frame}:{average_is_generating}}:\n{animation} generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					},
 					{
@@ -157,7 +158,7 @@
 				"type":"stext",
 				"font":{"size":0.5},
 				"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
-				"text":"<c>{shorten:{filename:{global.detect_model}}:35}</c><sym> 🞙</sym> {global.detect_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+				"text":"{if:{is_initializing}:'{animation} <c>initializing...</c><sym> 🞙</sym> ':''}<c>{shorten:{filename:{global.detect_model}}:35}</c><sym> 🞙</sym> {global.detect_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 			}
 		]
 	},

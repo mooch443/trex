@@ -399,11 +399,22 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
     }
 }
 
+bool Yolo8::is_initializing() {
+    std::unique_lock guard(init_mutex);
+    return init_future.valid();
+}
+
 void Yolo8::apply(std::vector<TileImage>&& tiles) {
-    if(std::unique_lock guard(init_mutex);
-       init_future.valid() /*&& init_future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready*/)
-    {
-        init_future.get();
+    while(true) {
+        if(std::unique_lock guard(init_mutex);
+           init_future.valid())
+        {
+            if(init_future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
+                init_future.get();
+                break;
+            }
+        } else
+            break;
     }
     
     namespace py = Python;

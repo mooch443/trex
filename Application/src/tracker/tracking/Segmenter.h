@@ -23,6 +23,7 @@ class Segmenter {
     
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);
+    std::atomic<bool> _processor_initializing{false};
     std::unique_ptr<Tracker> _tracker;
     
     std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
