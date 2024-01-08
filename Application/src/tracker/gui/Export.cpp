@@ -207,7 +207,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     
-    auto filename = std::string(SETTING(filename).value<file::Path>().filename());
+    file::Path input = SETTING(filename).value<file::Path>().filename();
+    if(input.has_extension() && input.extension() == "pv") {
+        input = input.remove_extension();
+    }
+    std::string filename = input.str();
+    
     auto posture_path = (fishdata / (filename + "_posture_*.npz")).str();
     auto recognition_path = (fishdata / (filename + "_recognition_*.npz")).str();
     
@@ -303,7 +308,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                               Rangel(fish->start_frame().get(), fish->end_frame().get()),
                               fish, library_cache.at(thread_index));
                     
-                    file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_" + fish->identity().name() + "." + output_format.name());
+                    file::Path path = (filename + "_" + fish->identity().name() + "." + output_format.name());
                     file::Path final_path = fishdata / path;
                     
                     try {
@@ -382,7 +387,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 throw U_EXCEPTION("Range starts at ",range.start(),", but frame is not set for fish ",fish->identity().ID(),".");
                             auto start_blob_id = fish->blob(range.start())->blob_id();
                             
-                            file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
+                            file::Path path(tags_path / filename / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
                             if(!path.remove_filename().exists()) {
                                 if(!path.remove_filename().create_folder())
                                     throw U_EXCEPTION("Cannot create folder ",path.remove_filename().str()," please check permissions.");
@@ -474,7 +479,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 
                 if(SETTING(output_recognition_data)) {
                     // output network data
-                    file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_recognition_" + fish->identity().name() + ".npz");
+                    file::Path path = (filename + "_recognition_" + fish->identity().name() + ".npz");
                     
                     Range<Frame_t> fish_range(range);
                     if(range.empty())
@@ -508,7 +513,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 }
                 
                 if(output_posture_data) {
-                    file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_posture_" + fish->identity().name() + ".npz");
+                    file::Path path = (filename + "_posture_" + fish->identity().name() + ".npz");
                     
                     Range<Frame_t> fish_range(range);
                     if(range.empty())
@@ -681,7 +686,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         
         if(SETTING(output_statistics))
         {
-            file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_statistics.npz");
+            file::Path path = (filename + "_statistics.npz");
             
             if(!(fishdata / path).exists() || Tracker::instance()->statistics().size() == Tracker::number_frames())
             {
@@ -701,7 +706,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 });
                 
                 if(!auto_no_memory_stats) {
-                    temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_memory.npz"), [&](file::Path path) {
+                    temporary_save(fishdata / (filename + "_memory.npz"), [&](file::Path path) {
                         print("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
                         std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
@@ -738,7 +743,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         print("Saved memory stats at ",f.str());
                     });
                     
-                    temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_global_memory.npz"), [&](file::Path path) {
+                    temporary_save(fishdata / (filename + "_global_memory.npz"), [&](file::Path path) {
                         mem::OutputLibraryMemoryStats ol;
                         ol.print();
                         
@@ -1024,8 +1029,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             };
             
             // output network data
-            file::Path path = fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_tracklet_images.npz");
-            file::Path single_path = fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_tracklet_images_single");
+            file::Path path = fishdata / (filename + "_tracklet_images.npz");
+            file::Path single_path = fishdata / (filename + "_tracklet_images_single");
             
             if(!split_masks.empty()) {
                 auto path = single_path.str() + "_splits_part";

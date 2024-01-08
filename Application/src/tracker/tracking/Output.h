@@ -129,7 +129,7 @@ namespace Output {
         friend class Data;
         friend class TrackingResults;
         
-        std::function<void(const std::string&, float, const std::string&)> _update_progress;
+        std::function<void(const std::string&, double, const std::string&)> _update_progress;
         uint64_t last_callback;
         uint64_t estimated_size;
         std::exception_ptr _exception_ptr;
@@ -161,7 +161,7 @@ namespace Output {
         cmn::atomic<uint64_t> _expected_individuals, _N_written;
         
     public:
-        ResultsFormat(const Path& filename, std::function<void(const std::string&, float, const std::string&)> update_progress);
+        ResultsFormat(const Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress);
         ~ResultsFormat();
         
         //const char* read_data_fast(uint64_t num_bytes) override;

@@ -549,7 +549,8 @@ int main(int argc, char**argv) {
         if(task == TRexTask_t::none)
             throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
         
-        settings::load({}, {}, 
+        settings::load(SETTING(source).value<file::PathArray>(),
+                       SETTING(filename).value<file::Path>(),
                        task,
                        SETTING(detect_type),
                        {}, {});
@@ -643,7 +644,7 @@ int main(int argc, char**argv) {
                 spinner.mark_as_completed();
             
         } else if(task == TRexTask_t::track) {
-            TrackingState state;
+            TrackingState state{nullptr};
             state.init_video();
             
             RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());

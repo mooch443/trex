@@ -24,15 +24,15 @@ namespace cmn::settings {
  *     >> exclude `source` and `filename` since we get that
  *        from the function parameters if applicable
  *  5. **exclude** `STARTUP` variables
- *  6. (*optional*) load default values based on task, but exclude
- *                  all options from previous steps (cmd + *default*)
- *  7. Overwrite `filename` + `source` with parameters if not empty
- *  8. Overwrite `output_dir` + `output_prefix` from map parameter
- *  9. if `source` or `filename` are empty, load them from provided
+ *  6. Overwrite `filename` + `source` with parameters if not empty
+ *  7. Overwrite `output_dir` + `output_prefix` from map parameter
+ *  8. if `source` or `filename` are empty, load them from provided
  *     parameters (e.g. `task`::track + `filename`)
- * 10. **exclude** `output_dir` + `output_prefix` since we have now
+ *  9. **exclude** `output_dir` + `output_prefix` since we have now
  *     locked in the `filename` + `source` parameters
- * 11. If `detection_type` is track, load settings from the .pv file
+ * 10. If `task` is track, load settings from the .pv file
+ * 11. (*optional*) load default values based on task, but exclude
+ *                  all options from previous steps (cmd + *default*)
  * 12. Load `video.settings` if they exist
  * 13. load sprite::Map passed to function
  *
@@ -111,7 +111,7 @@ void load(file::PathArray source,
         //"app_name", // is SYSTEM
         "nowindow",
         "gui_interface_scale",
-        "auto_quit",
+        //"auto_quit",
         "task",
         "filename",
         "source"
@@ -167,31 +167,9 @@ void load(file::PathArray source,
 
     /// append cmd parameters so they wont be overwritten
     exclude += startup_variables;
-
-    /// ---------------------------
-    /// 6. defaults based on task
-    /// ---------------------------
-    if(type != track::detect::ObjectDetectionType::background_subtraction)
-    {
-        static const sprite::Map values {
-            "track_threshold", 0,
-            "track_posture_threshold", 0,
-            "track_background_subtraction", false,
-            "calculate_posture", false,
-            "meta_encoding", grab::default_config::meta_encoding_t::r3g3b2,
-            "track_do_history_split", false
-        };
-        
-        for(auto &key : values.keys()) {
-            if(contains(exclude.toVector(), key))
-                continue;
-            values.at(key).get().copy_to(&combined.map);
-            //all.emplace_back(key); // < not technically "custom"
-        }
-    }
     
     /// --------------------------------------------------------
-    /// 7. set the source / filename properties from parameters:
+    /// 6. set the source / filename properties from parameters:
     /// --------------------------------------------------------
     if(not filename.empty())
     {
@@ -211,7 +189,7 @@ void load(file::PathArray source,
     }
 
     /// ---------------------------------------------------------------------
-    /// 8. set the `output_dir` / `output_prefix` properties from parameters:
+    /// 7. set the `output_dir` / `output_prefix` properties from parameters:
     /// ---------------------------------------------------------------------
     if(source_map.has("output_dir"))
         source_map.at("output_dir").get().copy_to(&combined.map);
@@ -219,7 +197,7 @@ void load(file::PathArray source,
         source_map.at("output_prefix").get().copy_to(&combined.map);
     
     /// -----------------------------------------------------
-    /// 9. if `source` or `filename` are empty, generate them
+    /// 8. if `source` or `filename` are empty, generate them
     /// -----------------------------------------------------
     if(source.empty()
        && task == TRexTask_t::convert)
@@ -291,7 +269,7 @@ void load(file::PathArray source,
     }
     
     /// ----------------------------------------------------------------
-    /// 10. **exclude** `output_dir` + `output_prefix` since we have now
+    ///  9. **exclude** `output_dir` + `output_prefix` since we have now
     ///     locked in the `filename` + `source` parameters
     /// ----------------------------------------------------------------
     exclude = exclude + std::array{
@@ -300,8 +278,9 @@ void load(file::PathArray source,
     };
     
     /// -----------------------------------------------
-    /// 11. load settings from the .pv if tracking mode
+    /// 10. load settings from the .pv if tracking mode
     /// -----------------------------------------------
+    auto exclude_from_default = exclude;
     if(task == TRexTask_t::track) {
         auto path = SETTING(filename).value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
@@ -309,9 +288,27 @@ void load(file::PathArray source,
         if(path.is_regular()) {
             try {
                 G g(path.str());
+                sprite::Map tmp;
                 pv::File f(path, pv::FileMode::READ);
+                if(f.header().version < pv::Version::V_10) {
+                    tmp["detect_type"] = detect::ObjectDetectionType::background_subtraction;
+                    type = detect::ObjectDetectionType::background_subtraction;
+                }
+                
                 const auto& meta = f.header().metadata;
-                sprite::parse_values(sprite::MapSource{ path }, combined.map, meta, & combined.map, exclude.toVector());
+                sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector());
+                
+                exclude_from_default += tmp.keys();
+                
+                for(auto &key : tmp.keys())
+                    tmp.at(key).get().copy_to(&combined.map);
+                
+                if(not tmp.has("detect_type")
+                   && not tmp.has("detection_type"))
+                {
+                    combined.map["detect_type"] = detect::ObjectDetectionType::background_subtraction;
+                    type = detect::ObjectDetectionType::background_subtraction;
+                }
                 
                 if (not combined.map.has("meta_real_width")
                     || combined.map.at("meta_real_width").value<float>() == 0)
@@ -322,6 +319,48 @@ void load(file::PathArray source,
             } catch(const std::exception& ex) {
                 FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
             }
+        }
+    }
+    
+    /// ---------------------------
+    /// 11. defaults based on task
+    /// ---------------------------
+    if(type != track::detect::ObjectDetectionType::background_subtraction)
+    {
+        static const sprite::Map values {
+            "track_threshold", 0,
+            "track_posture_threshold", 0,
+            "track_background_subtraction", false,
+            "calculate_posture", false,
+            "meta_encoding", grab::default_config::meta_encoding_t::r3g3b2,
+            "track_do_history_split", false
+        };
+        
+        for(auto &key : values.keys()) {
+            if(contains(exclude_from_default.toVector(), key)) {
+                print("Not setting default value ", key);
+                continue;
+            }
+            values.at(key).get().copy_to(&combined.map);
+            //all.emplace_back(key); // < not technically "custom"
+        }
+    } else {
+        static const sprite::Map values {
+            "track_threshold", 9,
+            "track_posture_threshold", 9,
+            "track_background_subtraction", true,
+            "calculate_posture", true,
+            "meta_encoding", grab::default_config::meta_encoding_t::gray,
+            "track_do_history_split", true
+        };
+        
+        for(auto &key : values.keys()) {
+            if(contains(exclude_from_default.toVector(), key)) {
+                print("// Not setting default value ", key);
+                continue;
+            }
+            values.at(key).get().copy_to(&combined.map);
+            //all.emplace_back(key); // < not technically "custom"
         }
     }
     
@@ -393,6 +432,8 @@ void load(file::PathArray source,
         } else
             combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
     }
+    
+    combined.map["detect_type"] = type;
     
     /// --------------------------------------
     DebugHeader("// FINAL CONFIG");

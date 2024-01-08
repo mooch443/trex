@@ -78,8 +78,11 @@ struct TrackingState {
         
     } _stats;
     
-    TrackingState();
+    TrackingState(GUITaskQueue_t* gui);
+    ~TrackingState();
     
+    std::function<void()> _end_task_check_auto_quit;
+    std::future<void> _end_task;
     std::mutex _task_mutex;
     std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
         
@@ -93,6 +96,7 @@ struct TrackingState {
     void export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range);
     void correct_identities(GUITaskQueue_t* gui, bool force_correct, track::IdentitySource);
     void auto_correct(GUITaskQueue_t* gui = nullptr);
+    void auto_quit(GUITaskQueue_t* gui = nullptr);
     
     void on_tracking_done();
 };
@@ -133,7 +137,6 @@ class TrackingScene : public Scene {
         pv::Frame _frame;
         
         ScreenRecorder _recorder;
-        TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
         
         /**
          * @brief Constructor for the Data struct.
@@ -148,6 +151,7 @@ class TrackingScene : public Scene {
              const pv::File& video);
     };
     
+    TaskQueue<IMGUIBase*, DrawStructure&> _exec_main_queue;
     std::unique_ptr<TrackingState> _state;
     
     //! All the gui related data that is supposed to go away between

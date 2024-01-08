@@ -21,8 +21,8 @@ typedef int64_t data_long_t;
     
 });*/
 
-Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<void(const std::string&, float, const std::string&)> update_progress)
- : 
+Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress)
+ :
 DataFormat(filename.str()),
 _update_progress(update_progress), 
 last_callback(0), 
@@ -836,7 +836,7 @@ template<> void Data::read(Individual*& out_ptr) {
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
                 print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N) * 100),"%)...");
-                results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
+                results->_update_progress("", N_written / double(N), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
     });
@@ -915,7 +915,7 @@ uint64_t Data::write(const Individual& val) {
         pos += ptr->current_offset();
         
         if(pos - ptr->last_callback > ptr->estimated_size * 0.01) {
-            ptr->_update_progress("", narrow_cast<float>(min(1.0, double(pos)/double(ptr->estimated_size))), "");
+            ptr->_update_progress("", min(1.0, double(pos)/double(ptr->estimated_size)), "");
             ptr->last_callback = pos;
         }
     };
@@ -1232,7 +1232,7 @@ namespace Output {
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
         if(current_offset() - last_callback > estimated_size * 0.01) {
-            _update_progress("", narrow_cast<float>(min(1.0, double(current_offset()+num_bytes)/double(estimated_size))), "");
+            _update_progress("", min(1.0, double(current_offset()+num_bytes)/double(estimated_size)), "");
             last_callback = current_offset();
         }
         

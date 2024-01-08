@@ -152,6 +152,7 @@ namespace cmn {
                 _main_thread->join();
                 delete _main_thread;
             }
+            _main_thread = nullptr;
             
             for(auto &t : _stages)
                 t.condition.notify_all();
@@ -160,6 +161,9 @@ namespace cmn {
                 t->join();
                 delete t;
             }
+            
+            _threads.clear();
+            _stages.clear();
         }
     }
     
