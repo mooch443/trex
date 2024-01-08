@@ -596,7 +596,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
             auto samples = _network_samples.load();
             auto fps = _network_fps.load();
             if (samples > 10u) {
-                fps = fps = 0;
+                fps = samples = 0;
             }
             _network_fps = fps + (double(_N) / timer.elapsed());
             _network_samples = samples + 1;

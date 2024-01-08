@@ -6,7 +6,25 @@
 			"indent":"{if:{same_parent}:'   ':''}",
 			"movie_in_sub":"{&&:{equal:{folder:{global.save_raw_movie_path}}:{folder:{output_name}}}:{global.save_raw_movie}}",
 			"movie_elsewhere":"{&&:{global.save_raw_movie}:{not:{movie_in_sub}}}",
-			"animation":"<sym>{if:{equal:{mod:{time}:5}:0}:'○':''}{if:{equal:{mod:{time}:5}:1}:'◔':''}{if:{equal:{mod:{time}:5}:2}:'◑':''}{if:{equal:{mod:{time}:5}:3}:'◕':''}{if:{equal:{mod:{time}:5}:4}:'●':''}</sym>"
+			
+			"circles":"[○,◔,◑,◕,●]",
+			"animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
+
+			"ffmpeg_fix":"ffmpeg -i {global.source} -c copy \"{basename:{global.source}}_fixed.mp4\"",
+
+			"clocks":"[🕛,🕐,🕑,🕒,🕓,🕔,🕕,🕖,🕗,🕘,🕙,🕚,🕛]",
+			"animation2":"<sym>{at:{mod:{time}:{array_length:{clocks}}}:{clocks}}</sym>",
+
+			"long_text":"This is a long text that will be animated.",
+			"text_length":"{array_length:'{long_text}'}",
+			"buildup":"{substr:0:{mod:{*:{+:5:{time}}:2}:{+:1:{text_length}}}:{long_text}}",
+
+			"slide_window":10,
+			"spots":"{-:{slide_window}:1}",
+			"text_start":"{mod:{*:{time}:4}:{+:{slide_window}:{text_length}}}",
+			"animation_begin":"{max:0:{-:{spots}:{text_start}}}",
+			"slide":"{pad_string:{animation_begin}:''}{substr:0:{-:{slide_window}:{animation_begin}}:{pad_string:{slide_window}:{substr:{max:0:{-:{-:{text_start}:{spots}}:{animation_begin}}}:{+:{spots}:{text_start}}:{long_text}}}}",
+			"animated_text":"{animation} {animation2}  [<c>{slide}</c>]  <c>{pad_string:{text_length}:{buildup}<sym>❚</sym>}</c>"
 		}
 	},
 	"objects":[
@@ -103,14 +121,14 @@
 		"type":"gridlayout",
 		"pos":[20,10],
 		"scale":[1.0,1.0],
-		"pad":[5,5,5,5],
+		"pad":[10,10,10,10],
 		"fill":[0,0,0,100],
 		"clickable":false,
-		"valign":"center",
+		"valign":"top",
 		"children": [[
 			{ 
 				"type":"hlayout", 
-				"pad":[0,0,5,0],
+				"pad":[0,5,-10,0],
 				"children": [
 					{ 
 						"type":"button", 
@@ -135,13 +153,32 @@
 					},
 					{
 						"type":"stext", 
-						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{video_error}:'\n<str>{video_error}</str>':''}{if:{&&:{video.frame}:{average_is_generating}}:\n{animation} generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{&&:{video.frame}:{average_is_generating}}:\n{animation} generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					},
 					{
 						"type":"stext",
-						"text":"{+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} total, {array_length:{inactive_ids}} inactive, <nr>{array_length:{active_ids}} active</nr>",
+						"text":"<i>tracking stats:</i> {.+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} total, {.array_length:{inactive_ids}} inactive, <nr>{.array_length:{active_ids}} active</nr>",
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					
+					{
+						"type":"condition",
+						"var":"{video_error}",
+						"then":{
+							"type":"stext",
+							"name":"video_error_text",
+							"clickable":true,
+							"click":"set_clipboard:{ffmpeg_fix}",
+							"text":"<orange><sym>⮿</sym> {video_error}</orange>",
+							"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+						},
+						"else":{ "type":"rect", "size":[0,0] }
+					},
+					{
+						"type":"stext",
+						"font":{"size":0.5},
+						"text":"{animated_text} "
 					}
 				]
 			}
@@ -157,7 +194,7 @@
 			{
 				"type":"stext",
 				"font":{"size":0.5},
-				"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰<sym>❯</sym>",
+				"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
 				"text":"{if:{is_initializing}:'{animation} <c>initializing...</c><sym> 🞙</sym> ':''}<c>{shorten:{filename:{global.detect_model}}:35}</c><sym> 🞙</sym> {global.detect_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 			}
 		]
@@ -187,19 +224,34 @@
 			}
 		]
 	},
-
 	{
 		"type":"condition",
-		"var":"{hovered:desc}",
+		"var":"{hovered:video_error_text}",
 		"then":{
 			"type":"stext",
-			"fill":[0,0,0,150],
+			"fill":[0,0,0,180],
 			"pad":[10,5,10,5],
 			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
 			"origin":[0,0],
 			"font":{"size":0.5},
 			"color":[255,255,255],
-			"text":"{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {folder:{global.source}}{if:{not:{same_folder}}:'\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>':''}\n{indent}\":\"<sym>🗁</sym> {folder:{global.source}}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}}\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:'\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}{if:{movie_elsewhere}:'\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}':''}"
+			"max_size":[300,0],
+			"text":"You may want to fix your video file (e.g. using <c>ffmpeg</c>) and try again. <c>ffmpeg</c> is a widely used command-line tool for video processing, already installed within your current conda environment (<c><cyan>{folder:{folder:{global.python_path}}}</cyan></c>). It can also be downloaded from <c><cyan>https://ffmpeg.org/</cyan></c>.\n\nA simple way to remux your file from the terminal is:\n<c><cyan>{ffmpeg_fix}</cyan></c>\n<sym>⮩</sym> <i>click to copy to clipboard</i>\n\nThis will create a new file with the extension <c><cyan>.mp4</cyan></c> without reencoding."
+		},
+		"else":{"type":"rect", "size":[0,0]}
+	},
+	{
+		"type":"condition",
+		"var":"{hovered:desc}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
+			"origin":[0,0],
+			"font":{"size":0.5},
+			"color":[255,255,255],
+			"text":"<h4>Preview of the resulting folder structure</h4>{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {folder:{global.source}}{if:{not:{same_folder}}:'\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>':''}\n{indent}\":\"<sym>🗁</sym> {folder:{global.source}}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}}\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:'\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}{if:{movie_elsewhere}:'\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}':''}"
 		},
 		"else":{"type":"rect", "size":[0,0]}
 	}

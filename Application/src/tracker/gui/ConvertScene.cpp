@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -607,6 +607,13 @@ dyn::DynamicGUI ConvertScene::init_gui() {
                 GlobalSettings::get(name).get().set_value_from_string(value);
             }
         }),
+        ActionFunc("set_clipboard", [this](const Action& action) {
+            auto text = action.parameters.at(0);
+            gui::set_clipboard(text);
+            _exec_main_queue.enqueue([text](auto, DrawStructure& graph) {
+                graph.dialog("Copied to clipboard:\n<c><str>"+text+"</str></c>");
+            });
+        }),
         ActionFunc("FILTER", [](auto) {
             static bool filter { false };
             filter = not filter;
@@ -628,8 +635,8 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         VarFunc("net_fps", [this](const VarProps&) {
             return this->segmenter().overlayed_video()->network_fps();
         }),
-        VarFunc("time", [this](const VarProps&) {
-            return uint64_t(_time.load() * 4);
+        VarFunc("time", [this](const VarProps&) -> float {
+            return (_time.load() * 4);
         }),
         VarFunc("vid_fps", [](const VarProps&) {
             auto fps = AbstractBaseVideoSource::_video_fps.load();
@@ -707,7 +714,7 @@ dyn::DynamicGUI ConvertScene::init_gui() {
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             return _recovered_error;
         }),
-        VarFunc("is_initializing", [this](const VarProps&) {
+        VarFunc("is_initializing", [](const VarProps&) {
             return Detection::is_initializing();
         })
     };
@@ -1011,7 +1018,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
         dt = timer.elapsed();
         timer.reset();
 
-        _time += dt;
+        _time = _time + dt;
 
         dynGUI.update(nullptr);
     });
