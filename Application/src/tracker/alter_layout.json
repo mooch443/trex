@@ -194,8 +194,9 @@
 			{
 				"type":"stext",
 				"font":{"size":0.5},
+				"clickable":true,
 				"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
-				"text":"{if:{is_initializing}:'{animation} <c>initializing...</c><sym> 🞙</sym> ':''}<c>{shorten:{filename:{global.detect_model}}:35}</c><sym> 🞙</sym> {global.detect_resolution}<i>px</i> <sym>❯</sym> <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+				"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i><sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 			}
 		]
 	},

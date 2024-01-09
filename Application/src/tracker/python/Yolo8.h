@@ -27,6 +27,10 @@ struct TREX_EXPORT Yolo8 {
     
     static bool is_initializing();
     static double fps();
+private:
+    struct TransferData;
+    static void ReceivePackage(TransferData&&, std::vector<track::detect::Result>&& results);
+    static void StartPythonProcess(TransferData&&);
 };
 
 } // namespace track

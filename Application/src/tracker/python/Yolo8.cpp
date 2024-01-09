@@ -414,6 +414,156 @@ double Yolo8::fps() {
     return _network_fps.load() / double(_network_samples.load());
 }
 
+struct Yolo8::TransferData {
+    std::vector<Image::Ptr> images;
+    //std::vector<Image::Ptr> oimages;
+    std::vector<SegmentationData> datas;
+    std::vector<Vec2> scales;
+    std::vector<Vec2> offsets;
+    std::vector<size_t> orig_id;
+    std::vector<std::promise<SegmentationData>> promises;
+    std::vector<std::function<void()>> callbacks;
+
+    TransferData() = default;
+    TransferData(TransferData&&) = delete;
+    TransferData& operator=(TransferData&&) = delete;
+
+    ~TransferData() {
+        for (auto&& img : images) {
+            TileImage::move_back(std::move(img));
+        }
+        //thread_print("** deleting ", (uint64_t)this);
+    }
+};
+
+void Yolo8::StartPythonProcess(TransferData&& transfer) {
+    if (not yolo8_initialized) {
+        // probably shutting down at the moment
+        for (size_t i = 0; i < transfer.datas.size(); ++i) {
+            transfer.promises.at(i).set_exception(nullptr);
+
+            try {
+                transfer.callbacks.at(i)();
+            }
+            catch (...) {
+                FormatExcept("Exception in callback of element ", i, " in python results.");
+            }
+        }
+        FormatExcept("System shutting down.");
+        return;
+    }
+
+    Timer timer;
+    using py = track::PythonIntegration;
+    //thread_print("** transfer of ", (uint64_t)& transfer);
+
+    const size_t _N = transfer.datas.size();
+    ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
+    //bbx.set_variable("offsets", std::move(transfer.offsets));
+    //bbx.set_variable("image", transfer.images);
+    //bbx.set_variable("oimages", transfer.oimages);
+
+    std::vector<uint64_t> mask_Ns;
+    std::vector<float> mask_points;
+
+    try {
+        track::detect::YoloInput input{ 
+            std::move(transfer.images), 
+            (transfer.offsets), 
+            (transfer.scales), 
+            (transfer.orig_id),
+            [](std::vector<Image::Ptr>&& images)
+            {
+                for (auto&& image : images)
+                    TileImage::move_back(std::move(image));
+            }
+        };
+
+        //auto results = py::predict(std::move(input), bbx.m);
+        //print("C++ results = ", results);
+        auto results = py::predict(std::move(input), bbx.m);
+        double elapsed = timer.elapsed();
+        timer.reset();
+        ReceivePackage(std::move(transfer), std::move(results));
+        //bbx.run("apply");
+        double cpp_elapsed = timer.elapsed();
+
+        auto samples = _network_samples.load();
+        auto fps = _network_fps.load();
+        if (samples > 10u) {
+            fps = fps / double(samples);
+            samples = 1;
+        }
+        _network_fps = fps + (double(_N) / elapsed);
+        _network_samples = samples + 1;
+        print("[py] network: ", elapsed);
+        print("[cpp] network: ", cpp_elapsed);
+    }
+    catch (const std::exception& ex) {
+        FormatError("Exception: ", ex.what());
+        throw SoftException(std::string(ex.what()));
+    }
+    catch (...) {
+        FormatWarning("Continue after exception...");
+
+        throw;
+    }
+}
+
+void Yolo8::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Result>&& results) {
+    //size_t elements{0};
+    //size_t outline_elements{0};
+    //thread_print("Received a number of results: ", results.size());
+    //thread_print("For elements: ", datas);
+    //for(auto &t : transfer.oimages)
+    //    TileImage::buffers.move_back(std::move(t));
+
+    if (results.empty()) {
+        if (not transfer.images.empty())
+            tf::imshow("ma", transfer.images.front()->get());
+        for (size_t i = 0; i < transfer.datas.size(); ++i) {
+            try {
+                transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
+            }
+            catch (...) {
+                FormatExcept("A promise failed for ", transfer.datas.at(i));
+                transfer.promises.at(i).set_exception(std::current_exception());
+            }
+
+            try {
+                transfer.callbacks.at(i)();
+            }
+            catch (...) {
+                FormatExcept("Exception in callback of element ", i, " in python results.");
+            }
+        }
+        FormatExcept("Empty data for ", transfer.datas, " image=", transfer.orig_id);
+        return;
+    }
+
+    for (size_t i = 0; i < transfer.datas.size(); ++i) {
+        auto&& result = results.at(i);
+        auto& data = transfer.datas.at(i);
+        auto& scale = transfer.scales.at(i);
+
+        try {
+            receive(data, scale, std::move(result));
+            transfer.promises.at(i).set_value(std::move(data));
+        }
+        catch (...) {
+            FormatExcept("A promise failed for ", transfer.datas.at(i));
+            transfer.promises.at(i).set_exception(std::current_exception());
+        }
+
+        try {
+            transfer.callbacks.at(i)();
+        }
+        catch (...) {
+            FormatExcept("Exception in callback of element ", i, " in python results.");
+        }
+    }
+}
+
 void Yolo8::apply(std::vector<TileImage>&& tiles) {
     while(true) {
         if(std::unique_lock guard(init_mutex);
@@ -428,29 +578,8 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
     }
     
     namespace py = Python;
-    
-    struct TransferData {
-        std::vector<Image::Ptr> images;
-        //std::vector<Image::Ptr> oimages;
-        std::vector<SegmentationData> datas;
-        std::vector<Vec2> scales;
-        std::vector<Vec2> offsets;
-        std::vector<size_t> orig_id;
-        std::vector<std::promise<SegmentationData>> promises;
-        std::vector<std::function<void()>> callbacks;
+    TransferData transfer;
 
-        TransferData() = default;
-        TransferData(TransferData&&) = delete;
-        TransferData& operator=(TransferData&&) = delete;
-        
-        ~TransferData() {
-            for (auto&& img : images) {
-                TileImage::move_back(std::move(img));
-            }
-            //thread_print("** deleting ", (uint64_t)this);
-        }
-    } transfer;
-    
     size_t i = 0;
     for(auto&& tiled : tiles) {
         transfer.images.insert(transfer.images.end(), std::make_move_iterator(tiled.images.begin()), std::make_move_iterator(tiled.images.end()));
@@ -487,120 +616,8 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
             running_prediction = running_promise.get_future().share();
         }
 
-        py::schedule([&transfer]() mutable
-                     {
-            if(not yolo8_initialized) {
-                // probably shutting down at the moment
-                for(size_t i=0; i< transfer.datas.size(); ++i) {
-                    transfer.promises.at(i).set_exception(nullptr);
-                    
-                    try {
-                        transfer.callbacks.at(i)();
-                    } catch(...) {
-                        FormatExcept("Exception in callback of element ", i," in python results.");
-                    }
-                }
-                FormatExcept("System shutting down.");
-                return;
-            }
-            
-            Timer timer;
-            using py = track::PythonIntegration;
-            //thread_print("** transfer of ", (uint64_t)& transfer);
-            
-            const size_t _N = transfer.datas.size();
-            ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
-            //bbx.set_variable("offsets", std::move(transfer.offsets));
-            //bbx.set_variable("image", transfer.images);
-            //bbx.set_variable("oimages", transfer.oimages);
-            
-            std::vector<uint64_t> mask_Ns;
-            std::vector<float> mask_points;
-            
-            auto recv = [&transfer](std::vector<track::detect::Result>&& results)
-            mutable
-            {
-                //size_t elements{0};
-                //size_t outline_elements{0};
-                //thread_print("Received a number of results: ", results.size());
-                //thread_print("For elements: ", datas);
-                //for(auto &t : transfer.oimages)
-                //    TileImage::buffers.move_back(std::move(t));
-                
-                if(results.empty()) {
-                    if(not transfer.images.empty())
-                        tf::imshow("ma", transfer.images.front()->get());
-                    for(size_t i=0; i< transfer.datas.size(); ++i) {
-                        try {
-                            transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
-                        } catch(...) {
-                            FormatExcept("A promise failed for ", transfer.datas.at(i));
-                            transfer.promises.at(i).set_exception(std::current_exception());
-                        }
-                        
-                        try {
-                            transfer.callbacks.at(i)();
-                        } catch(...) {
-                            FormatExcept("Exception in callback of element ", i," in python results.");
-                        }
-                    }
-                    FormatExcept("Empty data for ", transfer.datas, " image=", transfer.orig_id);
-                    return;
-                }
-                
-                for (size_t i = 0; i < transfer.datas.size(); ++i) {
-                    auto&& result = results.at(i);
-                    auto& data = transfer.datas.at(i);
-                    auto& scale = transfer.scales.at(i);
-                    
-                    try {
-                        receive(data, scale, std::move(result));
-                        transfer.promises.at(i).set_value(std::move(data));
-                    }
-                    catch (...) {
-                        FormatExcept("A promise failed for ", transfer.datas.at(i));
-                        transfer.promises.at(i).set_exception(std::current_exception());
-                    }
-                    
-                    try {
-                        transfer.callbacks.at(i)();
-                    }
-                    catch (...) {
-                        FormatExcept("Exception in callback of element ", i, " in python results.");
-                    }
-                }
-            };
-            
-            try {
-                track::detect::YoloInput input(std::move(transfer.images), (transfer.offsets), (transfer.scales), (transfer.orig_id), 
-                    [](std::vector<Image::Ptr>&& images)
-                {
-                    for(auto&& image : images)
-                        TileImage::move_back(std::move(image));
-                });
-                //auto results = py::predict(std::move(input), bbx.m);
-                //print("C++ results = ", results);
-                recv(py::predict(std::move(input), bbx.m));
-                //bbx.run("apply");
-            }
-            catch (const std::exception& ex) {
-                FormatError("Exception: ", ex.what());
-                throw SoftException(std::string(ex.what()));
-            }
-            catch (...) {
-                FormatWarning("Continue after exception...");
-                
-                throw;
-            }
-            
-            auto samples = _network_samples.load();
-            auto fps = _network_fps.load();
-            if (samples > 10u) {
-                fps = samples = 0;
-            }
-            _network_fps = fps + (double(_N) / timer.elapsed());
-            _network_samples = samples + 1;
-            
+        py::schedule([&transfer]() mutable {
+            StartPythonProcess(std::move(transfer));
         }).get();
         
         running_promise.set_value();

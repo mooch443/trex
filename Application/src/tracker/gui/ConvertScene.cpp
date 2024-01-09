@@ -20,6 +20,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>
 #include <python/TileBuffers.h>
+#include <misc/DetectionTypes.h>
 
 namespace gui {
 
@@ -673,6 +674,9 @@ dyn::DynamicGUI ConvertScene::init_gui() {
                 return "CPU";
             }
             return python_gpu_name();
+        }),
+        VarFunc("detect_format", [](const VarProps&) {
+            return SETTING(detect_format).value<detect::ObjectDetectionFormat_t>();
         }),
         VarFunc("fish", [](const VarProps&) -> sprite::Map& {
             return fish;
