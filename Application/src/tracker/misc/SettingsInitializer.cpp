@@ -291,8 +291,13 @@ void load(file::PathArray source,
                 sprite::Map tmp;
                 pv::File f(path, pv::FileMode::READ);
                 if(f.header().version < pv::Version::V_10) {
-                    tmp["detect_type"] = detect::ObjectDetectionType::background_subtraction;
-                    type = detect::ObjectDetectionType::background_subtraction;
+                    /// we need to have a `detect_type` in oder to set the
+                    /// correct task-defaults in the next step.
+                    ///
+                    /// since there was no other `detect_type` before
+                    /// **V_10** and there also was no, type parameter to
+                    /// query, we set bg subtraction:
+                    tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
                 }
                 
                 const auto& meta = f.header().metadata;
@@ -303,11 +308,15 @@ void load(file::PathArray source,
                 for(auto &key : tmp.keys())
                     tmp.at(key).get().copy_to(&combined.map);
                 
-                if(not tmp.has("detect_type")
-                   && not tmp.has("detection_type"))
+                if((   not tmp.has("detect_type")
+                       || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
+                   && (not tmp.has("detection_type")
+                       || detect::ObjectDetectionType::none == tmp.at("detection_type").value<detect::ObjectDetectionType_t>()))
                 {
-                    combined.map["detect_type"] = detect::ObjectDetectionType::background_subtraction;
-                    type = detect::ObjectDetectionType::background_subtraction;
+                    /// if we dont know, but there is no setting
+                    /// its probably older versions and we use
+                    /// background subtraction defaults:
+                    combined.map["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
                 }
                 
                 if (not combined.map.has("meta_real_width")
@@ -434,6 +443,13 @@ void load(file::PathArray source,
             combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
     }
     
+    
+    if(type == detect::ObjectDetectionType::none)
+    {
+        /// we need to have some kind of default.
+        /// use the new technology first:
+        type = detect::ObjectDetectionType::yolo8;
+    }
     combined.map["detect_type"] = type;
     
     /// --------------------------------------

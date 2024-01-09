@@ -86,7 +86,7 @@ public:
 void load(file::PathArray source, 
           file::Path filename,
           default_config::TRexTask task,
-          track::detect::ObjectDetectionType::Class type,
+          track::detect::ObjectDetectionType_t type,
           ExtendableVector exclude_parameters,
           const cmn::sprite::Map&);
 

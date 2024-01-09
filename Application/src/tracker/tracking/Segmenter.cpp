@@ -8,6 +8,8 @@
 #include <python/Yolo8.h>
 #include <misc/SettingsInitializer.h>
 
+using namespace track::detect;
+
 namespace track {
 Timer start_timer;
 
@@ -201,28 +203,16 @@ void Segmenter::open_video() {
     SETTING(output_size) = _output_size;
     
     _processor_initializing = true;
-
-    if(std::unique_lock vlock(_mutex_video);
-       track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction)
+    
     {
-        _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
-           BackgroundSubtraction{},
-           std::move(video_base),
-           [this]() {
-               ThreadManager::getInstance().notify(_generator_group_id);
-               //_cv_messages.notify_one();
-           }
-        );
-        
-    } else {
-        _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
-           Detection{},
-           std::move(video_base),
-           [this]() {
-               ThreadManager::getInstance().notify(_generator_group_id);
-               //_cv_messages.notify_one();
-           }
-        );
+        std::unique_lock vlock(_mutex_video);
+        _overlayed_video = std::unique_ptr<BasicProcessor>(new VideoProcessor{
+            Detection{},
+            std::move(video_base),
+            [this]() {
+                ThreadManager::getInstance().notify(_generator_group_id);
+            }
+        });
     }
     
     SETTING(video_length) = uint64_t(video_length().get());
@@ -303,7 +293,7 @@ void Segmenter::open_video() {
             cv::imwrite(average_name().str(), bg);
             
             print("** generated average ", bg.channels());
-            if(detect::detection_type() == detect::ObjectDetectionType::background_subtraction)
+            if(detection_type() == ObjectDetectionType::background_subtraction)
                 BackgroundSubtraction::set_background(Image::Make(bg));
             callback_after_generating(bg);
         });
@@ -877,11 +867,7 @@ void Segmenter::printDebugInformation() {
     DebugHeader("Starting tracking of");
     print("average at: ", average_name());
     using namespace track::detect;
-    if (detection_type() != ObjectDetectionType::yolo8) {
-        print("model: ", SETTING(detect_model).value<file::Path>());
-    }
-    else
-        print("model: ", SETTING(detect_model).value<file::Path>());
+    print("model: ", SETTING(detect_model).value<file::Path>());
     print("region model: ", SETTING(region_model).value<file::Path>());
     print("video: ", SETTING(source).value<file::PathArray>());
     print("model resolution: ", SETTING(detect_resolution).value<uint16_t>());

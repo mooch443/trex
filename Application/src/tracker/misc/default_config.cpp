@@ -740,7 +740,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
         CONFIG("gpu_torch_no_fixes", false, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
-        CONFIG("detect_type", track::detect::ObjectDetectionType::yolo8, "The detection type for video segmentation.");
+        CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.");
+        CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation");
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");

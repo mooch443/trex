@@ -181,7 +181,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                             
                             auto type =
                                 item._options.has("detect_type")
-                                ? item._options.at("detect_type").value<track::detect::ObjectDetectionType::Class>()
+                                ? item._options.at("detect_type").value<track::detect::ObjectDetectionType_t>()
                                 : GlobalSettings::defaults().at("detect_type");
                             
                             //auto path = pv_file_path_for(array);

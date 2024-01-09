@@ -4,8 +4,14 @@
 #include <misc/vec2.h>
 
 namespace track::detect {
-    ENUM_CLASS(ObjectDetectionType, yolo7, yolo7seg, yolo8, customseg, background_subtraction);
-    ObjectDetectionType::Class detection_type();
+    ENUM_CLASS(ObjectDetectionType, none, yolo8, background_subtraction);
+    ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses);
+
+    using ObjectDetectionType_t = ObjectDetectionType::Class;
+    using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
+
+    ObjectDetectionType_t detection_type();
+    ObjectDetectionFormat_t detection_format();
 
     cmn::Size2 get_model_image_size();
 

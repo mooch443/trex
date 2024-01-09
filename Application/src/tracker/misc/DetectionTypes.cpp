@@ -6,8 +6,11 @@
 using namespace cmn;
 
 namespace track::detect {
-ObjectDetectionType::Class detection_type() {
-    return SETTING(detect_type).value<ObjectDetectionType::Class>();
+ObjectDetectionType_t detection_type() {
+    return SETTING(detect_type).value<ObjectDetectionType_t>();
+}
+ObjectDetectionFormat_t detection_format() {
+    return SETTING(detect_format).value<ObjectDetectionFormat_t>();
 }
 
 Size2 get_model_image_size() {

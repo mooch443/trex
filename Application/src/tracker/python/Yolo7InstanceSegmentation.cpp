@@ -1,4 +1,4 @@
-#include <python/Yolo7InstanceSegmentation.h>
+/*#include <python/Yolo7InstanceSegmentation.h>
 #include <misc/PythonWrapper.h>
 #include <processing/CPULabeling.h>
 #include <misc/AbstractVideoSource.h>
@@ -134,22 +134,9 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
             auto points = pixel::find_outer_points(&blob, 0);
             if (not points.empty()) {
                 data.outlines.emplace_back(std::move(*points.front()));
-                //for (auto& pt : outline_points.back())
-                //    pt = (pt + blob.bounds().pos())/*.mul(dim.div(image.dimensions())) + pos*/;
             }
             data.predictions.push_back({ .clid = size_t(cls), .p = float(conf) });
             data.frame.add_object(std::move(pair));
-            //auto big = pixel::threshold_get_biggest_blob(&blob, 1, nullptr);
-            //auto [pos, img] = big->image();
-            
-            /*if (i % 2 && data.frame.index().get() % 10 == 0) {
-                auto [pos, img] = blob.image();
-                cv::Mat vir = cv::Mat::zeros(img->rows, img->cols, CV_8UC3);
-                auto vit = vir.ptr<cv::Vec3b>();
-                for (auto it = img->data(); it != img->data() + img->size(); ++it, ++vit)
-                    *vit = Viridis::value(*it / 255.0);
-                tf::imshow("big", vir);
-            }*/
         }
     }
 }
@@ -196,3 +183,4 @@ tl::expected<SegmentationData, const char*> Yolo7InstanceSegmentation::apply(Til
 }
 
 }
+*/

@@ -24,7 +24,6 @@ concept ObjectDetection = MultiObjectDetection<T> || SingleObjectDetection<T>;
 struct TREX_EXPORT Detection {
     Detection();
     
-    static detect::ObjectDetectionType::Class type();
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
     static bool is_initializing();
@@ -51,7 +50,7 @@ struct TREX_EXPORT BackgroundSubtraction {
     BackgroundSubtraction(Image::Ptr&& = nullptr);
     static void set_background(Image::Ptr&&);
     
-    static detect::ObjectDetectionType::Class type() { return detect::ObjectDetectionType::background_subtraction; }
+    //static detect::ObjectDetectionType_t type() { return detect::ObjectDetectionType::background_subtraction; }
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
     static double fps();
@@ -72,11 +71,13 @@ struct TREX_EXPORT BackgroundSubtraction {
     
 private:
     static void apply(std::vector<TileImage>&& tiled);
+    friend struct Detection;
     
     struct Data {
         Image::Ptr background;
         gpuMat gpu;
         gpuMat float_average;
+        double time{0.0}, samples{0.0};
         
         void set(Image::Ptr&&);
     };

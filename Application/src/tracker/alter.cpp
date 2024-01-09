@@ -41,8 +41,8 @@
 #include <gui/AnnotationScene.h>
 
 #include <python/Yolo8.h>
-#include <python/Yolo7InstanceSegmentation.h>
-#include <python/Yolo7ObjectDetection.h>
+//#include <python/Yolo7InstanceSegmentation.h>
+//#include <python/Yolo7ObjectDetection.h>
 
 #include <file/PathArray.h>
 #include <misc/SettingsInitializer.h>
@@ -70,9 +70,10 @@ std::string date_time() {
 
 using namespace gui;
 
-static_assert(ObjectDetection<Yolo7ObjectDetection>);
+//static_assert(ObjectDetection<Yolo7ObjectDetection>);
 //static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 static_assert(ObjectDetection<Yolo8>);
+static_assert(ObjectDetection<BackgroundSubtraction>);
 
 namespace ind = indicators;
 using namespace default_config;

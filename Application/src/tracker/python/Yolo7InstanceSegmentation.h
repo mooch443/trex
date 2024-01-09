@@ -1,4 +1,4 @@
-#pragma once
+/*#pragma once
 
 #include <python/Detection.h>
 #include <python/ModuleProxy.h>
@@ -15,3 +15,4 @@ struct TREX_EXPORT Yolo7InstanceSegmentation {
 };
 
 } // namespace track
+*/

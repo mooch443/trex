@@ -1,7 +1,7 @@
 #include "Detection.h"
-#include <python/Yolo7InstanceSegmentation.h>
+//#include <python/Yolo7InstanceSegmentation.h>
 #include <python/Yolo8.h>
-#include <python/Yolo7ObjectDetection.h>
+//#include <python/Yolo7ObjectDetection.h>
 #include <processing/RawProcessing.h>
 #include <grabber/misc/default_config.h>
 #include <misc/TrackingSettings.h>
@@ -14,51 +14,55 @@ namespace track {
 using namespace detect;
 
 Detection::Detection() {
-    switch (type()) {
-    case ObjectDetectionType::yolo7:
+    switch (detection_type()) {
+    /*case ObjectDetectionType::yolo7:
         Yolo7ObjectDetection::init();
         break;
 
     case ObjectDetectionType::customseg:
     case ObjectDetectionType::yolo7seg:
         Yolo7InstanceSegmentation::init();
-        break;
+        break;*/
 
     case ObjectDetectionType::yolo8:
         Yolo8::init();
         break;
+            
+    case ObjectDetectionType::background_subtraction:
+        break;
 
     default:
-        throw U_EXCEPTION("Unknown detection type: ", type());
+        throw U_EXCEPTION("Unknown detection type: ", detection_type());
     }
 }
 
 void Detection::deinit() {
-    if(type() == ObjectDetectionType::yolo8)
+    if(detection_type() == ObjectDetectionType::yolo8)
         Yolo8::deinit();
-    else if(type() == ObjectDetectionType::background_subtraction)
+    else if(detection_type() == ObjectDetectionType::background_subtraction)
         BackgroundSubtraction::deinit();
 }
 
 bool Detection::is_initializing() {
-    if(type() == ObjectDetectionType::yolo8)
+    if(detection_type() == ObjectDetectionType::yolo8)
         return Yolo8::is_initializing();
     return false;
 }
 
 double Detection::fps() {
-    if(type() == ObjectDetectionType::yolo8)
+    if(detection_type() == ObjectDetectionType::yolo8)
         return Yolo8::fps();
+    if(detection_type() == ObjectDetectionType::background_subtraction)
+        return BackgroundSubtraction::fps();
     return AbstractBaseVideoSource::_network_fps.load();
 }
 
-ObjectDetectionType::Class Detection::type() {
-    return SETTING(detect_type).value<ObjectDetectionType::Class>();
-}
-
 std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
-    switch (type()) {
-    case ObjectDetectionType::yolo7: {
+    if(tiled.promise)
+        throw U_EXCEPTION("Promise was already created.");
+    
+    switch (detection_type()) {
+    /*case ObjectDetectionType::yolo7: {
         if(tiled.promise)
             throw U_EXCEPTION("Promise was already created.");
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
@@ -78,34 +82,42 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
             p.set_exception(std::current_exception());
         }
         return p.get_future();
-    }
+    }*/
 
     case ObjectDetectionType::yolo8: {
-        if(tiled.promise)
-            throw U_EXCEPTION("Promise was already created.");
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
         manager().enqueue(std::move(tiled));
         return f;
     }
 
+    case ObjectDetectionType::background_subtraction: {
+        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
+        auto f = tiled.promise->get_future();
+        manager().enqueue(std::move(tiled));
+        return f;
+    }
+            
     default:
-        throw U_EXCEPTION("Unknown detection type: ", type());
+        throw U_EXCEPTION("Unknown detection type: ", detection_type());
     }
 }
 
 void Detection::apply(std::vector<TileImage>&& tiled) {
-    if (type() == ObjectDetectionType::yolo7) {
+    /*if (type() == ObjectDetectionType::yolo7) {
         Yolo7ObjectDetection::apply(std::move(tiled));
         return;
 
     }
-    else if (type() == ObjectDetectionType::yolo8) {
+    else*/ if (detection_type() == ObjectDetectionType::yolo8) {
         Yolo8::apply(std::move(tiled));
+        return;
+    } else if(detection_type() == ObjectDetectionType::background_subtraction) {
+        BackgroundSubtraction::apply(std::move(tiled));
         return;
     }
 
-    throw U_EXCEPTION("Unknown detection type: ", type());
+    throw U_EXCEPTION("Unknown detection type: ", detection_type());
 }
 
 BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {
@@ -145,10 +157,13 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
 void BackgroundSubtraction::deinit() {}
 
 double BackgroundSubtraction::fps() {
-	return AbstractBaseVideoSource::_network_fps.load();
+    if(data().samples == 0)
+        return 0;
+    return data().time / data().samples;
 }
 
 void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
+    Timer timer;
     static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
     static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
     
@@ -326,6 +341,11 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
         }
         
         ++i;
+    }
+    
+    if(not tiled.empty()) {
+        data().time +=  double(tiled.size()) / timer.elapsed();
+        data().samples++;
     }
 }
 
