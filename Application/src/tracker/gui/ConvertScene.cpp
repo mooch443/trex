@@ -21,8 +21,168 @@
 #include <gui/dyn/ParseText.h>
 #include <python/TileBuffers.h>
 #include <misc/DetectionTypes.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Segmenter.h>
+#include <gui/ScreenRecorder.h>
+#include <gui/DynamicGUI.h>
+#include <gui/GUITaskQueue.h>
 
 namespace gui {
+using namespace dyn;
+
+struct ConvertScene::Data {
+    Segmenter* _segmenter{nullptr};
+
+    // External images for background and overlay
+    std::shared_ptr<ExternalImage> _background_image = std::make_shared<ExternalImage>(),
+                                   _overlay_image = std::make_shared<ExternalImage>();
+
+    // Vectors for object blobs and GUI objects
+    std::vector<pv::BlobPtr> _object_blobs;
+    SegmentationData _current_data;
+
+    // Individual properties for each object
+    std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui, _joint;
+    std::map<Idx_t, sprite::Map> _individual_properties;
+    std::vector<sprite::Map> _untracked_properties;
+    std::vector<sprite::Map*> _tracked_properties;
+    std::unordered_map<pv::bid, Identity> _visible_bdx;
+    std::vector<Idx_t> _inactive_ids;
+    std::vector<Idx_t> _active_ids;
+
+    std::unordered_map<Idx_t, std::shared_ptr<Label>> _labels;
+    std::vector<std::unique_ptr<Skelett>> _skeletts;
+    std::unordered_map<Idx_t, std::tuple<Frame_t, Bounds>> _last_bounds;
+    
+    ScreenRecorder _recorder;
+    
+    double dt = 0;
+    std::atomic<double> _time{0};
+    std::unique_ptr<Bowl> _bowl;
+    
+    Size2 window_size;
+    Size2 output_size;
+    Size2 video_size;
+    Vec2 _last_mouse;
+    
+    // Frame data
+    Frame_t _actual_frame;
+    Frame_t _video_frame;
+    
+    dyn::DynamicGUI dynGUI;
+    GUITaskQueue_t _exec_main_queue;
+    std::future<std::string> _retrieve_video_info;
+    std::string _recovered_error;
+    
+    Frame_t last_frame;
+    Timer timer;
+    
+    void drawBlobs(Frame_t, const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
+    // Helper function to draw outlines
+    void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
+    void check_video_info(bool wait, std::string*);
+    
+    bool fetch_new_data();
+    
+    dyn::DynamicGUI init_gui(Base* window);
+    void check_gui(DrawStructure& graph, Base* window) {
+        if(not dynGUI) {
+            dynGUI = init_gui(window);
+            dynGUI.graph = &graph;
+
+            dynGUI.context.custom_elements["label"] = CustomElement {
+                .name = "label",
+                .create = [this](LayoutContext& layout) -> Layout::Ptr {
+                    std::shared_ptr<Label> ptr;
+                    auto text = layout.get<std::string>("", "text");
+                    auto center = layout.get<Vec2>(Vec2(), "center");
+                    auto line_length = layout.get<float>(float(60), "length");
+                    auto id = layout.get<Idx_t>(Idx_t(), "id");
+                    auto color = layout.textClr;
+                    auto line = layout.line;
+                    auto fill = layout.fill;
+
+                    if (id.valid()) {
+                        auto it = _labels.find(id);
+                        if (it != _labels.end()) {
+                            ptr = it->second;
+                        } else
+                            _labels[id] = ptr = std::make_shared<Label>();
+                    }
+
+                    if (not ptr)
+                        ptr = std::make_shared<Label>(text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
+
+                    ptr->set_line_length(line_length);
+                    ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);//Bounds(layout.pos, layout.size).center());
+                    auto font = parse_font(layout.obj, layout._defaults.font);
+                    ptr->text()->set(font);
+                    ptr->text()->set(color);
+                    ptr->text()->set(FillClr{ fill });
+                    ptr->set_line_color(line);
+                    //print("Create new label with text = ", text);
+
+                    return Layout::Ptr(ptr);
+                },
+                .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+                    //print("Updating label with patterns: ", patterns);
+                    //print("o = ", o.get());
+
+                    Idx_t id;
+                    if (patterns.contains("id"))
+                        id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
+                    
+                    if (id.valid()) {
+                        auto it = _labels.find(id);
+                        if (it != _labels.end()) {
+                            if(it->second.get() != o.get())
+                                o = Layout::Ptr(it->second);
+                        }
+                    }
+
+                    auto p = o.to<Label>();
+                    auto source = p->source();
+                    auto pos = source.pos();
+                    auto center = p->center();
+                    auto text = p->text()->text();
+
+                    if(patterns.contains("text"))
+                        text = parse_text(patterns.at("text").original, context, state);
+                    if (patterns.contains("pos")) {
+                        pos = Meta::fromStr<Vec2>(parse_text(patterns.at("pos").original, context, state));
+                    }
+                    if (patterns.contains("size")) {
+                        source = Bounds(pos, Meta::fromStr<Size2>(parse_text(patterns.at("size").original, context, state)));
+                    }
+                    if (patterns.contains("center")) {
+                        center = Meta::fromStr<Vec2>(parse_text(patterns.at("center").original, context, state));
+                    } else
+                        center = source.pos()+ Vec2(source.width, source.height) * 0.5;
+
+                    if(patterns.contains("line"))
+                        p->set_line_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
+                    if (patterns.contains("fill"))
+                        p->set_fill_color(Meta::fromStr<Color>(parse_text(patterns.at("fill").original, context, state)));
+                    if(patterns.contains("color"))
+                        p->text()->set(TextClr{ Meta::fromStr<Color>(parse_text(patterns.at("color").original, context, state)) });
+
+                    p->set_data(0_f, text, source, center);
+                    p->update(FindCoord::get(), 1, 1, false, dt, Scale{1});
+                }
+            };
+        }
+        
+        dynGUI.update(nullptr);
+    }
+    void draw(bool dirty, DrawStructure& graph, Base* window);
+};
+
+Segmenter& ConvertScene::segmenter() const {
+    if(not _data || not _data->_segmenter)
+        throw U_EXCEPTION("No segmenter exists.");
+    return *_data->_segmenter;
+}
 
 sprite::Map ConvertScene::fish = []() {
     sprite::Map fish;
@@ -103,7 +263,7 @@ _on_deactivate(on_deactivate)
 { }
 
 ConvertScene::~ConvertScene() {
-    if (_segmenter)
+    if (_data && _data->_segmenter)
         deactivate();
     else if(_scene_active.valid()) {
         auto status = _scene_active.wait_for(std::chrono::seconds(0));
@@ -119,14 +279,17 @@ ConvertScene::~ConvertScene() {
 }
 
 void ConvertScene::set_segmenter(Segmenter* seg) {
-    assert(_segmenter == nullptr);
-    _segmenter = seg;
+    if(not _data)
+        _data = std::make_unique<Data>();
+    
+    assert(_data->_segmenter == nullptr);
+    _data->_segmenter = seg;
     if(seg) {
         seg->set_progress_callback([this](float percent){
             if(percent >= 0)
                 bar.set_progress(percent);
             else if(last_tick.elapsed() > 1) {
-                spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(video_frame())+")"});
+                spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame)+")"});
                 spinner.tick();
                 last_tick.reset();
             }
@@ -136,8 +299,8 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
 
 void ConvertScene::deactivate() {
     try {
-        if(_recorder.recording())
-            _recorder.stop_recording(window(), nullptr);
+        if(_data && _data->_recorder.recording())
+            _data->_recorder.stop_recording(window(), nullptr);
 
         bar.set_progress(100);
         bar.mark_as_completed();
@@ -149,18 +312,20 @@ void ConvertScene::deactivate() {
         spinner.set_progress(100);
         spinner.mark_as_completed();
         
+        _data->_object_blobs.clear();
+        _data->_current_data = {};
+        _data->dynGUI.clear();
         
-        _object_blobs.clear();
-        _current_data = {};
-        dynGUI.clear();
+        /// save the last settings used
+        RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::map());
         
-        check_video_info(true, nullptr);
+        segmenter().force_stop();
+        _data->check_video_info(true, nullptr);
         
         if(_on_deactivate)
             _on_deactivate(*this);
         
-        _segmenter = nullptr;
-        _bowl = nullptr;
+        _data = nullptr;
         _scene_promise.set_value();
         
     } catch(const std::exception& e){
@@ -169,7 +334,7 @@ void ConvertScene::deactivate() {
     }
 }
 
-void ConvertScene::check_video_info(bool wait, std::string* result) {
+void ConvertScene::Data::check_video_info(bool wait, std::string* result) {
     if(_retrieve_video_info.valid()
        && (wait || _retrieve_video_info.wait_for(std::chrono::milliseconds(0)) 
                         == std::future_status::ready))
@@ -234,22 +399,22 @@ void ConvertScene::activate()  {
     else
         open_video();
 
-    RecentItems::open(source, GlobalSettings::map());
-
-    video_size = _video_info["resolution"].value<Size2>();
-    if(video_size.empty()) {
-        video_size = Size2(640,480);
-        FormatError("Cannot determine size of the video input. Defaulting to ", video_size, ".");
+    if(not _data)
+        _data = std::make_unique<Data>();
+    _data->video_size = _video_info["resolution"].value<Size2>();
+    if(_data->video_size.empty()) {
+        _data->video_size = Size2(640,480);
+        FormatError("Cannot determine size of the video input. Defaulting to ", _data->video_size, ".");
     }
     
-    output_size = SETTING(output_size).value<Size2>();
+    _data->output_size = SETTING(output_size).value<Size2>();
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
     auto work_area = ((const IMGUIBase*)window())->work_area();
     print("work_area = ", work_area);
     auto window_size = Size2(
         (work_area.width - work_area.x) * 0.75,
-        output_size.height / output_size.width * (work_area.width - work_area.x) * 0.75
+                             _data->output_size.height / _data->output_size.width * (work_area.width - work_area.x) * 0.75
     );
     print("prelim window size = ", window_size);
     if (window_size.height > work_area.height - work_area.y) {
@@ -285,8 +450,8 @@ void ConvertScene::activate()  {
     
     auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
     if (range.first == -1 && range.second == -1) {
-        if(_segmenter->is_finite())
-            SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, _segmenter->video_length().get());
+        if(segmenter().is_finite())
+            SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, segmenter().video_length().get());
         else
             SETTING(video_conversion_range) = std::pair<long_t, long_t>(-1,-1);
     }
@@ -294,7 +459,8 @@ void ConvertScene::activate()  {
         SETTING(gui_frame) = Frame_t(range.first);
     }
     
-    _segmenter->start();
+    segmenter().start();
+    RecentItems::open(source, GlobalSettings::map());
 }
 
 bool ConvertScene::on_global_event(Event e) {
@@ -303,11 +469,14 @@ bool ConvertScene::on_global_event(Event e) {
     {
         switch(e.key.code) {
             case Keyboard::R:
-                if (not _recorder.recording()) {
-                    _recorder.start_recording(window(), {});
+                if(not _data)
+                    return true;
+                
+                if (not _data->_recorder.recording()) {
+                    _data->_recorder.start_recording(window(), {});
                 }
                 else {
-                    _recorder.stop_recording(window(), nullptr);
+                    _data->_recorder.stop_recording(window(), nullptr);
                 }
                 return true;
         }
@@ -315,7 +484,7 @@ bool ConvertScene::on_global_event(Event e) {
     return true;
 }
 
-bool ConvertScene::fetch_new_data() {
+bool ConvertScene::Data::fetch_new_data() {
     static std::once_flag flag;
     std::call_once(flag, []() {
         set_thread_name("GUI");
@@ -324,7 +493,7 @@ bool ConvertScene::fetch_new_data() {
     check_video_info(false, &_recovered_error);
     
     bool dirty = false;
-    auto&& [data, obj] = segmenter().grab();
+    auto&& [data, obj] = _segmenter->grab();
     if(data.image) {
         _current_data = std::move(data);
         _object_blobs = std::move(obj);
@@ -342,7 +511,7 @@ bool ConvertScene::fetch_new_data() {
             else
                 _current_data.image->get().copyTo(_background_image->unsafe_get_source().get());
 
-            segmenter().overlayed_video()->source()->move_back(std::move(_current_data.image));
+            _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
             //OverlayBuffers::put_back(std::move(_current_data.image));
             _background_image->updated_source();
         }
@@ -353,7 +522,7 @@ bool ConvertScene::fetch_new_data() {
                 cv::cvtColor(_current_data.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
             else
                 _current_data.image->get().copyTo(rgba->get());
-            segmenter().overlayed_video()->source()->move_back(std::move(_current_data.image));
+            _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
             //OverlayBuffers::put_back(std::move(_current_data.image));
             _background_image->set_source(std::move(rgba));
         }
@@ -379,7 +548,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 }
 
 // Helper function to draw outlines
-void ConvertScene::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset) {
+void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset) {
     if (not _current_data.outlines.empty()) {
         graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
@@ -400,8 +569,8 @@ uint64_t interleaveBits(const Vec2& pos) {
     return z;
 }
 
-void ConvertScene::drawBlobs(
-    Frame_t frameIndex, 
+void ConvertScene::Data::drawBlobs(
+    Frame_t frameIndex,
     const std::vector<std::string>& meta_classes, 
     const Vec2&, Vec2, 
     const std::unordered_map<pv::bid, Identity>& visible_bdx, 
@@ -502,10 +671,10 @@ void ConvertScene::drawBlobs(
         (*tmp)["size"] = Size2(bds.size());
         (*tmp)["radius"] = bds.size().length() * 0.5;
         (*tmp)["type"] = std::string(cname);
-        if(Tracker::instance() && Tracker::background())
-            (*tmp)["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
-        else
-            (*tmp)["px"] = -1;
+        //if(Tracker::instance() && Tracker::background())
+        //    (*tmp)["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
+        //else
+            (*tmp)["px"] = blob->recount(-1);
 
         (*tmp)["p"] = Meta::toStr(assign.p);
 
@@ -573,14 +742,14 @@ void ConvertScene::drawBlobs(
     }
 }
 
-dyn::DynamicGUI ConvertScene::init_gui() {
+dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     dyn::Context context;
     check_video_info(true, nullptr);
-    _retrieve_video_info = std::async(std::launch::async, [this]() 
+    _retrieve_video_info = std::async(std::launch::async, [this]()
         -> std::string
     {
         // we need to throw this away since this may be blocking
-        auto e = _segmenter->video_recovered_error();
+        auto e = _segmenter->video_recovered_error().get();
         if(not e.has_value()) {
             return "";
         }
@@ -623,10 +792,10 @@ dyn::DynamicGUI ConvertScene::init_gui() {
     };
     context.variables = {
         VarFunc("resizecvt", [this](const VarProps&) -> double {
-            return this->segmenter().overlayed_video()->source()->resize_cvt().average_fps.load();
+            return _segmenter->overlayed_video()->source()->resize_cvt().average_fps.load();
         }),
         VarFunc("sourceframe", [this](const VarProps&) -> double {
-            return this->segmenter().overlayed_video()->source()->source_frame().average_fps.load();
+            return _segmenter->overlayed_video()->source()->source_frame().average_fps.load();
         }),
         VarFunc("fps", [](const VarProps&) {
             auto fps = AbstractBaseVideoSource::_fps.load();
@@ -634,7 +803,10 @@ dyn::DynamicGUI ConvertScene::init_gui() {
             return samples > 0 ? fps / samples : 0;
         }),
         VarFunc("net_fps", [this](const VarProps&) {
-            return this->segmenter().overlayed_video()->network_fps();
+            return _segmenter->overlayed_video()->network_fps();
+        }),
+        VarFunc("track_fps", [this](const VarProps&) {
+            return _segmenter->fps();
         }),
         VarFunc("time", [this](const VarProps&) -> float {
             return (_time.load() * 4);
@@ -726,24 +898,31 @@ dyn::DynamicGUI ConvertScene::init_gui() {
     return dyn::DynamicGUI{
         .path = "alter_layout.json",
         .context = std::move(context),
-        .base = window()
+        .base = window
     };
 }
 
 // Main _draw function
 void ConvertScene::_draw(DrawStructure& graph) {
-    bool dirty = fetch_new_data();
-    dirty = true;
-    _exec_main_queue.processTasks(static_cast<IMGUIBase*>(window()), graph);
+    //bool dirty = fetch_new_data();
+    //dirty = true;
 
     if(window()) {
         auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
         //
-        FindCoord::set_video(video_size);
-        if(update != window_size)
-            window_size = update;
+        FindCoord::set_video(_data->video_size);
+        if(update != _data->window_size)
+            _data->window_size = update;
     }
+    
+    _data->draw(false, graph, window());
+}
 
+void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
+    fetch_new_data();
+    
+    _exec_main_queue.processTasks(static_cast<IMGUIBase*>(window), graph);
+    
     auto coord = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
@@ -752,14 +931,6 @@ void ConvertScene::_draw(DrawStructure& graph) {
     }
     
     _last_mouse = graph.mouse_position();
-
-    /*Vec2 _aspect_ratio = Vec2(output_size.width, output_size.height);
-    Vec2 _screen_size = FindCoord::get().screen_size();
-    float width_scale = _screen_size.x / _aspect_ratio.x;
-    float height_scale = _screen_size.y / _aspect_ratio.y;
-    float scale_factor = std::min(width_scale, height_scale);
-    auto _target_scale = Vec2(scale_factor, scale_factor);
-    auto _target_pos = (_screen_size - output_size.mul(_target_scale)) / 2;*/
     const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
 
     graph.wrap_object(*_bowl);
@@ -812,9 +983,8 @@ void ConvertScene::_draw(DrawStructure& graph) {
             pose_index++;
         }
         if(pose_index < _skeletts.size())
-			_skeletts.resize(pose_index);
+            _skeletts.resize(pose_index);
 
-        static Frame_t last_frame;
         bool dirty{ false };
         if (last_frame != _current_data.frame.index()) {
             last_frame = _current_data.frame.index();
@@ -924,109 +1094,20 @@ void ConvertScene::_draw(DrawStructure& graph) {
         drawBlobs(_current_data.frame.index(), meta_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
     });
     
-    if(not dynGUI) {
-        dynGUI = init_gui();
-        dynGUI.graph = &graph;
-
-        dynGUI.context.custom_elements["label"] = CustomElement {
-            .name = "label",
-            .create = [this](LayoutContext& layout) -> Layout::Ptr {
-                std::shared_ptr<Label> ptr;
-                auto text = layout.get<std::string>("", "text");
-                auto center = layout.get<Vec2>(Vec2(), "center");
-                auto line_length = layout.get<float>(float(60), "length");
-                auto id = layout.get<Idx_t>(Idx_t(), "id");
-                auto color = layout.textClr;
-                auto line = layout.line;
-                auto fill = layout.fill;
-
-                if (id.valid()) {
-                    auto it = _labels.find(id);
-                    if (it != _labels.end()) {
-                        ptr = it->second;
-                    } else
-                        _labels[id] = ptr = std::make_shared<Label>();
-                }
-
-                if (not ptr)
-                    ptr = std::make_shared<Label>(text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
-
-                ptr->set_line_length(line_length);
-                ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);//Bounds(layout.pos, layout.size).center());
-                auto font = parse_font(layout.obj, layout._defaults.font);
-                ptr->text()->set(font);
-                ptr->text()->set(color);
-                ptr->text()->set(FillClr{ fill });
-                ptr->set_line_color(line);
-                //print("Create new label with text = ", text);
-
-                return Layout::Ptr(ptr);
-            },
-            .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
-                //print("Updating label with patterns: ", patterns);
-                //print("o = ", o.get());
-
-                Idx_t id;
-                if (patterns.contains("id"))
-                    id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
-                
-                if (id.valid()) {
-                    auto it = _labels.find(id);
-                    if (it != _labels.end()) {
-                        if(it->second.get() != o.get())
-                            o = Layout::Ptr(it->second);
-                    }
-                }
-
-                auto p = o.to<Label>();
-                auto source = p->source();
-                auto pos = source.pos();
-                auto center = p->center();
-                auto text = p->text()->text();
-
-                if(patterns.contains("text"))
-                    text = parse_text(patterns.at("text").original, context, state);
-                if (patterns.contains("pos")) {
-                    pos = Meta::fromStr<Vec2>(parse_text(patterns.at("pos").original, context, state));
-                }
-                if (patterns.contains("size")) {
-                    source = Bounds(pos, Meta::fromStr<Size2>(parse_text(patterns.at("size").original, context, state)));
-                }
-                if (patterns.contains("center")) {
-                    center = Meta::fromStr<Vec2>(parse_text(patterns.at("center").original, context, state));
-                } else
-                    center = source.pos()+ Vec2(source.width, source.height) * 0.5;
-
-                if(patterns.contains("line"))
-					p->set_line_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
-                if (patterns.contains("fill"))
-                    p->set_fill_color(Meta::fromStr<Color>(parse_text(patterns.at("fill").original, context, state)));
-                if(patterns.contains("color"))
-                    p->text()->set(TextClr{ Meta::fromStr<Color>(parse_text(patterns.at("color").original, context, state)) });
-
-                p->set_data(0_f, text, source, center);
-                p->update(FindCoord::get(), 1, 1, false, dt, Scale{1});
-			}
-        };
-    }
-    
-    
-    graph.section("menus", [&](auto&, Section* section) {
+    graph.section("menus", [&](auto&, Section*) {
         //section->set_scale(graph.scale().reciprocal() * gui::interface_scale());
         
         _video_info["frame"] = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
         
-        static Timer timer;
-        dt = timer.elapsed();
+        dt = saturate(timer.elapsed(), 0.001, 1.0);
         timer.reset();
 
         _time = _time + dt;
-
-        dynGUI.update(nullptr);
     });
 
+    check_gui(graph, window);
     _bowl->update(_current_data.frame.index(), graph, coord);
 }
 

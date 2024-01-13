@@ -1016,8 +1016,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
         const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
-        IndividualCache empty;
-        empty.individual_empty = true;
+        IndividualCache empty{.valid=false, .individual_empty=true};
         
         auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;

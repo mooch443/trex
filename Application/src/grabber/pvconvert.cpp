@@ -210,7 +210,7 @@ int main(int argc, char**argv) {
     pv::File video(input, pv::FileMode::READ);
 
     if(SETTING(end_frame).value<long_t>() == -1) {
-        SETTING(end_frame).value<long_t>() = video.length().get() - 1;
+        SETTING(end_frame) = long_t(video.length().get() - 1);
     }
     
     long_t start_frame = SETTING(start_frame),

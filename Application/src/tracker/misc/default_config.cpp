@@ -5,7 +5,7 @@
 #include <misc/idx_t.h>
 #include "GitSHA1.h"
 #include <misc/bid.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 #include <misc/DetectionTypes.h>
 
 #ifndef WIN32

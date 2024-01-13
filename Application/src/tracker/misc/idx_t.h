@@ -55,6 +55,7 @@ struct Idx_t {
     
     static std::string class_name() { return "Idx_t"; }
     static Idx_t fromStr(const std::string&);
+    nlohmann::json to_json() const;
     std::string toStr() const { return !valid() ? "-1" : std::to_string((uint32_t)_identity); }
 };
 

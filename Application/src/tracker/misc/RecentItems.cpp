@@ -94,8 +94,10 @@ RecentItems RecentItems::read() {
 
                         try {
                             if (not item._options.has(key)) {
-                                if (GlobalSettings::map().has(key)) {
-                                    GlobalSettings::map()[key].get().copy_to(&item._options);
+                                if (GlobalSettings::defaults().has(key)) {
+                                    GlobalSettings::defaults().at(key).get().copy_to(&item._options);
+                                } else if(GlobalSettings::map().has(key)) {
+                                    GlobalSettings::map().at(key).get().copy_to(&item._options);
                                 } else
                                     throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
                             }
@@ -131,11 +133,13 @@ bool RecentItems::has(std::string name) const {
 }
 
 void RecentItems::add(std::string name, const sprite::Map& options) {
-    auto config = default_config::generate_delta_config(false, {});
+    auto& config = options;//default_config::generate_delta_config(false, {});
     if (has(name)) {
         for (auto& item : _items) {
             if (item._name == name) {
-                config.write_to(item._options);
+                for(auto &key : config.keys())
+                    config.at(key).get().copy_to(&item._options);
+                //config.write_to(item._options);
                 return;
             }
         }
@@ -144,7 +148,10 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     Item item{
         ._name = name
     };
-    config.write_to(item._options);
+    
+    for(auto &key : config.keys())
+        config.at(key).get().copy_to(&item._options);
+    //config.write_to(item._options);
     _items.emplace_back(std::move(item));
 }
 

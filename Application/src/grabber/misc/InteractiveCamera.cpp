@@ -77,7 +77,7 @@ void InteractiveCamera::Fish::draw(cv::Mat& img) {
 }
 
 InteractiveCamera::InteractiveCamera() {
-    _size = cv::Size(SETTING(cam_resolution).value<cv::Size>().width, SETTING(cam_resolution).value<cv::Size>().height);
+    _size = cv::Size(SETTING(cam_resolution).value<Size2>().width, SETTING(cam_resolution).value<Size2>().height);
     
     if constexpr(use_dynamic) {
         const auto number_individuals = SETTING(track_max_individuals).value<uint32_t>();

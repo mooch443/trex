@@ -18,6 +18,8 @@ std::atomic<bool> yolo8_initialized{false};
 std::atomic<double> _network_fps{0.0};
 std::atomic<size_t> _network_samples{0u};
 
+std::vector<detect::ModelConfig> _loaded_models;
+
 std::string Yolo8::default_model() {
     return "yolov8n-pose.pt";
 }
@@ -49,7 +51,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
     }
 
     using namespace track::detect;
-    std::vector<ModelConfig> models;
+    _loaded_models.clear();
 
     // caching here since it can be modified above
     auto path = SETTING(detect_model).value<file::Path>();
@@ -58,7 +60,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
             path = path.add_extension("pt"); // pytorch model
         }
         
-        models.emplace_back(
+        _loaded_models.emplace_back(
             ModelTaskType::detect,
             SETTING(yolo8_tracking_enabled).value<bool>(),
             path.str(),
@@ -69,21 +71,27 @@ void Yolo8::reinit(ModuleProxy& proxy) {
         throw U_EXCEPTION("This does not seem like a valid model to use: ", path,". When using object detection, please provide a model path using the command-line argument -m <path>.");
 
     if(SETTING(region_model).value<file::Path>().exists())
-        models.emplace_back(
+        _loaded_models.emplace_back(
             ModelTaskType::region,
             false, // region models dont have tracking
             SETTING(region_model).value<file::Path>().str(),
             SETTING(region_resolution).value<uint16_t>()
         );
 
-    if(models.empty()) {
+    if(_loaded_models.empty()) {
         if(not path.empty())
             throw U_EXCEPTION("Cannot find model ", path);
         
         throw U_EXCEPTION("Please provide at least one model to use for segmentation.");
     }
     
-    PythonIntegration::set_models(models, proxy.m);
+    _loaded_models = PythonIntegration::set_models(_loaded_models, proxy.m);
+    
+    for(auto &config : _loaded_models) {
+        if(config.task == ModelTaskType::detect) {
+            SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
+        }
+    }
 }
 
 void Yolo8::init() {
@@ -496,8 +504,8 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
         }
         _network_fps = fps + (double(_N) / elapsed);
         _network_samples = samples + 1;
-        print("[py] network: ", elapsed);
-        print("[cpp] network: ", cpp_elapsed);
+        //print("[py] network: ", elapsed);
+        //print("[cpp] network: ", cpp_elapsed);
     }
     catch (const std::exception& ex) {
         FormatError("Exception: ", ex.what());

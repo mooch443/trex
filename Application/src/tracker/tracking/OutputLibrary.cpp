@@ -1003,25 +1003,31 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                         continue;
                     }
                     
-                    Options_t modifiers;
-                    Calculation func;
-                    
-                    if(_output_defaults.count(fname)) {
-                        auto &o = _output_defaults.at(fname);
-                        for(auto &e : o) {
-                            if(!parse_modifiers(e, modifiers))
+                    try {
+                        Options_t modifiers;
+                        Calculation func;
+                        
+                        if(_output_defaults.count(fname)) {
+                            auto &o = _output_defaults.at(fname);
+                            for(auto &e : o) {
+                                if(!parse_modifiers(e, modifiers))
+                                    // function is something other than identity
+                                    func = parse_calculation(e);
+                            }
+                        }
+                        
+                        for(auto &e : options) {
+                            if(!parse_modifiers(e, modifiers)) {
                                 // function is something other than identity
                                 func = parse_calculation(e);
+                            }
                         }
+                        
+                        _options_map[fname].push_back({ modifiers, func });
+                        
+                    } catch(const std::exception& ex) {
+                        FormatExcept("Cannot parse option ", fname, ": ", ex.what());
                     }
-                    
-                    for(auto &e : options) {
-                        if(!parse_modifiers(e, modifiers))
-                            // function is something other than identity
-                            func = parse_calculation(e);
-                    }
-                    
-                    _options_map[fname].push_back({ modifiers, func });
                 }
             }
         });
@@ -1233,7 +1239,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             }
         }
         
-        float nr = std::stof(number.str());
+        float nr = Meta::fromStr<float>(number.str());
         
         switch (operation) {
             case '/':

@@ -29,6 +29,7 @@ Detection::Detection() {
         break;
             
     case ObjectDetectionType::background_subtraction:
+        BackgroundSubtraction{};
         break;
 
     default:
@@ -41,6 +42,8 @@ void Detection::deinit() {
         Yolo8::deinit();
     else if(detection_type() == ObjectDetectionType::background_subtraction)
         BackgroundSubtraction::deinit();
+    
+    manager().clean_up();
 }
 
 bool Detection::is_initializing() {
@@ -87,6 +90,7 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
     case ObjectDetectionType::yolo8: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
+        //manager().set_weight_limit(max(1u, SETTING(detect_batch_size).value<uchar>()));
         manager().enqueue(std::move(tiled));
         return f;
     }
@@ -94,6 +98,7 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
     case ObjectDetectionType::background_subtraction: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
+        //manager().set_weight_limit(max(1u, SETTING(detect_batch_size).value<uchar>()));
         manager().enqueue(std::move(tiled));
         return f;
     }
@@ -118,6 +123,41 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
     }
 
     throw U_EXCEPTION("Unknown detection type: ", detection_type());
+}
+
+PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
+    static auto instance = PipelineManager<TileImage, true>(1u, [](std::vector<TileImage>&& images)
+    {
+        /// in background subtraction case, we have to wait until the background
+        /// image has been generated and hang in the meantime.
+        while(not data().background && not manager().is_terminated())
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        if(not manager().is_terminated()) {
+            if(images.empty())
+                FormatExcept("Images is empty :(");
+            
+            BackgroundSubtraction::apply(std::move(images));
+        }
+    });
+    return instance;
+}
+
+BasicManager<TileImage>& Detection::manager() {
+    if(detection_type() ==  ObjectDetectionType::background_subtraction) {
+        return BackgroundSubtraction::manager();
+    } else {
+        static auto instance = PipelineManager<TileImage>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
+            // do what has to be done when the queue is full
+            // i.e. py::execute()
+#ifndef NDEBUG
+            if(images.empty())
+                FormatExcept("Images is empty :(");
+#endif
+            Detection::apply(std::move(images));
+        });
+        return instance;
+    }
 }
 
 BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {

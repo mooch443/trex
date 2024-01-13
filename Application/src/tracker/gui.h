@@ -5,7 +5,7 @@
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
 #include <gui/Timeline.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 #include <gui/DrawStructure.h>
 #include <misc/bid.h>
 #include <misc/ThreadPool.h>

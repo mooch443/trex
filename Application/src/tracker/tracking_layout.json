@@ -215,9 +215,19 @@
                             "action":"export_data"
                         },
                         {
-                            "text":"<sym>👽</sym> Apply identities",
+                            "text":"<sym>🛠</sym> Save config",
+                            "detail":"writes parameters to a .settings file",
+                            "action":"write_config"
+                        },
+                        {
+                            "text":"<sym>👽🎭</sym> Apply identities",
                             "detail":"applies VI or TAG information",
                             "action":"auto_correct"
+                        },
+                        {
+                            "text":"<sym>👽</sym> Categorize",
+                            "detail":"applies VI or TAG information",
+                            "action":"categorize"
                         },
                         {
                             "text":"<sym>🢤</sym> Close file",
@@ -425,8 +435,8 @@
             "children":[
                 {
                     "type":"stext",
-                    "font":{"size":0.6},
-                    "text":"[{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}]",
+                    "font":{"size":0.52},
+                    "text":"<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>{if:{status_text}:{status_text}:''}",
                     "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
                 }
             ]

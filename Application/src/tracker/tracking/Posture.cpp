@@ -1,7 +1,7 @@
 #include "Posture.h"
 #include <misc/Timer.h>
 #include <misc/GlobalSettings.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 
 #include <tracking/DebugDrawing.h>
 #include <thread>

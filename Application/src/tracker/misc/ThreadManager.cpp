@@ -10,7 +10,7 @@ void PersistentCondition::notify() noexcept {
     cond_var.notify_one();
 }
 
-void PersistentCondition::wait(std::unique_lock<std::mutex> &lock) {
+void PersistentCondition::wait(std::unique_lock<std::mutex> &lock, std::function<bool()>&& lambda) {
     bool expected = true;
     if(not notified.compare_exchange_strong(expected, false)) {
         lock.unlock();
@@ -24,7 +24,10 @@ void PersistentCondition::wait(std::unique_lock<std::mutex> &lock) {
                 return;
             }
             
-            cond_var.wait(g);
+            if(lambda)
+                cond_var.wait(g, lambda);
+            else
+                cond_var.wait(g);
         }
         
         lock.lock();
@@ -52,7 +55,7 @@ void ThreadManager::addThread(ThreadGroupId group, const std::string& name, Mana
         .name = name
     });
     cmn::thread_print("Added thread ", group, "::", name.c_str());
-    printThreadTree(lock);
+    //printThreadTree(lock);
 }
 
 ThreadGroupId ThreadManager::registerGroup(const std::string& name, source_location loc) {
@@ -75,7 +78,7 @@ ThreadGroupId ThreadManager::registerGroup(const std::string& name, source_locat
     g->started = false;
     thread_print("Registered group ", group, "::", name.c_str(), " from ", file::Path(loc.file_name()).filename(),":", loc.line());
     
-    printThreadTree(lock);
+    //printThreadTree(lock);
     return g->id;
 }
 
@@ -175,7 +178,7 @@ void ThreadManager::terminateGroup(ThreadGroupId group) {
     
     if(g) {
         g->terminate();
-        printThreadTree();
+        //printThreadTree();
     }
 }
 
@@ -201,7 +204,7 @@ void ThreadManager::startGroup(ThreadGroupId group) {
             }
         }
         
-        printThreadTree(lock);
+        //printThreadTree(lock);
     }
 }
 

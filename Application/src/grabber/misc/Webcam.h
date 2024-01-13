@@ -61,8 +61,14 @@ namespace fg {
                     return false;
                 
                 cv::split(*cache, *array);
-                cv::max((*array)[2], (*array)[0], (*array)[0]);
-                cv::max((*array)[0], (*array)[3], output);
+                if(array->size() >= 4) {
+                    cv::max((*array)[2], (*array)[0], (*array)[0]);
+                    cv::max((*array)[0], (*array)[3], output);
+                } else if(array->size() >= 3) {
+                    cv::max((*array)[2], (*array)[0], output);
+                } else {
+                    (*array)[0].copyTo(output);
+                }
             } else {
                 if(not _capture.read(output))
                     return false;

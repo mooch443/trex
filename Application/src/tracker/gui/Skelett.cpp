@@ -1,6 +1,6 @@
 #include "Skelett.h"
 #include <gui/Coordinates.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 #include <gui/GuiTypes.h>
 #include <gui/DrawBase.h>
 

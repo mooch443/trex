@@ -149,16 +149,16 @@
 					{
 						"name":"desc",
 						"clickable":true,
-						"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''} <sym>◦</sym> <cyan>{num_tracked}</cyan> <i>{global.individual_prefix}</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+						"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''} <sym>◦</sym> <cyan>{num_tracked}</cyan> <i>{global.individual_prefix}s</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
 					},
 					{
 						"type":"stext", 
-						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{&&:{video.frame}:{average_is_generating}}:\n{animation} generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {at:0:{global.output_size}}<sym>×</sym>{at:1:{global.output_size}}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{average_is_generating}:\n{animation} generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					},
 					{
 						"type":"stext",
-						"text":"<i>tracking stats:</i> {.+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} total, {.array_length:{inactive_ids}} inactive, <nr>{.array_length:{active_ids}} active</nr>",
+						"text":"<i>tracking:</i> <cyan>{int:{track_fps}}</cyan><i>fps</i> <sym>❯</sym> {.+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} known individuals, {.array_length:{inactive_ids}} inactive, <nr>{.array_length:{active_ids}} active</nr>",
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					},
 					
@@ -174,31 +174,22 @@
 							"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 						},
 						"else":{ "type":"rect", "size":[0,0] }
-					},
-					{
-						"type":"stext",
-						"font":{"size":0.5},
-						"text":"{animated_text} "
 					}
 				]
 			}
 		]]
 	},
 	{
-		"type":"hlayout",
+		"type":"stext",
 		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
 		"origin":[1,1],
+		"font":{"size":0.5},
+		"clickable":true,
 		"pad":[5,5,5,5],
-		"fill":[0,0,0,200],
-		"children":[
-			{
-				"type":"stext",
-				"font":{"size":0.5},
-				"clickable":true,
-				"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
-				"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i><sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
-			}
-		]
+		"fill":"{if:{hovered}:[0,0,0,200]:[0,0,0,100]}",
+		"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
+
+		"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 	},
 
 	{
@@ -213,7 +204,7 @@
 				"color":[225,225,225],
 				"placeholder":"<sym>🔍</sym> Parameters",
 				"size":[500,40],
-				"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+				"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,150]}",
 				"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
 				"list":{
 					"line":[220,220,220,200],
@@ -255,6 +246,21 @@
 			"text":"<h4>Preview of the resulting folder structure</h4>{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {folder:{global.source}}{if:{not:{same_folder}}:'\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>':''}\n{indent}\":\"<sym>🗁</sym> {folder:{global.source}}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}}\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:'\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}{if:{movie_elsewhere}:'\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}':''}"
 		},
 		"else":{"type":"rect", "size":[0,0]}
-	}
+	},
 	
+	{
+		"type":"condition",
+		"var":"{&&:{average_is_generating}:{equal:{global.detect_type}:background_subtraction}}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"{mulVector:{window_size}:0.5}",
+			"origin":[0.5,0.5],
+			"font":{"size":0.6},
+			"color":[255,255,255],
+			"max_size":[400,0],
+			"text":"A background image for your video is currently being generated in the background ({animation2} <i><cyan>{int:{*:100:{average_percent}}}</cyan>%</i>).\n\n<i>This is a slow process and may take a while - since it is used for <key>detect_type</key>&lt;<cyan>{global.detect_type}</cyan>&gt;, we will have to wait for it to be finished before we can start tracking.</i>"
+		}
+	}
 ]}

@@ -1,7 +1,7 @@
 #include "gui.h"
 #include <misc/GlobalSettings.h>
 #include <gui/DrawSFBase.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 #include <gui/DrawHTMLBase.h>
 #include <tracking/Tracker.h>
 #include <tracker/gui/DrawFish.h>

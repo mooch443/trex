@@ -7,6 +7,7 @@
 #include <misc/CommandLine.h>
 #include <python/Yolo8.h>
 #include <misc/SettingsInitializer.h>
+#include <tracking/Tracker.h>
 
 using namespace track::detect;
 
@@ -22,7 +23,6 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
     : error_callback(error_callback), eof_callback(eof_callback)
 {
     start_timer.reset();
-    Detection::manager().set_weight_limit(SETTING(detect_batch_size).value<uchar>());
     _generator_group_id = REGISTER_THREAD_GROUP("Segmenter::GeneratorT");
     
     ThreadManager::getInstance().addThread(_generator_group_id, "generator-thread", ManagedThread{
@@ -78,8 +78,8 @@ Segmenter::~Segmenter() {
     auto time = start_timer.elapsed();
     thread_print("Total time for converting: ", time, "s");
     
-    ThreadManager::getInstance().terminateGroup(_generator_group_id);
     Detection::manager().set_weight_limit(1);
+    ThreadManager::getInstance().terminateGroup(_generator_group_id);
 
     /// while the generator is shutdown already now,
     /// we still need to wait for the tracker and ffmpeg queue to finish
@@ -172,6 +172,7 @@ file::Path Segmenter::output_file_name() const {
 }
 
 bool Segmenter::is_average_generating() const {
+    std::unique_lock guard(average_generator_mutex);
     if(average_generator.valid()) {
         return true;
     }
@@ -270,6 +271,7 @@ void Segmenter::open_video() {
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
     if(do_generate_average) {
+        std::unique_lock guard(average_generator_mutex);
         average_generator = std::async(std::launch::async, [this, callback_after_generating, size = _output_size]()
         {
             cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC1);
@@ -290,12 +292,20 @@ void Segmenter::open_video() {
                 
                 return not _average_terminate_requested.load();
             });
-            cv::imwrite(average_name().str(), bg);
             
-            print("** generated average ", bg.channels());
+            if(not _average_terminate_requested) {
+                cv::imwrite(average_name().str(), bg);
+                print("** generated average ", bg.channels());
+            } else {
+                print("Aborted average image.");
+            }
+            
             if(detection_type() == ObjectDetectionType::background_subtraction)
                 BackgroundSubtraction::set_background(Image::Make(bg));
             callback_after_generating(bg);
+            
+            // in case somebody is waiting on us:
+            average_variable.notify_all();
         });
         
         /// if background subtraction is disabled for tracking, we don't need to
@@ -352,7 +362,7 @@ void Segmenter::open_camera() {
     setDefaultSettings();
     _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(output_size) = _output_size;
-    SETTING(meta_video_size).value<Size2>() = camera.size();
+    SETTING(meta_video_size) = camera.size();
     
     SETTING(video_conversion_range) = std::pair<long_t,long_t>(-1,-1);
     
@@ -449,8 +459,8 @@ void Segmenter::start_recording_ffmpeg() {
             else
                 path = path.add_extension("mp4");
 
-            SETTING(save_raw_movie_path).value<file::Path>() = path;
-            SETTING(meta_source_path).value<std::string>() = path.str();
+            SETTING(save_raw_movie_path) = path;
+            SETTING(meta_source_path) = path.str();
         
             _queue = std::make_unique<FFMPEGQueue>(true,
                 _overlayed_video->source()->size(),
@@ -587,18 +597,18 @@ void Segmenter::generator_thread() {
     //thread_print("ended.");
 };
 
+double Segmenter::fps() const {
+    return _fps.load();
+}
+
 void Segmenter::perform_tracking() {
-    static Frame_t running_id = 0_f;
+    Timer timer;
+    
     auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
     _progress_data.frame.set_timestamp(uint64_t(fake));
     _progress_data.frame.set_index(running_id++);
     _progress_data.frame.set_source_index(Frame_t(_progress_data.image->index()));
     assert(_progress_data.frame.source_index() == Frame_t(_progress_data.image->index()));
-
-    _progress_blobs.clear();
-    for (size_t i = 0; i < _progress_data.frame.n(); ++i) {
-        _progress_blobs.emplace_back(_progress_data.frame.blob_at(i));
-    }
 
     if (_output_file) {
         try {
@@ -619,15 +629,46 @@ void Segmenter::perform_tracking() {
 
     auto index = _progress_data.frame.index();
 
-    if (std::unique_lock guard(_mutex_tracker); _tracker != nullptr)
+    if (std::unique_lock guard(_mutex_tracker); 
+        _tracker != nullptr)
     {
         PPFrame pp;
         Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
+        
+        _progress_blobs.clear();
+        pp.transform_all([&](const pv::Blob& blob){
+            _progress_blobs.emplace_back(pv::Blob::Make(blob));
+            
+            auto &b = *_progress_blobs.back();
+            if(b.last_recount_threshold() == -1) {
+                if(_tracker->background())
+                    b.recount(SLOW_SETTING(track_threshold), *_tracker->background());
+                else
+                    b.recount(SLOW_SETTING(track_threshold));
+            }
+        });
+        
         _tracker->add(pp);
         if (pp.index().get() % 100 == 0) {
             print(track::IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
         }
+        
+        /*for(auto &b : _progress_blobs) {
+            if(_tracker->background())
+                b->recount(SLOW_SETTING(track_threshold), *_tracker->background());
+            else
+                b->recount(SLOW_SETTING(track_threshold));
+        }*/
     }
+    
+    auto e = timer.elapsed();
+    auto _time = _frame_time.load();
+    auto _samples = _frame_time_samples.load();
+    
+    _frame_time = _time + e;
+    _frame_time_samples = _samples + 1;
+    
+    _fps = (_samples + 1) / (_time + e);
     
 #if WITH_FFMPEG
     if (_progress_data.image
@@ -682,7 +723,39 @@ void Segmenter::perform_tracking() {
     last_add.reset();
 };
 
+void Segmenter::stop_average_generator(bool blocking) {
+    if(not blocking) {
+        std::unique_lock guard(average_generator_mutex);
+        if(average_generator.valid()
+            && average_generator.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+        {
+            average_generator.get();
+        }
+        
+        return;
+    }
+    
+    Timer timer;
+    std::unique_lock guard(average_generator_mutex);
+    while(average_generator.valid() 
+          && average_generator.wait_for(std::chrono::milliseconds(1)) != std::future_status::ready)
+    {
+        
+        if(timer.elapsed() > 30) {
+            auto loc = cmn::source_location::current();
+            FormatExcept("Dead-lock possible in ", loc.file_name(),":", loc.line(), " with ", timer.elapsed(),"s");
+            timer.reset();
+        }
+        average_variable.wait_for(guard, std::chrono::milliseconds(10));
+    }
+    
+    if(average_generator.valid())
+        average_generator.get();
+}
+
 void Segmenter::tracking_thread() {
+    stop_average_generator(FAST_SETTING(track_background_subtraction));
+    
     //set_thread_name("Tracking thread");
     std::unique_lock guard(_mutex_general);
     //while (not _should_terminate)
@@ -690,35 +763,6 @@ void Segmenter::tracking_thread() {
         return;
     
     {
-        if(average_generator.valid()
-           && FAST_SETTING(track_background_subtraction))
-        {
-            guard.unlock();
-            try {
-                Timer timer;
-                while(average_generator.valid() && average_generator.wait_for(std::chrono::milliseconds(1)) != std::future_status::ready)
-                {
-                    if(timer.elapsed() > 30) {
-                        auto loc = cmn::source_location::current();
-                        FormatExcept("Dead-lock possible in ", loc.file_name(),":", loc.line(), " with ", timer.elapsed(),"s");
-                        timer.reset();
-                    }
-                }
-                
-                average_generator.get();
-                guard.lock();
-                
-            } catch(...) {
-                guard.lock();
-                throw;
-            }
-            
-        } else if(average_generator.valid()
-                  && average_generator.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
-        {
-            average_generator.get();
-        }
-        
         Frame_t index;
         if(_next_frame_data)
             index = _next_frame_data.original_index();
@@ -819,14 +863,15 @@ void Segmenter::force_stop() {
 }
 
 void Segmenter::graceful_end() {
-    std::unique_lock guard(_mutex_general);
-    if(average_generator.valid()) {
-        guard.unlock();
+    {
+        std::unique_lock guard(_mutex_general);
         _average_terminate_requested = true;
-        average_generator.get();
-        _average_terminate_requested = false;
-        guard.lock();
     }
+    
+    stop_average_generator(true);
+    
+    std::unique_lock guard(_mutex_general);
+    _average_terminate_requested = false;
     
     if (eof_callback) {
         eof_callback();
@@ -876,15 +921,17 @@ void Segmenter::printDebugInformation() {
     print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
 }
 
-std::optional<std::string_view> Segmenter::video_recovered_error() const {
-    std::unique_lock vlock(_mutex_video);
-    if(not _overlayed_video)
+std::future<std::optional<std::string_view>> Segmenter::video_recovered_error() const {
+    return std::async(std::launch::async, [this]() -> std::optional<std::string_view> {
+        std::unique_lock vlock(_mutex_video);
+        if(not _overlayed_video)
+            return std::nullopt;
+        auto e = _overlayed_video->source()->recovered_errors();
+        if(not e.empty()) {
+            return *e.begin();
+        }
         return std::nullopt;
-    auto e = _overlayed_video->source()->recovered_errors();
-    if(not e.empty()) {
-        return *e.begin();
-    }
-    return std::nullopt;
+    });
 }
 
 }

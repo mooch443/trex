@@ -348,7 +348,7 @@ void load(file::PathArray source,
         
         for(auto &key : values.keys()) {
             if(contains(exclude_from_default.toVector(), key)) {
-                print("Not setting default value ", key);
+                print("// Not setting default value ", key);
                 continue;
             }
             values.at(key).get().copy_to(&combined.map);
@@ -378,7 +378,9 @@ void load(file::PathArray source,
     /// 12. load the video settings (if they exist):
     /// --------------------------------------------
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
-    if(settings_file.exists()) {
+    if(G g(settings_file.str());
+       settings_file.exists())
+    {
         try {
             sprite::Map map;
             map.set_print_by_default(false);
@@ -407,23 +409,26 @@ void load(file::PathArray source,
     /// -------------------------------------
     /// 13. optionally load the map parameter
     /// -------------------------------------
-    print(source_map.at("track_background_subtraction"));
-    print(source_map.at("track_threshold"));
-    
-    for(auto& key : source_map.keys()) {
-        if(contains(exclude.toVector(), key))
-        {
-            if (combined.map.has(key)
-                && combined.map.at(key) == source_map.at(key))
+    {
+        G g("GUI settings");
+        print(source_map.at("track_background_subtraction"));
+        print(source_map.at("track_threshold"));
+        
+        for(auto& key : source_map.keys()) {
+            if(contains(exclude.toVector(), key))
             {
-                /// can be ignored / no print-out since it would
-                /// not change anything
+                if (combined.map.has(key)
+                    && combined.map.at(key) == source_map.at(key))
+                {
+                    /// can be ignored / no print-out since it would
+                    /// not change anything
+                    continue;
+                }
+                print("// Not allowed to copy ", key, " from source map.");
                 continue;
             }
-            print("// Not allowed to copy ", key, " from source map.");
-            continue;
+            source_map.at(key).get().copy_to(&combined.map);
         }
-        source_map.at(key).get().copy_to(&combined.map);
     }
 
     if (not combined.map.has("meta_real_width")
@@ -453,7 +458,7 @@ void load(file::PathArray source,
     combined.map["detect_type"] = type;
     
     /// --------------------------------------
-    DebugHeader("// FINAL CONFIG");
+    G g("FINAL CONFIG");
 
     for(auto &key : combined.map.keys()) {
         try {
@@ -475,7 +480,6 @@ void load(file::PathArray source,
             FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
         }
     }
-    DebugHeader("// -------------");
     
     print(SETTING(filename));
     print(SETTING(output_dir));
@@ -494,6 +498,10 @@ void load(file::PathArray source,
     print(SETTING(track_do_history_split));
     print(SETTING(gpu_torch_device));
     print("TRexTask = ", task);
+    
+    CommandLine::instance().reset_settings({
+        "output_dir", "output_prefix", "gpu_torch_device"
+    });
 }
 
 void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {

@@ -51,9 +51,10 @@ namespace fg {
             _camera->OffsetY.SetValue(0);
         }
         
-        cv::Size target_res = SETTING(cam_resolution);
+        Size2 target_res = SETTING(cam_resolution);
         if(target_res.width == -1) {
-            target_res = cv::Size(_camera->WidthMax.GetValue(), _camera->HeightMax.GetValue());
+            target_res = Size2(_camera->WidthMax.GetValue(),
+                               _camera->HeightMax.GetValue());
             SETTING(cam_resolution) = target_res;
         }
 

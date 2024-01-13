@@ -21,6 +21,7 @@ from typing import List, Tuple
 
 import TRex
 from TRex import ModelTaskType
+from TRex import ObjectDetectionFormat
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -189,6 +190,15 @@ class Model:
             TRex.log(f"Model {self} cannot be run on MPS due to a bug in PyTorch or Ultralytics. Automatically switching to CPU for this model only. Use -gpu_torch_no_fixes parameter to disable this.")
             self.device = torch.device("cpu")
 
+        if self.ptr.task == "segment":
+            self.config.output_format = ObjectDetectionFormat.masks
+        elif self.ptr.task == "detect":
+            self.config.output_format = ObjectDetectionFormat.boxes
+        elif self.ptr.task == "pose":
+            self.config.output_format = ObjectDetectionFormat.poses
+        else:
+            raise Exception(f"Unknown task {self.ptr.task}")
+        
         self.ptr.to(self.device)
         self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))
@@ -348,9 +358,11 @@ class TRexYOLO8:
 
         scaled_size: int = model.config.trained_resolution
         #scaled_down_scales: np.ndarray = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in images])
-        scaled_down_scales: np.ndarray = np.array([(1,1) for im in images])
-        scaled_down: List[Image] = [im for im in images] #[cv2.resize(im,  (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
+        #scaled_down: List[Image] = [cv2.resize(im,  (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
 
+        scaled_down_scales: np.ndarray = np.array([(1,1) for im in images])
+        scaled_down: List[Image] = [im for im in images] #
+        
         #import torchvision.transforms as transforms
         #from torchvision.transforms.functional import to_tensor, resize
 
@@ -363,14 +375,13 @@ class TRexYOLO8:
         #print(resized_images.shape)
         #scaled_down_scales: np.ndarray = np.array([(scaled_size / im.shape[1],scaled_size / im.shape[0]) for im in images])
         #scaled_down: List[Image] = resized_images 
-        #from ultralytics.utils.ops import non_max_suppression
 
         #print(f"performing region proposals at {scaled_size}x{scaled_size} on {len(images)} images on {model.device} with scaled sizes of {[im.shape for im in scaled_down]}")
         import ultralytics
         bboxes: List[ultralytics.engine.results.Results] = \
                        model.predict(images = scaled_down, 
                                      imgsz=scaled_size, 
-                                     conf=0.2, 
+                                     conf=0.1, 
                                      iou=0.7, 
                                      verbose=False,
                                      **kwargs)
@@ -510,8 +521,8 @@ class TRexYOLO8:
         """
         # Apply the region proposal method on the given tensor
         # start profiler
-        from pyinstrument import Profiler
-        profiler = Profiler()
+        #from pyinstrument import Profiler
+        #profiler = Profiler()
         #profiler.start()
 
         proposal = self.region_proposal(tensor)
@@ -861,6 +872,8 @@ def load_yolo8(configs : List[TRex.ModelConfig]):
     
     print("Configs: ", models)
     model = TRexYOLO8(models)
+    TRex.log("Loaded YOLO8 models: "+str([model.config for model in model.models]))
+    return [model.config for model in model.models]
 
 def predict(input : TRex.YoloInput) -> List[TRex.Result]:
     global model

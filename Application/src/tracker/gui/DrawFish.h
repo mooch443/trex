@@ -65,7 +65,7 @@ namespace gui {
         blob::Pose _average_pose;
         Bounds _blob_bounds;
         int _match_mode;
-        track::IndividualCache _next_frame_cache;
+        track::IndividualCache _next_frame_cache{.valid=false};
         
         track::Identity _id;
         std::optional<track::BasicStuff> _basic_stuff;

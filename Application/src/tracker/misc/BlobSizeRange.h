@@ -25,6 +25,9 @@ public:
     }
     
     std::string toStr() const { return Meta::toStr(_ranges); }
+    nlohmann::json to_json() const {
+        return cvt2json(_ranges);
+    }
     static std::string class_name() { return "BlobSizeRange"; }
     static BlobSizeRange fromStr(const std::string& str);
 };

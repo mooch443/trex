@@ -5,6 +5,7 @@
 #include <misc/SoftException.h>
 #include <misc/idx_t.h>
 #include <misc/PackLambda.h>
+#include <misc/DetectionTypes.h>
 
 namespace file {
     class DataLocation;
@@ -29,13 +30,15 @@ namespace track {
                         std::string model_path,
                         int trained_resolution = 640, 
                         int min_image_size = -1,
-                        int max_image_size = -1)
-                :   task(task), 
+                        int max_image_size = -1,
+                        ObjectDetectionFormat::data::values output = ObjectDetectionFormat::none)
+                :   task(task),
                     use_tracking(use_tracking),
                     model_path(model_path), 
                     trained_resolution(trained_resolution),
                     min_image_size(min_image_size != -1 ? min_image_size : trained_resolution), 
-                    max_image_size(max_image_size != -1 ? max_image_size : min_image_size)
+                    max_image_size(max_image_size != -1 ? max_image_size : min_image_size),
+                    output_format(output)
             {
                 // check if model path exists
                 if(not is_in(model_path, 
@@ -82,6 +85,7 @@ namespace track {
             int trained_resolution;
             int min_image_size;
             int max_image_size;
+            ObjectDetectionFormat::data::values output_format;
         };
 
         struct TREX_EXPORT Rect {
@@ -321,7 +325,7 @@ namespace track {
         }
 
         static std::vector<track::detect::Result> predict(track::detect::YoloInput&&, const std::string &m = "");
-        static void set_models(const std::vector<track::detect::ModelConfig>&, const std::string& m = "");
+        static std::vector<track::detect::ModelConfig> set_models(const std::vector<track::detect::ModelConfig>&, const std::string& m = "");
 
         static void set_function(const char* name_, std::function<bool(void)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<float(void)> f, const std::string &m = "");

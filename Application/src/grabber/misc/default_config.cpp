@@ -141,7 +141,7 @@ ENUM_CLASS_DOCS(meta_encoding_t,
         CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
         CONFIG("solid_background_color", uchar(255), "A greyscale value in case `enable_difference` is set to false - TGrabs will automatically generate a background image with the given color.");
         CONFIG("video_size", Size2(-1,-1), "Is set to the dimensions of the resulting image.", LOAD);
-        CONFIG("cam_resolution", cv::Size(-1, -1), "Defines the dimensions of the camera image.", LOAD);
+        CONFIG("cam_resolution", Size2(-1, -1), "Defines the dimensions of the camera image.", LOAD);
         CONFIG("cam_framerate", int(-1), "If set to anything else than 0, this will limit the basler camera framerate to the given fps value.", LOAD);
         CONFIG("cam_limit_exposure", int(5500), "Sets the cameras exposure time in micro seconds.");
         

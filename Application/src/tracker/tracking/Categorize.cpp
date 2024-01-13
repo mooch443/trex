@@ -17,6 +17,7 @@
 
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+#include <gui/WorkProgress.h>
 
 namespace track {
 namespace Categorize {
@@ -418,12 +419,16 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
     
     for(;;) {
         if(it->_maximum_frame_after.valid()
+           && m.valid()
            && it->_maximum_frame_after <= m)
         {
             break;
         }
         
-        it->_maximum_frame_after = m;
+        if(m.valid())
+            it->_maximum_frame_after = m;
+        else
+            FormatWarning("m is null: ", it->_maximum_frame_after);
         
         if(it != _ranged_labels.begin()) {
             if(!m.valid() || it->_range.start() < m)
@@ -468,7 +473,8 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
             }
         }
         
-        if(frame < eit->_maximum_frame_after)
+        if(eit->_maximum_frame_after.valid()
+           && frame < eit->_maximum_frame_after)
             break;
     }
     
@@ -1105,7 +1111,10 @@ void start_applying(pv::File* video_source) {
 }
 
 file::Path output_location() {
-    return file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename() + "_categories.npz"));
+    auto filename = SETTING(filename).value<file::Path>();
+    if(filename.has_extension() && filename.extension() == "pv")
+        filename = filename.remove_extension();
+    return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
 }
 
 void Work::start_learning(pv::File* video_source) {
@@ -1426,10 +1435,12 @@ void Work::start_learning(pv::File* video_source) {
         
         guard.unlock();
         
-        print("## Ending python blockade.");
-        print("Clearing DataStore.");
-        DataStore::clear();
-        Categorize::terminate();
+        WorkProgress::add_queue("", [](){
+            print("## Ending python blockade.");
+            print("Clearing DataStore.");
+            DataStore::clear();
+            Categorize::terminate();
+        });
         
     }), ._can_run_before_init = false});
 }
@@ -2254,7 +2265,9 @@ Sample::Ptr DataStore::temporary(
 #ifndef NDEBUG
     print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, ",replaced," were found (replaced %lu, min_samples=",min_samples,").");
 #endif
-    if(images.size() >= min_samples) {
+    if(images.size() >= min_samples
+       && not images.empty())
+    {
         return Sample::Make(std::move(indexes), std::move(images), std::move(blob_ids), std::move(positions));
     }
 #ifndef NDEBUG

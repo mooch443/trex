@@ -39,6 +39,8 @@
 #include <gui/TrackingSettingsScene.h>
 #include <gui/TrackingScene.h>
 #include <gui/AnnotationScene.h>
+#include <gui/TrackingState.h>
+#include <tracking/Segmenter.h>
 
 #include <python/Yolo8.h>
 //#include <python/Yolo7InstanceSegmentation.h>
@@ -114,7 +116,7 @@ TRexTask determineTaskType() {
 void launch_gui() {
     IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
-        graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
+        //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
     }, [](auto&, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
@@ -375,10 +377,11 @@ int main(int argc, char**argv) {
 #endif
     default_config::register_default_locations();
     
-    ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    
     grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
+    ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    ::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
     gui::init_errorlog();
     set_thread_name("main");

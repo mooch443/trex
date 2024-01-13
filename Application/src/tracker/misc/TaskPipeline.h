@@ -5,6 +5,7 @@
 #include <pv.h>
 #include <misc/DetectionTypes.h>
 #include <misc/Buffers.h>
+#include <misc/ThreadManager.h>
 
 namespace cmn {
 
@@ -157,16 +158,14 @@ public:
     }
 };
 
-template<typename Data, bool init_paused = false>
-class PipelineManager {
+template<typename Data>
+class BasicManager {
     typename BaseTask<Data>::Ptr _c;
-    std::shared_mutex _mutex;
-    std::mutex _future_mutex, _pause_mutex;
-    std::condition_variable _pause_variable;
+    mutable std::shared_mutex _mutex;
+    std::mutex _future_mutex;
     std::future<void> _future;
-    double _weight_limit{ 0 };
+    std::atomic<double> _weight_limit{ 0 };
     std::function<void()> _create;
-    bool _paused{false};
     
     template <typename... Args>
     auto bind_arguments_to_lambda(Args&&... args) {
@@ -178,16 +177,16 @@ class PipelineManager {
             std::apply(func, tup);
         };
     }
-
+    
 public:
     template<typename... Args>
-    PipelineManager(double weight_limit, Args... args)
-        : _weight_limit(weight_limit), _create(bind_arguments_to_lambda(std::forward<Args>(args)...)), _paused(init_paused)
+    BasicManager(double weight_limit, Args... args)
+        : _weight_limit(weight_limit), _create(bind_arguments_to_lambda(std::forward<Args>(args)...))
     {
         CMN_ASSERT(not Data{}, "Default constructed values should evaluate to 'false'.");
     }
-
-    ~PipelineManager() {
+    
+    virtual ~BasicManager() {
         {
             std::unique_lock guard(_mutex);
             _create = {};
@@ -196,6 +195,11 @@ public:
 #ifdef _WIN32
         clean_up();
 #endif
+    }
+    
+    bool is_terminated() const {
+        //std::unique_lock g(_mutex);
+        return _c == nullptr;
     }
     
     void clean_up() {
@@ -209,40 +213,8 @@ public:
         std::unique_lock g(_mutex);
         _c = nullptr;
     }
-    
-    void set_paused(bool v) {
-        {
-            std::unique_lock g(_pause_mutex);
-            _paused = v;
-            _pause_variable.notify_all();
-        }
-    }
 
-    /*void enqueue(std::vector<Data>&& v) {
-        {
-            std::shared_lock guard(_mutex);
-            if(not _create)
-                return;
-            
-            if(not _c) {
-                _create();
-                assert(_c != nullptr);
-            }
-            
-            {
-                for (auto&& ptr : v)
-                    _c->push(std::move(ptr));
-                v.clear();
-            }
-        }
-        update();
-    }*/
-
-    void enqueue(Data&& ptr) {
-        std::unique_lock p(_pause_mutex);
-        if(_paused)
-            _pause_variable.wait(p, [&](){ return not _paused; });
-        
+    virtual void enqueue(Data&& ptr) {
         std::scoped_lock g(_future_mutex);
         if (_future.valid())
             _future.get();
@@ -263,7 +235,7 @@ public:
         if(ptr)
             _c->push(std::move(ptr));
         
-        if(_c->weight() < _weight_limit) {
+        if(_c->weight() < _weight_limit.load()) {
             return;
         }
         
@@ -279,14 +251,49 @@ public:
 
     void set_weight_limit(double w) {
         {
-            std::unique_lock guard(_mutex);
+            //std::unique_lock guard(_mutex);
             _weight_limit = w;
         }
 
         //update();
         enqueue({});
     }
+};
 
+template<typename Data, bool init_paused = false>
+class PipelineManager : public BasicManager<Data> {
+    bool _paused{false};
+    std::mutex _pause_mutex;
+    PersistentCondition _pause_variable;
+    
+public:
+    template<typename... Args>
+    PipelineManager(double weight_limit, Args... args)
+        : BasicManager<Data>(weight_limit, std::forward<Args>(args)...),
+          _paused(init_paused)
+    { }
+    
+    void enqueue(Data&& data) override {
+        //if(not data)
+        //    return;
+        if(data) {
+            std::unique_lock p(_pause_mutex);
+            if(_paused)
+                _pause_variable.wait(p, [&](){ return not _paused; });
+            
+            BasicManager<Data>::enqueue(std::move(data));
+        } else {
+            BasicManager<Data>::enqueue({});
+        }
+    }
+    
+    void set_paused(bool v) {
+        {
+            std::unique_lock g(_pause_mutex);
+            _paused = v;
+            _pause_variable.notify();
+        }
+    }
 };
 
 }

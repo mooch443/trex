@@ -29,18 +29,7 @@ struct TREX_EXPORT Detection {
     static bool is_initializing();
     static double fps();
 
-    static auto& manager() {
-        static auto instance = PipelineManager<TileImage>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
-            // do what has to be done when the queue is full
-            // i.e. py::execute()
-#ifndef NDEBUG
-            if(images.empty())
-                FormatExcept("Images is empty :(");
-#endif
-            Detection::apply(std::move(images));
-        });
-        return instance;
-    }
+    static BasicManager<TileImage>& manager();
     
 private:
     static void apply(std::vector<TileImage>&& tiled);
@@ -55,19 +44,7 @@ struct TREX_EXPORT BackgroundSubtraction {
     static void deinit();
     static double fps();
 
-    static auto& manager() {
-        static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
-            // do what has to be done when the queue is full
-            // i.e. py::execute()
-            if(images.empty())
-                FormatExcept("Images is empty :(");
-            while(not data().background)
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            
-            BackgroundSubtraction::apply(std::move(images));
-        });
-        return instance;
-    }
+    static PipelineManager<TileImage, true>& manager();
     
 private:
     static void apply(std::vector<TileImage>&& tiled);

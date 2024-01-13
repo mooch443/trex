@@ -24,7 +24,7 @@ public:
     void notify() noexcept;
 
     // Wait for a notification
-    void wait(std::unique_lock<std::mutex>& lock);
+    void wait(std::unique_lock<std::mutex>& lock, std::function<bool()>&& = nullptr);
 };
 
 /**

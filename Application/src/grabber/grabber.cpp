@@ -329,7 +329,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
 #endif
     
     if(_video) {
-        SETTING(cam_resolution).value<cv::Size>() = cv::Size(Size2(_cam_size) * GRAB_SETTINGS(cam_scale));
+        SETTING(cam_resolution) = Size2(_cam_size) * GRAB_SETTINGS(cam_scale);
     }
     
 #if !COMMONS_NO_PYTHON
@@ -416,8 +416,11 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     cv::Mat map1, map2;
     cv::Size size = _cam_size;
     
-    cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, SETTING(cam_matrix).value<std::vector<float>>().data());
-    cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, SETTING(cam_undistort_vector).value<std::vector<float>>().data());
+    auto cam_data = SETTING(cam_matrix).value<std::vector<float>>();
+    cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, cam_data.data());
+    
+    auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<float>>();
+    cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, undistort_data.data());
     
     GlobalSettings::map()["cam_undistort1"].get().set_do_print(false);
     GlobalSettings::map()["cam_undistort2"].get().set_do_print(false);
@@ -526,7 +529,7 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         if (((fg::Webcam*)_camera)->frame_rate() > 0
             && SETTING(cam_framerate).value<int>() == -1)
         {
-            SETTING(cam_framerate).value<int>() = ((fg::Webcam*)_camera)->frame_rate();
+            SETTING(cam_framerate) = int(((fg::Webcam*)_camera)->frame_rate());
         }
 
         if (SETTING(frame_rate).value<uint32_t>() == 0) {
@@ -536,7 +539,7 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         
     } else if(utils::lowercase(source) == "test_image") {
         std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::TestCamera(SETTING(cam_resolution).value<cv::Size>());
+        _camera = new fg::TestCamera(SETTING(cam_resolution).value<Size2>());
         cv::Mat background = cv::Mat::ones(_camera->size().height, _camera->size().width, CV_8UC1) * 255;
         
         _average_finished = true;
@@ -547,7 +550,7 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<uint32_t>() == 0) {
             SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
         } else
-            SETTING(frame_rate).value<uint32_t>() = 30u;
+            SETTING(frame_rate) = uint32_t(30u);
         
         std::lock_guard<std::mutex> guard(_camera_lock);
         _camera = new fg::InteractiveCamera();

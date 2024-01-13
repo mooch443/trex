@@ -331,6 +331,60 @@ TEST(RepeatTest, TestLargeRepetitions) {
 }
 
 // upper lower
+// Test with identical strings
+TEST(StringLowercaseEqual, IdenticalStrings) {
+    std::string_view str1 = "hello";
+    const char str2[] = "hello";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with different strings
+TEST(StringLowercaseEqual, DifferentStrings) {
+    std::string_view str1 = "hello";
+    const char str2[] = "world";
+    EXPECT_FALSE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with strings that differ only in case
+TEST(StringLowercaseEqual, CaseInsensitive) {
+    std::string_view str1 = "Hello";
+    const char str2[] = "hello";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with one string as a substring of the other
+TEST(StringLowercaseEqual, Substring) {
+    std::string_view str1 = "hello";
+    const char str2[] = "hell";
+    EXPECT_FALSE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with empty strings
+TEST(StringLowercaseEqual, EmptyStrings) {
+    std::string_view str1 = "";
+    const char str2[] = "";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with empty strings
+TEST(StringLowercaseEqual, RawTest) {
+    std::string_view str1 = "RAW";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, "raw"));
+}
+
+// Test with non-alphabetic characters
+TEST(StringLowercaseEqual, NonAlphabetic) {
+    std::string_view str1 = "123@!";
+    const char str2[] = "123@!";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with strings containing uppercase non-alphabetic characters
+TEST(StringLowercaseEqual, MixedCaseNonAlphabetic) {
+    std::string_view str1 = "HeLlO123@!";
+    const char str2[] = "hello123@!";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
 
 TEST(StringUtilTest, Lowercase) {
     // Test with std::string
@@ -1356,7 +1410,7 @@ TEST(HtmlifyTests, Quotations) {
 TEST(HtmlifyTests, Headings) {
     std::string doc = "$Heading$";
     std::string result = htmlify(doc, false);
-    ASSERT_EQ(result, "<h4>Heading</h4>");
+    ASSERT_EQ(result, "<h4>Heading</h4>\n");
 }
 
 TEST(HtmlifyTests, UnknownHeadings) {

@@ -2,15 +2,17 @@
 
 #include <commons.pc.h>
 #include <misc/OverlayedVideo.h>
-#include <tracking/Tracker.h>
 #include <misc/frame_t.h>
 #include <misc/TaskPipeline.h>
 #include <pv.h>
+#include <misc/ranges.h>
 #if WITH_FFMPEG
 #include <misc/tomp4.h>
 #endif
 
 namespace track {
+
+class Tracker;
 
 class Segmenter {
     // condition variables and mutexes for thread synchronization
@@ -45,10 +47,16 @@ class Segmenter {
     
     std::function<void(float)> progress_callback;
     std::future<void> average_generator;
+    mutable std::mutex average_generator_mutex;
+    mutable std::condition_variable average_variable;
     std::atomic<bool> _average_terminate_requested{false};
     std::atomic<float> _average_percent{0};
     std::function<void(std::string)> error_callback;
     std::function<void()> eof_callback;
+    
+    Frame_t running_id = 0_f;
+    std::atomic<double> _frame_time{0}, _frame_time_samples{0};
+    std::atomic<double> _fps{0};
     
 #if WITH_FFMPEG
     std::unique_ptr<FFMPEGQueue> _queue;
@@ -72,8 +80,9 @@ public:
     bool is_finite() const;
     file::Path output_file_name() const;
     void force_stop();
-    std::optional<std::string_view> video_recovered_error() const;
+    std::future<std::optional<std::string_view>> video_recovered_error() const;
     float average_percent() const { return min(_average_percent.load(), 1.f); }
+    double fps() const;
     std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
     
 private:
@@ -85,6 +94,7 @@ private:
     void printDebugInformation();
     void start_recording_ffmpeg();
     void graceful_end();
+    void stop_average_generator(bool blocking);
 };
 
 }

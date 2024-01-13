@@ -10,13 +10,13 @@ namespace fg {
                 //cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G')
             };
 
-            if (SETTING(cam_resolution).value<cv::Size>().width != -1) {
+            if (SETTING(cam_resolution).value<Size2>().width != -1) {
                 parameters.push_back(cv::CAP_PROP_FRAME_WIDTH);
-                parameters.push_back(SETTING(cam_resolution).value<cv::Size>().width);
+                parameters.push_back(SETTING(cam_resolution).value<Size2>().width);
             }
-            if (SETTING(cam_resolution).value<cv::Size>().height != -1) {
+            if (SETTING(cam_resolution).value<Size2>().height != -1) {
 				parameters.push_back(cv::CAP_PROP_FRAME_HEIGHT);
-				parameters.push_back(SETTING(cam_resolution).value<cv::Size>().height);
+				parameters.push_back(SETTING(cam_resolution).value<Size2>().height);
 			}
             if (SETTING(cam_framerate).value<int>() > 0) {
                 parameters.push_back(cv::CAP_PROP_FPS);
