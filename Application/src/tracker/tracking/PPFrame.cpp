@@ -439,6 +439,9 @@ void PPFrame::_assume_not_finalized(const char* file, int line) {
     if(_finalized) {
         throw U_EXCEPTION("PPFrame already finalized @ [",file,":",line,"]. Finalized at ", _finalized_at.file_name(),":", _finalized_at.line(), " in function ", _finalized_at.function_name(), ".");
     }
+#else
+    UNUSED(file);
+    UNUSED(line);
 #endif
 }
 

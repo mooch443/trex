@@ -166,11 +166,11 @@ void Bowl::update_shapes() {
     }
 }
 
-void Bowl::draw_shapes(DrawStructure &graph, const FindCoord &coord) {
+void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
     //! TODO: Thread-safety?
-    const auto size = coord.video_size();
-    const float max_w = size.width;
-    const float max_h = size.height;
+    //const auto size = coord.video_size();
+    //const float max_w = size.width;
+    //const float max_h = size.height;
     
     /*if((PD(tracking)._recognition_image.source()->cols != max_w || PD(tracking)._recognition_image.source()->rows != max_h) && Tracker::instance()->border().type() != Border::Type::none) {
         auto border_distance = Image::Make(max_h, max_w, 4);
@@ -350,7 +350,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
     }
 }
 
-void Bowl::set_data(Frame_t frame) {
+void Bowl::set_data(Frame_t) {
 }
 
 void Bowl::update_scaling() {

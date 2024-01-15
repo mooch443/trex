@@ -499,13 +499,13 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         
         std::vector<Vec2> maxi;
         float max_h = -1, max_int = -1, max_y = -1;
-        scalar_t max_int_index = 0, max_y_idx = 0;
+        scalar_t max_y_idx = 0;
         std::vector<Vec2> max_int_pts;
         for (auto &peak : *maxima_ptr) {
             auto h = cmn::abs(peak.range.end - peak.range.start);
             max_h = max(max_h, h);
             if(peak.integral > max_int) {
-                max_int_index = peak.position.x;
+                //max_int_index = peak.position.x;
                 max_int = peak.integral;
                 max_int_pts = peak.points;
             }
@@ -633,7 +633,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         
         scalar_t max_d = 0;
         scalar_t broadest = 0;
-        scalar_t broadest_idx = -1;
+        //scalar_t broadest_idx = -1;
         for(auto &peak : *maxima_ptr) {
             scalar_t d;
             if(peak.position.x >= idx) {
@@ -648,7 +648,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             
             if(peak.range.length() > broadest) {
                 broadest = peak.range.length();
-                broadest_idx = peak.position.x;
+                //broadest_idx = peak.position.x;
             }
             
         }
@@ -1454,7 +1454,7 @@ long_t Outline::find_tail(const DebugInfo&) {
     //static Timing timing("find_tail", 0.001);
     //TakeTiming take(timing);
     
-    long_t _tail_index = -1, _head_index = -1;
+    //long_t _tail_index = -1, _head_index = -1;
     
     //if(!FAST_SETTING(midline_invert)) {
     if(_points->empty() || size() <= 3)
@@ -1544,11 +1544,11 @@ long_t Outline::find_tail(const DebugInfo&) {
                 }
             }
             
-            _tail_index = round(idx0);
+            //_tail_index = round(idx0);
             
             if(max_i != areas.end()) {
                 idx = max_i->idx; // head?
-                _head_index = round(idx);
+                //_head_index = round(idx);
             } else {
                 idx = idx0;
                 //_needs_invert = true;

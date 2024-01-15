@@ -305,7 +305,7 @@ Fish::~Fish() {
     }*/
     
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
-        const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
+        //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
@@ -323,7 +323,7 @@ Fish::~Fish() {
         _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = _view.hovered();
-        const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
+        //const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
         //const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
         
         auto base_color = single_identity != Transparent ? single_identity : _id.color();
@@ -731,7 +731,7 @@ Fish::~Fish() {
                 auto c = cache.processed_frame().cached(_id.ID());
                 if (c) {
                     auto &mat = _image.unsafe_get_source();
-                    if(mat.index() != _frame.get()) {
+                    if(mat.index() != narrow_cast<long_t>(_frame.get())) {
                         mat.create(coord.video_size().height, coord.video_size().width, 4);
                         mat.set_index(_frame.get());
 
@@ -850,7 +850,7 @@ Fish::~Fish() {
                     float previous = FLT_MAX;
                     bool hit = false;
                     float value = 0;
-                    size_t count_ones = 0;
+                    //size_t count_ones = 0;
                 
                     for (auto frame = _frame - Frame_t(FAST_SETTING(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTING(posture_direction_smoothing)); ++frame)
                     {
@@ -876,9 +876,9 @@ Fish::~Fish() {
                                 }
                             
                                 interp[frame] = value;
-                                if(hit) {
-                                    ++count_ones;
-                                }
+                                //if(hit) {
+                                    //++count_ones;
+                                //}
                             
                                 dangle[frame] = val;
                             }
@@ -999,7 +999,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     _prev_frame_range = _range;
     
     const float max_speed = FAST_SETTING(track_max_speed);
-    const float thickness = GUIOPTION(gui_outline_thickness);
+    //const float thickness = GUIOPTION(gui_outline_thickness);
     
     auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
     

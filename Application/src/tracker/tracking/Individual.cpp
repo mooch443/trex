@@ -1283,7 +1283,7 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const Po
     //    return nullptr;
     
     auto &ptr = posture.cached_pp_midline;
-    auto &blob = basic.blob;
+    //auto &blob = basic.blob;
     //basic.pixels = nullptr;
     
     Midline::Ptr midline;
@@ -1742,7 +1742,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     
     int used_frames = 0;
     //Median<size_t> size_median;
-    float weights = 0;
+    //float weights = 0;
     
     //! Collect recent number of valid samples within $t - \mathrm{fps} <= \dot{t} <= t$, where all distances between segments must not be reassigned ($\Delta t < fps * T_mathrm{max}$).
     size_t N = 0;
@@ -1949,7 +1949,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
                 
                 //! \dot{\mathbf{p}}_i(t) = s_i(t) \sum_{k\in [F(\tau_i), F(t)-1]} w(k) \left(\mean{\mathbf{d}_i}(t) + \Tau'(k) * \mean{\mathbf{a}}_i(t) \right)
                 est += weight * tdelta * (speed * (direction + tdelta * raw_acc));
-                weights += weight;
+                //weights += weight;
             }
         }
     }
@@ -2392,7 +2392,10 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 }
 #endif
 
-void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex, pv::BlobPtr&& pixels) {//Image::Ptr greyscale) {
+void Individual::save_posture(const BasicStuff&,
+                              Frame_t frameIndex,
+                              pv::BlobPtr&& pixels)
+{//Image::Ptr greyscale) {
     /*auto c = centroid(frameIndex);
     auto direction = c->v();
     direction /= ::length(direction);*/

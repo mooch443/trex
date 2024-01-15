@@ -207,8 +207,6 @@ public:
     }
     static std::future<void> deinit() {
         std::unique_lock guard(_data_mutex);
-        auto ptr = _data;
-
         if (!_data->_init_future.valid()) {
             std::promise<void> p;
             auto f = p.get_future();

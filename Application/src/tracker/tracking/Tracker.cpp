@@ -1461,9 +1461,10 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                         .f_prop = s.props,
                         .f_prev_prop = s.prev_props,
                         .match_mode = default_config::matching_mode_t::hungarian
-                    }, std::move(optimal.pairings), [&s](pv::bid, Idx_t, Individual*)
+                    }, std::move(optimal.pairings), [](pv::bid, Idx_t, Individual*)
+                    {},
+                    [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error)
                     {
-                    }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
                         FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
                     });
                 }

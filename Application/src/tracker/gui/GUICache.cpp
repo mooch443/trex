@@ -299,7 +299,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
     
     Frame_t GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
-        const auto posture_threshold = FAST_SETTING(track_posture_threshold);
+        //const auto posture_threshold = FAST_SETTING(track_posture_threshold);
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
         

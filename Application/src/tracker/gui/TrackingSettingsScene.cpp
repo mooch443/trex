@@ -109,7 +109,6 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
     auto max_w = window()->window_dimensions().width * 0.65;
-    auto max_h = window()->window_dimensions().height - _button_layout->height() - 25;
     auto scale = Vec2(max_w * 0.4 / max(_preview_image->width(), 1));
     _preview_image->set_scale(scale);
     

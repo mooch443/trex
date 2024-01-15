@@ -908,11 +908,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
     
     g.context.custom_elements["image"] = CustomElement{
         .name = "image",
-        .create = [this](LayoutContext& layout) -> Layout::Ptr {
-            auto ptr = Layout::Make<ExternalImage>();
-            return ptr;
+        .create = [](LayoutContext&) -> Layout::Ptr {
+            return Layout::Make<ExternalImage>();
         },
-        .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+        .update = [](Layout::Ptr&, const Context&, State&, const robin_hood::unordered_map<std::string, Pattern>&) {
             
         }
     };

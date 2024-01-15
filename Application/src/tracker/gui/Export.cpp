@@ -414,10 +414,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
-                        if(range->length().get() >= (long_t)output_min_frames) {
+                        if(range->length().get() >= output_min_frames) {
                             auto filters = constraints::local_midline_length(fish, range->range);
                             // Init data strutctures
-                            size_t image_count = 0;
+                            //size_t image_count = 0;
                             
                             if(filters->median_midline_length_px > 0) {
                                 std::set<Frame_t> frames(range->range.iterable().begin(), range->range.iterable().end());
@@ -449,7 +449,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                         assert(blob);
                                         
                                         auto trans = midline->transform(normalize);
-                                        pv::bid org_id;
+                                        //pv::bid org_id;
                                         
                                         /*ImageData data(ImageData::Blob{
                                             blob->num_pixels(), 
@@ -468,7 +468,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                             .median_midline_length_px = filters ? filters->median_midline_length_px : 0,
                                             .range = range->range
                                         };
-                                        ++image_count;
+                                        //++image_count;
                                     }
                                 }
                             } // </median_midline_length>

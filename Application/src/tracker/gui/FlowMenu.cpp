@@ -52,7 +52,7 @@ namespace gui {
     void FlowMenu::display_layer(size_t layer) {
         check_layer_index(layer);
         _pie.set_slices(generate_layer(layer));
-        _current = layer;
+        _current = narrow_cast<long_t>(layer);
         set_content_changed(true);
     }
     

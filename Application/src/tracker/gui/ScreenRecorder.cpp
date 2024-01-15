@@ -25,7 +25,7 @@ struct ScreenRecorder::Data {
     Frame_t _last_recording_frame;
     std::atomic_bool _recording = false;
     
-    void do_record(Image::Ptr&& image, Base* , Frame_t frame, Frame_t max_frame) {
+    void do_record(Image::Ptr&& image, Base* , Frame_t , Frame_t max_frame) {
         if(!_recording /*|| !_base || (_last_recording_frame.valid() && _recording_frame == _last_recording_frame)*/)
             return;
         

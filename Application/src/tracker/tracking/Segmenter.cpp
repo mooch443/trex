@@ -627,8 +627,6 @@ void Segmenter::perform_tracking() {
         }
     }
 
-    auto index = _progress_data.frame.index();
-
     if (std::unique_lock guard(_mutex_tracker); 
         _tracker != nullptr)
     {

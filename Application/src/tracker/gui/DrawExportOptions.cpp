@@ -148,7 +148,7 @@ struct DrawExportOptions::Data {
                     std::set<std::string> append;
                     auto it = graphs_map.find(f);
                     if (it != graphs_map.end()) {
-                        count = max(it->second.size(), 1u);
+                        count = narrow_cast<uint32_t>(max(it->second.size(), 1u));
                         append = it->second;
                     }
                     

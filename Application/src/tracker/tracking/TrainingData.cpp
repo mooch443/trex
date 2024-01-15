@@ -919,7 +919,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             // collect all frames where this individual is present
             
             std::set<Frame_t> empty_frames;
-            size_t count = 0, after = 0;
+            size_t after = 0;
             double acc = 0;
             
             for(auto && [frame, ids] : individuals_per_frame) {
@@ -932,7 +932,6 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                         acc -= 1;
                         ++after;
                     }
-                    ++count;
                     acc += step_size;
                 }
             }

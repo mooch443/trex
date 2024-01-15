@@ -501,6 +501,7 @@ IndividualManager::~IndividualManager() {
     
     //! keep track of individuals that aren't assigned
     //! THIS SHOULD NOT HAPPEN
+#ifndef NDEBUG
     if constexpr(is_debug_mode()) {
         if(track::last_active) {
             for(auto fish : *track::last_active) {
@@ -509,6 +510,7 @@ IndividualManager::~IndividualManager() {
             }
         }
     }
+#endif
     
     // move from local storage to replace the global
     // state set:

@@ -114,7 +114,7 @@ TRexTask determineTaskType() {
 }
 
 void launch_gui() {
-    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
+    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;

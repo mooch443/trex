@@ -129,7 +129,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
         auto out = _diff_px.data();
         auto bg = Tracker::instance()->background();
         //auto grid = Tracker::instance()->grid();
-        constexpr LuminanceGrid* grid = nullptr;
+        //constexpr LuminanceGrid* grid = nullptr;
         min_pixel = 254;
         max_pixel = 0;
         

@@ -150,7 +150,7 @@ void AnnotationView::set_annotation(Annotation && a) {
         for(auto &p : a.points) {
             _circles.push_back(std::make_shared<Circle>(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
             _circles.back()->set_draggable();
-            _circles.back()->on_hover([this, ptr = _circles.back().get()](Event e) {
+            _circles.back()->on_hover([ptr = _circles.back().get()](Event e) {
                 if(e.hover.hovered)
                     ptr->set(FillClr{Red.exposureHSL(1.5).alpha(125)});
                 else
@@ -218,7 +218,7 @@ AnnotationScene::AnnotationScene(Base& window)
 }
 
 // Method to retrieve a frame (placeholder, needs actual implementation)
-Image::Ptr AnnotationScene::retrieveFrame(Frame_t frameIndex) {
+Image::Ptr AnnotationScene::retrieveFrame(Frame_t) {
     // Implement frame retrieval logic
     return nullptr; // Placeholder
 }
@@ -369,7 +369,6 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                                 auto &anns = _gui_annotations[frame];
                                 
                                 data.clear();
-                                auto coords = FindCoord::get();
                                 
                                 for(auto &[_, ann] : objs) {
                                     size_t index = data.size();
@@ -381,7 +380,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                                     std::vector<Vec2> pts(ann.points.begin(), ann.points.end());
                                     map["points"] = pts;
                                     if(anns.size() < data.size())
-                                        anns.emplace_back(new Variable([index, &data](const VarProps& props) -> auto& {
+                                        anns.emplace_back(new Variable([index, &data](const VarProps&) -> auto& {
                                             return data.at(index);
                                         }));
                                 }
@@ -438,7 +437,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 
                 return Layout::Ptr(ptr);
             },
-            .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+            .update = [](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
                 //print("Updating label with patterns: ", patterns);
                 //print("o = ", o.get());
 
@@ -644,7 +643,7 @@ std::future<std::unordered_set<Frame_t>> AnnotationScene::select_unique_frames()
         }
 
         // Selecting top M frames uniformly from N clusters
-        int N = clusters.size(); // Number of clusters
+        int N = narrow_cast<int>(clusters.size()); // Number of clusters
         int M = 100; // Total number of frames to select
         int framesPerCluster = M / N; // Frames to select from each cluster
         std::vector<Image::Ptr> selectedFrames;

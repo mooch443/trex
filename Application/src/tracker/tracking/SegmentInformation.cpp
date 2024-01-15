@@ -19,16 +19,16 @@ void SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
 #endif
 
 void SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
-    long_t L = length().get();
+    size_t L = sign_cast<size_t>(length().get());
     if(posture_index.size() != size_t(L)) {
-        long_t prev = posture_index.size();
+        auto prev = posture_index.size();
         posture_index.resize(L);
-        for (long_t i=prev; i<L; ++i) {
+        for (size_t i=prev; i<L; ++i) {
             SEGMENT_ACCESS(posture_index, i) = -1;
         }
     }
     
-    long_t gdx = fish->_posture_stuff.size();
+    auto gdx = fish->_posture_stuff.size();
     
     if(fish->added_postures.find(stuff->frame) == fish->added_postures.end()) {
         fish->added_postures.insert(stuff->frame);
@@ -41,7 +41,7 @@ void SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, I
         throw SoftException("(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
     
     fish->_last_posture_added = stuff->frame;
-    FRAME_SEGMENT_ACCESS(posture_index, stuff->frame - start()) = gdx;
+    FRAME_SEGMENT_ACCESS(posture_index, stuff->frame - start()) = sign_cast<int>(gdx);
 
     fish->_posture_stuff.push_back(std::move(stuff));
 }

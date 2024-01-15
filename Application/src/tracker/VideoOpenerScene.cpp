@@ -145,7 +145,9 @@ VideoOpener::VideoOpener()
         while(!quit) {
             _stale_variable.wait(guard);
             
+#ifndef NDEBUG
             size_t i=0;
+#endif
             while(!_stale_buffers.empty()) {
                 auto ptr = std::move(_stale_buffers.front());
                 _stale_buffers.pop();
@@ -170,7 +172,9 @@ VideoOpener::VideoOpener()
                 }
                 guard.lock();
                 
+#ifndef NDEBUG
                 ++i;
+#endif
             }
       
 #ifndef NDEBUG

@@ -269,6 +269,9 @@ void WorkProgress::update_taskbar(IMGUIBase* base) {
 #elif defined(__APPLE__)
             MacProgressBar::set_visible(false);
 #endif
+#if !defined(WIN32)
+            UNUSED(base);
+#endif
             return;
         }
 

@@ -80,10 +80,10 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     Vec2 text_pos;
 
     if (not _position_override) {
-        auto screen = coord.viewport();
+        //auto screen = coord.viewport();
         //auto screen1 = coord.hud_viewport();
         //auto screen = coord.convert(screen1);
-        auto other = coord.convert(BowlRect(Vec2(), coord.video_size()));
+        //auto other = coord.convert(BowlRect(Vec2(), coord.video_size()));
 
         auto center_screen = HUDCoord(Vec2(screen_size.width * 0.5, screen_size.height * 1.05));
         Vec2 alternative = coord.convert(center_screen);

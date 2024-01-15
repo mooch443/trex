@@ -479,6 +479,8 @@ bool ConvertScene::on_global_event(Event e) {
                     _data->_recorder.stop_recording(window(), nullptr);
                 }
                 return true;
+            default:
+                break; /// we dont need anything else
         }
     }
     return true;
@@ -548,7 +550,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 }
 
 // Helper function to draw outlines
-void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset) {
+void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2) {
     if (not _current_data.outlines.empty()) {
         graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
@@ -701,7 +703,7 @@ void ConvertScene::Data::drawBlobs(
             _tracked_properties[tracked] = &_individual_properties[id];
 
         if (tracked >= _tracked_gui.size())
-            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps& props) -> sprite::Map& {
+            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> sprite::Map& {
                 //print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                 return *_tracked_properties.at(i);
             }));

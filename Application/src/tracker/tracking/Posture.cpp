@@ -484,7 +484,7 @@ namespace track {
         // repeat until we found the biggest object
         while (unassigned.size() > N * 0.05) {//unassigned.size() > assigned) {
             _outline.clear();
-            assigned = 0;
+            //assigned = 0;
             //current_min_rawd = FLT_MAX;
             direction = Vec2(FLT_MAX, FLT_MAX);
             prev_angle = FLT_MAX;
@@ -499,7 +499,7 @@ namespace track {
                 if(!_outline.empty())
                     prev_point = _outline.back();
                 _outline.insert(_outline.size(), entry_points[pt].interp.begin(), entry_points[pt].interp.end());
-                assigned++;
+                //assigned++;
                 
                 back_front = _outline.size() > 3 ? rdist_points(_outline.back(), _outline.front(), sqdistance(_outline.back(), _outline.front())) : FLT_MAX;
                 

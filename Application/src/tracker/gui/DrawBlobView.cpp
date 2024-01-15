@@ -62,7 +62,7 @@ class OuterBlobs {
     std::unique_ptr<ExternalImage> ptr;
     
 public:
-    OuterBlobs(Image::Ptr&& image = nullptr, std::unique_ptr<ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
+    OuterBlobs(Image::Ptr&& image = nullptr, std::unique_ptr<ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
         
     }
     
@@ -238,7 +238,7 @@ void draw_blob_view(const DisplayParameters& parm)
             if(to_show_ids.find(id) == to_show_ids.end()) {
                 deleted.insert(id);
                 
-                /*for(auto it = outer_images.begin(); it != outer_images.end(); ++it) {
+                / *for(auto it = outer_images.begin(); it != outer_images.end(); ++it) {
                     if((uint64_t)(*it)->custom_data("blob_id") == (uint64_t)id) {
                         outer_images.erase(it);
                         break;
@@ -250,7 +250,7 @@ void draw_blob_view(const DisplayParameters& parm)
         for(auto id : deleted)
             shown_ids.erase(id);
         
-        /*std::vector<std::shared_ptr<OuterBlobs>> outer_simple;
+        / *std::vector<std::shared_ptr<OuterBlobs>> outer_simple;
         for(auto &o : outers) {
             outer_simple.push_back(std::make_shared<OuterBlobs>(std::move(o.image), o.off, o.blob->blob_id()));
         }*
@@ -306,7 +306,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             //print("Updating frame ", parm.cache.processed_frame);
             parm.cache.processed_frame().transform_noise([&](pv::Blob& blob){
-                auto id = blob.blob_id();
+                //auto id = blob.blob_id();
                 auto d = euclidean_distance(mp, blob.bounds().pos());
                 draw_order.insert({d, &blob, false});
                 
@@ -316,7 +316,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             if(!SETTING(gui_draw_only_filtered_out)) {
                 parm.cache.processed_frame().transform_blobs([&](pv::Blob& blob){
-                    auto id = blob.blob_id();
+                    //auto id = blob.blob_id();
                     auto d = euclidean_distance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
                     
@@ -377,19 +377,19 @@ void draw_blob_view(const DisplayParameters& parm)
                 else d = 1;
                 
                 bool found = false;
-                const auto search_distance = 15; // parm.coord.bowl_scale().min();//(1 + FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));// * SQR(sca.x);
-                const auto offsetx = 50;  // parm.coord.bowl_scale().min(); 
+                //const auto search_distance = 15; // parm.coord.bowl_scale().min();//(1 + FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));// * SQR(sca.x);
+                const auto offsetx = 50;  // parm.coord.bowl_scale().min();
                 const auto offsety = 50 / parm.coord.bowl_scale().min();
                 if(blob->bounds().contains(mpos)) {
                     found = true;
                     
                 } else {
                     for(auto &line : *blob->lines()) {
-                        auto d = min(abs(float(line.y) - offsety - float(mpos.y)),
-                                    abs(float(line.y) - float(mpos.y)));
+                        //auto d = min(abs(float(line.y) - offsety - float(mpos.y)),
+                        //            abs(float(line.y) - float(mpos.y)));
                         if(float(mpos.y) >= line.y - offsety && float(mpos.y) <= line.y + offsety * 0.25) {
                             //d < search_distance) {
-                            d = abs(float(line.x0) - float(mpos.x));
+                            //d = abs(float(line.x0) - float(mpos.x));
                             if((mpos.x >= line.x0 - offsetx * 1.5 && mpos.x <= line.x1 + offsetx * 0.5))
                                //|| d < search_distance)
                             {
@@ -646,7 +646,7 @@ void draw_blob_view(const DisplayParameters& parm)
     last_blob_id = _clicked_blob_id;
     
     if(SETTING(gui_show_pixel_grid)) {
-        parm.graph.section("collision_model", [&](auto&, auto s) {
+        parm.graph.section("collision_model", [&](auto&, auto) {
             /*if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
                 s->set_scale(parm.scale);
                 s->set_pos(parm.offset);
@@ -660,7 +660,7 @@ void draw_blob_view(const DisplayParameters& parm)
             parm.cache.updated_blobs();
             
             std::unordered_map<pv::bid, Color> colors;
-            ColorWheel wheel;
+            //ColorWheel wheel;
             //! TODO: original_blobs
             /*for(auto &b : parm.cache.processed_frame().original_blobs()) {
                 colors[b->blob_id()] = wheel.next().alpha(200);

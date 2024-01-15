@@ -401,7 +401,7 @@ void TrackingHelper::apply_matching() {
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = match_mode
-        }, std::move(optimal.pairings), [&](pv::bid, Idx_t fdx, Individual*)
+        }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
 #ifdef TREX_DEBUG_MATCHING
             for(auto &[i, b] : pairs) {
@@ -449,7 +449,7 @@ void TrackingHelper::apply_matching() {
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = default_config::matching_mode_t::hungarian
-        }, std::move(optimal.pairings), [&](pv::bid, Idx_t fdx, Individual*)
+        }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
             
         }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {

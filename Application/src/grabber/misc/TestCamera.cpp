@@ -11,7 +11,7 @@ namespace fg {
             if (test_image == "checkerboard") {
                 static cv::Mat checkerboard;
                 checkerboard = cv::Mat::ones(_image.rows, _image.cols, CV_8UC1) * 255;
-                const int size = element_size, padding = 1;
+                const int size = sign_cast<int>(element_size), padding = 1;
                 for (int j=0; j<_image.rows; j++) {
                     if(j%(size+padding) >= size)
                         continue;
@@ -42,7 +42,7 @@ namespace fg {
             } else if(test_image == "diagonal") {
                 static cv::Mat checkerboard;
                 checkerboard = cv::Mat::ones(_image.rows, _image.cols, CV_8UC1) * 255;
-                const int size = element_size, padding = 1;
+                const int size = sign_cast<int>(element_size), padding = 1;
                 int running = 0;
                 for (int j=0; j<_image.rows; j++) {
                     if(j%(size+padding) >= size)

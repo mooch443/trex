@@ -160,8 +160,8 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
         }
         else {
             if (image->dims != channels
-                || image->cols != _source->size().width
-                || image->rows != _source->size().height)
+                || image->cols != sign_cast<uint>(_source->size().width)
+                || image->rows != sign_cast<uint>(_source->size().height))
             {
                 image->create(_source->size().height, _source->size().width, channels);
             }
@@ -218,7 +218,7 @@ void AnimatedBackground::before_draw() {
         }
         
         if(image) {
-            if(image->index() != frame.get())
+            if(static_cast<uint32_t>(image->index()) != frame.get())
             {
                 Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
                 cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);
