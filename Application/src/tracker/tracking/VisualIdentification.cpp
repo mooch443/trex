@@ -665,7 +665,7 @@ this->stop_running();
         }
         
         module.attr("images") = images;
-        /*module.def("receive", [&](py::array_t<float> x, py::array_t<float> idx) {
+        / *module.def("receive", [&](py::array_t<float> x, py::array_t<float> idx) {
             std::vector<float> temporary;
             auto array = x.unchecked<2>();
             auto idxes = idx.unchecked<1>();

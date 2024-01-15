@@ -7,6 +7,9 @@
 #include "grabber.h"
 
 namespace gui {
+class Rect;
+class Circle;
+
     class CropWindow {
         std::shared_ptr<IMGUIBase> _base;
         std::vector<std::shared_ptr<Circle>> circles;

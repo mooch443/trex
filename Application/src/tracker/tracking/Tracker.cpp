@@ -1622,7 +1622,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             .f_prop = s.props,
             .f_prev_prop = s.prev_props,
             .match_mode = default_config::matching_mode_t::none
-        }, unassigned_blobs, [](pv::bid bdx, Individual* fish) {
+        }, unassigned_blobs, [](pv::bid, Individual*) {
             // nothing
             //print("Assigned inactive ", bdx, " to ", fish);
         }, [frameIndex](pv::bid bdx, Individual* fish, const char* error) {
@@ -2167,7 +2167,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         }
     }
 
-    void Tracker::generate_pairdistances(Frame_t frameIndex) {
+    void Tracker::generate_pairdistances(Frame_t) {
         /*std::vector<Individual*> frame_individuals;
         for (auto fish : _active_individuals) {
             if (fish->centroid(frameIndex)) {
@@ -3176,7 +3176,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 #endif
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid, const Bounds&)
+pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, const Bounds&)
 {
     auto blob = pp.bdx_to_ptr(bid);
     if(!blob) {

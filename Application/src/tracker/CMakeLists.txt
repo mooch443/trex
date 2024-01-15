@@ -146,12 +146,13 @@ endif()
 
 add_executable(${TREXA_EXEC_NAME} ${TREXA_SRCS})
 target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
-    tracker_tracking
+    #tracker_tracking
     tracker_gui
     tracker_misc
     framegrabber_misc
-    pv
-    commons)
+    #pv
+    #commons
+)
 
 if(WITH_FFMPEG)
     target_compile_definitions(${TREXA_EXEC_NAME} PRIVATE WITH_FFMPEG=true)

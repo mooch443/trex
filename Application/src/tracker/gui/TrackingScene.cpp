@@ -320,7 +320,9 @@ void TrackingScene::deactivate() {
     }
     
     WorkProgress::stop();
-    _data->dynGUI.clear();
+    
+    if(_data)
+        _data->dynGUI.clear();
     tracker::gui::blob_view_shutdown();
     
     print("Preparing for shutdown...");

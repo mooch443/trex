@@ -3,9 +3,7 @@
 #include <commons.pc.h>
 #include <gui/Scene.h>
 #include <python/Detection.h>
-
-#include <indicators/progress_bar.hpp>
-#include <indicators/progress_spinner.hpp>
+#include <misc/indicators.h>
 
 //#include <tracking/Segmenter.h>
 #include <misc/tomp4.h>

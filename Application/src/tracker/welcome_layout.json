@@ -4,7 +4,7 @@
         "align":"center", 
         "origin":[0.5,0.5],
         "pos":"[{*:{window_size.x}:0.3},{*:{window_size.y}:0.45}]",
-        "pad":[10,0,10,5],
+        "pad":[10,0,10,0],
         "children":[
             {
                 "type":"image",

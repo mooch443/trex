@@ -201,6 +201,12 @@ void StartingScene::_draw(DrawStructure& graph) {
                         }
                     }),
                     ActionFunc("open_file", [](auto) {
+                        settings::load({},
+                                       {},
+                                       default_config::TRexTask_t::convert,
+                                       track::detect::ObjectDetectionType::yolo8,
+                                       {},
+                                       {});
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
@@ -235,6 +241,32 @@ void StartingScene::_draw(DrawStructure& graph) {
                     }),
                     VarFunc("list_size", [this](const VarProps&) -> Size2 {
                         return element_size;
+                    }),
+                    VarFunc("index", [this](const VarProps&) -> size_t {
+                        static Timer timer;
+                        static size_t index{0};
+                        static size_t direction{0};
+                        
+                        if(timer.elapsed() >= 0.1) {
+                            if(direction == 0) {
+                                index = (index + 1);
+                                if(index >= 15) {
+                                    index = 13;
+                                    direction = 1;
+                                }
+                            } else if(index > 0) {
+                                index = (index - 1);
+                                if(index == 0) {
+                                    index = 1;
+                                    direction = 0;
+                                }
+                            } else
+                                direction = 0;
+                            
+                            timer.reset();
+                        }
+                        
+                        return index;
                     })
                 };
 

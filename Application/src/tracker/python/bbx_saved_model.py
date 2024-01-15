@@ -210,7 +210,7 @@ class Model:
         if self.config.use_tracking:
             results = []
             for image in images:
-                results.append(self.ptr.track(image, persist=True, device=self.device, **kwargs)[0])
+                results.append(self.ptr.track(image, tracker="bytetrack.yaml", persist=True, device=self.device, **kwargs)[0])
             return results
         else:
             return self.ptr.predict(images, device=self.device, **kwargs)

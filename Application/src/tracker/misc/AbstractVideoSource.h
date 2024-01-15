@@ -31,6 +31,7 @@ protected:
 
     struct MatMaker {
         useMatPtr_t operator()(source_location&& loc) const {
+            UNUSED(loc);
             return MAKE_GPU_MAT_LOC(std::move(loc));
         }
     };

@@ -1000,6 +1000,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         });
         
         file::DataLocation::register_path("input", [](const sprite::Map& map, file::Path filename) -> file::Path {
+            if(filename.empty())
+                return {};
             if(not filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!GlobalSettings::is_runtime_quiet())
@@ -1021,6 +1023,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path
         {
+            if(filename.empty())
+                return {};
+            
             auto prefix = map.at("output_prefix").value<std::string>();
             auto output_path = map.at("output_dir").value<file::Path>();
             

@@ -6,15 +6,68 @@
 #include <file/Path.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
+#include <tracking/IndividualCache.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 
 #include <misc/checked_casts.h>
+#include <types.h>
+
+static constexpr auto lower = utils::lowercase("hiIbImS");
 
 using namespace cmn;
 using namespace utils;
+
+
+TEST(CacheSizeTest, Basic) {
+    using namespace track;
+    //static_assert(std::is_trivial_v<TrivialOptional<uint32_t>>);
+    static_assert(std::is_trivially_copyable_v<TrivialOptional<uint32_t>>);
+    print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
+    //static_assert(std::is_trivial_v<Frame_t>);
+}
+
+TEST(JSONTest, TestBasicJSON) {
+    std::vector<std::pair<std::string, std::vector<std::string>>> object {
+        {{"X", {"RAW", "WCENTROID"}}}
+    };
+    SETTING(graphs) = object;
+    
+    auto json = SETTING(graphs).get().to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(json.dump()), SETTING(graphs).get().valueString());
+}
+
+TEST(JSONTest, TestSkeletonJSON) {
+    blob::Pose::Skeleton object{
+        "skeleton",
+        {
+            {0, 1, "first"},
+            {1, 2, "second"}
+        }
+    };
+    SETTING(skeleton) = object;
+    
+    auto json = SETTING(skeleton).get().to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(json.dump()), SETTING(skeleton).get().valueString());
+}
+
+TEST(JSONTest, TestVec2JSON) {
+    std::vector<Vec2> object {
+        Vec2(10,25)
+    };
+    SETTING(vectors) = object;
+    
+    /// the strings will not be exactly the same.
+    auto json = SETTING(vectors).get().to_json();
+    ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(json.dump())), object);
+    
+    /// nlohmann does not remove trailing zeros
+    auto s = json.dump();
+    ASSERT_STREQ(s.c_str(), "[[10.0,25.0]]");
+}
+
 // Tests for the split function.
 TEST(SplitTest, TestBasicSplit) {
     std::string s = "foo,bar,baz";

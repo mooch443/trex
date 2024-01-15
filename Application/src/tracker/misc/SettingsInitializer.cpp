@@ -222,10 +222,12 @@ void load(file::PathArray source,
         if(CommandLine::instance().settings_keys().contains("filename")) {
             // automatic filename overwritten
             auto name = CommandLine::instance().settings_keys().at("filename");
-            file::Path filename = file::DataLocation::parse("output", name, &combined.map);
-            combined.map["filename"] = filename.remove_extension();
+            if(not name.empty()) {
+                file::Path filename = file::DataLocation::parse("output", name, &combined.map);
+                combined.map["filename"] = filename.remove_extension();
+            }
             
-        } else {
+        } else if(not path.empty()) {
             file::Path filename = file::DataLocation::parse("output", path, &combined.map);
             combined.map["filename"] = filename.remove_extension();
         }
@@ -249,16 +251,21 @@ void load(file::PathArray source,
             file::Path path = file::find_basename(_source);
             print("found basename = ", path);
             if(task == TRexTask_t::track) {
-                filename = file::DataLocation::parse("input", path, &combined.map);
-                if(filename.is_regular() || filename.add_extension("pv").is_regular()) 
-                {
+                if(not path.empty()) {
+                    filename = file::DataLocation::parse("input", path, &combined.map);
                     
-                } else {
-                    filename = file::DataLocation::parse("output", path, &combined.map);
+                    if(filename.is_regular() || filename.add_extension("pv").is_regular())
+                    { } else {
+                        filename = file::DataLocation::parse("output", path, &combined.map);
+                    }
                     
-                }
-            } else {
+                } else
+                    filename = {};
+                
+            } else if(not path.empty()) {
                 filename = file::DataLocation::parse("output", path, &combined.map);
+            } else {
+                filename = {};
             }
             
             if(filename.has_extension() && filename.extension() != "pv")

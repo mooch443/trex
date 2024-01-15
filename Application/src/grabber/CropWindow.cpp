@@ -8,6 +8,7 @@
 #include <misc/CropOffsets.h>
 #include <file/DataLocation.h>
 #include <misc/Webcam.h>
+#include <gui/GuiTypes.h>
 
 namespace gui {
     constexpr Radius radius{100};

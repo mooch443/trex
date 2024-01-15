@@ -1,5 +1,6 @@
 #include "FlowMenu.h"
 #include <misc/metastring.h>
+#include <gui/DrawStructure.h>
 
 namespace gui {
     FlowMenu::Layer::Layer(const std::string& title, const std::vector<std::string>& names)

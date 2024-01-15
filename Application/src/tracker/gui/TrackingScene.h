@@ -12,7 +12,7 @@
 namespace gui {
 
 namespace dyn {
-class DynamicGUI;
+struct DynamicGUI;
 }
 
 struct TrackingState;

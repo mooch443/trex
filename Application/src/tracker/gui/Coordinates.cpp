@@ -1,5 +1,6 @@
 #include "Coordinates.h"
 #include <gui/DrawBase.h>
+#include <gui/DrawStructure.h>
 
 namespace gui {
 
