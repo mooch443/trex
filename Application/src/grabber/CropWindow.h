@@ -1,6 +1,6 @@
 #pragma once
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 
 #if CMN_WITH_IMGUI_INSTALLED
 #include <gui/IMGUIBase.h>

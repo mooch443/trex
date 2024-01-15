@@ -1,7 +1,7 @@
 #ifndef _PAIRING_GRAPH_H
 #define _PAIRING_GRAPH_H
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
