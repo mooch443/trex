@@ -2,7 +2,7 @@
 #include <processing/CPULabeling.h>
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>
-#include <misc/metastring.h>
+
 #include <misc/PixelTree.h>
 #include <misc/cnpy_wrapper.h>
 #include <tracker/misc/default_config.h>

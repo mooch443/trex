@@ -1,7 +1,7 @@
 #include "LockGuard.h"
 #include <misc/detail.h>
 #include <misc/Timer.h>
-#include <misc/metastring.h>
+
 
 namespace track {
 using namespace cmn;

@@ -182,7 +182,7 @@ std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&,
 #include <pybind11/stl.h>
 #include <gui/WorkProgress.h>
 #include <misc/SoftException.h>
-#include <misc/metastring.h>
+
 #include <misc/Timer.h>
 #include <file/DataLocation.h>
 

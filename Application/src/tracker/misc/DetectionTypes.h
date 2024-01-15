@@ -1,6 +1,6 @@
 #pragma once
 #include <commons.pc.h>
-#include <misc/metastring.h>
+
 #include <misc/vec2.h>
 
 namespace track::detect {

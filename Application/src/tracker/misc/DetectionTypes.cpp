@@ -1,5 +1,5 @@
 #include "DetectionTypes.h"
-#include <misc/metastring.h>
+
 #include <misc/SoftException.h>
 #include <misc/GlobalSettings.h>
 

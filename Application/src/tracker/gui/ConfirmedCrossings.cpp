@@ -1,7 +1,7 @@
 #include "ConfirmedCrossings.h"
 #include <gui/DrawStructure.h>
 #include <gui/types/StaticText.h>
-#include <misc/metastring.h>
+
 #include <misc/default_settings.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>

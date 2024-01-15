@@ -11,7 +11,7 @@
 #include <processing/PadImage.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/CircularGraph.h>
-#include <misc/metastring.h>
+
 #include <misc/SoftException.h>
 #include <gui/Graph.h>
 #include <tracking/Categorize.h>

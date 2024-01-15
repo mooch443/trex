@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/metastring.h>
+
 #include <misc/Image.h>
 #include <pv.h>
 #include <tracker/misc/default_config.h>
