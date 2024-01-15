@@ -3,7 +3,6 @@
 #include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <file/Path.h>
-#include <misc/utilsexception.h>
 
 namespace default_config {
     using namespace cmn;
