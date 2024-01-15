@@ -1,7 +1,6 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/vec2.h>
 #include <gui/types/StaticText.h>
 #include <gui/DrawStructure.h>
 #include <misc/Timer.h>

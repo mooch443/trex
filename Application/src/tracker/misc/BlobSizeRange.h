@@ -1,7 +1,6 @@
 #pragma once
 
-#include <misc/vec2.h>
-
+#include <commons.pc.h>
 #include <misc/ranges.h>
 
 namespace cmn {

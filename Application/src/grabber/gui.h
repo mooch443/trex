@@ -1,7 +1,7 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <grabber.h>
 #include <gui/DrawBase.h>
 #include <http/httpd.h>

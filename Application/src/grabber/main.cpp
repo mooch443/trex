@@ -12,7 +12,6 @@
 #include <pylon/PylonIncludes.h>
 #endif
 
-#include <types.h>
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
 #endif

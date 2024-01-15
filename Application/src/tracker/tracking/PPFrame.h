@@ -5,7 +5,6 @@
 #include <pv.h>
 #include <misc/bid.h>
 #include <misc/idx_t.h>
-#include <misc/vec2.h>
 #include <tracking/IndividualCache.h>
 #include <misc/ProximityGrid.h>
 #include <misc/TrackingSettings.h>

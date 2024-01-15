@@ -3,7 +3,6 @@
 
 #include <commons.pc.h>
 #include <misc/Image.h>
-#include <misc/vec2.h>
 #include <video/Video.h>
 
 namespace fg {

@@ -1,6 +1,5 @@
 #include "gui.h"
 #include <misc/Timer.h>
-#include <misc/detail.h>
 #include <misc/cnpy_wrapper.h>
 
 #include <gui/types/Drawable.h>

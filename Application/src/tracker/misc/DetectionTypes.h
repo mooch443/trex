@@ -1,8 +1,6 @@
 #pragma once
 #include <commons.pc.h>
 
-#include <misc/vec2.h>
-
 namespace track::detect {
     ENUM_CLASS(ObjectDetectionType, none, yolo8, background_subtraction);
     ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses);

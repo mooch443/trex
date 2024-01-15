@@ -2,7 +2,6 @@
 
 #include <commons.pc.h>
 #include <misc/frame_t.h>
-#include <misc/vec2.h>
 #include <misc/Image.h>
 #include <misc/TaskPipeline.h>
 #include <misc/DetectionImageTypes.h>

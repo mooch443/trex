@@ -1,5 +1,5 @@
 #include "LockGuard.h"
-#include <misc/detail.h>
+
 #include <misc/Timer.h>
 
 

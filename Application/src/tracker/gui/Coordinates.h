@@ -1,6 +1,5 @@
 #pragma once
 #include <commons.pc.h>
-#include <misc/vec2.h>
 #include <gui/Transform.h>
 #include <gui/ControlsAttributes.h>
 

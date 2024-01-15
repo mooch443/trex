@@ -14,7 +14,6 @@
 
 #include <misc/Image.h>
 #include <misc/SpriteMap.h>
-#include <misc/vec2.h>
 
 #include <misc/default_settings.h>
 #include <misc/default_config.h>

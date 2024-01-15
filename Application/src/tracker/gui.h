@@ -1,7 +1,7 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
 #include <gui/Timeline.h>

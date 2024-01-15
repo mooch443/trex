@@ -9,7 +9,6 @@
 #include <tracking/EventAnalysis.h>
 #include <gui/GUICache.h>
 #include <gui/GuiTypes.h>
-#include <misc/vec2.h>
 #include <tracking/IndividualManager.h>
 #include <misc/NetworkStats.h>
 

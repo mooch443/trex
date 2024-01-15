@@ -1,6 +1,6 @@
 #pragma once
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <file/Path.h>
 #include <misc/utilsexception.h>

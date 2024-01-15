@@ -8,7 +8,6 @@
 #include <misc/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/Timer.h>
-#include <misc/vec2.h>
 #include <tracking/Tracker.h>
 
 using namespace cmn;
