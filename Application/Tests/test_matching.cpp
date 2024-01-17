@@ -14,6 +14,12 @@ using ::testing::Values;
 using namespace track;
 using namespace track::Match;
 
+#include <python/Yolo8.h>
+
+TEST(TestValidModels, Valid) {
+    ASSERT_TRUE(track::Yolo8::valid_model(R"(\\WDMyCloudEX4100\\Public\\work\\shark\\models\\640-yolov8x-pose-2023-10-12-14_dataset-1-mAP5095_0.64125-mAP50_0.93802.pt)"));
+}
+
 static auto _ = [](){
     print("Initializing global maps.");
     

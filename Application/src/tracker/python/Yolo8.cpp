@@ -25,7 +25,15 @@ std::string Yolo8::default_model() {
 }
 
 bool Yolo8::valid_model(const file::Path& path) {
-    std::string input_string = SETTING(detect_model).value<file::Path>().str();
+    std::string input_string = path.str();
+    if (path.has_extension() && path.extension() == "pt")
+        return true;
+
+    return false;
+}
+
+bool Yolo8::is_default_model(const file::Path& path) {
+    std::string input_string = path.str();
     std::regex regex_pattern("yolov8.*\\.pt");
     std::regex regex_pattern2("yolov8.*$");
 
@@ -55,7 +63,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
 
     // caching here since it can be modified above
     auto path = SETTING(detect_model).value<file::Path>();
-    if(valid_model(path)) {
+    if(valid_model(path) && path.exists()) {
         if(not path.has_extension()) {
             path = path.add_extension("pt"); // pytorch model
         }

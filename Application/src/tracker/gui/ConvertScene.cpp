@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -366,7 +366,7 @@ void ConvertScene::open_video() {
 void ConvertScene::open_camera() {
     if(SETTING(detect_model).value<file::Path>().empty()
        || (not SETTING(detect_model).value<file::Path>().exists() 
-            && not Yolo8::valid_model(SETTING(detect_model).value<file::Path>().str())))
+            && not Yolo8::is_default_model(SETTING(detect_model).value<file::Path>().str())))
     {
         SETTING(detect_model) = file::Path(Yolo8::default_model());
     }
