@@ -63,7 +63,9 @@ void Yolo8::reinit(ModuleProxy& proxy) {
 
     // caching here since it can be modified above
     auto path = SETTING(detect_model).value<file::Path>();
-    if(valid_model(path) && path.exists()) {
+    if(is_default_model(path)
+       || (valid_model(path) && path.exists()))
+    {
         if(not path.has_extension()) {
             path = path.add_extension("pt"); // pytorch model
         }
