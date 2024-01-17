@@ -20,7 +20,7 @@ if(WIN32)
         commons
     )
 else()
-    target_link_libraries(tracker_python PUBLIC pv commons)
+    target_link_libraries(tracker_python PUBLIC tracker_misc pv commons)
 endif()
 
 if(NOT pybind11_external)

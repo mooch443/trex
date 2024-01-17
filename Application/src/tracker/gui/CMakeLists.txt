@@ -24,6 +24,10 @@ target_link_libraries(tracker_gui PUBLIC
     tracker_misc
     commons
 )
+
+if(CMAKE_COMPILER_IS_GNUCXX)
+target_link_libraries(tracker_gui PUBLIC atomic)
+endif()
 #target_precompile_headers(tracker_gui REUSE_FROM commons)
 
 if(APPLE)
