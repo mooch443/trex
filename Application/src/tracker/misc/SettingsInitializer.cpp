@@ -153,6 +153,8 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
+    if(cmd.settings_keys().contains("cwd"))
+        combined.map["cwd"] = file::Path(cmd.settings_keys().at("cwd"));
     exclude += extract_keys( cmd.settings_keys() );
 
     /// ----------------------------
@@ -507,7 +509,7 @@ void load(file::PathArray source,
     print("TRexTask = ", task);
     
     CommandLine::instance().reset_settings({
-        "output_dir", "output_prefix", "gpu_torch_device"
+        "output_dir", "gpu_torch_device", "cwd"
     });
 }
 

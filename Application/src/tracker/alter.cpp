@@ -401,6 +401,7 @@ int main(int argc, char**argv) {
     DebugHeader("LOADING COMMANDLINE");
     GlobalSettings::map()["cwd"].get().set_do_print(true);
     CommandLine::init(argc, argv, true);
+    CommandLine::instance().add_setting("cwd", cwd.str());
     SETTING(cwd) = cwd;
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());

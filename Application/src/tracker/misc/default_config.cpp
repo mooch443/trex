@@ -1007,18 +1007,18 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
-                return filename.absolute();
+                return filename;
             }
             
             auto path = map.at("cwd").value<file::Path>();
             if(path.empty()) {
                 auto d = map.at("output_dir").value<file::Path>();
                 if(d.empty())
-                    return filename.absolute();
+                    return filename;
                 else
-                    return (d / filename).absolute();
+                    return (d / filename);
             } else
-                return (path / filename).absolute();
+                return (path / filename);
         });
         
         file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path
@@ -1067,7 +1067,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 return filename;
             }*/
             
-            return filename.absolute();
+            return filename;
         });
     }
 
