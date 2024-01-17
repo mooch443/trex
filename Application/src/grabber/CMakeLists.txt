@@ -70,7 +70,7 @@ if(BUILD_LEGACY_TGRABS)
         commons
     )
 
-    if(NOT COMMONS_NO_PYTHON)
+    #if(NOT COMMONS_NO_PYTHON)
         target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
         if(WIN32)
             set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
@@ -81,7 +81,7 @@ if(BUILD_LEGACY_TGRABS)
         else()
             target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
         endif()
-    endif()
+    #endif()
 
     if(WITH_HTTPD)
         add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
@@ -114,9 +114,12 @@ target_link_libraries(pvinfo PRIVATE
 	pv
 )
 
-if(NOT COMMONS_NO_PYTHON)
+#if(NOT COMMONS_NO_PYTHON)
     target_link_libraries(pvinfo PRIVATE tracker_python)
-endif()
+    if(WIN32)
+        set_target_properties(pvinfo PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    endif()
+#endif()
 
 #target_precompile_headers(pvinfo REUSE_FROM commons)
 

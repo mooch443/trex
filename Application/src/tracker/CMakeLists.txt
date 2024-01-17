@@ -175,17 +175,17 @@ if(BUILD_LEGACY_TREX)
         commons
     )
 
-    if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
+    #if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
         target_link_libraries(${TREX_EXEC_NAME} 
             PUBLIC tracker_python)
         message(STATUS "Linking tracker_python")
-    endif()
+    #endif()
 
     if(WITH_HTTPD)
         add_dependencies(${TREX_EXEC_NAME} LibMicroHttpd)
     endif()
 
-    if(WIN32 AND NOT COMMONS_NO_PYTHON)
+    if(WIN32)# AND NOT COMMONS_NO_PYTHON)
         set_target_properties(${TREX_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
         set_target_properties(${TREXA_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
     endif()
@@ -218,10 +218,10 @@ else()
     set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>")
 endif()
 
-if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
+#if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
     target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_python)
     message(STATUS "Linking tracker_python")
-endif()
+#endif()
 
 set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
@@ -413,7 +413,7 @@ else()
 set(targets ${TREXA_EXEC_NAME})
 endif()
 
-if(WIN32 AND NOT COMMONS_NO_PYTHON)
+if(WIN32)# AND NOT COMMONS_NO_PYTHON)
     set(targets ${targets} tracker_python)
 endif()
 
