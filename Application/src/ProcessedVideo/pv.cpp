@@ -419,13 +419,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 #ifndef NDEBUG
     HorizontalLine prev = mask.empty() ? HorizontalLine() : mask.front();
 
-    uint64_t count = 0, pixel_count = 0;
+    uint64_t pixel_count = 0;
     for (auto& line : mask) {
         if (!(prev == line) && !(prev < line))
             FormatWarning("Lines not properly ordered, or overlapping in x [", prev.x0, "-", prev.x1, "] < [", line.x0, "-", line.x1, "] (", prev.y, "/", line.y, ").");
         prev = line;
         pixel_count += line.x1 - line.x0 + 1;
-        ++count;
     }
 
     assert(pixel_count == pixels.size());
@@ -555,7 +554,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //}
 
         // see whether this frame is worth compressing (size-threshold)
-        if (pack.size() >= 1500) {
+        if (pack.size() >= 1500
+            && false)
+        {
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
 
 

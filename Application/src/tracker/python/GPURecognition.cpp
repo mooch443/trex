@@ -192,7 +192,7 @@ namespace track::detect {
     std::shared_ptr<T> transfer_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
         py::buffer_info buf_info = input.request();
         T* ptr = static_cast<T*>(buf_info.ptr);
-        std::size_t size = buf_info.size * sizeof(T);
+        //std::size_t size = buf_info.size * sizeof(T);
 
         // Increase reference count to prevent Python from garbage collecting the array
         Py_INCREF(input.ptr());
@@ -210,8 +210,8 @@ namespace track::detect {
     public:
         Mask(py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask) {
             py::buffer_info buf_info = mask.request();
-            int rows = buf_info.shape[0];
-            int cols = buf_info.shape[1];
+            int rows = narrow_cast<int>(buf_info.shape[0]);
+            int cols = narrow_cast<int>(buf_info.shape[1]);
             data = MaskData{
                 transfer_array<uint8_t>(mask),
                 rows,
@@ -974,9 +974,6 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 
 void PythonIntegration::set_function(const char* name_, std::function<void(const std::vector<track::detect::Result>&)> f, const std::string& m)
 {
-    auto fn = [f](track::detect::Result result) {
-
-    };
     set_function_internal(name_, f, m);
 }
 
@@ -993,9 +990,9 @@ void PythonIntegration::set_function(const char* name_, std::function<void(const
                 py::array_t<uint8_t> np_img = py::cast<py::array_t<uint8_t>>(np_img_handle);
                 py::buffer_info buf_info = np_img.request();
 
-                int nrows = buf_info.shape[0];
-                int ncols = buf_info.shape[1];
-                int nchannels = buf_info.ndim == 3 ? buf_info.shape[2] : 1;
+                int nrows = narrow_cast<int>(buf_info.shape[0]);
+                int ncols = narrow_cast<int>(buf_info.shape[1]);
+                int nchannels = buf_info.ndim == 3 ? narrow_cast<int>(buf_info.shape[2]) : 1;
 
                 cv::Mat img(nrows, ncols, nchannels == 1 ? CV_8UC1 : CV_8UC3, buf_info.ptr);
 

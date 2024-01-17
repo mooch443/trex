@@ -14,15 +14,14 @@ VideoSourceVideoSource::~VideoSourceVideoSource() {
 }
 
 tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSource::fetch_next() {
-    if (i >= this->source.length()) {
-        //if(not SETTING(terminate))
-        //    SETTING(terminate) = true;
-        return tl::unexpected("EOF");
-    }
-
     try {
-        if (not i.valid() or i >= this->source.length()) {
+        if(not i.valid())
             i = 0_f;
+        if (i >= this->source.length()) {
+            if(_loop.load() && i > 0_f)
+                i = 0_f;
+            else
+                return tl::unexpected("EOF");
         }
 
         auto index = i++;
@@ -41,6 +40,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSour
         //    tmp->create(source.size().height, source.size().width, CV_8UC4);
         
         try {
+            //thread_print("Reading index = ", index);
             source.frame(index, *buffer);
         }
         catch (const std::exception& ex) {
@@ -65,7 +65,7 @@ std::string VideoSourceVideoSource::toStr() const {
 }
 
 uint8_t VideoSourceVideoSource::channels() const {
-	return source.colors() == ImageMode::GRAY ? 1 : 3;
+	return required_channels(source.colors());
 }
 
 std::set<std::string_view> VideoSourceVideoSource::recovered_errors() const {

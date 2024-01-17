@@ -24,6 +24,7 @@
 #pragma clang diagnostic ignored "-Wfloat-conversion"
 #pragma clang diagnostic ignored "-Wdeprecated-anon-enum-enum-conversion"
 #pragma clang diagnostic ignored "-Wnewline-eof"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #endif
 
 #include <indicators/progress_bar.hpp>

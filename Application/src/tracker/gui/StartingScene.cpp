@@ -9,16 +9,22 @@
 #include <python/Yolo8.h>
 #include <gui/dyn/Action.h>
 #include <misc/SettingsInitializer.h>
+#include <gui/GUIVideoAdapterElement.h>
 
 namespace gui {
 
 StartingScene::StartingScene(Base& window)
-: Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
-    _image_path(file::DataLocation::parse("app", "gfx/" + SETTING(app_name).value<std::string>() + "_1024.png")),
-    _logo_image(Image::Make(cv::imread(_image_path.str(), cv::IMREAD_UNCHANGED)))
+: Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
-    auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
-    print(window.window_dimensions().mul(dpi), " and logo ", _logo_image->size());
+    auto path = file::DataLocation::parse("app", "gfx/welcome/ComfyUI_00032_717534771402803_wind_").str() + "%1.15.4d.jpg";
+    print("loading ", path);
+    //_video_adapter = std::make_unique<GUIVideoAdapter>(file::PathArray(path));
+    //_video_adapter->set(GUIVideoAdapter::Blur{0.5});
+    //_video_adapter->set(GUIVideoAdapter::FrameTime{0.25});
+}
+
+StartingScene::~StartingScene() {
+    
 }
 
 file::Path pv_file_path_for(const file::PathArray& array) {
@@ -63,28 +69,8 @@ void StartingScene::activate() {
     window()->set_title(window_title());
     //_recents.show(*_recent_items);
     
-    auto video_size = Size2(1024,850);
     auto work_area = ((const IMGUIBase*)window())->work_area();
-    /*auto window_size = Size2(
-        (work_area.width - work_area.x) * 0.75,
-        video_size.height / video_size.width * (work_area.width - work_area.x) * 0.75
-    );
-    if (window_size.height > work_area.height - work_area.y) {
-        auto ratio = window_size.width / window_size.height;
-        window_size = Size2(
-            ratio * (work_area.height - work_area.y),
-            work_area.height - work_area.y
-        );
-    }
-    if (window_size.width > work_area.width - work_area.x) {
-        auto ratio = window_size.height / window_size.width;
-        auto h = min(ratio * (work_area.width - work_area.x), window_size.height);
-        window_size = Size2(
-            h / ratio,
-            h
-        );
-    }*/
-    auto window_size = video_size;
+    auto window_size = Size2(1500,850);
 
     Bounds bounds(
         Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
@@ -226,23 +212,10 @@ void StartingScene::_draw(DrawStructure& graph) {
                     VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&{
                         return _recents_list;
                     }),
-                    VarFunc("image_scale", [this](const VarProps&) -> Vec2 {
-                        return image_scale;
-                    }),
                     VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                         return window_size;
                     }),
-                    VarFunc("top_right", [this](const VarProps&) -> Vec2 {
-                        return Vec2(window_size.width, 0);
-                    }),
-                    VarFunc("left_center", [this](const VarProps&) -> Vec2 {
-                        return Vec2(window_size.width * 0.4,
-                                    window_size.height * 0.4);
-                    }),
-                    VarFunc("list_size", [this](const VarProps&) -> Size2 {
-                        return element_size;
-                    }),
-                    VarFunc("index", [this](const VarProps&) -> size_t {
+                    VarFunc("index", [](const VarProps&) -> size_t {
                         static Timer timer;
                         static size_t index{0};
                         static size_t direction{0};
@@ -270,16 +243,30 @@ void StartingScene::_draw(DrawStructure& graph) {
                     })
                 };
 
+                context.custom_elements["video"] = std::unique_ptr<GUIVideoAdapterElement>(new GUIVideoAdapterElement{
+                    (IMGUIBase*)window(),
+                    [this]() {
+                        return window_size;
+                    }
+                });
+                
                 return context;
             }()
         };
     
     //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
-    auto max_w = window()->window_dimensions().width * 0.65;
     window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height);
-    auto scale = Vec2(max_w * 0.4 / _logo_image->bounds().width);
-    image_scale = scale;
-    element_size = Size2((window()->window_dimensions().width - max_w - 50), window()->window_dimensions().height - 25 - 50);
+    
+    /*auto image_scale = Vec2{
+        max(window_size.width / max(_video_adapter->width(), 1.f),
+            window_size.height / max(_video_adapter->height(), 1.f))
+    };
+    
+    _video_adapter->set_scale(image_scale);
+    _video_adapter->set_origin(Vec2(0.5));
+    _video_adapter->set_pos(window_size * 0.5);
+    //_video_adapter->set_color(White.alpha(100));
+    graph.wrap_object(*_video_adapter);*/
     
     dynGUI.update(nullptr);
 }

@@ -996,7 +996,10 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
             
             ++added_since;
             
-            if(skip_step > 0 && added_since >= FFMPEG_SETTING(frame_rate) / skip_step) {
+            if(skip_step > 0
+               && static_cast<uint64_t>(added_since)
+                    >= FFMPEG_SETTING(frame_rate) / skip_step)
+            {
                 added_since = 0;
                 
                 auto image = std::move(_queue.back());

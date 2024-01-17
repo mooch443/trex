@@ -200,6 +200,19 @@ TEST(PathArrayTest, ParsePath) {
 #endif
 
     EXPECT_EQ(parsed_paths.size(), 3);
+    
+#if defined(_WIN32)
+    print("Parsing path: C:\\path\\to\\file%1.2d => ", mockFs.find_files(""));
+    parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file%1.2d");
+    EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file01");
+    EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file02");
+#else
+    print("Parsing path: /path/to/file%1.2d => ", mockFs.find_files(""));
+    parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file%1.2d");
+    EXPECT_EQ(parsed_paths[0].str(), "/path/to/file01");
+    EXPECT_EQ(parsed_paths[1].str(), "/path/to/file02");
+#endif
+    EXPECT_EQ(parsed_paths.size(), 2);
 }
 
 // Test pattern matching with %10.100.6d

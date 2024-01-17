@@ -5,8 +5,8 @@
 
 namespace cmn {
 
-BlurryVideoLoop::BlurryVideoLoop()
-    : group(ThreadManager::getInstance().registerGroup("VideoBackground"))
+BlurryVideoLoop::BlurryVideoLoop(const std::string& name)
+    : group(ThreadManager::getInstance().registerGroup(name.empty() ? "BlurryVideo" : name))
 {
     ThreadManager::getInstance().addThread(group, "preloader", ManagedThread{
         [this](auto& gid){ preloader_thread(gid); }
@@ -27,10 +27,11 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             if(path == file::PathArray{"webcam"}) {
                 try {
                     fg::Webcam cam;
-                    cam.set_color_mode(ImageMode::RGB);
+                    cam.set_color_mode(ImageMode::RGBA);
                     tmp = std::unique_ptr<AbstractBaseVideoSource>(new WebcamVideoSource{std::move(cam)});
-                    
+                    _next_frame = {};
                     _last_image_timer.reset();
+                    
                 } catch(...) {
                     // webcam probably needs allowance
                     auto a = allowances.load();
@@ -42,21 +43,44 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                         
                         ThreadManager::getInstance().notify(gid);
                     }
+                    
+                    _intial_resolution_promise.set_value({});
+                    _intial_resolution_promise = {};
                 }
+                
+            } else if(path.empty()) {
+                // we cant do anything
+                _intial_resolution_promise.set_value({});
+                _intial_resolution_promise = {};
                 
             } else {
                 VideoSource video(path);
+                video.set_colors(ImageMode::RGBA);
                 tmp = std::unique_ptr<AbstractBaseVideoSource>(new VideoSourceVideoSource{ std::move(video) });
+                tmp->set_loop(true);
+                _next_frame = 0_f;
             }
             
             if(tmp) {
                 allowances = 0;
                 _last_image_timer.reset();
+                
+                _resolution = tmp->size();
+                _intial_resolution_promise.set_value(tmp->size());
+                _intial_resolution_promise = {};
                 _source = std::move(tmp);
+                _video_updated = true;
+                intermediate = nullptr;
+                
+                std::unique_lock guard(image_mutex);
+                return_image = nullptr;
+                transfer_image = nullptr;
             }
             
         } catch(...) {
             // could not load
+            _intial_resolution_promise.set_value({});
+            _intial_resolution_promise = {};
         }
     }
     
@@ -68,16 +92,39 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
        || not _source->is_finite()) /// for webcams we need to keep grabbing
     {                               /// so we dont fill up the buffer queue
         auto e = _source->next();
+        
         if(e.has_value()) {
             auto &&[index, mat, image] = e.value();
-            if(intermediate)
-                _source->move_back(std::move(intermediate));
-            intermediate = std::move(mat);
-            _source->move_back(std::move(image));
-            _last_image_timer.reset();
+            if(_source->is_finite()
+               && index + 1_f >= _source->length())
+            {
+                if(_next_frame != 0_f) {
+                    _next_frame = 0_f;
+                    //_source->set_frame(0_f);
+                    //print("set index = ", _next_frame);
+                }
+            }
+            
+            if(not _next_frame.valid() || index == _next_frame) {
+                //print("index = ", index);
+                
+                if(intermediate)
+                    _source->move_back(std::move(intermediate));
+                intermediate = std::move(mat);
+                _source->move_back(std::move(image));
+                _last_image_timer.reset();
+                if(_next_frame.valid())
+                    _next_frame ++;
+            } else {
+                //print("index = ", index, " waiting for ", _next_frame);
+                ThreadManager::getInstance().notify(gid);
+            }
         }
         else if(_source->is_finite()) {
-            _source->set_frame(0_f);
+            if(_next_frame != 0_f) {
+                _source->set_frame(0_f);
+                _next_frame = 0_f;
+            }
             ThreadManager::getInstance().notify(gid);
         }
     }
@@ -94,14 +141,31 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             local_image = Image::Make();
         }
         
-        render_image(p, *local_image, max_resolution.load(), *intermediate);
+        double scale;
+        render_image(p, scale, *local_image, max_resolution.load(), *intermediate);
+        _scale = scale;
         
         if(local_image) {
+            
             /// if we have generated an image, push it to
             /// where the GUI can retrieve it:
-            std::unique_lock guard(image_mutex);
-            if(not transfer_image)
-                transfer_image = std::move(local_image);
+            {
+                std::unique_lock guard(image_mutex);
+                if(not transfer_image)
+                    transfer_image = std::move(local_image);
+            }
+            
+            auto fn = _callback.get();
+            if(fn)
+                fn();
+            
+            if(_video_updated) {
+                auto c = _open_callback.get();
+                if(c) {
+                    c(_source->info());
+                }
+                _video_updated = false;
+            }
         }
     }
     
@@ -111,23 +175,25 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
 
 void BlurryVideoLoop::
      render_image(double blur,
+                  double& scale,
                   Image& local_image,
                   const Size2& target_res,
                   const Mat& intermediate)
 {
     //Size2 intermediate_size(mat->cols * 0.5, mat->rows * 0.5);
-    auto size = Size2(intermediate.cols, intermediate.rows)
-                    * (blur <= 0
-                       ? 1.0
-                       : saturate(0.25 / blur, 0.1, 1.0));
+    double ratio = (blur <= 0
+                    ? 1.0
+                    : saturate(0.35 / blur, 0.1, 1.0));
+    auto size = Size2(intermediate.cols, intermediate.rows) * ratio;
     
     if(not target_res.empty()) {
-        double ratio = max(1, min(size.width / target_res.width,
-                                  size.height / target_res.height));
+        ratio = max(1, min(size.width / target_res.width,
+                           size.height / target_res.height));
         
         size = Size2(size.width * ratio, size.height * ratio);
-        //print("Scaling to size ", size, " with ratio ", ratio);
+        //print("Scaling to size ", size, " with ratio ", ratio, " ", size.div(Size2(intermediate)));
     }
+    scale = size.div(Size2(intermediate)).min();
     
     local_image.create(size.height, size.width,
                         intermediate.channels() == 3
@@ -141,7 +207,7 @@ void BlurryVideoLoop::
     } else
         cv::resize(intermediate, local_image.get(), size, 0, 0, cv::INTER_CUBIC);
     
-    uint8_t amount = saturate(0.02 * size.max(), 5, 25) * blur;
+    uint8_t amount = saturate(0.04 * size.max(), 5, 30) * blur;
     if(amount > 0) {
         if(amount % 2 == 0)
             amount++;
@@ -151,7 +217,10 @@ void BlurryVideoLoop::
 }
 
 void BlurryVideoLoop::start() {
+    _intial_resolution_promise = {};
+    _initial_resolution_future = _intial_resolution_promise.get_future();
     ThreadManager::getInstance().startGroup(group);
+    _resolution = _initial_resolution_future.get();
 }
 
 void BlurryVideoLoop::stop() {
@@ -159,29 +228,51 @@ void BlurryVideoLoop::stop() {
     _source = nullptr;
 }
 
-void BlurryVideoLoop::set_blur_value(double blur) {
-    blur_percentage = blur;
+template<typename T>
+bool compare_and_swap(std::atomic<T>& atomic_var, const T& new_value) {
+    T expected = atomic_var.load();
+    if(expected != new_value)
+        return atomic_var.compare_exchange_strong(expected, new_value);
+    else
+        return false;
 }
 
-void BlurryVideoLoop::set_target_resolution(const Size2& size) {
-    max_resolution = size;
+bool BlurryVideoLoop::set_blur_value(double blur) {
+    return compare_and_swap(blur_percentage, blur);
 }
 
-void BlurryVideoLoop::set_video_frame_time(double value) {
-    video_frame_time = value;
-    ThreadManager::getInstance().notify(group);
+bool BlurryVideoLoop::set_target_resolution(const Size2& size) {
+    return compare_and_swap(max_resolution, size);
 }
 
-void BlurryVideoLoop::set_path(const file::PathArray& array) {
-    _video_path.set(array);
-    ThreadManager::getInstance().notify(group);
+bool BlurryVideoLoop::set_video_frame_time(double value) {
+    if(compare_and_swap(video_frame_time, value)) {
+        ThreadManager::getInstance().notify(group);
+        return true;
+    }
+    return false;
 }
 
-[[nodiscard]] Image::Ptr BlurryVideoLoop::get_if_ready() {
+bool BlurryVideoLoop::set_path(const file::PathArray& array) {
+    if(_video_path.set(array)) {
+        ThreadManager::getInstance().notify(group);
+        return true;
+    }
+    return false;
+}
+
+void BlurryVideoLoop::set_callback(std::function<void ()> fn) {
+    _callback.set(fn);
+}
+void BlurryVideoLoop::set_open_callback(std::function<void (VideoInfo)> fn) {
+    _open_callback.set(fn);
+}
+
+[[nodiscard]] std::tuple<Image::Ptr, Size2> BlurryVideoLoop::get_if_ready() {
     std::unique_lock guard(image_mutex);
     auto ptr = std::move(transfer_image);
     ThreadManager::getInstance().notify(group);
-    return ptr;
+    return { std::move(ptr), _resolution.load() };
 }
 void BlurryVideoLoop::move_back(Image::Ptr&& image) {
     std::unique_lock guard(image_mutex);
@@ -191,6 +282,18 @@ void BlurryVideoLoop::move_back(Image::Ptr&& image) {
 
 BlurryVideoLoop::~BlurryVideoLoop() {
     stop();
+}
+
+double BlurryVideoLoop::blur() const {
+    return blur_percentage.load();
+}
+
+Size2 BlurryVideoLoop::resolution() const {
+    return _resolution.load();
+}
+
+double BlurryVideoLoop::scale() const {
+    return _scale.load();
 }
 
 }

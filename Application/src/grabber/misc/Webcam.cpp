@@ -45,11 +45,12 @@ namespace fg {
         _frame_rate = _capture.get(cv::CAP_PROP_FPS);
         if(_frame_rate < 10) {
             Timer timer;
-            for(size_t i=0; i<30; ++i)
+            constexpr size_t samples{5};
+            for(size_t i=0; i<samples; ++i)
                 _capture >> test;
             auto e = timer.elapsed();
-            print("Measured framerate = ", 30 / e);
-            _frame_rate = int(round(30.0 / e));
+            print("Measured framerate = ", samples / e);
+            _frame_rate = int(round(double(samples) / e));
         }
     }
 
@@ -75,12 +76,7 @@ namespace fg {
     }
 
     bool Webcam::next(cmn::Image &image) {
-        uint8_t channels = 3;
-        if(is_in(_color_mode, ImageMode::GRAY, ImageMode::R3G3B2))
-            channels = 1;
-        else if(_color_mode == ImageMode::RGB)
-            channels = 3;
-        
+        uint8_t channels = required_channels(_color_mode);
         std::unique_lock guard(_mutex);
         if(image.dimensions() != _size || image.dims != channels)
             image.create(_size.height, _size.width, channels, image.index());
@@ -94,16 +90,30 @@ namespace fg {
         if(not _capture.read(_cache))
             return false;
         
+        assert(_cache.channels() == 3);
+        assert(image.dimensions() == Size2(_cache));
+        
         if(_color_mode == ImageMode::GRAY) {
             cv::split(_cache, _array);
             
             auto img = cv::Mat(cv::max(_array[2], cv::Mat(cv::max(_array[0], _array[1]))));
             assert((uint)img.cols == image.cols && (uint)img.rows == image.rows);
             
+            assert(image.channels() == 1);
             image.create(img, image.index());
-        } else {
-            image.create(_cache, image.index());
-        }
+            
+        } else if(_color_mode == ImageMode::RGBA) {
+            assert(image.channels() == 4);
+            cv::cvtColor(_cache, image.get(), cv::COLOR_BGR2BGRA);
+            
+        } else if(_color_mode == ImageMode::R3G3B2) {
+            auto mat = image.get();
+            assert(image.channels() == 1);
+            convert_to_r3g3b2<3>(_cache, mat);
+            //image.create(_cache, image.index());
+        } else
+            throw InvalidArgumentException("Color mode ", (int)_color_mode, " unknown.");
+        
         return true;
     }
 }

@@ -110,14 +110,14 @@ struct RepeatedDeferral {
                     if (since_print.elapsed() > 30) {
                         std::unique_lock guard(mtiming);
                         //auto total = (_waiting / _samples);
-
+#ifndef NDEBUG
                         thread_print("runtime ", dec<2>(_rsamples > 0 ? _runtime / _rsamples : 0),
                                      "ms; gap:", dec<2>(_ssamples > 0 ? _since_last / _ssamples : 0),
                                      "ms; wait = ",
                                      dec<2>(_samples > 0 ? _waiting / _samples : 0), 
                                      "ms ", dec<2>(_as > 0 ? _average_fill_state / _as : 0),
                                      "/", _threads, " fill");
-                        
+#endif
                         if (_rsamples > 1000) {
                             _waiting = _samples = 0;
                             _runtime = _rsamples = 0;

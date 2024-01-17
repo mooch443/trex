@@ -91,7 +91,7 @@ struct ConvertScene::Data {
             dynGUI = init_gui(window);
             dynGUI.graph = &graph;
 
-            dynGUI.context.custom_elements["label"] = CustomElement {
+            dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(new CustomElement {
                 .name = "label",
                 .create = [this](LayoutContext& layout) -> Layout::Ptr {
                     std::shared_ptr<Label> ptr;
@@ -125,7 +125,8 @@ struct ConvertScene::Data {
 
                     return Layout::Ptr(ptr);
                 },
-                .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+                .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool
+                {
                     //print("Updating label with patterns: ", patterns);
                     //print("o = ", o.get());
 
@@ -169,8 +170,10 @@ struct ConvertScene::Data {
 
                     p->set_data(0_f, text, source, center);
                     p->update(FindCoord::get(), 1, 1, false, dt, Scale{1});
+                    
+                    return true;
                 }
-            };
+            });
         }
         
         dynGUI.update(nullptr);

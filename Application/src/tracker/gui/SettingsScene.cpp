@@ -14,11 +14,14 @@
 #include <gui/DynamicGUI.h>
 #include <misc/SettingsInitializer.h>
 #include <misc/BlurryVideoLoop.h>
+#include <gui/GUIVideoAdapterElement.h>
+#include <misc/VideoInfo.h>
+#include <gui/GUIVideoAdapter.h>
 
 namespace gui {
 
 struct SettingsScene::Data {
-    BlurryVideoLoop _video_loop;
+    //BlurryVideoLoop _video_loop;
     SettingsTooltip _settings_tooltip;
     Timer video_image_timer, animation_timer;
     double blur_target{1};
@@ -29,11 +32,16 @@ struct SettingsScene::Data {
     CallbackCollection callback;
     
     ExternalImage _preview_image;
+    IMGUIBase *_window{nullptr};
+    
+    std::atomic<Size2> _next_video_size;
+    Size2 _video_size;
+    std::unordered_map<std::string, Layout::Ptr> _video_adapters;
     
     void draw(DrawStructure& graph) {
         using namespace dyn;
         
-        if(not dynGUI)
+        if(not dynGUI) {
             dynGUI = DynamicGUI{
                 .path = "settings_layout.json",
                 .graph = &graph,
@@ -73,7 +81,7 @@ struct SettingsScene::Data {
                     ActionFunc("change_scene", [](Action action) {
                         if(action.parameters.empty())
                             throw U_EXCEPTION("Invalid arguments for ", action, ".");
-
+                        
                         auto scene = Meta::fromStr<std::string>(action.first());
                         if(not SceneManager::getInstance().is_scene_registered(scene))
                             return false;
@@ -100,22 +108,46 @@ struct SettingsScene::Data {
                     }),
                     VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                         return window_size;
+                    }),
+                    VarFunc("video_size", [this](const VarProps& props) -> Vec2 {
+                        if(_video_size.empty())
+                            return Size2(1);
+                        return _video_size;
                     })
                 }
             };
+            
+            dynGUI.context.custom_elements["video"] = std::unique_ptr<GUIVideoAdapterElement>{
+                new GUIVideoAdapterElement(_window, [this]() {
+                    return window_size;
+                }, [this](VideoInfo info) {
+                    _next_video_size = info.size;
+                }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
+                    if(_video_adapters.contains(path.source())) {
+                        return _video_adapters[path.source()];
+                    } else {
+                        Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
+                        if(_video_adapters.size() >= 2)
+                            _video_adapters.clear();
+                        _video_adapters[path.source()] = ptr;
+                        return ptr;
+                    }
+                })
+            };
+        }
         
         auto dt = saturate(animation_timer.elapsed(), 0.001, 1.0);
         blur_percentage += (blur_target - blur_percentage) * dt * 2.0;
         blur_percentage = saturate(blur_percentage, 0.0, 1.0);
         animation_timer.reset();
         
-        _video_loop.set_blur_value(blur_percentage);
+        //_video_loop.set_blur_value(blur_percentage);
         
         double limit = 0.1;
         if(abs(blur_target - blur_percentage) > 0.01)
             limit = 0.025;
         if(video_image_timer.elapsed() > limit) {
-            auto ptr = _video_loop.get_if_ready();
+            /*auto ptr = _video_loop.get_if_ready();
             if(ptr) {
                 _preview_image.exchange_with(std::move(ptr));
                 
@@ -125,7 +157,7 @@ struct SettingsScene::Data {
                     _video_loop.move_back(std::move(ptr));
                 
                 video_image_timer.reset();
-            }
+            }*/
         }
         
         auto scale = Vec2{
@@ -143,6 +175,7 @@ struct SettingsScene::Data {
         dynGUI.update(nullptr/*, [this](auto &objs){
             objs.push_back(Layout::Ptr(_preview_image));
         }*/);
+        _video_size = _next_video_size.load();
     }
 };
 
@@ -185,7 +218,8 @@ void SettingsScene::activate() {
     });
     
     _data = std::make_unique<Data>();
-    _data->callback = GlobalSettings::map().register_callbacks({"source"}, [this](auto name) {
+    _data->_window = (IMGUIBase*)window();
+    /*_data->callback = GlobalSettings::map().register_callbacks({"source"}, [this](auto name) {
         if(name == "source") {
             // changed source, need to update background images
             if(_data)
@@ -193,7 +227,7 @@ void SettingsScene::activate() {
         }
     });
     
-    _data->_video_loop.start();
+    _data->_video_loop.start();*/
 }
 
 void SettingsScene::deactivate() {
@@ -203,6 +237,7 @@ void SettingsScene::deactivate() {
     
     if(_data && _data->callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
+    _data->dynGUI.clear();
     _data = nullptr;
     dyn::Modules::remove("follow");
 }
@@ -215,7 +250,7 @@ void SettingsScene::_draw(DrawStructure& graph) {
                   window()->window_dimensions().height);
     if(w != _data->window_size) {
         _data->window_size = w;
-        _data->_video_loop.set_target_resolution(w);
+        //_data->_video_loop.set_target_resolution(w);
     }
     
     _data->draw(graph);

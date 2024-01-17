@@ -42,7 +42,7 @@ std::string PairedProbabilities::toStr() const {
 }
 
 size_t PairedProbabilities::degree(fish_index_t rdx) const {
-    assert((Match::index_t)rdx < _degree.size());
+    assert(rdx.index < narrow_cast<Match::index_t>(_degree.size()));
     return _degree[(index_t)rdx];
 }
 
@@ -170,7 +170,10 @@ void PairedProbabilities::erase(row_t::value_type row) {
     
     auto rdx = _row_index[row];
     auto offset = _offsets[(index_t)rdx];
-    auto next_offset = (index_t)rdx + 1 < _offsets.size() ? _offsets[(index_t)rdx+1] : _probabilities.size();
+    auto next_offset = (index_t)rdx + 1 < narrow_cast<index_t>(_offsets.size())
+        ? _offsets[(index_t)rdx+1]
+        : _probabilities.size();
+    
     _probabilities.erase(_probabilities.begin() + offset, _probabilities.begin() + next_offset);
     
     for(auto it = _offsets.begin() + (index_t)rdx + 1; it != _offsets.end(); ++it)
@@ -199,7 +202,7 @@ void PairedProbabilities::erase(row_t::value_type row) {
     _offsets.erase(_offsets.begin() + (index_t)rdx);
     _row_index.erase(row);
     
-    _num_rows = fish_index_t(_rows.size());
+    _num_rows = fish_index_t(narrow_cast<index_t>(_rows.size()));
 }
 
 prob_t PairedProbabilities::probability(row_t::value_type row, col_t::value_type col) const {
@@ -277,10 +280,10 @@ blob_index_t PairedProbabilities::add(col_t::value_type col) {
     if(it != _col_index.end())//if(contains(_cols, col))
         return it->second; // already added this row
     
-    auto index = blob_index_t(_cols.size());
+    auto index = blob_index_t(narrow_cast<index_t>(_cols.size()));
     _col_index[col] = index;
     _cols.push_back(col);
-    _num_cols = blob_index_t(_cols.size());
+    _num_cols = blob_index_t(narrow_cast<index_t>(_cols.size()));
     return index;
 }
 
@@ -1090,7 +1093,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                         assert(e.cdx.valid());
                         //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
                         if(e.p >= FAST_SETTING(matching_probability_threshold)) {
-                            assert((Match::index_t)j < n);
+                            assert(j < n);
                             assert(e.cdx < _paired.n_cols());
                             dist_matrix[(index_t)j][(index_t)bdi_to_i.at(e.cdx)] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
                         }

@@ -2,17 +2,17 @@
 
     
 AbstractBaseVideoSource::AbstractBaseVideoSource(VideoInfo info)
-  : info(info),
-    mat_buffers("mat_buffers", info.size),
-    image_buffers("image_buffers", info.size),
+  : _info(info),
+    mat_buffers("mat_buffers", _info.size),
+    image_buffers("image_buffers", _info.size),
     _source_frame(10u, 5u,
-                std::string("source.frame"),
+                std::string("frame."+_info.base.str()),
                 [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>
                 {
         return fetch_next();
     }),
     _resize_cvt(10u, 5u,
-                std::string("resize+cvtColor"),
+                std::string("resize."+_info.base.str()),
                 [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> {
         return this->fetch_next_process();
     })
@@ -31,7 +31,7 @@ void AbstractBaseVideoSource::notify() {
     _resize_cvt.notify();
 }
 
-Size2 AbstractBaseVideoSource::size() const { return info.size; }
+Size2 AbstractBaseVideoSource::size() const { return _info.size; }
 
 void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
     /*
@@ -113,7 +113,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
 }
 
 bool AbstractBaseVideoSource::is_finite() const {
-    return info.finite;
+    return _info.finite;
 }
 
 void AbstractBaseVideoSource::set_frame(Frame_t frame) {
@@ -122,12 +122,16 @@ void AbstractBaseVideoSource::set_frame(Frame_t frame) {
     i = frame;
 }
 
+void AbstractBaseVideoSource::set_loop(bool loop) {
+    _loop = loop;
+}
+
 Frame_t AbstractBaseVideoSource::length() const {
     if(!is_finite()) {
         FormatWarning("Cannot return length of infinite source (", i,").");
         return i;
     }
-    return info.length;
+    return _info.length;
 }
 
 std::string AbstractBaseVideoSource::toStr() const {return "AbstractBaseVideoSource<>";}

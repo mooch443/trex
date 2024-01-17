@@ -1,4 +1,19 @@
-{"objects":[
+{   "defaults":{
+        "vars":{
+            "ratio":"{max:{/:{window_size.x}:1024}:{/:{window_size.y}:576}}",
+            "bg_scale":"[{ratio},{ratio}]"
+        }
+    },
+    "objects":[
+    {
+        "type":"video",
+        "path":"gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg",
+        "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
+        "origin":[0.5,0.5],
+        "blur":0.5,
+        "frame_seconds":0.25,
+        "scale":"{bg_scale}"
+    },
     {
         "type":"vlayout",
         "align":"center", 
@@ -7,23 +22,71 @@
         "pad":[10,0,10,0],
         "children":[
             {
-                "type":"image",
-                "path":"gfx/TRexA_1024.png",
-                "scale":"{image_scale}"
+                "type":"video",
+                "pad":[-150,-125,-150,-110],
+                "scale":[0.75,0.75],
+                "frame_seconds":0.1,
+                "path":"gfx/welcome/ComfyUI_00014__page_%1.4d.png"
             },
             {
-                "type":"stext",
-                "text":"<b>Welcome</b> to {global.app_name}.",
-                "color":[255,255,255],
-                "font":{"size":1.25}
-            },
-            {
-                "type":"stext",
-                "text":"please select a task from the list on the right >",
-                "fade_out":0.8,
-                "color":[255,255,255],
-                "font":{"size":0.75},
-                "origin":[0.5, 0.5]
+                "type":"vlayout",
+                "align":"center",
+                "pad":[0,0,0,0],
+                "fill":[0,0,0,0],
+                "children":[
+                    {
+                        "type":"stext",
+                        "text":"<b>Welcome</b> to {global.app_name}.",
+                        "color":[255,255,255],
+                        "font":{"size":1.25},
+                        "pad":[0,5,0,5],
+                        "shadow":0.75
+                    },
+                    {
+                        "type":"stext",
+                        "text":"please select a video source below",
+                        "color":[255,255,255],
+                        "font":{"size":0.75},
+                        "origin":[0.5, 0.5],
+                        "pad":[0,5,0,0],
+                        "shadow":0.6
+                    },
+                    {
+                        "type":"stext",
+                        "text":"or a recent item from the list <sym> ▷</sym>",
+                        "color":[255,255,255],
+                        "font":{"size":0.75},
+                        "origin":[0.5, 0.5],
+                        "pad":[0,0,0,15],
+                        "shadow":0.6
+                    },
+                    {
+                        "type":"hlayout",
+                        "pad":[5,5,5,5],
+                        "children":[
+                            {
+                                "type":"button",
+                                "text":"<sym>🗁</sym>",
+                                "action":"open_file",
+                                "size":[50,50],
+                                "font":{"size":1},
+                                "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[200,230,255,200]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[100,175,250,50]:[40,40,40,15]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[200,200,200,255]:[255,255,255,50]}"
+                            },
+                            {
+                                "type":"button",
+                                "text":"<sym>📷</sym>",
+                                "action":"open_camera",
+                                "size":[50,50],
+                                "font":{"size":1},
+                                "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[200,230,255,200]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[100,175,250,50]:[40,40,40,15]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[200,200,200,255]:[255,255,255,50]}"
+                            }
+                        ]
+                    }
+                ]
             }
         ]
     },
@@ -41,8 +104,9 @@
 				"fill":[40,40,40,220],
 				"color":[225,225,225],
                 "item_line":[100,100,100,150],
+                "placeholder":"No recent items yet.",
                 "list":{
-                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:90}]",
+                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:35}]",
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
 					"fill":[25,25,25,220]
                 },
@@ -55,29 +119,6 @@
                     "detail":"{i.detail}",
                     "action":"open_recent"
                 }
-            },
-            {
-                "type":"hlayout",
-                "align":"center",
-                "pad":[0,0,10,0],
-                "children":[
-                    {
-                        "type":"button",
-                        "text":"Open file",
-                        "action":"open_file",
-                        "size":[120,50],
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}"
-                    },
-                    {
-                        "type":"button",
-                        "text":"Webcam",
-                        "action":"open_camera",
-                        "size":[120,50],
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}"
-                    }
-                ]
             }
         ]
     }

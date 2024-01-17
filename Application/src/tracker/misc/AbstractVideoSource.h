@@ -7,16 +7,9 @@
 #include <file/Path.h>
 #include <misc/RepeatedDeferral.h>
 #include <misc/Buffers.h>
+#include <misc/VideoInfo.h>
 
 using namespace cmn;
-
-struct VideoInfo {
-    file::Path base;
-    Size2 size;
-    short framerate;
-    bool finite;
-    Frame_t length;
-};
 
 class AbstractBaseVideoSource {
 public:
@@ -26,8 +19,9 @@ public:
     
 protected:
     Frame_t i{0_f};
+    std::atomic<bool> _loop{false};
     useMatPtr_t tmp;
-    VideoInfo info;
+    GETTER(VideoInfo, info);
 
     struct MatMaker {
         useMatPtr_t operator()(source_location&& loc) const {
@@ -74,6 +68,7 @@ public:
     bool is_finite() const;
     
     void set_frame(Frame_t frame);
+    void set_loop(bool);
     
     Frame_t length() const;
     virtual uint8_t channels() const = 0;

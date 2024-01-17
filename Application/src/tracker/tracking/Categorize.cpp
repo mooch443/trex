@@ -216,7 +216,7 @@ void init_labels() {
         _labels[Label::Make(cats.at(i), i)] = {};
     }
 
-    Work::_number_labels = _labels.size();
+    Work::_number_labels = narrow_cast<int>(_labels.size());
 }
 
 Label::Ptr DataStore::label(const char* name) {
@@ -570,7 +570,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
             {
                 auto names = FAST_SETTING(categories_ordered);
                 for (size_t i=0; i<names.size(); ++i) {
-                    label_id_to_index[i] = i;
+                    label_id_to_index[i] = static_cast<size_t>(i);
                     index_to_label[i] = label(names[i].c_str());
                 }
                 
@@ -805,7 +805,7 @@ void Work::add_training_sample(const Sample::Ptr& sample) {
     if(sample) {
         std::lock_guard guard(DataStore::mutex());
         _labels[sample->_assigned_label].push_back(sample);
-        Work::_number_labels = _labels.size();
+        Work::_number_labels = narrow_cast<int>(_labels.size());
     }
     
     try {
@@ -973,7 +973,7 @@ void start_applying(pv::File* video_source) {
                     // If the module had been unloaded, reload all variables
                     // relevant to training:
                     const auto dims = FAST_SETTING(individual_image_size);
-                    std::map<std::string, int> keys;
+                    std::map<std::string, size_t> keys;
                     auto cat = FAST_SETTING(categories_ordered);
                     for(size_t i=0; i<cat.size(); ++i)
                         keys[cat[i]] = i;
@@ -1076,7 +1076,7 @@ void start_applying(pv::File* video_source) {
                         
                         std::transform(sums.begin(), sums.end(), sums.begin(), [N = float(samples)](auto v){ return v / N; });
                         
-                        int biggest_i = -1;
+                        std::optional<size_t> biggest_i;
                         float biggest_v = -1;
                         for(size_t i=0; i<sums.size(); ++i) {
                             if(sums[i] > biggest_v) {
@@ -1087,8 +1087,8 @@ void start_applying(pv::File* video_source) {
                             sums[i] = 0;
                         }
                         
-                        if(biggest_i != -1) {
-                            ranged._label = biggest_i;
+                        if(biggest_i) {
+                            ranged._label = narrow_cast<int>(biggest_i.value());
                             DataStore::set_ranged_label(std::move(ranged));
                         } //else
                             //FormatWarning("!No data for ", ranged._range);
@@ -1136,10 +1136,10 @@ void Work::start_learning(pv::File* video_source) {
         //py::import_module(module);
         py::check_module(module);
         
-        auto reset_variables = [video_source = video_source](){
+        auto reset_variables = [](){
             print("Reset python functions and variables...");
             const auto dims = FAST_SETTING(individual_image_size);
-            std::map<std::string, int> keys;
+            std::map<std::string, size_t> keys;
             auto cat = FAST_SETTING(categories_ordered);
             for(size_t i=0; i<cat.size(); ++i)
                 keys[cat[i]] = i;
@@ -2100,7 +2100,7 @@ Sample::Ptr DataStore::temporary(
 
         const size_t step = basic_index.size() < min_samples ? 1u : max(1u, basic_index.size() / sample_rate);
         std::shared_ptr<PPFrame> ptr;
-        size_t found_frame_immediately = 0, found_frames = 0;
+        //size_t found_frame_immediately = 0, found_frames = 0;
         
         // add an offset to the frame we start with, so that initial frame is dividable by 5
         // this helps to find more matches when randomly sampling around:
@@ -2121,8 +2121,8 @@ Sample::Ptr DataStore::temporary(
                 auto it = find_keyed_tuple(_frame_cache, Frame_t(f));
                 if(it != _frame_cache.end()) {
                     //ptr = std::get<1>(*it);
-                    ++found_frames;
-                    ++found_frame_immediately;
+                    //++found_frames;
+                    //++found_frame_immediately;
 
     #ifndef NDEBUG
                     auto fit = _current_cached_frames.find(Frame_t(f));
@@ -2152,8 +2152,8 @@ Sample::Ptr DataStore::temporary(
     
     // iterate through indexes in stuff_indexes, which we found in the last steps. now replace
     // relevant frames with the %5 step normalized ones + retrieve ptrs:
-    size_t replaced = 0;
-    /*auto jit = stuff_indexes.begin();
+    /*size_t replaced = 0;
+    auto jit = stuff_indexes.begin();
     for(size_t i=0; i+start_offset<segment->basic_index.size() && jit != stuff_indexes.end() && found_frames < stuff_indexes.size(); ++i) {
         if(i % step) {
             auto index = segment->basic_index.at(i+start_offset);
@@ -2179,7 +2179,7 @@ Sample::Ptr DataStore::temporary(
     }*/
 
     // actually generate frame data + load pixels from PV file, if the cache for a certain frame has not yet been generated.
-    size_t non = 0, cont = 0;
+    //size_t non = 0, cont = 0;
 
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
     if (normalize == default_config::individual_image_normalization_t::posture && !FAST_SETTING(calculate_posture))
@@ -2258,12 +2258,12 @@ Sample::Ptr DataStore::temporary(
             // no blob!
             FormatWarning("No blob (Fish",fish->identity().ID(),", frame ",basic->frame,") vs. ",basic->blob.blob_id()," (parent:",basic->blob.parent_id,")");
 #endif
-            ++non;
+            //++non;
         }
     }
     
 #ifndef NDEBUG
-    print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, ",replaced," were found (replaced %lu, min_samples=",min_samples,").");
+    print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, were found (replaced %lu, min_samples=",min_samples,").");
 #endif
     if(images.size() >= min_samples
        && not images.empty())
@@ -2431,7 +2431,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         data.write<uint64_t>(cats.size()); // number of labels
 
         for (size_t i = 0; i < cats.size(); ++i) {
-            data.write<int32_t>(i);  // label id
+            data.write<int32_t>(narrow_cast<int32_t>(i));  // label id
             data.write<std::string>(cats[i]); // label id
         }
     }
@@ -2440,7 +2440,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         std::shared_lock guard(cache_mutex());
         data.write<uint64_t>(_probability_cache.size()); // write number of frames
 
-        int64_t k = tracker_start_frame().get();
+        uint32_t k = tracker_start_frame().get();
         for (auto& v : _probability_cache) {
             data.write<uint32_t>(k); // frame index
             data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
@@ -2502,7 +2502,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
 
         SETTING(categories_ordered) = labels;
-        Work::_number_labels = N_labels;
+        Work::_number_labels = narrow_cast<int>(N_labels);
     }
 
     // read contents

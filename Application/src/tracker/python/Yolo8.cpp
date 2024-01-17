@@ -131,7 +131,7 @@ void Yolo8::deinit() {
     }
 }
 
-void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, track::detect::Result&& result) {
+void Yolo8::receive(SegmentationData& data, Vec2, track::detect::Result&& result) {
     static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
     static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
 
@@ -375,12 +375,10 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
             }
 
             auto&& pair = blobs.at(midx);
-            size_t num_pixels{ 0u };
             for (auto& line : *pair.lines) {
                 line.x0 = saturate(coord_t(line.x0 + boundaries.x), coord_t(0), coord_t(r3.cols - 1));
                 line.x1 = saturate(coord_t(line.x1 + boundaries.x), line.x0, coord_t(r3.cols - 1));
                 line.y = saturate(coord_t(line.y + boundaries.y), coord_t(0), coord_t(r3.rows - 1));
-                num_pixels += line.x1 - line.x0 + 1;
             }
 
             pair.pred = blob::Prediction{
@@ -494,7 +492,7 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
         timer.reset();
         ReceivePackage(std::move(transfer), std::move(results));
         //bbx.run("apply");
-        double cpp_elapsed = timer.elapsed();
+        //double cpp_elapsed = timer.elapsed();
 
         auto samples = _network_samples.load();
         auto fps = _network_fps.load();

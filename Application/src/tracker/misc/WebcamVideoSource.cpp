@@ -77,5 +77,5 @@ std::string WebcamVideoSource::toStr() const {
 }
 
 uint8_t WebcamVideoSource::channels() const {
-    return source.color_mode() == ImageMode::GRAY ? 1 : 3;
+    return required_channels(source.color_mode());
 }

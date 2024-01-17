@@ -246,11 +246,9 @@ namespace track {
                     y = Rangef(0, video.size().height-1);
                 
                 Vec2 average_height;
-                float height_samples = 0;
                 for(auto &b : collection) {
                     //Vec2 center = b->bounds().pos() + b->bounds().size() * 0.5;
                     average_height += b->bounds().size() * 0.5;
-                    ++height_samples;
                     
                     for(auto &k : b->hor_lines()) {
                         if(k.x0 < ys.size())

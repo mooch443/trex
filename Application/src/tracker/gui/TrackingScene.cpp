@@ -906,15 +906,15 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
         }
     };
     
-    g.context.custom_elements["image"] = CustomElement{
+    g.context.custom_elements["image"] = std::unique_ptr<CustomElement>(new CustomElement{
         .name = "image",
         .create = [](LayoutContext&) -> Layout::Ptr {
             return Layout::Make<ExternalImage>();
         },
         .update = [](Layout::Ptr&, const Context&, State&, const robin_hood::unordered_map<std::string, Pattern>&) {
-            
+            return false;
         }
-    };
+    });
     
     dynGUI = std::move(g);
 }
@@ -1054,7 +1054,7 @@ void TrackingScene::load_state(file::Path from) {
                     auto old_id_from_position = [](Vec2 center) {
                         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
                     };
-                    auto old_id_from_blob = [&old_id_from_position](const pv::Blob &blob) -> uint32_t {
+                    /*auto old_id_from_blob = [&old_id_from_position](const pv::Blob &blob) -> uint32_t {
                         if(!blob.lines() || blob.lines()->empty())
                             return -1;
                         
@@ -1064,7 +1064,7 @@ void TrackingScene::load_state(file::Path from) {
                                               blob.lines()->size());
                         
                         return old_id_from_position(start + (end - start) * 0.5);
-                    };
+                    };*/
                     
                     grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;

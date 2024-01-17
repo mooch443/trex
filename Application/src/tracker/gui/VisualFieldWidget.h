@@ -17,6 +17,8 @@ class VisualFieldWidget : public Entangled {
 public:
     void update(Frame_t, const FindCoord&, const track::set_of_individuals_t& selected);
     void set_parent(SectionInterface*) override;
+private:
+    using Entangled::update;
 };
 
 }

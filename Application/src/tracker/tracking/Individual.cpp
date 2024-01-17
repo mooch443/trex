@@ -420,9 +420,9 @@ std::tuple<BasicStuff*, PostureStuff*> Individual::all_stuff(Frame_t frameIndex)
     return {nullptr, nullptr};
 }
 
-long_t Individual::thresholded_size(Frame_t frameIndex) const {
+int64_t Individual::thresholded_size(Frame_t frameIndex) const {
     auto ptr = basic_stuff(frameIndex);
-    return ptr ? ptr->thresholded_size : -1;
+    return ptr ? narrow_cast<int64_t>(ptr->thresholded_size) : -1;
 }
 
 const MotionRecord* Individual::centroid(Frame_t frameIndex) const {

@@ -9,26 +9,23 @@
 #include <gui/types/ListItemTypes.h>
 #include <gui/DynamicVariable.h>
 #include <misc/RecentItems.h>
+#include <gui/GUITaskQueue.h>
 
 namespace gui {
 
 class StartingScene : public Scene {
     RecentItems _recents;
-    file::Path _image_path;
-    Image::Ptr _logo_image;
     std::vector<std::shared_ptr<dyn::VarBase_t>> _recents_list;
     std::vector<sprite::Map> _data;
 
     // The HorizontalLayout for the two buttons and the image
     dyn::DynamicGUI dynGUI;
-    
-    Vec2 image_scale{1.f};
     Size2 window_size;
-    Size2 element_size;
-    Vec2 left_center;
+    GUITaskQueue_t _exec_main_queue;
 
 public:
     StartingScene(Base& window);
+    ~StartingScene();
 
     void activate() override;
 

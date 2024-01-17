@@ -1112,7 +1112,7 @@ void Grid::prepare_data(std::vector<DataPoint> &data) {
         if(it != _identity_aliases.end())
             d.IDindex = it->second;
         else {
-            _identity_aliases[d.ID] = d.IDindex = _identities.size();
+            _identity_aliases[d.ID] = d.IDindex = narrow_cast<uint32_t>(_identities.size());
             assert(!contains(_identities, d.ID));
             _identities.push_back(d.ID);
         }
@@ -1596,14 +1596,14 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
     
     auto it = start;
     //size_t items = std::distance(start, end);
-    size_t counted = 0;
+    //size_t counted = 0;
     
     for(; it != end; ++it) {
         if(it->_d != previous) {
             sections[size_t(previous) * 2] = last_section;
             sections[size_t(previous) * 2 + 1] = it;
             
-            counted += std::distance(last_section, it);
+            //counted += std::distance(last_section, it);
             previous = it->_d;
             last_section = it;
         }
@@ -1612,7 +1612,7 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
     if(std::distance(last_section, it) != 0) {
         sections[size_t(previous) * 2] = last_section;
         sections[size_t(previous) * 2 + 1] = end;
-        counted += std::distance(last_section, it);
+        //counted += std::distance(last_section, it);
     }
     
     for(size_t i=0; i<4; ++i) {

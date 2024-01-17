@@ -14,10 +14,23 @@
         "machine_learning":"{equal:{global.detect_type}:yolo8}",
         "label_offset":[15,-5],
         "label_origin":[0,0.5],
-        "label_padding":[0,5,10,5]
+        "label_padding":[0,5,10,5],
+        "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
+        "bg_scale":"[{ratio},{ratio}]"
     }
   },
-  "objects":[{
+  "objects":[
+    {
+        "type":"video",
+        "path":"{if:{global.source}:{global.source}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
+        "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
+        "origin":[0.5,0.5],
+        "blur":0.7,
+        "alpha":0.5,
+        "frame_seconds":0.25,
+        "scale":"{bg_scale}"
+    },
+    {
     "type":"vlayout",
     "align":"left",
     "pad":[0,10,10,10],

@@ -12,9 +12,6 @@
 #undef NDEBUG
 #endif
 
-#include <misc/checked_casts.h>
-#include <types.h>
-
 static constexpr auto lower = utils::lowercase("hiIbImS");
 
 using namespace cmn;
@@ -22,6 +19,8 @@ using namespace utils;
 
 
 TEST(CacheSizeTest, Basic) {
+    UNUSED(lower);
+    
     using namespace track;
     //static_assert(std::is_trivial_v<TrivialOptional<uint32_t>>);
     static_assert(std::is_trivially_copyable_v<TrivialOptional<uint32_t>>);

@@ -404,7 +404,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             .base = window()
         };
         
-        _gui.context.custom_elements["pose"] = CustomElement {
+        _gui.context.custom_elements["pose"] = std::unique_ptr<CustomElement>(new CustomElement {
             .name = "pose",
             .create = [this](LayoutContext& layout) -> Layout::Ptr {
                 std::shared_ptr<Skelett> ptr;
@@ -437,7 +437,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 
                 return Layout::Ptr(ptr);
             },
-            .update = [](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+            .update = [](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool {
                 //print("Updating label with patterns: ", patterns);
                 //print("o = ", o.get());
 
@@ -501,8 +501,10 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                     };
                     p->set_pose(pose);
                 }
+                
+                return true;
             }
-        };
+        });
     }
     
     graph.wrap_object(_current_image);

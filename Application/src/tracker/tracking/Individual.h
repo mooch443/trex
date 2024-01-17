@@ -135,7 +135,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! misc warnings
         Timer _warned_normalized_midline;
         
-        int _last_predicted_id{-1};
+        int64_t _last_predicted_id{-1};
         Frame_t _last_predicted_frame;
         
     protected:
@@ -318,7 +318,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void save_posture(const BasicStuff& ptr, Frame_t frameIndex, pv::BlobPtr&& pixels);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
-        long_t thresholded_size(Frame_t frameIndex) const;
+        int64_t thresholded_size(Frame_t frameIndex) const;
         
         const Midline::Ptr midline(Frame_t frameIndex) const;
         //const Midline::Ptr cached_fixed_midline(Frame_t frameIndex);
