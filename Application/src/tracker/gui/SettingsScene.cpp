@@ -191,16 +191,20 @@ SettingsScene::~SettingsScene() {
 }
 
 void SettingsScene::activate() {
-    auto video_size = Size2(1200,920);
+    //auto video_size = Size2(1200,920);
     auto work_area = ((const IMGUIBase*)window())->work_area();
-    auto window_size = video_size;
+    //auto window_size = video_size;
     
+    auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
+
     Bounds bounds(
-        Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
-            work_area.height / 2 - window_size.height / 2 + work_area.y),
+        Vec2(),
         window_size);
-    
+
     print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
+    bounds.restrict_to(work_area);
+    bounds << Vec2((work_area.width - work_area.x) / 2 - bounds.width / 2,
+        work_area.height / 2 - bounds.height / 2 + work_area.y);
     bounds.restrict_to(work_area);
     print("Restricting bounds to work area: ", work_area, " -> ", bounds);
 
