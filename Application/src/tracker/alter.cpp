@@ -261,8 +261,7 @@ void launch_gui() {
         manager.update(*base.graph());
     });
     
-    manager.set_active(nullptr);
-    manager.update_queue();
+    manager.clear();
     
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();

@@ -88,6 +88,7 @@ public:
 
     void update_queue();
     bool on_global_event(Event);
+    void clear();
 
 private:
     void enqueue(auto&& task) {

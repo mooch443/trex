@@ -6,8 +6,8 @@ namespace gui {
 IMPLEMENT(SceneManager::_switching_error);
 
 SceneManager& SceneManager::getInstance() {
-    static SceneManager instance;  // Singleton instance
-    return instance;
+    static SceneManager* instance = new SceneManager;  // Singleton instance
+    return *instance;
 }
 
 void SceneManager::set_active(Scene* scene) {
@@ -122,9 +122,22 @@ bool SceneManager::is_scene_registered(std::string name) const {
 }
 
 SceneManager::~SceneManager() {
+    clear();
+}
+
+void SceneManager::clear() {
+    set_active(nullptr);
     update_queue();
-    if (active_scene)
-        active_scene->deactivate();
+    
+    std::unique_lock guard{_mutex};
+    active_scene = nullptr;
+    fallback_scene = nullptr;
+    last_active_scene = nullptr;
+    _scene_registry.clear();
+    
+    while (not _queue.empty()) {
+        _queue.pop();
+    }
 }
 
 void SceneManager::update(DrawStructure& graph) {
