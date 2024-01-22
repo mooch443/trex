@@ -183,6 +183,9 @@ bool TrackingScene::on_global_event(Event event) {
             case Keyboard::Space:
                 SETTING(gui_run) = not SETTING(gui_run).value<bool>();
                 break;
+            case Keyboard::B:
+                SETTING(gui_show_posture) = not SETTING(gui_show_posture).value<bool>();
+                break;
             case Keyboard::M:
                 next_poi(Idx_t());
                 break;
@@ -613,7 +616,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     DrawPreviewImage::draw(_state->tracker->average(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
     
-    if(GUI_SETTINGS(gui_show_posture)) {
+    if(GUI_SETTINGS(gui_show_posture) && not _data->_cache->selected.empty()) {
         _data->_cache->draw_posture(graph, GUI_SETTINGS(gui_frame));
     }
     

@@ -83,7 +83,20 @@ struct SettingsScene::Data {
                             copy.erase(key);
                         }*/
                         
-                        settings::load(SETTING(source).value<file::PathArray>(), SETTING(source).value<file::PathArray>().source(), default_config::TRexTask_t::track, SETTING(detect_type), {}, {});
+                        auto array = SETTING(source).value<file::PathArray>();
+                        auto front = file::Path(file::find_basename(array));
+                        /*output_file = !front.has_extension() ?
+                                      file::DataLocation::parse("input", front.add_extension("pv")) :
+                                      file::DataLocation::parse("input", front.replace_extension("pv"));*/
+
+                        auto output_file = (not front.has_extension() || front.extension() != "pv") ?
+                                      file::DataLocation::parse("output", front.add_extension("pv")) :
+                                      file::DataLocation::parse("output", front.replace_extension("pv"));
+                        if (output_file.exists()) {
+                            SETTING(filename) = file::Path(output_file);
+                        }
+                        
+                        settings::load(array, SETTING(filename), default_config::TRexTask_t::track, SETTING(detect_type), {}, {});
                         SceneManager::getInstance().set_active("tracking-scene");
                     }),
                     ActionFunc("choose-source", [](auto){

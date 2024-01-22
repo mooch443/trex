@@ -306,14 +306,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
     if(not _posture_window)
         return;
     
-    //_posture_window->set_scale(base.scale().reciprocal());
-    //auto coords = FindCoord::get();
-    //_posture_window->set_pos(Vec2(coords.screen_size().width - 600, 150));
-    _posture_window->set_origin(Vec2(1, 0));
-    //_posture_window.set_fish(fish);
-    //_posture_window->set_frameIndex(frameNr);
-    _posture_window->set_draggable();
-    base.wrap_object(*_posture_window);
+    if(_posture_window->valid())
+        base.wrap_object(*_posture_window);
 }
     
     Frame_t GUICache::update_data(Frame_t frameIndex) {
@@ -545,6 +539,14 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
                 if(individuals.contains(pid)) {
                     if(not _posture_window) {
                         _posture_window = std::make_unique<gui::Posture>();
+                        
+                        //_posture_window->set_scale(base.scale().reciprocal());
+                        //auto coords = FindCoord::get();
+                        //_posture_window->set_pos(Vec2(coords.screen_size().width - 600, 150));
+                        _posture_window->set_origin(Vec2(1, 0));
+                        //_posture_window.set_fish(fish);
+                        //_posture_window->set_frameIndex(frameNr);
+                        _posture_window->set_draggable();
                     }
                     _posture_window->set_fish(individuals.at(pid), frameIndex);
                 }

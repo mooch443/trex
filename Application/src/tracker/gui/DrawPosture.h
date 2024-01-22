@@ -17,6 +17,7 @@ namespace gui {
         Frame_t _frameIndex;
         Vec2 zero;
         //gui::Rect _background;
+        bool _valid{false};
         
         bool _average_active;
         std::map<track::Idx_t, std::deque<float>> _scale;
@@ -26,6 +27,7 @@ namespace gui {
         
         void set_fish(track::Individual* fish, Frame_t frame);
         virtual void update() override;
+        bool valid() const;
     };
 }
 

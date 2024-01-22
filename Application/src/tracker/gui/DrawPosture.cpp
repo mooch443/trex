@@ -10,6 +10,10 @@ namespace gui {
         set_bounds(size);
         set_clickable(true);
     }
+
+bool Posture::valid() const {
+    return _valid;
+}
     
     void Posture::update() {
     }
@@ -32,7 +36,7 @@ namespace gui {
         _frameIndex = frame;
         _fish = fish;
         _average_active = true;
-        set_content_changed(true);
+        //set_content_changed(true);
         
         // if this map gets too big (cached scale values), remove a few of them
         if((uint32_t)_scale.size() > FAST_SETTING(track_max_individuals)) {
@@ -59,14 +63,16 @@ namespace gui {
                 set_scroll_limits(Rangef(0,0), Rangef(0,0));
                 set_content_changed(true);
                 set_background(Transparent, Transparent);
-            } else if(!content_changed())
-                return;
+            } //else if(!content_changed())
+                //return;
             
             LockGuard guard(ro_t{}, "Posture::update", 100);
             if(!guard.locked()) {
                 set_content_changed(true);
                 return;
             }
+        
+            _valid = false;
             
             if(!_fish || !_fish->centroid(_frameIndex))
                 return;
@@ -80,9 +86,7 @@ namespace gui {
             //if(!midline)
             //    midline = _fish->midline(_frameIndex);
             auto min_outline = _fish->outline(_frameIndex);
-            
-            if(!min_outline) {
-                set_content_changed(true);
+            if(not min_outline || not midline) {
                 return;
             }
             
@@ -263,5 +267,7 @@ namespace gui {
             }
             
             end();
+        
+        _valid = true;
     }
 }
