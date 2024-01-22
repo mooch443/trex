@@ -71,7 +71,19 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("track", [](auto){
                         DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
-                        //SETTING(filename) = file::Path();
+                        /*sprite::Map copy = GlobalSettings::map();
+                        for(auto &key : copy.keys()) {
+                            
+                            if(not GlobalSettings::defaults().has(key)
+                               || copy.at(key).get() != GlobalSettings::defaults().at(key).get()) {
+                                continue;
+                            }
+                            
+                            print("Removing ", key);
+                            copy.erase(key);
+                        }*/
+                        
+                        settings::load(SETTING(source).value<file::PathArray>(), SETTING(source).value<file::PathArray>().source(), default_config::TRexTask_t::track, SETTING(detect_type), {}, {});
                         SceneManager::getInstance().set_active("tracking-scene");
                     }),
                     ActionFunc("choose-source", [](auto){

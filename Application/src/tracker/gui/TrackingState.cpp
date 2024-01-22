@@ -16,6 +16,34 @@ using namespace track;
 
 namespace gui {
 
+VIControllerImpl::VIControllerImpl(VIControllerImpl&& other) :
+    vident::VIController(std::move((vident::VIController&)other)),
+    _scene(other._scene),
+    _current_percent(other._current_percent.load()),
+    _busy(other._busy.load())
+{}
+
+void VIControllerImpl::on_tracking_ended(std::function<void()> fn) {
+    _scene->_tracking_callbacks.push(fn);
+}
+
+void VIControllerImpl::on_apply_update(double percent) {
+    _current_percent = percent;
+    _busy = true;
+}
+void VIControllerImpl::on_apply_done() {
+    _current_percent = 1;
+    _busy = false;
+}
+
+VIControllerImpl::VIControllerImpl(pv::File& video, TrackingState& scene)
+    : _scene(&scene)
+{
+    _video= &video;
+    _tracker = scene.tracker.get();
+    _analysis = &scene.analysis;
+}
+
 static constexpr Frame_t cache_size{Frame_t::number_t(10)};
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
@@ -30,7 +58,8 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
              return stage_1(std::move(ptr));
          }
       }),
-    pool(4u, "preprocess_main")
+    pool(4u, "preprocess_main"),
+    _controller(std::make_unique<VIControllerImpl>(video, *this))
 {
     _end_task_check_auto_quit = [this, gui](){
 #if !COMMONS_NO_PYTHON
@@ -57,7 +86,7 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
                 if(SETTING(auto_quit))
             {
                 analysis.terminate();
-                auto_quit(gui);
+                _controller->auto_quit(gui);
             }
     };
 }
@@ -65,16 +94,6 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
 TrackingState::~TrackingState() {
     if(_end_task.valid())
         _end_task.get();
-}
-
-void TrackingState::export_tracks(const file::Path& , Idx_t fdx, Range<Frame_t> range) {
-    bool before = analysis.is_paused();
-    analysis.set_paused(true).get();
-    
-    track::export_data(video, *tracker, fdx, range);
-    
-    if(not before)
-        analysis.set_paused(false).get();
 }
 
 bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
@@ -326,49 +345,6 @@ void TrackingState::init_video() {
     );
 }
 
-void TrackingState::auto_correct(GUITaskQueue_t* gui) {
-    const bool tags_available = tags::available();
-    
-    if(gui) {
-        const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
-        const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
-
-        gui->enqueue([&](auto, DrawStructure& graph){
-            graph.dialog([this, tags_available, gui](gui::Dialog::Result r) {
-                if(r == Dialog::ABORT)
-                    return;
-                
-                WorkProgress::add_queue("checking identities...", [this, r, tags_available, gui]()
-                {
-                    if(r == Dialog::ABORT)
-                        return;
-                    
-                    correct_identities(gui, r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
-                });
-                
-            }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
-        });
-    } else {
-        WorkProgress::add_queue("checking identities...", [this, tags_available](){
-            correct_identities(nullptr, false, tags_available ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
-        });
-    }
-}
-
-void TrackingState::correct_identities(GUITaskQueue_t* gui, bool force_correct, IdentitySource source) {
-    WorkProgress::add_queue("checking identities...", [this, force_correct, source, gui](){
-        tracker->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui](const std::string&, const std::function<void()>& fn, const std::string&) {
-            gui->enqueue([this, fn, source, gui](auto, DrawStructure&) {
-                _tracking_callbacks.push([this, source, gui](){
-                    correct_identities(gui, false, source);
-                });
-                
-                fn();
-            });
-        });
-    });
-}
-
 void TrackingState::on_tracking_done() {
     please_stop_analysis = true;
     tracker->global_segment_order();
@@ -384,44 +360,6 @@ void TrackingState::on_tracking_done() {
         _end_task.get();
     _end_task = std::async(std::launch::async, _end_task_check_auto_quit);
 }
-
-void TrackingState::auto_quit(GUITaskQueue_t* gui) {
-    FormatWarning("Saving and quitting...");
-    LockGuard guard(w_t{}, "saving and quitting");
-    //PD(cache).deselect_all();
-    settings::write_config(true, gui);
-    //instance()->write_config(true);
-    
-    if(!SETTING(auto_no_results)) {
-        Output::TrackingResults results(*tracker);
-        results.save();
-    } else {
-        file::Path path = Output::TrackingResults::expected_filename();
-        path = path.add_extension("meta");
-        
-        print("Writing ",path.str()," meta file instead of .results");
-        
-        auto f = fopen(path.str().c_str(), "wb");
-        if(f) {
-            auto str = SETTING(cmd_line).value<std::string>()+"\n";
-            fwrite(str.data(), sizeof(uchar), str.length(), f);
-            fclose(f);
-        } else
-            print("Cannot write ",path.str()," meta file.");
-    }
-    
-    try {
-        export_tracks("", {}, {});
-    } catch(const UtilsException&) {
-        SETTING(error_terminate) = true;
-    }
-    
-    SETTING(auto_quit) = false;
-    if(!SETTING(terminate))
-        SETTING(terminate) = true;
-}
-
-
 
 void TrackingState::Statistics::calculateRates(double elapsed) {
     const auto frames_sec = frames_count / elapsed;

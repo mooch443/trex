@@ -79,11 +79,12 @@ namespace globals {
     };
     
     class Fish;
-    
+    class Posture;
+
     using namespace track;
     
     class GUICache {
-        GenericThreadPool _pool;
+        GETTER_NCONST(GenericThreadPool, pool);
 
         struct PPFrameMaker {
             std::unique_ptr<PPFrame> operator()() const;
@@ -93,6 +94,7 @@ namespace globals {
         Buffers< std::unique_ptr<PPFrame>, PPFrameMaker > buffers;
         pv::File* _video{ nullptr };
         gui::DrawStructure* _graph{ nullptr };
+        std::unique_ptr<gui::Posture> _posture_window;
         using FramePtr = std::unique_ptr<PPFrame>;
         FramePreloader<FramePtr> _preloader;
         Timer _last_success;
@@ -229,6 +231,8 @@ namespace globals {
         
         GUICache(gui::DrawStructure*, pv::File*);
         ~GUICache();
+        
+        void draw_posture(gui::DrawStructure &base, Frame_t frameNr);
     };
 }
 

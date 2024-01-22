@@ -444,7 +444,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
             }
             
             if(name == "output_normalize_midline_data") {
-                PD(posture_window).set_fish(NULL);
+                PD(posture_window).set_fish(NULL, {});
                 GUI::set_redraw();
             }
             
@@ -1387,8 +1387,7 @@ void GUI::draw_posture(DrawStructure &base, Individual *fish, Frame_t frameNr) {
                             (PD(timeline)->bar() ? (PD(timeline)->bar()->global_bounds().y + PD(timeline)->bar()->global_bounds().height) : 100) + 10 * PD(posture_window).scale().y);
             PD(posture_window).set_pos(pos);
             PD(posture_window).set_origin(Vec2(1, 0));
-            PD(posture_window).set_fish(fish);
-            PD(posture_window).set_frameIndex(frameNr);
+            PD(posture_window).set_fish(fish, frameNr);
             //PD(posture_window).set_draggable();
             base.wrap_object(PD(posture_window));
             

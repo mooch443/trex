@@ -5,17 +5,18 @@
 #include <gui/types/Basic.h>
 #include <gui/GuiTypes.h>
 #include <gui/DrawStructure.h>
-#include <tracking/Individual.h>
-#include <tracking/Tracker.h>
 #include <tracking/EventAnalysis.h>
 #include <tracking/OutputLibrary.h>
 #include <gui/Coordinates.h>
 #include <tracking/Outline.h>
-#include <tracking/Individual.h>
 #include <gui/Graph.h>
 
 namespace pv {
 struct CompressedBlob;
+}
+
+namespace track {
+class Individual;
 }
 
 namespace gui {

@@ -9,12 +9,30 @@
 #include <misc/idx_t.h>
 #include <misc/ranges.h>
 #include <misc/TrackingSettings.h>
+#include <gui/VisualIdentDialog.h>
 
 namespace track {
 class Tracker;
 }
 
 namespace gui {
+
+struct TrackingState;
+
+struct VIControllerImpl : public vident::VIController {
+    TrackingState* _scene{nullptr};
+    std::atomic<double> _current_percent{0};
+    std::atomic<bool> _busy{false};
+    
+    VIControllerImpl(VIControllerImpl&& other);
+    
+    void on_tracking_ended(std::function<void()> fn) override;
+    
+    void on_apply_update(double percent) override;
+    void on_apply_done() override;
+    
+    VIControllerImpl(pv::File& video, TrackingState& scene);
+};
 
 struct TrackingState {
     /**
@@ -80,16 +98,12 @@ struct TrackingState {
     std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
     
     std::queue<std::function<void()>> _tracking_callbacks;
+    std::unique_ptr<VIControllerImpl> _controller;
     
     bool stage_0(ConnectedTasks::Type&&);
     bool stage_1(ConnectedTasks::Type&&);
     
     void init_video();
-    
-    void export_tracks(const file::Path& , track::Idx_t fdx, Range<Frame_t> range);
-    void correct_identities(GUITaskQueue_t* gui, bool force_correct, track::IdentitySource);
-    void auto_correct(GUITaskQueue_t* gui = nullptr);
-    void auto_quit(GUITaskQueue_t* gui = nullptr);
     
     void on_tracking_done();
 };

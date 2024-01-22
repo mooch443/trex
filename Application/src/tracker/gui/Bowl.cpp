@@ -5,6 +5,7 @@
 #include <gui/VisualFieldWidget.h>
 #include <gui/IdentityHeatmap.h>
 #include <gui/DrawBase.h>
+#include <tracking/LockGuard.h>
 
 using namespace track;
 

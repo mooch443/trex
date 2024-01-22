@@ -349,7 +349,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", LOAD);
-        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).", LOAD);
+        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
 
@@ -818,11 +818,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     Config generate_delta_config(bool include_build_number, std::vector<std::string> additional_exclusions) {
         auto keys = GlobalSettings::map().keys();
         
-        static sprite::Map config;
-        static GlobalSettings::docs_map_t docs;
+        sprite::Map config;
+        GlobalSettings::docs_map_t docs;
         
-        if(config.empty())
-            default_config::get(config, docs, NULL);
+        grab::default_config::get(config, docs, nullptr);
+        default_config::get(config, docs, NULL);
         
         std::vector<std::string> exclude_fields = {
             "analysis_paused",
@@ -913,7 +913,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             // to the default options
             if(!config.has(key) || config[key] != GlobalSettings::get(key)) {
                 if((include_build_number && utils::beginsWith(key, "build"))
-                   || (GlobalSettings::access_level(key) <= AccessLevelType::STARTUP
+                   || (GlobalSettings::access_level(key) < AccessLevelType::LOAD
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {

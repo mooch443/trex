@@ -113,6 +113,7 @@ public:
     static Status& status();
     
     static void register_apply_callback(std::function<void()>&&);
+    static void register_apply_callback(std::function<void(double)>&&);
     static void on_terminate();
     
     static float good_uniqueness();

@@ -14,6 +14,9 @@
 //#include <gui.h>
 #include <misc/IdentifiedTag.h>
 #include <gui/Skelett.h>
+#include <tracking/Tracker.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
 //#include <gui.h>
@@ -249,7 +252,7 @@ Fish::~Fish() {
         
         _has_processed_segment = obj.has_processed_segment(_frame);
         if(std::get<0>(_has_processed_segment)) {
-            processed_segment = obj.processed_recognition(_frame);
+            processed_segment = obj.processed_recognition(std::get<1>(_has_processed_segment).start());
         } else
             processed_segment = {};
         
@@ -297,6 +300,116 @@ Fish::~Fish() {
         _skelett->set_skeleton(GUI_SETTINGS(meta_skeleton));
 
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
+        
+        auto &cache = GUICache::instance();
+        if(GUIOPTION(gui_show_probabilities)
+           && cache.is_selected(_id.ID()))
+        {
+            auto c = cache.processed_frame().cached(_id.ID());
+            if (c) {
+                auto &mat = _image.unsafe_get_source();
+                //if(mat.index() != narrow_cast<long_t>(_frame.get()))
+                {
+                    _probability_radius = saturate(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel) * 0.5, 1, 5000);
+                    //auto coord = FindCoord::get();
+                    
+                    auto res_factor = max(1.0, _probability_radius * 2 / max(512, _probability_radius * 2 / 4));
+                    const auto res = _probability_radius * 2 / res_factor;
+                    if(mat.cols != res || mat.rows != res || mat.dims != 4)
+                    {
+                        mat.create(_probability_radius * 2 / res_factor, _probability_radius * 2 / res_factor, 4);
+                        mat.set_to(0);
+                    } //coord.video_size().height, coord.video_size().width, 4);
+                    mat.set_index(_frame.get());
+                    //mat.set_to(0);
+                    
+                    /*if(_probability_radius < 10 || _probability_center.empty())
+                        mat.set_to(0);
+                    else {*/
+                        /*for (int y = 0; y < _probability_radius * 2; ++y) {
+                            auto ptr = mat.ptr(y, 0);
+                            auto end = mat.ptr(y, _probability_radius);
+                            if (end > mat.data() + mat.size())
+                                throw U_EXCEPTION("Mat end ", mat.size(), " end: ", uint64_t(end - mat.data()));
+                            std::fill(ptr, end, 0);
+                        }*/
+                    //}
+                    
+                    _probability_center = c->estimated_px;
+                    float sum;
+                    
+                    auto plot = [&](int x, int y) {
+                        auto pos = Vec2(x, y);
+                        if (pos.x < 0 || pos.x >= mat.cols)
+                            return;
+                        if (pos.y < 0 || pos.y >= mat.rows)
+                            return;
+                        if (_frame <= _range.start)
+                            return;
+                        
+                        auto ptr = mat.ptr(pos.y, pos.x);
+                        
+                        auto p = obj.probability(-1, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
+                        if (p < FAST_SETTING(matching_probability_threshold))
+                            return;
+                        
+                        auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));
+                        *(ptr + 0) = clr.r;
+                        *(ptr + 1) = clr.g;
+                        *(ptr + 2) = clr.b;
+                        *(ptr + 3) = clr.a;
+                        sum += p;
+                    };
+                    
+                    /*do {
+                        sum = 0;
+                        int r = _probability_radius;
+                        
+                        for (int y = 0; y < _probability_radius; ++y) {
+                            int x = std::sqrt(r * r - y * y);
+                            plot(x, y);
+                            plot(-x, y);
+                            
+                            plot(x,  -y);
+                            plot(-x, -y);
+                        }
+                        
+                        ++_probability_radius;
+                        
+                    } while (sum > 0 || _probability_radius < 10);*/
+                    
+                    distribute_indexes([&](auto i, auto it, auto nex, auto index){
+                        //print("y ", it, " - ", nex);
+                        for(auto y = it; y < nex; ++y) {
+                            int x = 0;
+                            auto ptr = mat.ptr(y, 0);
+                            auto end = mat.ptr(y, mat.cols);
+                            
+                            for (; ptr != end; ++ptr, ++x) {
+                                //if (*(ptr) <= 5)
+                                plot(x, y);
+                            }
+                        }
+                    }, cache.pool(), int(0), int(mat.rows));
+                    
+                    /*for (int y = 0; y < _probability_radius * 2; ++y) {
+                     int x = 0;
+                     auto ptr = mat.ptr(y, x);
+                     auto end = mat.ptr(y, _probability_radius * 2);
+                     
+                     for (; ptr != end; ++ptr, ++x) {
+                         //if (*(ptr) <= 5)
+                         plot(x, y);
+                     }
+                    }*/
+                    
+                    _image.set_pos(_probability_center - _probability_radius - _blob_bounds.pos());
+                    _image.set_scale(res_factor);
+                    _image.updated_source();
+                    //tf::imshow("image", mat.get());
+                }
+            }
+        }
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
@@ -728,86 +841,7 @@ Fish::~Fish() {
         
             
             if(is_selected && GUIOPTION(gui_show_probabilities)) {
-                auto c = cache.processed_frame().cached(_id.ID());
-                if (c) {
-                    auto &mat = _image.unsafe_get_source();
-                    if(mat.index() != narrow_cast<long_t>(_frame.get())) {
-                        mat.create(coord.video_size().height, coord.video_size().width, 4);
-                        mat.set_index(_frame.get());
-
-                        if(_probability_radius < 10 || _probability_center.empty())
-                            mat.set_to(0);
-                        else {
-                            for (int y = max(0, _probability_center.y - _probability_radius - 1); y < min((float)mat.rows - 1, _probability_center.y + _probability_radius); ++y) {
-                                auto ptr = mat.ptr(y, max(0, _probability_center.x - _probability_radius - 1));
-                                auto end = mat.ptr(y, min((float)mat.cols - 1, _probability_center.x + _probability_radius + 1));
-                                if (end > mat.data() + mat.size())
-                                    throw U_EXCEPTION("Mat end ", mat.size(), " end: ", uint64_t(end - mat.data()));
-                                std::fill(ptr, end, 0);
-                            }
-                        }
-                        
-                        _probability_center = c->estimated_px;
-                        float sum;
-                        _probability_radius = 0;
-
-                        LockGuard guard(ro_t{}, "Fish::update::probs");
-                        
-                        auto plot = [&](int x, int y) {
-                            Vec2 pos = _probability_center + Vec2(x, y);
-                            if (pos.x < 0 || pos.x >= mat.cols)
-                                return;
-                            if (pos.y < 0 || pos.y >= mat.rows)
-                                return;
-                            if (_frame <= _range.start)
-                                return;
-
-                            auto ptr = mat.ptr(pos.y, pos.x);
-                            auto p = 0;//_obj.probability(-1, *c, _frame, pos + 1 * 0.5, 1); //TODO: add probabilities
-                            if (p/*.p*/ < FAST_SETTING(matching_probability_threshold))
-                                return;
-
-                            auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));
-                            *(ptr + 0) = clr.r;
-                            *(ptr + 1) = clr.g;
-                            *(ptr + 2) = clr.b;
-                            *(ptr + 3) = clr.a;
-                            sum += p/*.p*/;
-                        };
-                        
-                        do {
-                            sum = 0;
-                            int r = _probability_radius;
-                            
-                            for (int y = 0; y < _probability_radius; ++y) {
-                                int x = std::sqrt(r * r - y * y);
-                                plot(x, y);
-                                plot(-x, y);
-                                
-                                plot(x,  -y);
-                                plot(-x, -y);
-                            }
-                            
-                            ++_probability_radius;
-                            
-                        } while (sum > 0 || _probability_radius < 10);
-
-                        for (int y = max(0, _probability_center.y - _probability_radius - 1); y < min((float)mat.rows - 1, _probability_center.y + _probability_radius); ++y) {
-                            int x = max(0, _probability_center.x - _probability_radius - 1);
-                            auto ptr = mat.ptr(y, x);
-                            auto end = mat.ptr(y, min((float)mat.cols - 1, _probability_center.x + _probability_radius + 1));
-                            
-                            for (; ptr != end; ++ptr, ++x) {
-                                //if (*(ptr) <= 5)
-                                    plot(x - _probability_center.x, y - _probability_center.y);
-                            }
-                        }
-
-                        _image.updated_source();
-                    }
-                }
-
-                _image.set_pos(offset);
+                //_image.set_pos(offset);
                 _view.advance_wrap(_image);
             }
             else if(!_image.source()->empty()) {

@@ -70,7 +70,7 @@
                                 "action":"open_file",
                                 "size":[50,50],
                                 "font":{"size":1},
-                                "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[200,230,255,200]}",
+                                "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[200,255,255,255]}",
                                 "fill":"{if:{||:{selected}:{hovered}}:[100,175,250,50]:[40,40,40,15]}",
                                 "line":"{if:{||:{selected}:{hovered}}:[200,200,200,255]:[255,255,255,50]}"
                             },

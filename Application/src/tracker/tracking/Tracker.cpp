@@ -114,6 +114,9 @@ const FrameRange& Tracker::analysis_range() {
 Tracker* _instance = NULL;
 std::vector<Range<Frame_t>> _global_segment_order;
 
+std::mutex _identities_mutex;
+std::set<Idx_t> _fixed_identities;
+
 Tracker* Tracker::instance() {
     return _instance;
 }
@@ -387,6 +390,13 @@ Tracker::~Tracker() {
         print("Done waiting.");
     
     _instance = NULL;
+    
+    {
+        std::unique_lock g(_identities_mutex);
+        _fixed_identities.clear();
+    }
+    _global_segment_order.clear();
+    //_analysis_range = {};
     
     IndividualManager::clear();
     emergency_finish();
@@ -908,23 +918,24 @@ const std::set<Idx_t> Tracker::identities() {
     if(!has_identities())
         return {};
     
-    static std::set<Idx_t> set;
-    static std::mutex mutex;
+    //std::set<Idx_t> set;
+    //std::mutex mutex;
     
-    std::unique_lock guard(mutex);
-    if(set.empty()) {
+    std::unique_lock guard(_identities_mutex);
+    if(_fixed_identities.empty())
+    {
         //LockGuard guard("Tracker::identities");
         //for(auto &[id, fish] : Tracker::individuals())
         //    set.insert(id);
         
         //if(set.empty()) {
             for(Idx_t i = Idx_t(0); i < Idx_t(FAST_SETTING(track_max_individuals)); i = i + Idx_t(1)) {
-                set.insert(i);
+                _fixed_identities.insert(i);
             }
         //}
     }
     
-    return set;
+    return _fixed_identities;
 }
 
 void Tracker::clear_properties() {

@@ -24,13 +24,14 @@
 #include <gui/TrackingState.h>
 #include <misc/SettingsInitializer.h>
 #include <tracking/CategorizeInterface.h>
+#include <gui/DrawPreviewImage.h>
+#include <gui/DrawPosture.h>
 
 using namespace track;
 
 namespace gui {
 
 struct TrackingScene::Data {
-    
     std::unique_ptr<GUICache> _cache;
     
     std::unique_ptr<Bowl> _bowl;
@@ -56,7 +57,7 @@ struct TrackingScene::Data {
     Vec2 _last_mouse;
     Vec2 _bowl_mouse;
     bool _zoom_dirty{false};
-    pv::Frame _frame;
+    //pv::Frame _frame;
     
     // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
@@ -75,7 +76,7 @@ struct TrackingScene::Data {
      * @param functions A list of functions representing the analysis stages.
      */
     Data(Image::Ptr&& average,
-         const pv::File& video);
+         pv::File& video);
 };
 
 TrackingScene::~TrackingScene() {
@@ -93,7 +94,7 @@ const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map
     {"ralt", Keyboard::RAlt}
 };
 
-TrackingScene::Data::Data(Image::Ptr&& average, const pv::File& video)
+TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 {
     _background = std::make_unique<AnimatedBackground>(std::move(average), &video);
     
@@ -200,7 +201,7 @@ bool TrackingScene::on_global_event(Event event) {
                 });
                 break;
             case Keyboard::S:
-                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->export_tracks("", {}, {}); });
+                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
                 break;
             case Keyboard::Left:
                 set_frame(GUI_SETTINGS(gui_frame).try_sub(1_f));
@@ -610,6 +611,12 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
     
+    DrawPreviewImage::draw(_state->tracker->average(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
+    
+    if(GUI_SETTINGS(gui_show_posture)) {
+        _data->_cache->draw_posture(graph, GUI_SETTINGS(gui_frame));
+    }
+    
     graph.section("loading", [this](DrawStructure& base, auto section) {
         WorkProgress::update((IMGUIBase*)window(), base, section, window_size);
     });
@@ -748,7 +755,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 save_state(false);
             }),
             ActionFunc("export_data", [this](Action){
-                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->export_tracks("", {}, {}); });
+                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
             }),
             ActionFunc("write_config", [this](Action){
                 WorkProgress::add_queue("", [this]() { settings::write_config(false, &_exec_main_queue); });
@@ -757,7 +764,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 Categorize::show(&_state->video,
                     [this](){
                         if(SETTING(auto_quit))
-                            _state->auto_quit();
+                            _state->_controller->auto_quit(&_exec_main_queue);
                         //GUI::instance()->auto_quit();
                     },
                     [](const std::string& text){
@@ -767,7 +774,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 );
             }),
             ActionFunc("auto_correct", [this](Action){
-                _state->auto_correct(&_exec_main_queue);
+                _state->_controller->auto_correct(&_exec_main_queue, false);
+            }),
+            ActionFunc("visual_identification", [this](Action) {
+                vident::training_data_dialog(&_exec_main_queue, false, [this](){
+                    print("callback ");
+                }, _state->_controller.get());
             }),
             
             VarFunc("is_segment", [this](const VarProps& props) -> bool {
@@ -902,6 +914,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             
             VarFunc("mouse", [this](const VarProps&) -> Vec2 {
                 return this->_data->_last_mouse;
+            }),
+            VarFunc("vi_apply_percent", [this](const VarProps&) {
+                return _state->_controller->_current_percent.load();
+            }),
+            VarFunc("vi_busy", [this](const VarProps&) -> bool {
+                return _state->_controller->_busy.load();
             })
         }
     };

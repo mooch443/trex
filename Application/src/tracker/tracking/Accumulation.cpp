@@ -33,6 +33,7 @@ using namespace constraints;
 
 std::mutex callback_mutex;
 std::vector<std::function<void()>> _apply_callbacks;
+std::vector<std::function<void(double)>> _apply_percent_callbacks;
 std::mutex _current_lock;
 std::mutex _current_assignment_lock, _current_uniqueness_lock;
 Python::VINetwork* _network{nullptr};
@@ -104,8 +105,15 @@ void apply_network(pv::File& video_source) {
     };
     
     std::mutex write_mutex;
-    Accumulation::status().percent = 0.0;
-    Accumulation::status().busy = true;
+    
+    {
+        std::unique_lock guard(callback_mutex);
+        Accumulation::status().percent = 0.0;
+        Accumulation::status().busy = true;
+        
+        for(auto & c : _apply_percent_callbacks)
+            c(1.0);
+    }
     
     ImageExtractor e{
         video_source,
@@ -164,17 +172,27 @@ void apply_network(pv::File& video_source) {
                 print("[Apply] All done extracting. Overall pushed ", extractor->pushed_items());
                 
                 std::unique_lock guard(callback_mutex);
-                for(auto & c : _apply_callbacks) {
-                    c();
-                }
-                _apply_callbacks.clear();
                 Accumulation::status().percent = 1.0;
                 Accumulation::status().busy = false;
                 
+                for(auto & c : _apply_percent_callbacks)
+                    c(1.0);
+                
+                for(auto & c : _apply_callbacks)
+                    c();
+
+                _apply_callbacks.clear();
+                _apply_percent_callbacks.clear();
+                
             } else {
                 print("[Apply] Percent: ", percent * 100, "%");
+                
+                std::unique_lock guard(callback_mutex);
                 Accumulation::status().percent = percent;
                 Accumulation::status().busy = true;
+                
+                for(auto & c :_apply_percent_callbacks)
+                    c(percent);
             }
         },
         std::move(settings)
@@ -216,6 +234,11 @@ std::mutex _per_class_lock;
 void Accumulation::register_apply_callback(std::function<void ()> && fn) {
     std::unique_lock guard(callback_mutex);
     _apply_callbacks.push_back(std::move(fn));
+}
+
+void Accumulation::register_apply_callback(std::function<void (double)> && fn) {
+    std::unique_lock guard(callback_mutex);
+    _apply_percent_callbacks.push_back(std::move(fn));
 }
 
 void Accumulation::set_per_class_accuracy(const std::vector<float> &v) {

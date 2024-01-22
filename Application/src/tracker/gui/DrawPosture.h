@@ -22,19 +22,9 @@ namespace gui {
         std::map<track::Idx_t, std::deque<float>> _scale;
         
     public:
-        Posture(const Bounds& size = Bounds());
+        Posture(const Bounds& size = Bounds(500,300,550,400));
         
-        void set_fish(track::Individual* fish);
-        
-        void set_frameIndex(Frame_t frameIndex) {
-            if(frameIndex == _frameIndex)
-                return;
-            
-            _frameIndex = frameIndex;
-            _average_active = true;
-            set_content_changed(true);
-        }
-        
+        void set_fish(track::Individual* fish, Frame_t frame);
         virtual void update() override;
     };
 }

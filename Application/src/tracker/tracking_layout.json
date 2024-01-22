@@ -7,6 +7,9 @@
     "width":"{-:{window_size.x}:20}",
     "width23":"{-:{window_size.x}:22}",
 
+    "circles":"[○,◔,◑,◕,●]",
+    "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
+
     "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
     "locked_on":"{&&:{<:{{*:{/:{abs:{-:{highlighted_frame}:{global.gui_frame}}}:{length}}:{width23}}}:10}:{not:{key.lalt}}}",
     "smart_highlighted":"{if:{locked_on}:{global.gui_frame}:{highlighted_frame}}",
@@ -225,6 +228,11 @@
                             "action":"auto_correct"
                         },
                         {
+                            "text":"<sym>🎭</sym> Visual identification",
+                            "detail":"learn the differences between individuals",
+                            "action":"visual_identification"
+                        },
+                        {
                             "text":"<sym>👽</sym> Categorize",
                             "detail":"applies VI or TAG information",
                             "action":"categorize"
@@ -436,7 +444,7 @@
                 {
                     "type":"stext",
                     "font":{"size":0.52},
-                    "text":"<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>{if:{status_text}:{status_text}:''}",
+                    "text":"{if:{vi_busy}:'<i>Applying VI</i> {int:{*:{vi_apply_percent}:100}}<i>% ...</i> ':''}<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>{if:{status_text}:{status_text}:''}",
                     "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
                 }
             ]

@@ -8,6 +8,7 @@
 #include <tracking/IndividualManager.h>
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
+#include <gui/DrawPosture.h>
 
 namespace gui {
     
@@ -296,6 +297,24 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             || _blobs_dirty
             || _frame_contained != tracked_frames.contains(frameIndex);
 }
+
+
+
+void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
+    static Timing timing("posture draw", 0.1);
+    TakeTiming take(timing);
+    if(not _posture_window)
+        return;
+    
+    //_posture_window->set_scale(base.scale().reciprocal());
+    //auto coords = FindCoord::get();
+    //_posture_window->set_pos(Vec2(coords.screen_size().width - 600, 150));
+    _posture_window->set_origin(Vec2(1, 0));
+    //_posture_window.set_fish(fish);
+    //_posture_window->set_frameIndex(frameNr);
+    _posture_window->set_draggable();
+    base.wrap_object(*_posture_window);
+}
     
     Frame_t GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
@@ -522,6 +541,14 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             
             if(has_selection()) {
                 auto previous = Tracker::properties(frameIndex - 1_f);
+                auto pid = selected.empty() ? Idx_t() : selected.front();
+                if(individuals.contains(pid)) {
+                    if(not _posture_window) {
+                        _posture_window = std::make_unique<gui::Posture>();
+                    }
+                    _posture_window->set_fish(individuals.at(pid), frameIndex);
+                }
+                
                 for(auto id : selected) {
                     if(individuals.count(id)) {
                         auto fish = individuals.at(id);
