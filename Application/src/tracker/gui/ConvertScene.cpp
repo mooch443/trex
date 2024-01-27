@@ -833,6 +833,11 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("output_base", [](const VarProps& ) -> file::Path {
             return SETTING(filename).value<file::Path>().filename();
         }),
+        VarFunc("output_size", [this](const VarProps&) -> Vec2 {
+            if(not _segmenter)
+                return Size2{};
+            return _segmenter->output_size();
+        }),
         VarFunc("gpu_device", [](const VarProps&) -> std::string {
             using namespace default_config;
             auto gpu_torch_device = SETTING(gpu_torch_device).value<gpu_torch_device_t::Class>();
