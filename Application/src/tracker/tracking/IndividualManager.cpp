@@ -298,8 +298,6 @@ Individual* IndividualManager::make_individual(Idx_t fdx) {
         _individuals[fish->identity().ID()] = std::move(fish);
     }
     
-    print("Make individual ", raw->identity());
-    
     return raw;
 }
 
