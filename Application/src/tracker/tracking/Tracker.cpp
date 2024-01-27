@@ -614,6 +614,7 @@ void Tracker::prefilter(
     
     const auto track_include = FAST_SETTING(track_include);
     const auto track_ignore = FAST_SETTING(track_ignore);
+    const auto manual_ignore_bdx = FAST_SETTING(manual_ignore_bdx);
     
     std::vector<pv::BlobPtr> ptrs;
     auto track_only_categories = FAST_SETTING(track_only_categories);
@@ -644,13 +645,29 @@ void Tracker::prefilter(
         return true;
     };
     
-    auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr](pv::BlobPtr&& b, bool precise_check_boundaries)
+    std::optional<const decltype(manual_ignore_bdx)::mapped_type*> manual_ignore_bdx_c;
+    if(auto it = manual_ignore_bdx.find(result.frame_index);
+       it != manual_ignore_bdx.end())
+    {
+        manual_ignore_bdx_c = &it->second;
+    }
+    
+    auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr, &manual_ignore_bdx_c](pv::BlobPtr&& b, bool precise_check_boundaries)
     {
         // TODO: magic numbers
         if(b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
             b->force_set_recount(result.threshold);
         else
             b->recount(result.threshold, *result.background);
+        
+        if(manual_ignore_bdx_c.has_value()) {
+            if(manual_ignore_bdx_c.value()->contains(b->blob_id())
+               || (b->parent_id().valid() && manual_ignore_bdx_c.value()->contains(b->parent_id())))
+            {
+                result.filter_out(std::move(b), FilterReason::Unknown);
+                return false;
+            }
+        }
         
         if(b->is_tag() && tags_dont_track) {
             result.filter_out(std::move(b), FilterReason::DontTrackTags);

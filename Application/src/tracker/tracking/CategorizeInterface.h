@@ -27,13 +27,13 @@ struct Interface {
     Tooltip tooltip{ nullptr, 200 };
     Layout::Ptr stext = nullptr;
     Entangled* selected = nullptr;
-    Layout::Ptr apply = Layout::Make<Button>(Str("Apply"), Box(0, 0, 100, 33));
-    Layout::Ptr load = Layout::Make<Button>(Str("Load"), Box(0, 0, 100, 33));
-    Layout::Ptr close = Layout::Make<Button>(Str("Hide"), Box(0, 0, 100, 33));
-    Layout::Ptr restart = Layout::Make<Button>(Str("Restart"), Box(0, 0, 100, 33));
-    Layout::Ptr reapply = Layout::Make<Button>(Str("Reapply"), Box(0, 0, 100, 33));
-    Layout::Ptr train = Layout::Make<Button>(Str("Train"), Box(0, 0, 100, 33));
-    Layout::Ptr shuffle = Layout::Make<Button>(Str("Shuffle"), Box(0, 0, 100, 33));
+    Layout::Ptr apply = Layout::Make<Button>(Str("Apply"), Box(0, 0, 100, 33), Font(0.6));
+    Layout::Ptr load = Layout::Make<Button>(Str("Load"), Box(0, 0, 100, 33), Font(0.6));
+    Layout::Ptr close = Layout::Make<Button>(Str("Hide"), Box(0, 0, 100, 33), Font(0.6));
+    Layout::Ptr restart = Layout::Make<Button>(Str("Restart"), Box(0, 0, 100, 33), Font(0.6));
+    Layout::Ptr reapply = Layout::Make<Button>(Str("Reapply"), Box(0, 0, 100, 33), Font(0.6));
+    Layout::Ptr train = Layout::Make<Button>(Str("Train"), Box(0, 0, 100, 33), Font(0.6));
+    Layout::Ptr shuffle = Layout::Make<Button>(Str("Shuffle"), Box(0, 0, 100, 33), Font(0.6));
     Layout::Ptr buttons = Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{});
 
     IMGUIBase *_window{nullptr};

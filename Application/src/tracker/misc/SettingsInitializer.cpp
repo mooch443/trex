@@ -140,6 +140,9 @@ void load(file::PathArray source,
         }
     }
     
+    GlobalSettings::set_current_defaults(sprite::Map(combined.map));
+    print("outline_resample = ", GlobalSettings::current_defaults().at("outline_resample"));
+    
     /// ---------------------------------------------------
     /// 4. get cmd arguments and overwrite stuff with them:
     /// ---------------------------------------------------
@@ -173,6 +176,12 @@ void load(file::PathArray source,
     /// --------------------------------------------------------
     /// 6. set the source / filename properties from parameters:
     /// --------------------------------------------------------
+    if(filename.has_extension()
+       && filename.extension() == "pv") 
+    {
+        filename = filename.remove_extension();
+    }
+    
     if(not filename.empty())
     {
         combined.map["filename"] = filename;
@@ -226,12 +235,16 @@ void load(file::PathArray source,
             auto name = CommandLine::instance().settings_keys().at("filename");
             if(not name.empty()) {
                 file::Path filename = file::DataLocation::parse("output", name, &combined.map);
-                combined.map["filename"] = filename.remove_extension();
+                if(filename.has_extension() && filename.extension() == "pv")
+                    filename = filename.remove_extension();
+                combined.map["filename"] = filename;
             }
             
         } else if(not path.empty()) {
             file::Path filename = file::DataLocation::parse("output", path, &combined.map);
-            combined.map["filename"] = filename.remove_extension();
+            if(filename.has_extension() && filename.extension() == "pv")
+                filename = filename.remove_extension();
+            combined.map["filename"] = filename;
         }
         
     }
@@ -246,6 +259,9 @@ void load(file::PathArray source,
         
         auto name = combined.map.at("filename").value<file::Path>();
         filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &combined.map);
+        if(filename.has_extension() && filename.extension() == "pv")
+            filename = filename.remove_extension();
+        
         if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
         {
             combined.map["filename"] = filename;
@@ -351,11 +367,14 @@ void load(file::PathArray source,
             "track_posture_threshold", 0,
             "track_background_subtraction", false,
             "calculate_posture", false,
-            "meta_encoding", grab::default_config::meta_encoding_t::r3g3b2,
+            "meta_encoding", meta_encoding_t::r3g3b2,
             "track_do_history_split", false
         };
         
         for(auto &key : values.keys()) {
+            if(not contains(exclude.toVector(), key))
+                values.at(key).get().copy_to(&GlobalSettings::current_defaults());
+            
             if(contains(exclude_from_default.toVector(), key)) {
                 print("// Not setting default value ", key);
                 continue;
@@ -369,11 +388,14 @@ void load(file::PathArray source,
             "track_posture_threshold", 9,
             "track_background_subtraction", true,
             "calculate_posture", true,
-            "meta_encoding", grab::default_config::meta_encoding_t::gray,
+            "meta_encoding", meta_encoding_t::gray,
             "track_do_history_split", true
         };
         
         for(auto &key : values.keys()) {
+            if(not contains(exclude.toVector(), key))
+                values.at(key).get().copy_to(&GlobalSettings::current_defaults());
+            
             if(contains(exclude_from_default.toVector(), key)) {
                 print("// Not setting default value ", key);
                 continue;
@@ -400,7 +422,6 @@ void load(file::PathArray source,
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
 
-            G g(settings_file.str());
             for(auto &key : map.keys()) {
                 map.at(key).get().copy_to(&combined.map);
             }
@@ -511,6 +532,38 @@ void load(file::PathArray source,
     CommandLine::instance().reset_settings({
         "output_dir", "gpu_torch_device", "cwd"
     });
+}
+
+file::Path find_output_name(const sprite::Map& map, 
+                            file::PathArray source,
+                            file::Path filename)
+{
+    const auto _source = source.empty()
+        ? map.at("source").value<file::PathArray>()
+        : source;
+    
+    auto name = map.at("filename").value<file::Path>();
+    filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &map);
+    if(filename.has_extension() && filename.extension() == "pv")
+        filename = filename.remove_extension();
+    
+    if(not filename.empty())
+    {
+        return filename;
+        
+    } else {
+        file::Path path = file::find_basename(_source);
+        if(not path.empty()) {
+            filename = file::DataLocation::parse("output", path, &map);
+        } else {
+            filename = {};
+        }
+        
+        if(filename.has_extension() && filename.extension() != "pv")
+            filename = filename.remove_extension();
+        
+        return filename;
+    }
 }
 
 void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {

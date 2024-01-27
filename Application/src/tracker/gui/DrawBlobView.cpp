@@ -188,6 +188,23 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
     return ss.str();
 }
 
+void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
+    print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex);
+    
+    auto matches = FAST_SETTING(manual_matches);
+    auto &current = matches[frameIndex];
+    for(auto &it : current) {
+        if(it.first != fish_id && it.second == blob_id) {
+            current.erase(it.first);
+            DebugCallback("Deleting old assignment for ", blob_id);
+            break;
+        }
+    }
+    
+    current[fish_id] = blob_id;
+    SETTING(manual_matches) = matches;
+}
+
 void draw_blob_view(const DisplayParameters& parm)
 {
     //static std::vector<Outer> outers;
@@ -530,7 +547,7 @@ void draw_blob_view(const DisplayParameters& parm)
         static std::shared_ptr<Dropdown> list;
         if(popup == nullptr) {
             popup = std::make_shared<Entangled>();
-            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35));
+            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6});
             list->on_open([list=list.get(), &cache = parm.cache](bool opened) {
                 if(!opened) {
                     //list->set_items({});
@@ -539,9 +556,13 @@ void draw_blob_view(const DisplayParameters& parm)
                     cache.set_raw_blobs_dirty();
                 }
             });
-            list->on_select([&cache = parm.cache](auto, auto& item) {
-                pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
-                if(item.ID() == 0) /* SPLIT */ {
+            list->on_select([&cache = parm.cache](auto, const Dropdown::TextItem& item) {
+                auto number = uint64_t(item.custom());
+                uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
+                uint32_t blob_id = number & 0xFFFFFFFF;
+                
+                pv::bid clicked_blob_id { blob_id };
+                if(item_id == 0) /* SPLIT */ {
                     auto copy = FAST_SETTING(manual_splits);
                     auto frame = GUI_SETTINGS(gui_frame);
                     if(!contains(copy[frame], clicked_blob_id)) {
@@ -550,8 +571,18 @@ void draw_blob_view(const DisplayParameters& parm)
                     WorkProgress::add_queue("", [copy](){
                         SETTING(manual_splits) = copy;
                     });
+                } else if(item_id == 1) /* IGNORE */ {
+                    auto copy = FAST_SETTING(manual_ignore_bdx);
+                    auto frame = GUI_SETTINGS(gui_frame);
+                    if(!contains(copy[frame], clicked_blob_id)) {
+                        copy[frame].insert(clicked_blob_id);
+                    }
+                    WorkProgress::add_queue("", [copy](){
+                        SETTING(manual_ignore_bdx) = copy;
+                    });
+                    
                 } else {
-                    auto it = cache.individuals.find(Idx_t(item.ID() - 1));
+                    auto it = cache.individuals.find(Idx_t(item_id - 2));
                     if(it != cache.individuals.end()) {
                         auto fish = it->second;
                         auto id = it->first;
@@ -570,7 +601,7 @@ void draw_blob_view(const DisplayParameters& parm)
                         
                         print("Assigning blob ", clicked_blob_id," to fish ",fish->identity().name());
                         //TODO: fix this
-                        //GUI::instance()->add_manual_match(frame, id, clicked_blob_id);
+                        add_manual_match(cache.frame_idx, id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
                     } else
                         print("Cannot find individual with ID ",item.ID()-1,".");
@@ -609,12 +640,16 @@ void draw_blob_view(const DisplayParameters& parm)
                     if(frame > Tracker::start_frame() && c) {
                         d = (c->estimated_px - blob_pos).length();
                     }
-                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
+                    uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 1) & 0xFFFFFFFF) << 32);
+
+                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), parm.cache.individuals.at(id)->identity().name(), (void*)encoded_ids)});
                 }
             }
             
             std::vector<Dropdown::TextItem> sorted_items;
-            sorted_items.push_back(Dropdown::TextItem("Split", 0, "", (void*)uint64_t(_clicked_blob_id.load())));
+            sorted_items.push_back(Dropdown::TextItem("<b>Split</b>", 0, "", (void*)uint64_t(_clicked_blob_id.load())));
+            sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
+            
             for(auto && [d, item] : items)
                 sorted_items.push_back(item);
             

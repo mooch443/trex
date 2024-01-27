@@ -26,6 +26,10 @@ private:
     std::atomic<double> blur_percentage{1};
     std::atomic<double> video_frame_time{0.1};
     
+    double _last_blur{0};
+    Size2 _last_resolution;
+    Timer last_update;
+    
     std::unique_ptr<AbstractBaseVideoSource> _source;
     
     std::mutex image_mutex;

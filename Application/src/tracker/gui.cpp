@@ -2981,7 +2981,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             static std::mutex _mutex;
             distribute_indexes([&mat, &image](auto, auto start, auto end, auto){
                 using namespace grab::default_config;
-                auto apply = [&]<grab::default_config::meta_encoding_t::Class encoding>() {
+                auto apply = [&]<meta_encoding_t::Class encoding>() {
                     Color inp;
                     std::unique_lock guard(_mutex, std::defer_lock);
                     for(auto it = start; it != end; ++it) {

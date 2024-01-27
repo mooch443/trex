@@ -16,7 +16,7 @@ namespace gui {
             for (auto& bone : _pose.points) {
                 if (bone.x > 0 || bone.y > 0) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) });
-                    add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{0.35});
+                    //add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{0.35});
                 }
                 ++i;
             }
@@ -43,14 +43,14 @@ namespace gui {
                         Font font(0.35);
 
                         add<Line>(p0, p1, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
-                        add<Text>(
+                        /*add<Text>(
                             Str(c.name),
                             Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                             TextClr(Cyan.alpha(200)),
                             font,
                             sca,
                             Origin(0.5),
-                            a);
+                            a);*/
                     }
                 }
             }
@@ -61,7 +61,7 @@ namespace gui {
             for (auto& bone : _pose.points) {
                 if (bone.x > 0 || bone.y > 0) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
-                    add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{ 0.35 });
+                    //add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{ 0.35 });
 
                     if (last.x > 0 && last.y > 0)
                         add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });

@@ -1,0 +1,336 @@
+{ "defaults": {
+    "font": {
+        "size": 0.6,
+        "align": "left"
+    },
+    "color":[225,225,225,255],
+    "highlight_clr":[50,50,75],
+    "window_color":[10,10,10],
+    "vars":{
+        "label_w":185,
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:70}}",
+        "is_small_window":"{<:{element_w}:1024}",
+        "inside_label_w":"{+:{label_w}:10}",
+        "textfield_w":"{max:100:{+:{element_w}:160}}",
+        "machine_learning":"{equal:{global.detect_type}:yolo8}",
+        "label_offset":[15,-5],
+        "label_origin":[0,0],
+        "label_padding":[0,5,10,5],
+        "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
+        "bg_scale":"[{ratio},{ratio}]",
+        "valid_pv_file":"{file_exists:{resulting_path}.pv}"
+    }
+  },
+  "objects":[
+    {
+        "type":"video",
+        "path":"{if:{global.source}:{global.source}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
+        "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
+        "origin":[0.5,0.5],
+        "blur":0.7,
+        "alpha":0.5,
+        "frame_seconds":0.25,
+        "scale":"{bg_scale}"
+    },
+    {
+    "type":"vlayout",
+    "align":"left",
+    "line":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,150]}",
+    "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
+    "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},{*:{window_size.y}:0.45}]}",
+    "origin":"{if:{is_small_window}:[0,0]:[0.5,0.5]}",
+    "pad":[0,25,0,5],
+    "children":[
+        { "type":"stext",
+          "pad":[35,20,0,-5],
+          "text":"<h2>Configuration</h2>\nPlease choose a video source and how you want to process it.", 
+          "font":{ "size":0.65 }
+        },
+        {
+            "type":"gridlayout",
+            "vertical_clr":[0,0,0,0],
+            "horizontal_clr":[10,50,80,40],
+            "pad":[20,25,20,25],
+            "clickable":true,
+            "halign":"left",
+            "valign":"top",
+            "children":[
+                [
+                    {
+                        "type":"stext",
+                        "text":"<h3><sym>🗁</sym></h3> Input\n<small><gray>This specifies the video source for your project.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    {
+                        "type":"vlayout",
+                        "children":[
+
+                            {
+                                "type":"settings",
+                                "var":"source",
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                "list":{
+                                    "line":[220,220,220,200],
+                                    "fill":[25,25,25,220],
+                                    "size":"[{element_w},200]"
+                                },
+                                "size":"[{element_w},40]",
+                                "desc":"",
+                                "preview":{
+                                    "font":{"size":0.5},
+                                    "color":[125,125,125,125],
+                                    "max_size":"[{-:{element_w}:300},80]",
+                                    "fade_out":0
+                                }
+                            },
+                            {
+                                "type":"gridlayout",
+                                "pad":[0,5,5,0],
+                                "halign":"left",
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>other sources:</b>",
+                                            "font":{"size":0.5},
+                                            "pos":[0,6]
+                                        },
+                                        {
+                                            "type":"button",
+                                            "text":"<sym>⮞</sym> webcam",
+                                            "click":"set:source:webcam",
+                                            "fill":[50,90,50],
+                                            "size":[120,30],
+                                            "font":{"size":0.5}
+                                        }
+                                    ]
+                                ]
+                            }
+                        ]
+                    }
+                ],
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"<h3><sym>➥</sym></h3> Output\n<small><gray>This determines where your results will go and what they will be called.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":[0,0], "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"gridlayout",
+                                "pad":[0,0,10,10],
+                                "halign":"left",
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"<sym>🗁</sym> directory",
+                                            "origin":"{label_origin}", "pos":[0,10]
+                                        },
+                                        {
+                                            "type":"hlayout",
+                                            "pad":[0,0,10,0],
+                                            "children":[
+                                                {
+                                                    "type":"settings",
+                                                    "var":"output_dir",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "list":{
+                                                        "line":[220,220,220,200],
+                                                        "fill":[25,25,25,220],
+                                                        "size":"[{-:{element_w}:93},200]"
+                                                    },
+                                                    "size":"[{-:{element_w}:93},40]",
+                                                    "desc":""
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"<sym>🗁</sym> prefix",
+                                            "origin":"{label_origin}", "pos":[0,10]
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"output_prefix",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{-:{element_w}:93},40]",
+                                            "desc":""
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"<sym>🗎</sym>  filename",
+                                            "origin":"{label_origin}", "pos":[0,10]
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"filename",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{-:{element_w}:93},200]"
+                                            },
+                                            "size":"[{-:{element_w}:93},40]",
+                                            "desc":""
+                                        }
+                                    ]
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                [
+                    [],
+
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"stext",
+                                "pad":[0,0,0,20],
+                                "max_size":"[{element_w},0]",
+                                "text":"<sym>➥</sym> resulting path: <cyan><c>{resulting_path}</c></cyan>"
+                            },
+                            {
+                                "type":"condition",
+                                "var":"{valid_pv_file}",
+                                "then":{
+                                    "type":"stext",
+                                    "fill":[0,0,0,50],
+                                    "pad":[20,20,20,20],
+                                    "max_size":"[{min:500:{element_w}},0]",
+                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings exists</cyan>:<orange><sym>🗶</sym> no settings file yet</orange>}"
+                                },
+                                "else":{
+                                    "type":"stext",
+                                    "fill":[0,0,0,50],
+                                    "pad":[20,20,20,20],
+                                    "max_size":"[{min:500:{element_w}},0]",
+                                    "text":"<orange><sym>🗶</sym> this file does not exist yet.</orange> <i>a preprocessing step is required. detection finds objects of interest in the input video stream before they can be tracked.</i>"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                [
+                    [],
+                    {
+                        "type":"hlayout",
+                        "align":"center",
+                        "pad":[0,0,10,0],
+                        "origin":[0,0],
+                        "children":[
+                            {
+                                "type":"button",
+                                "text":"Configure detection <sym>⮞</sym>",
+                                "fill":[40,40,40,220],
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                                "size":[240,40],
+                                "font":{
+                                    "align":"center",
+                                    "size":0.65
+                                },
+                                "action": "change_layout:settings_layout"
+                            },
+                            {
+                                "type":"condition",
+                                "var":"{valid_pv_file}",
+                                "then":{
+                                    "type":"button",
+                                    "text":"Track <sym>⮞</sym>",
+                                    "fill":[40,40,40,220],
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                                    "size":[100,40],
+                                    "font":{
+                                        "align":"center",
+                                        "size":0.65
+                                    },
+                                    "action": "change_layout:tracking_settings_layout"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            ]
+        }
+    ]},
+
+    {
+        "type":"collection",
+        "fill":[0,0,0,30],
+        "size":"[{window_size.x},55]",
+        "origin":[0,1],
+        "pos":"[0,{window_size.y}]",
+        "clickable":true,
+        "children":[
+
+            {
+                "type":"hlayout",
+                "align":"center",
+                "pad":[5,0,5,0],
+                "pos":[10,8],
+                "origin":[0,0],
+                "children":[
+                    {
+                        "type":"settings",
+                        "var":"",
+                        "font":{"size":0.6,"align":"center"},
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "placeholder":"<sym>🔍</sym> Parameters",
+                        "postfix":"test",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{max:350:{-:{element_w}:90}},300]"
+                        },
+                        "size":"[{max:350:{-:{element_w}:220}},40]",
+                        "color":[225,225,225],
+                        "desc":"",
+                        "highlight_clr":[75,75,75,255]
+                    }
+                ]
+            },
+        
+            {
+                "type":"hlayout",
+                "align":"center",
+                "pad":[5,0,5,0],
+                "pos":"[{-:{window_size.x}:10},8]",
+                "origin":[1,0],
+                "children":[
+                    {
+                        "type":"button",
+                        "text":"<sym>🛇</sym> Back to menu",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[150,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "change_scene:'starting-scene'"
+                    }
+                ]
+            }
+        ]
+    }
+]}

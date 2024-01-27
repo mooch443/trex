@@ -4,7 +4,7 @@ using namespace track;
 
 namespace gui {
     Posture::Posture(const Bounds& size)
-      : _fish(NULL), zero(size.width * 0.1, size.height * 0.5),//, _background(size.size(), Black.alpha(125),White.alpha(125)),
+      : zero(size.width * 0.1, size.height * 0.5),//, _background(size.size(), Black.alpha(125),White.alpha(125)),
         _average_active(true)
     {
         set_bounds(size);
@@ -19,10 +19,10 @@ bool Posture::valid() const {
     }
     
     void Posture::set_fish(track::Individual *fish, Frame_t frame) {
-        if(fish == _fish && _frameIndex == frame)
+        if(fish->identity().ID() == _fdx && _frameIndex == frame)
             return;
         
-        if(_fish)
+        /*if(_fish)
             _fish->unregister_delete_callback(this);
         
         if(fish)
@@ -32,16 +32,17 @@ bool Posture::valid() const {
                     set_fish(NULL, {});
                 }
             });
-        
+        */
         _frameIndex = frame;
-        _fish = fish;
+        //_fish = fish;
+        _fdx = fish->identity().ID();
         _average_active = true;
         //set_content_changed(true);
         
         // if this map gets too big (cached scale values), remove a few of them
         if((uint32_t)_scale.size() > FAST_SETTING(track_max_individuals)) {
             for (auto it = _scale.begin(); it != _scale.end();) {
-                if(!_fish || it->first != _fish->identity().ID()) {
+                if(!fish || it->first != fish->identity().ID()) {
                     it = _scale.erase(it);
                 } else
                     ++it;
@@ -74,24 +75,24 @@ bool Posture::valid() const {
         
             _valid = false;
             
-            if(!_fish || !_fish->centroid(_frameIndex))
+            if(!fish || !fish->centroid(_frameIndex))
                 return;
             
             Midline::Ptr midline = nullptr;
             if(SETTING(output_normalize_midline_data)) {
-                midline = _fish->fixed_midline(_frameIndex);
+                midline = fish->fixed_midline(_frameIndex);
             } else
-                midline = _fish->midline(_frameIndex);
+                midline = fish->midline(_frameIndex);
             
             //if(!midline)
-            //    midline = _fish->midline(_frameIndex);
-            auto min_outline = _fish->outline(_frameIndex);
+            //    midline = fish->midline(_frameIndex);
+            auto min_outline = fish->outline(_frameIndex);
             if(not min_outline || not midline) {
                 return;
             }
             
             auto outline = min_outline->uncompress();
-            auto lines = _fish->blob(_frameIndex);
+            auto lines = fish->blob(_frameIndex);
             
             begin();
             //advance_wrap(_background);
@@ -99,7 +100,7 @@ bool Posture::valid() const {
             Vec2 topleft = Vec2(5);
             Loc zero{topleft + this->zero};
             
-            auto &scale = _scale[_fish->identity().ID()];
+            auto &scale = _scale[fish->identity().ID()];
             
             if(_average_active) {
                 scale.push_back(lines->bounds().size().max() * 1.25);
@@ -146,7 +147,7 @@ bool Posture::valid() const {
                 std::vector<MidlineSegment> midline_points;
                 {
                     //Midline m(*midline);
-                    //float len = _fish->midline_length();
+                    //float len = fish->midline_length();
                     //if(len > 0)
                     //    m.fix_length(len);
                     
@@ -256,14 +257,14 @@ bool Posture::valid() const {
             if(hovered()) {
                 std::stringstream ss;
                 if(midline) {
-                    ss << "length: " << midline->len() * FAST_SETTING(cm_per_pixel) << "cm (median " << _fish->midline_length() / 1.1f * FAST_SETTING(cm_per_pixel) << "cm) offset: "
+                    ss << "length: " << midline->len() * FAST_SETTING(cm_per_pixel) << "cm (median " << fish->midline_length() / 1.1f * FAST_SETTING(cm_per_pixel) << "cm) offset: "
                     << (midline->empty() ? 0 : DEGREE(atan2(midline->segments().back().pos.y, midline->segments().back().pos.x)));
                 } else
                     ss << "no midline";
                 
                 //midline_points.back().pos.y; //"segments: " << midline->segments().size();
                 add<Text>(Str(ss.str()), Loc(Vec2(10, 10) + topleft), TextClr(0, 255, 255, 255), Font(0.75));
-                add<Text>(Str(Meta::toStr(_fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
+                add<Text>(Str(Meta::toStr(fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
             }
             
             end();

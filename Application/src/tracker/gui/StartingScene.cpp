@@ -10,6 +10,7 @@
 #include <gui/dyn/Action.h>
 #include <misc/SettingsInitializer.h>
 #include <gui/GUIVideoAdapterElement.h>
+#include <gui/WorkProgress.h>
 
 namespace gui {
 
@@ -63,6 +64,8 @@ std::string window_title() {
 }
 
 void StartingScene::activate() {
+    WorkProgress::instance().start();
+    
     using namespace dyn;
     // Fill the recent items list
     _recents = RecentItems::read();
@@ -130,6 +133,8 @@ void StartingScene::activate() {
 }
 
 void StartingScene::deactivate() {
+    WorkProgress::stop();
+    
     // Logic to clear or save state if needed
     RecentItems::set_select_callback(nullptr);
     dynGUI.clear();
@@ -137,6 +142,9 @@ void StartingScene::deactivate() {
 
 void StartingScene::_draw(DrawStructure& graph) {
     using namespace dyn;
+    WorkProgress::update((IMGUIBase*)window(), graph, &graph.root(), {});
+    _exec_main_queue.processTasks((IMGUIBase*)window(), graph);
+    
     if(not dynGUI)
         dynGUI = {
             .path = "welcome_layout.json",
@@ -172,20 +180,25 @@ void StartingScene::_draw(DrawStructure& graph) {
                                 ? item._options.at("detect_type").value<track::detect::ObjectDetectionType_t>()
                                 : GlobalSettings::defaults().at("detect_type");
                             
+                            WorkProgress::add_queue("loading...", [this, array, filename, type, item](){
+                                settings::load(array,
+                                               filename,
+                                               default_config::TRexTask_t::convert,
+                                               type,
+                                               {},
+                                               item._options);
+                                
+                                _exec_main_queue.enqueue([](auto, auto&) {
+                                    SceneManager::getInstance().set_active("settings-scene");
+                                });
+                            });
                             //auto path = pv_file_path_for(array);
-                            settings::load(array,
-                                           filename,
-                                           default_config::TRexTask_t::convert,
-                                           type,
-                                           {},
-                                           item._options);
 
                             //CommandLine::instance().load_settings();
                             
                             //if(not path.empty())
                             //    SceneManager::getInstance().set_active("tracking-settings-scene");
                             //else
-                                SceneManager::getInstance().set_active("settings-scene");
                         }
                     }),
                     ActionFunc("open_file", [](auto) {

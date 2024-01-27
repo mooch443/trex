@@ -34,10 +34,12 @@ private:
     
     struct WorkGUIObjects;
     std::unique_ptr<WorkGUIObjects> gui;
+    std::mutex start_mutex;
 
 public:
     static WorkProgress& instance();
     static void stop();
+    void start();
     
 public:
     ~WorkProgress();

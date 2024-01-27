@@ -36,7 +36,7 @@ void Yolo7ObjectDetection::init() {
 
 void Yolo7ObjectDetection::receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector) {
     //thread_print("Received seg-data for frame ", data.frame.index());
-    static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
+    static const auto meta_encoding = SETTING(meta_encoding).value<meta_encoding_t::Class>();
     for(size_t i=0; i<vector.size(); i+=4+2) {
         float conf = vector[i];
         float cls = vector[i+1];
@@ -77,7 +77,7 @@ void Yolo7ObjectDetection::receive(SegmentationData& data, Vec2 scale_factor, co
         };
         
         
-        if(meta_encoding == grab::default_config::meta_encoding_t::r3g3b2)
+        if(meta_encoding == meta_encoding_t::r3g3b2)
             conversion.operator() <ImageMode::R3G3B2>();
         else
             conversion.operator() <ImageMode::GRAY>();

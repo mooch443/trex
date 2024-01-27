@@ -107,6 +107,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             
             if(not _next_frame.valid() || index == _next_frame) {
                 //print("index = ", index);
+                _last_blur = -1;
+                _last_resolution = {};
                 
                 if(intermediate)
                     _source->move_back(std::move(intermediate));
@@ -131,40 +133,50 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
     
     if(intermediate) {
         auto p = blur_percentage.load();
+        auto res = max_resolution.load();
         
-        Image::Ptr local_image;
-        if(std::unique_lock guard(image_mutex);
-           return_image)
+        if(p != _last_blur
+           || res != _last_resolution
+           || last_update.elapsed() >= 0.1)
         {
-            local_image = std::move(return_image);
-        } else {
-            local_image = Image::Make();
-        }
-        
-        double scale;
-        render_image(p, scale, *local_image, max_resolution.load(), *intermediate);
-        _scale = scale;
-        
-        if(local_image) {
+            _last_blur = p;
+            _last_resolution = res;
+            last_update.reset();
             
-            /// if we have generated an image, push it to
-            /// where the GUI can retrieve it:
+            Image::Ptr local_image;
+            if(std::unique_lock guard(image_mutex);
+               return_image)
             {
-                std::unique_lock guard(image_mutex);
-                if(not transfer_image)
-                    transfer_image = std::move(local_image);
+                local_image = std::move(return_image);
+            } else {
+                local_image = Image::Make();
             }
             
-            auto fn = _callback.get();
-            if(fn)
-                fn();
+            double scale;
+            render_image(p, scale, *local_image, res, *intermediate);
+            _scale = scale;
             
-            if(_video_updated) {
-                auto c = _open_callback.get();
-                if(c) {
-                    c(_source->info());
+            if(local_image) {
+                
+                /// if we have generated an image, push it to
+                /// where the GUI can retrieve it:
+                {
+                    std::unique_lock guard(image_mutex);
+                    if(not transfer_image)
+                        transfer_image = std::move(local_image);
                 }
-                _video_updated = false;
+                
+                auto fn = _callback.get();
+                if(fn)
+                    fn();
+                
+                if(_video_updated) {
+                    auto c = _open_callback.get();
+                    if(c) {
+                        c(_source->info());
+                    }
+                    _video_updated = false;
+                }
             }
         }
     }
@@ -187,8 +199,8 @@ void BlurryVideoLoop::
     auto size = Size2(intermediate.cols, intermediate.rows) * ratio;
     
     if(not target_res.empty()) {
-        ratio = max(1, min(size.width / target_res.width,
-                           size.height / target_res.height));
+        ratio = min(1, min(target_res.width / size.width,
+                           target_res.height / size.height));
         
         size = Size2(size.width * ratio, size.height * ratio);
         //print("Scaling to size ", size, " with ratio ", ratio, " ", size.div(Size2(intermediate)));
@@ -220,10 +232,16 @@ void BlurryVideoLoop::start() {
     _intial_resolution_promise = {};
     _initial_resolution_future = _intial_resolution_promise.get_future();
     ThreadManager::getInstance().startGroup(group);
-    _resolution = _initial_resolution_future.get();
+    if(_initial_resolution_future.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready) 
+    {
+        _resolution = _initial_resolution_future.get();
+    } else
+        _resolution = {1024, 512};
 }
 
 void BlurryVideoLoop::stop() {
+    if(_initial_resolution_future.valid())
+        _initial_resolution_future.get();
     ThreadManager::getInstance().terminateGroup(group);
     _source = nullptr;
 }
@@ -269,6 +287,12 @@ void BlurryVideoLoop::set_open_callback(std::function<void (VideoInfo)> fn) {
 }
 
 [[nodiscard]] std::tuple<Image::Ptr, Size2> BlurryVideoLoop::get_if_ready() {
+    if(_initial_resolution_future.valid()
+       && _initial_resolution_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+    {
+        _initial_resolution_future.get();
+    }
+    
     std::unique_lock guard(image_mutex);
     auto ptr = std::move(transfer_image);
     ThreadManager::getInstance().notify(group);

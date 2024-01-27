@@ -141,9 +141,9 @@ void Yolo8::deinit() {
     }
 }
 
-void Yolo8::receive(SegmentationData& data, Vec2, track::detect::Result&& result) {
-    static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
-    static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
+    static const auto meta_encoding = SETTING(meta_encoding).value<meta_encoding_t::Class>();
+    static const auto mode = meta_encoding == meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
 
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2) {
@@ -169,6 +169,7 @@ void Yolo8::receive(SegmentationData& data, Vec2, track::detect::Result&& result
     auto& boxes = result.boxes();
     const coord_t w = max(0, r3.cols - 1);
     const coord_t h = max(0, r3.rows - 1);
+    const auto detect_classes = SETTING(detect_classes).value<std::vector<uint8_t>>();
 
     //! decide on whether to use masks (if available), or bounding boxes
     //! if masks are not available. for the boxes we simply copy over all
@@ -177,9 +178,11 @@ void Yolo8::receive(SegmentationData& data, Vec2, track::detect::Result&& result
     if (result.masks().empty()) {
         for (size_t i = 0; i < N_rows; ++i) {
             auto& row = boxes[i];
-            if (SETTING(do_filter).value<bool>()
-                && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+            if (not detect_classes.empty()
+                && not contains(detect_classes, (uint8_t)row.clid))
+            {
                 continue;
+            }
             
             Bounds bounds = row.box;
             //bounds = bounds.mul(scale_factor);
@@ -223,8 +226,11 @@ void Yolo8::receive(SegmentationData& data, Vec2, track::detect::Result&& result
     
     for (size_t i = 0; i < N_rows; ++i) {
         auto& row = boxes[i];
-        if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), (uint8_t)row.clid))
+        if (not detect_classes.empty()
+            && not contains(detect_classes, (uint8_t)row.clid))
+        {
             continue;
+        }
         Bounds bounds = row.box;
         //bounds = bounds.mul(scale_factor);
         auto& mask = result.masks()[i];
@@ -273,15 +279,12 @@ void Yolo8::receive(SegmentationData& data, Vec2, track::detect::Result&& result
     }
 }
 
-void Yolo8::receive(SegmentationData &, Vec2 , const std::span<float> &, const std::span<float> &, uint64_t) {
-    
-}
-
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, 
     const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns) 
 {
-    static const auto meta_encoding = SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>();
-    static const auto mode = meta_encoding == grab::default_config::meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+    static const auto meta_encoding = SETTING(meta_encoding).value<meta_encoding_t::Class>();
+    static const auto mode = meta_encoding == meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+    const auto detect_classes = SETTING(detect_classes).value<std::vector<uint8_t>>();
 
     const Vec2* ptr = (const Vec2*)mask_points.data();
     const size_t N = mask_points.size() / 2u;
@@ -351,8 +354,11 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
         std::vector<cv::Point> points{ integer.data() + mask_index, integer.data() + mask_index + mask_Ns[i] };
         mask_index += mask_Ns[i];
 
-        if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), row.clid))
+        if (not detect_classes.empty()
+            && not contains(detect_classes, row.clid))
+        {
             continue;
+        }
 
         Bounds boundaries(FLT_MAX, FLT_MAX, 0, 0);
         for (auto& pt : points) {
@@ -560,10 +566,10 @@ void Yolo8::ReceivePackage(TransferData&& transfer, std::vector<track::detect::R
     for (size_t i = 0; i < transfer.datas.size(); ++i) {
         auto&& result = results.at(i);
         auto& data = transfer.datas.at(i);
-        auto& scale = transfer.scales.at(i);
+        //auto& scale = transfer.scales.at(i);
 
         try {
-            receive(data, scale, std::move(result));
+            receive(data, std::move(result));
             transfer.promises.at(i).set_value(std::move(data));
         }
         catch (...) {
@@ -609,7 +615,8 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
         
         for(auto p : tiled.offsets()) {
             transfer.orig_id.push_back(i);
-            transfer.scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size) );
+            transfer.scales.push_back( //SETTING(output_size).value<Size2>()
+                                      tiled.original_size.div(tiled.source_size) );
             tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(transfer.scales.back()));
         }
         

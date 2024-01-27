@@ -10,6 +10,10 @@
     "circles":"[○,◔,◑,◕,●]",
     "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
 
+    "back_and_forth":"{abs:{-:{mod:{int:{*:{time}:100}}:510}:255}}",
+    "recording_symbol":"<small><sym>●</sym></small> ",
+    "recording_alpha":"{min:1.0:{+:0.1:{/:{back_and_forth}:255}}}",
+
     "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
     "locked_on":"{&&:{<:{{*:{/:{abs:{-:{highlighted_frame}:{global.gui_frame}}}:{length}}:{width23}}}:10}:{not:{key.lalt}}}",
     "smart_highlighted":"{if:{locked_on}:{global.gui_frame}:{highlighted_frame}}",
@@ -40,12 +44,14 @@
                 "children": [
                     { 
                         "type":"stext",
+                        "max_size":[200,300],
+                        "font":{"size":0.6},
+                        "pad":[0,0,10,10],
                         "text":"<b>{global.individual_prefix} {at:0:{global.gui_focus_group}}</b>",
                         "pos":[10,10]
                     }
                 ]
-            },
-            "else":{ "type":"collection", "children":[] }
+            }
         },
 
         {
@@ -122,6 +128,11 @@
                             "text":"selections",
                             "detail":"{if:{global.gui_show_selections}:'hide':'show'}",
                             "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
+                        },
+                        {
+                            "text":"video background",
+                            "detail":"{if:{global.gui_show_video_background}:'hide':'show'}",
+                            "action":"set:gui_show_video_background:{not:{global.gui_show_video_background}}"
                         },
                         {
                             "text":"blobs",
@@ -317,7 +328,7 @@
                         
                         {
                             "type": "stext",
-                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{basename:{global.filename}}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.analysis_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
+                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.analysis_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
                             "font":{ "size":0.65 },
                             "shadow":0.5,
                             "pad":[-5,0,0,7.5]
@@ -392,17 +403,6 @@
                             "fill": [50,150,50,0],
                             "line": [150,150,150,0],
                             "clickable":false
-                        },
-                        
-                        {
-                            "type":"each",
-                            "var":"consec",
-                            "do": {
-                                "type": "rect",
-                                "pos": "[{+:11:{*:{/:{i.start}:{length}}:{-:{window_size.x}:22}}},-9]",
-                                "size": "[{*:{/:{-:{-:{i.end}:1}:{i.start}}:{length}}:{-:{window_size.x}:22}},28]",
-                                "fill": "{clrAlpha:{i.color}:125}"
-                            }
                         }
                     ]
                 }
@@ -442,9 +442,22 @@
             "pad":[0,10,0,0],
             "children":[
                 {
+                    "type":"condition",
+                    "var":"{global.gui_is_recording}",
+                    "then":
+                    {
+                        "type":"stext",
+                        "color":[150,50,50,255],
+                        "alpha":"{recording_alpha}",
+                        "text":" {recording_symbol}",
+                        "shadow":0.5,
+                        "font":{"size":0.6}
+                    }
+                },
+                {
                     "type":"stext",
                     "font":{"size":0.52},
-                    "text":"{if:{vi_busy}:'<i>Applying VI</i> {int:{*:{vi_apply_percent}:100}}<i>% ...</i> ':''}<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>{if:{status_text}:{status_text}:''}",
+                    "text":"{if:{vi_busy}:'<i>Applying VI</i> {int:{*:{vi_apply_percent}:100}}<i>% ...</i> ':''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
                     "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
                 }
             ]
@@ -482,12 +495,10 @@
                         "font":{"size":0.6}
                     }
                 ]
-            },
-            "else":{ "type":"rect", "size":[0,0] }
+            }
         }
     ]
-},
-"else": { "type":"rect", "size":[0,0] }
+}
 }
 
 

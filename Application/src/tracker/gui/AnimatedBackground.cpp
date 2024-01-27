@@ -36,11 +36,11 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             FormatExcept("Failed to load metadata from: ", metadata);
         }
 
-        if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
+        /*if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
             && combined.map.has("meta_video_scale"))
         {
             _source_scale = combined.map.at("meta_video_scale").value<float>();
-        }
+        }*/
 
         if (meta_source_path.empty()
             && combined.map.has("meta_source_path"))
@@ -61,9 +61,9 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             _source->set_colors(ImageMode::RGB);
             _source->set_lazy_loader(true);
             
-            if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
+            /*if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
                 _source_scale = SETTING(meta_video_scale).value<float>();
-            }
+            }*/
             
             // found it, so we escape
             break;
@@ -73,8 +73,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         }
     }
 
-    if (_source_scale <= 0)
-        _source_scale = 1;
+    //if (_source_scale <= 0)
+    //_source_scale = 1;
     
     update([this](auto&) {
         advance_wrap(_static_image);
@@ -98,15 +98,19 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
             _source->frame(0_f, _buffer);
             _static_image.set_source(Image::Make(_buffer));
         }
-        if (GlobalSettings::has("meta_video_scale")) {
+        /*if (GlobalSettings::has("meta_video_scale")) {
             _source_scale = SETTING("meta_video_scale").value<float>();
-        }
+        }*/
     }
     
     update([this](auto&) {
         advance_wrap(_static_image);
     });
     auto_size({});
+}
+
+void AnimatedBackground::set_video_scale(float scale) {
+    _source_scale = scale <= 0 ? 1 : min(1.f, scale);
 }
 
 Image::Ptr AnimatedBackground::preload(Frame_t index) {

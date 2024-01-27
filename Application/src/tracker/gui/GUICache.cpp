@@ -106,7 +106,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
             image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source(), 0);
         }
 
-        if(SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>() == grab::default_config::meta_encoding_t::r3g3b2) {
+        if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2) {
             if(not ptr->empty()) {
                 auto mat = ptr->unsafe_get_source().get();
                 cv::Mat output;
@@ -507,12 +507,19 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
                 if(cit != _registered_callback.end())
                     _registered_callback.erase(cit);
             };
+            _individual_ranges.clear();
             
-            IndividualManager::transform_all([&](auto, auto fish){
+            IndividualManager::transform_all([&](auto idx, Individual* fish){
                 if(!contains(_registered_callback, fish)) {
                     fish->register_delete_callback((void*)12341337, delete_callback);
                     _registered_callback.insert(fish);
                 }
+                
+                std::vector<FrameRange> ranges;
+                for(auto& segment : fish->frame_segments()) {
+                    ranges.emplace_back(*segment);
+                }
+                _individual_ranges[idx] = std::move(ranges);
             });
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();

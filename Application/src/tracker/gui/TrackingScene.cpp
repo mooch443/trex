@@ -58,6 +58,8 @@ struct TrackingScene::Data {
     Vec2 _bowl_mouse;
     bool _zoom_dirty{false};
     //pv::Frame _frame;
+    size_t _last_active_individuals{0};
+    size_t _last_live_individuals{0};
     
     // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
@@ -274,6 +276,8 @@ bool TrackingScene::on_global_event(Event event) {
 }
 
 void TrackingScene::activate() {
+    WorkProgress::instance().start();
+    
     _state = std::make_unique<TrackingState>(&_exec_main_queue);
     
     //! Stages
@@ -576,6 +580,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
 
     if (alpha > 0) {
         graph.wrap_object(*_data->_background);
+        _data->_background->set_video_scale(SETTING(meta_video_scale).value<float>());
         /*if(PD(gui_mask)) {
             PD(gui_mask)->set_color(PD(background)->color().alpha(PD(background)->color().a * 0.5));
             PD(gui).wrap_object(*PD(gui_mask));
@@ -822,12 +827,29 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 {
-                    LockGuard guard(ro_t{}, "active");
-                    if(_state->tracker->properties(frame))
-                        return Tracker::active_individuals(frame).size();
+                    LockGuard guard(ro_t{}, "active", 10);
+                    if(not guard.locked()) {
+                        return _data->_last_active_individuals;
+                    }
+                    
+                    if(_state->tracker->properties(frame)) {
+                        _data->_last_active_individuals = Tracker::active_individuals(frame).size();
+                        return _data->_last_active_individuals;
+                    }
                 }
                 
                 throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
+            }),
+            VarFunc("segments_for", [this](const VarProps& props) -> std::vector<FrameRange>{
+                REQUIRE_EXACTLY(1, props);
+                auto idx = Meta::fromStr<Idx_t>(props.first());
+                if(auto it = _data->_cache->_individual_ranges.find(idx);
+                   it != _data->_cache->_individual_ranges.end())
+                {
+                    return it->second;
+                }
+                
+                throw InvalidArgumentException("Cannot find individual ", props);
             }),
             VarFunc("live_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
@@ -835,13 +857,19 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 {
-                    LockGuard guard(ro_t{}, "active");
+                    LockGuard guard(ro_t{}, "active", 10);
+                    if(not guard.locked()) {
+                        return _data->_last_live_individuals;
+                    }
+                    
                     if(_state->tracker->properties(frame)) {
                         size_t count{0u};
                         for(auto fish : Tracker::active_individuals(frame)) {
                             if(fish->has(frame))
                                 ++count;
                         }
+                        
+                        _data->_last_live_individuals = count;
                         return count;
                     }
                 }

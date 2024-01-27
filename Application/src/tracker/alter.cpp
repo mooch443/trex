@@ -40,6 +40,7 @@
 #include <gui/TrackingScene.h>
 #include <gui/AnnotationScene.h>
 #include <gui/TrackingState.h>
+#include <gui/WorkProgress.h>
 #include <tracking/Segmenter.h>
 
 #include <python/Yolo8.h>
@@ -136,6 +137,7 @@ void launch_gui() {
      * Get the SceneManager instance and register all scenes
      */
     auto& manager = SceneManager::getInstance();
+    WorkProgress::instance().start();
     
     static std::unique_ptr<Segmenter> segmenter;
     ConvertScene converting(base, [&](ConvertScene& scene){
@@ -505,11 +507,8 @@ int main(int argc, char**argv) {
     SETTING(detect_batch_size) = uchar(1);
     SETTING(track_do_history_split) = false;
     //SETTING(track_background_subtraction) = false;
-    SETTING(scene_crash_is_fatal) = false;
-    SETTING(output_size) = Size2();
+    //SETTING(output_size) = Size2();
     
-    SETTING(do_filter) = false;
-    SETTING(filter_classes) = std::vector<uint8_t>{};
     //SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
 
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0);
@@ -531,7 +530,7 @@ int main(int argc, char**argv) {
     SETTING(meta_build) = std::string("<undefined>");
 #endif
     SETTING(meta_conversion_time) = std::string(date_time());
-    SETTING(meta_encoding) = grab::default_config::meta_encoding_t::r3g3b2;
+    SETTING(meta_encoding) = meta_encoding_t::r3g3b2;
 
     CommandLine::instance().load_settings();
     

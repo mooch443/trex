@@ -733,11 +733,11 @@ bool PythonIntegration::check_module(const std::string& name) {
     bool result = false;
     
     auto cwd = file::cwd().absolute();
-    auto app = file::DataLocation::parse("app").absolute();
-    if(cwd != app) {
+    auto app = file::DataLocation::parse("app", name + ".py");
+    /*if(cwd != app) {
         print("check_module:CWD: ", cwd);
         file::cd(app);
-    }
+    }*/
     
     auto c = utils::read_file(name+".py");
     if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {

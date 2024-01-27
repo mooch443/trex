@@ -281,6 +281,46 @@ printed_warning = False
 
 from typing import List, Tuple
 
+def calculate_iou(box1, box2):
+    x1, y1, x1_br, y1_br = box1
+    x2, y2, x2_br, y2_br = box2
+
+    x_left = max(x1, x2)
+    y_top = max(y1, y2)
+    x_right = min(x1_br, x2_br)
+    y_bottom = min(y1_br, y2_br)
+
+    if x_right < x_left or y_bottom < y_top:
+        return 0.0
+
+    intersection_area = (x_right - x_left) * (y_bottom - y_top)
+    box1_area = (x1_br - x1) * (y1_br - y1)
+    box2_area = (x2_br - x2) * (y2_br - y2)
+    union_area = box1_area + box2_area - intersection_area
+
+    return intersection_area / union_area
+
+def merge_boxes(boxes, iou_threshold):
+    merged_boxes = []
+    skipped_boxes = set()
+
+    for i, box1 in enumerate(boxes):
+        if i in skipped_boxes:
+            continue
+        merged_box = box1
+        for j, box2 in enumerate(boxes):
+            if i != j and j not in skipped_boxes:
+                if calculate_iou(merged_box, box2) > iou_threshold:
+                    x0 = min(merged_box[0], box2[0])
+                    y0 = min(merged_box[1], box2[1])
+                    x1 = max(merged_box[2], box2[2])
+                    y1 = max(merged_box[3], box2[3])
+                    merged_box = [x0, y0, x1, y1]
+                    skipped_boxes.add(j)
+        merged_boxes.append(merged_box)
+
+    return merged_boxes
+
 class TRexYOLO8:
     def __init__(self, models: List[Model]):
         """
@@ -398,7 +438,9 @@ class TRexYOLO8:
 
         # return a list per input image, with a list of bounding boxes (and their image regions) per image
         for i, bb in enumerate(downloaded):
-            mois = []
+            boxes = []
+            h, w = images[i].shape[:2]
+
             for box in bb:
                 #print("before:",box)
                 box[:2] /= scaled_down_scales[i]
@@ -410,7 +452,6 @@ class TRexYOLO8:
                     box[2:4] += np.array([padding,padding])
 
                 box = box.astype(int)
-                h, w = images[i].shape[:2]
 
                 x0 = int(max(0, box[0]))
                 y0 = int(max(0, box[1]))
@@ -419,6 +460,20 @@ class TRexYOLO8:
 
                 box = np.array([x0,y0,x1,y1])
                 #print(box)
+
+                boxes.append(box)
+
+            mois = []
+            #print(boxes)
+            conservative_boxes = merge_boxes(boxes, iou_threshold=0.0)
+            #print(conservative_boxes)
+
+            for box in conservative_boxes:
+                x0, y0, x1, y1 = box
+                x0 = max(0, x0)
+                y0 = max(0, y0)
+                x1 = min(w, x1)
+                y1 = min(h, y1)
 
                 oi = images[i][y0:y1, x0:x1]
                 if oi.shape[0] == 0 or oi.shape[1] == 0:
@@ -571,9 +626,11 @@ class TRexYOLO8:
 
             # For each result, perform postprocessing and gather the boxes and masks
             for t, (result, (box, region)) in enumerate(zip(results, regions)):
-                result = StrippedYolo8Results(result, scale=scale, offset=offset)
                 #r = result.cpu().plot(img=region, line_width=1)
                 #TRex.imshow("segmentation"+str(i)+","+str(t), r)
+
+                result = StrippedYolo8Results(result, scale=scale, offset=offset)
+                
                 coords, masks, keypoints = self.postprocess_result(i, result, offset, scale, box)
                 collected_boxes.append(coords)
                 collected_masks.extend(masks)
@@ -656,10 +713,10 @@ class TRexYOLO8:
             #print("keys=",keys.shape, result.keypoints.cpu())
             if len(keys) > 0 and len(keys[0]):
                 #print(result.keypoints.cpu().xy, scale)
-                #keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
-                #keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
-                keys[..., 0] = (keys[..., 0] + offset[0]) * scale[0] #+ coords[..., 0]).T
-                keys[..., 1] = (keys[..., 1] + offset[1]) * scale[1] #+ coords[..., 1]).T
+                keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
+                keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
+                #keys[..., 0] = (keys[..., 0] + offset[0]) * scale[0] #+ coords[..., 0]).T
+                #keys[..., 1] = (keys[..., 1] + offset[1]) * scale[1] #+ coords[..., 1]).T
                 keypoints.append(keys) # bones * 3 elements
 
         #print("collected ", len(keypoints), keypoints)

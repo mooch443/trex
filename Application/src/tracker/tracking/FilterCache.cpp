@@ -265,9 +265,9 @@ std::tuple<Image::Ptr, Vec2> diff_image(
         blob->calculate_moments();
         
         gui::Transform tr;
-        float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
+        float angle = narrow_cast<float>(DEGREE(-blob->orientation() + float(M_PI) * 0.25f));
         
-        tr.rotate(DEGREE(angle));
+        tr.rotate(angle);
         tr.translate( -blob->bounds().size() * 0.5);
         //tr.translate(-offset());
         

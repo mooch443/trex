@@ -13,7 +13,8 @@
 
 namespace gui {
     class Posture : public Entangled {
-        track::Individual* _fish;
+        //track::Individual* _fish{nullptr};
+        track::Idx_t _fdx;
         Frame_t _frameIndex;
         Vec2 zero;
         //gui::Rect _background;

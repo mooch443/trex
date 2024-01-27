@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -410,7 +410,7 @@ void ConvertScene::activate()  {
         FormatError("Cannot determine size of the video input. Defaulting to ", _data->video_size, ".");
     }
     
-    _data->output_size = SETTING(output_size).value<Size2>();
+    _data->output_size = _data->_segmenter->output_size();
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
     auto work_area = ((const IMGUIBase*)window())->work_area();
@@ -788,11 +788,6 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             _exec_main_queue.enqueue([text](auto, DrawStructure& graph) {
                 graph.dialog("Copied to clipboard:\n<c><str>"+text+"</str></c>");
             });
-        }),
-        ActionFunc("FILTER", [](auto) {
-            static bool filter { false };
-            filter = not filter;
-            SETTING(do_filter) = filter;
         })
     };
     context.variables = {
@@ -931,7 +926,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     auto coord = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
-        _bowl->set_video_aspect_ratio(coord.video_size().width, coord.video_size().height);
+        _bowl->set_video_aspect_ratio(output_size.width, output_size.height);//coord.video_size().width, coord.video_size().height);
         _bowl->fit_to_screen(window_size);
     }
     

@@ -112,7 +112,19 @@ WorkProgress::WorkProgress() {
 #ifdef __APPLE__
     MacProgressBar::set_visible(false);
 #endif
+    start();
+}
+
+WorkProgress::~WorkProgress() {
+    stop();
+}
+
+void WorkProgress::start() {
+    std::unique_lock guard(start_mutex);
+    if(_thread)
+        return;
     
+    _terminate_threads = false;
     _thread = new std::thread([&]() {
         std::unique_lock lock(_queue_lock);
         set_thread_name("GUI::_work_thread");
@@ -140,10 +152,10 @@ WorkProgress::WorkProgress() {
                 
                 lock.unlock();
                 if(instance().gui) {
-                    auto stage = gui->_additional.stage();
+                    auto stage = instance().gui->_additional.stage();
                     if(stage) {
                         auto guard = GUI_LOCK(stage->lock());
-                        gui->_additional.update([](auto&){});
+                        instance().gui->_additional.update([](auto&){});
                     }
                 }
                 item.fn();
@@ -159,16 +171,14 @@ WorkProgress::WorkProgress() {
     });
 }
 
-WorkProgress::~WorkProgress() {
-    stop();
-}
-
 void WorkProgress::stop() {
     // strong exchange, since we want to make sure that the thread is not running anymore
     if(!_terminate_threads.exchange(true)) {
         _condition.notify_all();
         
-        if(_thread) {
+        if(std::unique_lock guard(instance().start_mutex);
+           _thread)
+        {
             _thread->join();
             delete _thread;
             _thread = nullptr;

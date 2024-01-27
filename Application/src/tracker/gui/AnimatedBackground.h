@@ -59,6 +59,7 @@ public:
     using Entangled::update;
     
     void set_strict(bool v) { _strict = v; }
+    void set_video_scale(float);
     
     Image::Ptr preload(Frame_t);
 };

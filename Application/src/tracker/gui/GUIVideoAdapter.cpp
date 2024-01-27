@@ -6,7 +6,7 @@ namespace gui {
 GUIVideoAdapter::GUIVideoAdapter(const file::PathArray& array, 
                                  IMGUIBase* queue,
                                  std::function<void(VideoInfo)> callback)
-    : _video_loop(file::find_basename(array)),
+    : _video_loop(Meta::toStr((uint64_t)&array) /*file::find_basename(array)*/),
       _queue{queue},
       _open_callback(callback),
       _array(array)

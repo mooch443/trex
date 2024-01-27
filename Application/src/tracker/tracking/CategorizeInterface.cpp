@@ -524,9 +524,9 @@ void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
         layout.set_pos(Size2(base.width(), base.height()) * 0.5);
 
         stext = Layout::Make<StaticText>(
-            Str("<h2>Categorizing types of individuals</h2>"
+            Str("<h2>Categorizing types of individuals</h2>\n"
             "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below)."),
-            SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.7)
+            SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.6)
             );
 
         layout.add_child(stext);

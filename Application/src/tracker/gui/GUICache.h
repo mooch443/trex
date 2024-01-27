@@ -148,6 +148,7 @@ namespace globals {
         std::set<Idx_t> recognized_ids;
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
+        std::unordered_map<Idx_t, std::vector<FrameRange>> _individual_ranges;
         
         set_of_individuals_t _registered_callback;
         

@@ -17,6 +17,7 @@
 #include <gui/GUIVideoAdapterElement.h>
 #include <misc/VideoInfo.h>
 #include <gui/GUIVideoAdapter.h>
+#include <gui/WorkProgress.h>
 
 namespace gui {
 
@@ -30,6 +31,14 @@ struct SettingsScene::Data {
     Size2 window_size;
     dyn::DynamicGUI dynGUI;
     CallbackCollection callback;
+    std::string layout_name { "choose_settings_layout.json" };
+    GUITaskQueue_t _exec_main_queue;
+    
+    std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;
+    std::unordered_map<std::string, bool> _done_exist_checks;
+    
+    sprite::Map _defaults;
+    std::string _last_layout{layout_name};
     
     ExternalImage _preview_image;
     IMGUIBase *_window{nullptr};
@@ -38,17 +47,42 @@ struct SettingsScene::Data {
     Size2 _video_size;
     std::unordered_map<std::string, Layout::Ptr> _video_adapters;
     
+    sprite::Map get_changed_props() const {
+        sprite::Map copy = GlobalSettings::map();
+        const auto &_defaults = GlobalSettings::current_defaults();
+        
+        for(auto &key : copy.keys()) {
+            
+            if((not _defaults.has(key)
+                || copy.at(key).get() != _defaults.at(key).get())
+                //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
+               && GlobalSettings::access_level(key) < AccessLevelType::LOAD)
+            {
+                if(_defaults.has(key))
+                    print("Keeping ", key, ": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
+                else
+                    print("Keeping ", key, ": ", copy.at(key).get());
+                
+                continue;
+            }
+            
+            copy.erase(key);
+        }
+        print("Maintaining: ", copy.keys());
+        return copy;
+    }
+    
     void draw(DrawStructure& graph) {
         using namespace dyn;
+        _exec_main_queue.processTasks(nullptr, graph);
         
         if(not dynGUI) {
             dynGUI = DynamicGUI{
-                .path = "settings_layout.json",
+                .path = layout_name,
                 .graph = &graph,
                 .context = {
                     ActionFunc("set", [](Action action) {
-                        if(action.parameters.size() != 2)
-                            throw InvalidArgumentException("Invalid number of arguments for action: ",action);
+                        REQUIRE_EXACTLY(2, action);
                         
                         auto parm = Meta::fromStr<std::string>(action.first());
                         if(not GlobalSettings::has(parm))
@@ -57,56 +91,65 @@ struct SettingsScene::Data {
                         auto value = action.last();
                         GlobalSettings::get(parm).get().set_value_from_string(value);
                     }),
-                    ActionFunc("go-back", [](auto){
-                        auto prev = SceneManager::getInstance().last_active();
-                        if(prev)
-                            SceneManager::getInstance().set_active(prev);
-                        print("Going back");
+                    ActionFunc("go-back", [this](auto){
+                        layout_name = _last_layout;
+                        _exec_main_queue.enqueue([this](auto, auto&) {
+                            dynGUI.clear();
+                            dynGUI = {};
+                        });
                     }),
-                    ActionFunc("convert", [](auto){
+                    ActionFunc("convert", [this](auto){
                         DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
-                        sprite::Map copy = GlobalSettings::map();
-                        settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
-                        SceneManager::getInstance().set_active("convert-scene");
-                    }),
-                    ActionFunc("track", [](auto){
-                        DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
-                        /*sprite::Map copy = GlobalSettings::map();
-                        for(auto &key : copy.keys()) {
+                        
+                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()](){
+                            settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
-                            if(not GlobalSettings::defaults().has(key)
-                               || copy.at(key).get() != GlobalSettings::defaults().at(key).get()) {
-                                continue;
+                            _exec_main_queue.enqueue([](auto,auto&){
+                                SceneManager::getInstance().set_active("convert-scene");
+                            });
+                        });
+                    }),
+                    ActionFunc("change_layout", [this](const Action& action) {
+                        REQUIRE_EXACTLY(1, action);
+                        auto &name = action.first();
+                        _last_layout = layout_name;
+                        layout_name = name+".json";
+                        
+                        _exec_main_queue.enqueue([this](auto, auto&) {
+                            dynGUI.clear();
+                            dynGUI = {};
+                        });
+                    }),
+                    ActionFunc("track", [this](auto){
+                        DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
+                        
+                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()](){
+                            auto array = SETTING(source).value<file::PathArray>();
+                            auto front = file::Path(file::find_basename(array));
+                            /*output_file = !front.has_extension() ?
+                                          file::DataLocation::parse("input", front.add_extension("pv")) :
+                                          file::DataLocation::parse("input", front.replace_extension("pv"));*/
+
+                            auto output_file = (not front.has_extension() || front.extension() != "pv") ?
+                                          file::DataLocation::parse("output", front.add_extension("pv")) :
+                                          file::DataLocation::parse("output", front.replace_extension("pv"));
+                            if (output_file.exists()) {
+                                SETTING(filename) = file::Path(output_file);
                             }
                             
-                            print("Removing ", key);
-                            copy.erase(key);
-                        }*/
-                        
-                        auto array = SETTING(source).value<file::PathArray>();
-                        auto front = file::Path(file::find_basename(array));
-                        /*output_file = !front.has_extension() ?
-                                      file::DataLocation::parse("input", front.add_extension("pv")) :
-                                      file::DataLocation::parse("input", front.replace_extension("pv"));*/
-
-                        auto output_file = (not front.has_extension() || front.extension() != "pv") ?
-                                      file::DataLocation::parse("output", front.add_extension("pv")) :
-                                      file::DataLocation::parse("output", front.replace_extension("pv"));
-                        if (output_file.exists()) {
-                            SETTING(filename) = file::Path(output_file);
-                        }
-                        
-                        settings::load(array, SETTING(filename), default_config::TRexTask_t::track, SETTING(detect_type), {}, {});
-                        SceneManager::getInstance().set_active("tracking-scene");
+                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, SETTING(detect_type), {}, copy);
+                            
+                            _exec_main_queue.enqueue([](auto,auto&){
+                                SceneManager::getInstance().set_active("tracking-scene");
+                            });
+                        });
                     }),
                     ActionFunc("choose-source", [](auto){
                         print("choose-source");
                     }),
                     
                     ActionFunc("change_scene", [](Action action) {
-                        if(action.parameters.empty())
-                            throw U_EXCEPTION("Invalid arguments for ", action, ".");
-                        
+                        REQUIRE_EXACTLY(1, action);
                         auto scene = Meta::fromStr<std::string>(action.first());
                         if(not SceneManager::getInstance().is_scene_registered(scene))
                             return false;
@@ -134,10 +177,44 @@ struct SettingsScene::Data {
                     VarFunc("window_size", [this](const VarProps&) -> Vec2 {
                         return window_size;
                     }),
-                    VarFunc("video_size", [this](const VarProps& props) -> Vec2 {
+                    VarFunc("video_size", [this](const VarProps&) -> Vec2 {
                         if(_video_size.empty())
                             return Size2(1);
                         return _video_size;
+                    }),
+                    VarFunc("file_exists", [this](const VarProps& props) -> bool {
+                        REQUIRE_EXACTLY(1, props);
+                        
+                        auto path = props.first();
+                        if(_done_exist_checks.contains(path))
+                            return _done_exist_checks.at(path);
+                        
+                        if(not _scheduled_exist_checks.contains(path)) {
+                            while(_scheduled_exist_checks.size() > 0)
+                                _scheduled_exist_checks.erase(_scheduled_exist_checks.begin());
+                            
+                            _scheduled_exist_checks[path] = std::async(std::launch::async, [](const file::Path& path) -> bool {
+                                //std::this_thread::sleep_for(std::chrono::seconds(2));
+                                return path.exists();
+                            }, path);
+                        }
+                        
+                        if(_scheduled_exist_checks.at(path).wait_for(std::chrono::milliseconds(15)) == std::future_status::ready) 
+                        {
+                            /// limit size of the map
+                            while(_done_exist_checks.size() > 25) {
+                                _done_exist_checks.erase(_done_exist_checks.begin());
+                            }
+                            
+                            _done_exist_checks[path] = _scheduled_exist_checks.at(path).get();
+                            _scheduled_exist_checks.erase(path);
+                            return _done_exist_checks.at(path);
+                        }
+                        
+                        throw std::runtime_error("Still checking status...");
+                    }),
+                    VarFunc("resulting_path", [](const VarProps&) -> file::Path {
+                        return settings::find_output_name(GlobalSettings::map());
                     })
                 }
             };
@@ -216,6 +293,7 @@ SettingsScene::~SettingsScene() {
 }
 
 void SettingsScene::activate() {
+    WorkProgress::instance().start();
     //auto video_size = Size2(1200,920);
     auto work_area = ((const IMGUIBase*)window())->work_area();
     //auto window_size = video_size;
@@ -257,13 +335,15 @@ void SettingsScene::activate() {
     });
     
     _data->_video_loop.start();*/
+    
+    _data->_defaults = GlobalSettings::map();
 }
 
 void SettingsScene::deactivate() {
     // Logic to clear or save state if needed
     //RecentItems::set_select_callback(nullptr);
     //_data->dynGUI.clear();
-    
+    WorkProgress::stop();
     if(_data && _data->callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
     _data->dynGUI.clear();

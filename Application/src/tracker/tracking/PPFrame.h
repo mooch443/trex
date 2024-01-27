@@ -568,6 +568,30 @@ public:
             }
         }
     }
+    template<typename F, typename Container>
+        requires Transformer<F, pv::Blob>
+    void transform_blobs_by_bid(const Container& c, F&& fn) const {
+        size_t i = 0;
+        for(auto const& idx : c) {
+            auto it = _blob_map.find(idx);
+            if(it != _blob_map.end()) {
+                auto own = it->second;
+                if(not own)
+                    continue;
+                
+                if constexpr(VoidTransformer<F, pv::Blob>) {
+                    fn(*own);
+                } else if constexpr(Predicate<F, pv::Blob>) {
+                    if(!fn(*own))
+                        break;
+                } else if constexpr(IndexedTransformer<F, pv::Blob>) {
+                    fn(i++, *own);
+                } else {
+                    static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+                }
+            }
+        }
+    }
     
     template<typename F>
         requires Predicate<F, pv::Blob>

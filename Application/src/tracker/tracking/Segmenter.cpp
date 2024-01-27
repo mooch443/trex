@@ -201,7 +201,7 @@ void Segmenter::open_video() {
     setDefaultSettings();
     _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(meta_video_size) = Size2(video_base.size());
-    SETTING(output_size) = _output_size;
+    //SETTING(output_size) = _output_size;
     
     _processor_initializing = true;
     
@@ -215,6 +215,8 @@ void Segmenter::open_video() {
             }
         });
     }
+    
+    _overlayed_video->source()->set_video_scale(SETTING(meta_video_scale).value<float>());
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
@@ -361,7 +363,7 @@ void Segmenter::open_camera() {
 
     setDefaultSettings();
     _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
-    SETTING(output_size) = _output_size;
+    //SETTING(output_size) = _output_size;
     SETTING(meta_video_size) = camera.size();
     
     SETTING(video_conversion_range) = std::pair<long_t,long_t>(-1,-1);
@@ -389,6 +391,7 @@ void Segmenter::open_camera() {
         );
     }
     
+    _overlayed_video->source()->set_video_scale(SETTING(meta_video_scale).value<float>());
     _overlayed_video->source()->notify();
     
     SETTING(video_length) = uint64_t(video_length().get());
@@ -461,9 +464,10 @@ void Segmenter::start_recording_ffmpeg() {
 
             SETTING(save_raw_movie_path) = path;
             SETTING(meta_source_path) = path.str();
+            SETTING(meta_video_scale) = 1.f;
         
             _queue = std::make_unique<FFMPEGQueue>(true,
-                _overlayed_video->source()->size(),
+                output_size(),//_overlayed_video->source()->size(),
                 _overlayed_video->source()->channels() == 1
                 ? ImageMode::GRAY
                 : ImageMode::RGB,
@@ -473,7 +477,7 @@ void Segmenter::start_recording_ffmpeg() {
                 [](Image::Ptr&& image) {
                     image = nullptr; // move image back to buffer
                 });
-            print("Encoding mp4 into ",path.str(),"...");
+            print("Encoding mp4 into ",path.str(),"... (size = ", _overlayed_video->source()->size(),")");
             
             _ffmpeg_group = ThreadManager::getInstance().registerGroup("RawMovie");
             ThreadManager::getInstance().addThread(_ffmpeg_group, "FFMPEGQueue", ManagedThread{
@@ -901,8 +905,7 @@ void Segmenter::reset(Frame_t frame) {
 }
 
 void Segmenter::setDefaultSettings() {
-    SETTING(do_filter) = false;
-    SETTING(filter_classes) = std::vector<uint8_t>{};
+    SETTING(detect_classes) = std::vector<uint8_t>{};
     SETTING(track_label_confidence_threshold) = SETTING(detect_conf_threshold).value<float>();
 }
 
@@ -914,9 +917,9 @@ void Segmenter::printDebugInformation() {
     print("region model: ", SETTING(region_model).value<file::Path>());
     print("video: ", SETTING(source).value<file::PathArray>());
     print("model resolution: ", SETTING(detect_resolution).value<uint16_t>());
-    print("output size: ", SETTING(output_size).value<Size2>());
+    print("output size: ", _output_size);
     print("output path: ", _output_file_name);
-    print("color encoding: ", SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>());
+    print("color encoding: ", SETTING(meta_encoding).value<meta_encoding_t::Class>());
 }
 
 std::future<std::optional<std::string_view>> Segmenter::video_recovered_error() const {

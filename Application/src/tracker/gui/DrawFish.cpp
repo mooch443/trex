@@ -784,7 +784,7 @@ Fish::~Fish() {
             auto pdx = _basic_stuff.has_value() ? _basic_stuff->blob.parent_id : pv::bid();
 
             if(color_source == "viridis") {
-                GUICache::instance().processed_frame().transform_blobs([&,bdx,pdx] (const pv::Blob& b)
+                GUICache::instance().processed_frame().transform_blobs_by_bid(std::array{bdx, pdx}, [&,bdx,pdx] (const pv::Blob& b)
                 {
                     if(!is_in(b.blob_id(), bdx, pdx))
                         return true;

@@ -20,6 +20,7 @@ public:
 protected:
     Frame_t i{0_f};
     std::atomic<bool> _loop{false};
+    std::atomic<float> _video_scale{1.f};
     useMatPtr_t tmp;
     GETTER(VideoInfo, info);
 
@@ -69,6 +70,7 @@ public:
     
     void set_frame(Frame_t frame);
     void set_loop(bool);
+    void set_video_scale(float);
     
     Frame_t length() const;
     virtual uint8_t channels() const = 0;

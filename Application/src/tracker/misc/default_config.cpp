@@ -356,7 +356,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.");
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
-        CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
+        CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
         static const auto meta_classes = std::vector<std::string>{
             "person", "bicycle", "car", "motorcycle", "airplane",
             "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
@@ -522,6 +522,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
         CONFIG("manual_matches", std::map<Frame_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
         CONFIG("manual_splits", std::map<Frame_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
+        CONFIG("manual_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
@@ -746,6 +747,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
+        CONFIG("detect_classes", std::vector<uint8_t>{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
         CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
         CONFIG("region_resolution", uint16_t(320), "The resolution of the region proposal network (`region_model`).");
         CONFIG("detect_resolution", uint16_t(640), "The input resolution of the object detection model (`detect_model`).");
@@ -821,8 +823,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         sprite::Map config;
         GlobalSettings::docs_map_t docs;
         
-        grab::default_config::get(config, docs, nullptr);
-        default_config::get(config, docs, NULL);
+        config = GlobalSettings::current_defaults();
+        //grab::default_config::get(config, docs, nullptr);
+        //default_config::get(config, docs, NULL);
         
         std::vector<std::string> exclude_fields = {
             "analysis_paused",
@@ -917,6 +920,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
+                    auto str = GlobalSettings::get(key).get().valueString();
+                    print("adding ", key, " = ", str.c_str());
                     result[key] = &GlobalSettings::get(key).get();
                 }
             }
@@ -977,7 +982,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         });
         
         file::DataLocation::register_path("output_settings", [](const sprite::Map& map, file::Path path) -> file::Path {
-            return file::DataLocation::parse("settings", path, &map);
             file::Path settings_file = map.at("filename").value<Path>().filename();
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");

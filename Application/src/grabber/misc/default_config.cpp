@@ -6,6 +6,7 @@
 #include <video/AveragingAccumulator.h>
 #include <misc/ranges.h>
 #include <misc/idx_t.h>
+#include <processing/Background.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -15,6 +16,14 @@
 #include <misc/default_settings.h>
 
 #include "GitSHA1.h"
+
+namespace cmn {
+
+ENUM_CLASS_DOCS(meta_encoding_t,
+                "Grayscale video, calculated by simply extracting one channel (default R) from the video.",
+                "Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).");
+
+}
 
 namespace grab {
 #ifndef WIN32
@@ -27,10 +36,6 @@ const char *homedir = getenv("USERPROFILE");
 using namespace file;
 #define CONFIG adding.add<ParameterCategoryType::TRACKING>
 namespace default_config {
-
-ENUM_CLASS_DOCS(meta_encoding_t,
-                "Grayscale video, calculated by simply extracting one channel (default R) from the video.",
-                "Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).");
 
     static const std::map<std::string, std::string> deprecated = {
         {"fish_minmax_size", "blob_size_range"},
@@ -166,7 +171,7 @@ ENUM_CLASS_DOCS(meta_encoding_t,
         
         CONFIG("gui_interface_scale", float(1.25), "A lower number will make the texts and GUI elements bigger.");
         
-        CONFIG("meta_encoding", grab::default_config::meta_encoding_t::gray, "The encoding used for the given .pv video.");
+        CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
         CONFIG("meta_species", std::string(""), "Name of the species used.");
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
         CONFIG("meta_conditions", std::string(""), "Treatment name.");

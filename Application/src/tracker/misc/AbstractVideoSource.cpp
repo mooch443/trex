@@ -75,8 +75,8 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
             
             //! resize according to settings
             //! (e.g. multiple tiled image size)
-            if (SETTING(meta_video_scale).value<float>() != 1) {
-                Size2 new_size = Size2(buffer->cols, buffer->rows) * SETTING(meta_video_scale).value<float>();
+            if (_video_scale != 1) {
+                Size2 new_size = Size2(buffer->cols, buffer->rows) * _video_scale.load();
                 //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                 
                 if (not tmp)
@@ -110,6 +110,10 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
         FormatExcept("Unable to load frame ", i, " from video source ", desc.c_str(), " because: ", e.what());
         return tl::unexpected(e.what());
     }
+}
+
+void AbstractBaseVideoSource::set_video_scale(float scale) {
+    _video_scale = scale;
 }
 
 bool AbstractBaseVideoSource::is_finite() const {

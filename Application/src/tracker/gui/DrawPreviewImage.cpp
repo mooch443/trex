@@ -267,7 +267,7 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
                 }
             }
             
-            if(SETTING(meta_encoding).value<grab::default_config::meta_encoding_t::Class>() == grab::default_config::meta_encoding_t::r3g3b2)
+            if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2)
             {
                 auto rgba = Image::Make(image->rows, image->cols, 4);
                 cv::Mat output = rgba->get();
