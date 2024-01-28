@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -30,6 +30,7 @@
 
 namespace gui {
 using namespace dyn;
+using Skeleton = blob::Pose::Skeleton;
 
 struct ConvertScene::Data {
     Segmenter* _segmenter{nullptr};
@@ -41,6 +42,9 @@ struct ConvertScene::Data {
     // Vectors for object blobs and GUI objects
     std::vector<pv::BlobPtr> _object_blobs;
     SegmentationData _current_data;
+
+    CallbackCollection callback;
+    Skeleton skelet;
 
     // Individual properties for each object
     std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui, _joint;
@@ -302,6 +306,9 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
 
 void ConvertScene::deactivate() {
     try {
+        if(_data)
+            GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
+
         if(_data && _data->_recorder.recording())
             _data->_recorder.stop_recording(window(), nullptr);
 
@@ -404,6 +411,19 @@ void ConvertScene::activate()  {
 
     if(not _data)
         _data = std::make_unique<Data>();
+
+    _data->skelet = SETTING(meta_skeleton).value<Skeleton>();
+    _data->callback = GlobalSettings::map().register_callbacks({
+        "meta_skeleton"
+    }, [this](auto) {
+        if(not _data)
+            return;
+        _data->_exec_main_queue.enqueue([this](auto,auto&) {
+            _data->skelet = SETTING(meta_skeleton).value<Skeleton>();
+            _data->_skeletts.clear();
+        });
+    });
+
     _data->video_size = _video_info["resolution"].value<Size2>();
     if(_data->video_size.empty()) {
         _data->video_size = Size2(640,480);
@@ -971,12 +991,10 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         for (auto &box : _current_data.tiles)
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
         ColorWheel wheel;
-        using Skeleton = blob::Pose::Skeleton;
         //auto coord = FindCoord::get();
         //print(coord.bowl_scale());
         
         size_t pose_index{ 0 };
-        static const Skeleton skelet = SETTING(meta_skeleton).value<Skeleton>();
         for (auto& keypoint : _current_data.keypoints) {
             auto pose = keypoint.toPose();
             if (pose_index >= _skeletts.size())
