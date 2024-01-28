@@ -198,7 +198,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
         if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
             _registered = false;
-            //set_animating(false);
+            set_animating(false);
         }
         
         return 0;
@@ -221,7 +221,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
         if(_registered) {
             //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
             _registered = false; 
-            //set_animating(false);
+            set_animating(false);
         }
     }
     

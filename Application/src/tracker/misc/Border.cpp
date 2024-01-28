@@ -1,12 +1,25 @@
 #include "Border.h"
+#include <pv.h>
 #include <misc/CircularGraph.h>
 #include <tracking/Tracker.h>
 #include <misc/PixelTree.h>
 #include <misc/Timer.h>
 #include <misc/default_config.h>
 #include <gui/GuiTypes.h>
+#include <gui/DrawStructure.h>
 
 namespace track {
+
+
+ENUM_CLASS_DOCS(recognition_border_t,
+    "No border at all. All points are inside the recognition boundary. (default)", // none
+    "Looks at a subset of frames from the video, trying to find out where individuals go and masking all the places they do not.", // "heatmap"
+    "Similar to heatmap, but tries to build a convex border around the around (without holes in it).", // {"outline"
+    "Any array of convex shapes. Set coordinates by changing `recognition_shapes`.", // {"shapes"
+    "The points defined in `grid_points` are turned into N different circles inside the arena (with points in `grid_points` being the circle centers), which define in/out if inside/outside any of the circles.", // "grid"
+    "The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out." // {"circle",
+)
+
     Border::Border()
     : _type(Type::none), _recognition_border_size_rescale(-1)
     {}
@@ -558,8 +571,8 @@ namespace track {
                 return true;
             
             for(auto &shape : _polygons) {
-                auto ptr = (const gui::Polygon*)shape.get();
-                if(pnpoly(*ptr->vertices(), pt))
+                //auto ptr = (const gui::Polygon*)shape.get();
+                if(pnpoly(*shape, pt))
                     return true;
             }
             
@@ -592,21 +605,11 @@ namespace track {
         return d <= _max_distance;
     }
 
-void Border::draw(gui::DrawStructure& graph) {
-    for(auto &p : _polygons) {
-        graph.wrap_object(*p);
-    }
-}
-
 void Border::update_polygons() {
     _polygons.clear();
     for(auto &shape : _vertices) {
         auto convex = poly_convex_hull(&shape);
-        auto ptr = std::make_shared<gui::Polygon>(convex);
-        ptr->set_fill_clr(gui::Transparent);
-        ptr->set_border_clr(gui::Cyan);
-        _polygons.push_back((std::shared_ptr<gui::Drawable>)ptr);
-        
+        _polygons.emplace_back(convex);
     }
 }
 

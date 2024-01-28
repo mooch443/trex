@@ -300,7 +300,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
 
 
 
-void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
+void GUICache::draw_posture(DrawStructure &base, Frame_t) {
     static Timing timing("posture draw", 0.1);
     TakeTiming take(timing);
     if(not _posture_window)
@@ -323,6 +323,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
             reasons.emplace_back("raw_blobs_dirty");*/
         
         _fish_dirty = false;
+        //if(not _background)
+        _background = Tracker::instance()->background();
         
         bool current_frame_matches = _current_processed_frame
              && _current_processed_frame->index() == frameIndex;
@@ -412,6 +414,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
         } else 
             return {};
         
+        /*print("reload_blobs = ", reload_blobs, " current_frame_matches=", current_frame_matches, " next_frame_matches=", next_frame_matches, " last_threshold=", last_threshold, " threshold=", threshold, " raw_blobs_dirty=", raw_blobs_dirty(), " frameIndex=", frameIndex, " current=", _current_processed_frame ? _current_processed_frame->index() : Frame_t{}, " next=", _next_processed_frame ? _next_processed_frame->index() : Frame_t{}, " selected=", selected, " previous_active_fish=", previous_active_fish, " active_blobs=", active_blobs, " previous_active_blobs=", previous_active_blobs, " mouse_position=", _gui.mouse_position(), " previous_mouse_position=", previous_mouse_position, " is_tracking_dirty=", is_tracking_dirty(), " _blobs_dirty=", _blobs_dirty);*/
+        
         LockGuard guard(ro_t{}, "update_cache", 10);
         if(not guard.locked())
             return {};
@@ -464,6 +468,17 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
         }
         
         auto properties = _tracker.properties(frameIndex);
+        if(properties)
+            _props = *properties;
+        else
+            _props.reset();
+        
+        auto next_properties = _tracker.properties(frameIndex + 1_f);
+        if(next_properties)
+            _next_props = *next_properties;
+        else
+            _next_props.reset();
+        
         active_blobs.clear();
         active.clear();
         selected_blobs.clear();
@@ -531,10 +546,19 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
             double time = properties ? properties->time : 0;
             
             for(auto fish : active) {
-                auto blob = fish->compressed_blob(frameIndex);
-                if(blob) {
+                auto [basic, posture] = fish->all_stuff(frameIndex);
+                if(basic) {
                     active_ids.insert(fish->identity().ID());
-                    fish_selected_blobs[fish->identity().ID()] = blob->blob_id();
+                    
+                    BdxAndPred blob{
+                        .bdx = basic->blob.blob_id(),
+                        .basic_stuff = *basic
+                    };
+                    if(posture)
+                        blob.posture_stuff = *posture;
+                    
+                    fish_selected_blobs[fish->identity().ID()] = std::move(blob);
+                    
                 } else {
                     inactive_ids.insert(fish->identity().ID());
                 }
@@ -642,7 +666,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
         previous_active_blobs = active_blobs;
         previous_mouse_position = _gui.mouse_position();
         
-        set_blobs_dirty();
+        //set_blobs_dirty();
         
         Vec2 min_vec(FLT_MAX, FLT_MAX);
         Vec2 max_vec(-FLT_MAX, -FLT_MAX);
@@ -956,10 +980,10 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
                     }
                 }
             }
-
-            updated_blobs();
-            updated_raw_blobs();
         }
+        
+        updated_raw_blobs();
+        updated_blobs();
         
         //if(reload_blobs)
         //    print("reloading: ", reasons);
@@ -967,7 +991,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
     }
     
     void GUICache::set_animating(std::string_view animation, bool v, Drawable* parent) {
-        if (animation.empty())
+        /*if (animation.empty())
             throw std::invalid_argument("Empty animation.");
 
         if(v) {
@@ -1006,7 +1030,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t frameNr) {
                     _animator_map.erase(animation);
 				}
             }
-        }
+        }*/
     }
 
     bool GUICache::has_probs(Idx_t fdx) {

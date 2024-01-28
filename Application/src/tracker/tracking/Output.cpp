@@ -1207,11 +1207,11 @@ namespace Output {
         write<std::string>(SETTING(cmd_line).value<std::string>());
 
         // write recognition data
-        if(Tracker::instance()->vi_predictions().empty())
+        if(not Tracker::instance()->has_vi_predictions())
             write<uint64_t>(0);
         else {
-            write<uint64_t>(Tracker::instance()->vi_predictions().size());
-            for(auto&& [frame, map] : Tracker::instance()->vi_predictions()) {
+            write<uint64_t>(Tracker::instance()->number_vi_predictions());
+            Tracker::instance()->transform_vi_predictions([&](auto& frame, auto& map) {
                 write<data_long_t>(frame.get());
                 write<uint64_t>(map.size());
 
@@ -1220,7 +1220,7 @@ namespace Output {
                     write<uint64_t>(vector.size());
                     write_data(sizeof(float) * vector.size(), (const char*)vector.data());
                 }
-            }
+            });
         }
 
         // write categorization data, if it exists

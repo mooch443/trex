@@ -12,6 +12,8 @@ namespace gui {
 class Graph;
 class HorizontalLayout;
 class IMGUIBase;
+class StaticText;
+class ExternalImage;
 }
 
 namespace Python {

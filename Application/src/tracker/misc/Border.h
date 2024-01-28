@@ -1,16 +1,22 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <pv.h>
-#include <misc/default_config.h>
-#include <gui/DrawStructure.h>
+#include <misc/ranges.h>
+#include <misc/Image.h>
+
+namespace pv {
+class File;
+}
 
 namespace track {
+    ENUM_CLASS(recognition_border_t, none, heatmap, outline, shapes, grid, circle)
+    ENUM_CLASS_HAS_DOCS(recognition_border_t)
+
     //! Contains cached properties of the border of a given setup
     //  (this might be a grid, a single rectangular box, or a circle)
     class Border {
     public:
-        using Type = default_config::recognition_border_t::data::values;
+        using Type = recognition_border_t::data::values;
         
     protected:
         GETTER(Type, type);
@@ -25,7 +31,7 @@ namespace track {
         std::vector<bool> x_valid, y_valid;
         std::map<std::tuple<uint16_t, uint16_t>, uint32_t> grid_cells;
         float _recognition_border_size_rescale;
-        std::vector<gui::derived_ptr<gui::Drawable>> _polygons;
+        GETTER(std::vector<std::shared_ptr<std::vector<cmn::Vec2>>>, polygons);
         
     public:
         Border();
@@ -33,7 +39,6 @@ namespace track {
         float distance(const Vec2& pt) const;
         bool in_recognition_bounds(const Vec2& pt) const;
         void clear();
-        void draw(gui::DrawStructure&);
         
     private:
         void update_outline(pv::File& video);

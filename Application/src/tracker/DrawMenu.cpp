@@ -291,7 +291,7 @@ public:
                         auto it = GUI::cache().fish_selected_blobs.find(GUI::cache().selected.front());
                         if(it != GUI::cache().fish_selected_blobs.end())
                         {
-                            SETTING(gui_show_fish) = std::pair<pv::bid, Frame_t>(it->second, GUI::frame());
+                            SETTING(gui_show_fish) = std::pair<pv::bid, Frame_t>(it->second.bdx, GUI::frame());
                             GUI::reanalyse_from(GUI::frame());
                             SETTING(analysis_paused) = false;
                         }
@@ -372,11 +372,11 @@ public:
             std::vector<std::shared_ptr<FishAndBlob>> fish_and_blob;
             if(Tracker::has_identities()) {
                 for(auto id : Tracker::identities()) {
-                    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.count(id) ? GUI::cache().fish_selected_blobs.at(id) : pv::bid::invalid));
+                    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.count(id) ? GUI::cache().fish_selected_blobs.at(id).bdx : pv::bid::invalid));
                 }
             } else {
                 for(auto id : GUI::cache().active_ids)
-                    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.at(id)));
+                    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.at(id).bdx));
                 
                 //for(auto &id : GUI::cache().inactive_ids)
                 //    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, -1));
@@ -407,8 +407,8 @@ public:
                             
                             if(id.valid()) {
                                 std::string fish;
-                                for(auto && [fdx, bdx] : GUI::instance()->cache().fish_selected_blobs) {
-                                    if(bdx == id) {
+                                for(auto const& [fdx, blob] : GUI::instance()->cache().fish_selected_blobs) {
+                                    if(blob.bdx == id) {
                                         fish = GUI::instance()->cache().individuals.at(fdx)->identity().name();
                                         break;
                                     }

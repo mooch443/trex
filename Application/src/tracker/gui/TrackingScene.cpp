@@ -442,7 +442,10 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     auto mouse = graph.mouse_position();
-    if(mouse != _data->_last_mouse || _data->_cache->is_animating() || graph.root().is_animating()) {
+    if(mouse != _data->_last_mouse 
+       //|| _data->_cache->is_animating()
+       || graph.root().is_animating())
+    {
         if(((IMGUIBase*)window())->focussed()) {
             _data->_cache->set_blobs_dirty();
             _data->_cache->set_tracking_dirty();
@@ -520,8 +523,17 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 if (auto it = _data->_cache->fish_selected_blobs.find(fdx);
                     it != _data->_cache->fish_selected_blobs.end()) 
                 {
-                    auto bdx = _data->_cache->fish_selected_blobs.at(fdx);
-                    for (auto& blob : _data->_cache->raw_blobs) {
+                    auto const &blob = it->second;
+                    if(blob.basic_stuff) {
+                        auto bds = blob.basic_stuff->blob.calculate_bounds();
+                        targets.push_back(bds.pos());
+                        targets.push_back(bds.pos() + bds.size());
+                        targets.push_back(bds.pos() + bds.size().mul(0, 1));
+                        targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                        _data->_last_bounds[fdx] = bds;
+                        found = true;
+                    }
+                    /*for (auto& blob : _data->_cache->raw_blobs) {
                         if (blob->blob &&
                             (blob->blob->blob_id() == bdx || blob->blob->parent_id() == bdx)) {
                             auto& bds = blob->blob->bounds();
@@ -533,7 +545,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
                             found = true;
                             break;
                         }
-                    }
+                    }*/
                 }
 
                 if (not found) {
@@ -1055,14 +1067,14 @@ void TrackingScene::load_state(file::Path from) {
             }, from);
             
             if(header.version <= Output::ResultsFormat::Versions::V_33
-               && !Tracker::instance()->vi_predictions().empty())
+               && Tracker::instance()->has_vi_predictions())
             {
                 // probably need to convert blob ids
                 pv::Frame f;
                 size_t found = 0;
                 size_t N = 0;
                 
-                for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
+                Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) -> bool {
                     _state->video.read_frame(f, k);
                     auto blobs = f.get_blobs();
                     N += v.size();
@@ -1089,12 +1101,14 @@ void TrackingScene::load_state(file::Path from) {
                     if(found * 2 > N) {
                         // blobs are probably fine!
                         print("blobs are probably fine ",found,"/",N,".");
-                        break;
+                        return false;
                     } else if(N > 0) {
                         print("blobs are probably not fine.");
-                        break;
+                        return false;
                     }
-                }
+                    
+                    return true;
+                });
                 
                 if(found * 2 <= N && N > 0) {
                     print("fixing...");
@@ -1117,10 +1131,10 @@ void TrackingScene::load_state(file::Path from) {
                     
                     grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;
-                    const size_t N = Tracker::instance()->vi_predictions().size();
+                    const size_t N = Tracker::instance()->number_vi_predictions();
                     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
                     
-                    for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
+                    Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) {
                         auto & active = Tracker::active_individuals(k);
                         ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
                         
@@ -1221,7 +1235,7 @@ void TrackingScene::load_state(file::Path from) {
                             print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
                             WorkProgress::set_percent(double(i) / double(N));
                         }
-                    }
+                    });
                     
                     print("Found:", all_found, " not found:", not_found);
                     if(all_found > 0)

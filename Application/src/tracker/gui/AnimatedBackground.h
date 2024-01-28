@@ -9,6 +9,7 @@
 #include <pv.h>
 #include <gui/FramePreloader.h>
 #include <misc/Buffers.h>
+#include <gui/GuiTypes.h>
 
 namespace gui {
 

@@ -587,8 +587,8 @@ void draw_blob_view(const DisplayParameters& parm)
                         auto fish = it->second;
                         auto id = it->first;
                         
-                        for(auto&& [fdx, bdx] : cache.fish_selected_blobs) {
-                            if(bdx == clicked_blob_id) {
+                        for(auto const& [fdx, blob] : cache.fish_selected_blobs) {
+                            if(blob.bdx == clicked_blob_id) {
                                 if(fdx != id) {
                                     if(cache.is_selected(fdx)) {
                                         cache.deselect(fdx);
@@ -632,8 +632,8 @@ void draw_blob_view(const DisplayParameters& parm)
         if(found) {
             std::set<std::tuple<float, Dropdown::TextItem>> items;
             for(auto &[id, fish] : parm.cache.individuals) {
-                if(!parm.cache.fish_selected_blobs.count(id)
-                    || parm.cache.fish_selected_blobs.at(id) != _clicked_blob_id)
+                if(not parm.cache.fish_selected_blobs.contains(id)
+                    || parm.cache.fish_selected_blobs.at(id).bdx != _clicked_blob_id)
                 {
                     float d = FLT_MAX;
                     auto c = parm.cache.processed_frame().cached(id);

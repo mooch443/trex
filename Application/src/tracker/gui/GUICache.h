@@ -9,6 +9,10 @@
 #include <pv.h>
 #include <misc/TrackingSettings.h>
 #include <misc/ThreadPool.h>
+#include <tracking/MotionRecord.h>
+#include <processing/Background.h>
+#include <misc/Border.h>
+#include <tracking/Stuffs.h>
 
 class Timer;
 namespace track {
@@ -116,6 +120,8 @@ namespace globals {
         Frame_t frame_idx;
         
         bool _frame_contained{false};
+        std::optional<FrameProperties> _props;
+        std::optional<FrameProperties> _next_props;
         
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
@@ -133,10 +139,11 @@ namespace globals {
         std::unordered_map<std::string_view, gui::Drawable*> _animator_map;
         std::unordered_map<gui::Drawable*, Drawable::delete_function_handle_t> _delete_handles;
         GETTER(std::set<std::string_view>, animators);
+        GETTER_PTR(const Background*, background){nullptr};
         
     public:
         bool recognition_updated = false;
-
+        
         static GUICache& instance();
         static bool exists();
         Range<Frame_t> tracked_frames;
@@ -152,7 +159,14 @@ namespace globals {
         
         set_of_individuals_t _registered_callback;
         
-        std::map<Idx_t, pv::bid> fish_selected_blobs;
+        struct BdxAndPred {
+            pv::bid bdx;
+            std::optional<BasicStuff> basic_stuff;
+            std::optional<PostureStuff> posture_stuff;
+            std::optional<std::vector<float>> pred;
+        };
+        
+        std::map<Idx_t, BdxAndPred> fish_selected_blobs;
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
@@ -183,6 +197,8 @@ namespace globals {
         std::mutex percentile_mutex;
         std::once_flag _percentile_once;
         std::atomic<bool> done_calculating{false};
+        
+        GETTER(Border, border);
         
     public:
         bool has_selection() const;

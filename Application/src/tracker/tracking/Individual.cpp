@@ -2551,7 +2551,7 @@ std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fis
         
         auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
         if(pred) {
-            auto map = Tracker::prediction2map(*pred);
+            auto map = track::prediction2map(*pred);
             for (auto && [fdx, p] : map) {
                 if(p > max_p) {
                     max_p = p;
@@ -2792,7 +2792,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
 
             auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
             if(pred) {
-                auto map = Tracker::prediction2map(*pred);
+                auto map = track::prediction2map(*pred);
                 ++overall;
 
                 for (auto&& [fdx, p] : map) {
@@ -2853,7 +2853,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             
             auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
             if(pred) {
-                auto map = Tracker::prediction2map(*pred);
+                auto map = track::prediction2map(*pred);
                 ++overall;
                 
                 for (auto && [fdx, p] : map) {

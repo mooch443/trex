@@ -14,9 +14,8 @@
 //#include <gui.h>
 #include <misc/IdentifiedTag.h>
 #include <gui/Skelett.h>
-#include <tracking/Tracker.h>
 #include <tracking/Individual.h>
-#include <tracking/LockGuard.h>
+#include <processing/Background.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
 //#include <gui.h>
@@ -115,7 +114,7 @@ Fish::~Fish() {
             
             auto p = tags::prettify_blobs(blobs, noise, {},
                 //GUICache::instance().processed_frame().original_blobs(),
-                Tracker::instance()->background()->image());
+                GUICache::instance().background()->image());
 
             for (auto& image : p) {
 
@@ -157,7 +156,7 @@ Fish::~Fish() {
     
     void Fish::set_data(Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
-        _safe_frame = obj.find_frame(frameIndex)->frame;
+        _safe_frame = frameIndex;
         _time = time;
         _events = events;
         
@@ -180,50 +179,59 @@ Fish::~Fish() {
         } else
             _match_mode = -1;
         
-        auto && [basic, posture] = obj.all_stuff(_safe_frame);
+        if(auto it = GUICache::instance().fish_selected_blobs.find(_id.ID());
+           it != GUICache::instance().fish_selected_blobs.end())
+        {
+            _basic_stuff = it->second.basic_stuff;
+            _posture_stuff = it->second.posture_stuff;
         
-        const PostureStuff* current_posture;
-        const BasicStuff* current_basic;
-        
-        if(frameIndex == _safe_frame) {
-            current_posture = posture;
-            current_basic = basic;
+            if(it->second.pred)
+                _pred = it->second.pred.value();
+            else
+                _pred.clear();
+            
         } else {
-            auto && [basic, posture] = obj.all_stuff(frameIndex);
-            current_posture = posture;
-            current_basic = basic;
+            _basic_stuff.reset();
+            _posture_stuff.reset();
+            _pred.clear();
+            
+            if(not obj.empty()) {
+                auto current_basic = obj.find_frame(frameIndex);
+                if(not current_basic)
+                    throw U_EXCEPTION(_id," should have a safe frame given that its not empty.");
+                
+                _basic_stuff = *current_basic;
+                _safe_frame = _basic_stuff->frame;
+                
+                auto posture = obj.posture_stuff(_safe_frame);
+                if(posture)
+                    _posture_stuff = *posture;
+                else
+                    _posture_stuff.reset();
+            }
         }
         
-        _cached_outline = current_posture ? current_posture->outline : nullptr;
+        _cached_outline = _posture_stuff 
+                            ? _posture_stuff->outline
+                            : nullptr;
+        
         _ML = obj.midline_length();
         
         if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline) || GUIOPTION(gui_happy_mode)) {
-            if(current_posture) {
-                _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*current_basic, *current_posture);
+            if(_posture_stuff) {
+                _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_basic_stuff, *_posture_stuff);
                 assert(!_cached_midline || _cached_midline->is_normalized());
             }
         }
         
         _view.set_dirty();
         
-        auto blob = obj.compressed_blob(_safe_frame);
-        _blob_bounds = blob ? blob->calculate_bounds() : _view.bounds();
-
-        //check_tags();
-
-        auto [_basic, _posture] = obj.all_stuff(_safe_frame);
-        if(_basic)
-            _basic_stuff = *_basic;
-        else
-            _basic_stuff.reset();
-        
-        if(_posture)
-            _posture_stuff = *_posture;
-        else
-            _posture_stuff.reset();
+        _blob_bounds = _basic_stuff
+                            ? _basic_stuff->blob.calculate_bounds()
+                            : _view.bounds();
         
 #if !COMMONS_NO_PYTHON
-        if(frameIndex == _safe_frame && _basic) {
+        if(frameIndex == _safe_frame && _basic_stuff) {
             auto c = Categorize::DataStore::_label_averaged_unsafe(&obj, Frame_t(frameIndex));
             if(c) {
                 _avg_cat = c->id;
@@ -239,11 +247,16 @@ Fish::~Fish() {
 #endif
         
         auto color_source = GUIOPTION(gui_fish_color);
-        if(color_source != "identity" && blob) {
+        if(_basic_stuff
+           && color_source != "identity")
+        {
             _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
             if(!GlobalSettings::is_invalid(_library_y)) {
-                if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTING(cm_per_pixel);
-                else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTING(cm_per_pixel);
+                auto video_size = FindCoord::get().video_size();
+                if(color_source == "X") 
+                    _library_y /= video_size.width * FAST_SETTING(cm_per_pixel);
+                else if(color_source == "Y")
+                    _library_y /= video_size.height * FAST_SETTING(cm_per_pixel);
             }
         }
         
@@ -263,20 +276,15 @@ Fish::~Fish() {
         } else
             _qr_code = {};
         
-        auto pred = Tracker::instance()->find_prediction(_frame, _basic_stuff->blob.blob_id());
-        if(pred)
-            _pred = *pred;
-        else
-            _pred.clear();
-        
         const auto frame_rate = slow::frame_rate;
         auto current_time = _time;
-        auto next_props = Tracker::properties(_frame + 1_f);
+        auto next_props = GUICache::instance()._next_props ? &GUICache::instance()._next_props.value() : nullptr;
+        //auto next_props = Tracker::properties(_frame + 1_f);
         auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
         
         //if(!_next_frame_cache.valid)
-        {
-            auto result = obj.cache_for_frame(Tracker::properties(_frame), _frame + 1_f, next_time);
+        if(GUICache::instance()._props) {
+            auto result = obj.cache_for_frame(&GUICache::instance()._props.value(), _frame + 1_f, next_time);
             if(result) {
                 _next_frame_cache = std::move(result.value());
             } else {
@@ -378,7 +386,7 @@ Fish::~Fish() {
                         
                     } while (sum > 0 || _probability_radius < 10);*/
                     
-                    distribute_indexes([&](auto i, auto it, auto nex, auto index){
+                    distribute_indexes([&](auto, auto it, auto nex, auto){
                         //print("y ", it, " - ", nex);
                         for(auto y = it; y < nex; ++y) {
                             int x = 0;
@@ -501,7 +509,7 @@ Fish::~Fish() {
             if(GUI_SETTINGS(gui_macos_blur) && is_selected) {
                 auto it = cache.fish_selected_blobs.find(_id.ID());
                 if (it != cache.fish_selected_blobs.end()) {
-                    auto dp = cache.display_blobs.find(it->second);
+                    auto dp = cache.display_blobs.find(it->second.bdx);
                     if(dp != cache.display_blobs.end()) {
                         dp->second->ptr->untag(Effects::blur);
                     }
@@ -576,9 +584,11 @@ Fish::~Fish() {
                         _polygon->set_origin(Vec2(0.5));
                     }
                     _polygon->set_vertices(points);
-                    float size = Tracker::average().bounds().size().length() * 0.0025f;
-                    Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
-                        SQR(offset.y / float(Tracker::average().rows)));
+                    
+                    auto video_size = FindCoord::get().video_size();
+                    float size = video_size.length() * 0.0025f;
+                    Vec2 scaling(SQR(offset.x / video_size.width),
+                                 SQR(offset.y / video_size.height));
                     _polygon->set_pos(-offset + scaling * size + _view.size() * 0.5);
                     _polygon->set_scale(scaling * 0.25 + 1);
                     _polygon->set_fill_clr(Black.alpha(25));
@@ -674,11 +684,12 @@ Fish::~Fish() {
             _view.advance_wrap(_posture);
         
             // DISPLAY LABEL AND POSITION
+            auto bg = GUICache::instance().background();
             auto c_pos = centroid->pos<Units::PX_AND_SECONDS>() + offset;
-            if(c_pos.x > Tracker::average().cols || c_pos.y > Tracker::average().rows)
+            if(not bg || c_pos.x > bg->image().cols || c_pos.y > bg->image().rows)
                 return;
         
-            auto v = 255 - int(Tracker::average().at(c_pos.y, c_pos.x));
+            auto v = 255 - int(bg->image().at(c_pos.y, c_pos.x));
             if(v >= 100)
                 v = 220;
             else
@@ -789,7 +800,7 @@ Fish::~Fish() {
                     if(!is_in(b.blob_id(), bdx, pdx))
                         return true;
                     
-                    auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                    auto && [dpos, difference] = b.difference_image(*GUICache::instance().background(), 0);
                     auto rgba = Image::Make(difference->rows, difference->cols, 4);
                 
                     uchar maximum_grey = 255, minimum_grey = 0;
@@ -818,8 +829,8 @@ Fish::~Fish() {
                     if(!is_in(b.blob_id(), bdx, pdx))
                         return true;
                     
-                    auto && [image_pos, image] = b.binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
-                    auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                    auto && [image_pos, image] = b.binary_image(*GUICache::instance().background(), FAST_SETTING(track_threshold));
+                    auto && [dpos, difference] = b.difference_image(*GUICache::instance().background(), 0);
                 
                     auto rgba = Image::Make(image->rows, image->cols, 4);
                 
@@ -996,10 +1007,11 @@ Color Fish::get_color(const BasicStuff * basic) const {
         auto y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
         
         if(not GlobalSettings::is_invalid(y)) {
+            auto video_size = FindCoord::get().video_size();
             if(color_source == "X")
-                y /= float(Tracker::average().cols) * slow::cm_per_pixel; //FAST_SETTING(cm_per_pixel);
+                y /= video_size.width * slow::cm_per_pixel;
             else if(color_source == "Y")
-                y /= float(Tracker::average().rows) * slow::cm_per_pixel; //FAST_SETTING(cm_per_pixel);
+                y /= video_size.height * slow::cm_per_pixel;
             
             auto percent = saturate(cmn::abs(y), 0.f, 1.f);
             return clr.alpha(255) * percent + Color(50, 50, 50, 255) * (1 - percent);
@@ -1201,7 +1213,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     }
     
     void Fish::update_recognition_circle() {
-        if(Tracker::instance()->border().in_recognition_bounds(_fish_pos)) {
+        if(GUICache::instance().border().in_recognition_bounds(_fish_pos)) {
             if(!_recognition_circle) {
                 // is inside bounds, but we didnt know that yet! start animation
                 _recognition_circle = std::make_shared<Circle>(Radius{1}, LineClr{Transparent}, FillClr{Cyan.alpha(50)});
@@ -1276,6 +1288,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     std::string color = "";
     std::stringstream text;
     std::string secondary_text;
+    
 
     text << _id.raw_name() << " ";
     
@@ -1298,7 +1311,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
                 color = "nr";
         } else {
             if(not _pred.empty()) {
-                auto map = Tracker::prediction2map(_pred);
+                auto map = track::prediction2map(_pred);
                 auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                         return a.second < b.second;
                     });

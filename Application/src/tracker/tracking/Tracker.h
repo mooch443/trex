@@ -6,7 +6,7 @@
 #include <pv.h>
 #include <misc/ThreadPool.h>
 #include <processing/Background.h>
-#include <tracking/Border.h>
+#include <misc/Border.h>
 #include <misc/Timer.h>
 #include <misc/BlobSizeRange.h>
 #include <misc/idx_t.h>
@@ -54,20 +54,36 @@ protected:
     GETTER_NCONST(Border, border);
     
 protected:
+    mutable std::shared_mutex _vi_mutex;
     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> _vi_predictions;
 public:
-    const auto& vi_predictions() const {
+    void transform_vi_predictions(auto&& fn) const {
+        std::shared_lock g(_vi_mutex);
+        for(auto const& [frame, pred] : _vi_predictions) {
+            if constexpr(Predicate<decltype(fn), Frame_t, decltype(pred)>) {
+                if(not fn(frame, pred))
+                    break;
+            } else {
+                fn(frame, pred);
+            }
+        }
+    }
+    /*auto vi_predictions() const {
         return _vi_predictions;
+    }*/
+    size_t number_vi_predictions() const {
+        std::shared_lock g(_vi_mutex);
+        return _vi_predictions.size();
     }
     bool has_vi_predictions() const {
+        std::shared_lock g(_vi_mutex);
         return !_vi_predictions.empty();
     }
     
     void set_vi_data(const decltype(_vi_predictions)& predictions);
-    void predicted(Frame_t, pv::bid, std::vector<float>&&);
+    void predicted(Frame_t, pv::bid, std::span<float>);
     const std::vector<float>& get_prediction(Frame_t, pv::bid) const;
     const std::vector<float>* find_prediction(Frame_t, pv::bid) const;
-    static std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
     
 protected:
     std::vector<FrameProperties::Ptr> _added_frames;

@@ -89,7 +89,7 @@ namespace gui {
                     if(blob) {
                         auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
                         if(pred) {
-                            auto map = Tracker::prediction2map(*pred);
+                            auto map = track::prediction2map(*pred);
                             for (auto & [fdx, p] : map)
                                 std::get<1>(_cache[id])[fdx] = p;
                             std::get<0>(_cache[id]) = 1;

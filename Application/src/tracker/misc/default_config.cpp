@@ -7,6 +7,7 @@
 #include <misc/bid.h>
 #include <misc/colors.h>
 #include <misc/DetectionTypes.h>
+#include <misc/Border.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -43,15 +44,6 @@ namespace default_config {
     const std::string& homedir() {
         return ::homedir;
     }
-
-    ENUM_CLASS_DOCS(recognition_border_t,
-        "No border at all. All points are inside the recognition boundary. (default)", // none
-        "Looks at a subset of frames from the video, trying to find out where individuals go and masking all the places they do not.", // "heatmap"
-        "Similar to heatmap, but tries to build a convex border around the around (without holes in it).", // {"outline"
-        "Any array of convex shapes. Set coordinates by changing `recognition_shapes`.", // {"shapes"
-        "The points defined in `grid_points` are turned into N different circles inside the arena (with points in `grid_points` being the circle centers), which define in/out if inside/outside any of the circles.", // "grid"
-        "The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out." // {"circle",
-    )
 
     ENUM_CLASS_DOCS(individual_image_normalization_t,
                     "No normalization. Images will only be cropped out and used as-is.",
@@ -719,7 +711,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("recognition_segment_add_factor", float(1.5), "This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
         CONFIG("recognition_save_progress_images", false, "If set to true, an image will be saved for all training epochs, documenting the uniqueness in each step.");
         CONFIG("recognition_shapes", std::vector<std::vector<Vec2>>(), "If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.");
-        CONFIG("recognition_border", recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
+        CONFIG("recognition_border", track::recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
         );
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
         CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");

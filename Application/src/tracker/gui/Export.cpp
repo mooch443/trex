@@ -496,7 +496,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         if(blob) {
                             auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
                             if(pred) {
-                                auto map = Tracker::prediction2map(*pred);
+                                auto map = track::prediction2map(*pred);
                                 for(auto && [rid, p] : map) {
                                     probabilities.push_back(p);
                                 }

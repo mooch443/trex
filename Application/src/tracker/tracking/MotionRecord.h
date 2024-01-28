@@ -1,8 +1,6 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/Blob.h>
-#include <misc/GlobalSettings.h>
 #include <misc/frame_t.h>
 
 namespace track {
@@ -48,19 +46,16 @@ struct FrameProperties {
     }
     
 public:
-    double time;
-    timestamp_t org_timestamp;
+    double time{-1};
+    timestamp_t org_timestamp{0};
     Frame_t frame;
-    long_t active_individuals;
+    long_t active_individuals{-1};
         
     FrameProperties(Frame_t frame, double t, timestamp_t ot)
-        : time(t), org_timestamp(ot), frame(frame), active_individuals(-1)
+        : time(t), org_timestamp(ot), frame(frame)
     {}
-        
-    FrameProperties()
-        : time(-1), org_timestamp(0), active_individuals(-1)
-    {}
-        
+    FrameProperties() noexcept = default;
+    
     bool operator<(Frame_t frame) const {
         return this->frame < frame;
     }

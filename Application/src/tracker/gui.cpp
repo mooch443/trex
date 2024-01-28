@@ -2209,8 +2209,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
         else if(settings_dropdown.text() == "free_fish") {
             std::set<Idx_t> free_fish, inactive;
-            for(auto && [fdx, fish] : PD(cache).individuals) {
-                if(!PD(cache).fish_selected_blobs.at(fdx).valid()
+            for(auto const& [fdx, fish] : PD(cache).individuals) {
+                if(!PD(cache).fish_selected_blobs.at(fdx).bdx.valid()
                    || PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end())
                 {
                     free_fish.insert(fdx);
@@ -3833,14 +3833,14 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             }, from);
             
             if(header.version <= Output::ResultsFormat::Versions::V_33
-               && !Tracker::instance()->vi_predictions().empty())
+               && Tracker::instance()->has_vi_predictions())
             {
                 // probably need to convert blob ids
                 pv::Frame f;
                 size_t found = 0;
                 size_t N = 0;
                 
-                for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
+                Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) {
                     GUI::instance()->video_source()->read_frame(f, k);
                     auto blobs = f.get_blobs();
                     N += v.size();
@@ -3872,7 +3872,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                         print("blobs are probably not fine.");
                         break;
                     }
-                }
+                });
                 
                 if(found * 2 <= N && N > 0) {
                     print("fixing...");
@@ -3895,10 +3895,10 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     
                     grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;
-                    const size_t N = Tracker::instance()->vi_predictions().size();
+                    const size_t N = Tracker::instance()->number_vi_predictions();
                     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
                     
-                    for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
+                    Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) {
                         auto & active = Tracker::active_individuals(k);
                         ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
                         
@@ -3999,7 +3999,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                             print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
                             WorkProgress::set_percent(double(i) / double(N));
                         }
-                    }
+                    });
                     
                     print("Found:", all_found, " not found:", not_found);
                     if(all_found > 0)

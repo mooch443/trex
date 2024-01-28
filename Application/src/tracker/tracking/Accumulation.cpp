@@ -24,6 +24,8 @@
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <gui/IMGUIBase.h>
+#include <gui/types/StaticText.h>
+#include <gui/GuiTypes.h>
 
 namespace py = Python;
 
@@ -150,7 +152,7 @@ void apply_network(pv::File& video_source) {
                     auto end   = probabilities.begin() + (i + 1) * N;
                     
                     auto &r = results[i];
-                    Tracker::instance()->predicted(r.frame, r.bdx, std::vector<float>(std::make_move_iterator(start), std::make_move_iterator(end)));
+                    Tracker::instance()->predicted(r.frame, r.bdx, std::span<float>(start, end));
                 }
                 
 #ifndef NDEBUG

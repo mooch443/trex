@@ -108,7 +108,7 @@ void InfoCard::update() {
                 } else {
                     auto pred = Tracker::instance()->find_prediction(_shadow->frame, blob_id);
                     if(pred)
-                        _shadow->raw = Tracker::prediction2map(*pred);
+                        _shadow->raw = track::prediction2map(*pred);
                     else
                         _shadow->raw.clear();
                 }
@@ -432,7 +432,7 @@ void InfoCard::update() {
             if(fprobs->count(blob)) {
                 auto color = Color(200, 200, 200, 255);
                 if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end()
-                   && blob == cache.fish_selected_blobs.at(fdx))
+                   && blob == cache.fish_selected_blobs.at(fdx).bdx)
                 {
                     color = Green;
                 } else if(blob == bdx) {

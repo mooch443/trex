@@ -121,15 +121,15 @@ Tracker* Tracker::instance() {
     return _instance;
 }
     
-void Tracker::predicted(Frame_t frame, pv::bid bdx, std::vector<float> && ps) {
+void Tracker::predicted(Frame_t frame, pv::bid bdx, std::span<float> ps) {
+    std::unique_lock g(_vi_mutex);
     auto &ff = _vi_predictions[frame];
 #ifndef NDEBUG
     if(ff.count(bdx)) {
         FormatWarning("bdx ", bdx, " already in predictions (forgot to clear?).");
     }
 #endif
-    
-    ff[bdx] = std::move(ps);
+    ff[bdx] = std::vector<float>{ps.data(), ps.data() + ps.size()};
 }
 
 const std::vector<float>& Tracker::get_prediction(Frame_t frame, pv::bid bdx) const {
@@ -144,6 +144,7 @@ const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) c
     if(not frame.valid() || not bdx.valid())
         return nullptr;
     
+    std::shared_lock g(_vi_mutex);
     auto it = _vi_predictions.find(frame);
     if(it == _vi_predictions.end())
         return nullptr;
@@ -153,14 +154,6 @@ const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) c
         return nullptr;
     
     return &kit->second;
-}
-
-std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
-    std::map<Idx_t, float> map;
-    for (size_t i=0; i<pred.size(); i++) {
-        map[Idx_t(i)] = pred[i];
-    }
-    return map;
 }
 
 auto& properties_cache() {
@@ -2807,6 +2800,7 @@ void apply(
 }
 
 void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
+    std::unique_lock g(_vi_mutex);
     _vi_predictions = std::move(predictions);
 }
     

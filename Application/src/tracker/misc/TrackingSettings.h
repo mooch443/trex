@@ -198,4 +198,6 @@ struct Statistics {
     }
 };
 
+std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
+
 }
