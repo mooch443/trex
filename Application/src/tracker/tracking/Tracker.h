@@ -188,6 +188,8 @@ public:
         _border = Border(_background);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
+        if(not instance())
+            throw _U_EXCEPTION(loc, "Instance is nullptr.");
         if(!instance()->_average)
             throw _U_EXCEPTION(loc, "Pointer to average image is nullptr.");
         return *instance()->_average;
