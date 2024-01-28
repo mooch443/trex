@@ -1,12 +1,12 @@
 #include "Border.h"
 #include <pv.h>
 #include <misc/CircularGraph.h>
-#include <tracking/Tracker.h>
 #include <misc/PixelTree.h>
 #include <misc/Timer.h>
 #include <misc/default_config.h>
 #include <gui/GuiTypes.h>
 #include <gui/DrawStructure.h>
+#include <misc/TrackingSettings.h>
 
 namespace track {
 
@@ -20,9 +20,46 @@ ENUM_CLASS_DOCS(recognition_border_t,
     "The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out." // {"circle",
 )
 
-    Border::Border()
-    : _type(Type::none), _recognition_border_size_rescale(-1)
+    Border::Border(const Background* bg)
+        : _background(bg), 
+          _resolution(bg ? bg->bounds().size(): Size2(1))
     {}
+
+    Border::Border(const Border& other)
+        : _background(other._background),
+        _resolution(other._resolution),
+        _type(other._type),
+        _max_distance(other._max_distance),
+        _min_distance(other._min_distance),
+        x_range(other.x_range),
+        y_range(other.y_range),
+        _vertices(other._vertices),
+        poly_set(other.poly_set),
+        _mask(other._mask ? Image::Make(*other._mask) : nullptr),
+        x_valid(other.x_valid),
+        y_valid(other.y_valid),
+        grid_cells(other.grid_cells),
+        _recognition_border_size_rescale(other._recognition_border_size_rescale),
+        _polygons(other._polygons)
+    {}
+    Border& Border::operator=(const Border& other) {
+        _background = other._background;
+        _resolution = other._resolution;
+        _type = other._type;
+        _max_distance = other._max_distance;
+        _min_distance = other._min_distance;
+        x_range = other.x_range;
+        y_range = other.y_range;
+        _vertices = other._vertices;
+        poly_set = other.poly_set;
+        _mask = other._mask ? Image::Make(*other._mask) : nullptr;
+        x_valid = other.x_valid;
+        y_valid = other.y_valid;
+        grid_cells = other.grid_cells;
+        _recognition_border_size_rescale = other._recognition_border_size_rescale;
+        _polygons = other._polygons;
+        return *this;
+    }
     
     periodic::points_t smooth_outline(const periodic::points_t& points, float range, long step) {
         const long L = points->size();
@@ -102,7 +139,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             return; // already generated a mask
         
         constexpr size_t grid_res = 100;
-        const Size2 grid_size = Tracker::average().bounds().size() / float(grid_res);
+        const Size2 grid_size = _resolution / float(grid_res);
         auto pos2grid = [&grid_size](const Vec2& pos) {
             return pos.div(grid_size).map<round>();
         };
@@ -137,7 +174,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     break;
                 
                 for(auto &b : blobs) {
-                    auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
+                    auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), _background);
                     
                     for(auto &b : pb) {
                         auto size = b->num_pixels() * sqcm;
@@ -231,7 +268,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     auto blobs = frame.get_blobs();
                     
                     for(auto &b : blobs) {
-                        auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), Tracker::instance()->background());
+                        auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), _background);
                         
                         for(auto &&b : pb) {
                             auto size = b->num_pixels() * sqcm;
@@ -517,8 +554,8 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 
             case Type::circle:
                 // probably circle mask
-                _max_distance = euclidean_distance(Vec2(0, Tracker::average().rows * 0.5),
-                                                   Vec2(Tracker::average().bounds().size()) * 0.5) * 0.95;
+                _max_distance = euclidean_distance(Vec2(0, _resolution.height * 0.5),
+                                                   Vec2(_resolution) * 0.5) * 0.95;
                 break;
                 
             default:
@@ -555,7 +592,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             //return min(d0, d1);
             
         } else if(_type == Type::circle) {
-            return euclidean_distance(pt, Vec2(Tracker::average().bounds().size() * 0.5));
+            return euclidean_distance(pt, Vec2(_resolution * 0.5));
         }
         
         throw U_EXCEPTION("Unknown border type (",_type,").");

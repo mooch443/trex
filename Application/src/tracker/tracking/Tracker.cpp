@@ -243,6 +243,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
       : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
         _max_individuals(0),
         _background(NULL),
+        _border{ nullptr },
         recognition_pool(max(1u, 5u), "RecognitionPool")
         /*_inactive_individuals([this](Idx_t A, Idx_t B){
             auto it = _individuals.find(A);

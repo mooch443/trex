@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <misc/ranges.h>
 #include <misc/Image.h>
+#include <processing/Background.h>
 
 namespace pv {
 class File;
@@ -19,22 +20,27 @@ namespace track {
         using Type = recognition_border_t::data::values;
         
     protected:
-        GETTER(Type, type);
-        GETTER(float, max_distance);
-        GETTER(float, min_distance);
+        const Background* _background{nullptr};
+        Size2 _resolution;
+        GETTER(Type, type){Type::none};
+        GETTER(float, max_distance){-1};
+        GETTER(float, min_distance){-1};
         std::vector<Rangef> x_range;
         std::vector<Rangef> y_range;
         GETTER(std::vector<std::vector<Vec2>>, vertices);
-        bool poly_set;
+        bool poly_set{false};
         std::mutex mutex;
         GETTER(Image::Ptr, mask);
         std::vector<bool> x_valid, y_valid;
         std::map<std::tuple<uint16_t, uint16_t>, uint32_t> grid_cells;
-        float _recognition_border_size_rescale;
+        float _recognition_border_size_rescale{-1};
         GETTER(std::vector<std::shared_ptr<std::vector<cmn::Vec2>>>, polygons);
         
     public:
-        Border();
+        Border(const Background*);
+        Border(const Border& other);
+        Border& operator=(const Border& other);
+
         void update(pv::File&);
         float distance(const Vec2& pt) const;
         bool in_recognition_bounds(const Vec2& pt) const;

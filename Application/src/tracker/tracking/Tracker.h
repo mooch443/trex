@@ -51,9 +51,6 @@ public:
     static GenericThreadPool& thread_pool() { return instance()->_thread_pool; }
     
 protected:
-    GETTER_NCONST(Border, border);
-    
-protected:
     mutable std::shared_mutex _vi_mutex;
     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> _vi_predictions;
 public:
@@ -113,6 +110,7 @@ public:
     
 protected:
     Background* _background{nullptr};
+    GETTER_NCONST(Border, border);
 public:
     static Background* background() { return instance()->_background; }
     
@@ -187,6 +185,7 @@ public:
     void set_average(Image::Ptr&& average) {
         _average = std::move(average);
         _background = new Background(Image::Make(*_average), nullptr);
+        _border = Border(_background);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
         if(!instance()->_average)

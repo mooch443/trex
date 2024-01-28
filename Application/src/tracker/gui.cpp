@@ -16,6 +16,7 @@
 #include <gui/SFLoop.h>
 #include <gui/DrawBase.h>
 #include <gui/DrawCVBase.h>
+#include <gui/DrawBorder.h>
 
 #include <tracking/Tracker.h>
 #include <tracking/DatasetQuality.h>
@@ -2872,7 +2873,9 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             if(!PD(tracking)._recognition_image.source()->empty()) {
                 base.wrap_object(PD(tracking)._recognition_image);
             }
-            Tracker::instance()->border().draw(base);
+
+            static DrawBorder border{Tracker::instance()->border()};
+            base.wrap_object(border);
         }
         
         if(PD(timeline)->visible()) {
@@ -3867,11 +3870,13 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     if(found * 2 > N) {
                         // blobs are probably fine!
                         print("blobs are probably fine ",found,"/",N,".");
-                        break;
+                        return false;
                     } else if(N > 0) {
                         print("blobs are probably not fine.");
-                        break;
+                        return false;
                     }
+
+                    return true;
                 });
                 
                 if(found * 2 <= N && N > 0) {

@@ -324,7 +324,12 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         
         _fish_dirty = false;
         //if(not _background)
-        _background = Tracker::instance()->background();
+        if (Tracker::instance()) {
+            if (Tracker::instance()->background() != _background) {
+                _background = Tracker::instance()->background();
+                _border = Tracker::instance()->border();
+            }
+        }
         
         bool current_frame_matches = _current_processed_frame
              && _current_processed_frame->index() == frameIndex;

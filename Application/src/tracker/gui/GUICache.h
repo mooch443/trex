@@ -198,7 +198,7 @@ namespace globals {
         std::once_flag _percentile_once;
         std::atomic<bool> done_calculating{false};
         
-        GETTER(Border, border);
+        GETTER(Border, border){nullptr};
         
     public:
         bool has_selection() const;

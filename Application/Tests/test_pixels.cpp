@@ -6,13 +6,13 @@
 
 using namespace cmn;
 
-template<DifferenceMethod method>
+template<DifferenceMethod method, ImageMode mode>
 inline void line_without_grid (const Background* bg, const std::vector<HorizontalLine>& input, uchar*& px, int threshold, std::vector<HorizontalLine> &lines, std::vector<uchar> &pixels) {
     std::vector<uchar> output;
     output.reserve(pixels.capacity());
     for(const auto &line : input) {
         for (auto x=line.x0; x<=line.x1; ++x, ++px) {
-            output.emplace_back(bg->diff<method>(x, line.y, *px));
+            output.emplace_back(bg->diff<method, mode>(x, line.y, *px));
         }
     }
     
@@ -89,15 +89,18 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     print(std::vector<uchar>(bg->image().ptr(0, 0),
                              bg->image().ptr(bg->image().rows-1, bg->image().cols-1)));
     
-    
-    ASSERT_EQ(bg->diff<DifferenceMethod::absolute>(0, 0, 200), 50);
-    ASSERT_EQ(bg->diff<DifferenceMethod::none>(0, 0, 200), 200);
-    ASSERT_EQ(bg->diff<DifferenceMethod::none>(0, 0, 55), 55);
-    ASSERT_EQ(bg->diff<DifferenceMethod::sign>(0, 0, 100), 50);
-    ASSERT_EQ(bg->diff<DifferenceMethod::sign>(0, 0, 200), 0);
+    auto fn = [&]<DifferenceMethod method>(auto value) {
+        return bg->diff<method, ImageMode::GRAY>(0, 0, value);
+    };
+
+    ASSERT_EQ(fn.operator()<DifferenceMethod::absolute>(200), 50);
+    ASSERT_EQ(fn.operator()<DifferenceMethod::none>(200), 200);
+    ASSERT_EQ(fn.operator()<DifferenceMethod::none>(55), 55);
+    ASSERT_EQ(fn.operator()<DifferenceMethod::sign>(100), 50);
+    ASSERT_EQ(fn.operator()<DifferenceMethod::sign>(200), 0);
     
     uchar* px = input_pixels.data();
-    line_without_grid<DifferenceMethod::absolute>(bg.get(), input, px, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::absolute, ImageMode::GRAY>(bg.get(), input, px, threshold, lines, pixels);
     
     print("result lines:", lines);
     print("result pixels:", pixels);
@@ -113,7 +116,7 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     px = input_pixels.data();
     pixels.clear();
     lines.clear();
-    line_without_grid<DifferenceMethod::none>(bg.get(), input, px, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::none, ImageMode::GRAY>(bg.get(), input, px, threshold, lines, pixels);
     
     print("result lines:", lines);
     print("result pixels:", pixels);
@@ -124,7 +127,7 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     px = input_pixels.data();
     pixels.clear();
     lines.clear();
-    line_without_grid<DifferenceMethod::sign>(bg.get(), input, px, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::sign, ImageMode::GRAY>(bg.get(), input, px, threshold, lines, pixels);
     expected_lines = {{0, 0, 9}, {1, 0, 9}};
     expected_pixels = {150,148,146,144,142,140,138,136,134,132,130,128,126,124,122,120,118,116,114,112};
     
@@ -147,7 +150,7 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     px = input_pixels.data();
     pixels.clear();
     lines.clear();
-    line_without_grid<DifferenceMethod::absolute>(bg.get(), input, px, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::absolute, ImageMode::GRAY>(bg.get(), input, px, threshold, lines, pixels);
     expected_lines = {{0, 0, 9},{1, 0, 9}};
     expected_pixels = {50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69};
     
@@ -160,7 +163,7 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     px = input_pixels.data();
     pixels.clear();
     lines.clear();
-    line_without_grid<DifferenceMethod::sign>(bg.get(), input, px, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::sign, ImageMode::GRAY>(bg.get(), input, px, threshold, lines, pixels);
     expected_lines = {{0,0,9}};
     expected_pixels = {50,51,52,53,54,55,56,57,58,59};
     
@@ -203,7 +206,7 @@ TEST_F(LineWithoutGridTest, SignDifferenceMethod) {
     std::vector<HorizontalLine> lines;
     std::vector<uchar> pixels;
 
-    line_without_grid<DifferenceMethod::sign>(bg.get(), input, px, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::sign, ImageMode::GRAY>(bg.get(), input, px, threshold, lines, pixels);
 
     // Expected results
     using HL = HorizontalLine;
@@ -225,7 +228,7 @@ TEST_F(LineWithoutGridTest, NoneDifferenceMethod) {
     std::vector<uchar> pixels;
 
     auto start = input_pixels.data();
-    line_without_grid<DifferenceMethod::none>(bg.get(), input, start, threshold, lines, pixels);
+    line_without_grid<DifferenceMethod::none, ImageMode::GRAY>(bg.get(), input, start, threshold, lines, pixels);
 
     // Expected results
     std::vector<HorizontalLine> expected_lines = { {0, 5, 9}, {1, 0, 9}};
