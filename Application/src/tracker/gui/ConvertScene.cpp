@@ -620,6 +620,7 @@ void ConvertScene::Data::drawBlobs(
 
     auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
     std::vector<Vec2> targets;
+    const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
 
     for (auto& blob : _object_blobs) {
         auto bds = blob->bounds();
@@ -667,7 +668,13 @@ void ConvertScene::Data::drawBlobs(
         
         auto cname = meta_classes.size() > assign.clid
             ? meta_classes.at(assign.clid)
-            : "<unknown:" + Meta::toStr(assign.clid) + ">";
+            : ((assign.clid == size_t(-1)
+                   ? (is_background_subtraction 
+                      ? (meta_classes.empty()
+                           ? FAST_SETTING(individual_prefix)
+                           : meta_classes.front())
+                      : "<no prediction>")
+                   : "<unknown:" + Meta::toStr(assign.clid) + ">"));
 
         sprite::Map* tmp = nullptr;
 

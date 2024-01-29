@@ -189,6 +189,19 @@ void load(file::PathArray source,
     
     if(not source.empty())
     {
+        if(source.get_paths().size() == 1) {
+            //if(not source.get_paths().front().has_extension())
+            {
+                auto path = source.get_paths().front().add_extension("pv");
+                if(path.exists())
+                    source = file::PathArray(path);
+                else if(path = file::DataLocation::parse("output", path, &combined.map);
+                        path.exists())
+                {
+                    source = file::PathArray(path);
+                }
+            }
+        }
         combined.map["source"] = source;
         
         //if(combined.map.has("meta_source_path")
@@ -331,7 +344,8 @@ void load(file::PathArray source,
     auto exclude_from_default = exclude;
     //if(task == TRexTask_t::track)
     {
-        auto path = combined.map.at("filename").value<file::Path>();
+        auto path = find_output_name(combined.map, source, filename);
+        //auto path = combined.map.at("filename").value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");
         if(path.is_regular()) {
@@ -340,11 +354,11 @@ void load(file::PathArray source,
                 sprite::Map tmp;
                 pv::File f(path, pv::FileMode::READ);
                 if(f.header().version < pv::Version::V_10) {
-                    /// we need to have a `detect_type` in oder to set the
+                    /// we need to have a `detect_type` in order to set the
                     /// correct task-defaults in the next step.
                     ///
                     /// since there was no other `detect_type` before
-                    /// **V_10** and there also was no, type parameter to
+                    /// **V_10** and there also was no type parameter to
                     /// query, we set bg subtraction:
                     tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
                 }

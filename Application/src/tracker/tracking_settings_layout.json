@@ -146,6 +146,20 @@
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                             "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
                                             "desc":""
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"track_threshold",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_threshold",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
                                         }
                                     ],
                                     [
@@ -249,6 +263,36 @@
                                     "type":"gridlayout",
                                     "pad":[0,0,15,10],
                                     "children":[
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"posture threshold",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"track_posture_threshold",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{*:{textfield_w}:0.1},40]",
+                                                "desc":""
+                                            },
+                                            {
+                                                "type":"stext",
+                                                "text":"outline smoothing",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"outline_smooth_samples",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                                "desc":""
+                                            }
+                                        ],
                                         [
                                             {
                                                 "type":"stext",

@@ -82,13 +82,18 @@ namespace ind = indicators;
 using namespace default_config;
 
 TRexTask determineTaskType() {
+    auto output_file = settings::find_output_name(GlobalSettings::map());
+    print("output_name = ", output_file);
+    
     if (auto array = SETTING(source).value<file::PathArray>();
         array.empty())
     {
         return TRexTask_t::none;
-    } else if (auto output_file = SETTING(filename).value<file::Path>();
-               not output_file.empty()
-               && output_file.add_extension("pv").exists())
+    } else if (not output_file.empty()
+               && ((    output_file.has_extension()
+                         && output_file.extension() == "pv"
+                         && output_file.exists())
+                   || output_file.add_extension("pv").exists()))
     {
         SETTING(filename) = file::Path(output_file);
         return TRexTask_t::track;
