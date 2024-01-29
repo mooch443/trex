@@ -410,6 +410,60 @@
                             }
                         ]
                     }
+                ],
+
+
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"{if:{&&:{not:{global.region_model}}:{machine_learning}}:'<h2><sym>◫</sym></h2> Tiling\n<small><gray>Other detection settings <i>(optional)</i>.</gray></small>':''}",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    {
+                        "type":"condition",
+                        "var":"{&&:{not:{global.region_model}}:{machine_learning}}",
+                        "then": {
+                            "type":"vlayout",
+                            "pad":[0,0,0,5],
+                            "children": [
+                                {
+                                    "type":"hlayout",
+                                    "pad":[0,0,10,0],
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>Tile images</b>\n<gray>before detection.</gray>",
+                                            "font":{"size":0.6}
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_tile_image",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]"
+                                            },
+                                            "size":[50,40],
+                                            "desc":""
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type":"stext",
+                                    "pad":[0,5,0,0],
+                                    "max_size": "[{min:900:{element_w}},65]",
+                                    "text": "{if:{machine_learning}:'If enabled, the input images will be split into smaller tiles before being processed by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model. This can be an alternative to using <sym>🖽</sym> <lightgray><c>region proposals</c></lightgray> and similarly help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step. <lightgray>This number is a multiplier and will increase the number of predictions per frame - it will impact processing speed.</lightgray>':''}",
+                                    "font":{"size":0.5}
+                                }
+                            ]
+                        }
+                    }
                 ]
             ]
         }
