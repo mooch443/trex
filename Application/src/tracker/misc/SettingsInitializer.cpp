@@ -406,7 +406,8 @@ void load(file::PathArray source,
             "track_background_subtraction", false,
             "calculate_posture", false,
             "meta_encoding", meta_encoding_t::r3g3b2,
-            "track_do_history_split", false
+            "track_do_history_split", false,
+            "meta_classes", std::vector<std::string>{}
         };
         
         for(auto &key : values.keys()) {
