@@ -257,7 +257,7 @@
                         {
                             "text":"<sym>⏻</sym> Quit",
                             "detail":"exits the application",
-                            "action":"set:terminate:true"
+                            "action":"quit"
                         }
                     ]
                 }

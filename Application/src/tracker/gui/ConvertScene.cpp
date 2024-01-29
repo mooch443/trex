@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -27,6 +27,7 @@
 #include <gui/ScreenRecorder.h>
 #include <gui/DynamicGUI.h>
 #include <gui/GUITaskQueue.h>
+#include <misc/SettingsInitializer.h>
 
 namespace gui {
 using namespace dyn;
@@ -402,6 +403,10 @@ void ConvertScene::activate()  {
     GlobalSettings::map().set_print_by_default(true);
     
     auto source = SETTING(source).value<file::PathArray>();
+    if(SETTING(filename).value<file::Path>().empty()) {
+        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+    }
+    
     print("Loading source = ", source);
     SETTING(meta_source_path) = source.source();
     if (source == file::PathArray("webcam"))

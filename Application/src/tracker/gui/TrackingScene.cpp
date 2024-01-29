@@ -26,6 +26,7 @@
 #include <tracking/CategorizeInterface.h>
 #include <gui/DrawPreviewImage.h>
 #include <gui/DrawPosture.h>
+#include <misc/SettingsInitializer.h>
 
 using namespace track;
 
@@ -180,7 +181,13 @@ bool TrackingScene::on_global_event(Event event) {
         
         switch (event.key.code) {
             case Keyboard::Escape:
-                SETTING(terminate) = true;
+                _exec_main_queue.enqueue([](auto, DrawStructure& graph) {
+                    graph.dialog([](Dialog::Result result) {
+                        if(result == Dialog::Result::OKAY) {
+                            SETTING(terminate) = true;
+                        }
+                    }, "Are you sure you want to exit the application? Any unsaved changes will be discarded.", "Exit", "Quit", "Cancel");
+                });
                 break;
             case Keyboard::Space:
                 SETTING(gui_run) = not SETTING(gui_run).value<bool>();
@@ -277,6 +284,9 @@ bool TrackingScene::on_global_event(Event event) {
 
 void TrackingScene::activate() {
     WorkProgress::instance().start();
+    
+    if(SETTING(filename).value<file::Path>().empty())
+        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
     
     _state = std::make_unique<TrackingState>(&_exec_main_queue);
     
@@ -734,6 +744,15 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
         .path = "tracking_layout.json",
         .graph = &graph,
         .context = {
+            ActionFunc("quit", [this](Action) {
+                _exec_main_queue.enqueue([](auto, DrawStructure& graph) {
+                    graph.dialog([](Dialog::Result result) {
+                        if(result == Dialog::Result::OKAY) {
+                            SETTING(terminate) = true;
+                        }
+                    }, "Are you sure you want to exit the application? Any unsaved changes will be discarded.", "Exit", "Quit", "Cancel");
+                });
+            }),
             ActionFunc("set", [this](Action action) {
                 if(action.parameters.size() != 2)
                     throw InvalidArgumentException("Invalid number of arguments for action: ",action);
@@ -797,7 +816,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 _state->_controller->auto_correct(&_exec_main_queue, false);
             }),
             ActionFunc("visual_identification", [this](Action) {
-                vident::training_data_dialog(&_exec_main_queue, false, [this](){
+                vident::training_data_dialog(&_exec_main_queue, false, [](){
                     print("callback ");
                 }, _state->_controller.get());
             }),
@@ -1289,7 +1308,7 @@ void TrackingScene::load_state(file::Path from) {
             FormatExcept("Cannot load results. Crashed with exception: ", e.what());
             
             auto what = std::string(e.what());
-            _exec_main_queue.enqueue([from, what](IMGUIBase* base, DrawStructure& graph) {
+            _exec_main_queue.enqueue([from, what](IMGUIBase*, DrawStructure& graph) {
                 graph.dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "Error");
             });
             

@@ -293,6 +293,29 @@ void load(file::PathArray source,
         }
     }
     
+    if(not combined.map["filename"].value<file::Path>().empty()) {
+        const auto _source = source.empty()
+            ? combined.map.at("source").value<file::PathArray>()
+            : source;
+        auto default_path = find_output_name(combined.map);
+        //file::Path default_path = file::find_basename(_source);
+        //if(default_path.has_extension())
+        
+        auto path = combined.map["filename"].value<file::Path>();
+        if(path == default_path) {
+            combined.map["filename"] = file::Path();
+        } else if(path.is_absolute()) {
+            combined.map["filename"] = file::Path(path.filename());
+        }
+    }
+    
+    if(not combined.map["filename"].value<file::Path>().empty()) {
+        auto path = combined.map["filename"].value<file::Path>();
+        if(path.is_absolute())
+            path = path.filename();
+        combined.map["filename"] = path;
+    }
+    
     /// ----------------------------------------------------------------
     ///  9. **exclude** `output_dir` + `output_prefix` since we have now
     ///     locked in the `filename` + `source` parameters
@@ -306,7 +329,8 @@ void load(file::PathArray source,
     /// 10. load settings from the .pv if tracking mode
     /// -----------------------------------------------
     auto exclude_from_default = exclude;
-    if(task == TRexTask_t::track) {
+    //if(task == TRexTask_t::track)
+    {
         auto path = combined.map.at("filename").value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");
@@ -405,6 +429,8 @@ void load(file::PathArray source,
         }
     }
     
+    GlobalSettings::set_current_defaults_with_config(sprite::Map(GlobalSettings::current_defaults()));
+    
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):
     /// --------------------------------------------
@@ -424,6 +450,7 @@ void load(file::PathArray source,
 
             for(auto &key : map.keys()) {
                 map.at(key).get().copy_to(&combined.map);
+                map.at(key).get().copy_to(&GlobalSettings::current_defaults_with_config());
             }
             //combined.map.set_print_by_default(before);
             //exclude_from_pv = exclude_from_pv + map.keys();
@@ -443,6 +470,8 @@ void load(file::PathArray source,
         G g("GUI settings");
         print(source_map.at("track_background_subtraction"));
         print(source_map.at("track_threshold"));
+        print(GlobalSettings::current_defaults().at("calculate_posture"));
+        print(GlobalSettings::current_defaults_with_config().at("calculate_posture"));
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -530,7 +559,8 @@ void load(file::PathArray source,
     print("TRexTask = ", task);
     
     CommandLine::instance().reset_settings({
-        "output_dir", "gpu_torch_device", "cwd"
+        //"output_dir", 
+        "gpu_torch_device", "cwd"
     });
 }
 
@@ -543,23 +573,41 @@ file::Path find_output_name(const sprite::Map& map,
         : source;
     
     auto name = map.at("filename").value<file::Path>();
-    filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &map);
-    if(filename.has_extension() && filename.extension() == "pv")
-        filename = filename.remove_extension();
+    filename = name.empty() 
+        ? file::Path()
+        : file::DataLocation::parse("output", name, &map);
     
     if(not filename.empty())
     {
+        if(filename.has_extension() && filename.extension() == "pv")
+            filename = filename.remove_extension();
         return filename;
         
     } else {
-        file::Path path = file::find_basename(_source);
-        if(not path.empty()) {
-            filename = file::DataLocation::parse("output", path, &map);
+        if(_source.get_paths().size() == 1
+           && _source.get_paths().front().has_extension()
+           && _source.get_paths().front().extension() == "pv")
+        {
+            file::Path path = _source.get_paths().front();
+            if(not path.empty()) {
+                filename = file::DataLocation::parse("output", path, &map);
+            } else {
+                filename = {};
+            }
+            
+        } else {
+            filename = file::find_basename(_source);
+            if(filename.has_extension() && filename.exists())
+                filename = filename.remove_extension();
+        }
+        
+        if(not filename.empty()) {
+            filename = file::DataLocation::parse("output", filename, &map);
         } else {
             filename = {};
         }
         
-        if(filename.has_extension() && filename.extension() != "pv")
+        if(filename.has_extension() && filename.extension() == "pv")
             filename = filename.remove_extension();
         
         return filename;

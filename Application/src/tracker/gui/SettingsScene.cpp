@@ -38,7 +38,7 @@ struct SettingsScene::Data {
     std::unordered_map<std::string, bool> _done_exist_checks;
     
     sprite::Map _defaults;
-    std::string _last_layout{layout_name};
+    std::stack<std::string> _last_layouts;
     
     ExternalImage _preview_image;
     IMGUIBase *_window{nullptr};
@@ -49,14 +49,18 @@ struct SettingsScene::Data {
     
     sprite::Map get_changed_props() const {
         sprite::Map copy = GlobalSettings::map();
-        const auto &_defaults = GlobalSettings::current_defaults();
+        const auto &_defaults = GlobalSettings::current_defaults_with_config();
+        print("current output_dir = ", _defaults.at("calculate_posture"));
+        print("current output_dir = ", copy.at("calculate_posture"));
+        print("keys = ", copy.keys());
         
         for(auto &key : copy.keys()) {
             
             if((not _defaults.has(key)
                 || copy.at(key).get() != _defaults.at(key).get())
                 //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
-               && GlobalSettings::access_level(key) < AccessLevelType::LOAD)
+               && (GlobalSettings::access_level(key) < AccessLevelType::LOAD
+                   || is_in(key, "output_dir", "output_prefix", "settings_file")))
             {
                 if(_defaults.has(key))
                     print("Keeping ", key, ": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
@@ -92,7 +96,12 @@ struct SettingsScene::Data {
                         GlobalSettings::get(parm).get().set_value_from_string(value);
                     }),
                     ActionFunc("go-back", [this](auto){
-                        layout_name = _last_layout;
+                        if(_last_layouts.empty())
+                            throw InvalidArgumentException("No previous layout available.");
+                        
+                        layout_name = _last_layouts.top();
+                        _last_layouts.pop();
+                        
                         _exec_main_queue.enqueue([this](auto, auto&) {
                             dynGUI.clear();
                             dynGUI = {};
@@ -101,18 +110,39 @@ struct SettingsScene::Data {
                     ActionFunc("convert", [this](auto){
                         DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()](){
+                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() {
+                            sprite::Map before = GlobalSettings::map();
+                            sprite::Map defaults = GlobalSettings::current_defaults();
+                            
                             settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
-                            _exec_main_queue.enqueue([](auto,auto&){
-                                SceneManager::getInstance().set_active("convert-scene");
+                            _exec_main_queue.enqueue([before = std::move(before), defaults = std::move(defaults)](auto,DrawStructure& graph){
+                                auto filename = SETTING(filename).value<file::Path>();
+                                if(filename.empty())
+                                    filename = settings::find_output_name(GlobalSettings::map());
+                                if(not filename.has_extension() || filename.extension() != "pv")
+                                    filename = filename.add_extension("pv");
+                                
+                                if(filename.exists()) {
+                                    graph.dialog([before = std::move(before), defaults = std::move(defaults)](Dialog::Result result) mutable {
+                                        if(result == Dialog::Result::OKAY) {
+                                            SceneManager::getInstance().set_active("convert-scene");
+                                        } else {
+                                            for(auto &key : before.keys())
+                                                before.at(key).get().copy_to(&GlobalSettings::map());
+                                            GlobalSettings::set_current_defaults(std::move(defaults));
+                                        }
+                                        
+                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Overwrite", "Cancel");
+                                } else
+                                    SceneManager::getInstance().set_active("convert-scene");
                             });
                         });
                     }),
                     ActionFunc("change_layout", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
                         auto &name = action.first();
-                        _last_layout = layout_name;
+                        _last_layouts.push(layout_name);
                         layout_name = name+".json";
                         
                         _exec_main_queue.enqueue([this](auto, auto&) {
@@ -325,16 +355,17 @@ void SettingsScene::activate() {
     });
     
     _data = std::make_unique<Data>();
+    _data->_last_layouts.push("welcome_layout.json");
     _data->_window = (IMGUIBase*)window();
-    /*_data->callback = GlobalSettings::map().register_callbacks({"source"}, [this](auto name) {
-        if(name == "source") {
-            // changed source, need to update background images
-            if(_data)
-                _data->_video_loop.set_path(SETTING(source).value<file::PathArray>());
+    _data->callback = GlobalSettings::map().register_callbacks({"filename"}, [](auto name) {
+        if(name == "filename") {
+            file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
+            if(not path.empty() && not path.remove_filename().empty()) {
+                path = path.filename();
+                SETTING(filename) = path;
+            }
         }
     });
-    
-    _data->_video_loop.start();*/
     
     _data->_defaults = GlobalSettings::map();
 }

@@ -259,6 +259,8 @@ void Segmenter::open_video() {
             std::unique_lock guard(_mutex_tracker);
             if(not _tracker)
                 _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
+            //else
+            //    _tracker->set_average(Image::Make(bg));
         }
         
         {
@@ -462,8 +464,8 @@ void Segmenter::start_recording_ffmpeg() {
             else
                 path = path.add_extension("mp4");
 
-            SETTING(save_raw_movie_path) = path;
-            SETTING(meta_source_path) = path.str();
+            SETTING(save_raw_movie_path) = path.absolute();
+            SETTING(meta_source_path) = path.absolute().str();
             SETTING(meta_video_scale) = 1.f;
         
             _queue = std::make_unique<FFMPEGQueue>(true,
