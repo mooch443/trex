@@ -43,7 +43,7 @@ build:
       - SDKROOT
       - CC
       - CXX
-    number: 43
+    number: 69
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
