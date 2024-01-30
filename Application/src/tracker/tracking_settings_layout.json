@@ -165,6 +165,36 @@
                                     [
                                         {
                                             "type":"stext",
+                                            "text":"size ranges",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"blob_size_ranges",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"split closeby blobs",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_do_history_split",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "type":"stext",
                                             "text":"max speed <i>(cm/s)</i>",
                                             "origin":[0,0.5], "pos":[0,20],
                                             "max_size":"[{-:{inside_label_w}:20},0]"

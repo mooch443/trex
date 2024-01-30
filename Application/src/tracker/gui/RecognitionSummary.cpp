@@ -21,7 +21,7 @@ namespace gui {
         auto manual_identities = Tracker::identities();
         auto sorted = manual_identities;
         for(auto id : manual_identities) {
-            if(cache.individuals.find(id) == cache.individuals.end())
+            if(cache.all_ids.find(id) == cache.all_ids.end())
                 sorted.erase(id);
         }
 
@@ -34,8 +34,7 @@ namespace gui {
 
         float sidebar_width = 0;
         for(auto id : sorted) {
-            auto fish = cache.individuals.at(id);
-            auto bds = Base::default_text_bounds(fish->identity().name(), &obj, side_font);
+            auto bds = Base::default_text_bounds(Identity::Temporary(id).name(), &obj, side_font);
             sidebar_width = max(sidebar_width, bds.width);
         }
         sidebar_width += 3 * margin;
@@ -56,26 +55,28 @@ namespace gui {
                 
                 outputs.resize(output_size * sorted.size());
                 
-                for(auto id : sorted) {
-                    auto fish = cache.individuals.at(id);
-                    
-                    float maxp = 0;
-                    
-                    for(auto && [fdx, p] : fish->average_recognition()) {
-                        if(p > maxp) {
-                            maxp = p;
+                {
+                    auto lock = cache.lock_individuals();
+                    for(auto id : sorted) {
+                        auto fish = lock.individuals.at(id);
+                        float maxp = 0;
+                        
+                        for(auto && [fdx, p] : fish->average_recognition()) {
+                            if(p > maxp) {
+                                maxp = p;
+                            }
+                            
+                            auto it = fdx_to_idx.find(fdx);
+                            if(it == fdx_to_idx.end()) {
+                                idx_to_fdx[counter] = fdx;
+                                fdx_to_idx[fdx] = counter++;
+                            }
+                            auto idx = fdx_to_idx.at(fdx);
+                            outputs.at(j * output_size + idx) = p;
                         }
                         
-                        auto it = fdx_to_idx.find(fdx);
-                        if(it == fdx_to_idx.end()) {
-                            idx_to_fdx[counter] = fdx;
-                            fdx_to_idx[fdx] = counter++;
-                        }
-                        auto idx = fdx_to_idx.at(fdx);
-                        outputs.at(j * output_size + idx) = p;
+                        ++j;
                     }
-                    
-                    ++j;
                 }
                 
                 auto image = Image::Make(bar_width * sorted.size(), bar_width * output_size, 4);
@@ -105,8 +106,7 @@ namespace gui {
                 
                 size_t row = 0;
                 for(auto id : sorted) {
-                    auto fish = cache.individuals.at(id);
-                    base.add<Text>(Str(fish->identity().name()), Loc(pos + Vec2(0, bar_width) * row), TextClr(White), side_font);
+                    base.add<Text>(Str(Identity::Temporary(id).name()), Loc(pos + Vec2(0, bar_width) * row), TextClr(White), side_font);
                     ++row;
                 }
                 

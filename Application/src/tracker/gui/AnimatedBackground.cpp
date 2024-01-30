@@ -128,7 +128,8 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
 
         auto image = buffers.get(source_location::current());
 
-        if ((_source_scale > 0 && _source_scale != 1))
+        auto scale = _source_scale.load();
+        if ((scale > 0 && scale != 1))
         {
             if (_buffer.dims != channels
                 || _buffer.cols != _source->size().width
@@ -140,10 +141,10 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
             _source->frame(index, _buffer);
 
             const gpuMat* output = &_buffer;
-            if (_source_scale > 0 && _source_scale != 1) {
+            if (scale > 0 && scale != 1) {
                 cv::resize(*output, _resized,
                     Size2(output->cols, output->rows)
-                    .mul(_source_scale).map(roundf));
+                    .mul(scale).map(roundf));
                 output = &_resized;
             }
 

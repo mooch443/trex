@@ -33,6 +33,7 @@ private:
     WorkProgress();
     
     struct WorkGUIObjects;
+    mutable std::mutex gui_mutex;
     std::unique_ptr<WorkGUIObjects> gui;
     std::mutex start_mutex;
 

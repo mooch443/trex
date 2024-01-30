@@ -400,9 +400,10 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
                 {
                     LockGuard guard(ro_t{}, "visual_field", 10);
                     set_of_individuals_t s;
+                    auto lock = _cache->lock_individuals();
                     for(auto idx : _cache->selected) {
-                        if(auto it = _cache->individuals.find(idx);
-                           it != _cache->individuals.end())
+                        if(auto it = lock.individuals.find(idx);
+                           it != lock.individuals.end())
                         {
                             s.insert(it->second);
                         }

@@ -741,6 +741,7 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
 void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
     using namespace dyn;
     dyn::DynamicGUI g{
+        .gui = &_exec_main_queue,
         .path = "tracking_layout.json",
         .graph = &graph,
         .context = {

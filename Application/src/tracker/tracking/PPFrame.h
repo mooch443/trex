@@ -77,7 +77,6 @@ public:
             return;
         write_log(format<FormatterType::NONE>(std::forward<Args>(args)...));
 #else
-        
         return;
 #endif
     }

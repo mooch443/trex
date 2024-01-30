@@ -114,7 +114,12 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                 //print("converted ", mat.channels(), " to ", output.channels());
                 //tf::imshow("output", output);
                 //ptr->unsafe_get_source().create(output);
-                ptr->set_source(Image::Make(output));
+                
+                /// dangling source change in order to *NOT* trigger a parent
+                /// update yet since we are using this in parallel and dont want
+                /// to produce undefined behavior / data races.
+                ptr->unsafe_get_source().create(output);
+                //ptr->set_source(Image::Make(output));
             }
         }
         
@@ -130,10 +135,12 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     }
     
     bool GUICache::has_selection() const {
+        std::unique_lock guard(individuals_mutex);
         return !selected.empty() && individuals.count(selected.front()) != 0;
     }
     
     Individual * GUICache::primary_selection() const {
+        std::unique_lock guard(individuals_mutex);
         return has_selection() && individuals.count(selected.front())
                 ? individuals.at(selected.front())
                 : nullptr;
@@ -359,7 +366,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             if(not next_frame_matches) {
                 /// the next frame does *not* match - at least should
                 /// nudge the preloader:
-                auto maybe_frame = _preloader.get_frame(frameIndex);
+                auto maybe_frame = _preloader.get_frame(frameIndex, std::chrono::milliseconds(50));
                 
                 if(not maybe_frame.has_value()
                    && not _next_processed_frame)
@@ -494,22 +501,33 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
-            individuals = IndividualManager::copy();
+            {
+                std::unique_lock guard(individuals_mutex);
+                individuals = IndividualManager::copy();
+            }
             selected = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
             tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
-                if(!cache() || !_graph)
-                    return;
+                //if(!cache() || !_graph)
+                //    return;
                 
-                auto guard = GUI_LOCK(_graph->lock());
+                //auto guard = GUI_LOCK(_graph->lock());
                 
                 auto id = fish->identity().ID();
-                auto it = individuals.find(id);
-                if(it != individuals.end())
-                    individuals.erase(it);
                 
-                active.clear();
+                {
+                    std::unique_lock guard(individuals_mutex);
+                    auto it = individuals.find(id);
+                    if(it != individuals.end())
+                        individuals.erase(it);
+                    
+                    auto cit = _registered_callback.find(fish);
+                    if(cit != _registered_callback.end())
+                        _registered_callback.erase(cit);
+                }
+                
+                /*active.clear();
                 
                 auto kit = active_ids.find(id);
                 if(kit != active_ids.end())
@@ -523,14 +541,15 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 if(bit != fish_selected_blobs.end())
                     fish_selected_blobs.erase(bit);
                 
-                auto cit = _registered_callback.find(fish);
-                if(cit != _registered_callback.end())
-                    _registered_callback.erase(cit);
+                */
             };
             _individual_ranges.clear();
+            all_ids.clear();
             
             IndividualManager::transform_all([&](auto idx, Individual* fish){
-                if(!contains(_registered_callback, fish)) {
+                if(std::unique_lock guard(individuals_mutex);
+                   !contains(_registered_callback, fish))
+                {
                     fish->register_delete_callback((void*)12341337, delete_callback);
                     _registered_callback.insert(fish);
                 }
@@ -540,6 +559,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     ranges.emplace_back(*segment);
                 }
                 _individual_ranges[idx] = std::move(ranges);
+                all_ids.insert(idx);
             });
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
@@ -572,6 +592,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             if(has_selection()) {
                 auto previous = Tracker::properties(frameIndex - 1_f);
                 auto pid = selected.empty() ? Idx_t() : selected.front();
+                
+                std::unique_lock guard(individuals_mutex);
                 if(individuals.contains(pid)) {
                     if(not _posture_window) {
                         _posture_window = std::make_unique<gui::Posture>();
@@ -614,6 +636,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 selected_blobs = active_blobs;
             } else {
                 // display blobs that are selected
+                std::unique_lock guard(individuals_mutex);
                 for(auto id : selected) {
                     auto it = individuals.find(id);
                     if(it != individuals.end()) {
@@ -845,12 +868,12 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             double gaverage_pixels = 0, gsamples = 0;
             display_blobs.clear();
             
+            const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            const bool tags_dont_track = SETTING(tags_dont_track).value<bool>();
+            
             distribute_indexes([&](auto, auto start, auto end, auto){
                 std::unordered_map<pv::bid, SimpleBlob*> map;
                 //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
-                
-                const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
-                const bool tags_dont_track = SETTING(tags_dont_track).value<bool>();
                 size_t pixels = 0;
                 double average_pixels = 0, samples = 0;
                 
@@ -894,6 +917,9 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 
             }, _pool, raw_blobs.begin(), raw_blobs.end());
             
+            //for(auto &b : raw_blobs)
+            //    b->ptr->updated_source();
+            
             for(auto &b : display_blobs) {
                 b.second->ptr->set_pos(b.second->image_pos);
                 b.second->ptr->updated_source();
@@ -911,6 +937,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             if(Tracker::has_identities()
                 && GUI_SETTINGS(gui_show_inactive_individuals))
             {
+                std::unique_lock guard(individuals_mutex);
                 for (auto [id, fish] : individuals) {
                     source.insert(fish);
                 }
@@ -955,7 +982,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 std::unique_lock guard(_fish_map_mutex);
                 if (not _fish_map.contains(id)) {
                     _fish_map[id] = std::make_unique<gui::Fish>(*fish);
-                    fish->register_delete_callback(_fish_map[id].get(), [this](Individual* f) {
+                    /*fish->register_delete_callback(_fish_map[id].get(), [gui = ](Individual* f) {
                             std::unique_lock guard(_fish_map_mutex);
                             auto it = _fish_map.find(f->identity().ID());
                             if (it != _fish_map.end()) {
@@ -963,7 +990,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                             }
                             
                             set_tracking_dirty();
-                        });
+                    });*/
                 }
                 
                 
@@ -979,6 +1006,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         it = _fish_map.erase(it);
                     }
                     else {
+                        std::unique_lock guard(individuals_mutex);
                         auto fish = individuals.at(it->first);
                         it->second->set_data(*fish, frameIndex, properties->time, nullptr);
                         ++it;
@@ -1060,6 +1088,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame().cached(fdx);
             if(c) {
+                std::unique_lock guard(individuals_mutex);
                 processed_frame().transform_blobs([&](const pv::Blob& blob) {
                     auto it = individuals.find(fdx);
                     if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())

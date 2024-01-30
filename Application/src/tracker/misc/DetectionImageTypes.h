@@ -35,7 +35,7 @@ struct GPUMatPtr {
         return *this;
     }
     
-    static GPUMatPtr Make(cmn::source_location loc) {
+    static GPUMatPtr Make([[maybe_unused]] cmn::source_location loc) {
         //print("Created buffer ", loc.file_name(),"::",loc.function_name(),":",loc.line());
         GPUMatPtr ptr;
         ptr.ptr = std::make_unique<useMat_t>();
@@ -49,8 +49,6 @@ struct GPUMatPtr {
         ++counter;
         if(counter % 100 == 0)
             cmn::thread_print("Counted ", counter.load());
-#else
-        UNUSED(loc);
 #endif
         return ptr;
     }

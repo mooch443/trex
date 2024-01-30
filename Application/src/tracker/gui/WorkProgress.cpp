@@ -151,7 +151,10 @@ void WorkProgress::start() {
                 _queue.pop();
                 
                 lock.unlock();
-                if(instance().gui) {
+                
+                if(std::unique_lock guard(instance().gui_mutex);
+                   instance().gui)
+                {
                     auto stage = instance().gui->_additional.stage();
                     if(stage) {
                         auto guard = GUI_LOCK(stage->lock());
@@ -409,6 +412,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         if(_item.empty())
             return;
         
+        std::unique_lock guard(instance().gui_mutex);
         if(not gui)
             gui = std::make_unique<WorkGUIObjects>();
         

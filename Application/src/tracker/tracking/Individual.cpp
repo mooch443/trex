@@ -1277,7 +1277,7 @@ void Individual::update_midlines(const CacheHints* hints) {
     }*/
 }
 
-Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const PostureStuff &posture) const
+Midline::Ptr Individual::calculate_midline_for(const BasicStuff &, const PostureStuff &posture) const
 {
     //if(!posture || !basic)
     //    return nullptr;
@@ -1303,11 +1303,11 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const Po
         midline->post_process(movement, DebugInfo{posture.frame, identity().ID(), false});
         if(!midline->is_normalized())
             midline = midline->normalize();
-        else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
 #ifndef NDEBUG
+        else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
             FormatWarning(identity().ID()," has a pre-normalized midline in frame ",posture.frame,". not normalizing it again.");
-#endif
         }
+#endif
         
     }
     

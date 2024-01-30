@@ -149,15 +149,33 @@ namespace globals {
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
+    private:
+        mutable std::mutex individuals_mutex;
         std::unordered_map<Idx_t, Individual*> individuals;
+        set_of_individuals_t _registered_callback;
+        
+    public:
+        struct LockIndividuals {
+            std::unique_lock<std::mutex> guard;
+            const std::unordered_map<Idx_t, Individual*>& individuals;
+            
+            LockIndividuals(std::mutex& individuals_mutex, auto const& individuals)
+                : guard(individuals_mutex), individuals(individuals)
+            { }
+            LockIndividuals(LockIndividuals&&) = default;
+        };
+        
+        auto lock_individuals() const {
+            return LockIndividuals{ individuals_mutex, individuals };
+        }
+        
+        std::set<Idx_t> all_ids;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
         std::unordered_map<Idx_t, std::vector<FrameRange>> _individual_ranges;
-        
-        set_of_individuals_t _registered_callback;
         
         struct BdxAndPred {
             pv::bid bdx;

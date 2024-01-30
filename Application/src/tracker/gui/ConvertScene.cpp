@@ -933,6 +933,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     };
 
     return dyn::DynamicGUI{
+        .gui = &_exec_main_queue,
         .path = "alter_layout.json",
         .context = std::move(context),
         .base = window

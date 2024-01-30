@@ -100,6 +100,7 @@ void PPFrame::CloseLogs() {
 
 void PPFrame::write_log(std::string str) {
 #if TREX_ENABLE_HISTORY_LOGS
+    auto guard = LOGGED_LOCK(log_mutex());
     if(!history_log())
         return;
     
@@ -109,7 +110,6 @@ void PPFrame::write_log(std::string str) {
     
     str = "<line>[<warning>"+tname+"</warning>] "+ settings::htmlify(str) + "</line>";
     
-    auto guard = LOGGED_LOCK(log_mutex());
     *history_log() << str << std::endl;
 #else
     UNUSED(str)

@@ -233,11 +233,13 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
             offset.x = 5;
         }
         
+        auto lock = cache.lock_individuals();
         for(auto idx : cache.selected) {
-            if(!cache.individuals.count(idx))
+            // check whether this id has an image for the current frame
+            if(not cache.active_ids.contains(idx))
                 continue;
             
-            auto fish = cache.individuals.at(idx);
+            auto fish = lock.individuals.at(idx);
             if(!fish->has(frame))
                 continue;
             
@@ -252,7 +254,7 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
             auto transform = midline ? midline->transform(normalize) : gui::Transform();
             auto segment = fish->segment_for(frame);
             if(!segment)
-                U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", fish->identity(), " despite finding a blob ", *blob);
+                U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", idx, " despite finding a blob ", *blob);
             
             auto filters = constraints::local_midline_length(fish, segment->range);
             auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &average);
@@ -277,7 +279,7 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
             } else
                 ptr = e.add<ExternalImage>(std::move(image), offset, scale);
             
-            e.add<Text>(Str(fish->identity().name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font(0.5), Scale(graph.scale().reciprocal()));
+            e.add<Text>(Str(Identity::Temporary(idx).name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font(0.5), Scale(graph.scale().reciprocal()));
             
             offset.x += ptr->local_bounds().width + 5;
             if(offset.x >= size.width * 0.25) {

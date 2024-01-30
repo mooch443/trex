@@ -82,6 +82,7 @@ struct SettingsScene::Data {
         
         if(not dynGUI) {
             dynGUI = DynamicGUI{
+                .gui = &_exec_main_queue,
                 .path = layout_name,
                 .graph = &graph,
                 .context = {

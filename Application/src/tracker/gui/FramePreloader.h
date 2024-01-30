@@ -56,7 +56,7 @@ public:
     }
     
     // Non-blocking call to get a frame
-    std::optional<FrameType> get_frame(Frame_t target_index);
+    std::optional<FrameType> get_frame(Frame_t target_index, std::chrono::milliseconds delay = std::chrono::milliseconds(0));
     
     // Non-blocking announcement of next frame
     void announce(Frame_t target_index) {
@@ -138,11 +138,11 @@ private:
 
 template<typename FrameType>
 // Non-blocking call to get a frame
-std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index) {
+std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index, std::chrono::milliseconds delay) {
     if (std::unique_lock guard(future_mutex);
         future.valid())
     {
-        if(future.wait_for(std::chrono::milliseconds(5)) == std::future_status::ready) {
+        if(future.wait_for(delay) == std::future_status::ready) {
             auto &&[index, image] = future.get();
             
             if(not image) {

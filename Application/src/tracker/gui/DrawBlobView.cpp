@@ -582,10 +582,10 @@ void draw_blob_view(const DisplayParameters& parm)
                     });
                     
                 } else {
-                    auto it = cache.individuals.find(Idx_t(item_id - 2));
-                    if(it != cache.individuals.end()) {
-                        auto fish = it->second;
-                        auto id = it->first;
+                    auto it = cache.all_ids.find(Idx_t(item_id - 2));
+                    if(it != cache.all_ids.end()) {
+                        //auto fish = it->second;
+                        auto id = *it;
                         
                         for(auto const& [fdx, blob] : cache.fish_selected_blobs) {
                             if(blob.bdx == clicked_blob_id) {
@@ -599,7 +599,7 @@ void draw_blob_view(const DisplayParameters& parm)
                             }
                         }
                         
-                        print("Assigning blob ", clicked_blob_id," to fish ",fish->identity().name());
+                        print("Assigning blob ", clicked_blob_id," to fish ",Identity::Temporary(id).name());
                         //TODO: fix this
                         add_manual_match(cache.frame_idx, id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
@@ -631,7 +631,7 @@ void draw_blob_view(const DisplayParameters& parm)
         
         if(found) {
             std::set<std::tuple<float, Dropdown::TextItem>> items;
-            for(auto &[id, fish] : parm.cache.individuals) {
+            for(auto &id : parm.cache.all_ids) {
                 if(not parm.cache.fish_selected_blobs.contains(id)
                     || parm.cache.fish_selected_blobs.at(id).bdx != _clicked_blob_id)
                 {
@@ -642,7 +642,8 @@ void draw_blob_view(const DisplayParameters& parm)
                     }
                     uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 1) & 0xFFFFFFFF) << 32);
 
-                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), parm.cache.individuals.at(id)->identity().name(), (void*)encoded_ids)});
+                    auto identity = Identity::Temporary(id);
+                    items.insert({d, Dropdown::TextItem(identity.name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), identity.name(), (void*)encoded_ids)});
                 }
             }
             

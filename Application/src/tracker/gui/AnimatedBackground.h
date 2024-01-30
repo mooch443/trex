@@ -29,7 +29,7 @@ class AnimatedBackground : public Entangled {
     
     std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;
-    float _source_scale{1.f};
+    std::atomic<float> _source_scale{1.f};
     
     Image::Ptr _average;
     ExternalImage _static_image;

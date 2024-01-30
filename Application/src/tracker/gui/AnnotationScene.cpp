@@ -321,6 +321,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     
     if(not _gui) {
         _gui = DynamicGUI{
+            .gui = nullptr,
             .path = "annotation_layout.json",
             .graph = &graph,
             .context = [&](){

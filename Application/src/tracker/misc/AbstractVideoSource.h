@@ -25,8 +25,7 @@ protected:
     GETTER(VideoInfo, info);
 
     struct MatMaker {
-        useMatPtr_t operator()(source_location&& loc) const {
-            UNUSED(loc);
+        useMatPtr_t operator()([[maybe_unused]] source_location&& loc) const {
             return MAKE_GPU_MAT_LOC(std::move(loc));
         }
     };

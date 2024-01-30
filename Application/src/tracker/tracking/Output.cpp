@@ -539,6 +539,10 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             } else {
                 auto p = Tracker::properties(Frame_t(frameIndex));
                 if(p) time = p->time;
+                else {
+                    FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
+                    time = -1;
+                }
             }
         }
         
