@@ -25,7 +25,8 @@ std::mutex thread_switch_mutex;
 LockGuard::~LockGuard() {
     if(_write && _set_name) {
         std::unique_lock tswitch(thread_switch_mutex);
-        if(_timer.elapsed() >= 0.1) {
+#ifndef NDEBUG
+        if(_timer.elapsed() >= 1) {
             auto name = get_thread_name();
             if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
                 auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
@@ -33,18 +34,21 @@ LockGuard::~LockGuard() {
                 _last_printed_purpose[_purpose].reset();
             }
         }
+#endif
         
         _last_purpose = "";
         _last_thread = "<none>";
         _thread_holding_lock_timer.reset();
     }
     
+#ifndef NDEBUG
     auto tm = _timer.elapsed();
-    if(tm >= 0.1) {
+    if(tm >= 1) {
         auto name = get_thread_name();
         auto str = Meta::toStr(DurationUS{uint64_t(tm * 1000 * 1000)});
         print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
     }
+#endif
     
     _locked = false;
         
