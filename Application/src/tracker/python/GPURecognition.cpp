@@ -3,14 +3,20 @@
 #undef PYBIND11_CPP14
 #endif
 
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wrange-loop-analysis"
+#endif
+
 #include <pybind11/pybind11.h>
 #include <pybind11/embed.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
 #include <misc/Image.h>
 #include <misc/SpriteMap.h>

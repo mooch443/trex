@@ -1050,7 +1050,7 @@ void start_applying(pv::File* video_source) {
                 std::shared_lock label_guard(DataStore::cache_mutex());
                 
                 std::vector<float> sums(Work::_number_labels);
-                std::fill(sums.begin(), sums.end(), 0);
+                std::fill(sums.begin(), sums.end(), 0.f);
                 
                 IndividualManager::transform_all([&](auto, auto fish) {
                     for(auto& seg : fish->frame_segments()) {
