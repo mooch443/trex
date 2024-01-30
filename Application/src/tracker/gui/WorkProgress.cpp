@@ -273,7 +273,7 @@ void WorkProgress::update_taskbar(IMGUIBase* base) {
         return;
 
     work::check([base]() {
-        if (_percent <= 0) {
+        if (_percent <= 0 || _percent >= 1) {
 #if defined(WIN32)
             if (ptbl) {
                 HWND hwnd = glfwGetWin32Window(base->platform()->window_handle());

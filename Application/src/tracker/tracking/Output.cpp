@@ -260,17 +260,21 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     const uint64_t elem_size = sizeof(pv::ShortHorizontalLine);
     
     // this will turn
-    uint8_t byte = (val->parent_id().valid() ? 0x2 : 0x0)
-                   | uint8_t(val->split() ? 0x1 : 0)
-                   | uint8_t(val->tried_to_split() ? 0x4 : 0x0)
-                   | uint8_t(val->is_tag() ? 0x8 : 0x0)
-                   | uint8_t(val->is_instance_segmentation() ? 0xF : 0x0);
+    uint8_t byte =   uint8_t(val->split()                    ? (1 << 0) : 0)
+                   | uint8_t(val->parent_id().valid()        ? (1 << 1) : 0)
+                   | uint8_t(val->tried_to_split()           ? (1 << 2) : 0)
+                   | uint8_t(val->is_tag()                   ? (1 << 3) : 0)
+                   | uint8_t(val->is_instance_segmentation() ? (1 << 4) : 0);
     uint64_t p = write<uint8_t>(byte);
-    if(val->parent_id().valid())
+    if((byte & uint8_t(1 << 1)) != 0) {
+        assert(val->parent_id().valid());
         write<data_long_t>((int64_t)val->parent_id());
-    write<uint16_t>(uint16_t(mask.empty() ? 0 : mask.front().y));
-    write<uint16_t>(uint16_t(compressed.size()));
-    write_data(compressed.size() * elem_size, (char*)compressed.data());
+    }
+    write<uint16_t>(narrow_cast<uint16_t>(mask.empty() ? 0 : mask.front().y, tag::fail_on_error{}));
+    
+    uint16_t L = narrow_cast<uint16_t>(compressed.size(), tag::fail_on_error{});
+    write<uint16_t>(L);
+    write_data(L * elem_size, (char*)compressed.data());
     
     return p;
 }
@@ -522,6 +526,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     //! read the actual frame data, pushing to worker thread each time
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);
+        assert(frameIndex <= analysis_range.end().get()
+               && frameIndex >= analysis_range.start().get());
         //if(!prev_frame.valid()
         //   && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
         //    prev_frame = frameIndex;
