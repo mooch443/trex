@@ -845,7 +845,8 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     for(auto && basic : fish->_basic_stuff) {
         // make sure we dont get an infinite loop
         //assert(!_current_velocities.empty() || basic->frame == fish->start_frame());
-        add(basic->frame, &basic->centroid);
+        if(basic)
+            add(basic->frame, &basic->centroid);
     }
     
     for(auto & p : fish->_posture_stuff) {

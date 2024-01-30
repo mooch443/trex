@@ -494,7 +494,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         finished.notify_all();
     };
     
-    TemporaryData data;
     size_t index = 0;// start with basic_stuff == zero
     
     double time;
@@ -526,7 +525,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         //if(!prev_frame.valid()
         //   && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
         //    prev_frame = frameIndex;
-        
+
+        TemporaryData data;
         {
             ref.read<Vec2>(data.pos);
             ref.read<float>(data.angle);
@@ -547,8 +547,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
         
         //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();
-        if(_header.version < Output::ResultsFormat::Versions::V_7)
-            ref.seek(ref.tell() + sizeof(uint32_t)); // blob index no longer used
+        if (_header.version < Output::ResultsFormat::Versions::V_7) {
+            // blob index no longer used
+            uint32_t bdx;
+            ref.read<uint32_t>(bdx);
+        }
         
         data.time = time;
         data.index = index;
