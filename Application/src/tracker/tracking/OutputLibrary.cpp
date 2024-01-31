@@ -1306,7 +1306,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     
     void Library::remove_calculation_options() {
         using namespace default_config;
-        auto &graphs = SETTING(output_graphs).value<graphs_type>();
+        auto graphs = SETTING(output_graphs).value<graphs_type>();
         
         auto previous = _output_defaults;
         auto previous_graphs = graphs;

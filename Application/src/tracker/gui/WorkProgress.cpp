@@ -188,6 +188,7 @@ void WorkProgress::stop() {
         }
     }
     
+    std::unique_lock guard(instance().gui_mutex);
     instance().gui = nullptr;
 }
 

@@ -106,6 +106,9 @@ struct TrackingState {
     void init_video();
     
     void on_tracking_done();
+    
+    void save_state(GUITaskQueue_t*, bool);
+    void load_state(GUITaskQueue_t*, file::Path);
 };
 
 }

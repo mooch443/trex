@@ -668,6 +668,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         };
         
         CONFIG("task", TRexTask_t::none, "The task selected by the user upon startup. This is used to determine which GUI mode to start in.", STARTUP);
+        CONFIG("load", false, "If set to true, the application will attempt to load results for the given pv file. If it does not exist then the application will proceed as usual.", LOAD);
         CONFIG("auto_quit", false, "If set to true, the application will automatically save all results and export CSV files and quit, after the analysis is complete."); // save and quit after analysis is done
         CONFIG("auto_apply", false, "If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.");
         CONFIG("auto_categorize", false, "If set to true, the program will try to load <video>_categories.npz from the `output_dir`. If successful, then categories will be computed according to the current categories_ settings. Combine this with the `auto_quit` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.");

@@ -3179,8 +3179,8 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                     AutoAssign::set_automatic_ranges(std::move(tmp_assigned_ranges));
                     
                     if(!after_frame.valid()) {
-                        Settings::set<Settings::Variables::manual_matches>(automatic_matches);
-                        Settings::set<Settings::Variables::manual_splits>(manual_splits);
+                        Settings::set<Settings::Variables::manual_matches>(Settings::manual_matches_t{automatic_matches});
+                        Settings::set<Settings::Variables::manual_splits>(Settings::manual_splits_t{manual_splits});
                     }
                 }
                 

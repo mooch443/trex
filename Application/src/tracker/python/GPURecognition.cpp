@@ -444,8 +444,10 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         using namespace pybind11::literals;
         using namespace cmn;
         pybind11::dict d;
-        auto w = _settings->map().at("video_size").value<cmn::Size2>().width,
-            h = _settings->map().at("video_size").value<cmn::Size2>().height;
+        
+        cmn::Size2 size = _settings->map().at("video_size").value<cmn::Size2>();
+        auto w = size.width,
+            h = size.height;
 
         d["width"] = w;
         d["height"] = h;

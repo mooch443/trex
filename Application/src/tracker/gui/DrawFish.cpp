@@ -860,7 +860,7 @@ Fish::~Fish() {
             }
         
             if ((hovered || is_selected) && GUIOPTION(gui_show_selections)) {
-                Color circle_clr = Color(v).alpha(saturate(255 * (hovered ? 1.7 : 1)));
+                auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
                 if(cache.primary_selected_id() != _id.ID())
                     circle_clr = Gray.alpha(circle_clr.a);
             

@@ -3015,8 +3015,8 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
                         //assert(input.channels() == 2);
                         //assert(mat.channels() == 4);
-                if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2)
-                        apply.template operator()<meta_encoding_t::r3g3b2>();
+                if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
+                    apply.template operator()<meta_encoding_t::r3g3b2>();
                 else
                     apply.template operator()<meta_encoding_t::gray>();
                 

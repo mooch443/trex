@@ -106,7 +106,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
             image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source(), 0);
         }
 
-        if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2) {
+        if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
             if(not ptr->empty()) {
                 auto mat = ptr->unsafe_get_source().get();
                 cv::Mat output;
@@ -543,7 +543,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 
                 */
             };
-            _individual_ranges.clear();
+            //_individual_ranges.clear();
             all_ids.clear();
             
             IndividualManager::transform_all([&](auto idx, Individual* fish){
@@ -554,13 +554,20 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     _registered_callback.insert(fish);
                 }
                 
-                std::vector<FrameRange> ranges;
+                auto &ranges = _individual_ranges[idx];
+                ranges.clear();
                 for(auto& segment : fish->frame_segments()) {
                     ranges.emplace_back(*segment);
                 }
-                _individual_ranges[idx] = std::move(ranges);
                 all_ids.insert(idx);
             });
+            
+            for(auto it = _individual_ranges.begin(); it != _individual_ranges.end();) {
+                if(not all_ids.contains(it->first)) {
+                    it = _individual_ranges.erase(it);
+                } else
+                    ++it;
+            }
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
             if(connectivity_map.count(frameIndex.get()))

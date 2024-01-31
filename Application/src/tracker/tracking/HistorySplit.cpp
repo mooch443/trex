@@ -263,7 +263,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     //for(auto& b : big_blobs)
     //    frame.erase_regular(b->blob_id());
     PPFrame::Log("big_blobs = ", big_blobs);
-    PPFrame::Log("blob_grid = ", frame.blob_grid().value_where());
+    //PPFrame::Log("blob_grid = ", frame.blob_grid().value_where());
     PPFrame::Log("blob_mappings = ", frame.blob_mappings);
     PPFrame::Log("blobs = ",frame.unsafe_access_all_blobs());
     

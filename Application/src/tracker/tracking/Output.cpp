@@ -1344,6 +1344,9 @@ namespace Output {
         file.write_file(_tracker._added_frames, IndividualManager::_all_frames(), IndividualManager::individuals());
         file.close();
         
+        if(update_progress)
+            update_progress("", 1.f, "");
+        
         // go back from .tmp01 to .results
         if(filename.move_to(filename.remove_extension())) {
             filename = filename.remove_extension();

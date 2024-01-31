@@ -35,9 +35,6 @@ class TrackingScene : public Scene {
     
     Size2 window_size;
     Timer last_redraw, last_dirty;
-
-    void load_state(file::Path from);
-    void save_state(bool);
     
 public:
     TrackingScene(Base& window);

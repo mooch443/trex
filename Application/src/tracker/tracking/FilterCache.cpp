@@ -65,7 +65,7 @@ std::tuple<Image::Ptr, Vec2> normalize_image(
     
     //TODO: if larger?
     using namespace grab::default_config;
-    if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2)
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
        cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_NEAREST, cv::BORDER_CONSTANT);
     else
        cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);

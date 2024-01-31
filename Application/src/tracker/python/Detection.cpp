@@ -204,8 +204,8 @@ double BackgroundSubtraction::fps() {
 
 void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
-    static const auto meta_encoding = SETTING(meta_encoding).value<meta_encoding_t::Class>();
-    static const auto mode = meta_encoding == meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+    const auto meta_encoding = Background::meta_encoding();
+    const auto mode = meta_encoding == meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
     
     RawProcessing raw(data().gpu, &data().float_average, nullptr);
     gpuMat gpu_buffer;

@@ -239,7 +239,11 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
             if(not cache.active_ids.contains(idx))
                 continue;
             
-            auto fish = lock.individuals.at(idx);
+            auto it = lock.individuals.find(idx);
+            if(it == lock.individuals.end())
+                continue;
+            
+            auto fish = it->second;
             if(!fish->has(frame))
                 continue;
             
@@ -269,7 +273,7 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
                 }
             }
             
-            if(SETTING(meta_encoding).value<meta_encoding_t::Class>() == meta_encoding_t::r3g3b2)
+            if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
             {
                 auto rgba = Image::Make(image->rows, image->cols, 4);
                 cv::Mat output = rgba->get();
