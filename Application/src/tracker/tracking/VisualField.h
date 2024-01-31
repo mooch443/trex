@@ -31,11 +31,11 @@ namespace track {
             std::array<float, field_resolution * layers> _visible_head_distance;
             
             eye() {
-                std::fill(_fov.begin(), _fov.end(), 0);
+                std::fill(_fov.begin(), _fov.end(), 0u);
                 std::fill(_depth.begin(), _depth.end(), FLT_MAX);
                 std::fill(_visible_points.begin(), _visible_points.end(), Vec2(0,0));
                 std::fill(_visible_ids.begin(), _visible_ids.end(), -1);
-                std::fill(_visible_head_distance.begin(), _visible_head_distance.end(), -1);
+                std::fill(_visible_head_distance.begin(), _visible_head_distance.end(), -1.f);
             }
         };
         

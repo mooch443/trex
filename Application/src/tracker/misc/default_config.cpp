@@ -421,7 +421,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG("gui_show_timeline", true, "If enabled, the timeline (top of the screen) will be shown in the tracking view.");
-        CONFIG("gui_show_fish", std::pair<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
+        CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
         CONFIG("gui_frame", Frame_t(0u), "The currently selected frame. `gui_displayed_frame` might differ, if loading from file is currently slow.");
         CONFIG("gui_displayed_frame", Frame_t(0u), "The currently visible frame.");
@@ -679,7 +679,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
         CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
-        CONFIG("analysis_range", std::pair<long_t,long_t>(-1, -1), "Sets start and end of the analysed frames.");
+        CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");

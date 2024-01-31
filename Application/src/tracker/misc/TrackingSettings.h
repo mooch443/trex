@@ -18,7 +18,7 @@ using mmatches_t = std::map<Frame_t, std::map<Idx_t, pv::bid>>;
 using msplits_t = std::map<Frame_t, std::set<pv::bid>>;
 using inames_t = std::map<uint32_t, std::string>;
 using mapproved_t = std::map<long_t,long_t>;
-using analrange_t = std::pair<long_t,long_t>;
+using analrange_t = Range<long_t>;
 
 //! Stable references arent technically needed, but the speed difference
 //! here is negligible.

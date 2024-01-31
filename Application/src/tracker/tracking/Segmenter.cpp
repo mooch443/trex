@@ -330,14 +330,14 @@ void Segmenter::open_video() {
         callback_after_generating(bg);
     }
 
-    auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
+    auto range = SETTING(video_conversion_range).value<Range<long_t>>();
     _video_conversion_range = Range<Frame_t>{
-        range.first == -1
+        range.start == -1
             ? 0_f
-            : Frame_t(range.first),
-        range.second == -1
+            : Frame_t(range.start),
+        range.end == -1
             ? _overlayed_video->source()->length()
-            : min(_overlayed_video->source()->length(), Frame_t(range.second))
+            : min(_overlayed_video->source()->length(), Frame_t(range.end))
     };
 
     _overlayed_video->reset_to_frame(_video_conversion_range.start);
@@ -368,7 +368,7 @@ void Segmenter::open_camera() {
     //SETTING(output_size) = _output_size;
     SETTING(meta_video_size) = camera.size();
     
-    SETTING(video_conversion_range) = std::pair<long_t,long_t>(-1,-1);
+    SETTING(video_conversion_range) = Range<long_t>(-1,-1);
     
     if(std::unique_lock vlock(_mutex_video);
        SETTING(track_background_subtraction))

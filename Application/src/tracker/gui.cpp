@@ -4041,9 +4041,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 
             }
             
-            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})
+            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<Range<long_t>>() == Range<long_t>{-1,-1})
             {
-                SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
+                SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
             }
             
             WorkProgress::add_queue("", [](){

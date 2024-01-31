@@ -120,13 +120,15 @@ void Bowl::update_shapes() {
             _data->_include_shapes.erase(key);
         }
         
-        _cache->set_raw_blobs_dirty();
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
         
     } else if(FAST_SETTING(track_include).empty()
               && !_data->_include_shapes.empty())
     {
         _data->_include_shapes.clear();
-        _cache->set_raw_blobs_dirty();
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
     }
     
     if(!FAST_SETTING(track_ignore).empty())
@@ -159,11 +161,13 @@ void Bowl::update_shapes() {
             _data->_ignore_shapes.erase(key);
         }
         
-        _cache->set_raw_blobs_dirty();
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
         
     } else if(FAST_SETTING(track_ignore).empty() && !_data->_ignore_shapes.empty()) {
         _data->_ignore_shapes.clear();
-        _cache->set_raw_blobs_dirty();
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
     }
 }
 

@@ -536,8 +536,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                         auto ss = size.to_string();
                         print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                         
-                        cmn::npz_save(ranges_path.str(), "ranges", all_ranges.data(), { all_ranges.size() / 2, 2 }, "w");
-                        cmn::npz_save(ranges_path.str(), "positions", positions.data(), {positions.size() / 2, 2}, "a");
+                        cmn::npz_save(ranges_path.str(), "ranges", all_ranges.data(), { all_ranges.size() / 2u, 2u }, "w");
+                        cmn::npz_save(ranges_path.str(), "positions", positions.data(), {positions.size() / 2u, 2u}, "a");
                         cmn::npz_save(ranges_path.str(), "ids", ids, "a");
                         cmn::npz_save(ranges_path.str(), "frames", frames, "a");
                         cmn::npz_save(ranges_path.str(), "images", images.data(), { ids.size(), (size_t)resolution.height, (size_t)resolution.width }, "a");
@@ -596,7 +596,7 @@ std::vector<float> VINetwork::transform_results(
     for(int64_t j=0; j<(int64_t)indexes.size(); ++j, ++i) {
         size_t idx = narrow_cast<size_t>(indexes.at((size_t)j));
         if(i < idx) {
-            std::fill(probs.begin() + i * M, probs.begin() + idx * M, -1);
+            std::fill(probs.begin() + i * M, probs.begin() + idx * M, -1.f);
             i = idx;
         }
         

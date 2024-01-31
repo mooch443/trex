@@ -260,16 +260,16 @@ auto async_deferred(F&& func) -> std::future<decltype(func())>
 Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
     static const Frame_t conversion_range_start =
-        (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? Frame_t(min(_video->length() - 1_f, Frame_t(GRAB_SETTINGS(video_conversion_range).first)))
+        (_video && GRAB_SETTINGS(video_conversion_range).start != -1)
+        ? Frame_t(min(_video->length() - 1_f, Frame_t(GRAB_SETTINGS(video_conversion_range).start)))
         : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
     //! otherwise (no video) never/until escape is pressed.
     static const Frame_t conversion_range_end =
         _video
-        ? Frame_t(GRAB_SETTINGS(video_conversion_range).second != -1
-            ? Frame_t(GRAB_SETTINGS(video_conversion_range).second)
+        ? Frame_t(GRAB_SETTINGS(video_conversion_range).end != -1
+            ? Frame_t(GRAB_SETTINGS(video_conversion_range).end)
             : (_video->length() - 1_f))
         : Frame_t(std::numeric_limits<Frame_t::number_t>::max());
 

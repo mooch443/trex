@@ -357,7 +357,7 @@ auto& tracker_start_frame() {
         return Tracker::analysis_range().start();
     }();
     
-    assert(start_frame == (FAST_SETTING(analysis_range).first == -1 ? Frame_t(Frame_t::number_t(0)) : Frame_t(FAST_SETTING(analysis_range).first)));
+    assert(start_frame == (FAST_SETTING(analysis_range).start == -1 ? Frame_t(Frame_t::number_t(0)) : Frame_t(FAST_SETTING(analysis_range).start)));
     return start_frame;
 }
 

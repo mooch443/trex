@@ -3024,7 +3024,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         Timer save_timer;
         cnpy::npy_save(path.str() + "_depth.npy", depth.data(), {
             len,
-            2,
+            2u,
             VisualField::layers,
             vres / VisualField::layers
         });

@@ -277,8 +277,8 @@ namespace track {
                         _outline.resample(FAST_SETTING(outline_resample));
                 }
                 
-                std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-                auto debug = gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second;
+                std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+                auto debug = std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
                 float confidence = calculate_midline(debug);
                 bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
                 error = !_normalized_midline;
@@ -331,8 +331,8 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-        if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second
+        std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+        if(std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish)
            && outline_point) {
             print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto &blob = thresholded_blob;

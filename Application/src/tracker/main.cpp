@@ -1185,7 +1185,7 @@ int main(int argc, char** argv)
                         DurationUS us{ uint64_t(max(0, (double)(range.end() - ptr->index()).get() / double( frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
                         std::string str;
                         
-                        if(FAST_SETTING(analysis_range).first != -1 || FAST_SETTING(analysis_range).second != -1)
+                        if(FAST_SETTING(analysis_range).start != -1 || FAST_SETTING(analysis_range).end != -1)
                             str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end(), "(", video.length(), ") (", dec<2>(data_sec / 1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
 #if defined(__APPLE__)
                                                               "µs/individual"
@@ -1267,8 +1267,8 @@ int main(int argc, char** argv)
             if(not endframe.valid())
                 endframe = range.start();
             
-            if(FAST_SETTING(analysis_range).second != -1
-               && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).second))
+            if(FAST_SETTING(analysis_range).end != -1
+               && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).end))
                && !SETTING(terminate)
                && !please_stop_analysis)
             {

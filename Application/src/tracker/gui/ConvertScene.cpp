@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -476,15 +476,15 @@ void ConvertScene::activate()  {
     window()->set_title(window_title());
     bar.set_progress(0);
     
-    auto range = SETTING(video_conversion_range).value<std::pair<long_t, long_t>>();
-    if (range.first == -1 && range.second == -1) {
+    auto range = SETTING(video_conversion_range).value<Range<long_t>>();
+    if (range.start == -1 && range.end == -1) {
         if(segmenter().is_finite())
-            SETTING(video_conversion_range) = std::pair<long_t, long_t >(0, segmenter().video_length().get());
+            SETTING(video_conversion_range) = Range<long_t>(0, segmenter().video_length().get());
         else
-            SETTING(video_conversion_range) = std::pair<long_t, long_t>(-1,-1);
+            SETTING(video_conversion_range) = Range<long_t>(-1,-1);
     }
-    else if(range.first >= 0) {
-        SETTING(gui_frame) = Frame_t(range.first);
+    else if(range.start >= 0) {
+        SETTING(gui_frame) = Frame_t(range.start);
     }
     
     segmenter().start();
@@ -662,8 +662,8 @@ void ConvertScene::Data::drawBlobs(
                         first_pose = coords.convert(BowlCoord(pt));
                 }
             }
-            else
-                print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
+            //else
+            //    print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
         }
         
         auto cname = meta_classes.size() > assign.clid

@@ -291,7 +291,7 @@ public:
                         auto it = GUI::cache().fish_selected_blobs.find(GUI::cache().selected.front());
                         if(it != GUI::cache().fish_selected_blobs.end())
                         {
-                            SETTING(gui_show_fish) = std::pair<pv::bid, Frame_t>(it->second.bdx, GUI::frame());
+                            SETTING(gui_show_fish) = std::tuple<pv::bid, Frame_t>(it->second.bdx, GUI::frame());
                             GUI::reanalyse_from(GUI::frame());
                             SETTING(analysis_paused) = false;
                         }

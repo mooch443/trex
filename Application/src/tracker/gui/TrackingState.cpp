@@ -314,8 +314,8 @@ void TrackingState::init_video() {
             if(not endframe.valid())
                 endframe = range.start();
             
-            if(FAST_SETTING(analysis_range).second != -1
-               && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).second))
+            if(FAST_SETTING(analysis_range).end != -1
+               && endframe >= Frame_t(sign_cast<Frame_t::number_t>(FAST_SETTING(analysis_range).end))
                && !SETTING(terminate)
                && !please_stop_analysis)
             {
@@ -421,8 +421,8 @@ void TrackingState::Statistics::updateProgress(Frame_t frame, const FrameRange& 
             dec<2>(individuals_per_second.load()),"ind/s ",dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str(),").") + "\n";
         printf("\r\n");
 
-    } else if(FAST_SETTING(analysis_range).first != -1
-       || FAST_SETTING(analysis_range).second != -1)
+    } else if(FAST_SETTING(analysis_range).start != -1
+       || FAST_SETTING(analysis_range).end != -1)
     {
         status = format<FormatterType::NONE>("frame ", frame, "/", analysis_range.end(), "(", video_length, ") @ ",
              dec<2>(frames_per_second.load()), "fps ", dec<2>(individuals_per_second.load()),"ind/s, eta ", us, ") ",
@@ -751,9 +751,9 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                 
             }
             
-            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})
+            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<Range<long_t>>() == Range<long_t>{-1,-1})
             {
-                SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
+                SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
             }
             
             WorkProgress::add_queue("", [](){

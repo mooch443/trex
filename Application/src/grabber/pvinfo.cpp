@@ -614,7 +614,7 @@ int main(int argc, char**argv) {
             header.average.get().copyTo(average);
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_length) = uint64_t(header.video_length);
-            SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
+            SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.consecutive_segments;
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;

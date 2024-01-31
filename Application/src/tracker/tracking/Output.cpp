@@ -402,7 +402,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     ref.read<uint64_t>(N);
     
     auto analysis_range = Tracker::analysis_range();
-    bool check_analysis_range = SETTING(analysis_range).value<std::pair<long_t, long_t>>().first != -1 || SETTING(analysis_range).value<std::pair<long_t, long_t>>().second != -1;
+    bool check_analysis_range = SETTING(analysis_range).value<Range<long_t>>().start != -1 || SETTING(analysis_range).value<Range<long_t>>().end != -1;
     
     struct TemporaryData {
         std::unique_ptr<BasicStuff> stuff;
@@ -1209,9 +1209,9 @@ namespace Output {
         uint64_t bytes = Tracker::average().cols * Tracker::average().rows;
         write_data(bytes, (const char*)Tracker::average().data());
         
-        auto [start, end] = FAST_SETTING(analysis_range);
-        write<int64_t>(start);
-        write<int64_t>(end);
+        auto range = FAST_SETTING(analysis_range);
+        write<int64_t>(range.start);
+        write<int64_t>(range.end);
         
         write<uint64_t>(_header.creation_time.get());
 
@@ -1485,7 +1485,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         track::FrameProperties props;
         CompatibilityFrameProperties comp;
         data_long_t frameIndex;
-        bool check_analysis_range = SETTING(analysis_range).value<std::pair<long_t, long_t>>().first != -1 || SETTING(analysis_range).value<std::pair<long_t, long_t>>().second != -1;
+        bool check_analysis_range = SETTING(analysis_range).value<Range<long_t>>().start != -1 || SETTING(analysis_range).value<Range<long_t>>().end != -1;
         
         auto analysis_range = Tracker::analysis_range();
         _tracker.clear_properties();

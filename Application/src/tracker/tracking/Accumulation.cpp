@@ -1070,7 +1070,7 @@ bool Accumulation::start() {
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {
-                    copied_sorted.insert({distance, Frame_t(), q, cached, range, FrameRange(range), -1});
+                    copied_sorted.insert({distance, Frame_t(), q, cached, range, FrameRange(range), -1.f});
                 }
                 
                 /*if(distance > 0) {

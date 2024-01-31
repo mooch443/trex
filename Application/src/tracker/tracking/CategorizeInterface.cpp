@@ -199,7 +199,7 @@ void receive_prediction_results(const LearningTask& task) {
     std::lock_guard guard(Work::recv_mutex());
     auto cats = FAST_SETTING(categories_ordered);
     task.sample->_probabilities.resize(cats.size());
-    std::fill(task.sample->_probabilities.begin(), task.sample->_probabilities.end(), 0);
+    std::fill(task.sample->_probabilities.begin(), task.sample->_probabilities.end(), 0.f);
     
     for(size_t i=0; i<task.result.size(); ++i) {
         assert(task.result.at(i) == DataStore::label(task.result.at(i))->id);
