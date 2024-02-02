@@ -89,6 +89,7 @@ TRexTask determineTaskType() {
         array.empty())
     {
         return TRexTask_t::none;
+        
     } else if (not output_file.empty()
                && ((    output_file.has_extension()
                          && output_file.extension() == "pv"
@@ -107,9 +108,16 @@ TRexTask determineTaskType() {
         output_file = (not front.has_extension() || front.extension() != "pv") ?
                       file::DataLocation::parse("output", front.add_extension("pv")) :
                       file::DataLocation::parse("output", front.replace_extension("pv"));
+        
         if (output_file.exists()) {
-            //SETTING(source) = file::PathArray(output_file);
-            SETTING(filename) = file::Path(output_file);
+            if(array.size() == 1
+               && array.get_paths().front() == "webcam")
+            {
+                SETTING(filename) = file::Path("webcam");
+            } else {
+                SETTING(filename) = file::Path(output_file);
+            }
+            
             return TRexTask_t::track;
         } else {
             return TRexTask_t::convert;
@@ -124,12 +132,20 @@ void launch_gui() {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
-    }, [](auto&, Event e) {
+    }, [ptr = &base](auto&, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
             if(e.type == EventType::KEY) {
                 if(e.key.code == Keyboard::Escape) {
                     SETTING(terminate) = true;
                 }
+                
+            } else if(e.type == EventType::WINDOW_RESIZED) {
+                auto work_area = ptr->work_area();
+                auto scale = 1920.f / work_area.width;
+                if(scale != 1.f)
+                    scale = 1.f + (scale - 1.f) * 0.35;
+                print("scale = ", 1920.f / work_area.width, " (",scale,") dpi = ", ptr->dpi_scale());
+                SETTING(gui_interface_scale) = float(scale);
             }
         }
     });
@@ -265,7 +281,7 @@ void launch_gui() {
     file::cd(file::DataLocation::parse("app"));
     
     gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
-        manager.update(*base.graph());
+        manager.update(&base, *base.graph());
     });
     
     manager.clear();
@@ -413,7 +429,7 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction"}, [](auto key){
+    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
         if(key == "source")
             print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
@@ -655,7 +671,7 @@ int main(int argc, char**argv) {
             TrackingState state{nullptr};
             state.init_video();
             
-            RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());
+            RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
             
             //! get the python init future at this point
             f.get();

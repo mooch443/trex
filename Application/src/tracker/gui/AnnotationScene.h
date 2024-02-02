@@ -83,7 +83,7 @@ private:
     
     std::unique_ptr<Rect> _drag_box;
     Frame_t video_length;
-    Size2 window_size, video_size;
+    Size2 video_size;
     std::unique_ptr<Bowl> _bowl;
     std::future<Image::Ptr> _next_frame;
     ExternalImage _current_image;

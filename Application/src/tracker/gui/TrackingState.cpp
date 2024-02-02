@@ -287,7 +287,7 @@ void TrackingState::init_video() {
      */
     //cmd.load_settings(&combined);
     
-    SETTING(gui_interface_scale) = float(1);
+    //SETTING(gui_interface_scale) = float(1);
     print("cm_per_pixel = ", SETTING(cm_per_pixel).value<float>());
     
     for (auto i=0_f; i<cache_size; ++i)

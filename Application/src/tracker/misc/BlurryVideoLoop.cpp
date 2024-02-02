@@ -3,6 +3,7 @@
 #include <misc/WebcamVideoSource.h>
 #include <misc/VideoVideoSource.h>
 #include <misc/PVVideoSource.h>
+#include <misc/SettingsInitializer.h>
 
 namespace cmn {
 
@@ -58,7 +59,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                       && path.get_paths().front().has_extension()
                       && path.get_paths().front().extension() == "pv")
             {
-                pv::File video(path.get_paths().front(), pv::FileMode::READ);
+                auto output = settings::find_output_name(GlobalSettings::map());
+                pv::File video(output, pv::FileMode::READ);
                 video.header();
                 
                 tmp = std::unique_ptr<AbstractBaseVideoSource>(new PVVideoSource{ std::move(video) });

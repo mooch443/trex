@@ -416,7 +416,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("gui_transparent_background", false, "If enabled, fonts might look weird but you can record movies (and images) with transparent background (if gui_background_color.alpha is < 255).");
         
-        CONFIG("gui_interface_scale", float(1), "Scales the whole interface. A value greater than 1 will make it smaller.");
+        CONFIG("gui_interface_scale", float(1), "Scales the whole interface. A value greater than 1 will make it smaller.", SYSTEM);
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
@@ -553,7 +553,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
-        CONFIG("track_only_labels", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
+        CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
         CONFIG("track_label_confidence_threshold", float(0.1), "Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");

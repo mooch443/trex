@@ -515,7 +515,7 @@
                 "children":[
                     {
                         "type":"button",
-                        "text":"<sym>🛇</sym> Back to menu",
+                        "text":"<sym>🛇</sym> {if:{previous_stack_size}:Back:Back to menu}",
                         "fill":[40,40,40,220],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                         "size":[150,40],

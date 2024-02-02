@@ -18,6 +18,7 @@
 #include <misc/VideoInfo.h>
 #include <gui/GUIVideoAdapter.h>
 #include <gui/WorkProgress.h>
+#include <gui/Coordinates.h>
 
 namespace gui {
 
@@ -28,11 +29,9 @@ struct SettingsScene::Data {
     double blur_target{1};
     double blur_percentage{0};
     
-    Size2 window_size;
     dyn::DynamicGUI dynGUI;
     CallbackCollection callback;
     std::string layout_name { "choose_settings_layout.json" };
-    GUITaskQueue_t _exec_main_queue;
     
     std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;
     std::unordered_map<std::string, bool> _done_exist_checks;
@@ -49,15 +48,20 @@ struct SettingsScene::Data {
     
     sprite::Map get_changed_props() const {
         sprite::Map copy = GlobalSettings::map();
+        const auto &defaults = GlobalSettings::defaults();
         const auto &_defaults = GlobalSettings::current_defaults_with_config();
         print("current output_dir = ", _defaults.at("calculate_posture"));
         print("current output_dir = ", copy.at("calculate_posture"));
         print("keys = ", copy.keys());
+        print("_defaults keys = ", _defaults.keys());
         
         for(auto &key : copy.keys()) {
             
-            if((not _defaults.has(key)
-                || copy.at(key).get() != _defaults.at(key).get())
+            if(  ( (_defaults.has(key)
+                     && copy.at(key).get() != _defaults.at(key).get())
+                   || not defaults.has(key)
+                   || defaults.at(key) != copy.at(key)
+                  )
                 //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
                && (GlobalSettings::access_level(key) < AccessLevelType::LOAD
                    || is_in(key, "output_dir", "output_prefix", "settings_file")))
@@ -78,11 +82,9 @@ struct SettingsScene::Data {
     
     void draw(DrawStructure& graph) {
         using namespace dyn;
-        _exec_main_queue.processTasks(nullptr, graph);
-        
         if(not dynGUI) {
             dynGUI = DynamicGUI{
-                .gui = &_exec_main_queue,
+                .gui = SceneManager::getInstance().gui_task_queue(),
                 .path = layout_name,
                 .graph = &graph,
                 .context = {
@@ -97,13 +99,17 @@ struct SettingsScene::Data {
                         GlobalSettings::get(parm).get().set_value_from_string(value);
                     }),
                     ActionFunc("go-back", [this](auto){
-                        if(_last_layouts.empty())
-                            throw InvalidArgumentException("No previous layout available.");
+                        if(_last_layouts.empty()) {
+                            SceneManager::getInstance().enqueue([](auto, auto&) {
+                                SceneManager::getInstance().set_active("starting-scene");
+                            });
+                            return;
+                        }
                         
                         layout_name = _last_layouts.top();
                         _last_layouts.pop();
                         
-                        _exec_main_queue.enqueue([this](auto, auto&) {
+                        SceneManager::getInstance().enqueue([this](auto, auto&) {
                             dynGUI.clear();
                             dynGUI = {};
                         });
@@ -111,13 +117,14 @@ struct SettingsScene::Data {
                     ActionFunc("convert", [this](auto){
                         DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() {
+                        WorkProgress::add_queue("loading...", [copy = get_changed_props()]() {
+                            print("changed props = ", copy.keys());
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
                             
                             settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
-                            _exec_main_queue.enqueue([before = std::move(before), defaults = std::move(defaults)](auto,DrawStructure& graph){
+                            SceneManager::getInstance().enqueue([before = std::move(before), defaults = std::move(defaults)](auto,DrawStructure& graph){
                                 auto filename = SETTING(filename).value<file::Path>();
                                 if(filename.empty())
                                     filename = settings::find_output_name(GlobalSettings::map());
@@ -146,7 +153,7 @@ struct SettingsScene::Data {
                         _last_layouts.push(layout_name);
                         layout_name = name+".json";
                         
-                        _exec_main_queue.enqueue([this](auto, auto&) {
+                        SceneManager::getInstance().enqueue([this](auto, auto&) {
                             dynGUI.clear();
                             dynGUI = {};
                         });
@@ -154,7 +161,8 @@ struct SettingsScene::Data {
                     ActionFunc("track", [this](auto){
                         DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()](){
+                        WorkProgress::add_queue("loading...", [copy = get_changed_props()](){
+                            print("changed props = ", copy.keys());
                             auto array = SETTING(source).value<file::PathArray>();
                             auto front = file::Path(file::find_basename(array));
                             /*output_file = !front.has_extension() ?
@@ -170,7 +178,7 @@ struct SettingsScene::Data {
                             
                             settings::load(array, SETTING(filename), default_config::TRexTask_t::track, SETTING(detect_type), {}, copy);
                             
-                            _exec_main_queue.enqueue([](auto,auto&){
+                            SceneManager::getInstance().enqueue([](){
                                 SceneManager::getInstance().set_active("tracking-scene");
                             });
                         });
@@ -205,8 +213,11 @@ struct SettingsScene::Data {
                     VarFunc("settings_summary", [](const VarProps&) -> std::string {
                         return std::string(GlobalSettings::map().toStr());
                     }),
-                    VarFunc("window_size", [this](const VarProps&) -> Vec2 {
-                        return window_size;
+                    VarFunc("window_size", [](const VarProps&) -> Vec2 {
+                        return FindCoord::get().screen_size();
+                    }),
+                    VarFunc("previous_stack_size", [this](const VarProps&) -> size_t {
+                        return _last_layouts.size();
                     }),
                     VarFunc("video_size", [this](const VarProps&) -> Vec2 {
                         if(_video_size.empty())
@@ -251,8 +262,8 @@ struct SettingsScene::Data {
             };
             
             dynGUI.context.custom_elements["video"] = std::unique_ptr<GUIVideoAdapterElement>{
-                new GUIVideoAdapterElement(_window, [this]() {
-                    return window_size;
+                new GUIVideoAdapterElement(_window, []() {
+                    return FindCoord::get().screen_size();
                 }, [this](VideoInfo info) {
                     _next_video_size = info.size;
                 }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
@@ -268,6 +279,9 @@ struct SettingsScene::Data {
                 })
             };
         }
+        
+        auto coords = FindCoord::get();
+        Size2 window_size = coords.screen_size();
         
         auto dt = saturate(animation_timer.elapsed(), 0.001, 1.0);
         blur_percentage += (blur_target - blur_percentage) * dt * 2.0;
@@ -327,19 +341,21 @@ void SettingsScene::activate() {
     WorkProgress::instance().start();
     //auto video_size = Size2(1200,920);
     auto work_area = ((const IMGUIBase*)window())->work_area();
-    //auto window_size = video_size;
-    
     auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
-
+    if(window_size.height > work_area.height) {
+        auto ratio = window_size.width / window_size.height;
+        window_size = Size2(work_area.height * ratio, work_area.height);
+    }
+    
     Bounds bounds(
         Vec2(),
         window_size);
-
+    
     print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
-    bounds.restrict_to(work_area);
-    bounds << Vec2((work_area.width - work_area.x) / 2 - bounds.width / 2,
-        work_area.height / 2 - bounds.height / 2 + work_area.y);
-    bounds.restrict_to(work_area);
+    bounds.restrict_to(Bounds(work_area.size()));
+    bounds << Vec2(work_area.width / 2 - bounds.width / 2,
+                    work_area.height / 2 - bounds.height / 2);
+    bounds.restrict_to(Bounds(work_area.size()));
     print("Restricting bounds to work area: ", work_area, " -> ", bounds);
 
     print("setting bounds = ", bounds);
@@ -356,14 +372,42 @@ void SettingsScene::activate() {
     });
     
     _data = std::make_unique<Data>();
-    _data->_last_layouts.push("welcome_layout.json");
     _data->_window = (IMGUIBase*)window();
-    _data->callback = GlobalSettings::map().register_callbacks({"filename"}, [](auto name) {
+    _data->callback = GlobalSettings::map().register_callbacks({"filename", "source"}, [](auto name) {
         if(name == "filename") {
             file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
             if(not path.empty() && not path.remove_filename().empty()) {
                 path = path.filename();
                 SETTING(filename) = path;
+            }
+        } else if(name == "source") {
+            file::PathArray source = GlobalSettings::map().at("source");
+            settings::ExtendableVector exclude{
+                "output_prefix",
+                "filename",
+                "source",
+                "output_dir"
+            };
+            if(not source.empty()
+               && file::DataLocation::parse("input", source.get_paths().front()).is_regular())
+            {
+                file::Path filename = GlobalSettings::map().at("filename");
+                try {
+                    settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+                    
+                } catch(const std::exception& ex) {
+                    FormatWarning("Ex = ", ex.what());
+                }
+            } else if(not source.empty()
+                      && settings::find_output_name(GlobalSettings::map()).add_extension("pv").is_regular())
+            {
+                file::Path filename = settings::find_output_name(GlobalSettings::map());//GlobalSettings::map().at("filename");
+                try {
+                    settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+                    
+                } catch(const std::exception& ex) {
+                    FormatWarning("Ex = ", ex.what());
+                }
             }
         }
     });
@@ -386,14 +430,12 @@ void SettingsScene::deactivate() {
 void SettingsScene::_draw(DrawStructure& graph) {
     using namespace dyn;
 
-    
-    auto w = Vec2(window()->window_dimensions().width, 
+    /*auto w = Vec2(window()->window_dimensions().width,
                   window()->window_dimensions().height);
     if(w != _data->window_size) {
         _data->window_size = w;
         //_data->_video_loop.set_target_resolution(w);
-    }
-    
+    }*/
     _data->draw(graph);
 }
 

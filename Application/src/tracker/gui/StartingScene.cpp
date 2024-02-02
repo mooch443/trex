@@ -11,6 +11,8 @@
 #include <misc/SettingsInitializer.h>
 #include <gui/GUIVideoAdapterElement.h>
 #include <gui/WorkProgress.h>
+#include <gui/Coordinates.h>
+#include <gui/GUITaskQueue.h>
 
 namespace gui {
 
@@ -65,25 +67,31 @@ std::string window_title() {
 
 void StartingScene::activate() {
     WorkProgress::instance().start();
+    settings::load({}, {}, default_config::TRexTask_t::none, {}, {}, {});
+    _recents = RecentItems::read();
     
     using namespace dyn;
     // Fill the recent items list
-    _recents = RecentItems::read();
+//    _recents = RecentItems::read();
     window()->set_title(window_title());
     //_recents.show(*_recent_items);
     
     auto work_area = ((const IMGUIBase*)window())->work_area();
     auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
-
+    if(window_size.height > work_area.height) {
+        auto ratio = window_size.width / window_size.height;
+        window_size = Size2(work_area.height * ratio, work_area.height);
+    }
+    
     Bounds bounds(
         Vec2(),
         window_size);
     
     print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
-    bounds.restrict_to(work_area);
-    bounds << Vec2((work_area.width - work_area.x) / 2 - bounds.width / 2,
-                    work_area.height / 2 - bounds.height / 2 + work_area.y);
-    bounds.restrict_to(work_area);
+    bounds.restrict_to(Bounds(work_area.size()));
+    bounds << Vec2(work_area.width / 2 - bounds.width / 2,
+                    work_area.height / 2 - bounds.height / 2);
+    bounds.restrict_to(Bounds(work_area.size()));
     print("Restricting bounds to work area: ", work_area, " -> ", bounds);
 
     print("setting bounds = ", bounds);
@@ -142,8 +150,6 @@ void StartingScene::deactivate() {
 
 void StartingScene::_draw(DrawStructure& graph) {
     using namespace dyn;
-    WorkProgress::update((IMGUIBase*)window(), graph, &graph.root(), {});
-    _exec_main_queue.processTasks((IMGUIBase*)window(), graph);
     
     if(not dynGUI)
         dynGUI = {
@@ -180,18 +186,28 @@ void StartingScene::_draw(DrawStructure& graph) {
                                 ? item._options.at("detect_type").value<track::detect::ObjectDetectionType_t>()
                                 : GlobalSettings::defaults().at("detect_type");
                             
-                            WorkProgress::add_queue("loading...", [this, array, filename, type, item](){
-                                settings::load(array,
-                                               filename,
-                                               default_config::TRexTask_t::convert,
-                                               type,
-                                               {},
-                                               item._options);
-                                
-                                _exec_main_queue.enqueue([](auto, auto&) {
-                                    SceneManager::getInstance().set_active("settings-scene");
+                            //for(size_t i=0; i<100; ++i)
+                            {
+                                WorkProgress::add_queue("", [array, filename, type, item](){
+                                    /*auto copy = GlobalSettings::map();
+                                    auto defaults = GlobalSettings::defaults();
+                                    auto current = GlobalSettings::current_defaults();
+                                    auto config = GlobalSettings::current_defaults_with_config();*/
+                                    settings::load(array,
+                                         filename,
+                                         default_config::TRexTask_t::convert,
+                                         type,
+                                         {},
+                                         item._options);
+                                    /*GlobalSettings::map() = copy;
+                                     GlobalSettings::set_defaults() = defaults;
+                                     GlobalSettings::current_defaults() = current;
+                                     GlobalSettings::current_defaults_with_config() = config;*/
+                                    SceneManager::getInstance().enqueue([](auto, auto&) {
+                                        SceneManager::getInstance().set_active("settings-scene");
+                                    });
                                 });
-                            });
+                            }
                             //auto path = pv_file_path_for(array);
 
                             //CommandLine::instance().load_settings();
@@ -227,8 +243,8 @@ void StartingScene::_draw(DrawStructure& graph) {
                     VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&{
                         return _recents_list;
                     }),
-                    VarFunc("window_size", [this](const VarProps&) -> Vec2 {
-                        return window_size;
+                    VarFunc("window_size", [](const VarProps&) -> Vec2 {
+                        return FindCoord::get().screen_size();
                     }),
                     VarFunc("index", [](const VarProps&) -> size_t {
                         static Timer timer;
@@ -260,8 +276,8 @@ void StartingScene::_draw(DrawStructure& graph) {
 
                 context.custom_elements["video"] = std::unique_ptr<GUIVideoAdapterElement>(new GUIVideoAdapterElement{
                     (IMGUIBase*)window(),
-                    [this]() {
-                        return window_size;
+                    []() {
+                        return FindCoord::get().screen_size();
                     }
                 });
                 
@@ -269,21 +285,11 @@ void StartingScene::_draw(DrawStructure& graph) {
             }()
         };
     
-    //auto dpi = ((const IMGUIBase*)window())->dpi_scale();
-    window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height);
-    
-    /*auto image_scale = Vec2{
-        max(window_size.width / max(_video_adapter->width(), 1.f),
-            window_size.height / max(_video_adapter->height(), 1.f))
-    };
-    
-    _video_adapter->set_scale(image_scale);
-    _video_adapter->set_origin(Vec2(0.5));
-    _video_adapter->set_pos(window_size * 0.5);
-    //_video_adapter->set_color(White.alpha(100));
-    graph.wrap_object(*_video_adapter);*/
-    
     dynGUI.update(nullptr);
+}
+
+bool StartingScene::on_global_event(Event) {
+    return false;
 }
 
 }

@@ -181,7 +181,7 @@ bool TrackingScene::on_global_event(Event event) {
         
         switch (event.key.code) {
             case Keyboard::Escape:
-                _exec_main_queue.enqueue([](auto, DrawStructure& graph) {
+                SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -202,10 +202,10 @@ bool TrackingScene::on_global_event(Event event) {
                 prev_poi(Idx_t());
                 break;
             case Keyboard::L:
-                _state->load_state(&_exec_main_queue, Output::TrackingResults::expected_filename());
+                _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
                 break;
             case Keyboard::Z:
-                _state->save_state(&_exec_main_queue, false);
+                _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
                 break;
             case Keyboard::T:
                 SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
@@ -250,7 +250,7 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
                 
             case Keyboard::F: {
-                _exec_main_queue.enqueue([](IMGUIBase* base, DrawStructure& graph){
+                SceneManager::getInstance().enqueue([](IMGUIBase* base, DrawStructure& graph){
                     if(graph.is_key_pressed(Codes::LSystem))
                     {
                         base->toggle_fullscreen(graph);
@@ -259,13 +259,13 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             }
             case Keyboard::F11:
-                _exec_main_queue.enqueue([](IMGUIBase* base, DrawStructure& graph){
+                SceneManager::getInstance().enqueue([](IMGUIBase* base, DrawStructure& graph){
                     base->toggle_fullscreen(graph);
                 });
                 break;
             case Keyboard::R: {
                 if(_data) {
-                    _exec_main_queue.enqueue([this](IMGUIBase* base, DrawStructure& graph){
+                    SceneManager::getInstance().enqueue([this](IMGUIBase* base, DrawStructure& graph){
                         if(_data->_recorder.recording()) {
                             _data->_recorder.stop_recording(base, &graph);
                             _data->_background->set_strict(false);
@@ -291,7 +291,7 @@ void TrackingScene::activate() {
     if(SETTING(filename).value<file::Path>().empty())
         SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
     
-    _state = std::make_unique<TrackingState>(&_exec_main_queue);
+    _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue());
     
     //! Stages
     _data = std::unique_ptr<Data>{
@@ -329,7 +329,7 @@ void TrackingScene::activate() {
     _data->_analysis_range = Tracker::analysis_range();
     _state->init_video();
     
-    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::map());
+    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
 }
 
 void TrackingScene::deactivate() {
@@ -431,23 +431,18 @@ void TrackingScene::_draw(DrawStructure& graph) {
          init_gui(_data->dynGUI, graph);
     
     update_run_loop();
-    if(_data)
-        _exec_main_queue.processTasks(static_cast<IMGUIBase*>(window()), graph);
-    else
+    if(not _data)
         return;
     
-    if(window()) {
-        auto update = FindCoord::set_screen_size(graph, *window());
-        if(update != window_size)
-            window_size = update;
-    }
     //window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height).div(((IMGUIBase*)window())->dpi_scale()) * gui::interface_scale();
+    
+    auto coords = FindCoord::get();
     
     if(not _data->_cache) {
         _data->_cache = std::make_unique<GUICache>(&graph, &_state->video);
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
         _data->_bowl->set_video_aspect_ratio(_state->video.size().width, _state->video.size().height);
-        _data->_bowl->fit_to_screen(window_size);
+        _data->_bowl->fit_to_screen(coords.screen_size());
         
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
             tracker::gui::clicked_background(graph, *_data->_cache, pos, v, key);
@@ -590,15 +585,13 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 _data->_last_bounds.erase(fdx);
         }
         
-        _data->_bowl->fit_to_screen(window_size);
+        _data->_bowl->fit_to_screen(coords.screen_size());
         _data->_bowl->set_target_focus(targets);
         _data->_zoom_dirty = false;
         _data->_cache->updated_tracking();
     }
     
     _data->_bowl->update_scaling();
-    
-    auto coords = FindCoord::get(); 
     
     auto alpha = SETTING(gui_background_color).value<Color>().a;
     _data->_background->set_color(Color(255, 255, 255, alpha ? alpha : 1));
@@ -649,11 +642,6 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(GUI_SETTINGS(gui_show_posture) && not _data->_cache->selected.empty()) {
         _data->_cache->draw_posture(graph, GUI_SETTINGS(gui_frame));
     }
-    
-    graph.section("loading", [this](DrawStructure& base, auto section) {
-        WorkProgress::update((IMGUIBase*)window(), base, section, window_size);
-    });
-    //
     
     if(not graph.root().is_dirty())
         std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
@@ -744,12 +732,12 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
 void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
     using namespace dyn;
     dyn::DynamicGUI g{
-        .gui = &_exec_main_queue,
+        .gui = SceneManager::getInstance().gui_task_queue(),
         .path = "tracking_layout.json",
         .graph = &graph,
         .context = {
-            ActionFunc("quit", [this](Action) {
-                _exec_main_queue.enqueue([](auto, DrawStructure& graph) {
+            ActionFunc("quit", [](Action) {
+                SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -792,22 +780,22 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 _state->analysis.set_paused(false);
             }),
             ActionFunc("load_results", [this](Action){
-                _state->load_state(&_exec_main_queue, Output::TrackingResults::expected_filename());
+                _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
             }),
             ActionFunc("save_results", [this](Action) {
-                _state->save_state(&_exec_main_queue, false);
+                _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
             }),
             ActionFunc("export_data", [this](Action){
                 WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
             }),
-            ActionFunc("write_config", [this](Action){
-                WorkProgress::add_queue("", [this]() { settings::write_config(false, &_exec_main_queue); });
+            ActionFunc("write_config", [](Action){
+                WorkProgress::add_queue("", []() { settings::write_config(false, SceneManager::getInstance().gui_task_queue()); });
             }),
             ActionFunc("categorize", [this](Action){
                 Categorize::show(&_state->video,
                     [this](){
                         if(SETTING(auto_quit))
-                            _state->_controller->auto_quit(&_exec_main_queue);
+                            _state->_controller->auto_quit(SceneManager::getInstance().gui_task_queue());
                         //GUI::instance()->auto_quit();
                     },
                     [](const std::string& text){
@@ -817,10 +805,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 );
             }),
             ActionFunc("auto_correct", [this](Action){
-                _state->_controller->auto_correct(&_exec_main_queue, false);
+                _state->_controller->auto_correct(SceneManager::getInstance().gui_task_queue(), false);
             }),
             ActionFunc("visual_identification", [this](Action) {
-                vident::training_data_dialog(&_exec_main_queue, false, [](){
+                vident::training_data_dialog(SceneManager::getInstance().gui_task_queue(), false, [](){
                     print("callback ");
                 }, _state->_controller.get());
             }),
@@ -911,8 +899,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 
                 throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
             }),
-            VarFunc("window_size", [this](const VarProps&) -> Vec2 {
-                return window_size;
+            VarFunc("window_size", [](const VarProps&) -> Vec2 {
+                return FindCoord::get().screen_size();
             }),
             
             VarFunc("video_size", [this](const VarProps&) -> Vec2 {

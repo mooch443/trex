@@ -41,6 +41,7 @@ Size2 FindCoord::set_screen_size(const DrawStructure& graph, const Base &window,
     
     auto lock = LOGGED_LOCK(mutex());
     if(update != instance().window_size) {
+        //print("Updating screen from ", instance().window_size, " to ", update, " with ", window.window_dimensions(), " scale=",graph.scale(), " and=",scale," interface=",gui::interface_scale());
         instance().window_size = update;
     }
     

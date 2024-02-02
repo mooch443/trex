@@ -1,14 +1,51 @@
 #include "Scene.h"
 #include <misc/default_settings.h>
+#include <gui/types/Layout.h>
+#include <gui/DrawStructure.h>
+#include <gui/DrawBase.h>
+#include <gui/Coordinates.h>
+#include <gui/IMGUIBase.h>
+#include <gui/WorkProgress.h>
 
 namespace gui {
 
 IMPLEMENT(SceneManager::_switching_error);
 
+Scene::Scene(Base& window, 
+             const std::string& name,
+             std::function<void(Scene&, DrawStructure& base)> draw)
+    : _name(name), _window(&window), _draw(draw)
+{
+
+}
+
+Scene::~Scene() {
+    deactivate();
+}
+
+void Scene::activate() {
+    print("Activating scene ", _name);
+}
+void Scene::deactivate() {
+    print("Deactivating scene ", _name);
+}
+
+void Scene::draw(DrawStructure& base) {
+    _draw(*this, base);
+}
+
+bool Scene::on_global_event(Event) {
+    return false;
+}
+
 SceneManager& SceneManager::getInstance() {
     static SceneManager* instance = new SceneManager;  // Singleton instance
     return *instance;
 }
+
+SceneManager::SceneManager()
+    : _gui_queue(std::make_unique<GUITaskQueue_t>())
+{ }
 
 void SceneManager::set_active(Scene* scene) {
     auto fn = [this, scene]() {
@@ -18,6 +55,12 @@ void SceneManager::set_active(Scene* scene) {
             if (active_scene && active_scene != scene) {
                 print("[SceneManager] Deactivating ", active_scene->name());
                 active_scene->deactivate();
+                
+                {
+                    /// tasks across scene boundaries are disallowed
+                    //std::unique_lock guard(_mutex);
+                    _gui_queue->clear();
+                }
             }
             last_active_scene = active_scene;
             active_scene = scene;
@@ -128,6 +171,7 @@ SceneManager::~SceneManager() {
 void SceneManager::clear() {
     set_active(nullptr);
     update_queue();
+    _gui_queue = nullptr;
     
     std::unique_lock guard{_mutex};
     active_scene = nullptr;
@@ -140,9 +184,19 @@ void SceneManager::clear() {
     }
 }
 
-void SceneManager::update(DrawStructure& graph) {
+void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
+    FindCoord::set_screen_size(graph, *window);
     update_queue();
-
+    _gui_queue->processTasks(window, graph);
+    
+    if(window->window_dimensions() != last_resolution
+       || window->dpi_scale() != last_dpi) 
+    {
+        last_resolution = window->window_dimensions();
+        last_dpi = window->dpi_scale();
+    }
+    FindCoord::set_screen_size(graph, *window);
+    
     try {
         if (active_scene)
             active_scene->draw(graph);
@@ -160,6 +214,10 @@ void SceneManager::update(DrawStructure& graph) {
     if(not str.empty()) {
         graph.dialog(settings::htmlify(str), "Error");
     }
+    
+    graph.section("loading", [window](DrawStructure& base, auto section) {
+        WorkProgress::update(window, base, section, FindCoord::get().screen_size());
+    });
 }
 
 void SceneManager::update_queue() {
@@ -179,10 +237,20 @@ void SceneManager::update_queue() {
 }
 
 bool SceneManager::on_global_event(Event event) {
+    if(event.type == EventType::WINDOW_RESIZED) {
+        enqueue([](gui::IMGUIBase* base, gui::DrawStructure& graph) {
+            FindCoord::set_screen_size(graph, *base);
+        });
+    }
+    
     if(active_scene) {
         return active_scene->on_global_event(event);
     }
     return false;
+}
+
+GUITaskQueue_t* SceneManager::gui_task_queue() const {
+    return _gui_queue.get();
 }
 
 }

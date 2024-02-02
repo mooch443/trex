@@ -9,7 +9,6 @@
 #include <gui/types/ListItemTypes.h>
 #include <gui/DynamicVariable.h>
 #include <misc/RecentItems.h>
-#include <gui/GUITaskQueue.h>
 
 namespace gui {
 
@@ -20,8 +19,6 @@ class StartingScene : public Scene {
 
     // The HorizontalLayout for the two buttons and the image
     dyn::DynamicGUI dynGUI;
-    Size2 window_size;
-    GUITaskQueue_t _exec_main_queue;
 
 public:
     StartingScene(Base& window);
@@ -32,5 +29,6 @@ public:
     void deactivate() override;
 
     void _draw(DrawStructure& graph);
+    bool on_global_event(Event) override;
 };
 }

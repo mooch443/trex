@@ -1,15 +1,21 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <gui/DrawBase.h>
-#include <gui/DrawStructure.h>
-#include <gui/types/Layout.h>
+#include <gui/GUITaskQueue.h>
+#include <misc/derived_ptr.h>
+#include <gui/Event.h>
 
 namespace gui {
 
+//class GUITaskQueue_t;
+class DrawStructure;
+class IMGUIBase;
+class Base;
+class Drawable;
+
 class Scene {
     GETTER(std::string, name);
-        std::vector<Layout::Ptr> _children;
+    std::vector<derived_ptr<Drawable>> _children;
     Base* _window{ nullptr };
     std::function<void(Scene&, DrawStructure& base)> _draw;
 
@@ -17,29 +23,17 @@ class Scene {
     static inline std::unordered_map<const DrawStructure*, std::string> _active_scenes;
 
 public:
-    Scene(Base& window, const std::string& name, std::function<void(Scene&, DrawStructure& base)> draw)
-        : _name(name), _window(&window), _draw(draw)
-    {
-
-    }
+    Scene(Base& window, const std::string& name, std::function<void(Scene&, DrawStructure& base)> draw);
 
     auto window() const { return _window; }
-    virtual ~Scene() {
-        deactivate();
-    }
+    virtual ~Scene();
 
-    virtual void activate() {
-        print("Activating scene ", _name);
-    }
-    virtual void deactivate() {
-        print("Deactivating scene ", _name);
-    }
-
-    void draw(DrawStructure& base) {
-        _draw(*this, base);
-    }
+    virtual void activate();
+    virtual void deactivate();
     
-    virtual bool on_global_event(Event) { return false; }
+    void draw(DrawStructure& base);
+    
+    virtual bool on_global_event(Event);
 };
 
 class SceneManager {
@@ -48,10 +42,13 @@ class SceneManager {
     Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
     std::queue<std::function<void()>> _queue;
+    std::unique_ptr<GUITaskQueue_t> _gui_queue;
+    Size2 last_resolution;
+    double last_dpi{0};
     mutable std::mutex _mutex;
 
     // Private constructor to prevent external instantiation
-    SceneManager() {}
+    SceneManager();
 
     static read_once<std::string> _switching_error;
     
@@ -84,17 +81,28 @@ public:
 
     ~SceneManager();
 
-    void update(DrawStructure& graph);
+    void update(IMGUIBase*, DrawStructure& graph);
 
     void update_queue();
     bool on_global_event(Event);
     void clear();
 
-private:
-    void enqueue(auto&& task) {
+    template<typename F>
+        requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
+    void enqueue(F&& task) {
         std::unique_lock guard(_mutex);
         _queue.push(std::move(task));
     }
+    
+    template<typename F>
+        requires (std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
+    void enqueue(F&& task) {
+        std::unique_lock guard(_mutex);
+        if(_gui_queue)
+            _gui_queue->enqueue(std::forward<F>(task));
+    }
+    
+    GUITaskQueue_t* gui_task_queue() const;
 };
 
 }  // namespace gui

@@ -274,18 +274,18 @@ void AnnotationScene::deactivate() {
 // Custom drawing implementation
 void AnnotationScene::_draw(DrawStructure& graph) {
     if(window()) {
-        auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
+        //auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
         //
         FindCoord::set_video(video_size);
-        if(update != window_size)
-            window_size = update;
+        //if(update != window_size)
+         //   window_size = update;
     }
 
     auto coord = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
         _bowl->set_video_aspect_ratio(coord.video_size().width, coord.video_size().height);
-        _bowl->fit_to_screen(window_size);
+        _bowl->fit_to_screen(coord.screen_size());
     }
     
     if(_frame_future.valid()) {
@@ -332,7 +332,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
 
                 context.variables = {
                     VarFunc("window_size", [this](const VarProps&) -> Vec2 {
-                        return window_size;
+                        return FindCoord::get().screen_size();
                     }),
                     VarFunc("status", [this](const VarProps&) -> int 
                     {
@@ -513,7 +513,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     graph.wrap_object(*_bowl);
     _bowl->update_scaling();
     
-    _bowl->fit_to_screen(window_size);
+    _bowl->fit_to_screen(coord.screen_size());
     _bowl->set_target_focus({});
     
     auto coords = FindCoord::get();

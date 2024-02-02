@@ -355,11 +355,11 @@ void Segmenter::open_camera() {
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(SETTING(source).value<file::PathArray>())));
     
     if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
-        if(not CommandLine::instance().settings_keys().contains("detect_model"))
-            SETTING(detect_model) = file::Path(Yolo8::default_model());
-        if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
+        //if(not CommandLine::instance().settings_keys().contains("detect_model"))
+        //    SETTING(detect_model) = file::Path(Yolo8::default_model());
+        //if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
         {
-            SETTING(save_raw_movie) = true;
+        //    SETTING(save_raw_movie) = true;
         }
     }
 

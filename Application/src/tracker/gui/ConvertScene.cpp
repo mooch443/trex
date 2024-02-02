@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -26,7 +26,6 @@
 #include <tracking/Segmenter.h>
 #include <gui/ScreenRecorder.h>
 #include <gui/DynamicGUI.h>
-#include <gui/GUITaskQueue.h>
 #include <misc/SettingsInitializer.h>
 
 namespace gui {
@@ -66,7 +65,6 @@ struct ConvertScene::Data {
     std::atomic<double> _time{0};
     std::unique_ptr<Bowl> _bowl;
     
-    Size2 window_size;
     Size2 output_size;
     Size2 video_size;
     Vec2 _last_mouse;
@@ -76,7 +74,6 @@ struct ConvertScene::Data {
     Frame_t _video_frame;
     
     dyn::DynamicGUI dynGUI;
-    GUITaskQueue_t _exec_main_queue;
     std::future<std::string> _retrieve_video_info;
     std::string _recovered_error;
     
@@ -328,7 +325,7 @@ void ConvertScene::deactivate() {
         _data->dynGUI.clear();
         
         /// save the last settings used
-        RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::map());
+        RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::current_defaults_with_config());
         
         segmenter().force_stop();
         _data->check_video_info(true, nullptr);
@@ -379,7 +376,7 @@ void ConvertScene::open_camera() {
         SETTING(detect_model) = file::Path(Yolo8::default_model());
     }
     
-    if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
+    if(not GlobalSettings::current_defaults_with_config().has("save_raw_movie"))
     {
         SETTING(save_raw_movie) = true;
     }
@@ -421,9 +418,7 @@ void ConvertScene::activate()  {
     _data->callback = GlobalSettings::map().register_callbacks({
         "meta_skeleton"
     }, [this](auto) {
-        if(not _data)
-            return;
-        _data->_exec_main_queue.enqueue([this](auto,auto&) {
+        SceneManager::getInstance().enqueue([this](auto,auto&) {
             _data->skelet = SETTING(meta_skeleton).value<Skeleton>();
             _data->_skeletts.clear();
         });
@@ -488,7 +483,7 @@ void ConvertScene::activate()  {
     }
     
     segmenter().start();
-    RecentItems::open(source, GlobalSettings::map());
+    RecentItems::open(source, GlobalSettings::current_defaults_with_config());
 }
 
 bool ConvertScene::on_global_event(Event e) {
@@ -774,7 +769,7 @@ void ConvertScene::Data::drawBlobs(
     }
 
     if (dirty) {
-        _bowl->fit_to_screen(window_size);
+        _bowl->fit_to_screen(coords.screen_size());
         _bowl->set_target_focus(targets);
     }
 }
@@ -795,7 +790,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     
     context.actions = {
         ActionFunc("terminate", [this](auto) {
-            _exec_main_queue.enqueue([&](IMGUIBase*, DrawStructure& graph){
+            SceneManager::getInstance().enqueue([&](IMGUIBase*, DrawStructure& graph){
                 graph.dialog([&](Dialog::Result result){
                     if(result == Dialog::OKAY) {
                         if (_segmenter)
@@ -814,10 +809,10 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                 GlobalSettings::get(name).get().set_value_from_string(value);
             }
         }),
-        ActionFunc("set_clipboard", [this](const Action& action) {
+        ActionFunc("set_clipboard", [](const Action& action) {
             auto text = action.parameters.at(0);
             gui::set_clipboard(text);
-            _exec_main_queue.enqueue([text](auto, DrawStructure& graph) {
+            SceneManager::getInstance().enqueue([text](auto, DrawStructure& graph) {
                 graph.dialog("Copied to clipboard:\n<c><str>"+text+"</str></c>");
             });
         })
@@ -848,8 +843,8 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             auto samples = AbstractBaseVideoSource::_video_samples.load();
             return samples > 0 ? fps / samples : 0;
         }),
-        VarFunc("window_size", [this](const VarProps&) -> Vec2 {
-            return this->window_size;
+        VarFunc("window_size", [](const VarProps&) -> Vec2 {
+            return FindCoord::get().screen_size();
         }),
         VarFunc("mouse", [this](const VarProps&) -> Vec2 {
             return this->_last_mouse;
@@ -933,7 +928,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     };
 
     return dyn::DynamicGUI{
-        .gui = &_exec_main_queue,
+        .gui = SceneManager::getInstance().gui_task_queue(),
         .path = "alter_layout.json",
         .context = std::move(context),
         .base = window
@@ -946,11 +941,7 @@ void ConvertScene::_draw(DrawStructure& graph) {
     //dirty = true;
 
     if(window()) {
-        auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
-        //
         FindCoord::set_video(_data->video_size);
-        if(update != _data->window_size)
-            _data->window_size = update;
     }
     
     _data->draw(false, graph, window());
@@ -959,13 +950,11 @@ void ConvertScene::_draw(DrawStructure& graph) {
 void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     fetch_new_data();
     
-    _exec_main_queue.processTasks(static_cast<IMGUIBase*>(window), graph);
-    
-    auto coord = FindCoord::get();
+    auto coords = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
         _bowl->set_video_aspect_ratio(output_size.width, output_size.height);//coord.video_size().width, coord.video_size().height);
-        _bowl->fit_to_screen(window_size);
+        _bowl->fit_to_screen(coords.screen_size());
     }
     
     _last_mouse = graph.mouse_position();
@@ -1085,7 +1074,6 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         //! do not need to continue further if the view isnt dirty
         if (not dirty) {
             size_t untracked = 0;
-            auto coords = FindCoord::get();
             for (auto& blob : _object_blobs) {
                 auto bds = blob->bounds();
                 bds = coords.convert(BowlRect(bds));
@@ -1144,7 +1132,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     });
 
     check_gui(graph, window);
-    _bowl->update(_current_data.frame.index(), graph, coord);
+    _bowl->update(_current_data.frame.index(), graph, coords);
 }
 
 }

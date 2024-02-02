@@ -27,6 +27,7 @@ namespace ind = indicators;
 using namespace track;
 
 class Label;
+class ExternalImage;
 
 class ConvertScene : public Scene {
     static sprite::Map fish;
@@ -69,9 +70,6 @@ private:
     
     // Helper function to calculate window dimensions
     Size2 calculateWindowSize(const Size2& output_size, const Size2& window_size);
-
-    
-    
 
     // Main _draw function
     void _draw(DrawStructure& graph);

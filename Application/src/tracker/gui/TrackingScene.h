@@ -26,14 +26,11 @@ class TrackingScene : public Scene {
      */
     struct Data;
     
-    GUITaskQueue_t _exec_main_queue;
     std::unique_ptr<TrackingState> _state;
     
     //! All the gui related data that is supposed to go away between
     //! scene switches:
     std::unique_ptr<Data> _data;
-    
-    Size2 window_size;
     Timer last_redraw, last_dirty;
     
 public:

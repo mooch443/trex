@@ -77,7 +77,7 @@ void load(file::PathArray source,
           const cmn::sprite::Map& source_map)
 {
     DebugHeader("Reloading settings"); 
-
+    
     struct G {
         std::string s;
         G(const std::string& name) : s(name) {
@@ -140,7 +140,8 @@ void load(file::PathArray source,
         }
     }
     
-    GlobalSettings::set_current_defaults(sprite::Map(combined.map));
+    GlobalSettings::current_defaults() = combined.map;
+    //GlobalSettings::set_current_defaults(sprite::Map(combined.map));
     print("outline_resample = ", GlobalSettings::current_defaults().at("outline_resample"));
     
     /// ---------------------------------------------------
@@ -149,6 +150,32 @@ void load(file::PathArray source,
     /// excluding filename and source + other defaults
     auto& cmd = CommandLine::instance();
     combined.map.set_print_by_default(true);
+    sprite::Map current_defaults;
+    auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, bool do_print = false) {
+        if(&combined.map != &from) {
+            if((combined.map.has(key)
+                && combined.map.at(key) != from.at(key))
+               || not GlobalSettings::defaults().has(key)
+               || GlobalSettings::defaults().at(key) != from.at(key))
+            {
+                if(do_print)
+                    print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
+                from.at(key).get().copy_to(&combined.map);
+            }
+        }
+        
+        if((current_defaults.has(key)
+            && current_defaults.at(key) != from.at(key))
+           || not GlobalSettings::defaults().has(key)
+           || GlobalSettings::defaults().at(key) != from.at(key))
+        {
+            if(do_print)
+                print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
+            from.at(key).get().copy_to(&current_defaults);
+            
+        } else if(current_defaults.has(key))
+            current_defaults.erase(key);
+    };
     
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
@@ -156,8 +183,10 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
-    if(cmd.settings_keys().contains("cwd"))
+    if(cmd.settings_keys().contains("cwd")) {
         combined.map["cwd"] = file::Path(cmd.settings_keys().at("cwd"));
+        set_config_if_different("cwd", combined.map);
+    }
     exclude += extract_keys( cmd.settings_keys() );
 
     /// ----------------------------
@@ -185,12 +214,15 @@ void load(file::PathArray source,
     if(not filename.empty())
     {
         combined.map["filename"] = filename;
+        set_config_if_different("filename", combined.map);
     }
     
     if(not source.empty())
     {
         if(source.get_paths().size() == 1) {
             //if(not source.get_paths().front().has_extension())
+            if(source.get_paths().front() != "webcam"
+               && not source.get_paths().front().exists())
             {
                 auto path = source.get_paths().front().add_extension("pv");
                 if(path.exists())
@@ -203,22 +235,27 @@ void load(file::PathArray source,
             }
         }
         combined.map["source"] = source;
+        set_config_if_different("source", combined.map);
         
         //if(combined.map.has("meta_source_path")
         //   && combined.map.at("meta_source_path").value<std::string>().empty())
         //{
-        if(not contains(exclude.toVector(), "meta_source_path"))
+        if(not contains(exclude.toVector(), "meta_source_path")) {
             combined.map["meta_source_path"] = source.source();
+            set_config_if_different("meta_source_path", combined.map);
+        }
         //}
     }
 
     /// ---------------------------------------------------------------------
     /// 7. set the `output_dir` / `output_prefix` properties from parameters:
     /// ---------------------------------------------------------------------
-    if(source_map.has("output_dir"))
-        source_map.at("output_dir").get().copy_to(&combined.map);
-    if(source_map.has("output_prefix"))
-        source_map.at("output_prefix").get().copy_to(&combined.map);
+    if(source_map.has("output_dir")) {
+        set_config_if_different("output_dir", source_map);
+    }
+    if(source_map.has("output_prefix")) {
+        set_config_if_different("output_prefix", source_map);
+    }
     
     /// -----------------------------------------------------
     /// 8. if `source` or `filename` are empty, generate them
@@ -251,6 +288,7 @@ void load(file::PathArray source,
                 if(filename.has_extension() && filename.extension() == "pv")
                     filename = filename.remove_extension();
                 combined.map["filename"] = filename;
+                set_config_if_different("filename", combined.map);
             }
             
         } else if(not path.empty()) {
@@ -258,6 +296,7 @@ void load(file::PathArray source,
             if(filename.has_extension() && filename.extension() == "pv")
                 filename = filename.remove_extension();
             combined.map["filename"] = filename;
+            set_config_if_different("filename", combined.map);
         }
         
     }
@@ -278,6 +317,7 @@ void load(file::PathArray source,
         if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
         {
             combined.map["filename"] = filename;
+            set_config_if_different("filename", combined.map);
         } else {
             file::Path path = file::find_basename(_source);
             print("found basename = ", path);
@@ -303,6 +343,7 @@ void load(file::PathArray source,
                 filename = filename.remove_extension();
             
             combined.map["filename"] = filename;
+            set_config_if_different("filename", combined.map);
         }
     }
     
@@ -317,8 +358,10 @@ void load(file::PathArray source,
         auto path = combined.map["filename"].value<file::Path>();
         if(path == default_path) {
             combined.map["filename"] = file::Path();
+            set_config_if_different("filename", combined.map);
         } else if(path.is_absolute()) {
             combined.map["filename"] = file::Path(path.filename());
+            set_config_if_different("filename", combined.map);
         }
     }
     
@@ -327,6 +370,7 @@ void load(file::PathArray source,
         if(path.is_absolute())
             path = path.filename();
         combined.map["filename"] = path;
+        set_config_if_different("filename", combined.map);
     }
     
     /// ----------------------------------------------------------------
@@ -367,9 +411,13 @@ void load(file::PathArray source,
                 sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector());
                 
                 exclude_from_default += tmp.keys();
+                print("pv file keys = ", tmp.keys());
                 
-                for(auto &key : tmp.keys())
-                    tmp.at(key).get().copy_to(&combined.map);
+                for(auto &key : tmp.keys()) {
+                    if(key == "gui_interface_scale")
+                        print("gui_interface_scale = ", tmp.at(key));
+                    set_config_if_different(key, tmp, true);
+                }
                 
                 if((   not tmp.has("detect_type")
                        || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
@@ -380,12 +428,14 @@ void load(file::PathArray source,
                     /// its probably older versions and we use
                     /// background subtraction defaults:
                     combined.map["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                    set_config_if_different("detect_type", combined.map);
                 }
                 
                 if (not combined.map.has("meta_real_width")
                     || combined.map.at("meta_real_width").value<float>() == 0)
                 {
                     combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                    set_config_if_different("meta_real_width", combined.map);
                 }
 
             } catch(const std::exception& ex) {
@@ -406,7 +456,28 @@ void load(file::PathArray source,
             "track_background_subtraction", false,
             "calculate_posture", false,
             "meta_encoding", meta_encoding_t::r3g3b2,
-            "track_do_history_split", false,
+            "track_do_history_split", false
+        };
+        
+        for(auto &key : values.keys()) {
+            if(not contains(exclude.toVector(), key))
+                values.at(key).get().copy_to(&GlobalSettings::current_defaults());
+            
+            if(contains(exclude_from_default.toVector(), key)) {
+                print("// Not setting default value ", key);
+                continue;
+            }
+            set_config_if_different(key, values);
+            //all.emplace_back(key); // < not technically "custom"
+        }
+    } else {
+        static const sprite::Map values {
+            "track_threshold", 9,
+            "track_posture_threshold", 9,
+            "track_background_subtraction", true,
+            "calculate_posture", true,
+            "meta_encoding", meta_encoding_t::gray,
+            "track_do_history_split", true,
             "meta_classes", std::vector<std::string>{}
         };
         
@@ -418,33 +489,12 @@ void load(file::PathArray source,
                 print("// Not setting default value ", key);
                 continue;
             }
-            values.at(key).get().copy_to(&combined.map);
-            //all.emplace_back(key); // < not technically "custom"
-        }
-    } else {
-        static const sprite::Map values {
-            "track_threshold", 9,
-            "track_posture_threshold", 9,
-            "track_background_subtraction", true,
-            "calculate_posture", true,
-            "meta_encoding", meta_encoding_t::gray,
-            "track_do_history_split", true
-        };
-        
-        for(auto &key : values.keys()) {
-            if(not contains(exclude.toVector(), key))
-                values.at(key).get().copy_to(&GlobalSettings::current_defaults());
-            
-            if(contains(exclude_from_default.toVector(), key)) {
-                print("// Not setting default value ", key);
-                continue;
-            }
-            values.at(key).get().copy_to(&combined.map);
+            set_config_if_different(key, values);
             //all.emplace_back(key); // < not technically "custom"
         }
     }
     
-    GlobalSettings::set_current_defaults_with_config(sprite::Map(GlobalSettings::current_defaults()));
+    GlobalSettings::current_defaults_with_config() = GlobalSettings::current_defaults();
     
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):
@@ -464,7 +514,7 @@ void load(file::PathArray source,
             //combined.map.set_print_by_default(false);
 
             for(auto &key : map.keys()) {
-                map.at(key).get().copy_to(&combined.map);
+                set_config_if_different(key, map);
                 map.at(key).get().copy_to(&GlobalSettings::current_defaults_with_config());
             }
             //combined.map.set_print_by_default(before);
@@ -483,10 +533,7 @@ void load(file::PathArray source,
     /// -------------------------------------
     {
         G g("GUI settings");
-        print(source_map.at("track_background_subtraction"));
-        print(source_map.at("track_threshold"));
-        print(GlobalSettings::current_defaults().at("calculate_posture"));
-        print(GlobalSettings::current_defaults_with_config().at("calculate_posture"));
+        print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -501,7 +548,10 @@ void load(file::PathArray source,
                 print("// Not allowed to copy ", key, " from source map.");
                 continue;
             }
-            source_map.at(key).get().copy_to(&combined.map);
+            
+            set_config_if_different(key, source_map);
+            //source_map.at(key).get().copy_to(&combined.map);
+            //source_map.at(key).get().copy_to(&current_defaults);
         }
     }
 
@@ -544,7 +594,8 @@ void load(file::PathArray source,
                 //if(not contains(copy.toVector(), key))
                 {
                     //print("Updating ",combined.map.at(key));
-                    combined.map.at(key).get().copy_to(&GlobalSettings::map());
+                    if(not is_in(key, "gui_interface_scale"))
+                        combined.map.at(key).get().copy_to(&GlobalSettings::map());
                 }
                 /*else {
                  print("Would be updating ",combined.map.at(key), " but is forbidden.");
@@ -554,6 +605,9 @@ void load(file::PathArray source,
             FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
         }
     }
+    
+    print("current defaults = ", current_defaults.keys());
+    GlobalSettings::current_defaults_with_config() = current_defaults;
     
     print(SETTING(filename));
     print(SETTING(output_dir));
@@ -571,6 +625,7 @@ void load(file::PathArray source,
     print(SETTING(meta_encoding));
     print(SETTING(track_do_history_split));
     print(SETTING(gpu_torch_device));
+    print(SETTING(gui_interface_scale));
     print("TRexTask = ", task);
     
     CommandLine::instance().reset_settings({

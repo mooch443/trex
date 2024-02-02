@@ -612,11 +612,40 @@ void Tracker::prefilter(
     
     std::vector<pv::BlobPtr> ptrs;
     auto track_only_categories = FAST_SETTING(track_only_categories);
-    auto track_only_labels = FAST_SETTING(track_only_labels);
     auto track_label_confidence_threshold = FAST_SETTING(track_label_confidence_threshold);
-    auto meta_classes = GlobalSettings::has("meta_classes")
-            ? SETTING(meta_classes).value<std::vector<std::string>>()
-            : std::vector<std::string>{};
+    const auto meta_classes = GlobalSettings::has("meta_classes")
+                        ? SETTING(meta_classes).value<std::vector<std::string>>()
+                        : std::vector<std::string>{};
+    auto get_class_name = [&meta_classes](size_t i) -> std::string {
+        if(i < meta_classes.size())
+            return meta_classes[i];
+        return Meta::toStr(i);
+    };
+    auto get_class_id = [&meta_classes](const std::string& name)
+        -> std::optional<uint8_t>
+    {
+        for(size_t i=0, N=meta_classes.size(); i<N; ++i) {
+            if(meta_classes[i] == name)
+                return narrow_cast<uint8_t>(i);
+        }
+        return std::nullopt;
+    };
+    
+    const auto track_only_classes = FAST_SETTING(track_only_classes);
+    std::unordered_set<uint8_t> only_classes;
+    for(auto &name : track_only_classes) {
+        auto id = get_class_id(name);
+        if(id)
+            only_classes.insert(id.value());
+    }
+    
+    auto is_class_ignored = [&only_classes](uint8_t clid)
+        -> bool
+    {
+        if(only_classes.contains(clid))
+            return true;
+        return false;
+    };
     
     const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
     const auto track_only_segmentations = SETTING(track_only_segmentations).value<bool>();
@@ -758,15 +787,11 @@ void Tracker::prefilter(
                     }
                 }
 #endif
-                //! TODO: translate track_only_labels to IDs and check those...
-                if(not track_only_labels.empty()) {
+                //! TODO: translate track_only_classes to IDs and check those...
+                if(not track_only_classes.empty()) {
                     if(ptr->prediction().valid()) {
                         auto clid = ptr->prediction().clid;
-                        if((meta_classes.size() > clid
-                               && not contains(track_only_labels, meta_classes.at(clid)))
-                           || (meta_classes.size() <= clid
-                               && not contains(track_only_labels, Meta::toStr(clid))))
-                        {
+                        if(is_class_ignored(clid)) {
                             result.filter_out(std::move(ptr), FilterReason::Label);
                             continue;
                         }
