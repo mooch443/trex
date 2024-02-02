@@ -653,9 +653,9 @@ void Segmenter::perform_tracking() {
         });
         
         _tracker->add(pp);
-        if (pp.index().get() % 100 == 0) {
+        /*if (pp.index().get() % 100 == 0) {
             print(track::IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
-        }
+        }*/
         
         /*for(auto &b : _progress_blobs) {
             if(_tracker->background())
@@ -712,13 +712,13 @@ void Segmenter::perform_tracking() {
             AbstractBaseVideoSource::_fps = FPS;
             AbstractBaseVideoSource::_samples = 1;
             frame_counter.reset();
-            if(FPS >= 1)
-                print("FPS: ", int(FPS));
+            //if(FPS >= 1)
+            //    print("FPS: ", int(FPS));
         }
 
     }
 
-    if (samples > 1000) {
+    if (samples > 10000) {
         print("Average time since last frame: ", average / samples * 1000.0, "ms (", c * 1000, "ms)");
 
         average /= samples;
