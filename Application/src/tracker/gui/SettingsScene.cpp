@@ -342,7 +342,7 @@ void SettingsScene::activate() {
     //auto video_size = Size2(1200,920);
     auto work_area = ((const IMGUIBase*)window())->work_area(); 
 #if defined(WIN32)
-    work_area.y += 8;
+    work_area.y += 25;
 #endif
     auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
     if(window_size.height > work_area.height) {

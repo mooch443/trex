@@ -495,9 +495,6 @@ void load(file::PathArray source,
     }
     
     GlobalSettings::current_defaults_with_config() = GlobalSettings::current_defaults();
-    exclude += std::array{
-        "detect_model", "region_model", "detect_resolution", "region_resolution"
-    };
     
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):
@@ -510,7 +507,13 @@ void load(file::PathArray source,
             sprite::Map map;
             map.set_print_by_default(false);
 
-            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, exclude.toVector(), &map, &combined.map);
+            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, (exclude + std::array{
+                "detect_model",
+                "region_model",
+                "detect_resolution",
+                "region_resolution"
+            }).toVector(), &map, &combined.map);
+            
             warn_deprecated(settings_file, rejected);
             
             //auto before = combined.map.print_by_default();

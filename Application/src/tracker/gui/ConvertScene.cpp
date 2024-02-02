@@ -435,7 +435,7 @@ void ConvertScene::activate()  {
     
     auto work_area = ((const IMGUIBase*)window())->work_area(); 
 #if defined(WIN32)
-        work_area.y += 8;
+        work_area.y += 25;
 #endif
     print("work_area = ", work_area);
     auto window_size = Size2(
