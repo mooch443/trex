@@ -77,10 +77,13 @@ void StartingScene::activate() {
     //_recents.show(*_recent_items);
     
     auto work_area = ((const IMGUIBase*)window())->work_area();
+#if defined(WIN32)
+    work_area.x += 8;
+#endif
     auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
-    if(window_size.height > work_area.height) {
+    if(window_size.height > work_area.height * 0.9) {
         auto ratio = window_size.width / window_size.height;
-        window_size = Size2(work_area.height * ratio, work_area.height);
+        window_size = Size2(work_area.height * 0.9 * ratio, work_area.height * 0.9);
     }
     
     Bounds bounds(

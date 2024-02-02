@@ -340,7 +340,10 @@ SettingsScene::~SettingsScene() {
 void SettingsScene::activate() {
     WorkProgress::instance().start();
     //auto video_size = Size2(1200,920);
-    auto work_area = ((const IMGUIBase*)window())->work_area();
+    auto work_area = ((const IMGUIBase*)window())->work_area(); 
+#if defined(WIN32)
+        work_area.x += 8;
+#endif
     auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
     if(window_size.height > work_area.height) {
         auto ratio = window_size.width / window_size.height;

@@ -433,24 +433,27 @@ void ConvertScene::activate()  {
     _data->output_size = _data->_segmenter->output_size();
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
-    auto work_area = ((const IMGUIBase*)window())->work_area();
+    auto work_area = ((const IMGUIBase*)window())->work_area(); 
+#if defined(WIN32)
+        work_area.x += 8;
+#endif
     print("work_area = ", work_area);
     auto window_size = Size2(
-        (work_area.width - work_area.x) * 0.75,
-                             _data->output_size.height / _data->output_size.width * (work_area.width - work_area.x) * 0.75
+        (work_area.width) * 0.75,
+                             _data->output_size.height / _data->output_size.width * (work_area.width) * 0.75
     );
     print("prelim window size = ", window_size);
-    if (window_size.height > work_area.height - work_area.y) {
+    if (window_size.height > work_area.height) {
         auto ratio = window_size.width / window_size.height;
         window_size = Size2(
-            ratio * (work_area.height - work_area.y),
-            work_area.height - work_area.y
+            ratio * (work_area.height),
+            work_area.height
         );
         print("Restricting window size to ", window_size, " based on ratio ", ratio);
     }
-    if (window_size.width > work_area.width - work_area.x) {
+    if (window_size.width > work_area.width) {
         auto ratio = window_size.height / window_size.width;
-        auto h = min(ratio * (work_area.width - work_area.x), window_size.height);
+        auto h = min(ratio * (work_area.width), window_size.height);
         window_size = Size2(
             h / ratio,
             h
@@ -459,11 +462,11 @@ void ConvertScene::activate()  {
     }
 
     Bounds bounds(
-        Vec2((work_area.width - work_area.x) / 2 - window_size.width / 2,
-            work_area.height / 2 - window_size.height / 2 + work_area.y),
+        Vec2((work_area.width) / 2 - window_size.width / 2,
+            work_area.height / 2 - window_size.height / 2),
         window_size);
     print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
-    bounds.restrict_to(work_area);
+    bounds.restrict_to(Bounds(work_area.size()));
     print("Restricting bounds to work area: ", work_area, " -> ", bounds);
 
     print("setting bounds = ", bounds);
