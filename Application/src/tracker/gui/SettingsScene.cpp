@@ -121,10 +121,15 @@ struct SettingsScene::Data {
                             print("changed props = ", copy.keys());
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
+                            sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
                             
                             settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
-                            SceneManager::getInstance().enqueue([before = std::move(before), defaults = std::move(defaults)](auto,DrawStructure& graph){
+                            SceneManager::getInstance().enqueue([
+                                before = std::move(before),
+                                defaults = std::move(defaults),
+                                defaults_with_config = std::move(defaults_with_config)
+                            ] (auto,DrawStructure& graph) {
                                 auto filename = SETTING(filename).value<file::Path>();
                                 if(filename.empty())
                                     filename = settings::find_output_name(GlobalSettings::map());
@@ -132,13 +137,20 @@ struct SettingsScene::Data {
                                     filename = filename.add_extension("pv");
                                 
                                 if(filename.exists()) {
-                                    graph.dialog([before = std::move(before), defaults = std::move(defaults)](Dialog::Result result) mutable {
+                                    graph.dialog([
+                                        before = std::move(before),
+                                        defaults = std::move(defaults),
+                                        defaults_with_config = std::move(defaults_with_config)
+                                    ](Dialog::Result result) mutable {
                                         if(result == Dialog::Result::OKAY) {
+                                            /// continue on to converting!
                                             SceneManager::getInstance().set_active("convert-scene");
+                                            
                                         } else {
-                                            for(auto &key : before.keys())
-                                                before.at(key).get().copy_to(&GlobalSettings::map());
+                                            /// we have to reset settings:
+                                            GlobalSettings::map() = before;
                                             GlobalSettings::set_current_defaults(std::move(defaults));
+                                            GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
                                         
                                     }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Overwrite", "Cancel");

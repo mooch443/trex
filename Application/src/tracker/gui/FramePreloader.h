@@ -175,7 +175,9 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
                         if(frames_balance > 0) {
                             // this is not good, we are lagging behind...
                             difference = Frame_t(uint32_t(frames_balance + 0.5));
+#ifndef NDEBUG
                             print("Increased step fps=", fps, " f=", f, " => ", frames_balance, " = ", difference, " (diff=",target_index - index,")");
+#endif
                         }
                         
                     }

@@ -158,8 +158,8 @@ void load(file::PathArray source,
                || not GlobalSettings::defaults().has(key)
                || GlobalSettings::defaults().at(key) != from.at(key))
             {
-                if(do_print)
-                    print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
+                //if(do_print)
+                //    print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
                 from.at(key).get().copy_to(&combined.map);
             }
         }
@@ -169,8 +169,8 @@ void load(file::PathArray source,
            || not GlobalSettings::defaults().has(key)
            || GlobalSettings::defaults().at(key) != from.at(key))
         {
-            if(do_print)
-                print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
+            //if(do_print)
+            //    print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
             from.at(key).get().copy_to(&current_defaults);
             
         } else if(current_defaults.has(key))
@@ -411,13 +411,10 @@ void load(file::PathArray source,
                 sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector());
                 
                 exclude_from_default += tmp.keys();
-                print("pv file keys = ", tmp.keys());
+                print("// pv file keys = ", tmp.keys());
                 
-                for(auto &key : tmp.keys()) {
-                    if(key == "gui_interface_scale")
-                        print("gui_interface_scale = ", tmp.at(key));
+                for(auto &key : tmp.keys())
                     set_config_if_different(key, tmp, true);
-                }
                 
                 if((   not tmp.has("detect_type")
                        || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
@@ -494,7 +491,7 @@ void load(file::PathArray source,
         }
     }
     
-    GlobalSettings::current_defaults_with_config() = GlobalSettings::current_defaults();
+    GlobalSettings::current_defaults_with_config() = current_defaults;
     
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):
@@ -507,12 +504,12 @@ void load(file::PathArray source,
             sprite::Map map;
             map.set_print_by_default(false);
 
-            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, (exclude + std::array{
+            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, (exclude /*+ std::array{
                 "detect_model",
                 "region_model",
                 "detect_resolution",
                 "region_resolution"
-            }).toVector(), &map, &combined.map);
+            }*/).toVector(), &map, &combined.map);
             
             warn_deprecated(settings_file, rejected);
             

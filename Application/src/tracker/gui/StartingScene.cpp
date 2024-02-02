@@ -165,60 +165,42 @@ void StartingScene::_draw(DrawStructure& graph) {
                         print("open_recent got ", str);
                         assert(str.parameters.size() == 1u);
                         auto index = Meta::fromStr<size_t>(str.first());
-                        if (_recents.items().size() > index) {
-                            auto& item = _recents.items().at(index);
-                            DetailItem details{item};
-                            
-                            file::PathArray array;
-                            if(item._options.has("source"))
-                                array = item._options.at("source").value<file::PathArray>();
-                            if(array.empty()
-                               && item._options.has("meta_source_path")) 
-                            {
-                                array = { item._options.at("meta_source_path").value<std::string>() };
-                            }
-                            file::Path filename;
-                            if(item._options.has("filename"))
-                                filename = item._options.at("filename").value<file::Path>();
-                            
-                            SettingsMaps tmp;
-                            default_config::get(tmp.map, tmp.docs, [](auto,auto){});
-                            
-                            auto type =
-                                item._options.has("detect_type")
-                                ? item._options.at("detect_type").value<track::detect::ObjectDetectionType_t>()
-                                : GlobalSettings::defaults().at("detect_type");
-                            
-                            //for(size_t i=0; i<100; ++i)
-                            {
-                                WorkProgress::add_queue("", [array, filename, type, item](){
-                                    /*auto copy = GlobalSettings::map();
-                                    auto defaults = GlobalSettings::defaults();
-                                    auto current = GlobalSettings::current_defaults();
-                                    auto config = GlobalSettings::current_defaults_with_config();*/
-                                    settings::load(array,
-                                         filename,
-                                         default_config::TRexTask_t::convert,
-                                         type,
-                                         {},
-                                         item._options);
-                                    /*GlobalSettings::map() = copy;
-                                     GlobalSettings::set_defaults() = defaults;
-                                     GlobalSettings::current_defaults() = current;
-                                     GlobalSettings::current_defaults_with_config() = config;*/
-                                    SceneManager::getInstance().enqueue([](auto, auto&) {
-                                        SceneManager::getInstance().set_active("settings-scene");
-                                    });
-                                });
-                            }
-                            //auto path = pv_file_path_for(array);
+                        if(_recents.items().size() <= index)
+                            return; /// invalid index
 
-                            //CommandLine::instance().load_settings();
-                            
-                            //if(not path.empty())
-                            //    SceneManager::getInstance().set_active("tracking-settings-scene");
-                            //else
+                        auto& item = _recents.items().at(index);
+                        DetailItem details{item};
+                        
+                        file::PathArray array;
+                        if(item._options.has("source"))
+                            array = item._options.at("source").value<file::PathArray>();
+                        if(array.empty()
+                           && item._options.has("meta_source_path"))
+                        {
+                            array = { item._options.at("meta_source_path").value<std::string>() };
                         }
+                        file::Path filename;
+                        if(item._options.has("filename"))
+                            filename = item._options.at("filename").value<file::Path>();
+                        
+                        SettingsMaps tmp;
+                        default_config::get(tmp.map, tmp.docs, [](auto,auto){});
+                        
+                        auto type = item._options.has("detect_type")
+                                        ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()
+                                        : GlobalSettings::defaults().at("detect_type");
+                        
+                        WorkProgress::add_queue("", [array, filename, type, item](){
+                            settings::load(array,
+                                 filename,
+                                 default_config::TRexTask_t::convert,
+                                 type,
+                                 {},
+                                 item._options);
+                            SceneManager::getInstance().enqueue([](auto, auto&) {
+                                SceneManager::getInstance().set_active("settings-scene");
+                            });
+                        });
                     }),
                     ActionFunc("open_file", [](auto) {
                         settings::load({},
