@@ -237,7 +237,7 @@
 
                             {
                                 "type":"stext",
-                                "max_size": "[{element_w},80]",
+                                "max_size": "[{min:700:{element_w}},80]",
                                 "text": "The <cyan><c>maximum #individuals</c></cyan> setting determines how many individuals can be tracked at the same time. The <cyan><c>max speed</c></cyan> setting determines the maximum speed an individual can move between frames. The <cyan><c>conversion</c></cyan> setting is used to convert pixel distances to real-world distances (e.g. cm).",
                                 "font":{"size":0.5}
                             }
@@ -389,12 +389,64 @@
 
                             {
                                 "type":"stext",
-                                "max_size": "[{min:600:{element_w}},80]",
+                                "max_size": "[{min:700:{element_w}},80]",
                                 "text": "<c><cyan>Posture estimation</cyan></c> is used to determine an outline around the individual, as well as a centerline at the ends of which are the head and tail positions. This only works <i>properly</i> for bilateral individuals and should only be enabled if needed. <orange><b>Required for visual fields.</b></orange>",
                                 "font":{"size":0.5}
                             }
                         ]
                     }
+                ],
+
+                [ 
+                    {
+                        "type":"stext",
+                        "text":"<b>Storage format</b>\n<small><gray>Which data is stored. Simpler is sometimes better.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    [
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"gridlayout",
+                                "pad":[0,0,15,10],
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"encoding",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"meta_encoding",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        }
+                                    ]
+    
+                                ]
+                            },
+
+                            {
+                                "type":"stext",
+                                "max_size": "[{min:500:{element_w}},80]",
+                                "text": "The <cyan><c>meta_encoding</c></cyan> setting is used to determine how the tracking data is stored. This can play a role for example in general tracking and overlap resolution, as well as visual identification.",
+                                "font":{"size":0.5}
+                            }
+                        ]
+                    },
+                    {
+                        "type":"rect",
+                        "fill":[0,0,0,0],
+                        "size":"[{-:{window_size.x}:{label_w}},10]"
+                    }]
                 ]
             ]
         }
