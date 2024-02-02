@@ -495,6 +495,9 @@ void load(file::PathArray source,
     }
     
     GlobalSettings::current_defaults_with_config() = GlobalSettings::current_defaults();
+    exclude += std::array{
+        "detect_model", "region_model", "detect_resolution", "region_resolution"
+    };
     
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):

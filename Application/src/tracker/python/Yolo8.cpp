@@ -142,8 +142,7 @@ void Yolo8::deinit() {
 }
 
 void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
-    const auto meta_encoding = Background::meta_encoding();
-    const auto mode = meta_encoding == meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+    const auto mode = Background::image_mode();
 
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2) {
@@ -282,8 +281,7 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
 void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector, 
     const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns) 
 {
-    const auto meta_encoding = Background::meta_encoding();
-    const auto mode = meta_encoding == meta_encoding_t::r3g3b2 ? ImageMode::R3G3B2 : ImageMode::GRAY;
+    const auto mode = Background::image_mode();
     const auto detect_classes = SETTING(detect_classes).value<std::vector<uint8_t>>();
 
     const Vec2* ptr = (const Vec2*)mask_points.data();
