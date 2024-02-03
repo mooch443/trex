@@ -713,8 +713,18 @@ class TRexYOLO8:
             #print("keys=",keys.shape, result.keypoints.cpu())
             if len(keys) > 0 and len(keys[0]):
                 #print(result.keypoints.cpu().xy, scale)
+
+                # Scale and offset the keypoints, but leave out
+                # the ones where both X and Y are zero (invalid)
+                zero_elements = np.logical_and(keys[..., 0] == 0, keys[..., 1] == 0)
+
                 keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
                 keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
+
+                if zero_elements.any():
+                    keys[..., 0] = np.where(zero_elements, 0, keys[..., 0])
+                    keys[..., 1] = np.where(zero_elements, 0, keys[..., 1])
+
                 #keys[..., 0] = (keys[..., 0] + offset[0]) * scale[0] #+ coords[..., 0]).T
                 #keys[..., 1] = (keys[..., 1] + offset[1]) * scale[1] #+ coords[..., 1]).T
                 keypoints.append(keys) # bones * 3 elements
