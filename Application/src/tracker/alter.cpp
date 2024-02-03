@@ -57,24 +57,7 @@
 #endif
 
 using namespace cmn;
-
-std::string date_time() {
-    time_t rawtime;
-    struct tm * timeinfo;
-    char buffer[80];
-    
-    time (&rawtime);
-    timeinfo = localtime(&rawtime);
-    
-    strftime(buffer,sizeof(buffer),"%d-%m-%Y %H:%M:%S",timeinfo);
-    std::string str(buffer);
-    return str;
-}
-
 using namespace gui;
-
-//static_assert(ObjectDetection<Yolo7ObjectDetection>);
-//static_assert(ObjectDetection<Yolo7InstanceSegmentation>);
 static_assert(ObjectDetection<Yolo8>);
 static_assert(ObjectDetection<BackgroundSubtraction>);
 
@@ -127,7 +110,7 @@ TRexTask determineTaskType() {
     return TRexTask_t::convert;
 }
 
-void launch_gui() {
+void launch_gui(std::future<void>&& f) {
     IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
@@ -282,6 +265,11 @@ void launch_gui() {
     file::cd(file::DataLocation::parse("app"));
     
     gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
+        if(f.valid()
+           && f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+        {
+            f.get();
+        }
         manager.update(&base, *base.graph());
     });
     
@@ -501,40 +489,7 @@ int main(int argc, char**argv) {
     GlobalSettings::map().set_print_by_default(true);
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     SETTING(app_name) = std::string("TRexA");
-    SETTING(track_do_history_split) = false;
-    SETTING(track_max_speed) = Settings::track_max_speed_t(50);
-    //SETTING(track_threshold) = Settings::track_threshold_t(0);
-    //SETTING(track_posture_threshold) = Settings::track_posture_threshold_t(0);
-    /*SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({
-        Rangef(0.01,300)
-    });*/
-    //SETTING(track_speed_decay) = Settings::track_speed_decay_t(1);
-    //SETTING(track_max_reassign_time) = Settings::track_max_reassign_time_t(1);
-    SETTING(terminate) = false;
-    //SETTING(calculate_posture) = false;
-    //SETTING(gui_interface_scale) = float(1);
-    //SETTING(track_background_subtraction) = false;
-    
-    
-    //SETTING(source) = file::PathArray();
-    //SETTING(source).get().set_do_print(true);
-    //SETTING(model) = file::Path("");
-    //SETTING(region_model) = file::Path("");
-    //SETTING(region_resolution) = uint16_t(320);
-    //SETTING(detect_resolution) = uint16_t(640);
-    //SETTING(filename) = file::Path("");
-    //SETTING(meta_classes) = std::vector<std::string>{ };
-    //SETTING(detect_type) = ObjectDetectionType::yolo8;
-    SETTING(detect_tile_image) = uchar(0);
-    SETTING(detect_batch_size) = uchar(1);
-    SETTING(track_do_history_split) = false;
-    //SETTING(track_background_subtraction) = false;
-    //SETTING(output_size) = Size2();
-    
-    //SETTING(meta_source_path) = SETTING(source).value<file::PathArray>().source();
-
-    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0);
-    SETTING(meta_real_width) = 1000.f;//float(get_model_image_size().width * 10);
+    SETTING(meta_real_width) = 1000.f;
     
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
@@ -551,8 +506,6 @@ int main(int argc, char**argv) {
 #else
     SETTING(meta_build) = std::string("<undefined>");
 #endif
-    SETTING(meta_conversion_time) = std::string(date_time());
-    SETTING(meta_encoding) = meta_encoding_t::r3g3b2;
 
     CommandLine::instance().load_settings();
     
@@ -683,8 +636,7 @@ int main(int argc, char**argv) {
         
     } else {
         // get the python init future
-        f.get();
-        launch_gui();
+        launch_gui(std::move(f));
     }
     
     try {

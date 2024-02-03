@@ -441,7 +441,22 @@ void Segmenter::open_camera() {
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };
 }
 
+std::string date_time() {
+    time_t rawtime;
+    struct tm * timeinfo;
+    char buffer[80];
+    
+    time (&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    strftime(buffer,sizeof(buffer),"%d-%m-%Y %H:%M:%S",timeinfo);
+    std::string str(buffer);
+    return str;
+}
+
 void Segmenter::start() {
+    SETTING(meta_conversion_time) = std::string(date_time());
+    
     start_recording_ffmpeg();
 
     ThreadManager::getInstance().startGroup(_generator_group_id);
