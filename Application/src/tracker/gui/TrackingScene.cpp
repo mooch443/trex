@@ -789,7 +789,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
             }),
             ActionFunc("write_config", [](Action){
-                WorkProgress::add_queue("", []() { settings::write_config(false, SceneManager::getInstance().gui_task_queue()); });
+                WorkProgress::add_queue("", []() {
+                    settings::write_config(false, SceneManager::getInstance().gui_task_queue());
+                });
             }),
             ActionFunc("categorize", [this](Action){
                 Categorize::show(&_state->video,

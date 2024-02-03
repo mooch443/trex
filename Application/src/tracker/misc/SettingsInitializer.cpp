@@ -693,8 +693,8 @@ void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string&
     
     if(filename.exists() && !overwrite) {
         if(queue) {
-            queue->enqueue([text, filename](auto, gui::DrawStructure& graph){
-                graph.dialog([str = text, filename](gui::Dialog::Result r) {
+            queue->enqueue([queue, text, filename](auto, gui::DrawStructure& graph){
+                graph.dialog([queue, str = text, filename](gui::Dialog::Result r) {
                     if(r == gui::Dialog::OKAY) {
                         if(!filename.remove_filename().exists())
                             filename.remove_filename().create_folder();
@@ -706,6 +706,9 @@ void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string&
                             fclose(f);
                         } else {
                             FormatExcept("Dont have write permissions for file ",filename.str(),".");
+                            queue->enqueue([filename](auto, auto& graph){
+                                graph.dialog("Cannot write configuration to <cyan><c>" + filename.str()+"</c></cyan>. Please check file permissions.", "Error");
+                            });
                         }
                     }
                     

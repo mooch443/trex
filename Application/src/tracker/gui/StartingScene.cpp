@@ -77,9 +77,6 @@ void StartingScene::activate() {
     //_recents.show(*_recent_items);
     
     auto work_area = ((const IMGUIBase*)window())->work_area();
-#if defined(WIN32)
-    work_area.y += 25;
-#endif
     auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
     if(window_size.height > work_area.height * 0.9) {
         auto ratio = window_size.width / window_size.height;
@@ -190,7 +187,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                         ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()
                                         : GlobalSettings::defaults().at("detect_type");
                         
-                        WorkProgress::add_queue("", [array, filename, type, item](){
+                        WorkProgress::add_queue("loading...", [array, filename, type, item](){
                             settings::load(array,
                                  filename,
                                  default_config::TRexTask_t::convert,

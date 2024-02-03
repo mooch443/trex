@@ -19,6 +19,7 @@
 #include <gui/GUIVideoAdapter.h>
 #include <gui/WorkProgress.h>
 #include <gui/Coordinates.h>
+#include <python/Yolo8.h>
 
 namespace gui {
 
@@ -117,7 +118,7 @@ struct SettingsScene::Data {
                     ActionFunc("convert", [this](auto){
                         DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [copy = get_changed_props()]() {
+                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() {
                             print("changed props = ", copy.keys());
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
@@ -125,11 +126,36 @@ struct SettingsScene::Data {
                             
                             settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
-                            SceneManager::getInstance().enqueue([
+                            SceneManager::getInstance().enqueue([this,
                                 before = std::move(before),
                                 defaults = std::move(defaults),
                                 defaults_with_config = std::move(defaults_with_config)
                             ] (auto,DrawStructure& graph) {
+                                using namespace track;
+                                if (SETTING(detect_type).value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::yolo8) 
+                                {
+                                    auto path = SETTING(detect_model).value<file::Path>();
+                                    if (Yolo8::is_default_model(path)
+                                        || (Yolo8::valid_model(path) && path.exists()))
+                                    {
+                                        /// we have a valid model
+                                    }
+                                    else {
+                                        graph.dialog([this](Dialog::Result) {
+                                            if (layout_name != "settings_layout.json") {
+                                                _last_layouts.push(layout_name);
+                                                layout_name = "settings_layout.json";
+
+                                                SceneManager::getInstance().enqueue([this](auto, auto&) {
+                                                    dynGUI.clear();
+                                                    dynGUI = {};
+                                                });
+                                            }
+                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default Yolo8 model name. Please choose a valid model file (a Yolo8 saved model <c><cyan>.pt</cyan></c>).", "Invalid model", "Okay");
+                                        return;
+                                    }
+                                }
+
                                 auto filename = SETTING(filename).value<file::Path>();
                                 if(filename.empty())
                                     filename = settings::find_output_name(GlobalSettings::map());

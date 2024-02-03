@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -433,10 +433,7 @@ void ConvertScene::activate()  {
     _data->output_size = _data->_segmenter->output_size();
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
-    auto work_area = ((const IMGUIBase*)window())->work_area(); 
-#if defined(WIN32)
-        work_area.y += 25;
-#endif
+    auto work_area = ((const IMGUIBase*)window())->work_area();
     print("work_area = ", work_area);
     auto window_size = Size2(
         (work_area.width) * 0.75,

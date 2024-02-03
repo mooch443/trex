@@ -133,7 +133,7 @@ bool RecentItems::has(std::string name) const {
 }
 
 void RecentItems::add(std::string name, const sprite::Map& options) {
-    auto& config = options;//default_config::generate_delta_config(false, {});
+    auto& config = options;
     if (has(name)) {
         for (auto& item : _items) {
             if (item._name == name) {

@@ -859,6 +859,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "tags_path",
             "analysis_range",
             //"output_prefix",
+
+            "detect_model",
+            "region_model",
+            "detect_format",
+            "detect_type",
+
             "cmd_line",
             "ffmpeg_path",
             "httpd_port",
