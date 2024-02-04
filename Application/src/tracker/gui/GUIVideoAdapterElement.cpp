@@ -64,7 +64,7 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
     auto frame_time = context.get(double(0.1), "frame_seconds");
     auto margins = context.get(Margins{}, "pad");
     auto alpha = context.get(Alpha{1.0}, "alpha");
-    print("*** CREATING NEW ", fmt::clr<FormatColor::CYAN>("GUIVideoAdapter"));
+    
     Layout::Ptr ptr;
     if(_create_object)
         ptr = Layout::Ptr(_create_object(file::PathArray(path), _window, _open_callback));

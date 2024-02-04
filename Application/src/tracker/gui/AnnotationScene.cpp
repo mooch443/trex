@@ -424,7 +424,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 //ptr->set(LineClr{ line });
                 ptr->set_color(line);
                 
-                print("Creating new skelett with points ", points);
+                //print("Creating new skelett with points ", points);
                 
                 auto coords = FindCoord::get();
                 for(auto &pt : points)
