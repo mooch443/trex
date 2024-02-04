@@ -162,19 +162,40 @@ void load(file::PathArray source,
                 //    print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
                 from.at(key).get().copy_to(&combined.map);
             }
+            else {
+                //print("// ", key, " is already set to ", combined.map.at(key).get().valueString());
+            }
         }
         
-        if((current_defaults.has(key)
-            && current_defaults.at(key) != from.at(key))
-           || not GlobalSettings::defaults().has(key)
-           || GlobalSettings::defaults().at(key) != from.at(key))
+        if(not current_defaults.has(key)
+           || current_defaults.at(key) != from.at(key))
         {
             //if(do_print)
             //    print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
-            from.at(key).get().copy_to(&current_defaults);
+            if (not GlobalSettings::defaults().has(key)
+                || GlobalSettings::defaults().at(key) != from.at(key)) 
+            {
+                from.at(key).get().copy_to(&current_defaults);
+                //print("// [current_defaults] ", current_defaults.at(key).get());
+            }
+            else if (current_defaults.has(key)) 
+            {
+                //print("// [current_defaults] REMOVE ", current_defaults.at(key).get());
+                current_defaults.erase(key);
+            }
+            else {
+                /// we dont have it, but it is default
+                //print("// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+            }
             
-        } else if(current_defaults.has(key))
-            current_defaults.erase(key);
+        } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
+        else if(current_defaults.has(key)) {
+            //print("// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+            //current_defaults.erase(key);
+        }
+        else {
+			print("// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+		}
     };
     
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
@@ -213,6 +234,12 @@ void load(file::PathArray source,
     
     if(not filename.empty())
     {
+        if (filename.remove_filename().exists() && filename.is_absolute())
+        {
+			combined.map["output_dir"] = filename.remove_filename();
+			set_config_if_different("output_dir", combined.map);
+            //filename = filename.filename();
+        }
         combined.map["filename"] = filename;
         set_config_if_different("filename", combined.map);
     }
@@ -408,7 +435,7 @@ void load(file::PathArray source,
                 }
                 
                 const auto& meta = f.header().metadata;
-                sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector());
+                sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector(), default_config::deprecations());
                 
                 exclude_from_default += tmp.keys();
                 print("// pv file keys = ", tmp.keys());
@@ -416,16 +443,24 @@ void load(file::PathArray source,
                 for(auto &key : tmp.keys())
                     set_config_if_different(key, tmp, true);
                 
-                if((   not tmp.has("detect_type")
-                       || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
-                   && (not tmp.has("detection_type")
-                       || detect::ObjectDetectionType::none == tmp.at("detection_type").value<detect::ObjectDetectionType_t>()))
+                if((not tmp.has("detect_type") || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
+                    && (not tmp.has("detect_model") || tmp.at("detect_model").value<file::Path>().empty()))
                 {
                     /// if we dont know, but there is no setting
                     /// its probably older versions and we use
                     /// background subtraction defaults:
                     combined.map["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
                     set_config_if_different("detect_type", combined.map);
+                }
+                else {
+                    if(tmp.has("detect_type"))
+                        type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
+                    if (tmp.has("detect_model") && not tmp.at("detect_model").value<file::Path>().empty()
+                        && detect::ObjectDetectionType::none == type)
+                    {
+                        type = detect::ObjectDetectionType::yolo8;
+                    }
+                    //tmp.at("detect_type").get().copy_to(&combined.map);
                 }
                 
                 if (not combined.map.has("meta_real_width")
@@ -546,7 +581,7 @@ void load(file::PathArray source,
                 {
                     /// can be ignored / no print-out since it would
                     /// not change anything
-                    continue;
+                    //continue;
                 }
                 print("// Not allowed to copy ", key, " from source map.");
                 continue;

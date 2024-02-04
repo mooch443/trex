@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -840,7 +840,9 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                 return file::DataLocation::parse("output");
             return file::DataLocation::parse("output", props.first());
         }),
-        VarFunc("output_name", [](const VarProps& ) -> file::Path {
+        VarFunc("output_name", [this](const VarProps& ) -> file::Path {
+            if (_segmenter)
+                return _segmenter->output_file_name();
             return SETTING(filename).value<file::Path>();
         }),
         VarFunc("output_base", [](const VarProps& ) -> file::Path {

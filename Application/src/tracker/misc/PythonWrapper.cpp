@@ -17,8 +17,8 @@ private:
     std::atomic<int> _last_python_try{ 0 };
     std::atomic<bool> _initialized{ false }, _initializing{ false };
 
-    static std::mutex _queue_mutex;
-    static std::deque<PackagedTask> _queue;
+    std::mutex _queue_mutex;
+    std::deque<PackagedTask> _queue;
     PersistentCondition _queue_update;
     std::promise<void> _exit_promise;
     std::shared_future<void> _init_future;
@@ -137,8 +137,11 @@ public:
 		_data->_initializing = val;
 	}
     static void add_task(PackagedTask&& task) {
-        std::unique_lock guard2(_queue_mutex);
-        _queue.emplace_back(std::move(task));
+        std::unique_lock guard(_data_mutex);
+        {
+            std::unique_lock guard2(_data->_queue_mutex);
+            _data->_queue.emplace_back(std::move(task));
+        }
         _data->_queue_update.notify();
     }
     static void notify() {
@@ -318,8 +321,6 @@ private:
 
 IMPLEMENT(Data::_data){ new Data() };
 IMPLEMENT(Data::_data_mutex){};
-IMPLEMENT(Data::_queue_mutex) {};
-IMPLEMENT(Data::_queue) {};
 IMPLEMENT(Data::_termination_mutex) {};
 
 void set_instance(void* ptr) {

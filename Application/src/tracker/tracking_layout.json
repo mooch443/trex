@@ -69,18 +69,18 @@
                     "children":[
                         {
                             "type":"button",
-                            "text":"<sym>⭍</sym> tracked",
+                            "text":"<sym>⭍</sym> Tracked",
                             "font":{"size":0.6},
                             "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,220]:[40,40,40,220]}",
                             "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,220]:[250,250,250,220]}",
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[90,30],
+                            "size":[95,30],
                             "action":"set:gui_mode:tracking"
                         },
                         
                         {
                             "type":"button",
-                            "text":"<sym>🎞</sym> raw",
+                            "text":"<sym>🎞</sym> Raw",
                             "font":{"size":0.6},
                             "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,220]:[40,40,40,220]}",
                             "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,220]:[250,250,250,220]}",
@@ -194,9 +194,9 @@
                 },
                 { 
                     "type":"list",
-                    "size":[70,30],
+                    "size":[75,30],
                     "list":{
-                        "size":"[200,{-:{window_size.y}:50}]",
+                        "size":"[250,{-:{window_size.y}:50}]",
                         "fill":[25,25,25,220],
                         "line":[120,120,120,220]
                     },
@@ -208,7 +208,7 @@
                     "detail_color":[150,150,150,255],
                     "foldable":true,
                     "folded":true,
-                    "text":"<sym>☰</sym> Menu",
+                    "text":" <sym>☰</sym> Menu",
                     "item_padding":[5,5],
                     "item_font":{"size":0.6},
                     "item_color":[60,60,60,100],
@@ -234,7 +234,7 @@
                             "action":"write_config"
                         },
                         {
-                            "text":"<sym>👽🎭</sym> Apply identities",
+                            "text":"<sym>👽</sym> Apply identities",
                             "detail":"applies VI or TAG information",
                             "action":"auto_correct"
                         },

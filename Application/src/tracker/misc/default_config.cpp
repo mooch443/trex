@@ -130,6 +130,9 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
 )
 
     static const std::map<std::string, std::string> deprecated = {
+        {"detection_type", "detect_type"},
+        {"detection_resolution", "detect_resolution"},
+        {"model", "detect_model"},
         {"outline_step", "outline_smooth_step"},
         {"outline_smooth_range", "outline_smooth_samples"},
         {"max_frame_distance", "track_max_reassign_time"},
@@ -728,7 +731,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_accepted_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
         CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
-        CONFIG("gpu_learning_rate", float(0.0001), "Learning rate for training a recognition network.");
+        CONFIG("gpu_learning_rate", float(0.0001f), "Learning rate for training a recognition network.");
         CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
@@ -845,6 +848,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_foi_types",
             "gui_mode",
             "gui_frame",
+            "gui_displayed_frame",
             "gui_source_video_frame",
             "gui_run",
             //"settings_file",
@@ -864,6 +868,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "region_model",
             "detect_format",
             "detect_type",
+            "region_resolution",
+            "detect_resolution",
 
             "cmd_line",
             "ffmpeg_path",

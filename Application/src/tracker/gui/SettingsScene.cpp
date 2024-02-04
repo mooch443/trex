@@ -36,6 +36,8 @@ struct SettingsScene::Data {
     
     std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;
     std::unordered_map<std::string, bool> _done_exist_checks;
+
+    GuardedProperty<file::PathArray> current_path;
     
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
@@ -123,8 +125,39 @@ struct SettingsScene::Data {
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
                             sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
+
+                            /// if we determine that we are actually reconverting a pv file
+                            /// we need to load the source settings from the pv file, since we
+                            /// cant use the pv file and convert it to itself:
+                            auto source = SETTING(source).value<file::PathArray>();
+                            if (source.size() == 1
+                                && source.get_paths().front().has_extension()
+                                && source.get_paths().front().extension() == "pv")
+                            {
+                                auto meta_source_path = SETTING(meta_source_path).value<std::string>();
+                                if (not meta_source_path.empty()) {
+                                    file::PathArray array(meta_source_path);
+                                    auto parent = file::find_parent(source);
+                                    auto basename = file::find_basename(source);
+
+                                    if (parent && parent->exists()) {
+                                        if(SETTING(output_dir).value<file::Path>().empty())
+											SETTING(output_dir) = parent.value();
+                                    }
+
+                                    if(SETTING(filename).value<file::Path>().empty())
+										SETTING(filename) = file::Path(basename);
+                                    SETTING(source) = array;
+                                }
+                            }
                             
-                            settings::load(SETTING(source), {}, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
+                            auto filename = SETTING(filename).value<file::Path>();
+                            if (not filename.empty()) {
+                                auto output_dir = SETTING(output_dir).value<file::Path>();
+                                if (not output_dir.empty() && not filename.is_absolute())
+                                    filename = output_dir / filename;
+                            }
+                            settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, {}, copy);
                             
                             SceneManager::getInstance().enqueue([this,
                                 before = std::move(before),
@@ -219,7 +252,7 @@ struct SettingsScene::Data {
                                 SETTING(filename) = file::Path(output_file);
                             }
                             
-                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, SETTING(detect_type), {}, copy);
+                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy);
                             
                             SceneManager::getInstance().enqueue([](){
                                 SceneManager::getInstance().set_active("tracking-scene");
@@ -252,6 +285,9 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("toggle-background-subtraction", [](auto){
                         SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
+                    }),
+                    VarFunc("video_file", [this](const VarProps&) -> file::PathArray {
+                        return current_path.get();
                     }),
                     VarFunc("settings_summary", [](const VarProps&) -> std::string {
                         return std::string(GlobalSettings::map().toStr());
@@ -394,7 +430,10 @@ void SettingsScene::activate() {
     
     _data = std::make_unique<Data>();
     _data->_window = (IMGUIBase*)window();
-    _data->callback = GlobalSettings::map().register_callbacks({"filename", "source"}, [](auto name) {
+
+    auto initial_source = SETTING(source).value<file::PathArray>();
+
+    _data->callback = GlobalSettings::map().register_callbacks({"filename", "source"}, [this, initial_source](auto name) {
         if(name == "filename") {
             file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
             if(not path.empty() && not path.remove_filename().empty()) {
@@ -402,31 +441,97 @@ void SettingsScene::activate() {
                 SETTING(filename) = path;
             }
         } else if(name == "source") {
+            //SETTING(filename) = file::Path();
+
             file::PathArray source = GlobalSettings::map().at("source");
+                
             settings::ExtendableVector exclude{
                 "output_prefix",
                 "filename",
                 "source",
                 "output_dir"
             };
-            if(not source.empty()
-               && file::DataLocation::parse("input", source.get_paths().front()).is_regular())
+
+            try {
+                auto path = SETTING(source).value<file::PathArray>();
+                if (source != initial_source
+                    && path.get_paths().size() == 1
+                    && path.get_paths().front().has_extension()
+                    && path.get_paths().front().extension() == "pv")
+                {
+                    //auto output = settings::find_output_name(GlobalSettings::map());
+                    auto output = path.get_paths().front();
+                    pv::File video(output, pv::FileMode::READ);
+                    video.header();
+
+                    sprite::Map metadata;
+                    try {
+                        sprite::parse_values(sprite::MapSource{ output }, metadata, video.header().metadata, &GlobalSettings::defaults(), {}, default_config::deprecations());
+                    }
+                    catch (...) {
+						/// do nothing
+					}
+
+                    if (metadata.has("meta_source_path")) {
+                        auto source_path = file::PathArray(metadata.at("meta_source_path").value<std::string>());
+                        if (not source_path.empty()
+                            && source_path.get_paths().front().exists())
+                        {
+                            try {
+                                //WorkProgress::add_queue("loading...", [source_path, output]() {
+                                    //SETTING(output_dir) = output.remove_filename();
+                                    file::Path filename = output.remove_extension();
+                                    //source = source_path;
+
+                                    try {
+                                        //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, {});
+
+                                    }
+                                    catch (const std::exception& ex) {
+                                        FormatWarning("Ex = ", ex.what());
+                                    }
+								//});
+                                
+                                return;
+                            }
+                            catch (...) {
+								/// do nothing
+							}
+                        }
+                    }
+                }
+                if(_data)
+                    _data->current_path.set(std::move(path));
+            }
+            catch (...) {
+                /// do nothing
+            }
+
+            if (source == initial_source) {
+                return;
+            }
+
+            if (not source.empty()
+                && file::DataLocation::parse("input", source.get_paths().front()).is_regular())
             {
                 file::Path filename = GlobalSettings::map().at("filename");
                 try {
-                    settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
-                    
-                } catch(const std::exception& ex) {
+                    //settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+
+                }
+                catch (const std::exception& ex) {
                     FormatWarning("Ex = ", ex.what());
                 }
-            } else if(not source.empty()
-                      && settings::find_output_name(GlobalSettings::map()).add_extension("pv").is_regular())
+            }
+            else if (not source.empty()
+                && settings::find_output_name(GlobalSettings::map()).add_extension("pv").is_regular())
             {
                 file::Path filename = settings::find_output_name(GlobalSettings::map());//GlobalSettings::map().at("filename");
                 try {
-                    settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
-                    
-                } catch(const std::exception& ex) {
+                    //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+
+                }
+                catch (const std::exception& ex) {
                     FormatWarning("Ex = ", ex.what());
                 }
             }

@@ -134,11 +134,13 @@ bool RecentItems::has(std::string name) const {
 
 void RecentItems::add(std::string name, const sprite::Map& options) {
     auto& config = options;
+
     if (has(name)) {
         for (auto& item : _items) {
             if (item._name == name) {
-                for(auto &key : config.keys())
-                    config.at(key).get().copy_to(&item._options);
+                item._options = options;
+                //for(auto &key : config.keys())
+                //    config.at(key).get().copy_to(&item._options);
                 //config.write_to(item._options);
                 return;
             }
