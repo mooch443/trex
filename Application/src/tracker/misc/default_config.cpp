@@ -920,7 +920,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(additional_exclusions, key)))
                 {
                     auto str = GlobalSettings::get(key).get().valueString();
-                    print("adding ", key, " = ", str.c_str());
+                    //print("adding ", key, " = ", str.c_str());
                     result[key] = &GlobalSettings::get(key).get();
                 }
             }
