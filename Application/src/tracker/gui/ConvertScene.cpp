@@ -320,15 +320,18 @@ void ConvertScene::deactivate() {
         spinner.set_progress(100);
         spinner.mark_as_completed();
         
-        _data->_object_blobs.clear();
-        _data->_current_data = {};
-        _data->dynGUI.clear();
-        
+        if (_data) {
+            _data->_object_blobs.clear();
+            _data->_current_data = {};
+            _data->dynGUI.clear();
+        }
         /// save the last settings used
         RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::current_defaults_with_config());
         
-        segmenter().force_stop();
-        _data->check_video_info(true, nullptr);
+        if(_data && _data->_segmenter)
+            segmenter().force_stop();
+        if(_data)
+            _data->check_video_info(true, nullptr);
         
         if(_on_deactivate)
             _on_deactivate(*this);
@@ -406,10 +409,20 @@ void ConvertScene::activate()  {
     
     print("Loading source = ", source);
     SETTING(meta_source_path) = source.source();
-    if (source == file::PathArray("webcam"))
-        open_camera();
-    else
-        open_video();
+    try {
+
+        if (source == file::PathArray("webcam"))
+            open_camera();
+        else
+            open_video();
+    }
+    catch (const std::exception& ex) {
+        FormatExcept(ex.what());
+		_scene_promise.set_exception(std::current_exception());
+        _scene_promise = {};
+        segmenter().error_stop();
+        throw;
+    }
 
     if(not _data)
         _data = std::make_unique<Data>();
@@ -819,9 +832,13 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     };
     context.variables = {
         VarFunc("resizecvt", [this](const VarProps&) -> double {
+            if (not _segmenter || not _segmenter->overlayed_video() || not _segmenter->overlayed_video()->source())
+                return 0;//throw U_EXCEPTION("No source available.");
             return _segmenter->overlayed_video()->source()->resize_cvt().average_fps.load();
         }),
         VarFunc("sourceframe", [this](const VarProps&) -> double {
+            if (not _segmenter || not _segmenter->overlayed_video() || not _segmenter->overlayed_video()->source())
+                return 0;
             return _segmenter->overlayed_video()->source()->source_frame().average_fps.load();
         }),
         VarFunc("fps", [](const VarProps&) {
@@ -829,10 +846,14 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             auto samples = AbstractBaseVideoSource::_samples.load();
             return samples > 0 ? fps / samples : 0;
         }),
-        VarFunc("net_fps", [this](const VarProps&) {
+        VarFunc("net_fps", [this](const VarProps&) -> double {
+            if (not _segmenter || not _segmenter->overlayed_video())
+                return 0;//throw U_EXCEPTION("No source available.");
             return _segmenter->overlayed_video()->network_fps();
         }),
-        VarFunc("track_fps", [this](const VarProps&) {
+        VarFunc("track_fps", [this](const VarProps&) -> double {
+            if (not _segmenter)
+                return 0;//throw U_EXCEPTION("No source available.");
             return _segmenter->fps();
         }),
         VarFunc("time", [this](const VarProps&) -> float {

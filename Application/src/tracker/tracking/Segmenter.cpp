@@ -832,13 +832,7 @@ void Segmenter::tracking_thread() {
             catch (const std::exception& e) {
 				FormatExcept("Exception while tracking: ", e.what());
                 guard.unlock();
-
-                if (error_callback)
-                    error_callback("Tracking failed: " + std::string(e.what()));
-                error_callback = nullptr;
-                eof_callback = nullptr;
-
-                graceful_end();
+                error_stop();
                 return;
 			}
             //guard.lock();
@@ -878,6 +872,14 @@ void Segmenter::tracking_thread() {
 }
 
 void Segmenter::force_stop() {
+    graceful_end();
+}
+
+void Segmenter::error_stop() {
+    if(error_callback)
+		error_callback("Error stop requested.");
+    error_callback = nullptr;
+    eof_callback = nullptr;
     graceful_end();
 }
 

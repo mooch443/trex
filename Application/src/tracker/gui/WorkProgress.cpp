@@ -79,7 +79,12 @@ using namespace work;
 
 struct WorkProgress::WorkGUIObjects {
     Rect static_background{Box(0, 0, 0, 0), FillClr{Black.alpha(150)}};
-    StaticText static_desc{Str("description"), Font(0.7, Align::Center)};
+    StaticText static_desc{
+        Str("description"), 
+        Font(0.7, Align::Center), 
+        Margins{5,5,5,5},
+        TextClr{150, 150, 150, 255}
+    };
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));
     Button static_button{Str{"abort"}, Box(0, 0, 100, 35)};
     Button custom_static_button{Str{"custom"}, Box(0, 0, 100, 35)};
@@ -162,6 +167,7 @@ void WorkProgress::start() {
                     }
                 }
                 item.fn();
+                //std::this_thread::sleep_for(std::chrono::seconds(10));
                 lock.lock();
                 
                 _images.clear();
@@ -433,7 +439,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         gui->static_background.set_clickable(true);
         base.wrap_object(gui->static_background);
         
-        Vec2 offset(0, 10);
+        Vec2 offset(5, 15);
         float width = 0;
         Vec2 center = (screen_dimensions * 0.5).mul(section->scale().reciprocal());
         base.wrap_object(gui->work_progress);
@@ -446,7 +452,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         gui->work_progress.update([&](Entangled& base){
             const float margin = 5;
             
-            auto text = base.add<Text>(Str(_item), Loc(offset), TextClr(0, 150, 225, 255), Font(0.8, Style::Bold), Origin(0.5, 0));
+            auto text = base.add<Text>(Str(_item), Loc(offset), TextClr(225,225,225,255), Font(0.8, Style::Bold), Origin(0.5, 0));
             offset.y += text->height() + margin;
             width = max(width, text->width());
             

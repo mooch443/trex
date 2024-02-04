@@ -497,9 +497,9 @@ void load(file::PathArray source,
     /// 12. load the video settings (if they exist):
     /// --------------------------------------------
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
-    if(G g(settings_file.str());
-       settings_file.exists())
+    if(settings_file.exists())
     {
+        G g(settings_file.str());
         try {
             sprite::Map map;
             map.set_print_by_default(false);
@@ -534,7 +534,7 @@ void load(file::PathArray source,
     /// -------------------------------------
     /// 13. optionally load the map parameter
     /// -------------------------------------
-    {
+    if(not source_map.empty()) {
         G g("GUI settings");
         print("gui settings contains: ", source_map.keys());
         
@@ -611,25 +611,6 @@ void load(file::PathArray source,
     
     print("current defaults = ", current_defaults.keys());
     GlobalSettings::current_defaults_with_config() = current_defaults;
-    
-    print(SETTING(filename));
-    print(SETTING(output_dir));
-    print(SETTING(output_prefix));
-    print(SETTING(source));
-    print(SETTING(detect_type));
-    print(SETTING(detect_model));
-    print(SETTING(region_model));
-    print(SETTING(meta_source_path));
-    print(SETTING(track_background_subtraction));
-    print(SETTING(cm_per_pixel));
-    print(SETTING(settings_file));
-    print(SETTING(track_threshold));
-    print(SETTING(calculate_posture));
-    print(SETTING(meta_encoding));
-    print(SETTING(track_do_history_split));
-    print(SETTING(gpu_torch_device));
-    print(SETTING(gui_interface_scale));
-    print("TRexTask = ", task);
     
     CommandLine::instance().reset_settings({
         //"output_dir", 

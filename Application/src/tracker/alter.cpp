@@ -167,6 +167,9 @@ void launch_gui(std::future<void>&& f) {
                 manager.set_active(manager.last_active());
             else manager.set_active("starting-scene");
         });
+
+        if(f.valid())
+            f.get();
         scene.set_segmenter(segmenter.get());
         
         // on activate
