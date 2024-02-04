@@ -466,7 +466,7 @@ void TrackingHelper::apply_matching() {
 double TrackingHelper::process_postures() {
     const auto frameIndex = frame.index();
     
-    static Timing timing("Tracker::need_postures", 30);
+    static Timing timing("Tracker::need_postures", 100);
     TakeTiming take(timing);
     
     double combined_posture_seconds = 0;

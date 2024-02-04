@@ -118,6 +118,7 @@ public:
             auto& [nix, buffer, image] = maybe_image.value();
             loaded_frame = nix + 1_f;
             
+#ifndef NDEBUG
             static double average_time = 0, sample_count = 0;
             average_time += timer_.elapsed() * 1000;
             ++sample_count;
@@ -126,6 +127,7 @@ public:
                 sample_count = 0;
                 average_time = 0;
             }
+#endif
 
             useMat_t* current_use{ buffer.get() };
             image->set_index(nix.get());

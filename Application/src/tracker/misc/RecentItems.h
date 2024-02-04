@@ -9,9 +9,10 @@ class RecentItems {
 public:
     struct Item {
         std::string _name;
+        cmn::timestamp_t _created;
         cmn::sprite::Map _options;
 
-        nlohmann::json to_object() const;
+        nlohmann::json to_json() const;
         std::string toStr() const;
         static std::string class_name() { return "RecentItems::Item"; }
         

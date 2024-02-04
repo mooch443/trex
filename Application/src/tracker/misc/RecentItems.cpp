@@ -80,10 +80,20 @@ RecentItems RecentItems::read() {
                 auto name = key.at("name").get<std::string>();
                 if (key.is_object()) {
                     RecentItems::Item item{
-                        ._name = name
+                        ._name = name,
+                        ._created = 0u
                     };
-                    print("RecentItem<", name,">");
+                    //print("RecentItem<", name,">");
 
+                    try {
+                        if(key.contains("created")) {
+                            timestamp_t created{key.at("created").get<uint64_t>()};
+                            item._created = created;
+                        }
+                    } catch(const std::exception& ex) {
+                        FormatWarning(ex.what());
+                    }
+                    
                     auto settings = key.at("settings");
                     for (auto& i : settings.items()) {
                         auto key = i.key();
@@ -122,6 +132,10 @@ RecentItems RecentItems::read() {
             FormatWarning("Cannot open recent files file: ", e.what());
         }
     }
+    
+    std::sort(items._items.begin(), items._items.end(), [](Item& A, Item& B) {
+        return A._created > B._created;
+    });
     return items;
 }
 
@@ -157,7 +171,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     _items.emplace_back(std::move(item));
 }
 
-nlohmann::json RecentItems::Item::to_object() const {
+nlohmann::json RecentItems::Item::to_json() const {
     auto obj = nlohmann::json::object();
     obj["name"] = _name;
 
@@ -169,6 +183,7 @@ nlohmann::json RecentItems::Item::to_object() const {
         settings[key] = json;
     }
     obj["settings"] = settings;
+    obj["created"] = _created.valid() ? _created.get() : uint64_t(0);
 
     //std::cout << "Output:" << obj.dump() << std::endl;
     return obj;
@@ -179,7 +194,7 @@ void RecentItems::write() {
     try {
         auto array = nlohmann::json::array();
         for (auto& item : items()) {
-            array.push_back(item.to_object());
+            array.push_back(item.to_json());
         }
         auto obj = nlohmann::json::object();
         obj["entries"] = array;

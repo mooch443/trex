@@ -141,8 +141,6 @@ void load(file::PathArray source,
     }
     
     GlobalSettings::current_defaults() = combined.map;
-    //GlobalSettings::set_current_defaults(sprite::Map(combined.map));
-    print("outline_resample = ", GlobalSettings::current_defaults().at("outline_resample"));
     
     /// ---------------------------------------------------
     /// 4. get cmd arguments and overwrite stuff with them:
@@ -151,7 +149,7 @@ void load(file::PathArray source,
     auto& cmd = CommandLine::instance();
     combined.map.set_print_by_default(true);
     sprite::Map current_defaults;
-    auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, bool do_print = false) {
+    auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, [[maybe_unused]] bool do_print = false) {
         if(&combined.map != &from) {
             if((combined.map.has(key)
                 && combined.map.at(key) != from.at(key))

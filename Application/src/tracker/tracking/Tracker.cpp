@@ -492,7 +492,7 @@ inline bool contains_sorted(const Q& v, T obj) {
 }
 
 void Tracker::add(PPFrame &frame) {
-    static Timing timing("Tracker::add(PPFrame)", 10);
+    static Timing timing("Tracker::add(PPFrame)", 100);
     TakeTiming take(timing);
     
     LockGuard guard(w_t{}, "Tracker::add(PPFrame)");
@@ -601,7 +601,7 @@ void Tracker::prefilter(
         std::move_iterator<std::vector<pv::BlobPtr>::iterator> it,
         std::move_iterator<std::vector<pv::BlobPtr>::iterator> end)
 {
-    static Timing timing("prefilter", 10);
+    static Timing timing("prefilter", 100);
     TakeTiming take(timing);
     
     const float cm_sqr = SQR(SLOW_SETTING(cm_per_pixel));
@@ -616,7 +616,7 @@ void Tracker::prefilter(
     const auto meta_classes = GlobalSettings::has("meta_classes")
                         ? SETTING(meta_classes).value<std::vector<std::string>>()
                         : std::vector<std::string>{};
-    auto get_class_name = [&meta_classes](size_t i) -> std::string {
+    [[maybe_unused]] auto get_class_name = [&meta_classes](size_t i) -> std::string {
         if(i < meta_classes.size())
             return meta_classes[i];
         return Meta::toStr(i);
@@ -865,7 +865,7 @@ void Tracker::prefilter(
 }
 
 void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
-    static Timing timing("filter_blobs", 20);
+    static Timing timing("filter_blobs", 100);
     TakeTiming take(timing);
     
     const BlobSizeRange fish_size = FAST_SETTING(blob_size_ranges);
@@ -1708,7 +1708,9 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             pairs.clear();
 
             if (pairs.probabilities().capacity() < IndividualManager::num_individuals() * unassigned_blobs.size()) {
+#ifndef NDEBUG
                 print("Reserving ", IndividualManager::num_individuals() * unassigned_blobs.size(), " pairs...");
+#endif
                 pairs.reserve(IndividualManager::num_individuals() * unassigned_blobs.size());
             }
 

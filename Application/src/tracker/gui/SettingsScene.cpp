@@ -53,10 +53,10 @@ struct SettingsScene::Data {
         sprite::Map copy = GlobalSettings::map();
         const auto &defaults = GlobalSettings::defaults();
         const auto &_defaults = GlobalSettings::current_defaults_with_config();
-        print("current output_dir = ", _defaults.at("calculate_posture"));
+        /*print("current output_dir = ", _defaults.at("calculate_posture"));
         print("current output_dir = ", copy.at("calculate_posture"));
         print("keys = ", copy.keys());
-        print("_defaults keys = ", _defaults.keys());
+        print("_defaults keys = ", _defaults.keys());*/
         
         for(auto &key : copy.keys()) {
             
@@ -69,17 +69,17 @@ struct SettingsScene::Data {
                && (GlobalSettings::access_level(key) < AccessLevelType::LOAD
                    || is_in(key, "output_dir", "output_prefix", "settings_file")))
             {
-                if(_defaults.has(key))
+                /*if(_defaults.has(key))
                     print("Keeping ", key, ": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
                 else
-                    print("Keeping ", key, ": ", copy.at(key).get());
+                    print("Keeping ", key, ": ", copy.at(key).get());*/
                 
                 continue;
             }
             
             copy.erase(key);
         }
-        print("Maintaining: ", copy.keys());
+        //print("Maintaining: ", copy.keys());
         return copy;
     }
     
