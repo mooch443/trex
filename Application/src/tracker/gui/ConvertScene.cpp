@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -776,7 +776,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                         else
                             SceneManager::getInstance().set_active("starting-scene");
                     }
-                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c>"+SETTING(filename).value<file::Path>().str()+"</c>.", "End recording", "Yes, stop", "Cancel");
+                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c><cyan>"+(_segmenter ? _segmenter->output_file_name().str() : SETTING(filename).value<file::Path>().str())+"</cyan></c>.", "End recording", "Yes, stop", "Cancel");
             });
             
         }),
