@@ -139,7 +139,7 @@ void WorkProgress::start() {
             _condition.wait_for(lock, std::chrono::seconds(1));
             
             while(!_queue.empty() && !_terminate_threads) {
-                auto item =  _queue.front();
+                auto item =  std::move(_queue.front());
 #if defined(__APPLE__)
                 MacProgressBar::set_visible(true);
 #endif
@@ -175,6 +175,7 @@ void WorkProgress::start() {
                 
                 _item = "";
                 set_percent(0);
+                item.promise.set_value();
             }
         }
     });
@@ -214,16 +215,18 @@ bool WorkProgress::is_this_in_queue() {
     return std::this_thread::get_id() == _work_thread_id;
 }
 
-void WorkProgress::add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr, bool abortable)
+std::future<void> WorkProgress::add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr, bool abortable)
 {
-    work::check([&](){
+    return work::check([&](){
+        auto item = WorkItem(fn, message, descr, abortable);
+        auto f = item.promise.get_future();
         {
             std::unique_lock<std::mutex> work(_queue_lock);
-            _queue.push(WorkItem(fn, message, descr, abortable));
+            _queue.push(std::move(item));
         }
         
         _condition.notify_all();
-        
+        return f;
     });
 }
 

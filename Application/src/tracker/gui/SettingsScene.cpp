@@ -118,7 +118,7 @@ struct SettingsScene::Data {
                     ActionFunc("convert", [this](auto){
                         DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() {
+                        auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
                             print("changed props = ", copy.keys());
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
@@ -184,6 +184,11 @@ struct SettingsScene::Data {
                                     SceneManager::getInstance().set_active("convert-scene");
                             });
                         });
+                        if(f.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
+                            f.get();
+                        } else {
+                            WorkProgress::set_item("loading...");
+                        }
                     }),
                     ActionFunc("change_layout", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
@@ -377,31 +382,6 @@ SettingsScene::~SettingsScene() {
 
 void SettingsScene::activate() {
     WorkProgress::instance().start();
-    //auto video_size = Size2(1200,920);
-    auto work_area = ((const IMGUIBase*)window())->work_area(); 
-#if defined(WIN32)
-    work_area.y += 25;
-#endif
-    auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
-    if(window_size.height > work_area.height) {
-        auto ratio = window_size.width / window_size.height;
-        window_size = Size2(work_area.height * ratio, work_area.height);
-    }
-    
-    Bounds bounds(
-        Vec2(),
-        window_size);
-    
-    print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
-    bounds.restrict_to(Bounds(work_area.size()));
-    bounds << Vec2(work_area.width / 2 - bounds.width / 2,
-                    work_area.height / 2 - bounds.height / 2);
-    bounds.restrict_to(Bounds(work_area.size()));
-    print("Restricting bounds to work area: ", work_area, " -> ", bounds);
-
-    print("setting bounds = ", bounds);
-    //window()->set_window_size(window_size);
-    window()->set_window_bounds(bounds);
     
     dyn::Modules::add(dyn::Modules::Module{
         ._name = "follow",

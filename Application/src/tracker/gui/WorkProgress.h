@@ -15,6 +15,7 @@ struct WorkItem {
     std::string name, desc;
     bool abortable;
     std::string custom_button;
+    std::promise<void> promise;
     
     WorkItem(std::function<void()> fn, const std::string& name, const std::string& desc, bool abortable = false, std::string custom_button = "")
         : fn(fn), name(name), desc(desc), abortable(abortable), custom_button(custom_button)
@@ -53,7 +54,7 @@ public:
     static void reset_custom_item();
     static bool has_custom_button();
     
-    static void add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr = "", bool abortable = false);
+    static std::future<void> add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr = "", bool abortable = false);
     static void abort_item();
     static void custom_item();
     

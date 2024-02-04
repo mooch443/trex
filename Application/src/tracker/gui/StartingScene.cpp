@@ -76,27 +76,7 @@ void StartingScene::activate() {
     window()->set_title(window_title());
     //_recents.show(*_recent_items);
     
-    auto work_area = ((const IMGUIBase*)window())->work_area();
-    auto window_size = Size2(work_area.width * 0.75, work_area.width * 0.75 * 0.7);
-    if(window_size.height > work_area.height * 0.9) {
-        auto ratio = window_size.width / window_size.height;
-        window_size = Size2(work_area.height * 0.9 * ratio, work_area.height * 0.9);
-    }
-    
-    Bounds bounds(
-        Vec2(),
-        window_size);
-    
-    print("Calculated bounds = ", bounds, " from window size = ", window_size, " and work area = ", work_area);
-    bounds.restrict_to(Bounds(work_area.size()));
-    bounds << Vec2(work_area.width / 2 - bounds.width / 2,
-                    work_area.height / 2 - bounds.height / 2);
-    bounds.restrict_to(Bounds(work_area.size()));
-    print("Restricting bounds to work area: ", work_area, " -> ", bounds);
-
-    print("setting bounds = ", bounds);
-    //window()->set_window_size(window_size);
-    window()->set_window_bounds(bounds);
+    ((IMGUIBase*)window())->center({});
     
     // Fill list variable
     _recents_list.clear();
@@ -187,7 +167,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                         ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()
                                         : GlobalSettings::defaults().at("detect_type");
                         
-                        WorkProgress::add_queue("loading...", [array, filename, type, item](){
+                        auto f = WorkProgress::add_queue("", [array, filename, type, item](){
                             settings::load(array,
                                  filename,
                                  default_config::TRexTask_t::convert,
@@ -198,6 +178,11 @@ void StartingScene::_draw(DrawStructure& graph) {
                                 SceneManager::getInstance().set_active("settings-scene");
                             });
                         });
+                        if(f.wait_for(std::chrono::milliseconds(125)) == std::future_status::ready) {
+                            f.get();
+                        } else {
+                            WorkProgress::set_item("loading...");
+                        }
                     }),
                     ActionFunc("open_file", [](auto) {
                         settings::load({},
