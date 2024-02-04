@@ -421,7 +421,7 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
+    /*GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
         if(key == "source")
             print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
@@ -434,7 +434,7 @@ int main(int argc, char**argv) {
             print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
         else if(key == "track_background_subtraction")
             print("Changed track_background_subtraction to ", SETTING(track_background_subtraction));
-    });
+    });*/
     
     for(auto a : CommandLine::instance()) {
         if(a.name == "s") {

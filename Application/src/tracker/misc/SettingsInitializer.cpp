@@ -436,7 +436,7 @@ void load(file::PathArray source,
                 sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector(), default_config::deprecations());
                 
                 exclude_from_default += tmp.keys();
-                print("// pv file keys = ", tmp.keys());
+                //print("// pv file keys = ", tmp.keys());
                 
                 for(auto &key : tmp.keys())
                     set_config_if_different(key, tmp, true);
@@ -569,7 +569,7 @@ void load(file::PathArray source,
     /// -------------------------------------
     if(not source_map.empty()) {
         G g("GUI settings");
-        print("gui settings contains: ", source_map.keys());
+        //print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
