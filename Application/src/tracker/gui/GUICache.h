@@ -184,6 +184,7 @@ namespace globals {
             std::optional<std::vector<float>> pred;
         };
         
+        std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
         std::map<Idx_t, BdxAndPred> fish_selected_blobs;
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;

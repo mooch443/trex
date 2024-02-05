@@ -27,10 +27,24 @@
 #include <gui/DrawPreviewImage.h>
 #include <gui/DrawPosture.h>
 #include <misc/SettingsInitializer.h>
+#include <tracking/FilterCache.h>
 
 using namespace track;
 
 namespace gui {
+
+class IndividualImage : public Entangled {
+    GETTER(Idx_t, fdx);
+    Image::Ptr ptr;
+    GETTER(Frame_t, frame);
+    
+public:
+    using Entangled::set;
+    void set_data(Idx_t fdx, Frame_t frame, const pv::Blob& blob) {
+        this->_fdx = fdx;
+        this->_frame = frame;
+    }
+};
 
 struct TrackingScene::Data {
     std::unique_ptr<GUICache> _cache;
@@ -44,6 +58,7 @@ struct TrackingScene::Data {
     std::function<void(Vec2, bool, std::string)> _clicked_background;
     double _time_since_last_frame{0};
 
+    sprite::Map _primary_selection;
     sprite::Map _keymap;
     
     struct {
@@ -501,7 +516,16 @@ void TrackingScene::_draw(DrawStructure& graph) {
             
             _data->_individuals.resize(_data->_cache->raw_blobs.size());
             _data->_fish_data.resize(_data->_individuals.size());
-            for(size_t i=0; i<_data->_cache->raw_blobs.size(); ++i) {
+            
+            /*size_t i = 0;
+            std::set<pv::bid> bdxes;
+            for(auto &[fdx, fish] : _data->_cache->fish_selected_blobs) {
+                if(_data->_individuals.size() <= i) {
+                    _data->_individuals.resize(i + 1);
+                    _data->_fish_data.resize(i + 1);
+                }
+                
+                auto speed = fish.basic_stuff->centroid.speed<Units::CM_AND_SECONDS>();
                 auto &var = _data->_individuals[i];
                 if(not var)
                     var = std::unique_ptr<VarBase_t>(new Variable([i, this](const VarProps&) -> sprite::Map& {
@@ -509,9 +533,37 @@ void TrackingScene::_draw(DrawStructure& graph) {
                     }));
                 
                 auto &map = _data->_fish_data.at(i);
-                auto &fish = _data->_cache->raw_blobs[i];
-                map["pos"] = Vec2(fish->blob->bounds().pos());
+                map["pos"] = Vec2(fish.basic_stuff->blob.calculate_bounds().pos());
+                map["speed"] = speed;
+                bdxes.insert(fish.bdx);
+                ++i;
             }
+            
+            for(size_t j=0; j<_data->_cache->raw_blobs.size(); ++j) {
+                auto &blob = _data->_cache->raw_blobs[j];
+                if(bdxes.contains(blob->blob->blob_id()))
+                {
+                    continue;
+                }
+                
+                if(_data->_individuals.size() <= i) {
+                    _data->_individuals.resize(i + 1);
+                    _data->_fish_data.resize(i + 1);
+                }
+                
+                auto &var = _data->_individuals[i];
+                if(not var)
+                    var = std::unique_ptr<VarBase_t>(new Variable([i, this](const VarProps&) -> sprite::Map& {
+                        return _data->_fish_data.at(i);
+                    }));
+                
+                auto &map = _data->_fish_data.at(i);
+                map["pos"] = Vec2(blob->blob->bounds().pos());
+                if(map.has("speed"))
+                    map.erase("speed");
+                bdxes.insert(blob->blob->blob_id());
+                ++i;
+            }*/
             
             _data->_zoom_dirty = true;
         }
@@ -948,6 +1000,63 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 return variables;
             }),
             
+            VarFunc("primary_selection", [this](const VarProps& props) -> sprite::Map& {
+                if(not _data)
+                    throw InvalidArgumentException("_data not set.");
+                
+                auto & map = _data->_primary_selection;
+                Idx_t fdx = _data->_cache->primary_selected_id();
+                auto frame = _data->_cache->frame_idx;
+                if(not map.has("fdx")
+                   || not map.has("frame")
+                   || map["fdx"].value<Idx_t>() != fdx
+                   || map["frame"].value<Frame_t>() != frame)
+                {
+                    map["fdx"] = fdx;
+                    map["frame"] = frame;
+                    map["has_neighbor"] = false;
+                    map["bdx"] = pv::bid();
+                    
+                    if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
+                       it != _data->_cache->fish_selected_blobs.end())
+                    {
+                        auto& stuff = it->second.basic_stuff;
+                        if(stuff) {
+                            /// add curve speed
+                            map["speed"] = stuff->centroid.speed<Units::CM_AND_SECONDS>();
+                            
+                            auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+                            auto min_d = 0.f;
+                            pv::bid min_bdx;
+                            Idx_t min_fdx;
+                            for(auto &[d, bdx] : query) {
+                                if(bdx != it->second.bdx
+                                   && (d < min_d || not min_bdx.valid()))
+                                {
+                                    auto fit = _data->_cache->blob_selected_fish.find(bdx);
+                                    if(fit != _data->_cache->blob_selected_fish.end()) {
+                                        min_fdx = fit->second;
+                                        min_d = d;
+                                        min_bdx = bdx;
+                                    }
+                                }
+                            }
+                            
+                            if(min_fdx.valid()) {
+                                map["nearest_neighbor"] = min_fdx;
+                            } else if(map.has("nearest_neighbor"))
+                                map.erase("nearest_neighbor");
+                            
+                            map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
+                            map["has_neighbor"] = true;
+                            map["bdx"] = it->second.bdx;
+                        }
+                    }
+                }
+                //map["speed"] = _data->_cache->lock_individuals().individuals.at(fdx)->centroid(_data->_cache->frame_idx)->speed<Units::CM_AND_SECONDS>();
+                return map;
+            }),
+            
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {
                 if(not _state->tracker->start_frame().valid())
                     return Range<Frame_t>(_data->_analysis_range.load().start(), _data->_analysis_range.load().start());
@@ -980,10 +1089,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
         }
     };
     
-    g.context.custom_elements["image"] = std::unique_ptr<CustomElement>(new CustomElement{
-        .name = "image",
+    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new CustomElement{
+        .name = "preview",
         .create = [](LayoutContext&) -> Layout::Ptr {
-            return Layout::Make<ExternalImage>();
+            return Layout::Make<Graph>(Bounds(), std::string());
         },
         .update = [](Layout::Ptr&, const Context&, State&, const robin_hood::unordered_map<std::string, Pattern>&) {
             return false;

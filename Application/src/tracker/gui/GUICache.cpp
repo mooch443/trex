@@ -498,6 +498,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         active_ids.clear();
         fish_selected_blobs.clear();
         inactive_estimates.clear();
+        blob_selected_fish.clear();
         
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
@@ -589,6 +590,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     if(posture)
                         blob.posture_stuff = *posture;
                     
+                    blob_selected_fish[blob.bdx] = fish->identity().ID();
                     fish_selected_blobs[fish->identity().ID()] = std::move(blob);
                     
                 } else {

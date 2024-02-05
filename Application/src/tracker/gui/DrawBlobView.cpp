@@ -682,7 +682,7 @@ void draw_blob_view(const DisplayParameters& parm)
     last_blob_id = _clicked_blob_id;
     
     if(SETTING(gui_show_pixel_grid)) {
-        parm.graph.section("collision_model", [&](auto&, auto) {
+        parm.graph.section("collision_model", [&](auto&, auto s) {
             /*if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
                 s->set_scale(parm.scale);
                 s->set_pos(parm.offset);
@@ -692,6 +692,9 @@ void draw_blob_view(const DisplayParameters& parm)
                 s->reuse_objects();
                 return;
             }*/
+            
+            s->set_scale(parm.coord.bowl_scale());
+            s->set_pos(parm.coord.hud_viewport().pos());
             
             parm.cache.updated_blobs();
             
