@@ -1027,14 +1027,48 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
                 
                 combine->update([&](auto&e) {
-                    if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
-                        e.advance_wrap(*dropdown);
-                    e.advance_wrap(*button);
+                    if(bdry.size() > 1
+                        || bdry.front().size() > 2
+     #ifdef __APPLE__
+                        || not base.is_key_pressed(Codes::LSystem)
+     #else
+                        || not base.is_key_pressed(Codes::LControl)
+     #endif
+                       )
+                    {
+                        if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
+                            e.advance_wrap(*dropdown);
+                        e.advance_wrap(*button);
+                    }
                 });
                 
                 combine->set_scale(sca);
                 combine->auto_size(Margin{0, 0});
-                auto p = top_left + (bottom_right - top_left) * 0.5;
+                Vec2 p;
+                if(bdry.size() > 1
+                    || bdry.front().size() > 2)
+                {
+                    p = top_left + (bottom_right - top_left) * 0.5;
+                } else {
+                    p = Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5); //- Vec2(20, 0).mul(sca);
+                    
+                    if(bdry.size() == 1
+                       && bdry.front().size() == 2)
+                    {
+                        auto& boundary = bdry.front();
+                        Vec2 v;
+                        if(boundary[1].x > boundary[0].x)
+                            v = boundary[1] - boundary[0];
+                        else
+                            v = boundary[0] - boundary[1];
+                        
+                        auto D = v.length();
+                        v = v.normalize();
+                        
+                        a = atan2(v);
+                        p += v.perp() * (combine->size().mul(sca).height);
+                    }
+                }
                 
                 /// restrict the object bounds to within screen viewport
                 auto coords = FindCoord::get();
@@ -1075,7 +1109,9 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
 #endif
                 {
                     auto mpos = coords.convert(HUDCoord{base.mouse_position()});
-                    if(Bounds(p + Vec2(combine->origin().x == 0 ? 15 : -15, 0).mul(sca) - combine->size().mul(sca).mul(combine->origin()), combine->size().mul(sca)).contains(mpos))
+                    if(Bounds(p + Vec2(combine->origin().x == 0 ? 15 : -15,
+                                       combine->origin().y == 0 ? 5 : -5)
+                              .mul(sca) - combine->size().mul(sca).mul(combine->origin()), combine->size().mul(sca)).contains(mpos))
                     {
                         p = mpos;
                         
@@ -1090,8 +1126,10 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     }
                 }
                 
-                p += Vec2(combine->origin().x == 0 ? 15 : -15, 0).mul(sca);
+                p += Vec2(combine->origin().x == 0 ? 15 : -15,
+                          combine->origin().y == 0 ? 5 : -5).mul(sca);
                 combine->set_pos(p);
+                //combine->set_rotation(r);
                 
                 base.wrap_object(*combine);
             }

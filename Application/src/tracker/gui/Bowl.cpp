@@ -208,6 +208,9 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
         PD(cache).set_raw_blobs_dirty();
         PD(cache).set_redraw();
     }*/
+    if(not GUI_SETTINGS(gui_show_timeline))
+        return;
+    
     update_shapes();
     
     Scale scale{coord.bowl_scale()};
