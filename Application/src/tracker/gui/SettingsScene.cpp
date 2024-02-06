@@ -157,7 +157,7 @@ struct SettingsScene::Data {
                                 if (not output_dir.empty() && not filename.is_absolute())
                                     filename = output_dir / filename;
                             }
-                            settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, {}, copy);
+                            settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
                             SceneManager::getInstance().enqueue([this,
                                 before = std::move(before),
