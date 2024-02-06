@@ -973,36 +973,36 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             }
             
             if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + Vec2(0, Base::default_line_spacing(Font(0.85)) + 10).mul(sca), Size2(0, 35));
+                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + Vec2(0, Base::default_line_spacing(Font(0.6)) + 10).mul(sca), Size2(0, 35));
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
                     if(bdry.size() == 1 && bdry.front().size() == 2)
                         name = "use known length to calibrate";
                     else
-                        name = "print vectors";
+                        name = "deselect";
                     
                 } else {
                     if(_selected_setting_type == SelectedSettingType::ARRAY_OF_VECTORS) {
                         if(bdry.size() >= 1 && bdry.back().size() >= 3)
                             name = "append shape to "+_selected_setting_name;
                         else
-                            name = "delete invalid shape";
+                            name = "deselect invalid shape";
                         
                     } else if(_selected_setting_type == SelectedSettingType::ARRAY_OF_BOUNDS) {
                         if(bdry.size() >= 1 && bdry.back().size() >= 2)
                             name = "append bounds to "+_selected_setting_name;
                         else
-                            name = "delete invalid bounds";
+                            name = "deselect invalid bounds";
                     } else
                         name = "append points to "+_selected_setting_name;
                 }
                 
-                auto text_bounds = window ? window->text_bounds(name, NULL, Font(0.85)) : Base::default_text_bounds(name, NULL, Font(0.85));
-                bds.width = text_bounds.width + 10;
+                auto text_bounds = window ? window->text_bounds(name, NULL, Font(0.6)) : Base::default_text_bounds(name, NULL, Font(0.6));
+                bds.width = max(100.f, text_bounds.width) + 10;
                 
                 if(!button) {
-                    button = std::make_shared<Button>(Str(name), Box(Vec2(), bds.size()));
+                    button = std::make_shared<Button>(Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "");
                     });
@@ -1013,7 +1013,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 }
                 
                 if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), std::vector<std::string>{
+                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6}, std::vector<std::string>{
                         "track_ignore",
                         "track_include",
                         "recognition_shapes"
@@ -1021,7 +1021,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
-                    dropdown->textfield()->set_placeholder("append to...");
+                    dropdown->textfield()->set_placeholder("or add to...");
                     
                 } else
                     dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
@@ -1034,9 +1034,64 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 
                 combine->set_scale(sca);
                 combine->auto_size(Margin{0, 0});
-                combine->set_pos(Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5) - Vec2(20, 0).mul(sca));
-                combine->set_origin(Vec2(1, 0));
-                //combine->set_z_index(1);
+                auto p = top_left + (bottom_right - top_left) * 0.5;
+                
+                /// restrict the object bounds to within screen viewport
+                auto coords = FindCoord::get();
+                auto viewport = coords.viewport();
+                
+                auto object_bounds = Bounds{p, combine->size().mul(sca) * 0.75};
+                
+                if(object_bounds.x - viewport.x < object_bounds.width) {
+                    object_bounds.x = viewport.x + object_bounds.width;
+                }
+                if(object_bounds.y - viewport.y < object_bounds.height) {
+                    object_bounds.y = viewport.y + object_bounds.height;
+                }
+                if(object_bounds.x + object_bounds.width >= viewport.width + viewport.x) {
+                    object_bounds.x = viewport.x + viewport.width - object_bounds.width;
+                }
+                if(object_bounds.y + object_bounds.height >= viewport.height + viewport.y) {
+                    object_bounds.y = viewport.y + viewport.height - object_bounds.height;
+                }
+                
+                p = object_bounds.pos();
+                
+                /// check which direction we should be looking wrt
+                /// screen viewport and object size:
+                auto screen_pos = coords.convert(BowlCoord{p});
+                float top = screen_pos.y < coords.screen_size().height * 0.5
+                            ? 0.f : 1.f;
+                if(screen_pos.x < coords.screen_size().width * 0.5) {
+                    combine->set_origin(Vec2(0, top));
+                } else {
+                    combine->set_origin(Vec2(1, top));
+                }
+                
+#ifdef __APPLE__
+                if(base.is_key_pressed(Codes::LSystem))
+#else
+                if(base.is_key_pressed(Codes::LControl))
+#endif
+                {
+                    auto mpos = coords.convert(HUDCoord{base.mouse_position()});
+                    if(Bounds(p + Vec2(combine->origin().x == 0 ? 15 : -15, 0).mul(sca) - combine->size().mul(sca).mul(combine->origin()), combine->size().mul(sca)).contains(mpos))
+                    {
+                        p = mpos;
+                        
+                        screen_pos = coords.convert(BowlCoord{p});
+                        float top = screen_pos.y < coords.screen_size().height * 0.5
+                            ? 0.f : 1.f;
+                        if(screen_pos.x < coords.screen_size().width * 0.5) {
+                            combine->set_origin(Vec2(0, top));
+                        } else {
+                            combine->set_origin(Vec2(1, top));
+                        }
+                    }
+                }
+                
+                p += Vec2(combine->origin().x == 0 ? 15 : -15, 0).mul(sca);
+                combine->set_pos(p);
                 
                 base.wrap_object(*combine);
             }

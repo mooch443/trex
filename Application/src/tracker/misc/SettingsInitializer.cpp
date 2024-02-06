@@ -486,7 +486,8 @@ void load(file::PathArray source,
             "track_background_subtraction", false,
             "calculate_posture", false,
             "meta_encoding", meta_encoding_t::r3g3b2,
-            "track_do_history_split", false
+            "track_do_history_split", false,
+            "individual_image_normalization", individual_image_normalization_t::moments
         };
         
         for(auto &key : values.keys()) {
@@ -508,7 +509,8 @@ void load(file::PathArray source,
             "calculate_posture", true,
             "meta_encoding", meta_encoding_t::gray,
             "track_do_history_split", true,
-            "meta_classes", std::vector<std::string>{}
+            "meta_classes", std::vector<std::string>{},
+            "individual_image_normalization", individual_image_normalization_t::posture
         };
         
         for(auto &key : values.keys()) {

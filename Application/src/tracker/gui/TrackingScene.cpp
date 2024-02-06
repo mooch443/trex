@@ -54,6 +54,7 @@ public:
         
         auto &&[image, pos] = DrawPreviewImage::make_image(blob, midline, filters, background);
         _display.set_source(std::move(image));
+        update();
     }
     
     void update() override {
@@ -665,16 +666,18 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     auto alpha = SETTING(gui_background_color).value<Color>().a;
     _data->_background->set_color(Color(255, 255, 255, alpha ? alpha : 1));
-
+    
+    graph.wrap_object(*_data->_background);
+    
+    _data->_background->set_scale(_data->_bowl->scale());
+    _data->_background->set_pos(_data->_bowl->pos());
+    _data->_background->set_video_scale(SETTING(meta_video_scale).value<float>());
+    
     if (alpha > 0) {
-        graph.wrap_object(*_data->_background);
-        _data->_background->set_video_scale(SETTING(meta_video_scale).value<float>());
         /*if(PD(gui_mask)) {
             PD(gui_mask)->set_color(PD(background)->color().alpha(PD(background)->color().a * 0.5));
             PD(gui).wrap_object(*PD(gui_mask));
         }*/
-        _data->_background->set_scale(_data->_bowl->scale());
-        _data->_background->set_pos(_data->_bowl->pos());
     }
     
     //if(GUI_SETTINGS(gui_mode) == mode_t::tracking)

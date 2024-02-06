@@ -179,23 +179,24 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
     if(not image)
         return {nullptr, Vec2{}};
     
-    if(FAST_SETTING(track_background_subtraction)) {
+    /*if(FAST_SETTING(track_background_subtraction)) {
         for(size_t i=0; i<image->size(); ++i) {
             image->data()[i] = 255 - image->data()[i];
         }
-    }
+    }*/
     
     if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
     {
         auto rgba = Image::Make(image->rows, image->cols, 4);
         cv::Mat output = rgba->get();
-        convert_from_r3g3b2<4, 1>(image->get(), output);
+        convert_from_r3g3b2<4, 1, true>(image->get(), output);
         return {std::move(rgba), pos};
         
     } else {
         if(image->dims == 1) {
             auto rgba = Image::Make(image->rows, image->cols, 4);
-            cv::cvtColor(image->get(), rgba->get(), cv::COLOR_GRAY2BGRA);
+            cv::merge(std::array{image->get(), image->get(), image->get(), image->get()}, rgba->get());
+            /*cv::cvtColor(image->get(), rgba->get(), cv::COLOR_GRAY2BGRA);
             
             rgba->set_channel<4>(3, [](uchar b, uchar g, uchar r, uchar) -> uchar {
                 static_assert(static_cast<uint8_t>(true) == uint8_t(1));
@@ -203,7 +204,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
                 return static_cast<uint8_t>((b > 0 || g > 0 || r > 0)
                                                 && (b != 255 || g != 255 || r != 255))
                                             * 255;
-            });
+            });*/
             return {std::move(rgba), pos};
         }
         return {std::move(image), pos};
