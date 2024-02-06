@@ -3,6 +3,8 @@
 #include <gui/DrawStructure.h>
 #include <misc/frame_t.h>
 #include <tracking/PPFrame.h>
+#include <tracking/Outline.h>
+#include <tracking/FilterCache.h>
 
 /**
  * This command previews all selected individuals the way they would be shown,
@@ -15,7 +17,13 @@
 namespace gui {
 namespace DrawPreviewImage {
 
-void draw(const Image& average, const track::PPFrame&, Frame_t, DrawStructure&);
+void draw(const track::Background* average, const track::PPFrame&, Frame_t, DrawStructure&);
+
+std::tuple<Image::Ptr, Vec2>
+make_image(pv::BlobWeakPtr blob,
+           const track::Midline* midline,
+           const track::constraints::FilterCache* filters,
+           const track::Background*);
 
 }
 }

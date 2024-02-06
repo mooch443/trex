@@ -2,8 +2,7 @@
 #define _OUTLINE_H
 
 #include <commons.pc.h>
-#include <misc/GlobalSettings.h>
-#include <file/DataFormat.h>
+//#include <file/DataFormat.h>
 #include <gui/Transform.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
@@ -11,6 +10,10 @@
 
 namespace Output {
     class ResultsFormat;
+}
+
+namespace cmn {
+class Data;
 }
 
 namespace track {

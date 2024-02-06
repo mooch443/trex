@@ -934,11 +934,6 @@ blob::Pose Individual::pose_window(Frame_t start, Frame_t end, Frame_t ref) cons
         return true;
     });
     
-#ifndef NDEBUG
-    if(not collection.empty())
-        print("Poses:", collection);
-#endif
-    
     if(collection.empty())
         return blob::Pose{};
     

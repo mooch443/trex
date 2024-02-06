@@ -48,9 +48,6 @@ CREATE_STRUCT(CachedGUIOptions,
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
 Fish::~Fish() {
-    if(GUICache::exists())
-        GUICache::instance().set_animating(circle_animator, false);
-    
     if (_label) {
         delete _label;
     }
@@ -674,12 +671,9 @@ Fish::~Fish() {
             if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
 
-            constexpr const char* animator = "panic-button-animation";
             if(panic_button) {
                 _view.add<Line>(Line::Point_t(_posture.pos()), Line::Point_t(mp), LineClr{ White.alpha(50) });
-                GUICache::instance().set_animating(animator, true);
-            } else
-                GUICache::instance().set_animating(animator, false);
+            }
         
             _view.advance_wrap(_posture);
         
@@ -1229,12 +1223,8 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
                 _recognition_circle->set_pos(_fish_pos - _view.pos());
                 _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
                 _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
-                GUICache::instance().set_animating(circle_animator, true);
-                
                 _view.advance_wrap(*_recognition_circle);
                 
-            } else {
-                GUICache::instance().set_animating(circle_animator, false);
             }
             
         } else if(_recognition_circle) {

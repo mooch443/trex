@@ -28,6 +28,9 @@
 #include <gui/DrawPosture.h>
 #include <misc/SettingsInitializer.h>
 #include <tracking/FilterCache.h>
+#include <misc/FOI.h>
+#include <gui/dyn/ParseText.h>
+#include <gui/ParseLayoutTypes.h>
 
 using namespace track;
 
@@ -37,12 +40,27 @@ class IndividualImage : public Entangled {
     GETTER(Idx_t, fdx);
     Image::Ptr ptr;
     GETTER(Frame_t, frame);
+    ExternalImage _display;
     
 public:
     using Entangled::set;
-    void set_data(Idx_t fdx, Frame_t frame, const pv::Blob& blob) {
+    void set_data(Idx_t fdx, Frame_t frame, pv::BlobWeakPtr blob, const Background* background, const constraints::FilterCache* filters, const Midline* midline) {
+        // already set
+        if(fdx == _fdx && _frame == frame)
+            return;
+        
         this->_fdx = fdx;
         this->_frame = frame;
+        
+        auto &&[image, pos] = DrawPreviewImage::make_image(blob, midline, filters, background);
+        _display.set_source(std::move(image));
+    }
+    
+    void update() override {
+        begin();
+        advance_wrap(_display);
+        end();
+        auto_size({});
     }
 };
 
@@ -689,20 +707,18 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
     
-    DrawPreviewImage::draw(_state->tracker->average(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
+    //DrawPreviewImage::draw(_state->tracker->background(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
     
     if(GUI_SETTINGS(gui_show_posture) && not _data->_cache->selected.empty()) {
         _data->_cache->draw_posture(graph, GUI_SETTINGS(gui_frame));
     }
     
-    if(not graph.root().is_dirty())
-        std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
+    //if(not graph.root().is_dirty() && not graph.root().is_animating())
+    //    std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
     //print("dirty = ", graph.root().is_dirty());
     if(graph.root().is_dirty())
         last_dirty.reset();
-    else if((_data->_cache->is_animating()
-       && last_dirty.elapsed() > 0.1)
-            || last_dirty.elapsed() > 0.25)
+    else if(last_dirty.elapsed() > 0.25)
     {
         graph.root().set_dirty();
         last_dirty.reset();
@@ -1044,11 +1060,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                             
                             if(min_fdx.valid()) {
                                 map["nearest_neighbor"] = min_fdx;
+                                map["has_neighbor"] = true;
                             } else if(map.has("nearest_neighbor"))
                                 map.erase("nearest_neighbor");
                             
                             map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
-                            map["has_neighbor"] = true;
                             map["bdx"] = it->second.bdx;
                         }
                     }
@@ -1091,10 +1107,52 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
     
     g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new CustomElement{
         .name = "preview",
-        .create = [](LayoutContext&) -> Layout::Ptr {
-            return Layout::Make<Graph>(Bounds(), std::string());
+        .create = [](LayoutContext& context) -> Layout::Ptr {
+            auto fdx = context.get(Idx_t(), "fdx");
+            auto ptr = Layout::Make<IndividualImage>();
+            return ptr;
         },
-        .update = [](Layout::Ptr&, const Context&, State&, const robin_hood::unordered_map<std::string, Pattern>&) {
+        .update = [this](Layout::Ptr&o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+            auto ptr = o.to<IndividualImage>();
+            
+            Idx_t fdx;
+            Frame_t frame = _data->_cache->frame_idx;
+            
+            if(patterns.contains("fdx")) {
+                fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
+            }
+            /*if(patterns.contains("frame")) {
+                frame = Meta::fromStr<Frame_t>(parse_text(patterns.at("frame").original, context, state));
+            }*/
+            
+            if(fdx != ptr->fdx()
+               || frame != ptr->frame())
+            {
+                const constraints::FilterCache* cache{nullptr};
+                if(auto it = _data->_cache->filter_cache.find(fdx);
+                   it != _data->_cache->filter_cache.end())
+                {
+                    cache = it->second.get();
+                }
+                 
+                
+                
+                pv::BlobWeakPtr blob_ptr{nullptr};
+                if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
+                   it != _data->_cache->fish_selected_blobs.end())
+                {
+                    _data->_cache->processed_frame().transform_blobs_by_bid(std::array{it->second.bdx}, [&blob_ptr](pv::Blob& blob) {
+                        blob_ptr = &blob;
+                    });
+                    
+                    if(blob_ptr)
+                        ptr->set_data(fdx, frame, blob_ptr, _data->_cache->background(), cache, it->second.midline.get());
+                    //else
+                    //    throw InvalidArgumentException("Cannot find pixels for ", fdx, " and ", it->second.bdx);
+                } //else
+                  //  throw InvalidArgumentException("Cannot find individual ", fdx, " in cache.");
+            }
+            
             return false;
         }
     });

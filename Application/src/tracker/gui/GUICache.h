@@ -1,8 +1,8 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <gui/GuiTypes.h>
-#include <gui/ConfirmedCrossings.h>
+//#include <gui/GuiTypes.h>
+//#include <gui/ConfirmedCrossings.h>
 #include <gui/FramePreloader.h>
 #include <misc/Buffers.h>
 #include <tracker/misc/default_config.h>
@@ -18,9 +18,17 @@ class Timer;
 namespace track {
 class Individual;
 class PPFrame;
+namespace constraints {
+struct FilterCache;
+}
 }
 
 namespace gui {
+class ExternalImage;
+class DrawStructure;
+class Circle;
+class Drawable;
+
 namespace globals {
     CREATE_STRUCT(Cache,
         (bool, gui_run),
@@ -114,7 +122,7 @@ namespace globals {
         std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
         Vec2 previous_mouse_position;
         bool _dirty = true;
-        FOIStatus _current_foi;
+        //FOIStatus _current_foi;
         size_t _num_pixels = 0;
 
         Frame_t frame_idx;
@@ -136,9 +144,6 @@ namespace globals {
         GETTER_I(float, dt, 0);
         std::atomic_bool _tracking_dirty = false;
         
-        std::unordered_map<std::string_view, gui::Drawable*> _animator_map;
-        std::unordered_map<gui::Drawable*, Drawable::delete_function_handle_t> _delete_handles;
-        GETTER(std::set<std::string_view>, animators);
         GETTER_PTR(const Background*, background){nullptr};
         
     public:
@@ -182,10 +187,12 @@ namespace globals {
             std::optional<BasicStuff> basic_stuff;
             std::optional<PostureStuff> posture_stuff;
             std::optional<std::vector<float>> pred;
+            Midline::Ptr midline;
         };
         
         std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
         std::map<Idx_t, BdxAndPred> fish_selected_blobs;
+        std::map<Idx_t, std::shared_ptr<constraints::FilterCache>> filter_cache;
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
@@ -237,9 +244,6 @@ namespace globals {
         void set_blobs_dirty();
         void set_raw_blobs_dirty();
         void set_redraw();
-        void set_animating(std::string_view, bool v, Drawable* = nullptr);
-        void clear_animators();
-        bool is_animating(std::string_view = {}) const;
         void set_dt(float dt);
         
         void set_mode(const gui::mode_t::Class&);

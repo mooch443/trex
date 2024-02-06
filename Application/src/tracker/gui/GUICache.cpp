@@ -9,6 +9,7 @@
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <gui/DrawPosture.h>
+#include <tracking/FilterCache.h>
 
 namespace gui {
     
@@ -69,7 +70,6 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     }
 
     GUICache::~GUICache() {
-        clear_animators();
         _fish_map.clear();
         display_blobs.clear();
         raw_blobs.clear();
@@ -149,54 +149,6 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     Idx_t GUICache::primary_selected_id() const {
         return has_selection() ? selected.front() : Idx_t();
     }
-
-    void GUICache::clear_animators() {
-        _animators.clear();
-
-        if (_graph) {
-            for (auto& [name, ptr] : _animator_map) {
-                auto handler = _delete_handles.at(ptr);
-                ptr->remove_delete_handler(handler);
-                _delete_handles.erase(ptr);
-            }
-        }
-        _animator_map.clear();
-    }
-    
-    bool GUICache::is_animating(std::string_view animator) const {
-        if(GUI_SETTINGS(gui_happy_mode) && mode() == mode_t::tracking) {
-            return true;
-        }
-        
-        //print(" ");
-        auto is_relevant = [this](const std::string_view& animator) {
-            auto it = _animator_map.find(animator);
-            if(it != _animator_map.end()) {
-                //print(" * animator ", animator, " is ", it->second->rendered());
-                return it->second->rendered();
-			}
-            return true;
-        };
-
-        if (animator.empty()) {
-            for(auto& a : _animators)
-                if(is_relevant(a))
-					return true;
-            //return !_animators.empty();
-            return false;
-        }
-        auto it = _animators.find(animator);
-        if(it != _animators.end())
-            return true;
-        
-       /* for (auto& o : _animators) {
-            if(o->is_child_of(obj)) {
-                return true;
-            }
-        }*/
-        
-        return false;
-    }
     
     void GUICache::set_dt(float dt) {
         _dt = dt;
@@ -271,7 +223,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     }
     
     bool GUICache::must_redraw() const {
-        if(raw_blobs_dirty() || _dirty || (_mode == mode_t::tracking && _tracking_dirty) || (_mode == mode_t::blobs && _blobs_dirty) || is_animating())
+        if(raw_blobs_dirty() || _dirty || (_mode == mode_t::tracking && _tracking_dirty) || (_mode == mode_t::blobs && _blobs_dirty))
             return true;
         return false;
     }
@@ -579,6 +531,14 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             double time = properties ? properties->time : 0;
             
             for(auto fish : active) {
+                if(fish->identity().ID() == primary_selected_id()) {
+                    auto segment = fish->segment_for(frameIndex);
+                    if(segment) {
+                        auto filters = constraints::local_midline_length(fish, segment->range);
+                        filter_cache[fish->identity().ID()] = std::move(filters);
+                    }
+                }
+                
                 auto [basic, posture] = fish->all_stuff(frameIndex);
                 if(basic) {
                     active_ids.insert(fish->identity().ID());
@@ -587,8 +547,13 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         .bdx = basic->blob.blob_id(),
                         .basic_stuff = *basic
                     };
-                    if(posture)
+                    if(posture) {
                         blob.posture_stuff = *posture;
+                        
+                        /// this could be optimized by using the posture stuff
+                        /// in the fixed midline function + SETTING()
+                        blob.midline = SETTING(output_normalize_midline_data) ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*basic, *posture);
+                    }
                     
                     blob_selected_fish[blob.bdx] = fish->identity().ID();
                     fish_selected_blobs[fish->identity().ID()] = std::move(blob);
@@ -1032,49 +997,6 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         return reload_blobs ? processed_frame().index() : Frame_t{};
     }
     
-    void GUICache::set_animating(std::string_view animation, bool v, Drawable* parent) {
-        /*if (animation.empty())
-            throw std::invalid_argument("Empty animation.");
-
-        if(v) {
-            auto it = _animators.find(animation);
-            if(it == _animators.end()) {
-                _animators.insert(animation);
-                if (parent) {
-                    _animator_map[animation] = parent;
-                    _delete_handles[parent] = parent->on_delete([this, animation]() {
-                        if (!_graph)
-                            return;
-                        this->set_animating(animation, false);
-                        //print("Animating object deleted (", animation, "). ", _animators);
-                    });
-                }
-                else if (_animator_map.contains(animation)) {
-                    _animator_map.erase(animation);
-                }
-                //print("Animating object added: ", animation," (",parent,"). ", _animators);
-            }
-        } else {
-            auto it = _animators.find(animation);
-            if(it != _animators.end()) {
-                _animators.erase(it);
-                //print("Animating object deleted (", animation, ") ", _animators);
-                if(_animator_map.contains(animation)) {
-                    auto ptr = _animator_map.at(animation);
-                    if (_delete_handles.count(ptr)) {
-                        auto handle = _delete_handles.at(ptr);
-                        _delete_handles.erase(ptr);
-                        ptr->remove_delete_handler(handle);
-                    }
-                    else {
-                        FormatError("Cannot find delete handler in GUICache. Something went wrong?");
-                    }
-                    _animator_map.erase(animation);
-				}
-            }
-        }*/
-    }
-
     bool GUICache::has_probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             return probabilities.find(fdx) != probabilities.end();

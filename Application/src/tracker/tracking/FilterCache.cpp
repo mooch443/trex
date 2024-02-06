@@ -139,7 +139,7 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
     cv::Mat mask, image;
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
-    if(FAST_SETTING(track_background_subtraction))
+    if(FAST_SETTING(track_background_subtraction) && background)
         imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
     else
         imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);

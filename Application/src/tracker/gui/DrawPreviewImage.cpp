@@ -1,6 +1,5 @@
 #include "DrawPreviewImage.h"
 #include <gui/GUICache.h>
-#include <tracking/FilterCache.h>
 #include <tracking/PPFrame.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/Dropdown.h>
@@ -166,7 +165,52 @@ std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
 VerticalLayout layout;
 SettingsTooltip tooltip;
 
-void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
+std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
+                                        const track::Midline* midline,
+                                        const track::constraints::FilterCache* filters,
+                                        const track::Background* background)
+{
+    const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
+    auto output_shape = FAST_SETTING(individual_image_size);
+    auto transform = midline ? midline->transform(normalize) : gui::Transform();
+    
+    auto &&[image, pos] = constraints::diff_image(normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background ? &background->image() : nullptr);
+    
+    if(not image)
+        return {nullptr, Vec2{}};
+    
+    if(FAST_SETTING(track_background_subtraction)) {
+        for(size_t i=0; i<image->size(); ++i) {
+            image->data()[i] = 255 - image->data()[i];
+        }
+    }
+    
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
+    {
+        auto rgba = Image::Make(image->rows, image->cols, 4);
+        cv::Mat output = rgba->get();
+        convert_from_r3g3b2<4, 1>(image->get(), output);
+        return {std::move(rgba), pos};
+        
+    } else {
+        if(image->dims == 1) {
+            auto rgba = Image::Make(image->rows, image->cols, 4);
+            cv::cvtColor(image->get(), rgba->get(), cv::COLOR_GRAY2BGRA);
+            
+            rgba->set_channel<4>(3, [](uchar b, uchar g, uchar r, uchar) -> uchar {
+                static_assert(static_cast<uint8_t>(true) == uint8_t(1));
+                static_assert(static_cast<uint8_t>(false) == uint8_t(0));
+                return static_cast<uint8_t>((b > 0 || g > 0 || r > 0)
+                                                && (b != 255 || g != 255 || r != 255))
+                                            * 255;
+            });
+            return {std::move(rgba), pos};
+        }
+        return {std::move(image), pos};
+    }
+}
+
+void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     if(!SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
@@ -185,8 +229,7 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
         layout.set_children(objects);
     }
     
-    const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
-    auto output_shape = FAST_SETTING(individual_image_size);
+    
     static bool first = true;
     
     auto& cache = GUICache::instance();
@@ -255,33 +298,19 @@ void draw(const Image& average, const PPFrame& pp,Frame_t frame, DrawStructure& 
             }
             
             auto midline = fish->midline(frame);
-            auto transform = midline ? midline->transform(normalize) : gui::Transform();
+            
             auto segment = fish->segment_for(frame);
             if(!segment)
                 U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", idx, " despite finding a blob ", *blob);
             
             auto filters = constraints::local_midline_length(fish, segment->range);
-            auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &average);
+            auto &&[image, pos] = make_image(pixels, midline.get(), filters.get(), average);
             
             if(!image || image->empty())
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
-            if(FAST_SETTING(track_background_subtraction)) {
-                for(size_t i=0; i<image->size(); ++i) {
-                    image->data()[i] = 255 - image->data()[i];
-                }
-            }
-            
-            if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
-            {
-                auto rgba = Image::Make(image->rows, image->cols, 4);
-                cv::Mat output = rgba->get();
-                convert_from_r3g3b2<4, 1>(image->get(), output);
-                ptr = e.add<ExternalImage>(std::move(rgba), offset, scale);
-                
-            } else
-                ptr = e.add<ExternalImage>(std::move(image), offset, scale);
+            ptr = e.add<ExternalImage>(std::move(image), offset, scale);
             
             e.add<Text>(Str(Identity::Temporary(idx).name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font(0.5), Scale(graph.scale().reciprocal()));
             
