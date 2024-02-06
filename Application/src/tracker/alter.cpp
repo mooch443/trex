@@ -154,7 +154,8 @@ void launch_gui(std::future<void>&& f) {
             else {
                 GlobalSettings::map().set_print_by_default(true);
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
-                SETTING(gui_frame) = Frame_t(SETTING(gui_frame)).try_sub(10_f);
+                if(SETTING(gui_frame).value<Frame_t>().valid())
+                    SETTING(gui_frame) = Frame_t(SETTING(gui_frame)).try_sub(10_f);
 				manager.set_active("tracking-scene");
 			}
         },
