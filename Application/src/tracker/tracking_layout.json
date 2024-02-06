@@ -126,7 +126,7 @@
 
                             {
                                 "type":"condition",
-                                "var": "{&&:{global.gui_show_individual_preview}:{bool:{primary_selection.bdx}}:{hovered:info_box}}",
+                                "var": "{&&:{global.gui_show_individual_preview}:{bool:{primary_selection.bdx}}:{||:{hovered:info_box}:{selected:info_box}}}",
                                 "then":{
                                     "type":"vlayout",
                                     "pad":[0,5,0,0],
