@@ -1050,9 +1050,9 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 {
                     p = top_left + (bottom_right - top_left) * 0.5;
                 } else {
-                    p = Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5); //- Vec2(20, 0).mul(sca);
+                    p = top_left - Vec2(combine->width() * sca.x, 0);//Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5); //- Vec2(20, 0).mul(sca);
                     
-                    if(bdry.size() == 1
+                    /*if(bdry.size() == 1
                        && bdry.front().size() == 2)
                     {
                         auto& boundary = bdry.front();
@@ -1067,7 +1067,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                         
                         a = atan2(v);
                         p += v.perp() * (combine->size().mul(sca).height);
-                    }
+                    }*/
                 }
                 
                 /// restrict the object bounds to within screen viewport
