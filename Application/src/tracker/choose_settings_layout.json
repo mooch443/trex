@@ -140,7 +140,8 @@
                                 "list":{
                                     "line":[220,220,220,200],
                                     "fill":[25,25,25,220],
-                                    "size":"[{element_w},200]"
+                                    "size":"[{element_w},200]",
+                                    "font":{"size":0.6}
                                 },
                                 "size":"[{element_w},40]",
                                 "desc":"",
@@ -213,7 +214,8 @@
                                                     "list":{
                                                         "line":[220,220,220,200],
                                                         "fill":[25,25,25,220],
-                                                        "size":"[{-:{element_w}:93},200]"
+                                                        "size":"[{-:{element_w}:93},200]",
+                                                        "font":{"size":0.6}
                                                     },
                                                     "size":"[{-:{element_w}:93},40]",
                                                     "desc":""
@@ -250,7 +252,8 @@
                                             "list":{
                                                 "line":[220,220,220,200],
                                                 "fill":[25,25,25,220],
-                                                "size":"[{-:{element_w}:93},200]"
+                                                "size":"[{-:{element_w}:93},200]",
+                                                "font":{"size":0.6}
                                             },
                                             "size":"[{-:{element_w}:93},40]",
                                             "desc":""
@@ -369,6 +372,9 @@
                             "size":"[{max:350:{-:{element_w}:90}},300]"
                         },
                         "size":"[{max:350:{-:{element_w}:220}},40]",
+                        "label":{
+                            "font":{"size":0.6}
+                        },
                         "color":[225,225,225],
                         "desc":"",
                         "highlight_clr":[75,75,75,255]

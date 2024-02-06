@@ -229,7 +229,8 @@
                                             "list":{
                                                 "line":[220,220,220,200],
                                                 "fill":[25,25,25,220],
-                                                "size":"[{element_w},200]"
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
                                             },
                                             "size":"[{max:50:{element_w}},40]",
                                             "desc":""
@@ -244,7 +245,8 @@
                                     "list":{
                                         "line":[220,220,220,200],
                                         "fill":[25,25,25,220],
-                                        "size":"[{element_w},200]"
+                                        "size":"[{element_w},200]",
+                                        "font":{"size":0.6}
                                     },
                                     "size":[116,40],
                                     "desc":"resolution: "
@@ -340,7 +342,8 @@
                             "list":{
                                 "line":[220,220,220,200],
                                 "fill":[25,25,25,220],
-                                "size":"[{element_w},200]"
+                                "size":"[{element_w},200]",
+                                "font":{"size":0.6}
                             },
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
@@ -376,7 +379,8 @@
                                         "list":{
                                             "line":[220,220,220,200],
                                             "fill":[25,25,25,220],
-                                            "size":"[{element_w},200]"
+                                            "size":"[{element_w},200]",
+                                            "font":{"size":0.6}
                                         },
                                         "size":"[{max:50:{element_w}},40]",
                                         "desc":""
@@ -395,7 +399,8 @@
                                     "list":{
                                         "line":[220,220,220,200],
                                         "fill":[25,25,25,220],
-                                        "size":"[{element_w},200]"
+                                        "size":"[{element_w},200]",
+                                        "font":{"size":0.6}
                                     },
                                     "size":[116,40],
                                     "desc":"resolution: "
@@ -492,11 +497,11 @@
                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                         "placeholder":"<sym>🔍</sym> Parameters",
-                        "postfix":"test",
                         "list":{
                             "line":[220,220,220,200],
                             "fill":[25,25,25,220],
-                            "size":"[{max:350:{-:{element_w}:90}},300]"
+                            "size":"[{max:350:{-:{element_w}:90}},300]",
+                            "font":{"size":0.6}
                         },
                         "size":"[{max:350:{-:{element_w}:220}},40]",
                         "color":[225,225,225],

@@ -481,6 +481,9 @@
                             "fill":[25,25,25,220],
                             "size":"[{max:350:{-:{element_w}:90}},300]"
                         },
+                        "label":{
+                            "font":{"size":0.6}
+                        },
                         "size":"[{max:350:{-:{element_w}:220}},40]",
                         "color":[225,225,225],
                         "desc":"",
@@ -510,7 +513,7 @@
                     },
                     {
                         "type":"button",
-                        "text":"<sym>⮜</sym> Back",
+                        "text":"<sym>⮜</sym> {if:{previous_stack_size}:Back:Back to menu}",
                         "fill":[40,40,40,220],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                         "size":[100,40],
