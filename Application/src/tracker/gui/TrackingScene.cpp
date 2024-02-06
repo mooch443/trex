@@ -31,6 +31,7 @@
 #include <misc/FOI.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
+#include <gui/InfoCard.h>
 
 using namespace track;
 
@@ -936,7 +937,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 
                 throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
             }),
-            VarFunc("segments_for", [this](const VarProps& props) -> std::vector<FrameRange>{
+            VarFunc("segments_for", [this](const VarProps& props) -> std::vector<ShadowSegment>{
                 REQUIRE_EXACTLY(1, props);
                 auto idx = Meta::fromStr<Idx_t>(props.first());
                 if(auto it = _data->_cache->_individual_ranges.find(idx);
@@ -1111,7 +1112,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
     g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new CustomElement{
         .name = "preview",
         .create = [](LayoutContext& context) -> Layout::Ptr {
-            auto fdx = context.get(Idx_t(), "fdx");
+            [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
             auto ptr = Layout::Make<IndividualImage>();
             return ptr;
         },
@@ -1154,6 +1155,64 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     //    throw InvalidArgumentException("Cannot find pixels for ", fdx, " and ", it->second.bdx);
                 } //else
                   //  throw InvalidArgumentException("Cannot find individual ", fdx, " in cache.");
+            }
+            
+            return false;
+        }
+    });
+    
+    g.context.custom_elements["drawsegments"] = std::unique_ptr<CustomElement>(new CustomElement{
+        .name = "drawsegments",
+        .create = [](LayoutContext& context) -> Layout::Ptr {
+            [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
+            auto pad = context.get(Bounds(), "pad");
+            auto limit = context.get(Size2(), "max_size");
+            auto font = parse_font(context.obj);
+            auto ptr = Layout::Make<DrawSegments>();
+            ptr.to<DrawSegments>()->set(font);
+            ptr.to<DrawSegments>()->set(attr::Margins{pad});
+            ptr.to<DrawSegments>()->set(attr::SizeLimit{limit});
+            return ptr;
+        },
+        .update = [this](Layout::Ptr&o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+            auto ptr = o.to<DrawSegments>();
+            
+            Idx_t fdx;
+            Frame_t frame = _data->_cache->frame_idx;
+            
+            if(patterns.contains("fdx")) {
+                try {
+                    fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
+                } catch(...) {
+                    
+                }
+            }
+            
+            SizeLimit limit;
+            if(patterns.contains("max_size")) {
+                try {
+                    limit = Meta::fromStr<SizeLimit>(parse_text(patterns.at("max_size").original, context, state));
+                    ptr->set(limit);
+                } catch(...) {
+                    
+                }
+            }
+            /*if(patterns.contains("frame")) {
+                frame = Meta::fromStr<Frame_t>(parse_text(patterns.at("frame").original, context, state));
+            }*/
+            
+            if(fdx != ptr->fdx()
+               || frame != ptr->frame())
+            {
+                std::vector<ShadowSegment> segments;
+                if(fdx.valid() && frame.valid()) {
+                    if(auto it = _data->_cache->_individual_ranges.find(fdx);
+                       it != _data->_cache->_individual_ranges.end())
+                    {
+                        segments = it->second;
+                    }
+                }
+                ptr->set(fdx, frame, segments);
             }
             
             return false;

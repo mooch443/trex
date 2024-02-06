@@ -6,12 +6,13 @@
 #include <tracking/AutomaticMatches.h>
 #include <tracking/IndividualManager.h>
 #include <misc/IdentifiedTag.h>
+#include <gui/DrawStructure.h>
+#include <gui/types/Button.h>
+#include <gui/types/Layout.h>
+#include <gui/types/Tooltip.h>
+#include <gui/GuiTypes.h>
 
 namespace gui {
-struct ShadowSegment {
-    FrameRange frames;
-    uint32_t error_code;
-};
 struct InfoCard::ShadowIndividual {
     Idx_t fdx{};
     track::Identity identity{track::Identity::Temporary({})};
@@ -31,6 +32,259 @@ struct InfoCard::ShadowIndividual {
     bool has_vi_predictions{false};
 };
 
+DrawSegments::~DrawSegments() {
+    /// we need this in order to avoid linking issues
+    /// since we only forward declare stuff
+}
+
+DrawSegments::DrawSegments()
+    : _tooltip(std::make_unique<Tooltip>(nullptr))
+{
+    on_click([this](auto){
+        for(size_t i = 0; i < segment_texts.size(); ++i) {
+            auto &[text, tooltip_text] = segment_texts.at(i);
+            if(text->hovered()) {
+                auto &segment = _displayed_segments.at(i);
+                SETTING(gui_frame) = segment.frames.start();
+                return;
+            }
+        }
+    });
+    on_hover([this](auto){
+        Text * found{nullptr};
+        for(auto &[text, tooltip_text] : segment_texts) {
+            if(text->hovered()) {
+               // text->set(TextClr{0,125,200,255});
+                found = text;
+                if(_selected != text) {
+                    if(_selected && _highlight) {
+                        _previous_bounds = _highlight->bounds();
+                    } else {
+                        _previous_bounds = text->bounds();
+                    }
+                    _target_bounds = text->bounds();
+                    
+                    _tooltip->set_other(text);
+                    _tooltip->set_text(tooltip_text);
+                    _selected = text;
+                    set_content_changed(true);
+                }
+            } else {
+                //text->set(TextClr{White});
+            }
+        }
+        
+        if(not found && _selected) {
+            _tooltip->set_other(nullptr);
+            _selected = nullptr;
+            _previous_bounds = {};
+            _target_bounds = {};
+            set_content_changed(true);
+        }
+    });
+}
+
+void DrawSegments::set(Idx_t fdx, Frame_t frame, const std::vector<ShadowSegment>& segments) {
+    if(_fdx != fdx
+       || _frame != frame
+       //|| _segments != segments
+       )
+    {
+        _fdx = fdx;
+        _frame = frame;
+        _segments = segments;
+        set_content_changed(true);
+    }
+}
+
+float DrawSegments::add_segments(bool display_hints, float)
+{
+#if DEBUG_ORIENTATION
+    auto reason = fish->why_orientation(frameNr);
+    std::string reason_str = "(none)";
+    if(reason.frame == frameNr) {
+        reason_str = reason.flipped_because_previous ? "previous_direction" : "(none)";
+    }
+    advance(new Text(reason_str, text->pos() + Vec2(0, Base::default_line_spacing(text->font())), White, Font(0.8)));
+#endif
+    
+    // draw segment list
+    auto rit = _segments.rbegin();
+    Frame_t current_segment;
+    for(; rit != _segments.rend(); ++rit) {
+        if(rit->frames.end() < _frame)
+            break;
+        
+        current_segment = rit->frames.start();
+        if(rit->frames.start() <= _frame)
+            break;
+    }
+    
+    std::vector<std::tuple<FrameRange, std::string>> strings;
+    segment_texts.clear();
+    _displayed_segments.clear();
+    Size2 max_text_size(_limits.width, 0);
+    long_t index_of_current{-1};
+    
+    {
+        long_t i=0;
+        while(rit != _segments.rend() && ++rit != _segments.rend() && ++i < 2);
+        i = 0;
+        
+        auto it = rit == _segments.rend()
+            ? _segments.begin()
+            : track::find_frame_in_sorted_segments(_segments.begin(), _segments.end(), rit->frames.start());
+        auto it0 = it;
+        
+        for (; it != _segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
+        {
+            std::string str;
+            auto range = it->frames;
+            if(range.length() <= 1_f)
+                str = range.start().toStr();
+            else
+                str = range.start().toStr() + "-" + range.end().toStr();
+            
+            auto bds = Base::default_text_bounds(str, this, _font);
+            if(bds.width > max_text_size.width)
+                max_text_size.width = bds.width;
+            if(bds.height > max_text_size.height)
+                max_text_size.height = bds.height;
+            
+            if(range.start() == current_segment) {
+                index_of_current = narrow_cast<long_t>(strings.size());
+            }
+            _displayed_segments.emplace_back(*it);
+            strings.emplace_back( range, std::move(str) );
+            
+            std::string tt;
+            if(display_hints) {
+                const ShadowSegment& ptr = *it;
+                auto bitset = ptr.error_code;
+                if(ptr.error_code != std::numeric_limits<decltype(ptr.error_code)>::max()) {
+                    size_t i=0;
+                    while (bitset != 0) {
+                        auto t = bitset & -bitset;
+                        int r = __builtin_ctz32(bitset);
+                        if(size_t(r + 1) >= ReasonsNames.size())
+                            tt += std::string(i > 0 ? "," : "")+" <key>invalid-key</key>";
+                        else
+                            tt += std::string(i > 0 ? "," : "")+" <str>"+std::string(ReasonsNames.at(r + 1))+"</str>";
+                        //reasons.push_back((Reasons)(1 << r));
+                        bitset ^= t;
+                        ++i;
+                    }
+                } else {
+                    tt += " <nr>Analysis ended</nr>";
+                }
+                
+                tt = "Segment "+Meta::toStr(ptr.frames)+" ended because:"+tt;
+            }
+            segment_texts.push_back({nullptr, tt});
+        }
+    }
+    
+    double y = _margins.y + Base::default_line_spacing(_font) * 0.5;
+    float offx = _margins.x;
+    
+    auto p = Vec2(offx, y);
+    for(long_t i=0; i<narrow_cast<long_t>(strings.size()); ++i) {
+        auto &[range, str] = strings[i];
+        
+        //!TODO: Need to collect width() beforehand
+        uint8_t alpha = 25 + 230 * (1 - cmn::abs(i-index_of_current) / float(strings.size()));
+        auto text = add<Text>(Str(str), Loc(max_text_size.width - 10, p.y),
+                             TextClr{_frame != range.start()
+                                        ? White.alpha(alpha)
+                                        : Color(200,235,255).alpha(alpha)},
+                             _font, Origin(1, 0.5f));
+        text->set_clickable(true);
+        if(text->hovered()) {
+            update_box();
+            
+            if(_highlight) {
+                _highlight->set(LineClr{0,125,255,alpha});
+                _highlight->set(Origin(text->origin()));
+                _highlight->set(FillClr{Transparent});
+            }
+            advance_wrap(*_highlight);
+        }
+        std::get<0>(segment_texts[i]) = text;
+        
+        if(range.start() == current_segment) {
+            bool inside = range.contains(_frame);
+            auto offy = - (inside ? 0.f : (Base::default_line_spacing(_font)*0.5f));
+            add<Line>(Line::Point_t(offx, p.y + offy), Line::Point_t(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), LineClr{ inside ? White : White.alpha(100) });
+        }
+        
+        p.y += text->height();
+    }
+    
+    p.y += add<Text>(Str(Meta::toStr(_segments.size())+" segments"),
+                     Loc(Vec2(offx, p.y - 16)),
+                     TextClr(Gray),
+                     _font)
+            ->height() + 5;
+    
+    return p.y;
+}
+
+void DrawSegments::update_box() {
+    if(not _highlight)
+        _highlight = std::make_unique<Rect>();
+    
+    auto bds = _highlight->bounds();
+    auto v = _target_bounds.pos() - bds.pos();
+    auto L = v.length();
+    if(L > 0.5 /*&& _previous_bounds != _target_bounds*/) {
+        v /= L;
+        auto dt = GUICache::instance().dt();
+        _highlight->set_pos(bds.pos() + v * dt * L * 5);
+        _highlight->set_size(bds.size() + (_target_bounds.size() - bds.size()) * dt * 5);
+    } else {
+        _highlight->set(Box(_target_bounds));
+    }
+    
+    //_highlight->set(Box{text->bounds()});
+}
+
+void DrawSegments::update() {
+    update_box();
+    
+    if(not content_changed())
+        return;
+    
+    begin();
+    add_segments(true, 0);
+    if(_selected) {
+        advance_wrap(*_tooltip);
+    }
+    end();
+    
+    auto_size({_margins.width, _margins.height});
+    set_content_changed(false);
+}
+
+void DrawSegments::set(Font font) {
+    if(font != _font) {
+        _font = font;
+        set_content_changed(true);
+    }
+}
+
+void DrawSegments::set(Margins margin) {
+    if(margin != _margins) {
+        _margins = margin;
+        set_content_changed(true);
+    }
+}
+
+void DrawSegments::set(SizeLimit limits) {
+    if(_limits != limits) {
+        _limits = limits;
+        set_content_changed(true);
+    }
+}
 
 InfoCard::InfoCard(std::function<void(Frame_t)> reanalyse)
     :

@@ -510,7 +510,10 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 auto &ranges = _individual_ranges[idx];
                 ranges.clear();
                 for(auto& segment : fish->frame_segments()) {
-                    ranges.emplace_back(*segment);
+                    ranges.emplace_back(ShadowSegment{
+                        .frames = *segment,
+                        .error_code=segment->error_code
+                    });
                 }
                 all_ids.insert(idx);
             });

@@ -13,6 +13,7 @@
 #include <processing/Background.h>
 #include <misc/Border.h>
 #include <tracking/Stuffs.h>
+#include <gui/ShadowSegment.h>
 
 class Timer;
 namespace track {
@@ -180,7 +181,7 @@ namespace globals {
         std::set<Idx_t> recognized_ids;
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
-        std::unordered_map<Idx_t, std::vector<FrameRange>> _individual_ranges;
+        std::unordered_map<Idx_t, std::vector<ShadowSegment>> _individual_ranges;
         
         struct BdxAndPred {
             pv::bid bdx;

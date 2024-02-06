@@ -24,7 +24,7 @@
     "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}",
     "number_individuals":"{if:{is_tracked:{smart_highlighted}}:{.active_individuals:{smart_highlighted}}:''}",
 
-    "infocard_width": 200
+    "infocard_width": 215
 }
 },
 "objects": [
@@ -46,11 +46,19 @@
                 "clickable":true,
                 "name":"info_box",
                 "children": [
+
                     {
                         "type":"stext",
                         "text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
                         "pad":[10,15,5,0],
                         "font":{"size":0.6}
+                    },
+                    {
+                        "type":"drawsegments",
+                        "fdx":"{at:0:{global.gui_focus_group}}",
+                        "font":{"size":0.5},
+                        "pad":[15,0,0,0],
+                        "max_size":"[{+:10:{infocard_width}},0]"
                     },
                     {
                         "type":"vlayout",
@@ -70,15 +78,15 @@
                                         [
                                             {
                                                 "type": "stext",
-                                                "max_size": "[{infocard_width}, 300]",
+                                                "max_size": "[{*:0.5:{infocard_width}}, 300]",
                                                 "pad":[5,5,5,5],
-                                                "font": {"size": 0.6},
+                                                "font": {"size": 0.55},
                                                 "text": "{if:{hovered:infos}:<c>[<b>Speed</b>]</c>:''}"
                                             },
                                             {
                                                 "type":"stext",
-                                                "font": {"size": 0.6},
-                                                "max_size": "[{infocard_width}, 300]",
+                                                "font": {"size": 0.55},
+                                                "max_size": "[{*:0.68:{infocard_width}}, 300]",
                                                 "pad":[5,5,5,5],
                                                 "text":"<c><cyan>{round:{primary_selection.speed}:3}</cyan><gray>cm/s</gray></c>"
                                             }
@@ -86,15 +94,15 @@
                                         [
                                             {
                                                 "type": "stext",
-                                                "max_size":"[{infocard_width}, 300]",
+                                                "max_size": "[{*:0.5:{infocard_width}}, 300]",
                                                 "pad":[5,5,5,5],
-                                                "font": {"size": 0.6},
+                                                "font": {"size": 0.55},
                                                 "text": "{if:{hovered:infos}:<c>[<b>NearN</b>]</c>:''}"
                                             },
                                             {
                                                 "type":"stext",
-                                                "font": {"size": 0.6},
-                                                "max_size": "[{infocard_width}, 300]",
+                                                "font": {"size": 0.55},
+                                                "max_size": "[{*:0.68:{infocard_width}}, 300]",
                                                 "pad":[5,5,5,5],
                                                 "text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>null</gray>'}</c>"
                                             }
@@ -146,56 +154,66 @@
                                             "font":{"size":0.4}
                                         },
                                         {
-                                            "type":"settings",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                            "size":"[{infocard_width}, 30]",
-                                            "var":"individual_image_size",
-                                            "font":{"size":0.5},
-                                            "desc":""
+                                            "type":"hlayout",
+                                            "children":[
+                                                {
+                                                    "type":"settings",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                    "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                    "var":"individual_image_size",
+                                                    "font":{"size":0.5},
+                                                    "desc":""
+                                                },
+                                                {
+                                                    "type":"settings",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                    "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                    "var":"individual_image_scale",
+                                                    "font":{"size":0.5},
+                                                    "desc":""
+                                                }
+                                            ]
                                         },
                                         {
-                                            "type":"settings",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                            "size":"[{infocard_width}, 30]",
-                                            "var":"individual_image_scale",
-                                            "font":{"size":0.5},
-                                            "desc":""
-                                        },
-                                        {
-                                            "type":"settings",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                            "size":"[{infocard_width}, 30]",
-                                            "list":{
-                                                "font":{"size":0.5}
-                                            }, 
-                                            "label":{
-                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                "font":{"size":0.5}
-                                            },
-                                            "var":"individual_image_normalization",
-                                            "font":{"size":0.5},
-                                            "desc":""
-                                        },
-                                        {
-                                            "type":"settings",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                            "size":"[{infocard_width}, 30]",
-                                            "list":{
-                                                "font":{"size":0.5}
-                                            },
-                                            "label":{
-                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                "font":{"size":0.5}
-                                            },
-                                            "var":"meta_encoding",
-                                            "font":{"size":0.5},
-                                            "desc":""
+                                            "type":"hlayout",
+                                            "children":[
+                                                {
+                                                    "type":"settings",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                    "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                    "list":{
+                                                        "font":{"size":0.5}
+                                                    }, 
+                                                    "label":{
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                        "font":{"size":0.5}
+                                                    },
+                                                    "var":"individual_image_normalization",
+                                                    "font":{"size":0.5},
+                                                    "desc":""
+                                                },
+                                                {
+                                                    "type":"settings",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                    "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                    "list":{
+                                                        "font":{"size":0.5}
+                                                    },
+                                                    "label":{
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                        "font":{"size":0.5}
+                                                    },
+                                                    "var":"meta_encoding",
+                                                    "font":{"size":0.5},
+                                                    "desc":""
+                                                }
+                                            ]
                                         },
                                         {
                                             "type":"button",
@@ -211,7 +229,6 @@
                                     ]
                                 }
                             }
-                            
                         ]
                     }
                 ]
