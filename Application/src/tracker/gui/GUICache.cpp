@@ -653,6 +653,9 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 //reasons.emplace_back("next_processed_frame was != nullptr");
             }
             //print("current_processed_frame moved out for ", frameIndex, " = ", _next_processed_frame->index());
+            if(_current_processed_frame)
+				buffers.move_back(std::move(_current_processed_frame));
+
             _current_processed_frame = std::move(_next_processed_frame);
             assert(_current_processed_frame->index() == frameIndex);
         }

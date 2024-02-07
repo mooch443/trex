@@ -236,7 +236,9 @@ void Segmenter::open_video() {
     else {
         print("Loading from file...");
         bg = cv::imread(average_name().str());
-        if (bg.cols == video_base.size().width && bg.rows == video_base.size().height)
+
+        auto size = video_base.size();
+        if (bg.cols == size.width && bg.rows == size.height)
             cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
         else {
             do_generate_average = true;
