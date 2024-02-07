@@ -127,14 +127,15 @@ endif()
 #endif()
 
 # add actual executable
-set(TREXA_SRCS alter.cpp Alterface.cpp Alterface.h
-    FileOpenerScene.cpp
-    FileOpenerScene.h
-    VideoOpenerScene.cpp
-    VideoOpenerScene.h "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
+set(TREXA_SRCS alter.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
     gfx/TRexA_16.png
     gfx/TRexA_32.png
     gfx/TRexA_64.png
+    gfx/TRexA_128.png
+    gfx/TRexA_256.png
+    gfx/TRexA_512.png
+    gfx/TRexA_1024.png
     )
 
 if(APPLE)
