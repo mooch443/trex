@@ -1,6 +1,6 @@
 {% set git_cmd = "git describe --tags --always --abbrev=0" %}
 {% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
-{% set git_tag = "interface" %}
+{% set git_tag = "main" %}
 {% set version_postfix = "" %}
 #{% set version_postfix = "i" %} # for installer packages
 

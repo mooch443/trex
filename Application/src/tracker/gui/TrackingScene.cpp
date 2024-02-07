@@ -9,7 +9,6 @@
 //#include <grabber/misc/default_config.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/Categorize.h>
-#include <gui/CheckUpdates.h>
 #include <gui/WorkProgress.h>
 #include <gui/DrawBlobView.h>
 #include <tracking/Output.h>
@@ -381,17 +380,9 @@ void TrackingScene::deactivate() {
         _data->dynGUI.clear();
     tracker::gui::blob_view_shutdown();
     
-    print("Preparing for shutdown...");
-#if !COMMONS_NO_PYTHON
-    CheckUpdates::cleanup();
-    Categorize::terminate();
-#endif
-    
     if(_data && _data->_callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
     
-    if(_state)
-        _state->analysis.terminate();
     _state = nullptr;
     _data = nullptr;
     

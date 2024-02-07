@@ -373,6 +373,127 @@ void init_signals() {
 #endif
 }
 
+std::string start_tracking(std::future<void>& f) {
+    if(SETTING(filename).value<file::Path>().empty())
+        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+    
+    std::atomic<bool> terminate{false};
+    TrackingState state{nullptr};
+    state._tracking_callbacks.push([&](){
+        terminate = true;
+    });
+    state.init_video();
+    
+    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    
+    //! get the python init future at this point
+    f.get();
+    
+    while(not terminate)
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    return {};
+}
+
+std::string start_converting(std::future<void>& f) {
+    if(SETTING(filename).value<file::Path>().empty()) {
+        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+    }
+    
+    std::string last_error;
+    Segmenter segmenter(
+        []() {
+            if(SETTING(auto_quit).value<bool>())
+                SETTING(terminate) = true;
+            else
+                throw InvalidArgumentException("What should I do now?");
+        },
+        [&last_error](std::string error) {
+            SETTING(error_terminate) = true;
+            SETTING(terminate) = true;
+            last_error = error;
+        });
+    print("Loading source = ", SETTING(source).value<file::PathArray>());
+    
+    ind::ProgressBar bar{
+        ind::option::BarWidth{50},
+        ind::option::Start{"["},
+#ifndef _WIN32
+        ind::option::Fill{"█"},
+        ind::option::Lead{"▂"},
+        ind::option::Remainder{"▁"},
+#else
+        ind::option::Fill{"="},
+        ind::option::Lead{">"},
+        ind::option::Remainder{" "},
+#endif
+        ind::option::End{"]"},
+        ind::option::PostfixText{"Converting video..."},
+        ind::option::ShowPercentage{true},
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
+    ind::ProgressSpinner spinner{
+        ind::option::PostfixText{"Recording..."},
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::SpinnerStates{std::vector<std::string>{
+            //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
+            //"◢","◣","◤","◥",
+            //"◜◞", "◟◝", "◜◞", "◟◝"
+            " ◴"," ◷"," ◶"," ◵"
+            //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
+        }},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
+    Timer last_tick;
+    segmenter.set_progress_callback([&](float percent){
+        if(percent >= 0)
+            bar.set_progress(saturate(percent, 0.f, 100.f));
+        else if(last_tick.elapsed() > 1) {
+            spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
+            spinner.set_option(ind::option::ShowPercentage{false});
+            spinner.tick();
+            last_tick.reset();
+        }
+    });
+    
+    if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
+        segmenter.open_camera();
+    else
+        segmenter.open_video();
+    
+    auto finite = segmenter.is_finite();
+    segmenter.start();
+    
+    //! get the python init future at this point
+    if(f.valid())
+        f.get();
+    
+    while(not SETTING(terminate))
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    
+    if(not SETTING(error_terminate)) {
+        spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+        spinner.set_option(ind::option::PrefixText{"✔"});
+        spinner.set_option(ind::option::ShowSpinner{false});
+        spinner.set_option(ind::option::PostfixText{"Done."});
+    } else {
+        spinner.set_option(ind::option::ForegroundColor{ind::Color::red});
+        spinner.set_option(ind::option::PrefixText{"X"});
+        spinner.set_option(ind::option::ShowSpinner{false});
+        spinner.set_option(ind::option::PostfixText{"Failed."});
+    }
+    
+    if(finite) {
+        bar.set_progress(100);
+        bar.mark_as_completed();
+    } else
+        spinner.mark_as_completed();
+    
+    return last_error;
+}
+
 int main(int argc, char**argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
@@ -538,104 +659,10 @@ int main(int argc, char**argv) {
                        {}, {});
         
         if(task == TRexTask_t::convert) {
-            Segmenter segmenter(
-                                []() {
-                                    SETTING(terminate) = true;
-                                },
-                                [&last_error](std::string error) {
-                                    SETTING(error_terminate) = true;
-                                    SETTING(terminate) = true;
-                                    last_error = error;
-                                });
-            print("Loading source = ", SETTING(source).value<file::PathArray>());
-            
-            ind::ProgressBar bar{
-                ind::option::BarWidth{50},
-                ind::option::Start{"["},
-#ifndef _WIN32
-                ind::option::Fill{"█"},
-                ind::option::Lead{"▂"},
-                ind::option::Remainder{"▁"},
-#else
-                ind::option::Fill{"="},
-                ind::option::Lead{">"},
-                ind::option::Remainder{" "},
-#endif
-                ind::option::End{"]"},
-                ind::option::PostfixText{"Converting video..."},
-                ind::option::ShowPercentage{true},
-                ind::option::ForegroundColor{ind::Color::white},
-                ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-            };
-            
-            ind::ProgressSpinner spinner{
-                ind::option::PostfixText{"Recording..."},
-                ind::option::ForegroundColor{ind::Color::white},
-                ind::option::SpinnerStates{std::vector<std::string>{
-                    //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
-                    //"◢","◣","◤","◥",
-                    //"◜◞", "◟◝", "◜◞", "◟◝"
-                    " ◴"," ◷"," ◶"," ◵"
-                    //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
-                }},
-                ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-            };
-            
-            Timer last_tick;
-            segmenter.set_progress_callback([&](float percent){
-                if(percent >= 0)
-                    bar.set_progress(percent);
-                else if(last_tick.elapsed() > 1) {
-                    spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
-                    spinner.set_option(ind::option::ShowPercentage{false});
-                    spinner.tick();
-                    last_tick.reset();
-                }
-            });
-            
-            if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
-                segmenter.open_camera();
-            else
-                segmenter.open_video();
-            
-            auto finite = segmenter.is_finite();
-            segmenter.start();
-            
-            //! get the python init future at this point
-            f.get();
-            
-            while(not SETTING(terminate))
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            
-            if(not SETTING(error_terminate)) {
-                spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
-                spinner.set_option(ind::option::PrefixText{"✔"});
-                spinner.set_option(ind::option::ShowSpinner{false});
-                spinner.set_option(ind::option::PostfixText{"Done."});
-            } else {
-                spinner.set_option(ind::option::ForegroundColor{ind::Color::red});
-                spinner.set_option(ind::option::PrefixText{"X"});
-                spinner.set_option(ind::option::ShowSpinner{false});
-                spinner.set_option(ind::option::PostfixText{"Failed."});
-            }
-            
-            if(finite) {
-                bar.set_progress(100);
-                bar.mark_as_completed();
-            } else
-                spinner.mark_as_completed();
+            last_error = start_converting(f);
             
         } else if(task == TRexTask_t::track) {
-            TrackingState state{nullptr};
-            state.init_video();
-            
-            RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
-            
-            //! get the python init future at this point
-            f.get();
-            
-            while(not SETTING(terminate))
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+            last_error = start_tracking(f);
         }
         
     } else {

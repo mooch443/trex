@@ -11,6 +11,7 @@
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/DatasetQuality.h>
+#include <misc/SettingsInitializer.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -1320,6 +1321,8 @@ namespace Output {
     
     Path TrackingResults::expected_filename() {        
         file::Path filename = SETTING(filename).value<Path>().filename();
+        if(filename.empty())
+            filename = settings::find_output_name(GlobalSettings::map());
         filename = filename.extension() == "pv" ?
         filename.replace_extension("results") : filename.add_extension("results");
         return file::DataLocation::parse("output", filename);

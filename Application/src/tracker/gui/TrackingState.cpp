@@ -12,6 +12,7 @@
 #include <misc/SettingsInitializer.h>
 #include <misc/IdentifiedTag.h>
 #include <tracking/Categorize.h>
+#include <gui/CheckUpdates.h>
 
 using namespace track;
 
@@ -93,6 +94,14 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
 }
 
 TrackingState::~TrackingState() {
+    print("Preparing for shutdown...");
+#if !COMMONS_NO_PYTHON
+    CheckUpdates::cleanup();
+    Categorize::terminate();
+#endif
+    
+    analysis.terminate();
+    
     if(_end_task.valid())
         _end_task.get();
 }

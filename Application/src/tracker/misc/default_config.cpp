@@ -860,6 +860,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_show_fish",
             "auto_quit",
             "auto_apply",
+            "auto_no_results",
+            "auto_no_tracking_data",
             //"output_dir",
             "auto_categorize",
             "tags_path",

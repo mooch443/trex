@@ -255,8 +255,8 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 }*/
                 
                 //apply_filters(*input);
-                print("CHannels = ", r3.channels(), " input=", input->channels());
-                print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
+                //print("CHannels = ", r3.channels(), " input=", input->channels());
+                //print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
                 assert(Size2(r3) == Size2(data().gpu.cols, data().gpu.rows));
                 raw.generate_binary(r3, *input, r3, &tag);
                 
