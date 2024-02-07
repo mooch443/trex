@@ -73,8 +73,6 @@ public:
     template<typename... Args>
     static inline void Log([[maybe_unused]] Args&& ...args) {
 #if TREX_ENABLE_HISTORY_LOGS
-        if(!history_log())
-            return;
         write_log(format<FormatterType::NONE>(std::forward<Args>(args)...));
 #else
         return;

@@ -2684,14 +2684,14 @@ void Individual::calculate_average_recognition() {
     }
     
     std::map<FrameRange, std::set<long_t>> splits;
-#ifndef NDEBUG
+/*#ifndef NDEBUG
     std::string file = identity().name()+".log";
     FILE* f = fopen(file.c_str(), "wb");
     if(!f)
        FormatError("Cannot open file ", file," for writing ('",identity(),"')");
-#else
+#else*/
     FILE* f = nullptr;
-#endif
+//#endif
     
     // anything thats below 2 seconds + at least 10% more with a different id, is considered lame and unimportant
     std::map<Frame_t, FrameRange> processed_segments;
