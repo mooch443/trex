@@ -356,7 +356,7 @@ void Cell::copy_sample_to(size_t index) {
         
         auto mat = _image->source()->get();
         if(input->dims == 1) {
-            convert_from_r3g3b2<4, 1, true>(input->get(), mat);
+            convert_from_r3g3b2<4, 1, false>(input->get(), mat);
             _image->updated_source();
         } else
             FormatWarning("Illegal format (", input->dims," channels) for r3g3b2 image.");
