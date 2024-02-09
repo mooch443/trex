@@ -138,7 +138,7 @@ namespace globals {
         GETTER(std::vector<Range<Frame_t>>, global_segment_order);
         GETTER_I(bool, blobs_dirty, false);
         GETTER_I(bool, raw_blobs_dirty, false);
-        GETTER_I(bool, fish_dirty, false);
+        GETTER_SETTER_I(bool, fish_dirty, false);
         GETTER_I(mode_t::Class, mode, mode_t::tracking);
         GETTER_I(double, gui_time, 0);
         GETTER_SETTER_I(float, zoom_level, 1);
@@ -201,7 +201,7 @@ namespace globals {
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
-        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Probability>> probabilities;
+        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, DetailProbability>> probabilities;
         std::set<Idx_t> checked_probs;
         
     public:
@@ -238,7 +238,7 @@ namespace globals {
         void deselect(Idx_t id);
         void deselect_all_select(Idx_t id);
         
-        const ska::bytell_hash_map<pv::bid, Probability>* probs(Idx_t fdx);
+        const ska::bytell_hash_map<pv::bid, DetailProbability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();

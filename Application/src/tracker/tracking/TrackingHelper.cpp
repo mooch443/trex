@@ -320,8 +320,6 @@ void TrackingHelper::apply_matching() {
     static Timing perm_timing("PairingGraph", 30);
     TakeTiming take(perm_timing);
     
-    PPFrame::Log(paired);
-    
     using namespace Match;
     const auto frameIndex = frame.index();
     PairingGraph graph(*props, frameIndex, std::move(paired));

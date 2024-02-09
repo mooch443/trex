@@ -1024,7 +1024,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         return probs(fdx) != nullptr;
     }
 
-    const ska::bytell_hash_map<pv::bid, Probability>* GUICache::probs(Idx_t fdx) {
+    const ska::bytell_hash_map<pv::bid, DetailProbability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())
@@ -1046,7 +1046,10 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     
                     auto p = individuals.at(fdx)->probability(processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
-                        probabilities[fdx][blob.blob_id()] = p;
+                        probabilities[fdx][blob.blob_id()] = {
+                            .p = p,
+                            .p_time = c->time_probability
+                        };
                 });
             }
         }

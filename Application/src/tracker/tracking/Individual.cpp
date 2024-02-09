@@ -336,8 +336,8 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
         return _frame_segments.end();
     
     if(not frameIndex.valid()
-       || frameIndex < _startFrame
-       || frameIndex > _endFrame)
+       || frameIndex < _startFrame)
+       //|| frameIndex > _endFrame)
     {
         return _frame_segments.end();
     }
@@ -349,7 +349,7 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
     
     auto begin = _frame_segments.begin();
     auto end = _frame_segments.end();
-    assert(frameIndex <= (*--_frame_segments.end())->range.end);
+    //assert(frameIndex <= (*--_frame_segments.end())->range.end);
     
     auto it = std::lower_bound(begin, end, frameIndex, [](const auto& ptr, Frame_t frame){
         return ptr->start() < frame;
@@ -1568,7 +1568,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
         //return cache;//centroid(_startFrame)->pos(PX_AND_SECONDS);
     
     // find the first frame thats set for the individual
-    auto it = iterator_for(frameIndex - 1_f);
+    const auto it = iterator_for(frameIndex - 1_f);
     
     //! collect samples from previous segments
     //bool manually_matched_segment = false;
@@ -1743,30 +1743,39 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     //! Collect recent number of valid samples within $t - \mathrm{fps} <= \dot{t} <= t$, where all distances between segments must not be reassigned ($\Delta t < fps * T_mathrm{max}$).
     size_t N = 0;
     if(it != _frame_segments.end()) {
+        //assert((*it)->contains(frameIndex));
+        
         const auto lower_limit = frameIndex.try_sub(Frame_t{frame_rate});
         auto previous_frame = frameIndex;
         const auto time_limit = Frame_t(Frame_t::number_t(frame_rate * track_max_reassign_time));
         
+        auto copy = it;
         while(true) {
-            if((*it)->end() < lower_limit)
+            if((*copy)->end() < lower_limit) {
                 break;
+            }
             
-            if(previous_frame.try_sub((*it)->end()) > time_limit)
+            if(previous_frame.try_sub((*copy)->end()) > time_limit)
             {
                 break;
             }
             
-            auto start = (*it)->start();
+            auto start = (*copy)->start();
             if(start < lower_limit)
                 start = lower_limit;
-            
+            auto end = (*copy)->end();
+            if(end > frameIndex)
+                end = frameIndex;
+                
             previous_frame = start;
             
-            N += max(Frame_t::number_t(0), ((*it)->end() - start).get() + 1);
-            if(it == _frame_segments.begin())
+            N += max(Frame_t::number_t(0), (end - start).get() + 1);
+            if(copy == _frame_segments.begin())
                 break;
-            --it;
+            --copy;
         }
+    } else {
+        //thread_print("** ", frameIndex, ": ", identity().ID()," no segments.");
     }
     
     
@@ -1973,6 +1982,8 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
         cache.time_probability = time_probability(tdelta, cache.previous_frame, recent_number_samples);
     }
     
+    //thread_print("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
+    //PPFrame::Log("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
     cache.valid_frame = !h || last_frame_manual;
     
     assert(!std::isnan(cache.estimated_px.x) 
@@ -2147,6 +2158,7 @@ Probability Individual::probability(int label, const IndividualCache& cache, Fra
     const Vec2& blob_pos = position;
     //auto && [ p_position, p_speed, p_angle ] = 
     auto p_position =    position_probability(cache, frameIndex, pixels, blob_pos, position);
+    //thread_print("** ", frameIndex, ": ", identity().ID(), " + ", blob_pos, " => ", p_position * cache.time_probability, " t=", cache.time_probability);
     
     /**
          \begin{equation} \label{eq:combined_prob}

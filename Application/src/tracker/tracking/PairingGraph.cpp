@@ -35,7 +35,7 @@ std::string PairedProbabilities::toStr() const {
     for(auto &row : _rows) {
         ss << row.toStr() << ":\n";
         for(auto idx : edges_for_row(index(row))) {
-            ss << "\t" << (col(idx.cdx).valid() ? col(idx.cdx).toStr() : "null") << ":" << idx.p << "\n";
+            ss << "\t" << (col(idx.cdx).valid() ? col(idx.cdx).toStr() : "null") << ": " << idx.p << "\n";
         }
     }
     return ss.str();

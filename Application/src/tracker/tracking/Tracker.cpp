@@ -1093,6 +1093,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     //auto ptr = s.frame.bdx_to_ptr(blob);
                     //assert(own.blob != nullptr);
                     auto p = fish->probability(blob_labels[bix], *cache, frameIndex, *ptr);
+                    //PPFrame::Log(bdxes[bix], " + ", fish->identity().ID(), " => ", p, " (t = ", cache->time_probability,")");
                     if (p > matching_probability_threshold)
                         probs[bdxes[bix]] = p;
                 }

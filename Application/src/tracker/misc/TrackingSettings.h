@@ -173,6 +173,8 @@ using Fish_t = Idx_t;
 using Probability = Match::prob_t;
 struct DetailProbability {
     Match::prob_t p, p_time, p_pos, p_angle;
+    std::string toStr() const;
+    static std::string class_name() { return "DetailProbability"; }
 };
 
 struct Statistics {

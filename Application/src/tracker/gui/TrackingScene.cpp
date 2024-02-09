@@ -342,9 +342,10 @@ void TrackingScene::activate() {
         "analysis_range"
         
     }, [this](std::string_view key) {
-        if(key == "gui_focus_group" && _data->_bowl)
+        if(key == "gui_focus_group" && _data->_bowl) {
             _data->_bowl->_screen_size = Vec2();
-        else if(key == "gui_run") {
+            _data->_cache->set_fish_dirty(true);
+        } else if(key == "gui_run") {
             
         } else if(key == "analysis_paused") {
             gui::WorkProgress::add_queue("pausing...", [this](){
@@ -632,22 +633,26 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 }
             }
             
-            std::vector<Idx_t> remove;
-            for(auto &[fdx, bds] : _data->_last_bounds) {
-                if(not contains(_data->_cache->selected, fdx)
-                   || (not contains(_data->_cache->active_ids, fdx)
-                   && not contains(_data->_cache->inactive_ids, fdx)))
-                {
-                    remove.push_back(fdx);
-                    print("* removing individual ", fdx);
+            if(_data->_last_bounds.size() > 100) {
+                std::vector<Idx_t> remove;
+                for(auto &[fdx, bds] : _data->_last_bounds) {
+                    if(not contains(_data->_cache->selected, fdx)
+                       || (not contains(_data->_cache->active_ids, fdx)
+                           && not contains(_data->_cache->inactive_ids, fdx)))
+                    {
+                        remove.push_back(fdx);
+#ifndef NDEBUG
+                        print("* removing individual ", fdx);
+#endif
+                    }
                 }
+                
+                //print("active = ", _data->_cache->active_ids);
+                //print("inactive = ", _data->_cache->inactive_ids);
+                
+                for(auto fdx: remove)
+                    _data->_last_bounds.erase(fdx);
             }
-            
-            //print("active = ", _data->_cache->active_ids);
-            //print("inactive = ", _data->_cache->inactive_ids);
-            
-            for(auto fdx: remove)
-                _data->_last_bounds.erase(fdx);
         }
         
         _data->_bowl->fit_to_screen(coords.screen_size());
@@ -1036,6 +1041,18 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     map["frame"] = frame;
                     map["has_neighbor"] = false;
                     map["bdx"] = pv::bid();
+                    map["ps"] = std::vector<std::tuple<pv::bid, Probability, Probability>>{};
+                    map["p"] = 0.0;
+                    map["p_time"] = 0.0;
+                    
+                    auto probs = _data->_cache->probs(fdx);
+                    if(probs) {
+                        std::vector<std::tuple<pv::bid, Probability, Probability>> ps;
+                        for(auto &[bdx, value] : *probs) {
+                            ps.emplace_back(bdx, value.p, value.p_time);
+                        }
+                        map["ps"] = ps;
+                    }
                     
                     if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
                        it != _data->_cache->fish_selected_blobs.end())
@@ -1070,6 +1087,20 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                             
                             map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
                             map["bdx"] = it->second.bdx;
+                            
+                            
+                            if(probs) {
+                                if(auto pit = probs->find(it->second.bdx);
+                                   pit != probs->end())
+                                {
+                                    
+                                    map["p"] = pit->second.p;
+                                    map["p_time"] = pit->second.p_time;
+                                    map["p_pos"] = pit->second.p_pos;
+                                    map["p_angle"] = pit->second.p_angle;
+                                }
+                            }
+                            
                         }
                     }
                 }
