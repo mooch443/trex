@@ -260,18 +260,16 @@ File::File(const file::Path& filename, FileMode mode)
                 uint32_t uncompressed_size;
                 ref.read<uint32_t>(uncompressed_size);
                 
+                ref.frame_compressed_block.resize(size, false);
+                ref.frame_uncompressed_block.resize(uncompressed_size, false);
                 
-                static DataPackage compressed_block, uncompressed_block;
-                compressed_block.resize(size, false);
-                uncompressed_block.resize(uncompressed_size, false);
-                
-                ref.read_data(size, compressed_block.data());
+                ref.read_data(size, ref.frame_compressed_block.data());
                 
                 lzo_uint new_len;
-                if(lzo1x_decompress((uchar*)compressed_block.data(),size,(uchar*)uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
+                if(lzo1x_decompress((uchar*)ref.frame_compressed_block.data(),size,(uchar*)ref.frame_uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
                 {
                     assert(new_len == uncompressed_size);
-                    compressed = new ReadonlyMemoryWrapper((uchar*)uncompressed_block.data(), new_len);
+                    compressed = new ReadonlyMemoryWrapper((uchar*)ref.frame_uncompressed_block.data(), new_len);
                     ptr = compressed;
                     
                 } else {
@@ -302,11 +300,6 @@ File::File(const file::Path& filename, FileMode mode)
         _pixels.reserve(_n);
         _flags.reserve(_n);
         
-        // declared outside so memory doesnt have to be freed/allocated all the time
-        static DataPackage pixels;
-        static std::vector<Header::line_type> mask((NoInitializeAllocator<Header::line_type>()));
-        static std::vector<LegacyShortHorizontalLine> mask_legacy((NoInitializeAllocator<LegacyShortHorizontalLine>()));
-        
         for(int i=0; i<_n; i++) {
             uint16_t start_y, mask_size;
             uint8_t flags = 0;
@@ -318,37 +311,37 @@ File::File(const file::Path& filename, FileMode mode)
             ptr->read<uint16_t>(mask_size);
             
             if(ref.header().version < V_7) {
-                mask_legacy.resize(mask_size);
-                mask.clear();
-                mask.reserve(mask_legacy.size());
+                ref.frame_mask_legacy.resize(mask_size);
+                ref.frame_mask_cache.clear();
+                ref.frame_mask_cache.reserve(ref.frame_mask_legacy.size());
                 
                 assert(ref.header().line_size == sizeof(LegacyShortHorizontalLine));
                 
-                ptr->read_data(mask_size * ref.header().line_size, (char*)mask_legacy.data());
-                std::copy(mask_legacy.begin(), mask_legacy.end(), std::back_inserter(mask));
+                ptr->read_data(mask_size * ref.header().line_size, (char*)ref.frame_mask_legacy.data());
+                std::copy(ref.frame_mask_legacy.begin(), ref.frame_mask_legacy.end(), std::back_inserter(ref.frame_mask_cache));
                 
             } else {
-                mask.resize(mask_size);
-                ptr->read_data(mask_size * ref.header().line_size, (char*)mask.data());
+                ref.frame_mask_cache.resize(mask_size);
+                ptr->read_data(mask_size * ref.header().line_size, (char*)ref.frame_mask_cache.data());
             }
             
             uint64_t num_pixels = 0;
-            for(auto &l : mask) {
+            for(auto &l : ref.frame_mask_cache) {
                 num_pixels += l.x1() - l.x0() + 1;
             }
             
             if(num_pixels >= std::numeric_limits<uint32_t>::max()) {
                 FormatWarning("Something is happening here ", index(), " ", num_pixels, " ", uint64_t(-1));
             }
-            pixels.resize(num_pixels, false);
-            ptr->read_data(num_pixels, pixels.data());
+            ref.frame_pixels.resize(num_pixels, false);
+            ptr->read_data(num_pixels, ref.frame_pixels.data());
             
             auto uncompressed = buffers().get(source_location::current());
-            Header::line_type::uncompress(*uncompressed, start_y, mask);
+            Header::line_type::uncompress(*uncompressed, start_y, ref.frame_mask_cache);
             
             if(use_differences) {
                 uint64_t idx = 0;
-                uchar *ptr = (uchar*)pixels.data();
+                uchar *ptr = (uchar*)ref.frame_pixels.data();
                 for (auto &l : *uncompressed) {
                     for (int x=l.x0; x<=l.x1; x++) {
                         auto &p = ptr[idx++];
@@ -358,8 +351,8 @@ File::File(const file::Path& filename, FileMode mode)
             }
             
             _mask.emplace_back(std::move(uncompressed));
-            auto v = std::make_unique<std::vector<uchar>>((uchar*)pixels.data(),
-                                                 (uchar*)pixels.data()+num_pixels);
+            auto v = std::make_unique<std::vector<uchar>>((uchar*)ref.frame_pixels.data(),
+                                                 (uchar*)ref.frame_pixels.data()+num_pixels);
             _pixels.emplace_back(std::move(v));
             _flags.push_back(flags);
         }
@@ -685,14 +678,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(version > Version::current)
             throw U_EXCEPTION("Unknown version '",version,"'.");
         
-        if(version == Version::V_2) {
+        /*if(version == Version::V_2) {
             // must read settings from file before loading...
             if(!file::DataLocation::is_registered("settings"))
                 throw U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
             auto settings_file = file::DataLocation::parse("settings");
             if (settings_file.exists())
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
-        }
+        }*/
         
         
         ref.read<uchar>(channels);

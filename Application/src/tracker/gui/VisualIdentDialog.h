@@ -22,7 +22,7 @@ struct VIController {
     void correct_identities(GUITaskQueue_t* gui, bool force_correct, track::IdentitySource source);
     void export_tracks();
     
-    pv::File* _video{nullptr};
+    std::weak_ptr<pv::File> _video;
     track::Tracker* _tracker{nullptr};
     ConnectedTasks* _analysis{nullptr};
     

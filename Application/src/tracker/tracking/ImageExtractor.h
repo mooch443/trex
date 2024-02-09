@@ -88,7 +88,7 @@ private:
     ska::bytell_hash_map<Frame_t, std::vector<Task>> _tasks;
     std::promise<void> _promise{};
     std::future<void> _future{_promise.get_future()};
-    pv::File& _video;
+    std::shared_ptr<pv::File> _video;
     
     std::thread _thread;
     
@@ -102,7 +102,7 @@ private:
     
 public:
     template<typename F>
-    ImageExtractor(pv::File & video,
+    ImageExtractor(std::shared_ptr<pv::File>&& video,
                    F && selector,
                    auto && partial_apply,
                    auto && callback,

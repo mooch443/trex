@@ -105,7 +105,7 @@ namespace globals {
         
         std::unique_ptr<PPFrame> _current_processed_frame;
         Buffers< std::unique_ptr<PPFrame>, PPFrameMaker > buffers;
-        pv::File* _video{ nullptr };
+        std::weak_ptr<pv::File> _video;
         gui::DrawStructure* _graph{ nullptr };
         std::unique_ptr<gui::Posture> _posture_window;
         using FramePtr = std::unique_ptr<PPFrame>;
@@ -270,7 +270,7 @@ namespace globals {
         
         const grid::ProximityGrid& blob_grid();
         
-        GUICache(gui::DrawStructure*, pv::File*);
+        GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>);
         ~GUICache();
         
         void draw_posture(gui::DrawStructure &base, Frame_t frameNr);

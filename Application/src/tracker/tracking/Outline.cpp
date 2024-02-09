@@ -1360,7 +1360,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     tf.translate(-offx, -offy);
     
     std::vector<MidlineSegment> rotated;
-    long_t L = reduced.size();
+    long_t L = narrow_cast<long_t>(reduced.size());
     
     for (long_t i=L-1; i>=0; i--) {
         long_t idx0 = i+1;

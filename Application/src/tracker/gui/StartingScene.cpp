@@ -32,7 +32,7 @@ StartingScene::~StartingScene() {
 
 file::Path pv_file_path_for(const file::PathArray& array) {
     file::Path output_file;
-    bool pv_exists = false;
+    //bool pv_exists = false;
     
     if(array.empty()) {
         // no source file?
@@ -48,7 +48,7 @@ file::Path pv_file_path_for(const file::PathArray& array) {
 
         if (output_file.exists()) {
             //SETTING(source) = file::PathArray({ output_file });
-            pv_exists = true;
+            //pv_exists = true;
         }
         else {
             //manager.set_active(&converting);

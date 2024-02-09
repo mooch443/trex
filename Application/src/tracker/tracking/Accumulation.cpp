@@ -95,7 +95,7 @@ Accumulation::Status& Accumulation::status() {
     return status;
 }
 
-void apply_network(pv::File& video_source) {
+void apply_network(const std::shared_ptr<pv::File>& video_source) {
     using namespace extract;
     uint8_t max_threads = 5u;
     extract::Settings settings{
@@ -118,7 +118,7 @@ void apply_network(pv::File& video_source) {
     }
     
     ImageExtractor e{
-        video_source,
+        std::shared_ptr{video_source},
         [](const Query& q)->bool {
             return !q.basic->blob.split();
         },
@@ -754,7 +754,7 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(pv::File* video, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(video), _base(base) {
+Accumulation::Accumulation(std::shared_ptr<pv::File>&& video, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base) {
     
 }
 
@@ -817,7 +817,7 @@ bool Accumulation::start() {
         data->set_classes(Tracker::identities());
         _network->train(data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
         
-        elevate_task([video = _video](){ apply_network(*video); });
+        elevate_task([video = _video](){ apply_network(video); });
         return true;
     }
     
@@ -1207,7 +1207,7 @@ bool Accumulation::start() {
                 
                 try {
                     //std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step
-                    _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &acc, steps);
+                    _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &acc, narrow_cast<int>(steps));
                     
                     float acceptance = 0;
                     float uniqueness = -1;
@@ -1783,7 +1783,7 @@ bool Accumulation::start() {
     
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!gui::WorkProgress::item_aborted() && !uniqueness_history().empty()) {
-        elevate_task([this](){apply_network(*_video);});
+        elevate_task([this](){apply_network(_video);});
     }
     
     return true;

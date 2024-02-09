@@ -96,11 +96,11 @@ protected:
     
     std::mutex _coverage_mutex;
     Image::Ptr _raw_coverage;
-    pv::File * _video{nullptr};
+    std::shared_ptr<pv::File> _video{nullptr};
     gui::IMGUIBase* _base{nullptr};
     
 public:
-    Accumulation(pv::File* video, gui::IMGUIBase* base, TrainingMode::Class);
+    Accumulation(std::shared_ptr<pv::File>&& video, gui::IMGUIBase* base, TrainingMode::Class);
     ~Accumulation();
     bool start();
     

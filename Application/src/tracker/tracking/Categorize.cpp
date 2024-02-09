@@ -29,7 +29,7 @@ using namespace constraints;
     std::unordered_map<Idx_t, std::unordered_map<const SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
 
 std::function<void()> _auto_quit_fn;
-std::function<void(std::string)> _set_status_fn;
+std::function<void(std::string, double)> _set_status_fn;
 
 #if !COMMONS_NO_PYTHON
 // indexes in _samples array
@@ -70,6 +70,32 @@ typename std::vector<T>::const_iterator find_keyed_tuple(const std::vector<T>& v
     auto& [a, b] = *it;
     return (a == v) ? it : vector.end();
 }
+
+std::mutex _pp_frame_cache_mutex;
+std::mutex thread_m;
+
+struct PPFrameCache {
+    std::atomic<bool> _terminate{false};
+#ifndef NDEBUG
+    std::unordered_map<Frame_t, std::tuple<size_t, size_t>> _ever_created;
+#endif
+    std::vector<Frame_t> _currently_processed;
+    std::condition_variable _variable;
+    
+    ~PPFrameCache() {
+        _terminate = true;
+        
+        {
+            // we have to be within lock to do this
+            //std::unique_lock guard(_pp_frame_cache_mutex);
+            _currently_processed.clear();
+        }
+        
+        _variable.notify_all();
+    }
+};
+
+std::unique_ptr<PPFrameCache> _pp_frame_cache;
 
 namespace Work {
 
@@ -122,7 +148,7 @@ struct Task {
     bool is_cached = false;
 };
 
-void start_learning(pv::File* video);
+void start_learning(std::weak_ptr<pv::File> video);
 void loop();
 void work_thread();
 Task _pick_front_thread();
@@ -132,8 +158,8 @@ auto& requested_samples() {
     return _request;
 }
 
-bool& visible() {
-    static bool _visible = false;
+std::atomic<bool>& visible() {
+    static std::atomic<bool> _visible = false;
     return _visible;
 }
 
@@ -152,8 +178,13 @@ auto& status() {
     return _status;
 }
 
-bool& initialized() {
-    static bool _init = false;
+std::atomic<bool>& initialized() {
+    static std::atomic<bool> _init = false;
+    return _init;
+}
+
+std::atomic<bool>& terminate_prediction() {
+    static std::atomic<bool> _init = false;
     return _init;
 }
 
@@ -261,6 +292,7 @@ Label::Ptr DataStore::label(int ID) {
 }
 
 Sample::Ptr DataStore::random_sample(Idx_t fid) {
+    static std::mutex rdmtx;
     static std::mt19937 mt(rd());
     std::shared_ptr<SegmentInformation> segment;
     
@@ -272,7 +304,11 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
         std::uniform_int_distribution<typename remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
         
         auto it = fish->frame_segments().begin();
-        std::advance(it, sample_dist(mt));
+        {
+            std::lock_guard g(rdmtx);
+            auto nr = sample_dist(mt);
+            std::advance(it, nr);
+        }
         segment = *it;
         
         if(!segment)
@@ -288,6 +324,7 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
 }
 
 Sample::Ptr DataStore::get_random() {
+    static std::mutex rdmtx;
     static std::mt19937 mt(rd());
     
     std::set<Idx_t> individuals = IndividualManager::all_ids();
@@ -296,8 +333,12 @@ Sample::Ptr DataStore::get_random() {
     
     std::uniform_int_distribution<size_t> individual_dist(0, individuals.size()-1);
     
-    auto fid = individual_dist(mt);
-    return DataStore::random_sample(Idx_t(fid));
+    Idx_t fid;
+    {
+        std::lock_guard g(rdmtx);
+        fid = Idx_t(individual_dist(mt));
+    }
+    return DataStore::random_sample(fid);
 }
 
 DataStore::Composition DataStore::composition() {
@@ -570,7 +611,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
             {
                 auto names = FAST_SETTING(categories_ordered);
                 for (size_t i=0; i<names.size(); ++i) {
-                    label_id_to_index[i] = static_cast<size_t>(i);
+                    label_id_to_index[narrow_cast<int>(i)] = i;
                     index_to_label[i] = label(names[i].c_str());
                 }
                 
@@ -799,7 +840,7 @@ Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob)
     return DataStore::label(_label_unsafe(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id()));
 }
 
-static pv::File *last_source{nullptr};
+static std::weak_ptr<pv::File> last_source;
 
 void Work::add_training_sample(const Sample::Ptr& sample) {
     if(sample) {
@@ -825,19 +866,31 @@ void Work::add_training_sample(const Sample::Ptr& sample) {
 void terminate() {
     if(Work::thread) {
         Work::terminate() = true;
+        last_source.reset();
         Work::learning() = false;
         Work::learning_variable().notify_all();
         Work::variable().notify_all();
-        Work::thread->join();
-        Work::thread = nullptr;
+        
+        {
+            std::unique_lock g(thread_m);
+            Work::thread->join();
+            Work::thread = nullptr;
+        }
+        {
+            std::unique_lock guard(_pp_frame_cache_mutex);
+            _pp_frame_cache = nullptr;
+        }
         pool = nullptr;
+        
+        DataStore::clear();
+        
         Work::state() = Work::State::NONE;
         Work::terminate() = false;
     }
 }
 
-void show(pv::File* video, const std::function<void()>& auto_quit,
-          const std::function<void(std::string)>& set_status)
+void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit,
+          const std::function<void(std::string, double)>& set_status)
 {
     if(!Work::visible() && Work::state() != Work::State::APPLY) 
     {
@@ -914,7 +967,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
 }
 #endif
 
-void start_applying(pv::File* video_source) {
+void start_applying(std::weak_ptr<pv::File> video_source) {
     using namespace extract;
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
     if(normalize == default_config::individual_image_normalization_t::posture
@@ -944,10 +997,14 @@ void start_applying(pv::File* video_source) {
     
     print("[Categorize] Applying with settings ", settings);
     if(_set_status_fn)
-        _set_status_fn("Applying...");
+        _set_status_fn("Applying...", 0);
     Timer apply_timer;
     
-    ImageExtractor(*video_source, [normalize](const Query& q) -> bool {
+    auto ptr = video_source.lock();
+    if(not ptr)
+        throw InvalidArgumentException("No valid pointer to video source.");
+    
+    ImageExtractor(std::move(ptr), [normalize](const Query& q) -> bool {
         return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
         
     }, [](std::vector<Result>&& results) {
@@ -955,6 +1012,9 @@ void start_applying(pv::File* video_source) {
         static Timing timing("Categorize::Predict");
         TakeTiming take(timing);
 #endif
+        
+        if(Work::terminate_prediction())
+            return;
         
         Python::schedule([results = std::move(results)]() mutable {
             using py = PythonIntegration;
@@ -1037,7 +1097,7 @@ void start_applying(pv::File* video_source) {
         
         if(finished) {
             if(_set_status_fn)
-                _set_status_fn("");
+                _set_status_fn("", -1);
             print("[Categorize] Finished applying after ", DurationUS{uint64_t(apply_timer.elapsed() * 1000 * 1000)},".");
             
             {
@@ -1105,7 +1165,7 @@ void start_applying(pv::File* video_source) {
                 SETTING(auto_categorize) = false;
             
         } else if(_set_status_fn)
-            _set_status_fn(text);
+            _set_status_fn(text, percent);
         
     }, std::move(settings));
 }
@@ -1117,7 +1177,7 @@ file::Path output_location() {
     return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
 }
 
-void Work::start_learning(pv::File* video_source) {
+void Work::start_learning(std::weak_ptr<pv::File> video_source) {
     if(Work::learning()) {
         return;
     }
@@ -1438,7 +1498,7 @@ void Work::start_learning(pv::File* video_source) {
         WorkProgress::add_queue("", [](){
             print("## Ending python blockade.");
             print("Clearing DataStore.");
-            DataStore::clear();
+            DataStore::clear_cache();
             Categorize::terminate();
         });
         
@@ -1615,7 +1675,8 @@ void Work::work_thread() {
                 }
                 guard.lock();
                 
-            } catch(...) {
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception when generating random sample: ", ex.what());
                 guard.lock();
                 throw;
             }
@@ -1651,14 +1712,7 @@ void Work::loop() {
 }
 
 void DataStore::clear() {
-    {
-        std::unique_lock guard(DataStore::cache_mutex());
-        print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
-        _frame_cache.clear();
-#ifndef NDEBUG
-        _current_cached_frames.clear();
-#endif
-    }
+    clear_cache();
     
     {
         std::lock_guard guard(mutex());
@@ -1669,8 +1723,19 @@ void DataStore::clear() {
         for(auto &[k, v] : _labels)
             v.clear();
     }
+}
+
+void DataStore::clear_cache() {
+    {
+        std::unique_lock guard(DataStore::cache_mutex());
+        print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
+        _frame_cache.clear();
+#ifndef NDEBUG
+        _current_cached_frames.clear();
+#endif
+    }
     
-    Interface::get().clear_rows();
+    Interface::get().reset();
 }
 
 template<typename T>
@@ -1860,13 +1925,12 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
     //paint_distributions(frame);
 
     std::shared_ptr<PPFrame> ptr = nullptr;
+    {
+        std::lock_guard g(_pp_frame_cache_mutex);
+        if(not _pp_frame_cache || _pp_frame_cache->_terminate)
+            return nullptr;
+    }
 
-#ifndef NDEBUG
-    static std::unordered_map<Frame_t, std::tuple<size_t, size_t>> _ever_created;
-#endif
-    static std::vector<Frame_t> _currently_processed;
-    static std::mutex _mutex;
-    static std::condition_variable _variable;
     bool already_being_processed = false;
 
     {
@@ -1879,17 +1943,17 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
             return std::get<1>(*it);
         }
 
-        std::lock_guard guard2(_mutex);
-        if (!contains(_currently_processed, frame)) {
+        std::lock_guard guard2(_pp_frame_cache_mutex);
+        if (!contains(_pp_frame_cache->_currently_processed, frame)) {
 #ifndef NDEBUG
-            if (_ever_created.count(frame)) {
-                ++std::get<0>(_ever_created[frame]);
-                FormatWarning("Frame ", frame," is created ",std::get<0>(_ever_created[frame])," times");
+            if (_pp_frame_cache->_ever_created.count(frame)) {
+                ++std::get<0>(_pp_frame_cache->_ever_created[frame]);
+                FormatWarning("Frame ", frame," is created ",std::get<0>(_pp_frame_cache->_ever_created[frame])," times");
             }
             else
-                _ever_created[frame] = { 1, 0 };
+                _pp_frame_cache->_ever_created[frame] = { 1, 0 };
 #endif
-            _currently_processed.push_back(frame);
+            _pp_frame_cache->_currently_processed.push_back(frame);
         }
         else
             already_being_processed = true;
@@ -1915,9 +1979,13 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
 #endif
     }
     else {
-        std::unique_lock guard(_mutex);
-        while(contains(_currently_processed, frame))
-            _variable.wait_for(guard, std::chrono::seconds(1));
+        std::unique_lock guard(_pp_frame_cache_mutex);
+        while(_pp_frame_cache
+              && contains(_pp_frame_cache->_currently_processed, frame)
+              && not _pp_frame_cache->_terminate)
+        {
+            _pp_frame_cache->_variable.wait_for(guard, std::chrono::seconds(1));
+        }
     }
 
     std::vector<int64_t> v;
@@ -2021,19 +2089,24 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
         _current_cached_frames.insert(frame);
 #endif
 
-        std::unique_lock guard(_mutex);
+        if(std::unique_lock guard(_pp_frame_cache_mutex);
+           _pp_frame_cache)
+        {
 #ifndef NDEBUG
-        ++std::get<1>(_ever_created[frame]);
+            ++std::get<1>(_pp_frame_cache->_ever_created[frame]);
 #endif
-
-        auto kit = std::find(_currently_processed.begin(), _currently_processed.end(), frame);
-        if (kit != _currently_processed.end()) {
-            _currently_processed.erase(kit);
+            
+            auto kit = std::find(_pp_frame_cache->_currently_processed.begin(),
+                                 _pp_frame_cache->_currently_processed.end(),
+                                 frame);
+            if (kit != _pp_frame_cache->_currently_processed.end()) {
+                _pp_frame_cache->_currently_processed.erase(kit);
+            }
+            else
+                print("Cannot find currently processed ",frame,"!");
+            
+            _pp_frame_cache->_variable.notify_all();
         }
-        else
-            print("Cannot find currently processed ",frame,"!");
-
-        _variable.notify_all();
         
     } else {
 #ifndef NDEBUG
@@ -2292,7 +2365,11 @@ Sample::Ptr DataStore::sample(
         }
     }
     
-    auto s = temporary(last_source, segment, fish, max_samples, min_samples);
+    auto lock = last_source.lock();
+    if(not lock)
+        return Sample::Invalid();
+    
+    auto s = temporary(lock.get(), segment, fish, max_samples, min_samples);
     if(s == Sample::Invalid())
         return Sample::Invalid();
     
@@ -2313,17 +2390,23 @@ Work::State& Work::state() {
     return _state;
 }
 
-void Work::set_state(pv::File* video, State state) {
-    static std::mutex thread_m;
+void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
+    auto lock = last_source.lock();
+    if(lock != video)
+        last_source = video;
+    
+    {
+        std::unique_lock guard(_pp_frame_cache_mutex);
+        if(not _pp_frame_cache)
+            _pp_frame_cache = std::make_unique<PPFrameCache>();
+    }
+    
     {
         std::lock_guard g(thread_m);
         if(!Work::thread) {
             Work::thread = std::make_unique<std::thread>(Work::work);
         }
     }
-    
-    if(not last_source)
-        last_source = video;
     
     switch (state) {
         case State::LOAD: {
@@ -2389,7 +2472,7 @@ void Work::set_state(pv::File* video, State state) {
     Work::state() = state;
 }
 
-void draw(pv::File& video, IMGUIBase* window, gui::DrawStructure& base) {
+void draw(const std::shared_ptr<pv::File>& video, IMGUIBase* window, gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     

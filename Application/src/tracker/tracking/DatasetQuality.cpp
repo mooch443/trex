@@ -295,11 +295,11 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     float travelled = 0;
     
     long_t number_frames = 0;
-    bool debug = false;
+    //bool debug = false;
     
     auto manually_approved = FAST_SETTING(manually_approved);
-    if(manually_approved.find(_consec.start.get()) != manually_approved.end())
-        debug = true;
+    //if(manually_approved.find(_consec.start.get()) != manually_approved.end())
+    //    debug = true;
     
     FrameRange consec(Range<Frame_t>({}, {}));
     auto it = std::lower_bound(fish->frame_segments().begin(), fish->frame_segments().end(), _consec.start, [](const auto& ptr, Frame_t frame) {

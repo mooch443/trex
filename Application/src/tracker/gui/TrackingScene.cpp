@@ -330,8 +330,8 @@ void TrackingScene::activate() {
     //! Stages
     _data = std::unique_ptr<Data>{
         new Data{
-            Image::Make(_state->video.average()),
-            _state->video
+            Image::Make(_state->video->average()),
+            *_state->video
         }
     };
     
@@ -374,7 +374,9 @@ void TrackingScene::deactivate() {
             _data->_background->set_strict(false);
     }
     
+    Categorize::Work::terminate_prediction() = true;
     WorkProgress::stop();
+    Categorize::Work::terminate_prediction() = false;
     
     if(_data)
         _data->dynGUI.clear();
@@ -391,7 +393,7 @@ void TrackingScene::deactivate() {
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex) {
-    if(frameIndex <= _state->video.length()
+    if(frameIndex <= _state->video->length()
        && GUI_SETTINGS(gui_frame) != frameIndex)
     {
         SETTING(gui_frame) = frameIndex;
@@ -425,7 +427,7 @@ void TrackingScene::update_run_loop() {
     if(_data->_recorder.recording()) {
         index += 1_f;
         
-        if(auto L = _state->video.length();
+        if(auto L = _state->video->length();
            index >= L) 
         {
             index = L.try_sub(1_f);
@@ -439,7 +441,7 @@ void TrackingScene::update_run_loop() {
         double advances = _data->_time_since_last_frame * frame_rate;
         if(advances >= 1) {
             index += Frame_t(uint(advances));
-            if(auto L = _state->video.length();
+            if(auto L = _state->video->length();
                index >= L)
             {
                 index = L.try_sub(1_f);
@@ -465,9 +467,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
     auto coords = FindCoord::get();
     
     if(not _data->_cache) {
-        _data->_cache = std::make_unique<GUICache>(&graph, &_state->video);
+        _data->_cache = std::make_unique<GUICache>(&graph, _state->video);
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
-        _data->_bowl->set_video_aspect_ratio(_state->video.size().width, _state->video.size().height);
+        _data->_bowl->set_video_aspect_ratio(_state->video->size().width, _state->video->size().height);
         _data->_bowl->fit_to_screen(coords.screen_size());
         
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
@@ -857,14 +859,21 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 });
             }),
             ActionFunc("categorize", [this](Action){
-                Categorize::show(&_state->video,
+                _state->_controller->_busy = true;
+                Categorize::show(_state->video,
                     [this](){
+                        _state->_controller->_busy = false;
                         if(SETTING(auto_quit))
                             _state->_controller->auto_quit(SceneManager::getInstance().gui_task_queue());
                         //GUI::instance()->auto_quit();
                     },
-                    [](const std::string& text){
-                        print(text);
+                    [this](const std::string& text, double percent){
+                        if(percent < 0) {
+                            _state->_controller->_busy = false;
+                            return;
+                        }
+                        print(text.c_str());
+                        _state->_controller->_current_percent = percent;
                         //GUI::instance()->set_status(text);
                     }
                 );
@@ -1011,7 +1020,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 return variables;
             }),
             
-            VarFunc("primary_selection", [this](const VarProps& props) -> sprite::Map& {
+            VarFunc("primary_selection", [this](const VarProps&) -> sprite::Map& {
                 if(not _data)
                     throw InvalidArgumentException("_data not set.");
                 

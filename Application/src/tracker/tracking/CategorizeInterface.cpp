@@ -38,6 +38,8 @@ public:
     void set_sample(const Sample::Ptr& sample);
     void update_scale();
     
+    void copy_sample_to(size_t index);
+    
     //static void receive_prediction_results(const LearningTask& task);
     
     void update(float s);
@@ -335,6 +337,46 @@ void Cell::update_scale() {
     }
 }
 
+void Cell::copy_sample_to(size_t index) {
+    if(not _sample)
+        return;
+    
+    auto &input = _sample->_images.at(index);
+    
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+        if(not _image->source()
+           || _image->source()->cols != input->cols
+           || _image->source()->rows != input->rows
+           || _image->source()->dims != 4)
+        {
+            _image->set_source(Image::Make(input->rows,
+                                           input->cols,
+                                           4));
+        }
+        
+        auto mat = _image->source()->get();
+        if(input->dims == 1) {
+            convert_from_r3g3b2<4, 1, true>(input->get(), mat);
+            _image->updated_source();
+        } else
+            FormatWarning("Illegal format (", input->dims," channels) for r3g3b2 image.");
+        
+    } else {
+        _image->update_with(*input);
+    }
+    
+    if(FAST_SETTING(track_background_subtraction)) {
+        auto ptr = _image->source();
+        std::transform(ptr->data(), ptr->data() + ptr->size(), ptr->data(),
+                       [ s = ptr->data(), pos = _sample->_positions.at(index)](uchar& v) -> uchar
+                       {
+            return 255 - v;
+        });
+        
+        _image->updated_source();
+    }
+}
+
 void Cell::set_sample(const Sample::Ptr &sample) {
     if(sample != _sample)
         _max_id = -1;
@@ -345,7 +387,8 @@ void Cell::set_sample(const Sample::Ptr &sample) {
                   _image->source()->data() + _image->source()->size(),
                   0);
     } else {
-        _image->update_with(*_sample->_images.front());
+        copy_sample_to(0);
+        
         _animation_time = 0;
         _animation_index = 0;
     }
@@ -414,21 +457,16 @@ void Row::update(DrawStructure& base, double dt) {
                     cell._animation_time = 0;
                 }
                 
-                auto &ptr = cell._sample->_images.at(cell._animation_index);
+                cell.copy_sample_to(cell._animation_index);
+                /*auto &ptr = cell._sample->_images.at(cell._animation_index);
                 Image inverted(ptr->rows, ptr->cols, 1);
                 std::transform(ptr->data(), ptr->data() + ptr->size(), inverted.data(),
                     [&ptr, s = ptr->data(), pos = cell._sample->_positions.at(cell._animation_index)](uchar& v) -> uchar
                     {
-                        /*auto d = std::distance(s, &v);
-                        auto x = d % ptr->cols;
-                        auto y = (d - x) / ptr->cols;
-                        auto bg = Tracker::instance()->background();
-                        if(bg->bounds().contains(Vec2(x+pos.x, y+pos.y)))
-                            return saturate((int)Tracker::instance()->background()->color(x + pos.x, y + pos.y) - (int)v);*/
                         return 255 - v;
                     });
                 
-                cell._image->update_with(std::move(inverted));
+                cell._image->update_with(std::move(inverted));*/
                 cell.update_scale();
                 cell._block->auto_size(Margin{0, 0});
             }
@@ -478,46 +516,39 @@ void Interface::clear_probabilities() {
 }
 
 void Interface::clear_rows() {
-    auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
-    if(Interface::get().layout.stage()) {
-        gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
-    }
-    
     for(auto &row : Row::rows()) {
         row.clear();
     }
-}
-
-void Interface::reset() {
-    std::lock_guard g(Work::recv_mutex());
+    
+    /*std::lock_guard g(Work::recv_mutex());
     for(auto &row : Row::rows()) {
+        size_t i = 0;
         for(auto &cell : row._cells) {
             if(cell._sample) {
                 cell._sample->_probabilities.clear();
                 cell._sample->_requested = false;
             }
-            cell.set_sample(nullptr);
+            row.update(i++, nullptr);
         }
-    }
+    }*/
 }
 
-void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
-    static double R = 0, elap = 0;
-    static Timer timer;
-    //R += RADIANS(100) * timer.elapsed();
-    elap += timer.elapsed();
+void Interface::reset() {
+    _initialized = false;
+    _asked = false;
+}
 
-    static bool initialized = false;
-    if (!initialized) {
+void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
+    if (!_initialized) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
         //Work::start_learning();
 
-        elap = 0;
-        initialized = true;
+        _initialized = true;
+        clear_rows();
 
         _window = window;
-        _video = &video; 
+        _video = std::move(video);
 
         layout.set_policy(gui::VerticalLayout::CENTER);
         layout.set_origin(Vec2(0.5));
@@ -529,29 +560,38 @@ void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
             SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.6)
             );
 
-        layout.add_child(stext);
+        std::vector<Layout::Ptr> objects{stext};
 
-        apply->on_click([video = _video](auto) {
-            Work::set_state(video, Work::State::APPLY);
+        apply->on_click([this](auto) {
+            auto lock = _video.lock();
+            if(lock)
+                Work::set_state(lock, Work::State::APPLY);
         });
-        close->on_click([video = _video](auto) {
-            Work::set_state(video, Work::State::NONE);
-            });
-        load->on_click([video = _video](auto) {
-            Work::set_state(video, Work::State::LOAD);
-            });
-        restart->on_click([video = _video](auto) {
+        close->on_click([this](auto) {
+            Work::set_state(_video.lock(), Work::State::NONE);
+        });
+        load->on_click([this](auto) {
+            auto lock = _video.lock();
+            if(lock)
+                Work::set_state(lock, Work::State::LOAD);
+        });
+        restart->on_click([this](auto) {
             Work::learning() = false;
             Work::learning_variable().notify_all();
             DataStore::clear();
             //PythonIntegration::quit();
 
-            Work::set_state(video, Work::State::SELECTION);
+            auto lock = _video.lock();
+            if(lock)
+                Work::set_state(lock, Work::State::SELECTION);
         });
-        reapply->on_click([video = _video](auto) {
+        reapply->on_click([this](auto) {
             DataStore::clear();
             Categorize::clear_labels();
-            Work::set_state(video, Work::State::APPLY);
+            
+            auto lock = _video.lock();
+            if(lock)
+                Work::set_state(lock, Work::State::APPLY);
         });
         train->on_click([](auto) {
             if (Work::state() == Work::State::SELECTION) {
@@ -559,19 +599,10 @@ void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
             }
             else
                 FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
-            });
-        shuffle->on_click([](auto) {
-            auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
-            if(Interface::get().layout.stage()) {
-                gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
-            }
-            
-            for (auto& row : Row::rows()) {
-                for (size_t i = 0; i < row._cells.size(); ++i) {
-                    row.update(i, retrieve());
-                }
-            }
-            });
+        });
+        shuffle->on_click([this](auto) {
+            reshuffle();
+        });
 
         apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
         close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
@@ -588,8 +619,8 @@ void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
              */
             if (row.empty()) {
                 row.init(per_row);
-                layout.add_child(Layout::Ptr(row.layout));
             }
+            objects.emplace_back(row.layout);
 
             /**
              * After ensuring we do have rows, fill them with new samples:
@@ -600,22 +631,31 @@ void Interface::init(pv::File& video, IMGUIBase* window, DrawStructure& base) {
             }
         }
 
-        if (!layout.empty() && layout.children().back() != buttons.get()) {
+        //if (!layout.empty() && layout.children().back() != buttons.get()) {
             desc_text.to<StaticText>()->set_default_font(Font(0.6));
             desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
 
-            layout.add_child(desc_text);
-            layout.add_child(buttons);
-        }
+            objects.emplace_back(desc_text);
+            objects.emplace_back(buttons);
+        //}
 
+        layout.set_children(std::move(objects));
         layout.auto_size();
         layout.set_z_index(1);
+        
+        reshuffle();
     }
-
-    timer.reset();
 }
 
-void Interface::draw(pv::File& video, IMGUIBase* window, DrawStructure& base) {
+void Interface::reshuffle() {
+    for (auto& row : Row::rows()) {
+        for (size_t i = 0; i < row._cells.size(); ++i) {
+            row.update(i, retrieve());
+        }
+    }
+}
+
+void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, DrawStructure& base) {
     {
         std::lock_guard guard(DataStore::mutex());
         /*if(_labels.empty()) {
@@ -625,9 +665,8 @@ void Interface::draw(pv::File& video, IMGUIBase* window, DrawStructure& base) {
         }*/
 
         if (FAST_SETTING(categories_ordered).empty()) {
-            static bool asked = false;
-            if (!asked) {
-                asked = true;
+            if (!_asked) {
+                _asked = true;
 
                 using namespace gui;
                 static Layout::Ptr textfield;

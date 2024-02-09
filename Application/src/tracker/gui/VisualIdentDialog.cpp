@@ -36,7 +36,11 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         WorkProgress::set_item_abortable(true);
 
         try {
-            Accumulation acc(controller->_video, window, load);
+            auto video = controller->_video.lock();
+            if(not video)
+                throw SoftException("There was no video open.");
+            
+            Accumulation acc(std::move(video), window, load);
             //if(current.valid())
             //    current.get();
 
@@ -301,7 +305,11 @@ void VIController::export_tracks() {
         _analysis->set_paused(true).get();
     }
     
-    track::export_data(*_video, *_tracker, {}, {});
+    auto video = _video.lock();
+    if(video)
+        track::export_data(*video, *_tracker, {}, {});
+    else
+        throw InvalidArgumentException("There was no video to export from.");
     
     if(not before && _analysis)
         _analysis->set_paused(false).get();

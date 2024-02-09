@@ -37,16 +37,19 @@ struct Interface {
     Layout::Ptr buttons = Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{});
 
     IMGUIBase *_window{nullptr};
-    pv::File *_video{nullptr};
+    std::weak_ptr<pv::File> _video;
+    bool _initialized{false};
+    bool _asked{false};
 
     static Interface& get();
 
-    void draw(pv::File& video, IMGUIBase*, DrawStructure& base);
+    void draw(const std::weak_ptr<pv::File>& video, IMGUIBase*, DrawStructure& base);
     void clear_probabilities();
-    void clear_rows();
     void reset();
+    void reshuffle();
 private:
-    void init(pv::File& video, IMGUIBase*, DrawStructure& base);
+    void init(std::weak_ptr<pv::File> video, IMGUIBase*, DrawStructure& base);
+    void clear_rows();
 };
 
 

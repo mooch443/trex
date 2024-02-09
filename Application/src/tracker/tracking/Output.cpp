@@ -1184,7 +1184,7 @@ namespace Output {
         
         if(!GlobalSettings::is_runtime_quiet()) {
             DebugHeader("READING PROGRAM STATE");
-            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
+            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time.to_date_string()," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
             print("Generated with command-line: ",_header.cmd_line);
         }
     }

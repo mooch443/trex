@@ -421,7 +421,7 @@ namespace track {
         for(size_t i=0; i<N; ++i)
             unassigned.push_back((long_t)i);
         
-        size_t assigned = 0;
+        //size_t assigned = 0;
         
 #define pdist(A, b) sqdistance(A, entry_points[b].interp.front())
 #define rpdist(A, b) sqdistance(A, entry_points[b].interp.back())

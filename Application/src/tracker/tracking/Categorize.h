@@ -193,6 +193,7 @@ struct DataStore {
     
     static Composition composition();
     static void clear();
+    static void clear_cache();
     static Label::Ptr label(Frame_t, pv::bid);
     //! does not lock the mutex (assumes it is locked)
     static int _label_unsafe(Frame_t, pv::bid);
@@ -252,7 +253,7 @@ enum class State {
 };
 
 State& state();
-void set_state(pv::File* video_source, State);
+void set_state(const std::shared_ptr<pv::File>& video_source, State);
 void add_task(LearningTask&&);
 
 /*
@@ -261,9 +262,10 @@ void add_task(LearningTask&&);
 std::atomic<float>& best_accuracy();
 std::mutex& recv_mutex();
 
-bool& initialized();
+std::atomic<bool>& initialized();
 std::atomic_bool& terminate();
 std::atomic_bool& learning();
+std::atomic<bool>& terminate_prediction();
 
 inline constexpr float good_enough() {
     return 0.75;
@@ -276,9 +278,9 @@ Sample::Ptr front_sample();
 
 }
 
-void show(pv::File* video, const std::function<void()>& auto_quit, const std::function<void(std::string)>& set_status);
+void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit, const std::function<void(std::string, double)>& set_status);
 void hide();
-void draw(pv::File&, gui::IMGUIBase*, gui::DrawStructure&);
+void draw(const std::shared_ptr<pv::File>&, gui::IMGUIBase*, gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();

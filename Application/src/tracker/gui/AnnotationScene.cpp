@@ -331,7 +331,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 };
 
                 context.variables = {
-                    VarFunc("window_size", [this](const VarProps&) -> Vec2 {
+                    VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();
                     }),
                     VarFunc("status", [this](const VarProps&) -> int 
@@ -410,7 +410,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             .create = [this](LayoutContext& layout) -> Layout::Ptr {
                 std::shared_ptr<Skelett> ptr;
                 auto points = layout.get<std::vector<Pose::Point>>(std::vector<Pose::Point>{}, "points");
-                auto color = layout.textClr;
+                //auto color = layout.textClr;
                 auto line = layout.line;
                 auto fill = layout.fill;
 

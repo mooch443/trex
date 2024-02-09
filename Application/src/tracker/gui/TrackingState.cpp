@@ -38,10 +38,10 @@ void VIControllerImpl::on_apply_done() {
     _busy = false;
 }
 
-VIControllerImpl::VIControllerImpl(pv::File& video, TrackingState& scene)
+VIControllerImpl::VIControllerImpl(std::weak_ptr<pv::File> video, TrackingState& scene)
     : _scene(&scene)
 {
-    _video= &video;
+    _video = std::move(video);
     _tracker = scene.tracker.get();
     _analysis = &scene.analysis;
 }
@@ -49,8 +49,8 @@ VIControllerImpl::VIControllerImpl(pv::File& video, TrackingState& scene)
 static constexpr Frame_t cache_size{Frame_t::number_t(10)};
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
-  : video(file::DataLocation::parse("output", SETTING(filename).value<file::Path>()), pv::FileMode::READ),
-    tracker(std::make_unique<track::Tracker>(Image::Make(this->video.average()), this->video)),
+  : video(std::make_shared<pv::File>(file::DataLocation::parse("output", SETTING(filename).value<file::Path>()), pv::FileMode::READ)),
+    tracker(std::make_unique<track::Tracker>(Image::Make(this->video->average()), *this->video)),
     analysis(
       {
          [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
@@ -98,6 +98,7 @@ TrackingState::~TrackingState() {
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();
     Categorize::terminate();
+    Categorize::clear_labels();
 #endif
     
     analysis.terminate();
@@ -125,8 +126,8 @@ bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
     Timer timer;
     try {
         pv::Frame frame;
-        video.read_frame(frame, idx);
-        Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
+        video->read_frame(frame, idx);
+        Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, video->header().resolution, false);
 
         ptr->set_loading_time(timer.elapsed());
     }
@@ -170,7 +171,7 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
         static Timing after_track("Analysis::after_track", 10);
         TakeTiming after_trackt(after_track);
         
-        if(idx + 1_f == video.length()
+        if(idx + 1_f == video->length()
            || idx + 1_f > Tracker::analysis_range().end())
         {
             on_tracking_done();
@@ -183,7 +184,7 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
         }
         
         //print(_data->tracker->active_individuals(idx));
-        _stats.update(idx, range, video.length(), tracker->statistics().at(idx).number_fish, idx == range.end());
+        _stats.update(idx, range, video->length(), tracker->statistics().at(idx).number_fish, idx == range.end());
     }
 
     static Timing procpush("Analysis::process::unused.push", 10);
@@ -241,7 +242,7 @@ void TrackingState::init_video() {
     bool executed_a_settings{false};
     thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());*/
     
-    if(video.header().version <= pv::Version::V_2) {
+    if(video->header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
         
         file::Path settings_file = file::DataLocation::parse("settings");
@@ -259,22 +260,22 @@ void TrackingState::init_video() {
     print("exclude_parameters = ", exclude_parameters);
 
     try {
-        if (!video.header().metadata.empty()) {
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata, &combined, exclude_parameters);
+        if (!video->header().metadata.empty()) {
+            sprite::parse_values(GlobalSettings::map(), video->header().metadata, &combined, exclude_parameters);
         }
     } catch(const UtilsException& e) {
         // dont do anything, has been printed already
     }*/
     
-    SETTING(video_size) = Size2(video.size());
-    SETTING(video_mask) = video.has_mask();
-    SETTING(video_length) = uint64_t(video.length().get());
-    SETTING(video_info) = std::string(video.get_info());
+    SETTING(video_size) = Size2(video->size());
+    SETTING(video_mask) = video->has_mask();
+    SETTING(video_length) = uint64_t(video->length().get());
+    SETTING(video_info) = std::string(video->get_info());
     
     if(SETTING(frame_rate).value<uint32_t>() <= 0) {
         FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
-        video.generate_average_tdelta();
-        SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
+        video->generate_average_tdelta();
+        SETTING(frame_rate) = (uint32_t)max(1, int(video->framerate()));
     }
     
     Output::Library::InitVariables();
@@ -334,7 +335,7 @@ void TrackingState::init_video() {
             
             while(not currentID.load().valid()
                   || (currentID.load() < max(range.start(), endframe) + cache_size
-                      && currentID.load() + 1_f < video.length()))
+                      && currentID.load() + 1_f < video->length()))
             {
                 std::scoped_lock lock(_task_mutex);
                 if(unused.empty())
@@ -541,7 +542,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
     state_visible = true;
 
     auto fn = [this, from, gui]() {
-        bool before = analysis.is_paused();
+        //bool before = analysis.is_paused();
         analysis.set_paused(true).get();
         
         track::Categorize::DataStore::clear();
@@ -563,7 +564,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                 size_t N = 0;
                 
                 Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) -> bool {
-                    video.read_frame(f, k);
+                    video->read_frame(f, k);
                     auto blobs = f.get_blobs();
                     N += v.size();
                     
@@ -602,9 +603,9 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                     print("fixing...");
                     WorkProgress::set_item("Fixing old blob_ids...");
                     WorkProgress::set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
-                    auto old_id_from_position = [](Vec2 center) {
+                    /*auto old_id_from_position = [](Vec2 center) {
                         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
-                    };
+                    };*/
                     /*auto old_id_from_blob = [&old_id_from_position](const pv::Blob &blob) -> uint32_t {
                         if(!blob.lines() || blob.lines()->empty())
                             return -1;
@@ -671,7 +672,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                                 
                             } else {
                                 const pv::CompressedBlob* found = nullptr;
-                                video.read_frame(f, k);
+                                video->read_frame(f, k);
                                 for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {
@@ -762,7 +763,10 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
             
             if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<Range<long_t>>() == Range<long_t>{-1,-1})
             {
-                SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
+                SETTING(analysis_range) = Range<long_t>{
+                    narrow_cast<long_t>(header.analysis_range.start), 
+                    narrow_cast<long_t>(header.analysis_range.end)
+                };
             }
             
             WorkProgress::add_queue("", [](){

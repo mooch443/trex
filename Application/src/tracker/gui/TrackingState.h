@@ -31,7 +31,7 @@ struct VIControllerImpl : public vident::VIController {
     void on_apply_update(double percent) override;
     void on_apply_done() override;
     
-    VIControllerImpl(pv::File& video, TrackingState& scene);
+    VIControllerImpl(std::weak_ptr<pv::File> video, TrackingState& scene);
 };
 
 struct TrackingState {
@@ -43,7 +43,7 @@ struct TrackingState {
     /**
      * @brief Represents the video file being analyzed.
      */
-    pv::File video;
+    std::shared_ptr<pv::File> video;
     
     /**
      * @brief Tracker used for tracking objects/entities in the video.

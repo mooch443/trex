@@ -553,7 +553,7 @@ void Individual::register_delete_callback(void* ptr, const std::function<void(In
 #define KB(x)   ((size_t) (x) << 10)
 #define MB(x)   ((size_t) (x) << 20)
 
-void Individual::add_manual_match(Frame_t frameIndex) {
+void Individual::add_manual_match(Frame_t) {
     //assert(frameIndex <= _endFrame && frameIndex >= _startFrame);
     //_manually_matched.insert(frameIndex);
 }

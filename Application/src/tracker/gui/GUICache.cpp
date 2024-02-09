@@ -32,30 +32,34 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         return cache() != nullptr;
     }
 
-    GUICache::GUICache(DrawStructure* graph, pv::File* video)
+    GUICache::GUICache(DrawStructure* graph, std::weak_ptr<pv::File> video)
         : _pool(saturate(cmn::hardware_concurrency(), 1u, 5u), "GUICache::_pool"),
             _current_processed_frame(std::make_unique<PPFrame>()),
             _video(video), _graph(graph),
             _preloader([this](Frame_t frameIndex) -> FramePtr {
                 FramePtr ptr;
+                auto video = _video.lock();
+                if(not video)
+                    return nullptr;
+                
                 try {
                     if(frameIndex.valid()
-                       && _video->is_read_mode())
+                       && video->is_read_mode())
                     {
-                        if(frameIndex >= _video->length())
+                        if(frameIndex >= video->length())
                             return nullptr; // past the end
                         
                         pv::Frame frame;
-                        _video->read_frame(frame, frameIndex);
+                        video->read_frame(frame, frameIndex);
                         
                         ptr = buffers.get(source_location::current());
                         ptr->clear();
                         
-                        Tracker::instance()->preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, _video->header().resolution);
+                        Tracker::instance()->preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, video->header().resolution);
                     }
                     
                 } catch(...) {
-                    FormatExcept("Cannot load frame ", frameIndex, " from file ", _video->filename());
+                    FormatExcept("Cannot load frame ", frameIndex, " from file ", video->filename());
                 }
                 
                 return ptr;
@@ -386,16 +390,25 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         
         auto& _tracker = *Tracker::instance();
         frame_idx = frameIndex;
-        _video_resolution = _video->size();
+        
+        {
+            auto lock = _video.lock();
+            if(lock)
+                _video_resolution = lock->size();
+        }
         
         if(not GUI_SETTINGS(nowindow)) {
             //! Calculate average pixel values. This is not a high-priority action, especially if the GUI is disabled. Only used for `gui_equalize_blob_histograms`.
             std::call_once(_percentile_once, [this](){
                 percentile_ptr = std::make_unique<std::thread>([this](){
                     cmn::set_thread_name("percentile_thread");
-                    print("open for writing: ", _video->is_write_mode());
-                    if(_video->is_read_mode()) {
-                        auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
+                    auto video = _video.lock();
+                    if(not video)
+                        return; // abort! video does not exist
+                    
+                    print("open for writing: ", video->is_write_mode());
+                    if(video->is_read_mode()) {
+                        auto percentiles = video->calculate_percentiles({0.05f, 0.95f});
                         
                         if(_graph) {
                             auto guard = GUI_LOCK(_graph->lock());

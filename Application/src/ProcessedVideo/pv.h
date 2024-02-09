@@ -410,6 +410,16 @@ namespace pv {
         virtual void _write_header() override;
         virtual void _read_header() override;
         void _update_global_settings();
+        
+    protected:
+        // declared here so memory doesnt have to be freed/allocated all the time
+        // when reading a frame and we can make use of the vectors existing capacity
+        DataPackage frame_pixels;
+        std::vector<Header::line_type> frame_mask_cache{cmn::NoInitializeAllocator<Header::line_type>{}};
+        std::vector<LegacyShortHorizontalLine> frame_mask_legacy{cmn::NoInitializeAllocator<LegacyShortHorizontalLine>{}};
+        DataPackage frame_compressed_block, frame_uncompressed_block;
+        friend class pv::Frame;
+        //
     };
     
     //! Tries to find irregular frames (timestamp smaller than timestamp from previous frame)
