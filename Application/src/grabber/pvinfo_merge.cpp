@@ -161,7 +161,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         "meta_number_merged_videos",
         "frame_rate",
         "meta_video_scale",
-        "meta_classes",
+        "detect_classes",
         "meta_encoding"
     };
     

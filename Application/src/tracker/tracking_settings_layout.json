@@ -525,6 +525,18 @@
                     },
                     {
                         "type":"button",
+                        "text":"<sym>⭯</sym> Reset",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[100,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "reset_settings"
+                    },
+                    {
+                        "type":"button",
                         "text":"Convert <sym>⮞</sym>",
                         "fill":[40,40,40,220],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",

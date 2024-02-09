@@ -168,7 +168,7 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     auto& boxes = result.boxes();
     const coord_t w = max(0, r3.cols - 1);
     const coord_t h = max(0, r3.rows - 1);
-    const auto detect_classes = SETTING(detect_classes).value<std::vector<uint8_t>>();
+    const auto detect_only_classes = SETTING(detect_only_classes).value<std::vector<uint8_t>>();
 
     //! decide on whether to use masks (if available), or bounding boxes
     //! if masks are not available. for the boxes we simply copy over all
@@ -177,8 +177,8 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     if (result.masks().empty()) {
         for (size_t i = 0; i < N_rows; ++i) {
             auto& row = boxes[i];
-            if (not detect_classes.empty()
-                && not contains(detect_classes, (uint8_t)row.clid))
+            if (not detect_only_classes.empty()
+                && not contains(detect_only_classes, (uint8_t)row.clid))
             {
                 continue;
             }
@@ -225,8 +225,8 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     
     for (size_t i = 0; i < N_rows; ++i) {
         auto& row = boxes[i];
-        if (not detect_classes.empty()
-            && not contains(detect_classes, (uint8_t)row.clid))
+        if (not detect_only_classes.empty()
+            && not contains(detect_only_classes, (uint8_t)row.clid))
         {
             continue;
         }
@@ -282,7 +282,7 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
     const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns) 
 {
     const auto mode = Background::image_mode();
-    const auto detect_classes = SETTING(detect_classes).value<std::vector<uint8_t>>();
+    const auto detect_only_classes = SETTING(detect_only_classes).value<std::vector<uint8_t>>();
 
     const Vec2* ptr = (const Vec2*)mask_points.data();
     const size_t N = mask_points.size() / 2u;
@@ -352,8 +352,8 @@ void Yolo8::receive(SegmentationData& data, Vec2 scale_factor, const std::span<f
         std::vector<cv::Point> points{ integer.data() + mask_index, integer.data() + mask_index + mask_Ns[i] };
         mask_index += mask_Ns[i];
 
-        if (not detect_classes.empty()
-            && not contains(detect_classes, row.clid))
+        if (not detect_only_classes.empty()
+            && not contains(detect_only_classes, row.clid))
         {
             continue;
         }

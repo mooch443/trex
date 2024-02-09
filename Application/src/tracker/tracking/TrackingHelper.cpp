@@ -377,6 +377,7 @@ void TrackingHelper::apply_matching() {
     
     try {
         auto &optimal = graph.get_optimal_pairing(false, match_mode);
+        PPFrame::Log("Got pairing = ", optimal.pairings);
         
         if(match_mode != default_config::matching_mode_t::approximate) {
             /*
@@ -441,6 +442,7 @@ void TrackingHelper::apply_matching() {
 #endif
         
         auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
+        PPFrame::Log("Got backup pairing = ", optimal.pairings);
         
         _manager.assign<false>(AssignInfo{
             .frame = &frame,

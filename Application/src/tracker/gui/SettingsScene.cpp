@@ -2,7 +2,7 @@
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
-//#include <misc/RecentItems.h>
+#include <misc/RecentItems.h>
 //#include <gui/types/Dropdown.h>
 //#include <gui/types/Checkbox.h>
 #include <gui/dyn/Action.h>
@@ -100,6 +100,26 @@ struct SettingsScene::Data {
                         
                         auto value = action.last();
                         GlobalSettings::get(parm).get().set_value_from_string(value);
+                    }),
+                    ActionFunc("reset_settings", [](auto){
+                        SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
+                            graph.dialog([](Dialog::Result result) mutable {
+                                if(result == Dialog::Result::OKAY) {
+                                    /// resets settings that come from the recentitems
+                                    /// config array:
+                                    sprite::Map cleared;
+                                    
+                                    SETTING(filename).get().copy_to(&cleared);
+                                    SETTING(source).get().copy_to(&cleared);
+                                    SETTING(output_prefix).get().copy_to(&cleared);
+                                    SETTING(output_dir).get().copy_to(&cleared);
+                                    SETTING(detect_type).get().copy_to(&cleared);
+                                    
+                                    settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), default_config::TRexTask_t::none, SETTING(detect_type), {}, cleared);
+                                }
+                            }, "This will reset all settings you have made here. Everything that is located inside <cyan><c>.settings</c></cyan> files or the video file itself (e.g. <cyan><c>frame_rate</c></cyan>) will remain. Are you sure?", "Reset settings", "Reset", "Cancel");
+                            
+                        });
                     }),
                     ActionFunc("go-back", [this](auto){
                         if(_last_layouts.empty()) {
@@ -445,7 +465,7 @@ void SettingsScene::activate() {
 
             file::PathArray source = GlobalSettings::map().at("source");
                 
-            settings::ExtendableVector exclude{
+            ExtendableVector exclude{
                 "output_prefix",
                 "filename",
                 "source",

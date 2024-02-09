@@ -613,19 +613,19 @@ void Tracker::prefilter(
     std::vector<pv::BlobPtr> ptrs;
     auto track_only_categories = FAST_SETTING(track_only_categories);
     auto track_label_confidence_threshold = FAST_SETTING(track_label_confidence_threshold);
-    const auto meta_classes = GlobalSettings::has("meta_classes")
-                        ? SETTING(meta_classes).value<std::vector<std::string>>()
+    const auto detect_classes = GlobalSettings::has("detect_classes")
+                        ? SETTING(detect_classes).value<std::vector<std::string>>()
                         : std::vector<std::string>{};
-    [[maybe_unused]] auto get_class_name = [&meta_classes](size_t i) -> std::string {
-        if(i < meta_classes.size())
-            return meta_classes[i];
+    [[maybe_unused]] auto get_class_name = [&detect_classes](size_t i) -> std::string {
+        if(i < detect_classes.size())
+            return detect_classes[i];
         return Meta::toStr(i);
     };
-    auto get_class_id = [&meta_classes](const std::string& name)
+    auto get_class_id = [&detect_classes](const std::string& name)
         -> std::optional<uint8_t>
     {
-        for(size_t i=0, N=meta_classes.size(); i<N; ++i) {
-            if(meta_classes[i] == name)
+        for(size_t i=0, N=detect_classes.size(); i<N; ++i) {
+            if(detect_classes[i] == name)
                 return narrow_cast<uint8_t>(i);
         }
         return std::nullopt;

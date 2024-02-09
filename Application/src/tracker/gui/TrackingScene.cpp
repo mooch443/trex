@@ -389,6 +389,30 @@ void TrackingScene::deactivate() {
     _state = nullptr;
     _data = nullptr;
     
+    auto config = default_config::generate_delta_config();
+    for(auto &[key, value] : config.map) {
+        print(" * ", *value);
+    }
+    print();
+    for(auto &key : GlobalSettings::current_defaults_with_config().keys()) {
+        auto value = GlobalSettings::map().at(key);
+        if(/*contains(config.excluded.toVector(), key)
+           && GlobalSettings::access_level(key) < AccessLevelType::LOAD*/
+           is_in(key, "filename", "source", "output_dir", "output_prefix"))
+        {
+            print(" . ", value.get());
+            value.get().copy_to(&GlobalSettings::current_defaults_with_config());
+            continue;
+        }
+        //print(" - ", value.get());
+        GlobalSettings::current_defaults_with_config().erase(key);
+    }
+    
+    //GlobalSettings::current_defaults_with_config() = {}
+    
+    config.write_to(GlobalSettings::current_defaults_with_config());
+    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    
     SETTING(filename) = file::Path();
     SETTING(source) = file::PathArray();
 }
@@ -656,7 +680,10 @@ void TrackingScene::_draw(DrawStructure& graph) {
         }
         
         _data->_bowl->fit_to_screen(coords.screen_size());
-        _data->_bowl->set_target_focus(targets);
+        if(GUI_SETTINGS(gui_auto_scale_focus_one))
+            _data->_bowl->set_target_focus(targets);
+        else
+            _data->_bowl->set_target_focus({});
         _data->_zoom_dirty = false;
         _data->_cache->updated_tracking();
     }

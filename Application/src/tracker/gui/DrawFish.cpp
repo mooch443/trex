@@ -302,7 +302,7 @@ Fish::~Fish() {
         _skelett->set_name(Meta::toStr(_id.color()));
         
         _skelett->set_pose(_average_pose);
-        _skelett->set_skeleton(GUI_SETTINGS(meta_skeleton));
+        _skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
 
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
         

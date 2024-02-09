@@ -509,7 +509,7 @@ void load(file::PathArray source,
             "calculate_posture", true,
             "meta_encoding", meta_encoding_t::gray,
             "track_do_history_split", true,
-            "meta_classes", std::vector<std::string>{},
+            "detect_classes", std::vector<std::string>{},
             "individual_image_normalization", individual_image_normalization_t::posture
         };
         
@@ -581,7 +581,7 @@ void load(file::PathArray source,
                 {
                     /// can be ignored / no print-out since it would
                     /// not change anything
-                    //continue;
+                    continue;
                 }
                 print("// Not allowed to copy ", key, " from source map.");
                 continue;
@@ -632,6 +632,22 @@ void load(file::PathArray source,
                 //if(not contains(copy.toVector(), key))
                 {
                     //print("Updating ",combined.map.at(key));
+                    if(key == "filename"
+                       && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map)
+                           || (not combined.map.at(key).value<file::Path>().is_absolute()
+                               && combined.map.at(key).value<file::Path>() == file::find_basename(combined.map.at("source").value<file::PathArray>()))))
+                    {
+                        SETTING(filename) = file::Path();
+                        continue;
+                    }
+                    
+                    if(key == "output_dir"
+                       && combined.map.at(key).value<file::Path>() == file::find_parent( combined.map.at("source").value<file::PathArray>()))
+                    {
+                        SETTING(output_dir) = file::Path();
+                        continue;
+                    }
+                    
                     if(not is_in(key, "gui_interface_scale"))
                         combined.map.at(key).get().copy_to(&GlobalSettings::map());
                 }

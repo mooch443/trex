@@ -926,7 +926,7 @@ void Segmenter::reset(Frame_t frame) {
 }
 
 void Segmenter::setDefaultSettings() {
-    SETTING(detect_classes) = std::vector<uint8_t>{};
+    SETTING(detect_only_classes) = std::vector<uint8_t>{};
     SETTING(track_label_confidence_threshold) = SETTING(detect_conf_threshold).value<float>();
 }
 

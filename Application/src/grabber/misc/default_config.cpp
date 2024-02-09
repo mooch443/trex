@@ -183,7 +183,7 @@ namespace default_config {
         CONFIG("meta_video_size", Size2(), "Resolution of the original video.", LOAD);
         CONFIG("meta_video_scale", float(1), "Scale applied to the original video / footage.", LOAD);
         
-        static const auto meta_classes = std::vector<std::string>{
+        static const auto detect_classes = std::vector<std::string>{
             "person", "bicycle", "car", "motorcycle", "airplane",
             "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
             "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse",
@@ -198,7 +198,7 @@ namespace default_config {
             "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
             "scissors", "teddy bear", "hair drier", "toothbrush"
         };
-        CONFIG("meta_classes", meta_classes, "Class names for object classification in video during conversion.");
+        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
         CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", LOAD);
         
         CONFIG("mask_path", Path(""), "Path to a video file containing a mask to be applied to the video while recording. Only works for conversions.", STARTUP);
@@ -217,9 +217,9 @@ namespace default_config {
             "meta_conversion_time",
             "meta_video_scale",
             "meta_video_size",
-            "meta_classes",
+            "detect_classes",
             "meta_encoding",
-            "meta_skeleton",
+            "detect_skeleton",
 
             "frame_rate",
             "calculate_posture",

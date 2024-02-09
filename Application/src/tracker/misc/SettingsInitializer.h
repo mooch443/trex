@@ -12,78 +12,8 @@ namespace pv {
 }
 
 namespace cmn::settings {
-class ExtendableVector : public std::vector<std::string> {
-public:
-    // Inherit constructors
-    using std::vector<std::string>::vector;
 
-    // Overload the + operator
-    ExtendableVector operator+(const ExtendableVector& other) const {
-        ExtendableVector result(*this);  // Start with a copy of the current object
-        result.insert(result.end(), other.begin(), other.end());
-        result.clean();
-        return result;
-    }
-    
-    // Templated + operator to handle StringLike types
-    template<typename Container>
-        requires utils::StringLike<typename Container::value_type>
-    ExtendableVector operator+(const Container& other) const {
-        ExtendableVector result(*this);
-        for (const auto& element : other) {
-            if constexpr (std::is_array_v<std::remove_cvref_t<typename Container::value_type>>) {
-                // Handle C-style strings (char arrays) specifically
-                result.emplace_back(element, std::size(element) - 1);  // -1 to ignore null terminator
-            } else {
-                // Handle other string-like types
-                result.emplace_back(element);  // Convert to string and add
-            }
-        }
-        result.clean();
-        return result;
-    }
-    
-    // Templated += operator to handle StringLike types
-    template<typename Container>
-        requires utils::StringLike<typename Container::value_type>
-    ExtendableVector& operator+=(const Container& other) {
-        for (const auto& element : other) {
-            if constexpr (std::is_array_v<std::remove_cvref_t<typename Container::value_type>>) {
-                // Handle C-style strings (char arrays) specifically
-                emplace_back(element, std::size(element) - 1);  // -1 to ignore null terminator
-            } else {
-                // Handle other string-like types
-                emplace_back(element);  // Convert to string and add
-            }
-        }
-        clean();
-        return *this;
-    }
-    
-    void clean() {
-        std::set<std::string> unique;
-        for(auto it = begin(); it != end(); ) {
-            if(not unique.contains(*it)) {
-                unique.insert(*it);
-                ++it;
-            } else {
-                it = erase(it);
-            }
-        }
-    }
-    
-    // Method to get a const reference to the vector
-    const std::vector<std::string>& toVector() const {
-        return *this;
-    }
-    
-    std::string toStr() const {
-        auto set = std::set<std::string>{begin(), end()};
-        return Meta::toStr(set);
-    }
-};
-
-void load(file::PathArray source, 
+void load(file::PathArray source,
           file::Path filename,
           default_config::TRexTask task,
           track::detect::ObjectDetectionType_t type,

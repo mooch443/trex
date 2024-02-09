@@ -96,7 +96,11 @@ RecentItems RecentItems::read() {
                     
                     auto settings = key.at("settings");
                     for (auto& i : settings.items()) {
-                        auto key = i.key();
+                        std::string key = i.key();
+                        if(default_config::deprecations().contains(key)) {
+                            key = default_config::deprecations().at(key);
+                        }
+                        
                         auto value = Meta::fromStr<std::string>(i.value().dump());
                         /*if(key == "source") {
                             value = name;

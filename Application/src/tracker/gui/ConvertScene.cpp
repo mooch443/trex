@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -80,7 +80,7 @@ struct ConvertScene::Data {
     Frame_t last_frame;
     Timer timer;
     
-    void drawBlobs(Frame_t, const std::vector<std::string>& meta_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
+    void drawBlobs(Frame_t, const std::vector<std::string>& detect_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
     // Helper function to draw outlines
     void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
     void check_video_info(bool wait, std::string*);
@@ -427,12 +427,12 @@ void ConvertScene::activate()  {
     if(not _data)
         _data = std::make_unique<Data>();
 
-    _data->skelet = SETTING(meta_skeleton).value<Skeleton>();
+    _data->skelet = SETTING(detect_skeleton).value<Skeleton>();
     _data->callback = GlobalSettings::map().register_callbacks({
-        "meta_skeleton"
+        "detect_skeleton"
     }, [this](auto) {
         SceneManager::getInstance().enqueue([this](auto,auto&) {
-            _data->skelet = SETTING(meta_skeleton).value<Skeleton>();
+            _data->skelet = SETTING(detect_skeleton).value<Skeleton>();
             _data->_skeletts.clear();
         });
     });
@@ -574,7 +574,7 @@ uint64_t interleaveBits(const Vec2& pos) {
 
 void ConvertScene::Data::drawBlobs(
     Frame_t frameIndex,
-    const std::vector<std::string>& meta_classes, 
+    const std::vector<std::string>& detect_classes, 
     const Vec2&, Vec2, 
     const std::unordered_map<pv::bid, Identity>& visible_bdx, 
     bool dirty) 
@@ -639,13 +639,13 @@ void ConvertScene::Data::drawBlobs(
             //    print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
         }
         
-        auto cname = meta_classes.size() > assign.clid
-            ? meta_classes.at(assign.clid)
+        auto cname = detect_classes.size() > assign.clid
+            ? detect_classes.at(assign.clid)
             : ((assign.clid == size_t(-1)
                    ? (is_background_subtraction 
-                      ? (meta_classes.empty()
+                      ? (detect_classes.empty()
                            ? FAST_SETTING(individual_prefix)
-                           : meta_classes.front())
+                           : detect_classes.front())
                       : "<no prediction>")
                    : "<unknown:" + Meta::toStr(assign.clid) + ">"));
 
@@ -946,7 +946,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     }
     
     _last_mouse = graph.mouse_position();
-    const auto meta_classes = SETTING(meta_classes).value<std::vector<std::string>>();
+    const auto detect_classes = SETTING(detect_classes).value<std::vector<std::string>>();
 
     graph.wrap_object(*_bowl);
     _bowl->update_scaling();
@@ -1103,7 +1103,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
             return;
         }
 
-        drawBlobs(_current_data.frame.index(), meta_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
+        drawBlobs(_current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
     });
     
     graph.section("menus", [&](auto&, Section*) {

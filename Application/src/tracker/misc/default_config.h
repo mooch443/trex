@@ -24,6 +24,7 @@ namespace default_config {
 
     struct Config {
         std::map<std::string, const sprite::PropertyType*> map;
+        ExtendableVector excluded;
         std::string to_settings() const;
         void write_to(sprite::Map& other);
         const sprite::PropertyType*& operator[](const std::string& key);

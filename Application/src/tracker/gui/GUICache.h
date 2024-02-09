@@ -74,7 +74,7 @@ namespace globals {
         (bool, auto_categorize),
         (bool, gui_macos_blur),
         (Size2, gui_zoom_limit),
-        (blob::Pose::Skeleton, meta_skeleton)
+        (blob::Pose::Skeleton, detect_skeleton)
     )
 }
 

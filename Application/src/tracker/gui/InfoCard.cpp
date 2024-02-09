@@ -50,27 +50,30 @@ DrawSegments::DrawSegments()
             }
         }
     });
-    on_hover([this](auto){
+    on_hover([this](Event e){
         Text * found{nullptr};
-        for(auto &[text, tooltip_text] : segment_texts) {
-            if(text->hovered()) {
-               // text->set(TextClr{0,125,200,255});
-                found = text;
-                if(_selected != text) {
-                    if(_selected && _highlight) {
-                        _previous_bounds = _highlight->bounds();
-                    } else {
-                        _previous_bounds = text->bounds();
+        
+        if(e.hover.hovered) {
+            for(auto &[text, tooltip_text] : segment_texts) {
+                if(text->hovered()) {
+                    // text->set(TextClr{0,125,200,255});
+                    found = text;
+                    if(_selected != text) {
+                        if(_selected && _highlight) {
+                            _previous_bounds = _highlight->bounds();
+                        } else {
+                            _previous_bounds = text->bounds();
+                        }
+                        _target_bounds = text->bounds();
+                        
+                        _tooltip->set_other(text);
+                        _tooltip->set_text(tooltip_text);
+                        _selected = text;
+                        set_content_changed(true);
                     }
-                    _target_bounds = text->bounds();
-                    
-                    _tooltip->set_other(text);
-                    _tooltip->set_text(tooltip_text);
-                    _selected = text;
-                    set_content_changed(true);
+                } else {
+                    //text->set(TextClr{White});
                 }
-            } else {
-                //text->set(TextClr{White});
             }
         }
         

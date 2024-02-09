@@ -130,6 +130,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
 )
 
     static const std::map<std::string, std::string> deprecated = {
+        {"meta_classes", "detect_classes"},
+        {"meta_skeleton", "detect_skeleton"},
         {"detection_type", "detect_type"},
         {"detection_resolution", "detect_resolution"},
         {"model", "detect_model"},
@@ -352,7 +354,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
-        static const auto meta_classes = std::vector<std::string>{
+        static const auto detect_classes = std::vector<std::string>{
             "person", "bicycle", "car", "motorcycle", "airplane",
             "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
             "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse",
@@ -367,8 +369,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
             "scissors", "teddy bear", "hair drier", "toothbrush"
         };
-        CONFIG("meta_classes", meta_classes, "Class names for object classification in video during conversion.");
-        CONFIG("meta_skeleton", blob::Pose::Skeleton("human", {
+        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
+        CONFIG("detect_skeleton", blob::Pose::Skeleton("human", {
                 {0, 1, "Nose to Left Eye"},
                 {0, 2, "Nose to Right Eye"},
                 {1, 3, "Left Eye to Ear"},
@@ -485,7 +487,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_auto_scale", false, "If set to true, the tracker will always try to zoom in on the whole group. This is useful for some individuals in a huge video (because if they are too tiny, you cant see them and their posture anymore).");
         CONFIG("gui_auto_scale_focus_one", true, "If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.");
         CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / consecutive segments display.");
-        CONFIG("gui_background_color", gui::Color(0,0,0,150), "Values < 255 will make the background more transparent in standard view. This might be useful with very bright backgrounds.");
+        CONFIG("gui_background_color", gui::Color(0,0,0,255), "Values < 255 will make the background (or video background) more transparent in standard view. This might be useful with very bright backgrounds.");
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
@@ -744,7 +746,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
-        CONFIG("detect_classes", std::vector<uint8_t>{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
+        CONFIG("detect_only_classes", std::vector<uint8_t>{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
         CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
         CONFIG("region_resolution", uint16_t(320), "The resolution of the region proposal network (`region_model`).");
         CONFIG("detect_resolution", uint16_t(640), "The input resolution of the object detection model (`detect_model`).");
@@ -764,7 +766,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
         CONFIG("huge_timestamp_ends_segment", true, "");
-        CONFIG("track_trusted_probability", float(0.5), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
+        CONFIG("track_trusted_probability", float(0.25), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
         CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", LOAD);
@@ -913,11 +915,13 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Write the remaining settings.
          */
         Config result;
+        result.excluded += exclude_fields;
 
         for(auto &key : keys) {
             // dont write meta variables. this could be confusing if those
             // are loaded from the video file as well
             if(utils::beginsWith(key, "meta_")) {
+                result.excluded.push_back(key);
                 continue;
             }
             
