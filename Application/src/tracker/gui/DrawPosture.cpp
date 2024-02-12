@@ -220,6 +220,8 @@ bool Posture::valid() const {
             _text->set(Loc(Vec2(10, 10) + topleft));
             _text->set(SizeLimit(width(), height()));
             _text->set(Font(0.65));
+            _text->set(Margins{5,5,5,5});
+            _text->set(LineClr{100,175,250,static_cast<uint8_t>(_text->hovered() ? 200u : 0u)});
             //add<Text>(Str(ss.str()), Loc(Vec2(10, 10) + topleft), TextClr(0, 255, 255, 255), Font(0.75));
             //add<Text>(Str(Meta::toStr(fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
             
