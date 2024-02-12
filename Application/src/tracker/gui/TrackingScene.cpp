@@ -339,7 +339,20 @@ void TrackingScene::activate() {
         "gui_focus_group",
         "gui_run",
         "analysis_paused",
-        "analysis_range"
+        "analysis_range",
+        
+        "gui_show_texts",
+        "gui_show_probabilities",
+        "gui_show_visualfield",
+        "gui_show_outline",
+        "gui_show_midline",
+        "gui_show_posture",
+        "gui_show_heatmap",
+        "gui_show_blobs",
+        "gui_show_selections",
+        
+        "track_threshold",
+        "blob_size_ranges"
         
     }, [this](std::string_view key) {
         if(key == "gui_focus_group" && _data->_bowl) {
@@ -359,6 +372,15 @@ void TrackingScene::activate() {
             _data->_analysis_range = Tracker::analysis_range();
         }
         
+        if(utils::beginsWith(key, "gui_show_")
+           || is_in(key, "track_threshold", "blob_size_ranges"))
+        {
+            if(_data && _data->_cache) {
+                _data->_cache->set_tracking_dirty();
+                _data->_cache->set_raw_blobs_dirty();
+                _data->_cache->set_fish_dirty(true);
+            }
+        }
     });
     
     _data->_analysis_range = Tracker::analysis_range();
@@ -480,8 +502,12 @@ void TrackingScene::update_run_loop() {
 
 void TrackingScene::_draw(DrawStructure& graph) {
     using namespace dyn;
-    if(not _data->dynGUI)
-         init_gui(_data->dynGUI, graph);
+    if(not _data->dynGUI) {
+        init_gui(_data->dynGUI, graph);
+        //auto size = window()->get_window_bounds().size();
+        //window()->set_window_size(Size2(1024,759));
+        //window()->set_window_size(size);
+    }
     
     update_run_loop();
     if(not _data)

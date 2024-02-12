@@ -1063,7 +1063,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(not output_path.empty()) {
                     filename = output_path / filename.filename();
                 } else {
-                    filename = (map.at("cwd").value<file::Path>() / filename);
+                    print(map.at("cwd").value<file::Path>());
+                    if(not map.at("cwd").value<file::Path>().empty())
+                        filename = map.at("cwd").value<file::Path>() / filename;
                 }
                 
             } else if(not filename.has_extension() || filename.extension() == "pv") {
@@ -1073,7 +1075,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             if(!prefix.empty()) {
                 //! insert a prefix in between the filename and the path
-                filename = filename.remove_filename() / prefix / filename.filename();
+                if(not filename.remove_filename().empty())
+                    filename = filename.remove_filename() / prefix / filename.filename();
+                else
+                    filename = prefix / filename.filename();
             }
             
             /*if(!filename.empty() && filename.is_absolute()) {

@@ -1,21 +1,232 @@
 #include "DrawPosture.h"
+#include <gui/types/StaticText.h>
+#include <misc/TrackingSettings.h>
+#include <tracking/Individual.h>
 
 using namespace track;
 
 namespace gui {
     Posture::Posture(const Bounds& size)
       : zero(size.width * 0.1, size.height * 0.5),//, _background(size.size(), Black.alpha(125),White.alpha(125)),
+        _text(std::make_unique<StaticText>()),
         _average_active(true)
     {
         set_bounds(size);
+        _text->set_clickable(true);
         set_clickable(true);
+        
+        on_hover([this](Event) {
+            set_content_changed(true);
+        });
     }
+
+Posture::~Posture() {
+    
+}
 
 bool Posture::valid() const {
     return _valid;
 }
     
     void Posture::update() {
+        zero = Vec2{ width() * 0.1f, height() * 0.5f };
+        // --------------
+        // Draw the fish posture with circles
+        // --------------
+        
+        if(hovered() && scroll_enabled()) {
+            set_scroll_enabled(false);
+            set_content_changed(true);
+            set_background(Black.alpha(125), Color(100,175,250,200).alpha(125));
+        } else if(!hovered() && !scroll_enabled()) {
+            set_scroll_enabled(true);
+            set_scroll_limits(Rangef(0,0), Rangef(0,0));
+            set_content_changed(true);
+            set_background(Transparent, Transparent);
+        } //else if(!content_changed())
+            //return;
+        
+        begin();
+        
+        Vec2 topleft = Vec2(5);
+        Loc zero{topleft + this->zero};
+        
+        auto &scale = _scale[_fdx];
+        
+        if(_average_active) {
+            scale.push_back(_lines->bounds().size().max() * 1.25);
+            if(scale.size() > 100)
+                scale.pop_front();
+            
+            _average_active = false;
+        }
+        
+        float average = 0;
+        float weights = 0;
+        const size_t max_weights = 25;
+        for(size_t i=0; i<scale.size() && i < max_weights; ++i) {
+            const float w = 1 - i / float(max_weights);
+            average += w * scale.at(scale.size() - i - 1);
+            weights += w;
+        }
+        const float fish_scale = scale.empty() ? 1 : (width() / average * weights);
+        float angle = 0;
+        
+        auto do_rotate = [this, &fish_scale, &zero](Vec2 pt, float angle) -> Loc {
+            if(_midline) {
+                pt -= _midline->offset();
+                
+                float fx = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
+                float fy = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
+                
+                fx -= _midline->front().x;
+                fy -= _midline->front().y;
+                
+                fx *= fish_scale;
+                fy *= fish_scale;
+                
+                return Loc{Vec2(fx, fy) + zero};
+                
+            } else {
+                pt = (pt - _outline.front()) * fish_scale;
+                return Loc{pt + zero};
+            }
+        };
+        
+        if(_midline) {
+            angle = -_midline->angle() + M_PI;
+            std::vector<MidlineSegment> midline_points;
+            {
+                //Midline m(*midline);
+                //float len = fish->midline_length();
+                //if(len > 0)
+                //    m.fix_length(len);
+                
+                midline_points = _midline->segments();
+            }
+            
+            // DRAW MIDLINE / SEGMENTS
+            
+            add<Circle>(zero, Radius{3}, LineClr{Green});
+            add<Line>(Line::Point_t(Vec2(zero)), Line::Point_t(zero.x + _midline->len(), zero.y), LineClr{ White });
+            
+            std::vector<Vertex> midline_vertices;
+            for (size_t i=0; i<midline_points.size(); i++) {
+                auto &pt = midline_points.at(i);
+                Loc current{Vec2(pt.pos) * fish_scale + zero};
+                
+                add<Circle>(current, Radius{2}, LineClr(0, 255, 255, 255));
+                
+                if(pt.height && i > 0)
+                    add<Circle>(current,
+                                Radius(pt.height * fish_scale * 0.5),
+                                LineClr(0, 255, 255, 255));
+                midline_vertices.push_back(Vertex(current, Color(0, 125, 225, 255)));
+            }
+            add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
+            
+            midline_vertices.clear();
+            for (size_t i=0; i<_midline->segments().size(); i++) {
+                auto pt = _midline->segments().at(i);
+                Loc current{(pt.pos) * fish_scale + zero};
+                
+                add<Circle>(current, Radius{1}, LineClr{White});
+                midline_vertices.push_back(Vertex(current, Color(225, 125, 0, 255)));
+            }
+            add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
+            
+            auto A = Vec2(midline_points.back().pos.x, 0) * fish_scale + Vec2(zero.x, zero.y);
+            auto B = Vec2(midline_points.back().pos.x, midline_points.back().pos.y) * fish_scale + Vec2(zero.x, zero.y);
+            add<Line>(Line::Point_t(Vec2(zero)), Line::Point_t(zero.x + _midline->len() * fish_scale, zero.y), LineClr(255, 0, 255, 255));
+            add<Line>(Line::Point_t(A), Line::Point_t(B), LineClr(255, 100, 0, 255));
+            
+            if(_midline->tail_index() != -1) {
+                if((size_t)_midline->tail_index() < _outline.size())
+                    add<Circle>(do_rotate(_outline.at(_midline->tail_index()), angle), Radius{10}, LineClr{Blue});
+            }
+            if(_midline->head_index() != -1) {
+                if((size_t)_midline->head_index() < _outline.size())
+                    add<Circle>(do_rotate(_outline.at(_midline->head_index()), angle), Radius{10}, LineClr{Red});
+            }
+        }
+        
+        // DRAW OUTLINE
+        std::vector<Vertex> outline_vertices;
+        Color outline_clr(White.alpha(125));
+        Color positive_clr(0, 255, 125);
+        Color negative_clr(Red);
+        
+        float n_mi = FLT_MAX, n_mx = 0;
+        float p_mi = FLT_MAX, p_mx = 0;
+        
+        const auto curvature_range = Outline::calculate_curvature_range(_outline.size());
+        
+        for (uint32_t i=0; i<_outline.size(); i++) {
+            auto c = _outline.size() > 3 ? Outline::calculate_curvature(curvature_range, _outline, i) : 0;
+            auto cabs = cmn::abs(c);
+            
+            if(c < 0) {
+                n_mi = min(n_mi, cabs);
+                n_mx = max(n_mx, cabs);
+            } else {
+                p_mi = min(p_mi, cabs);
+                p_mx = max(p_mx, cabs);
+            }
+        }
+        
+        for (uint32_t i=0; i<_outline.size(); i++) {
+            Vec2 pt(_outline.at(i));
+            pt = do_rotate(pt, angle);
+            
+            outline_vertices.push_back(Vertex(pt, outline_clr));
+            
+            Color clr;
+            auto c = _outline.size() > 3 ? Outline::calculate_curvature(curvature_range, _outline, i) : 0;
+            float percent = 0.f;
+            
+            if(c < 0) {
+                clr = negative_clr;
+                percent = (c + n_mx) / (n_mx+p_mx);
+                
+            } else {
+                clr = positive_clr;
+                percent = (c + n_mx) / (n_mx+p_mx);
+            }
+            
+            clr =  negative_clr * (1.f - percent) + positive_clr * percent;
+            
+            if(i == 0)
+                add<Circle>(Loc(pt), Radius{5}, LineClr{Red}, FillClr{Cyan});
+            else
+                add<Circle>(Loc(pt), Radius{2}, LineClr{clr.alpha(0.8 * 255)}, FillClr{clr.alpha(0.6 * 255)});
+        }
+        
+        auto pt = do_rotate(_outline.front(), angle);
+        outline_vertices.push_back(Vertex(pt, outline_clr));
+        add<Vertices>(outline_vertices, PrimitiveType::LineStrip);
+        
+        if(hovered()) {
+            std::stringstream ss;
+            if(_midline) {
+                if(not _text->hovered())
+                    ss << "Length: <cyan>" << dec<2>(_midline->len() * FAST_SETTING(cm_per_pixel)).toStr() << "</cyan><i>cm</i> (<sym>ø</sym><cyan>" << dec<2>(midline_length / 1.1f * FAST_SETTING(cm_per_pixel)).toStr() << "</cyan><i>cm</i>)";
+                else
+                    ss << "Length: <cyan>" << dec<2>(_midline->len()).toStr() << "</cyan><i>px</i> (<sym>ø</sym><cyan>" << dec<2>(midline_length / 1.1f).toStr() << "</cyan><i>px</i>)";
+            } else
+                ss << "<orange>no midline</orange>";
+            
+            //midline_points.back().pos.y; //"segments: " << _midline->segments().size();
+            _text->set(Str("<c>"+ss.str()+"</c>"));
+            _text->set(Loc(Vec2(10, 10) + topleft));
+            _text->set(SizeLimit(width(), height()));
+            _text->set(Font(0.65));
+            //add<Text>(Str(ss.str()), Loc(Vec2(10, 10) + topleft), TextClr(0, 255, 255, 255), Font(0.75));
+            //add<Text>(Str(Meta::toStr(fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
+            
+            advance_wrap(*_text);
+        }
+        
+        end();
     }
     
     void Posture::set_fish(track::Individual *fish, Frame_t frame) {
@@ -50,224 +261,37 @@ bool Posture::valid() const {
         }
         
         
-            zero = Vec2{ width() * 0.1f, height() * 0.5f };
-            // --------------
-            // Draw the fish posture with circles
-            // --------------
-            
-            if(hovered() && scroll_enabled()) {
-                set_scroll_enabled(false);
-                set_content_changed(true);
-                set_background(Black.alpha(125), White.alpha(125));
-            } else if(!hovered() && !scroll_enabled()) {
-                set_scroll_enabled(true);
-                set_scroll_limits(Rangef(0,0), Rangef(0,0));
-                set_content_changed(true);
-                set_background(Transparent, Transparent);
-            } //else if(!content_changed())
-                //return;
-            
-            LockGuard guard(ro_t{}, "Posture::update", 100);
-            if(!guard.locked()) {
-                set_content_changed(true);
-                return;
-            }
         
-            _valid = false;
-            
-            if(!fish || !fish->centroid(_frameIndex))
-                return;
-            
-            Midline::Ptr midline = nullptr;
-            if(SETTING(output_normalize_midline_data)) {
-                midline = fish->fixed_midline(_frameIndex);
-            } else
-                midline = fish->midline(_frameIndex);
-            
-            //if(!midline)
-            //    midline = fish->midline(_frameIndex);
-            auto min_outline = fish->outline(_frameIndex);
-            if(not min_outline || not midline) {
-                return;
-            }
-            
-            auto outline = min_outline->uncompress();
-            auto lines = fish->blob(_frameIndex);
-            
-            begin();
-            //advance_wrap(_background);
-            
-            Vec2 topleft = Vec2(5);
-            Loc zero{topleft + this->zero};
-            
-            auto &scale = _scale[fish->identity().ID()];
-            
-            if(_average_active) {
-                scale.push_back(lines->bounds().size().max() * 1.25);
-                if(scale.size() > 100)
-                    scale.pop_front();
-                
-                _average_active = false;
-            }
-            
-            float average = 0;
-            float weights = 0;
-            const size_t max_weights = 25;
-            for(size_t i=0; i<scale.size() && i < max_weights; ++i) {
-                const float w = 1 - i / float(max_weights);
-                average += w * scale.at(scale.size() - i - 1);
-                weights += w;
-            }
-            const float fish_scale = scale.empty() ? 1 : (width() / average * weights);
-            float angle = 0;
-            
-            auto do_rotate = [&zero, &fish_scale, &midline, &outline](Vec2 pt, float angle) -> Loc {
-                if(midline) {
-                    pt -= midline->offset();
-                    
-                    float fx = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
-                    float fy = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
-                    
-                    fx -= midline->front().x;
-                    fy -= midline->front().y;
-                    
-                    fx *= fish_scale;
-                    fy *= fish_scale;
-                    
-                    return Loc{Vec2(fx, fy) + zero};
-                    
-                } else {
-                    pt = (pt - outline.front()) * fish_scale;
-                    return Loc{pt + zero};
-                }
-            };
-            
-            if(midline) {
-                angle = -midline->angle() + M_PI;
-                std::vector<MidlineSegment> midline_points;
-                {
-                    //Midline m(*midline);
-                    //float len = fish->midline_length();
-                    //if(len > 0)
-                    //    m.fix_length(len);
-                    
-                    midline_points = midline->segments();
-                }
-                
-                // DRAW MIDLINE / SEGMENTS
-                
-                add<Circle>(zero, Radius{3}, LineClr{Green});
-                add<Line>(Line::Point_t(Vec2(zero)), Line::Point_t(zero.x + midline->len(), zero.y), LineClr{ White });
-                
-                std::vector<Vertex> midline_vertices;
-                for (size_t i=0; i<midline_points.size(); i++) {
-                    auto &pt = midline_points.at(i);
-                    Loc current{Vec2(pt.pos) * fish_scale + zero};
-                    
-                    add<Circle>(current, Radius{2}, LineClr(0, 255, 255, 255));
-                    
-                    if(pt.height && i > 0)
-                        add<Circle>(current,
-                                    Radius(pt.height * fish_scale * 0.5),
-                                    LineClr(0, 255, 255, 255));
-                    midline_vertices.push_back(Vertex(current, Color(0, 125, 225, 255)));
-                }
-                add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
-                
-                midline_vertices.clear();
-                for (size_t i=0; i<midline->segments().size(); i++) {
-                    auto pt = midline->segments().at(i);
-                    Loc current{(pt.pos) * fish_scale + zero};
-                    
-                    add<Circle>(current, Radius{1}, LineClr{White});
-                    midline_vertices.push_back(Vertex(current, Color(225, 125, 0, 255)));
-                }
-                add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
-                
-                auto A = Vec2(midline_points.back().pos.x, 0) * fish_scale + Vec2(zero.x, zero.y);
-                auto B = Vec2(midline_points.back().pos.x, midline_points.back().pos.y) * fish_scale + Vec2(zero.x, zero.y);
-                add<Line>(Line::Point_t(Vec2(zero)), Line::Point_t(zero.x + midline->len() * fish_scale, zero.y), LineClr(255, 0, 255, 255));
-                add<Line>(Line::Point_t(A), Line::Point_t(B), LineClr(255, 100, 0, 255));
-                
-                if(midline->tail_index() != -1) {
-                    if((size_t)midline->tail_index() < outline.size())
-                        add<Circle>(do_rotate(outline.at(midline->tail_index()), angle), Radius{10}, LineClr{Blue});
-                }
-                if(midline->head_index() != -1) {
-                    if((size_t)midline->head_index() < outline.size())
-                        add<Circle>(do_rotate(outline.at(midline->head_index()), angle), Radius{10}, LineClr{Red});
-                }
-            }
-            
-            // DRAW OUTLINE
-            std::vector<Vertex> outline_vertices;
-            Color outline_clr(White.alpha(125));
-            Color positive_clr(0, 255, 125);
-            Color negative_clr(Red);
-            
-            float n_mi = FLT_MAX, n_mx = 0;
-            float p_mi = FLT_MAX, p_mx = 0;
-            
-            const auto curvature_range = Outline::calculate_curvature_range(outline.size());
-            
-            for (uint32_t i=0; i<outline.size(); i++) {
-                auto c = outline.size() > 3 ? Outline::calculate_curvature(curvature_range, outline, i) : 0;
-                auto cabs = cmn::abs(c);
-                
-                if(c < 0) {
-                    n_mi = min(n_mi, cabs);
-                    n_mx = max(n_mx, cabs);
-                } else {
-                    p_mi = min(p_mi, cabs);
-                    p_mx = max(p_mx, cabs);
-                }
-            }
-            
-            for (uint32_t i=0; i<outline.size(); i++) {
-                Vec2 pt(outline.at(i));
-                pt = do_rotate(pt, angle);
-                
-                outline_vertices.push_back(Vertex(pt, outline_clr));
-                
-                Color clr;
-                auto c = outline.size() > 3 ? Outline::calculate_curvature(curvature_range, outline, i) : 0;
-                float percent = 0.f;
-                
-                if(c < 0) {
-                    clr = negative_clr;
-                    percent = (c + n_mx) / (n_mx+p_mx);
-                    
-                } else {
-                    clr = positive_clr;
-                    percent = (c + n_mx) / (n_mx+p_mx);
-                }
-                
-                clr =  negative_clr * (1.f - percent) + positive_clr * percent;
-                
-                if(i == 0)
-                    add<Circle>(Loc(pt), Radius{5}, LineClr{Red}, FillClr{Cyan});
-                else
-                    add<Circle>(Loc(pt), Radius{2}, LineClr{clr.alpha(0.8 * 255)}, FillClr{clr.alpha(0.6 * 255)});
-            }
-            
-            auto pt = do_rotate(outline.front(), angle);
-            outline_vertices.push_back(Vertex(pt, outline_clr));
-            add<Vertices>(outline_vertices, PrimitiveType::LineStrip);
-            
-            if(hovered()) {
-                std::stringstream ss;
-                if(midline) {
-                    ss << "length: " << midline->len() * FAST_SETTING(cm_per_pixel) << "cm (median " << fish->midline_length() / 1.1f * FAST_SETTING(cm_per_pixel) << "cm) offset: "
-                    << (midline->empty() ? 0 : DEGREE(atan2(midline->segments().back().pos.y, midline->segments().back().pos.x)));
-                } else
-                    ss << "no midline";
-                
-                //midline_points.back().pos.y; //"segments: " << midline->segments().size();
-                add<Text>(Str(ss.str()), Loc(Vec2(10, 10) + topleft), TextClr(0, 255, 255, 255), Font(0.75));
-                add<Text>(Str(Meta::toStr(fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
-            }
-            
-            end();
+        
+        //LockGuard guard(ro_t{}, "Posture::update", 100);
+        /*if(!guard.locked()) {
+            set_content_changed(true);
+            return;
+        }*/
+    
+        _valid = false;
+        
+        if(!fish || !fish->centroid(_frameIndex))
+            return;
+        
+        Midline::Ptr midline = nullptr;
+        if(SETTING(output_normalize_midline_data)) {
+            midline = fish->fixed_midline(_frameIndex);
+        } else
+            midline = fish->midline(_frameIndex);
+        
+        //if(!midline)
+        //    midline = fish->midline(_frameIndex);
+        auto min_outline = fish->outline(_frameIndex);
+        if(not min_outline || not midline) {
+            return;
+        }
+        
+        _outline = min_outline->uncompress();
+        _lines = fish->blob(_frameIndex);
+        _midline = std::move(midline);
+        
+        midline_length = fish->midline_length();
         
         _valid = true;
     }

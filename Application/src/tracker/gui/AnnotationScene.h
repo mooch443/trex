@@ -5,9 +5,8 @@
 #include <gui/Scene.h>
 #include <misc/Image.h>
 #include <misc/ObjectManager.h>
-#include <gui/DynamicGUI.h>
-#include <gui/Bowl.h>
 #include <gui/types/Entangled.h>
+#include <gui/dyn/VarProps.h>
 
 namespace cmn {
 class VideoSource;
@@ -16,7 +15,15 @@ class VideoSource;
 namespace gui {
 
 using Pose = blob::Pose;
+class Bowl;
 class DrawStructure;
+class Rect;
+class Circle;
+class ExternalImage;
+
+namespace dyn {
+struct DynamicGUI;
+}
 
 enum class AnnotationType {
     BOX,
@@ -86,8 +93,8 @@ private:
     Size2 video_size;
     std::unique_ptr<Bowl> _bowl;
     std::future<Image::Ptr> _next_frame;
-    ExternalImage _current_image;
-    dyn::DynamicGUI _gui;
+    std::unique_ptr<ExternalImage> _current_image;
+    std::unique_ptr<dyn::DynamicGUI> _gui;
     
     blob::Pose::Skeleton _skeleton;
     Annotation _pose_in_progress;

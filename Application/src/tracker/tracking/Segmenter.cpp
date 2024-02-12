@@ -185,12 +185,13 @@ void Segmenter::open_video() {
 
     SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
     
-    if (SETTING(filename).value<file::Path>().empty()) {
+    /*if (SETTING(filename).value<file::Path>().empty()) {
         throw U_EXCEPTION("Filename was empty for converting a video.");
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::Path(video_base.base()).filename()));
     }
     
-    _output_file_name = SETTING(filename).value<file::Path>();
+    _output_file_name = SETTING(filename).value<file::Path>();*/
+    _output_file_name = settings::find_output_name(GlobalSettings::map());
     
     print("source = ", SETTING(source).value<file::PathArray>());
     print("output = ", _output_file_name);

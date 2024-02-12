@@ -162,7 +162,7 @@ void WorkProgress::start() {
                 {
                     auto stage = instance().gui->_additional.stage();
                     if(stage) {
-                        auto guard = GUI_LOCK(stage->lock());
+                        //auto guard = GUI_LOCK(stage->lock());
                         instance().gui->_additional.update([](auto&){});
                     }
                 }
@@ -385,7 +385,7 @@ bool WorkProgress::has_additional() {
         
         auto stage = instance().gui->_additional.stage();
         if(stage) {
-            auto guard = GUI_LOCK(stage->lock());
+            //auto guard = GUI_LOCK(stage->lock());
             return !instance().gui->_additional.children().empty();
         }
         return false;

@@ -411,7 +411,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         auto percentiles = video->calculate_percentiles({0.05f, 0.95f});
                         
                         if(_graph) {
-                            auto guard = GUI_LOCK(_graph->lock());
+                            //auto guard = GUI_LOCK(_graph->lock());
                             pixel_value_percentiles = percentiles;
                         }
                     }

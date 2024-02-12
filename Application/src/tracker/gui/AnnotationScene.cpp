@@ -7,7 +7,8 @@
 #include <gui/Skelett.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/Action.h>
-#include <gui/dyn/VarProps.h>
+#include <gui/DynamicGUI.h>
+#include <gui/Bowl.h>
 
 namespace gui {
 
@@ -213,7 +214,9 @@ AnnotationScene::AnnotationScene(Base& window)
         _draw(base);
     }),
     currentFrameIndex(0),
-    _bowl(nullptr)
+    _bowl(nullptr),
+    _current_image(std::make_unique<ExternalImage>()),
+    _gui(std::make_unique<dyn::DynamicGUI>())
 {
 }
 
@@ -263,7 +266,7 @@ void AnnotationScene::deactivate() {
     }
     
     // Logic to deactivate the scene
-    _gui.clear();
+    _gui->clear();
     _bowl = nullptr;
     
     std::unique_lock guard(_video_mutex);
@@ -303,7 +306,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
         }
     }
     
-    if(not _current_image.source()
+    if(not _current_image->source()
        && _next_frame.valid())
     {
         if(_next_frame.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
@@ -316,11 +319,11 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             _next_frame = retrieve_next_frame();
         }
         
-    } else if(not _current_image.source())
+    } else if(not _current_image->source())
         _next_frame = retrieve_next_frame();
     
-    if(not _gui) {
-        _gui = DynamicGUI{
+    if(not *_gui) {
+        *_gui = DynamicGUI{
             .gui = nullptr,
             .path = "annotation_layout.json",
             .graph = &graph,
@@ -405,7 +408,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             .base = window()
         };
         
-        _gui.context.custom_elements["pose"] = std::unique_ptr<CustomElement>(new CustomElement {
+        _gui->context.custom_elements["pose"] = std::unique_ptr<CustomElement>(new CustomElement {
             .name = "pose",
             .create = [this](LayoutContext& layout) -> Layout::Ptr {
                 std::shared_ptr<Skelett> ptr;
@@ -508,7 +511,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
         });
     }
     
-    graph.wrap_object(_current_image);
+    graph.wrap_object(*_current_image);
     
     graph.wrap_object(*_bowl);
     _bowl->update_scaling();
@@ -519,8 +522,8 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     auto coords = FindCoord::get();
     _bowl->update(currentFrameIndex, graph, coords);
     
-    _current_image.set_scale(_bowl->_current_scale);
-    _current_image.set_pos(_bowl->_current_pos);
+    _current_image->set_scale(_bowl->_current_scale);
+    _current_image->set_pos(_bowl->_current_pos);
     
     graph.section("elements", [&](auto&, Section* s) {
         s->set_scale(_bowl->_current_scale);
@@ -560,7 +563,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     });
     
     graph.section("gui", [this](DrawStructure &, Section *){
-        _gui.update(nullptr);
+        _gui->update(nullptr);
     });
 }
 
@@ -831,11 +834,11 @@ void AnnotationScene::navigateToFrame(Frame_t frameIndex) {
     currentFrameIndex = frameIndex;
     auto it = _loaded_frames.find(frameIndex);
     if(it != _loaded_frames.end()) {
-        _current_image.set_source(Image::Make(*it->second));
+        _current_image->set_source(Image::Make(*it->second));
     } else {
         /*auto image = retrieveFrame(frameIndex);
         if(image)
-            _current_image.set_source(Image::Make(*image));*/
+            _current_image->set_source(Image::Make(*image));*/
     }
 }
 

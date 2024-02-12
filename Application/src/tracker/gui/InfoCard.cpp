@@ -224,10 +224,10 @@ float DrawSegments::add_segments(bool display_hints, float)
     }
     
     p.y += add<Text>(Str(Meta::toStr(_segments.size())+" segments"),
-                     Loc(Vec2(offx, p.y - 16)),
+                     Loc(Vec2(offx, p.y - 12)),
                      TextClr(Gray),
                      _font)
-            ->height() + 5;
+            ->height() + 7;
     
     return p.y;
 }

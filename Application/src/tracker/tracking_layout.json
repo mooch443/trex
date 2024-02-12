@@ -319,56 +319,57 @@
                     "foldable":true,
                     "folded":true,
                     "text":" <sym>🖵</sym> Display",
-                    "item_padding":[5,1],
+                    "item_padding":[5,3],
                     "item_font":{"size":0.6},
+                    "detail_font":{"size":0.6},
                     "items":[
                         {
-                            "text":"selections",
+                            "text":"Selection Circles",
                             "detail":"{if:{global.gui_show_selections}:'hide':'show'}",
                             "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
                         },
                         {
-                            "text":"video background",
+                            "text":"Video Background",
                             "detail":"{if:{global.gui_show_video_background}:'hide':'show'}",
                             "action":"set:gui_show_video_background:{not:{global.gui_show_video_background}}"
                         },
                         {
-                            "text":"blobs",
+                            "text":"Blob Images",
                             "detail":"{if:{global.gui_show_blobs}:'hide':'show'}",
                             "action":"set:gui_show_blobs:{not:{global.gui_show_blobs}}"
                         },
                         {
-                            "text":"heatmap",
+                            "text":"Heatmap",
                             "detail":"{if:{global.gui_show_heatmap}:'hide':'show'}",
                             "action":"set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
                         },
                         {
-                            "text":"gui_show_posture",
+                            "text":"Posture Preview",
                             "detail":"{if:{global.gui_show_posture}:'hide':'show'}",
                             "action":"set:gui_show_posture:{not:{global.gui_show_posture}}"
                         },
                         {
-                            "text":"gui_show_midline",
+                            "text":"Midline",
                             "detail":"{if:{global.gui_show_midline}:'hide':'show'}",
                             "action":"set:gui_show_midline:{not:{global.gui_show_midline}}"
                         },
                         {
-                            "text":"gui_show_outline",
+                            "text":"Outline",
                             "detail":"{if:{global.gui_show_outline}:'hide':'show'}",
                             "action":"set:gui_show_outline:{not:{global.gui_show_outline}}"
                         },
                         {
-                            "text":"gui_show_visualfield",
+                            "text":"Visual Field",
                             "detail":"{if:{global.gui_show_visualfield}:'hide':'show'}",
                             "action":"set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
                         },
                         {
-                            "text":"gui_show_probabilities",
+                            "text":"Probability Distribution",
                             "detail":"{if:{global.gui_show_probabilities}:'hide':'show'}",
                             "action":"set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
                         },
                         {
-                            "text":"gui_show_texts",
+                            "text":"Text Labels",
                             "detail":"{if:{global.gui_show_texts}:'hide':'show'}",
                             "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
                         },
@@ -378,13 +379,8 @@
                             "action":"set:gui_show_graph:{not:{global.gui_show_graph}}"
                         },
                         {
-                            "text":"gui_auto_scale",
-                            "detail":"{if:{global.gui_auto_scale}:'hide':'show'}",
-                            "action":"set:gui_auto_scale:{not:{global.gui_auto_scale}}"
-                        },
-                        {
-                            "text":"gui_auto_scale_focus_one",
-                            "detail":"{if:{global.gui_auto_scale_focus_one}:'hide':'show'}",
+                            "text":"Zoom on Selection",
+                            "detail":"{if:{global.gui_auto_scale_focus_one}:'disable':'enable'}",
                             "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
                         }
                     ]
@@ -668,33 +664,44 @@
             "z-index":1,
             "then":
             {
-                "type":"vlayout",
-                "pos":"[{min:{-:{window_size.x}:55}:{max:58:{mouse.x}}},69]",
-                "origin":[0.5,0],
-                "clickable":true,
-                "align":"center",
-                "fill": [25,25,25,100],
-                "line":[75,75,75],
+                "type":"collection",
+                "pos":"[{min:{-:{window_size.x}:105}:{max:105:{mouse.x}}},69]",
                 "children":[
-                    
                     {
-                        "type":"button",
-                        "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
-                        "action":"reanalyse:{smart_highlighted}",
-                        "fill":[40,40,40,220],
-                        "line":[100,100,100,100],
-                        "color":[225,225,225],
-                        "font":{"size":0.6,"align":"center"},
-                        "size":[120,25]
+                        "type":"rect",
+                        "size":[1,30],
+                        "fill":[255,255,255,150],
+                        "pos":[-0.5,-30]
                     },
                     {
-                        "type":"stext",
-                        "pad":[5,5,5,5],
-                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no segment</i>'}\n{if:{number_individuals}:'{number_individuals} {global.individual_prefix}':''}",
-                        "font":{"size":0.6}
+                        "type":"vlayout",
+                        "origin":[0.5,0],
+                        "clickable":true,
+                        "align":"center",
+                        "fill": [25,25,25,200],
+                        "line":[75,75,75],
+                        "children":[
+                            {
+                                "type":"button",
+                                "text":"<sym>🗘</sym> reanalyse from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
+                                "action":"reanalyse:{smart_highlighted}",
+                                "fill":[140,40,40,220],
+                                "line":[100,100,100,100],
+                                "color":[225,225,225],
+                                "font":{"size":0.6,"align":"center"},
+                                "size":[210,25]
+                            },
+                            {
+                                "type":"stext",
+                                "pad":[5,5,5,5],
+                                "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                                "font":{"size":0.6}
+                            }
+                        ]
                     }
                 ]
             }
+            
         }
     ]
 }

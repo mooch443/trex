@@ -185,7 +185,7 @@ void SceneManager::clear() {
 }
 
 void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
-    FindCoord::set_screen_size(graph, *window);
+    //FindCoord::set_screen_size(graph, *window);
     update_queue();
     _gui_queue->processTasks(window, graph);
     
@@ -194,8 +194,8 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     {
         last_resolution = window->window_dimensions();
         last_dpi = window->dpi_scale();
+        FindCoord::set_screen_size(graph, *window);
     }
-    FindCoord::set_screen_size(graph, *window);
     
     try {
         if (active_scene)

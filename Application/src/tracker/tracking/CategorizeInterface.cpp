@@ -82,10 +82,10 @@ Sample::Ptr retrieve() {
          * Search current rows and cells to see whether the sample is already assigned
          * to any of the cells.
          */
-        auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
+        /*auto gui_guard = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
         if(Interface::get().layout.stage()) {
             gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
-        }
+        }*/
         for(auto &row : Row::rows()) {
             for(auto &c : row._cells) {
                 if(c._sample == sample) {

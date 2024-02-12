@@ -487,7 +487,8 @@ void load(file::PathArray source,
             "calculate_posture", false,
             "meta_encoding", meta_encoding_t::r3g3b2,
             "track_do_history_split", false,
-            "individual_image_normalization", individual_image_normalization_t::moments
+            "individual_image_normalization", individual_image_normalization_t::moments,
+            "detect_model", file::Path("yolov8x-pose")
         };
         
         for(auto &key : values.keys()) {
