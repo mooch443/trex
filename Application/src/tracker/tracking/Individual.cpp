@@ -2430,7 +2430,7 @@ void Individual::save_posture(const BasicStuff&,
         
         cv::putText(mat, std::to_string(frameIndex), cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN, 0.8, cv::Scalar(255));
         tf::imshow("greyscale", mat);
-        SETTING(analysis_paused) = true;
+        SETTING(track_pause) = true;
     }*/
     
 	if(!ptr.outline_empty()) {

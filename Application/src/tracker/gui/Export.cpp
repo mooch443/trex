@@ -813,10 +813,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         }
                     }
                     
-                    if(full.blob == nullptr) {
+                    /*if(full.blob == nullptr) {
                         FormatExcept("Cannot find ", data.blob->blob_id());
                         print("reduced: ", reduced.blob ? reduced.blob->blob_id() : pv::bid()," full: ",full.blob ? full.blob->blob_id() : pv::bid());
-                    }
+                    }*/
                     
                     if(!reduced.blob && full.blob)
                         FormatExcept("Frame ", frame,", fish ", data.fdx,"");
@@ -830,7 +830,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         if(tracklet_export_difference_images) {
                             reduced.image = std::get<0>(
                                 constraints::diff_image(normalize,
-                                                        data.blob.get(),
+                                                        reduced.blob.get(),//data.blob.get(),
                                                         data.midline_transform,
                                                         data.median_midline_length_px,
                                                         output_size,

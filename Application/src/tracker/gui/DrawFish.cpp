@@ -157,8 +157,8 @@ Fish::~Fish() {
         _time = time;
         _events = events;
         
-        if(_frame == frameIndex)
-            return;
+        //if(_frame == frameIndex)
+        //    return;
         
         _path_dirty = true;
         _frame = frameIndex;

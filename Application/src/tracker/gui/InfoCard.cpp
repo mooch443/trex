@@ -242,7 +242,7 @@ void DrawSegments::update_box() {
     if(L > 0.5 /*&& _previous_bounds != _target_bounds*/) {
         v /= L;
         auto dt = GUICache::instance().dt();
-        _highlight->set_pos(bds.pos() + v * dt * L * 8);
+        _highlight->set_pos(bds.pos() + v * dt * L * 10);
         _highlight->set_size(bds.size() + (_target_bounds.size() - bds.size()) * dt * 7);
     } else {
         _highlight->set(Box(_target_bounds));

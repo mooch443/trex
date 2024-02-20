@@ -599,7 +599,7 @@ void draw_blob_view(const DisplayParameters& parm)
                             }
                         }
                         
-                        print("Assigning blob ", clicked_blob_id," to fish ",Identity::Temporary(id).name());
+                        print("Assigning blob ", clicked_blob_id," to ",Identity::Temporary(id));
                         //TODO: fix this
                         add_manual_match(cache.frame_idx, id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
@@ -640,10 +640,10 @@ void draw_blob_view(const DisplayParameters& parm)
                     if(frame > Tracker::start_frame() && c) {
                         d = (c->estimated_px - blob_pos).length();
                     }
-                    uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 1) & 0xFFFFFFFF) << 32);
+                    uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 2) & 0xFFFFFFFF) << 32);
 
                     auto identity = Identity::Temporary(id);
-                    items.insert({d, Dropdown::TextItem(identity.name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(1)).get(), identity.name(), (void*)encoded_ids)});
+                    items.insert({d, Dropdown::TextItem(identity.name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(2)).get(), identity.name(), (void*)encoded_ids)});
                 }
             }
             

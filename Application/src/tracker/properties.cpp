@@ -75,7 +75,7 @@ void async_main(void*) {
 	file.print_info();
 
 	SETTING(gui_frame) = Frame_t(0);
-	SETTING(analysis_paused) = false;
+	SETTING(track_pause) = false;
 	SETTING(terminate) = false;
 
 	try {
@@ -97,7 +97,7 @@ void async_main(void*) {
 			double samples = 0;
 
 			while (!SETTING(terminate)) {
-				if(SETTING(analysis_paused)) {
+				if(SETTING(track_pause)) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					continue;
 				}

@@ -184,8 +184,8 @@ namespace cmn {
     std::future<void> ConnectedTasks::set_paused(bool pause) {
         bool expected = !pause;
         if(_paused.compare_exchange_strong(expected, pause)) {
-            if(SETTING(analysis_paused).value<bool>() != pause) {
-                SETTING(analysis_paused) = pause;
+            if(SETTING(track_pause).value<bool>() != pause) {
+                SETTING(track_pause) = pause;
             }
 
             _finish_condition.notify_all();

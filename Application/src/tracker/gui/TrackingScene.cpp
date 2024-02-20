@@ -338,8 +338,12 @@ void TrackingScene::activate() {
     _data->_callback = GlobalSettings::map().register_callbacks({
         "gui_focus_group",
         "gui_run",
-        "analysis_paused",
+        "track_pause",
         "analysis_range",
+        
+        "manual_matches",
+        "manual_splits",
+        "manual_ignore_bdx",
         
         "gui_show_texts",
         "gui_show_probabilities",
@@ -357,19 +361,29 @@ void TrackingScene::activate() {
     }, [this](std::string_view key) {
         if(key == "gui_focus_group" && _data->_bowl) {
             _data->_bowl->_screen_size = Vec2();
+            _data->_zoom_dirty = true;
             _data->_cache->set_fish_dirty(true);
         } else if(key == "gui_run") {
             
-        } else if(key == "analysis_paused") {
+        } else if(key == "track_pause") {
             gui::WorkProgress::add_queue("pausing...", [this](){
                 _state->analysis.bump();
-                bool pause = SETTING(analysis_paused).value<bool>();
+                bool pause = SETTING(track_pause).value<bool>();
                 if(_state->analysis.paused() != pause) {
                     _state->analysis.set_paused(pause).get();
                 }
             });
         } else if(key == "analysis_range") {
             _data->_analysis_range = Tracker::analysis_range();
+            
+        } else if(is_in(key, "manual_ignore_bdx", "manual_splits", "manual_matches")
+                  && _data
+                  && _data->_cache)
+        {
+            WorkProgress::add_queue("", [frame = _data->_cache->frame_idx](){
+                Tracker::instance()->_remove_frames(frame);
+                SETTING(track_pause) = false;
+            });
         }
         
         if(utils::beginsWith(key, "gui_show_")
@@ -385,6 +399,23 @@ void TrackingScene::activate() {
     
     _data->_analysis_range = Tracker::analysis_range();
     _state->init_video();
+    
+    _state->tracker->register_add_callback([this](Frame_t frame){
+        if(GUI_SETTINGS(gui_frame) == frame) {
+            SceneManager::getInstance().enqueue([this, frame](auto, auto&){
+                if(_data && _data->_cache) {
+                    _data->_cache->set_tracking_dirty();
+                    _data->_cache->set_raw_blobs_dirty();
+                    _data->_cache->set_fish_dirty(true);
+                    _data->_cache->set_redraw();
+                    _data->_cache->set_blobs_dirty();
+                    _data->_cache->frame_idx = {};
+                    SETTING(gui_frame) = Frame_t{};
+                    set_frame(frame);
+                }
+            });
+        }
+    });
     
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
 }
@@ -534,8 +565,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
        || graph.root().is_animating())
     {
         if(((IMGUIBase*)window())->focussed()) {
-            _data->_cache->set_blobs_dirty();
-            _data->_cache->set_tracking_dirty();
+            //_data->_cache->set_blobs_dirty();
+            //_data->_cache->set_tracking_dirty();
+            _data->_zoom_dirty = true;
         }
         _data->_last_mouse = mouse;
     }
@@ -563,9 +595,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_keymap[key] = graph.is_key_pressed(code);
     }
     
+    Frame_t loaded;
     if(_data->_cache) {
         auto frameIndex = GUI_SETTINGS(gui_frame);
-        Frame_t loaded;
         //do {
             loaded = _data->_cache->update_data(frameIndex);
             
@@ -710,8 +742,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
             _data->_bowl->set_target_focus(targets);
         else
             _data->_bowl->set_target_focus({});
-        _data->_zoom_dirty = false;
-        _data->_cache->updated_tracking();
+        
+        if(loaded.valid())
+            _data->_zoom_dirty = false;
     }
     
     _data->_bowl->update_scaling();
@@ -736,8 +769,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
     {
         graph.wrap_object(*_data->_bowl);
     }
-
-    _data->_bowl->update(_data->_cache->frame_idx, graph, coords);
+    
+    if(_data->_cache->frame_idx.valid())
+        _data->_bowl->update(_data->_cache->frame_idx, graph, coords);
     _data->_bowl_mouse = coords.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
     
     /*const auto mode = GUI_SETTINGS(gui_mode);
@@ -1098,7 +1132,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     map["p"] = 0.0;
                     map["p_time"] = 0.0;
                     
-                    auto probs = _data->_cache->probs(fdx);
+                    auto probs = fdx.valid()
+                        ? _data->_cache->probs(fdx)
+                        : nullptr;
                     if(probs) {
                         std::vector<std::tuple<pv::bid, Probability, Probability>> ps;
                         for(auto &[bdx, value] : *probs) {
@@ -1107,53 +1143,54 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                         map["ps"] = ps;
                     }
                     
-                    if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
-                       it != _data->_cache->fish_selected_blobs.end())
-                    {
-                        auto& stuff = it->second.basic_stuff;
-                        if(stuff) {
-                            /// add curve speed
-                            map["speed"] = stuff->centroid.speed<Units::CM_AND_SECONDS>();
-                            
-                            auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
-                            auto min_d = 0.f;
-                            pv::bid min_bdx;
-                            Idx_t min_fdx;
-                            for(auto &[d, bdx] : query) {
-                                if(bdx != it->second.bdx
-                                   && (d < min_d || not min_bdx.valid()))
-                                {
-                                    auto fit = _data->_cache->blob_selected_fish.find(bdx);
-                                    if(fit != _data->_cache->blob_selected_fish.end()) {
-                                        min_fdx = fit->second;
-                                        min_d = d;
-                                        min_bdx = bdx;
+                    if(fdx.valid()) {
+                        if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
+                           it != _data->_cache->fish_selected_blobs.end())
+                        {
+                            auto& stuff = it->second.basic_stuff;
+                            if(stuff) {
+                                /// add curve speed
+                                map["speed"] = stuff->centroid.speed<Units::CM_AND_SECONDS>();
+                                
+                                auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+                                auto min_d = 0.f;
+                                pv::bid min_bdx;
+                                Idx_t min_fdx;
+                                for(auto &[d, bdx] : query) {
+                                    if(bdx != it->second.bdx
+                                       && (d < min_d || not min_bdx.valid()))
+                                    {
+                                        auto fit = _data->_cache->blob_selected_fish.find(bdx);
+                                        if(fit != _data->_cache->blob_selected_fish.end()) {
+                                            min_fdx = fit->second;
+                                            min_d = d;
+                                            min_bdx = bdx;
+                                        }
+                                    }
+                                }
+                                
+                                if(min_fdx.valid()) {
+                                    map["nearest_neighbor"] = min_fdx;
+                                    map["has_neighbor"] = true;
+                                } else if(map.has("nearest_neighbor"))
+                                    map.erase("nearest_neighbor");
+                                
+                                map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
+                                map["bdx"] = it->second.bdx;
+                                
+                                
+                                if(probs) {
+                                    if(auto pit = probs->find(it->second.bdx);
+                                       pit != probs->end())
+                                    {
+                                        
+                                        map["p"] = pit->second.p;
+                                        map["p_time"] = pit->second.p_time;
+                                        map["p_pos"] = pit->second.p_pos;
+                                        map["p_angle"] = pit->second.p_angle;
                                     }
                                 }
                             }
-                            
-                            if(min_fdx.valid()) {
-                                map["nearest_neighbor"] = min_fdx;
-                                map["has_neighbor"] = true;
-                            } else if(map.has("nearest_neighbor"))
-                                map.erase("nearest_neighbor");
-                            
-                            map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
-                            map["bdx"] = it->second.bdx;
-                            
-                            
-                            if(probs) {
-                                if(auto pit = probs->find(it->second.bdx);
-                                   pit != probs->end())
-                                {
-                                    
-                                    map["p"] = pit->second.p;
-                                    map["p_time"] = pit->second.p_time;
-                                    map["p_pos"] = pit->second.p_pos;
-                                    map["p_angle"] = pit->second.p_angle;
-                                }
-                            }
-                            
                         }
                     }
                 }

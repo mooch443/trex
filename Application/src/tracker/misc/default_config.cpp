@@ -130,6 +130,7 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
 )
 
     static const std::map<std::string, std::string> deprecated = {
+        {"analysis_paused", "track_pause"},
         {"meta_classes", "detect_classes"},
         {"meta_skeleton", "detect_skeleton"},
         {"detection_type", "detect_type"},
@@ -402,20 +403,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Siccardi AJ, Garris HW, Jones WT, Moseley DB, D’Abramo LR, Watts SA. Growth and Survival of Zebrafish (Danio rerio) Fed Different Commercial and Laboratory Diets. Zebrafish. 2009;6(3):275-280. doi:10.1089/zeb.2008.0553.
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
-        CONFIG("midline_samples", uint64_t(0), "The maximum number of samples taken for generating a `median midline length`. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individuals, for memory reasons.");
-        
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
-        CONFIG("debug", false, "Enables some verbose debug print-outs.");
         CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_enable_absolute_difference` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
-        CONFIG("analysis_paused", false, "Halts the analysis.");
+        CONFIG("track_pause", false, "Halts the analysis.");
         CONFIG("limit", 0.09f, "Limit for tailbeat event detection.");
         CONFIG("event_min_peak_offset", 0.15f, "");
         CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.", STARTUP);
         CONFIG("log_file", file::Path(), "Set this to a path you want to save the log file to.", STARTUP);
-        CONFIG("httpd_port", 8080, "This is where the webserver tries to establish a socket. If it fails, this will be set to the port that was chosen.", STARTUP);
-        CONFIG("httpd_accepted_ip", std::string(), "Set this to an IP address that you want to accept exclusively.");
         CONFIG("error_terminate", false, "", SYSTEM);
         CONFIG("terminate", false, "If set to true, the application terminates.", SYSTEM);
         
@@ -827,7 +823,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         //default_config::get(config, docs, NULL);
         
         std::vector<std::string> exclude_fields = {
-            "analysis_paused",
+            "track_pause",
             //"filename",
             "app_name",
             "app_check_for_updates",

@@ -293,7 +293,7 @@ public:
                         {
                             SETTING(gui_show_fish) = std::tuple<pv::bid, Frame_t>(it->second.bdx, GUI::frame());
                             GUI::reanalyse_from(GUI::frame());
-                            SETTING(analysis_paused) = false;
+                            SETTING(track_pause) = false;
                         }
                     }
                     break;
@@ -323,7 +323,7 @@ public:
         reanalyse = std::make_shared<Button>(Str("reanalyse"), Box(0, 0, 100, 33));
         reanalyse->on_click([&](auto){
             GUI::reanalyse_from(GUI::frame());
-            SETTING(analysis_paused) = false;
+            SETTING(track_pause) = false;
         });
         
         layout->set_origin(Vec2(1, 0.5));

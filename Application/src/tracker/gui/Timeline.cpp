@@ -75,7 +75,7 @@ namespace gui {
             _status_text2.set_clickable(true);
 
             _pause.on_click([](auto) {
-                Tracker::analysis_state(SETTING(analysis_paused).value<bool>() ? Tracker::AnalysisState::UNPAUSED : Tracker::AnalysisState::PAUSED);
+                Tracker::analysis_state(SETTING(track_pause).value<bool>() ? Tracker::AnalysisState::UNPAUSED : Tracker::AnalysisState::PAUSED);
             });
         }
 
@@ -100,7 +100,7 @@ namespace gui {
 
             section._section->set_scale(use_scale);
 
-            if (FAST_SETTING(analysis_paused)) {
+            if (FAST_SETTING(track_pause)) {
                 _pause.set_txt("continue");
                 _pause.set_fill_clr(Color(25, 75, 25, GUI_SETTINGS(gui_timeline_alpha)));
             }
@@ -125,7 +125,7 @@ namespace gui {
                 if (_frame_info->current_count != FAST_SETTING(track_max_individuals))
                     number << " " << _frame_info->current_count << " this frame";
 
-                if (!FAST_SETTING(analysis_paused))
+                if (!FAST_SETTING(track_pause))
                     number << " (analysis: " << _frame_info->current_fps << " fps)";
                 else
                     number << " (analysis paused)";
@@ -755,12 +755,12 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 
                         _update_thread_updated_once = true;
 
-                        if (timer.elapsed() > 0.1 && !FAST_SETTING(analysis_paused)) {
+                        if (timer.elapsed() > 0.1 && !FAST_SETTING(track_pause)) {
                             if (long_wait_time < std::chrono::seconds(30)) {
                                 long_wait_time = std::chrono::seconds(30);
                                 short_wait_time = std::chrono::seconds(30);
 
-                                if (!FAST_SETTING(analysis_paused))
+                                if (!FAST_SETTING(track_pause))
                                     FormatWarning("Throtteling some non-essential gui functions until analysis is over.");
                             }
 

@@ -871,7 +871,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
         
         
 #ifndef NDEBUG
-        if(FAST_SETTING(debug)) {
+        /*if(FAST_SETTING(debug)) {
             auto elapsed = timer.elapsed();
             
             std::ofstream file;
@@ -884,7 +884,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
             cmn::print("(single) ",frame(),": ",_optimal_pairing->objects_looked_at," steps in ",elapsed*1000,"ms => ",elapsed*1000/ _optimal_pairing->objects_looked_at,"ms/step");
-        } //else
+        } //else*/
 #endif
         
         return _optimal_pairing->objects_looked_at;

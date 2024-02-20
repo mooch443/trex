@@ -253,11 +253,10 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             || last_threshold != threshold
             || selected != previous_active_fish
             || active_blobs != previous_active_blobs
-            || _gui.mouse_position() != previous_mouse_position
-            || (is_tracking_dirty() && mode() == mode_t::tracking)
-            || _tracking_dirty
+            //|| _gui.mouse_position() != previous_mouse_position
+            || is_tracking_dirty()
             || raw_blobs_dirty()
-            || _blobs_dirty
+            //|| _blobs_dirty
             || _frame_contained != tracked_frames.contains(frameIndex);
 }
 
@@ -374,15 +373,17 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         if(reload_blobs
            || selected != previous_active_fish
            || active_blobs != previous_active_blobs
-           || _gui.mouse_position() != previous_mouse_position
+           //|| _gui.mouse_position() != previous_mouse_position
            || is_tracking_dirty()
-           || _blobs_dirty)
+           //|| _blobs_dirty
+           || _raw_blobs_dirty
+           || _dirty)
         {
             
         } else 
             return {};
         
-        /*print("reload_blobs = ", reload_blobs, " current_frame_matches=", current_frame_matches, " next_frame_matches=", next_frame_matches, " last_threshold=", last_threshold, " threshold=", threshold, " raw_blobs_dirty=", raw_blobs_dirty(), " frameIndex=", frameIndex, " current=", _current_processed_frame ? _current_processed_frame->index() : Frame_t{}, " next=", _next_processed_frame ? _next_processed_frame->index() : Frame_t{}, " selected=", selected, " previous_active_fish=", previous_active_fish, " active_blobs=", active_blobs, " previous_active_blobs=", previous_active_blobs, " mouse_position=", _gui.mouse_position(), " previous_mouse_position=", previous_mouse_position, " is_tracking_dirty=", is_tracking_dirty(), " _blobs_dirty=", _blobs_dirty);*/
+        //print("reload_blobs = ", reload_blobs, " current_frame_matches=", current_frame_matches, " next_frame_matches=", next_frame_matches, " last_threshold=", last_threshold, " threshold=", threshold, " raw_blobs_dirty=", raw_blobs_dirty(), " frameIndex=", frameIndex, " current=", _current_processed_frame ? _current_processed_frame->index() : Frame_t{}, " next=", _next_processed_frame ? _next_processed_frame->index() : Frame_t{}, " selected=", selected, " previous_active_fish=", previous_active_fish, " active_blobs=", active_blobs, " previous_active_blobs=", previous_active_blobs, " mouse_position=", _gui.mouse_position(), " previous_mouse_position=", previous_mouse_position, " is_tracking_dirty=", is_tracking_dirty(), " _blobs_dirty=", _blobs_dirty, " _dirty=",_dirty);
         
         LockGuard guard(ro_t{}, "update_cache", 10);
         if(not guard.locked())
@@ -856,7 +857,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         boundary = Bounds(min_vec, max_vec - min_vec);
         last_threshold = threshold;
         
-        if(reload_blobs) {
+        if(reload_blobs || _raw_blobs_dirty) {
             size_t gpixels = 0;
             double gaverage_pixels = 0, gsamples = 0;
             display_blobs.clear();
@@ -920,11 +921,12 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             _current_pixels = gpixels;
             _average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
             updated_raw_blobs();
+            updated_blobs();
         }
         
         _last_success.reset();
         
-        if(properties && (reload_blobs || _fish_dirty))
+        if(properties && (reload_blobs || _fish_dirty || _tracking_dirty))
         {
             set_of_individuals_t source;
             if(Tracker::has_identities()
@@ -1006,10 +1008,12 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     }
                 }
             }
+            
+            updated_tracking();
         }
         
-        updated_raw_blobs();
-        updated_blobs();
+        //updated_raw_blobs();
+        _dirty = false;
         
         //if(reload_blobs)
         //    print("reloading: ", reasons);

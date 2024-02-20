@@ -330,7 +330,7 @@ void TrackingState::init_video() {
                && !please_stop_analysis)
             {
                 please_stop_analysis = true;
-                SETTING(analysis_paused) = true;
+                SETTING(track_pause) = true;
             }
             
             while(not currentID.load().valid()
@@ -359,7 +359,7 @@ void TrackingState::init_video() {
 void TrackingState::on_tracking_done() {
     please_stop_analysis = true;
     tracker->global_segment_order();
-    SETTING(analysis_paused) = true;
+    SETTING(track_pause) = true;
     
     // tracking has ended
     while(not _tracking_callbacks.empty()) {

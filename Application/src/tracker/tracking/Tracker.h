@@ -159,6 +159,7 @@ private:
     void add(Frame_t frameIndex, PPFrame& frame);
     
     CallbackManagerImpl<void> _delete_frame_callbacks;
+    CallbackManagerImpl<Frame_t> _add_frame_callbacks;
     static inline std::atomic<bool> _segment_order_changed{false};
     
 public:
@@ -172,6 +173,9 @@ public:
     std::size_t register_delete_callback(const std::function<void()>& callback) {
         return _delete_frame_callbacks.registerCallback(callback);
     }
+    std::size_t register_add_callback(const std::function<void(Frame_t)>& callback) {
+        return _add_frame_callbacks.registerCallback(callback);
+    }
 
     /**
      * Unregisters (removes) a previously registered callback using its unique ID.
@@ -180,6 +184,9 @@ public:
      */
     void unregister_delete_callback(std::size_t id) {
         _delete_frame_callbacks.unregisterCallback(id);
+    }
+    void unregister_add_callback(std::size_t id) {
+        _add_frame_callbacks.unregisterCallback(id);
     }
     
     void set_average(Image::Ptr&& average) {

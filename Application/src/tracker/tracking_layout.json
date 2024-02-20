@@ -498,15 +498,15 @@
                             },
                             "else": {
                                 "type":"button",
-                                "action":"set:analysis_paused:{not:{global.analysis_paused}}",
-                                "text":"{if:{global.analysis_paused}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
+                                "action":"set:track_pause:{not:{global.track_pause}}",
+                                "text":"{if:{global.track_pause}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
                                 "size":[15,20],
                                 "pad":[0,-4.5,0,0],
                                 "shadow":0.5,
                                 "font":{"size":0.8},
                                 "fill":[10,0,0,0],
                                 "line":[100,100,100,0],
-                                "color":"{if:{global.analysis_paused}:[30,80,30,100]:[200,120,80,100]}"
+                                "color":"{if:{global.track_pause}:[30,80,30,100]:[200,120,80,100]}"
                             }
                         },
 
@@ -522,7 +522,7 @@
                         
                         {
                             "type": "stext",
-                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.analysis_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
+                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.track_pause}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
                             "font":{ "size":0.65 },
                             "shadow":0.5,
                             "pad":[-5,0,0,7.5]
@@ -665,7 +665,7 @@
             "then":
             {
                 "type":"collection",
-                "pos":"[{min:{-:{window_size.x}:105}:{max:105:{mouse.x}}},69]",
+                "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
                 "children":[
                     {
                         "type":"rect",
@@ -683,18 +683,18 @@
                         "children":[
                             {
                                 "type":"button",
-                                "text":"<sym>🗘</sym> reanalyse from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
+                                "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
                                 "action":"reanalyse:{smart_highlighted}",
                                 "fill":[140,40,40,220],
                                 "line":[100,100,100,100],
                                 "color":[225,225,225],
                                 "font":{"size":0.6,"align":"center"},
-                                "size":[210,25]
+                                "size":[150,25]
                             },
                             {
                                 "type":"stext",
                                 "pad":[5,5,5,5],
-                                "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                                "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no global segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
                                 "font":{"size":0.6}
                             }
                         ]

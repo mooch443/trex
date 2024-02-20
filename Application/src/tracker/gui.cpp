@@ -3480,7 +3480,7 @@ void GUI::key_event(const gui::Event &event) {
                 }, frame());
                 
                 if(!before)
-                    SETTING(analysis_paused) = false;
+                    SETTING(track_pause) = false;
             });
             break;
         }
@@ -4160,7 +4160,7 @@ void GUI::save_visual_fields() {
         });
     }
     
-    SETTING(analysis_paused) = before;
+    SETTING(track_pause) = before;
 }
 
 
@@ -4333,7 +4333,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         }
         
         if(!before)
-            SETTING(analysis_paused) = false;
+            SETTING(track_pause) = false;
         
         callback();
     });

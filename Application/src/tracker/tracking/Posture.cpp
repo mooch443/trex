@@ -295,22 +295,8 @@ namespace track {
                 outline_point = selected;
                 
                 if(!error && confidence > 0.9f) {
-                    if(/* DISABLES CODE */ (false) && FAST_SETTING(debug)) /*&& threshold-initial_threshold > 0*/
-                    {
-                        printf("raw_outline=np.asarray([");
-                        for (auto &a : *selected) {
-                            printf("[%f,%f],", a.x, a.y);
-                        }
-                        printf("])\n");
-
-                        print("Frame ", frameIndex," rendered with threshold ", FAST_SETTING(track_posture_threshold),"+", threshold - FAST_SETTING(track_posture_threshold)," (", selected->size()," -> ", _outline.size()," points).");
-                    }
-                    
                     // found a good configuration! escape.
                     break;
-                    
-                } else if(FAST_SETTING(debug)) {
-                    print("Error in outline (threshold ", threshold,") @",frameIndex," for ",fishID," ", error);
                 }
             }
             
@@ -318,10 +304,6 @@ namespace track {
             threshold += 2;
             
             if(threshold >= initial_threshold + 50) {
-                if(FAST_SETTING(debug)) {
-                    print("Outline failed (threshold ", threshold,") @", frameIndex," for ", fishID);
-                }
-                
                 break;
             }
         }

@@ -228,7 +228,7 @@ void Tracker::analysis_state(AnalysisState pause) {
         throw U_EXCEPTION("No tracker instance can be used to pause.");
 
     std::packaged_task<void(bool)> task([](bool value) {
-        SETTING(analysis_paused) = value;
+        SETTING(track_pause) = value;
     });
     
     std::thread tmp(std::move(task), pause == AnalysisState::PAUSED);
@@ -1956,6 +1956,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     entry.match_leafs_visited = frame._split_pixels;
     
     _time_samples.add(adding, entry.number_fish);
+    
+    _add_frame_callbacks.callAll(frameIndex);
 }
 
 void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)

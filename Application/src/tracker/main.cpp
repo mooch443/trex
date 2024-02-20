@@ -1304,10 +1304,10 @@ int main(int argc, char** argv)
     CheckUpdates::init(&gui.gui());
 #endif
     
-    GlobalSettings::map().register_callbacks({"analysis_paused"}, [&](auto) {
+    GlobalSettings::map().register_callbacks({"track_pause"}, [&](auto) {
         analysis.bump();
         
-        bool pause = SETTING(analysis_paused).value<bool>();
+        bool pause = SETTING(track_pause).value<bool>();
         if(analysis.paused() != pause) {
             print("Adding to queue...");
             
@@ -1334,7 +1334,7 @@ int main(int argc, char** argv)
         return "{}";
     };
     
-    if(FAST_SETTING(analysis_paused) || load_results) {
+    if(FAST_SETTING(track_pause) || load_results) {
         analysis.set_paused(true).get();
         
         if(load_results) {
@@ -1581,7 +1581,7 @@ int main(int argc, char** argv)
 #endif
                     else if(utils::beginsWith(command, "continue")) {
                         before = true;
-                        SETTING(analysis_paused) = false;
+                        SETTING(track_pause) = false;
                     }
                     else if(utils::lowercase(command) == "print_memory") {
                         LockGuard guard(ro_t{}, "print_memory");
@@ -1613,14 +1613,14 @@ int main(int argc, char** argv)
 #endif
                     else if(utils::beginsWith(command, "reanalyse")) {
                         GUI::reanalyse_from(0_f, false);
-                        SETTING(analysis_paused) = false;
+                        SETTING(track_pause) = false;
                         /*{
                             LockGuard guard;
                             Tracker::instance()->remove_frames(0);
                         }
                         
-                        if(SETTING(analysis_paused))
-                            SETTING(analysis_paused) = false;*/
+                        if(SETTING(track_pause))
+                            SETTING(track_pause) = false;*/
                         
                     } else if(GlobalSettings::map().has(command)) {
                         print("Object ",command);
@@ -1649,7 +1649,7 @@ int main(int argc, char** argv)
                     default_config::warn_deprecated("input", GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
                 
                 if(!before)
-                    SETTING(analysis_paused) = false;
+                    SETTING(track_pause) = false;
                 analysis.bump();
             });
         }
