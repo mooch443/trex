@@ -401,11 +401,12 @@ std::string start_converting(std::future<void>& f) {
     
     std::string last_error;
     Segmenter segmenter(
-        []() {
-            if(SETTING(auto_quit).value<bool>())
+        [&f]() {
+            //if(SETTING(auto_quit).value<bool>())
                 SETTING(terminate) = true;
-            else
-                throw InvalidArgumentException("What should I do now?");
+            //else
+            //    start_tracking(f);
+            //    throw InvalidArgumentException("What should I do now?");
         },
         [&last_error](std::string error) {
             SETTING(error_terminate) = true;

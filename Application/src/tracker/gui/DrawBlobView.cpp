@@ -462,7 +462,6 @@ void draw_blob_view(const DisplayParameters& parm)
                     circ->set_radius(5.f);
                     circ->clear_event_handlers();
                     circ->on_click([id = blob->blob_id(), &cache = parm.cache, frame = frame](auto) mutable {
-                        print("Clicked blob ",id," in frame ",frame,".");
                         _current_boundary.clear();
                         set_clicked_blob_id(id);
                         set_clicked_blob_frame(frame);
@@ -547,7 +546,7 @@ void draw_blob_view(const DisplayParameters& parm)
         static std::shared_ptr<Dropdown> list;
         if(popup == nullptr) {
             popup = std::make_shared<Entangled>();
-            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6});
+            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
             list->on_open([list=list.get(), &cache = parm.cache](bool opened) {
                 if(!opened) {
                     //list->set_items({});
@@ -620,9 +619,7 @@ void draw_blob_view(const DisplayParameters& parm)
         for(auto &blob : parm.cache.raw_blobs) {
             if(blob->blob->blob_id() == _clicked_blob_id.load()) {
                 blob_pos = blob->blob->bounds().center();
-                print("Clicked blob ", blob->blob->blob_id(), " at ", blob_pos, " ", frame);
                 auto pt = parm.coord.convert(BowlCoord(blob_pos));
-                print("blob => ", pt);
                 popup->set_pos(pt);
                 found = true;
                 break;
@@ -672,7 +669,9 @@ void draw_blob_view(const DisplayParameters& parm)
             parm.graph.wrap_object(*popup);
             
         } else {
-            print("Cannot find clicked blob id ",_clicked_blob_id.load(),".");
+#ifndef NDEBUG
+            FormatWarning("Cannot find clicked blob id ",_clicked_blob_id.load(),".");
+#endif
             _clicked_blob_id = pv::bid::invalid;
         }
         

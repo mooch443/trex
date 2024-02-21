@@ -808,7 +808,9 @@ void Segmenter::tracking_thread() {
                 auto C = _progress_data.original_index();
 
                 if (L.valid() && C.valid()) {
-                    size_t percent = float(C.get()) / float(L.get()) * 100;
+                    size_t percent = L.get() > 0
+                                        ? float(C.get()) / float(L.get()) * 100
+                                        : 0;
                     //print(C, " / ", L, " => ", percent);
                     static size_t last_progress = 0;
                     if (abs(float(percent) - float(last_progress)) >= 1)
