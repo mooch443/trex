@@ -86,7 +86,11 @@ int main(int argc, char** argv) {
 #endif
     ss << target_path;
 #if __APPLE__
+#if BUILD_LEGACY_TREX
     ss << "TRexA.app/Contents/MacOS/TRexA";
+#else
+    ss << "TRex.app/Contents/MacOS/TRex";
+#endif
 #else
     throw U_EXCEPTION("Only apple supported.");
 #endif
