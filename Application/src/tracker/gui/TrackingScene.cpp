@@ -127,6 +127,7 @@ const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map
     {"lshift", Keyboard::LShift},
     {"lctrl", Keyboard::LControl},
     {"rctrl", Keyboard::RControl},
+    {"system", Keyboard::LSystem},
     {"lalt", Keyboard::LAlt},
     {"ralt", Keyboard::RAlt}
 };

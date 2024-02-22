@@ -30,7 +30,7 @@
 "objects": [
 {
 "type":"condition",
-"var":"{global.gui_show_timeline}",
+"var":"{&&:{not:{||:{key.lctrl}:{key.system}}}:{global.gui_show_timeline}}",
 "then":{
     "type":"collection",
     "size":"auto",

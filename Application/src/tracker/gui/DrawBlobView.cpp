@@ -1012,7 +1012,8 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 }
                 
                 if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6}, std::vector<std::string>{
+                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6},
+                    std::vector<std::string>{
                         "track_ignore",
                         "track_include",
                         "recognition_shapes"
