@@ -411,6 +411,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                  */
                 if(output_image_per_tracklet) {
                     print("Generating tracklet images for fish ",fish->identity().raw_name(),"...");
+                    const bool calculate_posture = FAST_SETTING(calculate_posture);
+                    const auto individual_image_normalization = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
                     
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
@@ -419,13 +421,14 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             // Init data strutctures
                             //size_t image_count = 0;
                             
-                            if(filters->median_midline_length_px > 0) {
-                                std::set<Frame_t> frames(range->range.iterable().begin(), range->range.iterable().end());
+                            if(not do_normalize_tracklets
+                               || not calculate_posture
+                               || not is_in(individual_image_normalization, default_config::individual_image_normalization_t::posture)
+                               || filters->median_midline_length_px > 0)
+                            {
+                                std::set<Frame_t> frames(range->iterable().begin(), range->iterable().end());
                                 
                                 if(tracklet_max_images != 0 && frames.size() > tracklet_max_images) {
-                                    
-                                //}
-                                //if(frames.size() > 100 /** magic number of frames **/) {
                                     auto step_size = frames.size() / tracklet_max_images;
                                     std::set<Frame_t> tmp;
                                     for(auto it = frames.begin(); it != frames.end();) {
@@ -444,11 +447,17 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 
                                 for(auto frame : frames) {
                                     auto midline = fish->midline(frame);
-                                    if(midline) {
+                                    if(not do_normalize_tracklets
+                                       || not calculate_posture
+                                       || not is_in(individual_image_normalization, default_config::individual_image_normalization_t::posture)
+                                       || midline)
+                                    {
                                         auto blob = fish->blob(frame);
                                         assert(blob);
                                         
-                                        auto trans = midline->transform(normalize);
+                                        Transform trans;
+                                        if(midline)
+                                            trans = midline->transform(normalize);
                                         //pv::bid org_id;
                                         
                                         /*ImageData data(ImageData::Blob{
@@ -481,9 +490,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     // output network data
                     file::Path path = (filename + "_recognition_" + fish->identity().name() + ".npz");
                     
-                    Range<Frame_t> fish_range(range);
+                    FrameRange fish_range(range);
                     if(range.empty())
-                        fish_range = Range<Frame_t>(fish->start_frame(), fish->end_frame());
+                        fish_range = FrameRange(Range<Frame_t>(fish->start_frame(), fish->end_frame()));
                     
                     namespace py = Python;
                     std::vector<float> probabilities;
@@ -515,9 +524,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 if(output_posture_data) {
                     file::Path path = (filename + "_posture_" + fish->identity().name() + ".npz");
                     
-                    Range<Frame_t> fish_range(range);
+                    FrameRange fish_range(range);
                     if(range.empty())
-                        fish_range = Range<Frame_t>(fish->start_frame(), fish->end_frame());
+                        fish_range = FrameRange(Range<Frame_t>(fish->start_frame(), fish->end_frame()));
                     
                     
                     std::vector<Vec2> midline_points, outline_points, midline_points_raw;
