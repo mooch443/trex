@@ -93,16 +93,16 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         return result, predictions
     
     def update_status(self, print_out = False, logs = {}):
-        description = "epoch "+str(min(self.epoch+1, self.epochs))+"/"+str(self.epochs)
+        description = "Epoch <c><nr>"+str(min(self.epoch+1, self.epochs))+"</nr></c>/<c><nr>"+str(self.epochs)+"</nr></c>"
         if len(self.X_test) > 0 and len(self.worst_values) > 0:
-            description += " -- worst acc/class: {0:.3f}".format(self.worst_values[-1])
+            description += " -- worst acc/class: <c><nr>{0:.3f}</nr></c>".format(self.worst_values[-1])
 
         if self.best_result["unique"] > -1:
-            description = description + " best: "+str(float(int(self.best_result["unique"] * 10000)) / 100) + "%"
+            description = description + " best: <nr>"+str(float(int(self.best_result["unique"] * 1000)) / 10) + "</nr><i>%</i>"
         if self.compare_acc > 0:
-            description += " compare_acc: " + str(float(int(self.compare_acc * 10000)) / 100)+"%"
+            description += " compare_acc: <nr>" + str(float(int(self.compare_acc * 1000)) / 10)+"</nr><i>%</i>"
         if len(self.losses) >= 5:
-            description += " loss_diff: " + str(float(int(abs(np.mean(self.loss_diffs[-5:])) / self.minimal_loss_allowed * 10000)) / 100)+"% of minimum"
+            description += " <sym>△</sym>loss: <c><nr>" + str(float(int(abs(np.mean(self.loss_diffs[-5:])) / self.minimal_loss_allowed * 10000)) / 100)+"</nr></c><i>%</i> of minimum"
         
         update_work_description(description)
         description = "[TRAIN] "+description
@@ -130,7 +130,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             self.mean_values.append(np.mean(result[:, 3]))
             self.worst_values.append(np.min(result[:, 3]))
 
-            set_per_class_accuracy(result[:, 3].astype(np.float))
+            set_per_class_accuracy(result[:, 3].astype(float))
             worst_acc_per_class = np.min(result[:, 3])
         else:
             result = None
@@ -195,7 +195,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
 
         assert key in logs
         current_loss = logs[key]
-        previous_loss = np.finfo(np.float).max
+        previous_loss = np.finfo(float).max
         
         if len(self.losses) > 0:
             l = np.nanmean(self.losses[-5:])
@@ -471,7 +471,7 @@ def start_learning():
                 alpha.append(np.random.uniform(0.85, 1.15))
             alpha = np.array(alpha)
         
-        images = images.astype(np.float) * alpha
+        images = images.astype(float) * alpha
         
         return np.clip(images, 0, 255).astype(dtype)
 
@@ -513,13 +513,13 @@ def start_learning():
                     #    (i%grid_shape[1]*image_shape[1]):((i%grid_shape[1] + 1)*image_shape[1])] = 255 - batch[0].astype(np.uint8)
                     break  # We only want one augmentation per image, so break the loop
         
-        print(grid.shape, grid.dtype)
+        #print(grid.shape, grid.dtype)
         import cv2 as cv
         if channels == 1:
             grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_GRAY2RGBA)
         else:
             grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_RGB2RGBA)
-        TRex.imshow("grid", grid.astype(np.uint8))
+        #TRex.imshow("grid", grid.astype(np.uint8))
 
     TRex.log("# [init] weights per class "+str(per_class))
     TRex.log("# [training] data shapes: train "+str(X_train.shape)+" "+str(Y_train.shape)+" test "+str(Y_test.shape)+" "+str(classes))

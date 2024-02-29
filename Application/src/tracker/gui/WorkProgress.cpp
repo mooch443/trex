@@ -81,9 +81,8 @@ struct WorkProgress::WorkGUIObjects {
     Rect static_background{Box(0, 0, 0, 0), FillClr{Black.alpha(150)}};
     StaticText static_desc{
         Str("description"), 
-        Font(0.7, Align::Center), 
-        Margins{5,5,5,5},
-        TextClr{150, 150, 150, 255}
+        Font(0.6, Align::Center),
+        Margins{5,5,5,5}
     };
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));
     Button static_button{Str{"abort"}, Box(0, 0, 100, 35)};
@@ -160,11 +159,12 @@ void WorkProgress::start() {
                 if(std::unique_lock guard(instance().gui_mutex);
                    instance().gui)
                 {
-                    auto stage = instance().gui->_additional.stage();
-                    if(stage) {
+                    //auto stage = instance().gui->_additional.stage();
+                    //if(stage)
+                    //{
                         //auto guard = GUI_LOCK(stage->lock());
                         instance().gui->_additional.update([](auto&){});
-                    }
+                    //}
                 }
                 item.fn();
                 //std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -383,8 +383,9 @@ bool WorkProgress::has_additional() {
         if(not instance().gui)
             return false;
         
-        auto stage = instance().gui->_additional.stage();
-        if(stage) {
+        //auto stage = instance().gui->_additional.stage();
+        //if(stage)
+        {
             //auto guard = GUI_LOCK(stage->lock());
             return !instance().gui->_additional.children().empty();
         }

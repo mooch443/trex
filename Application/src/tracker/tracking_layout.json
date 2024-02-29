@@ -597,6 +597,18 @@
                             "fill": [50,150,50,0],
                             "line": [150,150,150,0],
                             "clickable":false
+                        },
+
+                        {
+                            "type": "each",
+                            "var": "{consec}",
+                            "do": {
+                                "type": "rect",
+                                "pos": "[{+:11:{*:{/:{i.start}:{length}}:{width23}}},-10]",
+                                "size": "[{*:{/:{-:{i.end}:{i.start}}:{length}}:{width23}},30]",
+                                "fill": "{clrAlpha:{i.color}:100}",
+                                "line": [150,150,150,0]
+                            }
                         }
                     ]
                 }

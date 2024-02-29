@@ -26,6 +26,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/types/StaticText.h>
 #include <gui/GuiTypes.h>
+#include <gui/Coordinates.h>
 
 namespace py = Python;
 
@@ -961,7 +962,7 @@ bool Accumulation::start() {
             if(p != -1)
                 gui::WorkProgress::set_percent(p);
             if(!desc.empty())
-                gui::WorkProgress::set_description(settings::htmlify(desc));
+                gui::WorkProgress::set_description((desc));
         });
         
         try {
@@ -1880,7 +1881,7 @@ void Accumulation::end_a_step(Result reason) {
         if(k.name == "key")
             cleaned += fmt::clr<FormatColor::CYAN>(k.text).toStr();
         else if(k.name == "nr")
-            cleaned += fmt::clr<FormatColor::GREEN>(k.text).toStr();
+            cleaned += fmt::clr<FormatColor::CYAN>(k.text).toStr();
         else if(k.name == "str")
             cleaned += fmt::clr<FormatColor::RED>(k.text).toStr();
         else
@@ -1930,7 +1931,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     }
     
     if(!_textarea) {
-        _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255));
+        _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
     }
     
     if(!text.empty())
@@ -1948,13 +1949,16 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     
     //auto window = GUI::instance()->base();
     //auto &gui = GUI::instance()->gui();
-    if(not e.stage())
-        return;
-    auto &gui = *e.stage();
+    //if(not e.stage())
+    //    return;
+    //auto &gui = *e.stage();
     
-    Size2 screen_dimensions = (_base ? _base->window_dimensions().div(gui.scale()) * gui::interface_scale() : (Size2)_video->size());
+    //Size2 screen_dimensions = (_base ? _base->window_dimensions().div(gui.scale()) * gui::interface_scale() : (Size2)_video->size());
     //Vec2 center = (screen_dimensions * 0.5).mul(section->scale().reciprocal());
-    screen_dimensions = screen_dimensions.mul(gui.scale());
+    //screen_dimensions = screen_dimensions.mul(gui.scale());
+    auto coord = FindCoord::get();
+    auto screen_dimensions = coord.screen_size();
+    //auto scale = coord.bowl_scale();
     
     if(_coverage_image && _coverage_image->source()->cols >= screen_dimensions.width - 200) {
         float scale = float(screen_dimensions.width - 200) / float(_coverage_image->source()->cols);
@@ -1993,7 +1997,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             Loc offset;
             float previous = accepted_uniqueness();
             size_t i=0;
-            const Font font(0.6f, Align::Center);
+            const Font font(0.55f, Style::Monospace, Align::Center);
             const float accepted = SETTING(gpu_accepted_uniqueness).value<float>();
             
             for(auto &d : history) {
@@ -2013,7 +2017,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
                 
                 e.add<Circle>(offset, Radius{5}, LineClr{color}, FillClr{color.alpha(50)});
                 auto text = e.add<Text>(Str(Meta::toStr(i)), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), TextClr(White), font);
-                text = e.add<Text>(Str(Meta::toStr(int(d * 10000) / 100.0)+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(White), font);
+                text = e.add<Text>(Str(Meta::toStr(int(d * 10000) / 100.0)+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(Cyan), font);
                 offset += Vec2(max(12, text->width() + 10), 0);
                 
                 ++i;
