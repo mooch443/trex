@@ -319,9 +319,9 @@
                     "foldable":true,
                     "folded":true,
                     "text":" <sym>🖵</sym> Display",
-                    "item_padding":[5,3],
+                    "item_padding":[5,5],
                     "item_font":{"size":0.6},
-                    "detail_font":{"size":0.6},
+                    "detail_font":{"size":0.5},
                     "items":[
                         {
                             "text":"Selection Circles",
@@ -405,6 +405,7 @@
                     "text":" <sym>☰</sym> Menu",
                     "item_padding":[5,5],
                     "item_font":{"size":0.6},
+                    "detail_font":{"size":0.5},
                     "item_color":[60,60,60,100],
                     "items":[
                         {
