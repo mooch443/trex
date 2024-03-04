@@ -2,6 +2,7 @@
 #include <gui/types/StaticText.h>
 #include <misc/TrackingSettings.h>
 #include <tracking/Individual.h>
+#include <gui/types/Button.h>
 
 using namespace track;
 
@@ -9,8 +10,13 @@ namespace gui {
     Posture::Posture(const Bounds& size)
       : zero(size.width * 0.1, size.height * 0.5),//, _background(size.size(), Black.alpha(125),White.alpha(125)),
         _text(std::make_unique<StaticText>()),
+        _close(std::make_unique<Button>(attr::Size{30,30}, Str{"X"}, FillClr{200,50,50,150}, TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Loc{size.width,0}, Origin{1,0})),
         _average_active(true)
     {
+        _close->on_click([](Event){
+            SETTING(gui_show_posture) = false;
+        });
+        
         set_bounds(size);
         _text->set_clickable(true);
         set_clickable(true);
@@ -219,13 +225,14 @@ bool Posture::valid() const {
             _text->set(Str("<c>"+ss.str()+"</c>"));
             _text->set(Loc(Vec2(10, 10) + topleft));
             _text->set(SizeLimit(width(), height()));
-            _text->set(Font(0.65));
+            _text->set(Font(0.6));
             _text->set(Margins{5,5,5,5});
             _text->set(LineClr{100,175,250,static_cast<uint8_t>(_text->hovered() ? 200u : 0u)});
             //add<Text>(Str(ss.str()), Loc(Vec2(10, 10) + topleft), TextClr(0, 255, 255, 255), Font(0.75));
             //add<Text>(Str(Meta::toStr(fish->blob(_frameIndex)->bounds().size())), Loc(Vec2(10,30) + topleft), TextClr(DarkCyan), Font(0.75));
             
             advance_wrap(*_text);
+            advance_wrap(*_close);
         }
         
         end();

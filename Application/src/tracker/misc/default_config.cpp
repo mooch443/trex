@@ -1041,6 +1041,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             auto prefix = map.at("output_prefix").value<std::string>();
             auto output_path = map.at("output_dir").value<file::Path>();
+            auto absolute = filename.is_absolute();
             
             if(output_path.empty()) {
                 auto source = map.at("source").value<file::PathArray>();
@@ -1054,7 +1055,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             //! an output file is specified, we want to change whatever folder
             //! the input comes from to whatever folder we want to write to:
-            if(not filename.is_absolute()) {
+            if(not absolute) {
                 //! file is not an absolute path
                 if(not output_path.empty()) {
                     filename = output_path / filename.filename();
@@ -1071,9 +1072,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             if(!prefix.empty()) {
                 //! insert a prefix in between the filename and the path
-                if(not filename.remove_filename().empty())
+                if(not filename.remove_filename().empty()
+                   && not absolute)
                     filename = filename.remove_filename() / prefix / filename.filename();
-                else
+                else if(not absolute)
                     filename = prefix / filename.filename();
             }
             

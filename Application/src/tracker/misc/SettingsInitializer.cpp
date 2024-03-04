@@ -376,7 +376,7 @@ void load(file::PathArray source,
         const auto _source = source.empty()
             ? combined.map.at("source").value<file::PathArray>()
             : source;
-        auto default_path = find_output_name(combined.map);
+        auto default_path = find_output_name(combined.map, {}, {}, false);
         //file::Path default_path = file::find_basename(_source);
         //if(default_path.has_extension())
         
@@ -672,14 +672,18 @@ void load(file::PathArray source,
 
 file::Path find_output_name(const sprite::Map& map, 
                             file::PathArray source,
-                            file::Path filename)
+                            file::Path filename,
+                            bool respect_user_choice)
 {
     const auto _source = source.empty()
         ? map.at("source").value<file::PathArray>()
         : source;
     
-    auto name = map.at("filename").value<file::Path>();
-    filename = name.empty() 
+    auto name = respect_user_choice 
+        ? map.at("filename").value<file::Path>()
+        : file::Path{};
+    
+    filename = name.empty()
         ? file::Path()
         : file::DataLocation::parse("output", name, &map);
     

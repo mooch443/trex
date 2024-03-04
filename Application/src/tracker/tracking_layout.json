@@ -429,18 +429,18 @@
                             "action":"write_config"
                         },
                         {
+                            "text":"<sym>🎭</sym> Train visual identification (VI)",
+                            "detail":"learn differences between individuals",
+                            "action":"visual_identification"
+                        },
+                        {
                             "text":"<sym>👽</sym> Apply identities",
                             "detail":"applies VI or TAG information",
                             "action":"auto_correct"
                         },
                         {
-                            "text":"<sym>🎭</sym> Visual identification",
-                            "detail":"learn the differences between individuals",
-                            "action":"visual_identification"
-                        },
-                        {
                             "text":"<sym>👽</sym> Categorize",
-                            "detail":"applies VI or TAG information",
+                            "detail":"differentiate types of individuals",
                             "action":"categorize"
                         },
                         {
@@ -605,8 +605,8 @@
                             "var": "{consec}",
                             "do": {
                                 "type": "rect",
-                                "pos": "[{+:11:{*:{/:{i.start}:{length}}:{width23}}},-10]",
-                                "size": "[{*:{/:{-:{i.end}:{i.start}}:{length}}:{width23}},30]",
+                                "pos": "[{+:10:{*:{/:{i.start}:{length}}:{width}}},-9]",
+                                "size": "[{-:{*:{/:{min:{+:1:{length}}:{+:1:{i.end}}}:{length}}:{width}}:{+:10:{*:{/:{i.start}:{length}}:{width}}}},28]",
                                 "fill": "{clrAlpha:{i.color}:100}",
                                 "line": [150,150,150,0]
                             }

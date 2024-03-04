@@ -579,7 +579,9 @@ void Segmenter::generator_thread() {
 
                 if (_overlayed_video->eof())
                 {
+#ifndef NDEBUG
 					thread_print("TM EOF: ", result.error());
+#endif
 					//_next_frame_data = {};
 					//_cv_ready_for_tracking.notify_one();
 					ThreadManager::getInstance().notify(_tracker_group_id);
@@ -858,7 +860,9 @@ void Segmenter::tracking_thread() {
                 && _overlayed_video->eof())
             )
         {
+#ifndef NDEBUG
             print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
+#endif
             guard.unlock();
             graceful_end();
             guard.lock();

@@ -24,6 +24,6 @@ void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string&
 float infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);
 float infer_meta_real_width_from(const pv::File &file, const sprite::Map* map = nullptr);
 
-file::Path find_output_name(const sprite::Map&, file::PathArray source = {}, file::Path filename = {});
+file::Path find_output_name(const sprite::Map&, file::PathArray source = {}, file::Path filename = {}, bool respect_user_choice = true);
 
 }

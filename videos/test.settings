@@ -1,4 +1,4 @@
-blob_size_ranges = [[80,400]]
+blob_size_ranges = [[100,400]]
 gui_focus_group = [0]
 track_max_individuals = 8
 track_max_speed = 800
@@ -9,3 +9,4 @@ output_format = csv
 match_mode = automatic
 frame_rate = 25
 track_speed_decay = 0.7
+cm_per_pixel = 1

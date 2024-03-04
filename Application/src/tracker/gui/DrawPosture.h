@@ -13,6 +13,7 @@ class Individual;
 
 namespace gui {
     class StaticText;
+    class Button;
 
     class Posture : public Entangled {
         //track::Individual* _fish{nullptr};
@@ -26,6 +27,7 @@ namespace gui {
         double midline_length{0};
         std::vector<Vec2> _outline;
         std::unique_ptr<StaticText> _text;
+        std::unique_ptr<Button> _close;
         
         bool _average_active;
         std::map<track::Idx_t, std::deque<float>> _scale;
