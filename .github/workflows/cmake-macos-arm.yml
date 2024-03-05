@@ -32,7 +32,7 @@ jobs:
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
     - uses: conda-incubator/setup-miniconda@v3
       with:
-        environment-file: .github/macos-environment.yml
+        environment-file: .github/macos-environment-arm64.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
