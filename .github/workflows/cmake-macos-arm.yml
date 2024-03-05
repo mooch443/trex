@@ -30,7 +30,16 @@ jobs:
       with:
         path: ~/conda_pkgs_dir
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
-    - uses: conda-incubator/setup-miniconda@v3
+    - name: Modify condarc
+      shell: bash -l {0}
+      run: |
+        CONDARC_PATH="${HOME}/.condarc"
+        echo "channels:
+          - conda-forge
+        channel_priority: strict" > "$CONDARC_PATH"
+        echo ".condarc has been updated to only include the conda-forge channel."
+    - name: Setup conda
+      uses: conda-incubator/setup-miniconda@v3
       with:
         environment-file: .github/macos-environment-arm64.yml
         activate-environment: tracking
