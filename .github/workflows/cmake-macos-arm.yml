@@ -36,6 +36,7 @@ jobs:
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
         channels: main
+        architecture: arm64
         miniconda-version: "latest"
         auto-activate-base: true
         auto-update-conda: true
