@@ -319,19 +319,14 @@ std::set<Idx_t> IndividualManager::all_ids() noexcept {
 
 IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Idx_t fdx) noexcept {
     auto result = individual_by_id(fdx).and_then([this](Individual* fish)
-          -> expected_individual_t
+        -> expected_individual_t
     {
+        if(auto it = track::inactive_individuals.find(fish->identity().ID());
+           it != track::inactive_individuals.end())
         {
-            //std::scoped_lock scoped(global_mutex);
-            auto it = track::inactive_individuals.find(fish->identity().ID());
-            /*auto it = std::find(track::inactive_individuals.begin(),
-                                track::inactive_individuals.end(),
-                                fish);*/
-            if(it != track::inactive_individuals.end()) {
-                // is marked as inactive, so has to be set active
-                // and removed here:
-                track::inactive_individuals.erase(it);
-            }
+            // is marked as inactive, so has to be set active
+            // and removed here:
+            track::inactive_individuals.erase(it);
         }
         
         _current.insert(fish);

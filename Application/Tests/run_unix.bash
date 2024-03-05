@@ -55,9 +55,9 @@ if ! { ${CMD} 2>&1; } ; then
     cat "${PWD}/tgrabs.log"
     echo "TGrabs could not be executed."
     exit_code=1
-else
-    echo "  Scanning files..."
-    FILES=$(ls ${PWD}/data/test_fish*.csv)
+#else
+    #echo "  Scanning files..."
+    #FILES=$(ls ${PWD}/data/test_fish*.csv)
     
     #if [ -z "${FILES}" ]; then
     #    echo "[ERROR] No files found."
@@ -100,11 +100,11 @@ function compare_csv() {
 
   # Use comm to compare lines, ignoring the first line (header)
   if ! ${GIT} --no-pager diff --word-diff --no-index -- ${file1} ${file2} > /dev/null; then
-    echo "${file1} != ${file2}"
+    #echo "${file1} != ${file2}"
     return 1
   fi
 
-  echo "${file1} == ${file2}"
+  #echo "${file1} == ${file2}"
   return 0
 }
 
@@ -126,14 +126,14 @@ function compare_csv_folder() {
   for input_file in "${input_files[@]}"; do
     found_match=false
 
-    echo "Checking ${input_file}..."
+    #echo -n "Checking ${input_file}..."
     # Loop through each file in the output folder
     for output_file in "${output_files[@]}"; do
 
       # Compare current input file with output files
       if compare_csv "$input_file" "$output_file"; then
-        echo "found match ${input_file} == ${output_file}!"
-        echo ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${output_file}
+        #echo -n "found match ${input_file} == ${output_file}!"
+        #echo ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${output_file}
         found_match=true
         break
       fi
@@ -141,7 +141,7 @@ function compare_csv_folder() {
 
     if ! $found_match; then
         unmatched=true
-        echo "No match found for $input_file"
+        echo "No match found for $input_file!"
         file1=$input_file
 
         # Optionally, find the closest diff match (modify this logic as needed)
@@ -149,7 +149,7 @@ function compare_csv_folder() {
         closest_diff_file=""
         for file2 in "${output_files[@]}"; do
             diff_lines=$(${GIT} --no-pager diff --word-diff --no-index -- "$file1" "$file2" | wc -l)
-            echo "diff with $file2: $diff_lines"
+            #echo "diff with $file2: $diff_lines"
             if [[ -z $closest_diff || $diff_lines -lt $closest_diff ]]; then
                 closest_diff=$diff_lines
                 closest_diff_file=$file2
@@ -157,7 +157,7 @@ function compare_csv_folder() {
         done
 
         if [[ ! -z $closest_diff ]]; then
-            echo "Closest difference found with: $closest_diff $closest_diff_file"
+            echo "Closest difference found with $closest_diff_file ($closest_diff)"
             ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${closest_diff_file}
         fi
     fi
@@ -167,7 +167,7 @@ function compare_csv_folder() {
     return 1
   fi
 
-  echo "All CSV files in $input_folder found matches in $output_folder (ignoring names)."
+  #echo "All CSV files in $input_folder found matches in $output_folder (ignoring names)."
   return 0
 }
 
