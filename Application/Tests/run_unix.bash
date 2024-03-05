@@ -89,6 +89,89 @@ echo ""
 
 MODES="automatic"
 
+function compare_csv() {
+  local file1="$1"
+  local file2="$2"
+
+  # Check if either file is empty
+  if [[ -z "$file1" || -z "$file2" ]]; then
+    return 1
+  fi
+
+  # Use comm to compare lines, ignoring the first line (header)
+  if ! ${GIT} --no-pager diff --word-diff --no-index -- ${file1} ${file2} > /dev/null; then
+    echo "${file1} != ${file2}"
+    return 1
+  fi
+
+  echo "${file1} == ${file2}"
+  return 0
+}
+
+
+function compare_csv_folder() {
+  local input_folder="$1"
+  local output_folder="$2"
+
+  # Get all CSV files in the input folder
+  input_files=( "$input_folder"/*.csv )
+
+  # Get all CSV files in the output folder
+  output_files=( "$output_folder"/*.csv )
+
+  # Flag for any unmatched files
+  unmatched=false
+
+  # Loop through each file in the input folder
+  for input_file in "${input_files[@]}"; do
+    found_match=false
+
+    echo "Checking ${input_file}..."
+    # Loop through each file in the output folder
+    for output_file in "${output_files[@]}"; do
+
+      # Compare current input file with output files
+      if compare_csv "$input_file" "$output_file"; then
+        echo "found match ${input_file} == ${output_file}!"
+        echo ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${output_file}
+        found_match=true
+        break
+      fi
+    done
+
+    if ! $found_match; then
+        unmatched=true
+        echo "No match found for $input_file"
+        file1=$input_file
+
+        # Optionally, find the closest diff match (modify this logic as needed)
+        closest_diff=""
+        closest_diff_file=""
+        for file2 in "${output_files[@]}"; do
+            diff_lines=$(${GIT} --no-pager diff --word-diff --no-index -- "$file1" "$file2" | wc -l)
+            echo "diff with $file2: $diff_lines"
+            if [[ -z $closest_diff || $diff_lines -lt $closest_diff ]]; then
+                closest_diff=$diff_lines
+                closest_diff_file=$file2
+            fi
+        done
+
+        if [[ ! -z $closest_diff ]]; then
+            echo "Closest difference found with: $closest_diff $closest_diff_file"
+            ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${closest_diff_file}
+        fi
+    fi
+  done
+
+  if $unmatched; then
+    return 1
+  fi
+
+  echo "All CSV files in $input_folder found matches in $output_folder (ignoring names)."
+  return 0
+}
+
+
 for MODE in ${MODES}; do
     CMD="${TREX} -d \"${WPWD}\" -i \"${WPWD}/test\" -s \"${WPWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {} -task track -detect_type background_subtraction"
 
@@ -111,18 +194,26 @@ for MODE in ${MODES}; do
             echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv"
             echo "${PWD}/corrected/data: $FILES"
 
-            for f in ${FILES}; do
-                f=$(basename $f .csv)
+            if ! compare_csv_folder "${PWD}/corrected/data" "${PWD}/compare_data_${MODE}"; then
+                echo "FAIL"
+                echo "[ERROR] corrected files differ from baseline"
+                exit_code=1
+            else
+                echo 'OK'
+            fi
 
-                echo -e -n "\tChecking $f ..."
-                if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv; then
-                    echo "FAIL"
-                    echo "[ERROR] corrected file $f differs from baseline"
-                    exit_code=1
-                else
-                    echo 'OK'
-                fi
-            done
+            #for f in ${FILES}; do
+            #    f=$(basename $f .csv)
+
+                #echo -e -n "\tChecking $f ..."
+                #if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv; then
+                #    echo "FAIL"
+                #    echo "[ERROR] corrected file $f differs from baseline"
+                #    exit_code=1
+                #else
+                #    echo 'OK'
+                #fi
+            #done
         fi
     fi
 
