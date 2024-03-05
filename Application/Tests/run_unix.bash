@@ -31,7 +31,7 @@ else
     fi
 fi
 
-if ! which tgrabs; then
+if ! which trex; then
     if [ $(uname) == "Darwin" ]; then
         TGRABS=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
         TREX=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
