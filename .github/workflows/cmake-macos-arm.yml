@@ -35,7 +35,7 @@ jobs:
         environment-file: .github/macos-environment.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
-        channels: main
+        channels: conda-forge
         architecture: arm64
         miniconda-version: "latest"
         auto-activate-base: true
