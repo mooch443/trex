@@ -35,8 +35,8 @@ int main(int argc, char**argv) {
     //file::Path path("/Users/tristan/Videos/locusts/converted/four_patches_tagged_60_locusts_top_right_high_top_left_low_20220610_142144_body.pv");
     SETTING(filename) = path.remove_extension("pv");
     
-    pv::File video(path, pv::FileMode::READ);
-    video.print_info();
+    auto video = std::make_shared<pv::File>(path, pv::FileMode::READ);
+    video->print_info();
     
     file::Path settings_file(path.replace_extension("settings"));
     GlobalSettings::map().set_print_by_default(true);
@@ -51,8 +51,8 @@ int main(int argc, char**argv) {
     }
     DebugHeader("LOADED ", settings_file);
     
-    Tracker tracker(Image::Make(video.average()), video);
-    video.print_info();
+    Tracker tracker(Image::Make(video->average()), *video);
+    video->print_info();
     
     Output::TrackingResults results(tracker);
     try {
@@ -64,14 +64,14 @@ int main(int argc, char**argv) {
         pv::Frame frame;
         Timer timer;
         double s = 0;
-        for(Frame_t i=0_f; i<video.length(); ++i) {
-            video.read_frame(frame, i);
-            track::Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
+        for(Frame_t i=0_f; i<video->length(); ++i) {
+            video->read_frame(frame, i);
+            track::Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, video->header().resolution, false);
             tracker.add(pp);
             
             s += timer.elapsed();
             if(i.get() % 1000 == 0)
-                print(1.0 / (s / double(i.get())), "fps ", i, "/", video.length());
+                print(1.0 / (s / double(i.get())), "fps ", i, "/", video->length());
             timer.reset();
         }
     }
@@ -85,7 +85,7 @@ int main(int argc, char**argv) {
             auto data = std::make_shared<TrainingData>();
             FrameRange range(Range<Frame_t>{0_f, 1000_f});
             auto individuals_per_frame = Accumulation::generate_individuals_per_frame(range.range, data.get(), nullptr);
-            if(data->generate("test", video, individuals_per_frame, [](float) {}, nullptr)) {
+            if(data->generate("test", *video, individuals_per_frame, [](float) {}, nullptr)) {
                 float worst_accuracy_per_class = 0;
                 visual->train(data, range, py::TrainingMode::Continue, 5, true, &worst_accuracy_per_class, 0);
             }
@@ -94,7 +94,7 @@ int main(int argc, char**argv) {
         using namespace extract;
         Timer timer;
         ImageExtractor features{
-            video,
+            auto(video),
             [](const Query& q)->bool {
                 return !q.basic->blob.split();
             },

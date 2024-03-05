@@ -1,0 +1,71 @@
+name: CondaBuildMacOS
+
+on: [push]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+  MACOSX_DEPLOYMENT_TARGET: 11.0
+  CONDA_BUILD_SYSROOT:  /Applications/Xcode_15.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk
+  SDKROOT:  /Applications/Xcode_15.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk
+  GITHUB_WORKFLOW: CondaBuildMacOS
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["macos-14"]
+        python-version: ["3.11.8"]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
+        submodules: 'recursive'
+    - name: Cache conda
+      uses: actions/cache@v4
+      env:
+        CACHE_NUMBER: 1
+      with:
+        path: ~/conda_pkgs_dir
+        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
+    - uses: conda-incubator/setup-miniconda@v3
+      with:
+        environment-file: .github/macos-environment.yml
+        activate-environment: tracking
+        python-version: ${{ matrix.python-version }}
+        channels: main
+        miniconda-version: "latest"
+        auto-activate-base: true
+        auto-update-conda: true
+        use-only-tar-bz2: true
+    - name: Build
+      shell: bash -l {0}
+      working-directory: ${{runner.workspace}}
+      run: |
+        echo "::group::Info"
+        conda info
+        conda list
+        echo "::endgroup::"
+        echo "::group::Fix Meta"
+        cd $GITHUB_WORKSPACE/conda
+        p=${GITHUB_REF##*/}
+        sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
+        cat meta.yaml
+        echo "::endgroup::"
+        echo "::group::Build"
+        conda build . --override-channels -c pytorch -c conda-forge
+        echo "::endgroup::"
+        echo "::group::Test"
+        echo $CONDA_PREFIX
+        conda create -y -n test --override-channels -c pytorch -c conda-forge -c $CONDA_PREFIX/conda-bld/ trex
+        conda activate test
+        pvinfo -opencv_ffmpeg_support
+        pvinfo -opencv_opencl_support
+        echo "::endgroup::"
+        echo "::group::TestFunctions"
+        conda install -y unzip
+        cd $GITHUB_WORKSPACE/Application/Tests
+        ./run_unix.bash
+        echo "::endgroup::"
