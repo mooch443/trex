@@ -8,8 +8,8 @@ cd build
 set MENU_DIR=%PREFIX%\Menu
 mkdir %MENU_DIR%
 
-echo copying %RECIPE_DIR%\..\Application\src\tracker\gfx\TRexA.ico to %MENU_DIR%
-copy %RECIPE_DIR%\..\Application\src\tracker\gfx\TRexA.ico %MENU_DIR%
+echo copying %RECIPE_DIR%\..\Application\src\tracker\gfx\TRex.ico to %MENU_DIR%
+copy %RECIPE_DIR%\..\Application\src\tracker\gfx\TRex.ico %MENU_DIR%
 if errorlevel 1 exit 1
 
 echo copying %RECIPE_DIR%\menu-windows.json to %MENU_DIR%\trex.json
