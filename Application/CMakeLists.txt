@@ -401,6 +401,14 @@ if(POLICY CMP0114)
   cmake_policy(POP)
 endif()
 
+# If you want to compile and run tests with a custom command, you can use something like this:
+add_custom_target(RunTests ALL
+    COMMAND ${CMAKE_COMMAND} -E echo "Running tests..."
+    #COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target RUN_TESTS --config Debug
+    #COMMAND ${CMAKE_COMMAND} -E echo "Building application..."
+    #COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target TRex --config Release
+    DEPENDS RUN_TESTS
+)
 
 
 message(STATUS "LINK_OPTIONS = ${CMAKE_CXX_LINK_FLAGS} ${CMAKE_CXX_LINK_FLAGS_RELEASE} ")

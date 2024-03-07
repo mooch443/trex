@@ -1034,7 +1034,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 std::sort(blob_index.begin(), blob_index.end(), std::less{});
-                std::sort(individual_index.begin(), individual_index.end(), std::less{});
+                std::sort(individual_index.begin(), individual_index.end(), std::greater{});
                 assert(individual_index.size() == (size_t)int(_paired.n_rows()));
                 
                 PPFrame::Log("* individual_index = ", individual_index);

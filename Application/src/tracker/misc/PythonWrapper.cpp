@@ -75,7 +75,9 @@ public:
                 print("Data and thread.");
             }
             else if (_data && not _data->_initialized) {
+#ifndef NDEBUG
                 print("Data and not initialized.");
+#endif
                 if (_data->_initializing) {
                     if (_data->_init_future.valid()) {
                         std::unique_lock t(_termination_mutex);
@@ -86,7 +88,9 @@ public:
                     data = _data;
                 }
                 else {
+#ifndef NDEBUG
                     print("Not initializing.");
+#endif
                     delete _data;
                     _data = nullptr;
                 }

@@ -407,6 +407,16 @@ void load(file::PathArray source,
         "output_prefix"
     };
     
+    constexpr auto exclude_from_external = std::array{
+        "detect_model",
+        "region_model",
+        "detect_resolution",
+        "region_resolution"
+    };
+    
+    const bool changed_model_manually = combined.map.has("detect_model")
+                && not combined.map.at("detect_model").value<file::Path>().empty();
+    
     /// -----------------------------------------------
     /// 10. load settings from the .pv if tracking mode
     /// -----------------------------------------------
@@ -433,7 +443,11 @@ void load(file::PathArray source,
                 }
                 
                 const auto& meta = f.header().metadata;
-                sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map, exclude.toVector(), default_config::deprecations());
+                sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
+                                     changed_model_manually
+                                         ? (exclude + exclude_from_external).toVector()
+                                         : exclude.toVector(),
+                                     default_config::deprecations());
                 
                 exclude_from_default += tmp.keys();
                 //print("// pv file keys = ", tmp.keys());
@@ -540,12 +554,11 @@ void load(file::PathArray source,
             sprite::Map map;
             map.set_print_by_default(false);
 
-            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, (exclude /*+ std::array{
-                "detect_model",
-                "region_model",
-                "detect_resolution",
-                "region_resolution"
-            }*/).toVector(), &map, &combined.map);
+            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, 
+                                               changed_model_manually
+                                                   ? (exclude + exclude_from_external).toVector()
+                                                   : exclude.toVector(),
+                                                &map, &combined.map);
             
             warn_deprecated(settings_file, rejected);
             

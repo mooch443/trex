@@ -17,7 +17,11 @@ using namespace track::Match;
 #include <python/Yolo8.h>
 
 TEST(TestValidModels, Valid) {
-    ASSERT_TRUE(track::Yolo8::valid_model(R"(\\WDMyCloudEX4100\\Public\\work\\shark\\models\\640-yolov8x-pose-2023-10-12-14_dataset-1-mAP5095_0.64125-mAP50_0.93802.pt)"));
+#ifndef WIN32
+    ASSERT_TRUE(track::Yolo8::valid_model(R"(/path/to/models/640-yolov8x-pose-2023-10-12-14_dataset-1-mAP5095_0.64125-mAP50_0.93802.pt)"));
+#else
+    ASSERT_TRUE(track::Yolo8::valid_model(R"(C:\\path\\to\\models\\640-yolov8x-pose-2023-10-12-14_dataset-1-mAP5095_0.64125-mAP50_0.93802.pt)"));
+#endif
 }
 
 static auto _ = [](){
@@ -243,7 +247,7 @@ TEST_P(TestPairing, TestOrder) {
         
         ASSERT_EQ(expected.size(), pairing.pairings.size());
         for(auto& [bdx, fish] : pairing.pairings) {
-            ASSERT_EQ(expected.contains(fish), true) << _format("fish ", fish, " should be contained in pairings: ", pairing.pairings);
+            ASSERT_EQ(expected.contains(fish), true) << _format("fish ", fish, " was unexpected in pairings: ", pairing.pairings, " expectations: ", extract_keys(expected));
             ASSERT_EQ(expected.at(fish), bdx) << _format("expected ", expected.at(fish), " but found ", bdx, " for fish ", fish);
         }
     };
@@ -265,7 +269,7 @@ TEST(TestLines, Threshold) {
     cv::Mat gs;
     convert_to_r3g3b2<3>(black->get(), gs);
     //cv::cvtColor(black->get(), gs, cv::COLOR_BGR2GRAY);
-    cv::imwrite("/Users/tristan/Desktop/test_image.png", gs);
+    //cv::imwrite("test_image.png", gs);
     auto blobs = CPULabeling::run(gs);
     ASSERT_EQ(blobs.size(), 1u);
     
@@ -281,8 +285,8 @@ TEST(TestLines, Threshold) {
     auto [off,img] = blob.image(&bg, Bounds(), 0);
     cv::Mat g;
     convert_from_r3g3b2(img->get(), g);
-    cv::imshow("img", g);
-    cv::waitKey(0);
+    //cv::imshow("img", g);
+    //cv::waitKey(0);
     
     CPULabeling::ListCache_t cache;
     auto b = pixel::threshold_blob(cache, pv::BlobWeakPtr(&blob), 0, &bg);

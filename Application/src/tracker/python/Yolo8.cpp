@@ -83,7 +83,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
     if(SETTING(region_model).value<file::Path>().exists())
         _loaded_models.emplace_back(
             ModelTaskType::region,
-            false, // region models dont have tracking
+            SETTING(yolo8_region_tracking_enabled).value<bool>(), // region models dont have tracking
             SETTING(region_model).value<file::Path>().str(),
             SETTING(region_resolution).value<uint16_t>()
         );

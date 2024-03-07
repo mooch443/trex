@@ -137,13 +137,13 @@ endif()
 # add actual executable
 set(TREXA_SRCS alter.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
-    gfx/TRexA_16.png
-    gfx/TRexA_32.png
-    gfx/TRexA_64.png
-    gfx/TRexA_128.png
-    gfx/TRexA_256.png
-    gfx/TRexA_512.png
-    gfx/TRexA_1024.png
+    gfx/TRex_16.png
+    gfx/TRex_32.png
+    gfx/TRex_64.png
+    gfx/TRex_128.png
+    gfx/TRex_256.png
+    gfx/TRex_512.png
+    gfx/TRex_1024.png
     )
 
 if(APPLE)
@@ -461,7 +461,7 @@ if(APPLE)
         MACOSX_PACKAGE_LOCATION Resources
     )
     set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
-        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AlterIcons")
 endif()
 
 #target_precompile_headers(properties REUSE_FROM commons)
