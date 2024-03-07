@@ -99,7 +99,7 @@ requirements:
     - python =3.9 # [win]
     - python =3.10 # [linux]
     - openblas # [arm64]
-    - conda-forge::ffmpeg =6 # [arm64]
+    - ffmpeg =6 # [osx and arm64]
     - ffmpeg >=4.3,<=6 # [win]
     - defaults::ffmpeg >=4,<=6 # [osx and not arm64]
     - defaults::ffmpeg =4.2 # [linux]

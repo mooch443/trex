@@ -30,14 +30,6 @@ jobs:
       with:
         path: ~/conda_pkgs_dir
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
-    - name: Modify condarc
-      shell: bash -l {0}
-      run: |
-        CONDARC_PATH="${HOME}/.condarc"
-        echo "channels:
-          - conda-forge
-        channel_priority: strict" > "$CONDARC_PATH"
-        echo ".condarc has been updated to only include the conda-forge channel."
     - name: Setup conda
       uses: conda-incubator/setup-miniconda@v3
       with:
@@ -48,10 +40,21 @@ jobs:
         architecture: arm64
         miniforge-version: latest
         remove-profiles: true
+        auto-update-conda: true
         conda-solver: libmamba
         clean-patched-environment-file: true
         auto-activate-base: true
         use-only-tar-bz2: true
+    - name: Modify condarc
+      shell: bash -l {0}
+      run: |
+        CONDARC_PATH="${CONDA}/.condarc"
+        echo "channels:
+          - conda-forge
+        channel_priority: strict" > "$CONDARC_PATH"
+        echo ".condarc has been updated to only include the conda-forge channel:"
+        cat "$CONDARC_PATH"
+        conda update --all --yes
     - name: Build
       shell: bash -l {0}
       working-directory: ${{runner.workspace}}
