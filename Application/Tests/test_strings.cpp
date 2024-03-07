@@ -1681,7 +1681,7 @@ TEST(ConstexprStringTest, ToStringConversion) {
 
 // Test suite for to_string function template
 TEST(ToStringTest, HandleNormalFloat) {
-    auto str = to_string(123.456f);
+    auto str = to_string(123.456);
     EXPECT_EQ(str, "123.456") << str.view() << " != " << "123.456";
 }
 
