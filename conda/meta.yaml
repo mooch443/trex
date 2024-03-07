@@ -164,7 +164,6 @@ about:
       - Application/build/opencv_install/etc/licenses/libjpeg-turbo-README.md # [win]
       - Application/build/opencv_install/etc/licenses/libtiff-COPYRIGHT # [win]
       - Application/build/opencv_install/etc/licenses/protobuf-LICENSE # [win]
-      - Application/build/opencv_install/etc/licenses/quirc-LICENSE # [win]
       - Application/build/opencv_install/etc/licenses/SoftFloat-COPYING.txt # [win]
       - licenses/glfw/LICENSE.md
       - licenses/robin-hood/LICENSE
