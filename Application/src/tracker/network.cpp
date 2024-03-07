@@ -94,7 +94,7 @@ int main(int argc, char**argv) {
         using namespace extract;
         Timer timer;
         ImageExtractor features{
-            auto(video),
+            decltype(video)(video),
             [](const Query& q)->bool {
                 return !q.basic->blob.split();
             },

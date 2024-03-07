@@ -80,7 +80,7 @@ namespace Output {
         }
     };
     
-    class ResultsFormat : public DataFormat {
+    class ResultsFormat : public cmn::DataFormat {
     public:
         enum Versions {
             V_1 = 0,
