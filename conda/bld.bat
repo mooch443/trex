@@ -42,6 +42,7 @@ cmake --build . --target Z_LIB --config Release
 cmake --build . --target libzip --config Release
 cmake --build . --target libpng_custom --config Release
 cmake --build . --target CustomOpenCV --config Release
+cmake --build . --target gladex --config Release
 cmake ..
 if errorlevel 1 exit 1
 
