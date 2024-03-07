@@ -22,7 +22,7 @@ package:
 
 channels:
   - conda-forge     # [arm64 or linux]
-  - pytorch-nightly
+  - pytorch
   - apple           # [arm64]
   - nodefaults      # [arm64]
 source:
@@ -122,12 +122,12 @@ requirements:
     #- tensorflow >=2,<3   # [osx and not arm64]
     - "pytorch::pytorch-mutex=*=cuda" # [linux or win]
     - "pytorch::pytorch=2.*=py3*" # [osx and not arm64]
-    - "pytorch-nightly::pytorch=2.*=py3*" # [osx and arm64]
+    - "pytorch::pytorch=2.*=py3*" # [osx and arm64]
     - "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" # [win]
     - "pytorch::pytorch=1.*=py3.*_cuda11.7_cudnn*" # [linux]
     - "pytorch::pytorch-cuda=11.7" # [linux or win]
     - "pytorch::torchvision=*=py3*" # [osx and not arm64]
-    - "pytorch-nightly::torchvision=*=py3*" # [osx and arm64]
+    - "pytorch::torchvision=*=py3*" # [osx and arm64]
     - "pytorch::torchvision=*=py3*_cu117" # [linux or win]
     # disable this for install builds
     #- cudatoolkit =10.1 # [linux]
