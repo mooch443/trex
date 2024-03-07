@@ -142,6 +142,7 @@ cmake ..
 
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release
 
+cmake .. -DTREX_WITH_TESTS=OFF
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
 
 #make -j${PROCS} && make install
