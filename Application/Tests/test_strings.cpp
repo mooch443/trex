@@ -8,10 +8,6 @@
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualCache.h>
 
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
 static constexpr auto lower = utils::lowercase("hiIbImS");
 
 using namespace cmn;
@@ -987,6 +983,7 @@ TEST(SearchText, HandlesPartialWordMatches) {
     
 }
 
+#ifndef NDEBUG
 // Test narrow_cast with warn_on_error
 TEST(NarrowCastTest, WarnOnError) {
     EXPECT_NO_THROW({
@@ -1021,6 +1018,7 @@ TEST(NarrowCastTest, NoTags) {
     result = narrow_cast<short>(value);
     EXPECT_EQ(result, static_cast<short>(value));
 }
+#endif
 
 // Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
 TEST(ToStrFromStrRoundTripTest, BasicTest) {

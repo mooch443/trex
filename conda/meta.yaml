@@ -32,7 +32,7 @@ source:
 
 app:
   entry: trex
-  icon: ../Application/src/tracker/gfx/TRexA_1024.png
+  icon: ../Application/src/tracker/gfx/TRex_1024.png
   summary: TRex
   type: console
   own_environment: True
@@ -51,13 +51,9 @@ build:
     detect_binary_files_with_prefix: True
     files_with_prefix:
         - bin/trex
-        - bin/trexa
-        - bin/tgrabs
         - bin/pvinfo
         - bin/pvconvert
         - bin/TRex.app/Contents/MacOS/TRex # [osx]
-        - bin/TRexA.app/Contents/MacOS/TRexA # [osx]
-        - bin/TGrabs.app/Contents/MacOS/TGrabs # [osx]
     
 requirements:
   build:

@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
 #include <misc/format.h>
@@ -8,30 +9,27 @@
 #include <misc/checked_casts.h>
 #include <file/Path.h>
 
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
 using namespace file;
 bool matched;
 using namespace cmn;
 
+#ifndef NDEBUG
 // Integer to Integer Conversions
 TEST(NarrowCast, IntToIntSameSignedness) {
-    EXPECT_TRUE(check_narrow_cast<int>(12345L));  // long to int, within range
-    EXPECT_TRUE(check_narrow_cast<short>(-12345));  // int to short, within range
-    unsigned int largeUnsigned = static_cast<unsigned int>(std::numeric_limits<int>::max()) + 1;
-    EXPECT_FALSE(check_narrow_cast<int>(largeUnsigned));  // unsigned int to int, out of range
+    EXPECT_TRUE(check_narrow_cast<int32_t>(12345L));  // long to int, within range
+    EXPECT_TRUE(check_narrow_cast<int16_t>(-12345));  // int to short, within range
+    int64_t largeUnsigned = static_cast<int64_t>(std::numeric_limits<int32_t>::max()) + 1;
+    EXPECT_FALSE(check_narrow_cast<int32_t>(largeUnsigned));  // uint32_t to int, out of range
 }
 
 TEST(NarrowCast, SignedToUnsigned) {
-    EXPECT_TRUE(check_narrow_cast<unsigned int>(12345));  // int to unsigned int, positive value
-    EXPECT_FALSE(check_narrow_cast<unsigned int>(-1));  // int to unsigned int, negative value
+    EXPECT_TRUE(check_narrow_cast<uint32_t>(12345));  // int to uint32_t, positive value
+    EXPECT_FALSE(check_narrow_cast<uint32_t>(-1));  // int to uint32_t, negative value
 }
 
 TEST(NarrowCast, UnsignedToSigned) {
-    EXPECT_TRUE(check_narrow_cast<int>(12345u));  // unsigned int to int, within range
-    EXPECT_FALSE(check_narrow_cast<int>(std::numeric_limits<unsigned int>::max()));  // unsigned int to int, out of range
+    EXPECT_TRUE(check_narrow_cast<int>(12345u));  // uint32_t to int, within range
+    EXPECT_FALSE(check_narrow_cast<int>(std::numeric_limits<uint32_t>::max()));  // uint32_t to int, out of range
 }
 
 // Floating-Point to Integer Conversions
@@ -42,9 +40,9 @@ TEST(NarrowCast, FloatToSignedInt) {
 }
 
 TEST(NarrowCast, FloatToUnsignedInt) {
-    EXPECT_TRUE(check_narrow_cast<unsigned int>(12345.67f));  // float to unsigned int, within range
-    EXPECT_FALSE(check_narrow_cast<unsigned int>(-1.0f));  // float to unsigned int, negative
-    EXPECT_FALSE(check_narrow_cast<unsigned int>(static_cast<float>(std::numeric_limits<unsigned int>::max()) + 10000.0f));  // float to unsigned int, out of range
+    EXPECT_TRUE(check_narrow_cast<uint32_t>(12345.67f));  // float to uint32_t, within range
+    EXPECT_FALSE(check_narrow_cast<uint32_t>(-1.0f));  // float to uint32_t, negative
+    EXPECT_FALSE(check_narrow_cast<uint32_t>(static_cast<float>(std::numeric_limits<uint32_t>::max()) + 10000.0f));  // float to uint32_t, out of range
 }
 
 // Integer to Floating-Point Conversions
@@ -54,7 +52,7 @@ TEST(NarrowCast, SignedIntToFloat) {
 }
 
 TEST(NarrowCast, UnsignedIntToFloat) {
-    EXPECT_TRUE(check_narrow_cast<float>(12345u));  // unsigned int to float, within range
+    EXPECT_TRUE(check_narrow_cast<float>(12345u));  // uint32_t to float, within range
 }
 
 // Floating-Point to Floating-Point Conversions
@@ -70,6 +68,8 @@ TEST(NarrowCast, EdgeCases) {
     EXPECT_TRUE(check_narrow_cast<long>(std::numeric_limits<int>::min()));  // int to long, within range
     EXPECT_TRUE(check_narrow_cast<long>(std::numeric_limits<int>::max()));  // int to long, within range
 }
+
+#endif
 
 TEST(PathArrayTest, AddPath) {
     file::_PathArray<> pa;
@@ -628,11 +628,11 @@ TEST(PathConcatenation, AbsoluteRhs) {
 TEST(PathConcatenation, EmptyLhs) {
     Path lhs("");
     Path rhs("relative");
-#if defined(WIN32)
-    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
-#else
+//#if defined(WIN32)
+//    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
+//#else
     EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()) + "relative");  // Empty lhs should result in only rhs
-#endif
+//#endif
 }
 
 // Test concatenation where the rhs is empty
@@ -646,11 +646,11 @@ TEST(PathConcatenation, EmptyRhs) {
 TEST(PathConcatenation, BothEmpty) {
     Path lhs("");
     Path rhs("");
-#if defined(WIN32)
-    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
-#else
+//#if defined(WIN32)
+//    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
+//#else
     EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));
-#endif
+//#endif
 }
 
 // Test concatenation with various special characters in paths

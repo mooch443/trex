@@ -85,4 +85,10 @@ add_test(NAME test-pixels COMMAND test_pixels)
 add_test(NAME test-patharray COMMAND test_patharray)
 add_test(NAME test-dyngui COMMAND test_dyngui)
 
+# Add a custom target to build and run all tests
+add_custom_target(runAllTests
+        COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
+        DEPENDS ${TARGETS}
+)
+
 endif()

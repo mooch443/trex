@@ -102,7 +102,7 @@ cmake .. \
     -DCOMMONS_CONDA_PACKAGE_INSTALL=ON \
     -DCOMMONS_DONT_USE_PCH=ON \
     -DCMN_USE_OPENGL2=OFF \
-    -DTREX_WITH_TESTS=OFF \
+    -DTREX_WITH_TESTS=ON \
     -DBUILD_LEGACY_TREX=OFF -DBUILD_LEGACY_TGRABS=OFF \
     -DCMAKE_PREFIX_PATH=$PREFIX \
     -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE \
@@ -139,6 +139,8 @@ fi
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS}
 
 cmake ..
+
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release
 
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
 
