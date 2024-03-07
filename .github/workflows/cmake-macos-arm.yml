@@ -62,6 +62,8 @@ jobs:
         echo "::group::Info"
         conda info
         conda list
+        conda create -n build --override-channels -c conda-forge conda-build conda-verify
+        conda activate build
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
