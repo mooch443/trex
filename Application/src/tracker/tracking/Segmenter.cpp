@@ -183,7 +183,8 @@ void Segmenter::open_video() {
     VideoSource video_base(SETTING(source).value<file::PathArray>());
     video_base.set_colors(ImageMode::RGB);
 
-    SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
+    if(SETTING(frame_rate).value<uint32_t>() <= 0)
+        SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
     
     /*if (SETTING(filename).value<file::Path>().empty()) {
         throw U_EXCEPTION("Filename was empty for converting a video.");
@@ -251,6 +252,8 @@ void Segmenter::open_video() {
     _start_time = std::chrono::system_clock::now();
     //_output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", _output_file_name);
+    
+    GenericVideo::initialize_undistort(_output_size);
 
     auto path = _output_file_name.remove_filename();
     if (not path.exists()) {
@@ -442,6 +445,7 @@ void Segmenter::open_camera() {
     }
 
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };
+    GenericVideo::initialize_undistort(_output_size);
 }
 
 std::string date_time() {

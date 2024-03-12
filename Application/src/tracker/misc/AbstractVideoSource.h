@@ -78,4 +78,7 @@ public:
     static std::string class_name();
     
     virtual std::set<std::string_view> recovered_errors() const { return {}; }
+protected:
+    virtual void undistort(const gpuMat& input, gpuMat& output) = 0;
+    virtual void undistort(const cv::Mat& input, cv::Mat& output) = 0;
 };

@@ -71,3 +71,61 @@ uint8_t VideoSourceVideoSource::channels() const {
 std::set<std::string_view> VideoSourceVideoSource::recovered_errors() const {
     return source.recovered_errors();
 }
+
+void VideoSourceVideoSource::undistort(const gpuMat &input, gpuMat &output) {
+    if (not GlobalSettings::map().has("cam_undistort")
+        || not SETTING(cam_undistort))
+    {
+        return;
+    }
+    
+    if(map1.empty())
+        GlobalSettings::get("cam_undistort1").value<cv::Mat>().copyTo(map1);
+    if(map2.empty())
+        GlobalSettings::get("cam_undistort2").value<cv::Mat>().copyTo(map2);
+    
+    if(map1.cols == input.cols
+       && map1.rows == input.rows
+       && map2.cols == input.cols
+       && map2.rows == input.rows)
+    {
+        if(!map1.empty() && !map2.empty()) {
+            //print("Undistorting ", input.cols,"x",input.rows);
+            cv::remap(input, output, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+        } else {
+            FormatWarning("remap maps are empty.");
+        }
+    } else {
+        FormatError("Undistortion maps are of invalid size (", map1.cols, "x", map1.rows, " vs ", input.cols, "x", input.rows, ").");
+    }
+}
+
+void VideoSourceVideoSource::undistort(const cv::Mat &input, cv::Mat &output) {
+    if (not GlobalSettings::map().has("cam_undistort")
+        || not SETTING(cam_undistort))
+    {
+        return;
+    }
+    
+    if(map1.empty())
+        GlobalSettings::get("cam_undistort1").value<cv::Mat>().copyTo(map1);
+    if(map2.empty())
+        GlobalSettings::get("cam_undistort2").value<cv::Mat>().copyTo(map2);
+    
+    if(map1.cols == input.cols
+       && map1.rows == input.rows
+       && map2.cols == input.cols
+       && map2.rows == input.rows)
+    {
+        if(!map1.empty() && !map2.empty()) {
+            //print("Undistorting ", input.cols,"x",input.rows);
+            // upload to gpu
+            input.copyTo(gpuBuffer);
+            cv::remap(gpuBuffer, output, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+        } else {
+            FormatWarning("remap maps are empty.");
+        }
+    } else {
+        FormatError("Undistortion maps are of invalid size (", map1.cols, "x", map1.rows, " vs ", input.cols, "x", input.rows, ").");
+    }
+}

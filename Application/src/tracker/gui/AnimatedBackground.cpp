@@ -14,6 +14,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     _static_image(Image::Make(*_average)),
     preloader([this](Frame_t index) { return preload(index); })
 {
+    GenericVideo::initialize_undistort(Size2(_average->cols, _average->rows));
+    
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
 
@@ -97,6 +99,8 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
         if(_source->length() > 0_f) {
             _source->frame(0_f, _buffer);
             _static_image.set_source(Image::Make(_buffer));
+            
+            GenericVideo::initialize_undistort(Size2(_buffer.cols, _buffer.rows));
         }
         /*if (GlobalSettings::has("meta_video_scale")) {
             _source_scale = SETTING("meta_video_scale").value<float>();
@@ -139,6 +143,7 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
             }
 
             _source->frame(index, _buffer);
+            _source->undistort(_buffer, _buffer);
 
             const gpuMat* output = &_buffer;
             if (scale > 0 && scale != 1) {
@@ -172,6 +177,9 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
             }
 
             _source->frame(index, *image);
+            cv::Mat mat = image->get();
+            _source->undistort(mat, mat);
+            
             assert(channels == image->dims);
             assert(image->cols == _source->size().width);
             assert(image->rows == _source->size().height);

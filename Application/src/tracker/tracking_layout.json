@@ -606,7 +606,7 @@
                             "do": {
                                 "type": "rect",
                                 "pos": "[{+:10:{*:{/:{i.start}:{length}}:{width}}},-9]",
-                                "size": "[{-:{*:{/:{min:{+:1:{length}}:{+:1:{i.end}}}:{length}}:{width}}:{+:10:{*:{/:{i.start}:{length}}:{width}}}},28]",
+                                "size": "[{*:{/:{-:{i.end}:{i.start}}:{length}}:{width}},28]",
                                 "fill": "{clrAlpha:{i.color}:100}",
                                 "line": [150,150,150,0]
                             }

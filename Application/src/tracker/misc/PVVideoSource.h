@@ -21,4 +21,8 @@ public:
     static std::string class_name() { return "PVVideoSource"; }
     
     std::set<std::string_view> recovered_errors() const override;
+    
+protected:
+    void undistort(const gpuMat&, gpuMat&) override {}
+    void undistort(const cv::Mat&, cv::Mat&) override {}
 };

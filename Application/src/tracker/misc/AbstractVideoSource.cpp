@@ -73,6 +73,8 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
             if (not index.valid())
                 throw U_EXCEPTION("Invalid index");
             
+            undistort(*buffer, *buffer);
+            
             //! resize according to settings
             //! (e.g. multiple tiled image size)
             if (_video_scale != 1) {

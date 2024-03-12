@@ -150,6 +150,8 @@ public:
                 }
             }
             
+            
+            
             // could also use image here
             if (current_use->cols != new_size.width || current_use->rows != new_size.height) {
                 cv::resize(*current_use, _resized_buffer, new_size);

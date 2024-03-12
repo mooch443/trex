@@ -241,6 +241,8 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 
                 gpuMat* input = &gpu_buffer;
                 r3.copyTo(*input);
+                
+                
 
                 /*if (processed().has_mask()) {
                     static gpuMat mask;
