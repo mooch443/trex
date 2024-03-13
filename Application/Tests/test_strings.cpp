@@ -1333,8 +1333,14 @@ TEST(ToStringTest, ExceptionCase) {
 }
 
 TEST(ToStringTest, HandleCompileTimeUnsignedInt) {
+    // only check using static_assert if not using GCC
+#if defined(__GNUC__)
+    assert(to_string(1234) == "1234");
+    assert(to_string(0) == "0");
+#else
     static_assert(to_string(1234) == "1234");
     static_assert(to_string(0) == "0");
+#endif
 }
 
 TEST(ToStringTest, HandleRunTimeUnsignedInt) {
@@ -1346,8 +1352,13 @@ TEST(ToStringTest, HandleRunTimeUnsignedInt) {
 }
 
 TEST(ToStringTest, HandleCompileTimeSignedInt) {
+#if defined(__GNUC__)
+    assert(to_string(-1234) == "-1234");
+    assert(to_string(0) == "0");
+#else
     static_assert(to_string(-1234) == "-1234");
     static_assert(to_string(0) == "0");
+#endif
 }
 
 TEST(ToStringTest, HandleRunTimeSignedInt) {
