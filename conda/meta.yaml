@@ -154,7 +154,6 @@ about:
       - Application/build/opencv_install/share/licenses/opencv4/libjpeg-turbo-README.md # [not win]
       - Application/build/opencv_install/share/licenses/opencv4/libtiff-COPYRIGHT # [not win]
       - Application/build/opencv_install/share/licenses/opencv4/protobuf-LICENSE # [not win]
-      - Application/build/opencv_install/share/licenses/opencv4/quirc-LICENSE # [not win]
       - Application/build/opencv_install/share/licenses/opencv4/SoftFloat-COPYING.txt # [not win]
       - Application/build/opencv_install/etc/licenses/ade-LICENSE  # [win]
       - Application/build/opencv_install/etc/licenses/ffmpeg-license.txt # [win]

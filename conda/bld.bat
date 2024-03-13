@@ -49,6 +49,9 @@ if errorlevel 1 exit 1
 cmake --build . --target runAllTests --config Release
 if errorlevel 1 exit 1
 
+cmake .. -DTREX_WITH_TESTS:BOOL=OFF
+if errorlevel 1 exit 1
+
 cmake --build . --target INSTALL --config Release
 if errorlevel 1 exit 1
 
