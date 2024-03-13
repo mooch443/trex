@@ -1,7 +1,7 @@
 #pragma once
 
 #include <gui/types/Entangled.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <misc/Timer.h>
 
 namespace gui {
