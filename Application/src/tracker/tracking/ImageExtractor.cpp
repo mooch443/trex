@@ -1,5 +1,4 @@
 #include "ImageExtractor.h"
-#include <tracking/VisualIdentification.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>

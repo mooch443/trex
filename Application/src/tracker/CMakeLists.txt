@@ -4,13 +4,14 @@ if(NOT COMMONS_NO_PYTHON)
 endif()
 add_subdirectory(tracking)
 add_subdirectory(misc)
+add_subdirectory(ml)
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
 if(TREX_WITH_TESTS)
 add_executable(test_network network.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-target_link_libraries(test_network tracker_gui tracker_python tracker_tracking tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
+target_link_libraries(test_network tracker_gui tracker_ml tracker_python tracker_tracking tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
 message(STATUS "pylib=${PYTHON_LIBRARY}")
 
 if(NOT pybind11_external)
@@ -119,6 +120,7 @@ add_executable(${TREXA_EXEC_NAME} ${TREXA_SRCS})
 target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     #tracker_tracking
     tracker_gui
+    tracker_ml
     tracker_misc
     framegrabber_misc
     #pv

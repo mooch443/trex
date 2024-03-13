@@ -3,7 +3,7 @@
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
-#include <tracking/Accumulation.h>
+#include <ml/Accumulation.h>
 
 #include <python/GPURecognition.h>
 #include <misc/default_settings.h>
@@ -12,7 +12,7 @@
 #include <tracking/FilterCache.h>
 #include <misc/PythonWrapper.h>
 
-#include <tracking/CategorizeInterface.h>
+#include <ml/CategorizeInterface.h>
 #include <tracking/ImageExtractor.h>
 
 #include <file/DataLocation.h>

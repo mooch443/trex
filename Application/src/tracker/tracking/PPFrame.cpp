@@ -1,6 +1,6 @@
 #include "PPFrame.h"
 #include <tracking/Tracker.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
 

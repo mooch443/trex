@@ -10,7 +10,7 @@
 #include <misc/checked_casts.h>
 #include <gui/IdentityHeatmap.h>
 #include <tracking/FilterCache.h>
-#include <tracking/VisualIdentification.h>
+#include <ml/VisualIdentification.h>
 #include <tracking/IndividualManager.h>
 #include <processing/PadImage.h>
 

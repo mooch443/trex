@@ -14,7 +14,7 @@
 
 #include <misc/SoftException.h>
 #include <gui/Graph.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <file/DataLocation.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/IndividualManager.h>

@@ -3,7 +3,7 @@
 #include <misc/GlobalSettings.h>
 #include <tracking/Tracker.h>
 #include <gui/DrawFish.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <gui/DrawBase.h>
 #include <tracking/IndividualManager.h>
 #include <misc/default_config.h>

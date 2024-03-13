@@ -14,7 +14,7 @@
 #include <misc/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <tracking/MemoryStats.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
 #include <misc/FOI.h>
@@ -28,7 +28,7 @@
 #if !COMMONS_NO_PYTHON
 #include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
-#include <tracking/Accumulation.h>
+#include <ml/Accumulation.h>
 namespace py = Python;
 #endif
 

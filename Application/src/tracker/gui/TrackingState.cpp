@@ -11,7 +11,7 @@
 #include <tracker/misc/default_config.h>
 #include <misc/SettingsInitializer.h>
 #include <misc/IdentifiedTag.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <gui/CheckUpdates.h>
 
 using namespace track;

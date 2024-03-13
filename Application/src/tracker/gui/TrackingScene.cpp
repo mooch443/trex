@@ -8,7 +8,7 @@
 #include <tracking/Tracker.h>
 //#include <grabber/misc/default_config.h>
 #include <tracking/OutputLibrary.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <gui/WorkProgress.h>
 #include <gui/DrawBlobView.h>
 #include <tracking/Output.h>
@@ -22,7 +22,7 @@
 #include <gui/types/Layout.h>
 #include <gui/TrackingState.h>
 #include <misc/SettingsInitializer.h>
-#include <tracking/CategorizeInterface.h>
+#include <ml/CategorizeInterface.h>
 #include <gui/DrawPreviewImage.h>
 #include <gui/DrawPosture.h>
 #include <misc/SettingsInitializer.h>

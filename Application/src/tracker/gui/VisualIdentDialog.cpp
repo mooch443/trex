@@ -3,7 +3,7 @@
 #include <misc/TrackingSettings.h>
 #include <gui/WorkProgress.h>
 #include <tracking/TrainingData.h>
-#include <tracking/Accumulation.h>
+#include <ml/Accumulation.h>
 #include <tracking/Output.h>
 #include <tracking/Tracker.h>
 #include <misc/SettingsInitializer.h>
