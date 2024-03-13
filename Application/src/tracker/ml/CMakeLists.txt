@@ -24,4 +24,5 @@ if(WIN32)
   endif()
 endif()
 
+target_link_libraries(tracker_ml PUBLIC tracker_tracking)
 #target_precompile_headers(tracker_tracking REUSE_FROM commons)

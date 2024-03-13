@@ -10,7 +10,7 @@ elseif(WIN32)
   add_library(tracker_tracking STATIC ${SRCS} ${HDRS})
 endif()
 
-target_link_libraries(tracker_tracking PUBLIC commons)
+target_link_libraries(tracker_tracking PUBLIC tracker_ml commons)
 add_dependencies(tracker_tracking tracker_misc commons)
 
 if(WITH_HTTPD)
