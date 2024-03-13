@@ -9,16 +9,16 @@ add_subdirectory(ml)
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
 if(TREX_WITH_TESTS)
-add_executable(test_network network.cpp
-    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-target_link_libraries(test_network tracker_gui tracker_ml tracker_python tracker_tracking tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
-message(STATUS "pylib=${PYTHON_LIBRARY}")
+#add_executable(test_network network.cpp
+#    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+#target_link_libraries(test_network tracker_gui tracker_ml tracker_python #tracker_tracking tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
+#message(STATUS "pylib=${PYTHON_LIBRARY}")
 
-if(NOT pybind11_external)
-    target_link_libraries(test_network pybind11::pybind11 pybind11::embed pybind11::module)
-else()
-    target_link_libraries(test_network ${PYTHON_LIBRARIES})
-endif()
+#if(NOT pybind11_external)
+#    target_link_libraries(test_network pybind11::pybind11 pybind11::embed pybind11::module)
+#else()
+#    target_link_libraries(test_network ${PYTHON_LIBRARIES})
+#endif()
 
 #set_target_properties(test_network PROPERTIES
 #  MACOSX_BUNDLE TRUE
@@ -28,33 +28,33 @@ endif()
 #  MACOSX_BUNDLE_INFO_STRING ""
 #)
 
-if(WIN32)
-    add_custom_command(TARGET test_network POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
-        "$<TARGET_FILE_DIR:test_network>/trex_init.py")
-    add_custom_command(TARGET test_network POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/learn_static.py"
-            "$<TARGET_FILE_DIR:test_network>/learn_static.py")
-    add_custom_command(TARGET test_network POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
-            "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
-else()
-    add_custom_command(TARGET test_network POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
-            "$<TARGET_FILE_DIR:test_network>/trex_init.py")
-    add_custom_command(TARGET test_network POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${CMAKE_SOURCE_DIR}/learn_static.py"
-            "$<TARGET_FILE_DIR:test_network>/learn_static.py")
-    add_custom_command(TARGET test_network POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
-            "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
-endif()
+# if(WIN32)
+#     add_custom_command(TARGET test_network POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy
+#         "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
+#         "$<TARGET_FILE_DIR:test_network>/trex_init.py")
+#     add_custom_command(TARGET test_network POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy
+#             "${CMAKE_SOURCE_DIR}/learn_static.py"
+#             "$<TARGET_FILE_DIR:test_network>/learn_static.py")
+#     add_custom_command(TARGET test_network POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy
+#             "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
+#             "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+# else()
+#     add_custom_command(TARGET test_network POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E create_symlink
+#             "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
+#             "$<TARGET_FILE_DIR:test_network>/trex_init.py")
+#     add_custom_command(TARGET test_network POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E create_symlink
+#             "${CMAKE_SOURCE_DIR}/learn_static.py"
+#             "$<TARGET_FILE_DIR:test_network>/learn_static.py")
+#     add_custom_command(TARGET test_network POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E create_symlink
+#             "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
+#             "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+# endif()
 
 endif()
 
