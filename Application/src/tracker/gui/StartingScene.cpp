@@ -11,7 +11,7 @@
 #include <misc/SettingsInitializer.h>
 #include <gui/GUIVideoAdapterElement.h>
 #include <gui/WorkProgress.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <gui/GUITaskQueue.h>
 
 namespace gui {

@@ -7,7 +7,7 @@
 #include <gui/DrawStructure.h>
 #include <tracking/EventAnalysis.h>
 #include <tracking/OutputLibrary.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <tracking/Outline.h>
 #include <gui/Graph.h>
 

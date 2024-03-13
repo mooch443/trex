@@ -26,7 +26,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/types/StaticText.h>
 #include <gui/GuiTypes.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 
 namespace py = Python;
 

@@ -18,7 +18,7 @@
 #include <misc/VideoInfo.h>
 #include <gui/GUIVideoAdapter.h>
 #include <gui/WorkProgress.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <python/Yolo8.h>
 
 namespace gui {

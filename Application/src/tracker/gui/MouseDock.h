@@ -3,7 +3,7 @@
 #include <gui/Label.h>
 #include <gui/types/Entangled.h>
 #include <gui/GuiTypes.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 
 namespace gui {
 

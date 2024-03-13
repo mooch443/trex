@@ -15,7 +15,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/GUICache.h>
 #include <gui/AnimatedBackground.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <gui/ScreenRecorder.h>
 #include <gui/Bowl.h>
 #include <gui/types/Button.h>

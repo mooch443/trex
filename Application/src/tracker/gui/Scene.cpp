@@ -3,7 +3,7 @@
 #include <gui/types/Layout.h>
 #include <gui/DrawStructure.h>
 #include <gui/DrawBase.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <gui/IMGUIBase.h>
 #include <gui/WorkProgress.h>
 

@@ -4,7 +4,7 @@
 #include <gui/types/StaticText.h>
 #include <gui/DrawStructure.h>
 #include <misc/Timer.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 
 namespace gui {
 

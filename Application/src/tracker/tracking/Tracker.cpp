@@ -14,7 +14,7 @@
 #include <misc/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <tracking/MemoryStats.h>
-#include <ml/Categorize.h>
+#include <tracking/CategorizeDatastore.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
 #include <misc/FOI.h>

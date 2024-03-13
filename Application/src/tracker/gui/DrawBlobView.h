@@ -4,7 +4,7 @@
 #include <gui/Transform.h>
 #include <misc/bid.h>
 #include <misc/frame_t.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 
 namespace gui {
 class DrawStructure;

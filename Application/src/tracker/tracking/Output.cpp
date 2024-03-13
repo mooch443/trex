@@ -4,7 +4,7 @@
 #include <misc/default_config.h>
 #include <lzo/minilzo.h>
 #include <misc/checked_casts.h>
-#include <ml/Categorize.h>
+#include <tracking/CategorizeDatastore.h>
 #include <misc/frame_t.h>
 #include <misc/IdentifiedTag.h>
 #include <tracking/Tracker.h>

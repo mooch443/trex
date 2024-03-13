@@ -6,7 +6,7 @@
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
 #include <tracker/misc/default_config.h>
-#include <ml/Categorize.h>
+#include <tracking/CategorizeDatastore.h>
 #include <misc/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 

@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -11,7 +11,7 @@
 #include <misc/ThreadManager.h>
 #include <misc/RecentItems.h>
 #include <file/PathArray.h>
-#include <gui/Coordinates.h>
+#include <misc/Coordinates.h>
 #include <python/GPURecognition.h>
 #include <gui/Label.h>
 #include <gui/ParseLayoutTypes.h>
