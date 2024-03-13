@@ -579,7 +579,7 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
             Work::learning() = false;
             Work::learning_variable().notify_all();
             DataStore::clear();
-            //PythonIntegration::quit();
+            reset();
 
             auto lock = _video.lock();
             if(lock)
@@ -588,7 +588,8 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
         reapply->on_click([this](auto) {
             DataStore::clear();
             Categorize::clear_labels();
-            
+            reset();
+
             auto lock = _video.lock();
             if(lock)
                 Work::set_state(lock, Work::State::APPLY);
@@ -795,7 +796,13 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
     timer.reset();
 
-    auto txt = settings::htmlify(Meta::toStr(DataStore::composition()));
+    auto to_str = [](const DataStore::Composition& composition) -> std::string {
+        return (Work::best_accuracy() > 0 ? "Accuracy: "+ Meta::toStr(int(Work::best_accuracy() * 100)) + "% " : "")
+            + (!composition._numbers.empty() ? "Collected: " +Meta::toStr(composition._numbers) : "No samples collected yet.")
+            + (Work::status().empty() ? "" : " "+Work::status());
+    };
+    
+    auto txt = settings::htmlify(to_str(DataStore::composition()));
     if (Work::best_accuracy() < Work::good_enough()) {
         txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n" + txt;
     }

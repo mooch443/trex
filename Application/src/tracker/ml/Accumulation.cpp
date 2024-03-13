@@ -18,7 +18,7 @@
 #include <tracking/FilterCache.h>
 #include <misc/PythonWrapper.h>
 #include <tracking/FilterCache.h>
-#include <ml/VisualIdentification.h>
+#include <tracking/VisualIdentification.h>
 #include <tracking/ImageExtractor.h>
 #include <python/GPURecognition.h>
 #include <file/DataLocation.h>

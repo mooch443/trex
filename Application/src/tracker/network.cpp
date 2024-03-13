@@ -8,7 +8,7 @@
 #include <misc/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <tracking/ImageExtractor.h>
-#include <ml/VisualIdentification.h>
+#include <tracking/VisualIdentification.h>
 #include <ml/Accumulation.h>
 
 struct Tmp {
