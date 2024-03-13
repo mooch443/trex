@@ -53,6 +53,7 @@ target_link_libraries(test_dyngui PUBLIC gtest gmock gtest_main)
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC 
         tracker_gui
+        tracker_ml
         tracker_tracking
         tracker_python
         tracker_misc
