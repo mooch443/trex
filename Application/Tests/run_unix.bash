@@ -49,7 +49,7 @@ if [ -f "${WPWD}/average_test.png" ]; then
     rm "${WPWD}/average_test.png"
 fi
 
-CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 2304 -cm_per_pixel 1 -blob_size_ranges \"[1,10000]\" -s \"${WPWD}/test.settings\" -enable_live_tracking -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {} -task convert -detect_type background_subtraction"
+CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 2304 -cm_per_pixel 1 -segment_size_filter \"[1,10000]\" -s \"${WPWD}/test.settings\" -enable_live_tracking -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {} -task convert -detect_type background_subtraction"
 echo "Running TGrabs... ${CMD}"
 if ! { ${CMD} 2>&1; } ; then
     cat "${PWD}/tgrabs.log"
@@ -148,7 +148,7 @@ function compare_csv_folder() {
         closest_diff=""
         closest_diff_file=""
         for file2 in "${output_files[@]}"; do
-            diff_lines=$(${GIT} --no-pager diff --word-diff --no-index -- "$file1" "$file2" | wc -l)
+            diff_lines=$(${GIT} --no-pager diff --word-diff --no-index -- "$file2" "$file1" | wc -l)
             #echo "diff with $file2: $diff_lines"
             if [[ -z $closest_diff || $diff_lines -lt $closest_diff ]]; then
                 closest_diff=$diff_lines
@@ -158,7 +158,7 @@ function compare_csv_folder() {
 
         if [[ ! -z $closest_diff ]]; then
             echo "Closest difference found with $closest_diff_file ($closest_diff)"
-            ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${closest_diff_file}
+            ${GIT} --no-pager diff --word-diff --no-index -- ${closest_diff_file} ${input_file}
         fi
     fi
   done
@@ -191,7 +191,7 @@ for MODE in ${MODES}; do
             exit_code=1
         else
             f="test_fish0"
-            echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv"
+            echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/compare_data_${MODE}/${f}.csv ${PWD}/corrected/data/${f}.csv"
             echo "${PWD}/corrected/data: $FILES"
 
             if ! compare_csv_folder "${PWD}/corrected/data" "${PWD}/compare_data_${MODE}"; then

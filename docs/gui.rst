@@ -76,7 +76,7 @@ It has some extra functionality, however. Sometimes you will see colorful things
 Changing the cm/px conversion factor
 ------------------------------------
 
-Usually the easiest way to set a conversion factor is in TGrabs, before the video is even segmented. TGrabs expects a parameter :func:`meta_real_width`, which contains the "real-world" size in X-direction of the present video and sticks with the video as integrated meta-data. However, in case you want to change this factor later on, you can do this from within TRex. Careful, though. Doing this changes what the values in :func:`track_max_speed` and even :func:`blob_size_ranges` mean (and thus also tracking results)!
+Usually the easiest way to set a conversion factor is in TGrabs, before the video is even segmented. TGrabs expects a parameter :func:`meta_real_width`, which contains the "real-world" size in X-direction of the present video and sticks with the video as integrated meta-data. However, in case you want to change this factor later on, you can do this from within TRex. Careful, though. Doing this changes what the values in :func:`track_max_speed` and even :func:`track_size_filter` mean (and thus also tracking results)!
 
 Depending on your operating system, hold ⌘ or ``CTRL`` (depending on your operating system) and click on two points on the background - the distance between them is supposed to be a "known length" - for example, if you have a cm strip integrated into your video background for reference.
 

@@ -128,7 +128,7 @@ void PrefilterBlobs::split_big(
     UNUSED(out);
     
     const int threshold = FAST_SETTING(track_threshold);
-    const BlobSizeRange fish_size = FAST_SETTING(blob_size_ranges);
+    const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
     const float cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
     const auto track_ignore = FAST_SETTING(track_ignore);
     const auto track_include = FAST_SETTING(track_include);
@@ -159,7 +159,7 @@ void PrefilterBlobs::split_big(
             if(not b)
                 continue;
             
-            if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
+            if(!track_size_filter.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
             {
                 noise.push_back(std::move(b));
                 continue;
@@ -172,7 +172,7 @@ void PrefilterBlobs::split_big(
                 ex = expect.at(bdx);
             
             auto rec = b->recount(threshold, *Tracker::background());
-            if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number)) {
+            if(!track_size_filter.close_to_maximum_of_one(rec, 10 * ex.number)) {
                 noise.push_back(std::move(b));
                 continue;
             }
@@ -186,7 +186,7 @@ void PrefilterBlobs::split_big(
             }
             
             if(ex.allow_less_than && ret.empty()) {
-                if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25))) {
+                if((!discard_small || track_size_filter.close_to_minimum_of_one(rec, 0.25))) {
                     regular.push_back(std::move(b));
                 } else {
                     noise.push_back(std::move(b));
@@ -218,7 +218,7 @@ void PrefilterBlobs::split_big(
                     continue;
                 }
                 
-                if(fish_size.in_range_of_one(r, 0.35, 1)
+                if(track_size_filter.in_range_of_one(r, 0.35, 1)
                    && (!discard_small || counter < ex.number))
                 {
                     for_this_blob.emplace_back(std::move(ptr));

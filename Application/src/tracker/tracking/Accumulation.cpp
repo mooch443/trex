@@ -1474,7 +1474,7 @@ bool Accumulation::start() {
         }
         
         if(sorted.empty() && available_ranges > 0 && successful_ranges == 0) {
-            const char* text = "Did not find enough consecutive segments to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `blob_size_ranges` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
+            const char* text = "Did not find enough consecutive segments to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `track_size_filter` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else

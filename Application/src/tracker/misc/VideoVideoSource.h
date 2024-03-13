@@ -8,10 +8,6 @@ class VideoSourceVideoSource : public AbstractBaseVideoSource {
     useMatPtr_t tmp;
     Image cpuBuffer;
     
-    gpuMat map1;
-    gpuMat map2;
-    gpuMat gpuBuffer;
-    
 public:
     using SourceType = VideoSource;
     
@@ -26,8 +22,4 @@ public:
     static std::string class_name() { return "VideoSourceVideoSource"; }
     
     std::set<std::string_view> recovered_errors() const override;
-    
-protected:
-    void undistort(const gpuMat& input, gpuMat& output) override;
-    void undistort(const cv::Mat& input, cv::Mat& output) override;
 };

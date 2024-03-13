@@ -62,6 +62,9 @@ public:
     void set_strict(bool v) { _strict = v; }
     void set_video_scale(float);
     
+    void set_undistortion(std::optional<std::vector<double>> &&cam_matrix,
+                          std::optional<std::vector<double>> &&undistort_vector);
+    
     Image::Ptr preload(Frame_t);
 };
 

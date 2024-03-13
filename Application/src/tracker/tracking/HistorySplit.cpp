@@ -299,7 +299,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     
     //! final filtering step that filters out small blobs
     //! from the split_big TODO: (which might not be possible?)
-    frame.move_to_noise_if([size = FAST_SETTING(blob_size_ranges)](const pv::Blob& blob) {
+    frame.move_to_noise_if([size = FAST_SETTING(track_size_filter)](const pv::Blob& blob) {
         if(!size.in_range_of_one(blob.recount(-1))) {
             PPFrame::Log("&nbsp;Filtering out ", blob, " not in ", size);
             return true;

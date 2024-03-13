@@ -143,3 +143,63 @@ Frame_t AbstractBaseVideoSource::length() const {
 std::string AbstractBaseVideoSource::toStr() const {return "AbstractBaseVideoSource<>";}
 std::string AbstractBaseVideoSource::class_name() { return "AbstractBaseVideoSource"; }
 
+void AbstractBaseVideoSource::set_undistortion(
+       std::optional<std::vector<double>> &&cam_matrix,
+       std::optional<std::vector<double>> &&undistort_vector)
+{
+    if(not cam_matrix
+       || not undistort_vector)
+    {
+        map1 = gpuMat{};
+        map2 = gpuMat{};
+        assert(map1.empty() && map2.empty());
+        return;
+    }
+    
+    GenericVideo::initialize_undistort(size(),
+                                       std::move(cam_matrix.value()),
+                                       std::move(undistort_vector.value()),
+                                       map1, map2);
+}
+
+void AbstractBaseVideoSource::undistort(const gpuMat &input, gpuMat &output) {
+    if(map1.empty() || map2.empty())
+        return; // no undistortion
+    
+    if(map1.cols == input.cols
+       && map1.rows == input.rows
+       && map2.cols == input.cols
+       && map2.rows == input.rows)
+    {
+        if(!map1.empty() && !map2.empty()) {
+            //print("Undistorting ", input.cols,"x",input.rows);
+            cv::remap(input, output, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+        } else {
+            FormatWarning("remap maps are empty.");
+        }
+    } else {
+        FormatError("Undistortion maps are of invalid size (", map1.cols, "x", map1.rows, " vs ", input.cols, "x", input.rows, ").");
+    }
+}
+
+void AbstractBaseVideoSource::undistort(const cv::Mat &input, cv::Mat &output) {
+    if(map1.empty() || map2.empty())
+        return; // no undistortion
+    
+    if(map1.cols == input.cols
+       && map1.rows == input.rows
+       && map2.cols == input.cols
+       && map2.rows == input.rows)
+    {
+        if(!map1.empty() && !map2.empty()) {
+            //print("Undistorting ", input.cols,"x",input.rows);
+            // upload to gpu
+            input.copyTo(gpuBuffer);
+            cv::remap(gpuBuffer, output, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+        } else {
+            FormatWarning("remap maps are empty.");
+        }
+    } else {
+        FormatError("Undistortion maps are of invalid size (", map1.cols, "x", map1.rows, " vs ", input.cols, "x", input.rows, ").");
+    }
+}

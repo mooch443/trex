@@ -78,6 +78,9 @@ Segmenter::~Segmenter() {
     auto time = start_timer.elapsed();
     thread_print("Total time for converting: ", time, "s");
     
+    if(_undistort_callbacks)
+        GlobalSettings::map().unregister_callbacks(std::move(_undistort_callbacks));
+    
     Detection::manager().set_weight_limit(1);
     ThreadManager::getInstance().terminateGroup(_generator_group_id);
 
@@ -253,7 +256,7 @@ void Segmenter::open_video() {
     //_output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     DebugHeader("Output: ", _output_file_name);
     
-    GenericVideo::initialize_undistort(_output_size);
+    init_undistort_from_settings();
 
     auto path = _output_file_name.remove_filename();
     if (not path.exists()) {
@@ -445,7 +448,22 @@ void Segmenter::open_camera() {
     }
 
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };
-    GenericVideo::initialize_undistort(_output_size);
+    init_undistort_from_settings();
+}
+
+void Segmenter::init_undistort_from_settings() {
+    if(_undistort_callbacks)
+        return;
+    
+    _undistort_callbacks = GlobalSettings::map().register_callbacks({"cam_undistort", "cam_undistort_vector", "cam_matrix"}, [this](auto){
+        if(SETTING(cam_undistort)) {
+            auto cam_data = SETTING(cam_matrix).value<std::vector<double>>();
+            auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<double>>();
+            _overlayed_video->source()->set_undistortion(std::move(cam_data), std::move(undistort_data));
+        } else {
+            _overlayed_video->source()->set_undistortion(std::nullopt, std::nullopt);
+        }
+    });
 }
 
 std::string date_time() {

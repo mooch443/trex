@@ -51,6 +51,7 @@
 #include <misc/SettingsInitializer.h>
 
 #include <signal.h>
+#include <misc/default_settings.h>
 
 #if !COMMONS_NO_PYTHON
 #include <gui/CheckUpdates.h>
@@ -63,6 +64,18 @@ static_assert(ObjectDetection<BackgroundSubtraction>);
 
 namespace ind = indicators;
 using namespace default_config;
+
+void save_rst_files() {
+    auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels());
+    file::Path path = file::DataLocation::parse("output", "parameters_trex.rst");
+    auto f = path.fopen("wb");
+    if(!f)
+        throw U_EXCEPTION("Cannot open ",path.str());
+    fwrite(rst.data(), sizeof(char), rst.length(), f.get());
+    
+    //printf("%s\n", rst.c_str());
+    print("Saved at ",path,".");
+}
 
 TRexTask determineTaskType() {
     auto output_file = settings::find_output_name(GlobalSettings::map());
@@ -209,10 +222,13 @@ void launch_gui(std::future<void>&& f) {
         { TRexTask_t::none, &start },
 		{ TRexTask_t::convert, &converting },
 		{ TRexTask_t::track, &tracking_scene },
-        { TRexTask_t::annotate, &annotations }
+        { TRexTask_t::annotate, &annotations },
+        { TRexTask_t::rst, &start }
 	};
 
-    if (SETTING(task).value<TRexTask>() == TRexTask_t::none) {
+    if (const auto task = SETTING(task).value<TRexTask>();
+        task == TRexTask_t::none)
+    {
         TRexTask taskType = determineTaskType();
         settings::load(SETTING(source).value<file::PathArray>(),
                        SETTING(filename).value<file::Path>(),
@@ -220,9 +236,13 @@ void launch_gui(std::future<void>&& f) {
                        SETTING(detect_type),
                        {}, {});
         manager.set_active(task_scenes[taskType]);
-
+        
+    } else if(task == TRexTask_t::rst) {
+        save_rst_files();
+        manager.set_active(&start);
+        
     } else {
-        if (auto it = task_scenes.find(SETTING(task).value<TRexTask>()); 
+        if (auto it = task_scenes.find(task);
             it != task_scenes.end())
         {
             if(it->second == &converting) {

@@ -178,7 +178,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     
                     for(auto &b : pb) {
                         auto size = b->num_pixels() * sqcm;
-                        if(FAST_SETTING(blob_size_ranges).in_range_of_one(size, rescale)) {  //size >= min_size && size <= max_size) {
+                        if(FAST_SETTING(track_size_filter).in_range_of_one(size, rescale)) {  //size >= min_size && size <= max_size) {
                             for(auto &line : b->hor_lines()) {
                                 for(ushort x=line.x0; x<=line.x1; ++x) {
                                     auto pos = Vec2(x, line.y);//b->bounds().pos() + b->bounds().size() * 0.5;
@@ -272,13 +272,13 @@ ENUM_CLASS_DOCS(recognition_border_t,
                         
                         for(auto &&b : pb) {
                             auto size = b->num_pixels() * sqcm;
-                            if(FAST_SETTING(blob_size_ranges) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
+                            if(FAST_SETTING(track_size_filter) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
                                 collection.push_back(std::move(b));
                         }
                     }
                 }
                 
-                print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(blob_size_ranges)," with scale 0.5");
+                print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(track_size_filter)," with scale 0.5");
                 
                 std::vector<std::multiset<ushort>> xs;
                 std::vector<std::multiset<ushort>> ys;

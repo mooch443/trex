@@ -1018,7 +1018,7 @@ int main(int argc, char** argv)
         
         if(SETTING(auto_minmax_size).value<bool>() == default_map.at("auto_minmax_size").value<bool>())
         {
-            SETTING(auto_minmax_size) = SETTING(blob_size_ranges).value<BlobSizeRange>() == default_map.at("blob_size_ranges").value<BlobSizeRange>();
+            SETTING(auto_minmax_size) = SETTING(track_size_filter).value<BlobSizeRange>() == default_map.at("track_size_filter").value<BlobSizeRange>();
         }
     }
     

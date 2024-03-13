@@ -31,7 +31,7 @@ TrackingHelper::~TrackingHelper() {
 TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Ptr>& added_frames)
       : cache(new CachedSettings), frame(f), _manager(frame)
 {
-    const BlobSizeRange minmax = FAST_SETTING(blob_size_ranges);
+    const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
     double time(double(frame.timestamp) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     
@@ -45,8 +45,8 @@ TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Pt
     }
     
     if(save_tags()) {
-        frame.transform_noise([this, &minmax](const pv::Blob& blob){
-            if(blob.recount(-1) <= minmax.max_range().start)
+        frame.transform_noise([this, max_range = track_size_filter.max_range()](const pv::Blob& blob){
+            if(blob.recount(-1) <= max_range.start)
                 noise.emplace_back(pv::Blob::Make(blob));
         });
     }

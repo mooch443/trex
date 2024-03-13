@@ -258,7 +258,7 @@ VideoOpener::VideoOpener()
     
     _settings_to_show = {
         "track_max_individuals",
-        "blob_size_ranges",
+        "track_size_filter",
         "track_threshold",
         "calculate_posture",
         "auto_train",

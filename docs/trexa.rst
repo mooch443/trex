@@ -82,7 +82,7 @@ This launches a user interface where you can experiment with the impact of vario
 
 .. code-block:: bash
 
-    trex -d output/folder/path -i GH014629 -track_max_individuals 2 -meta_real_width 20 -blob_size_ranges '[0.05,1]' -track_threshold 0 -track_posture_threshold 0 -midline_invert -track_do_history_split false -track_label_confidence_threshold 0.1 -output_format csv -track_max_speed 100
+    trex -d output/folder/path -i GH014629 -track_max_individuals 2 -meta_real_width 20 -track_size_filter '[0.05,1]' -track_threshold 0 -track_posture_threshold 0 -midline_invert -track_do_history_split false -track_label_confidence_threshold 0.1 -output_format csv -track_max_speed 100
 
 The blob size ranges and max speed are dependent on the value set for `meta_real_width` or `cm_per_pixel`, so adjust accordingly. Adding `-auto_quit` to the command-line will automatically quit the application once tracking is complete. You can also use `-auto_train` in addition to that to automatically train a model on the resulting data and retrack with that information. However for e.g. GH019044 I got a perfect result + no tracking mistakes without any additional visual identification, so I didn't need to do that.
 

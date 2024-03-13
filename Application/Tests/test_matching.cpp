@@ -406,7 +406,7 @@ TEST_F(TestSystemTracker, TrackingTest) {
     SETTING(track_max_speed) = Settings::track_max_speed_t(800);
     SETTING(match_mode) = Settings::match_mode_t(default_config::matching_mode_t::automatic);
     SETTING(track_max_individuals) = Settings::track_max_individuals_t(8);
-    SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({Rangef{80, 400}});
+    SETTING(track_size_filter) = Settings::track_size_filter_t({Rangef{80, 400}});
     
     PPFrame pp;
     pv::Frame frame;

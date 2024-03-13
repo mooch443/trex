@@ -157,10 +157,6 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         for (auto& item : _items) {
             if (item._name == name) {
                 item._options = options;
-                for(auto& name : std::array{"cam_undistort1", "cam_undistort2"}) {
-                    if(item._options.has(name))
-                        item._options.erase(name);
-                }
                 //for(auto &key : config.keys())
                 //    config.at(key).get().copy_to(&item._options);
                 //config.write_to(item._options);

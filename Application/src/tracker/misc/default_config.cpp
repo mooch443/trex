@@ -119,7 +119,8 @@ ENUM_CLASS_DOCS(TRexTask_t,
     "No task forced. Auto-select.",
     "Load an existing .pv file and track / edit individuals.",
     "Convert source material to .pv file.",
-    "Annotate video or image source material."
+    "Annotate video or image source material.",
+    "Save .rst parameter documentation files to the output folder."
 )
 
 ENUM_CLASS_DOCS(gpu_torch_device_t,
@@ -152,8 +153,9 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_stop_after", "analysis_range"},
         {"analysis_stop_after", "analysis_range"},
         {"fixed_count", ""},
-        {"fish_minmax_size", "blob_size_ranges"},
-        {"blob_size_range", "blob_size_ranges"},
+        {"fish_minmax_size", "track_size_filter"},
+        {"blob_size_range", "segment_size_filter"},
+        {"blob_size_ranges", "track_size_filter"},
         {"fish_max_speed", "track_max_speed"},
         {"fish_speed_decay", "track_speed_decay"},
         {"fish_enable_direction_smoothing", "posture_direction_smoothing"},
@@ -523,9 +525,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
-        CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.01f, 100)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
+        CONFIG("segment_size_filter", BlobSizeRange({Rangef(0.0001f, 1000.f)}), "During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.");
+        CONFIG("track_size_filter", BlobSizeRange({Rangef(0.01f, 100)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
-        CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
+        CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `track_size_filter`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
         
         CONFIG("visual_field_eye_offset", float(0.15), "A percentage telling the program how much the eye positions are offset from the start of the midline.");
@@ -533,7 +536,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("visual_field_history_smoothing", uint8_t(0), "The maximum number of previous values (and look-back in frames) to take into account when smoothing visual field orientations. If greater than 0, visual fields will use smoothed previous eye positions to determine the optimal current eye position. This is usually only necessary when postures are somewhat noisy to a degree that makes visual fields unreliable.");
         
         CONFIG("auto_minmax_size", false, "Program will try to find minimum / maximum size of the individuals automatically for the current `cm_per_pixel` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.", STARTUP);
-        CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `blob_size_ranges`) and set `track_max_individuals` to that value.");
+        CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `track_size_filter`) and set `track_max_individuals` to that value.");
         
         CONFIG("track_speed_decay", float(1.0), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
         CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
@@ -718,7 +721,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         );
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
         CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
-        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
+        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `track_size_filter` (e.g. 0.5 means that the sizes can range between `track_size_filter.min * (1 - 0.5)` and `track_size_filter.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("individual_image_normalization", individual_image_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
@@ -771,18 +774,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_connectivity_matrix_file", file::Path(), "Path to connectivity table. Expected structure is a csv table with columns [frame | #(track_max_individuals^2) values] and frames in y-direction.");
         CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.");
         
-        std::vector<float> buffer {
-            -0.2576632f , -0.19233586f,  0.00245493f,  0.00398822f,  0.35924019f
-        };
-        
-        std::vector<float> matrix = {
-            2.94508959e+03f,   0.00000000e+00f,   6.17255441e+02f,
-            0.00000000e+00f,   2.94282514e+03f,   6.82473623e+02f,
-            0.00000000e+00f,   0.00000000e+00f,   1.00000000e+00f
-        };
-        
-        CONFIG("cam_undistort_vector", buffer, "");
-        CONFIG("cam_matrix", matrix, "");
         CONFIG("webcam_index", uint8_t(0), "cv::VideoCapture index of the current webcam. If the program chooses the wrong webcam (`source` = webcam), increase this index until it finds the correct one.");
         CONFIG("cam_scale", float(1.0), "Scales the image down or up by the given factor.");
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");

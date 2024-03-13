@@ -342,6 +342,10 @@ void TrackingScene::activate() {
         "track_pause",
         "analysis_range",
         
+        "cam_matrix",
+        "cam_undistort",
+        "cam_undistort_vector",
+        
         "manual_matches",
         "manual_splits",
         "manual_ignore_bdx",
@@ -357,10 +361,21 @@ void TrackingScene::activate() {
         "gui_show_selections",
         
         "track_threshold",
-        "blob_size_ranges"
+        "track_size_filter"
         
     }, [this](std::string_view key) {
-        if(key == "gui_focus_group" && _data->_bowl) {
+        if(is_in(key, 
+                 "cam_matrix",
+                 "cam_undistort",
+                 "cam_undistort_vector"))
+        {
+            if(_data
+               && _data->_background)
+            {
+                init_undistortion();
+            }
+            
+        } else if(key == "gui_focus_group" && _data->_bowl) {
             _data->_bowl->_screen_size = Vec2();
             _data->_zoom_dirty = true;
             _data->_cache->set_fish_dirty(true);
@@ -388,7 +403,7 @@ void TrackingScene::activate() {
         }
         
         if(utils::beginsWith(key, "gui_show_")
-           || is_in(key, "track_threshold", "blob_size_ranges"))
+           || is_in(key, "track_threshold", "track_size_filter"))
         {
             if(_data && _data->_cache) {
                 _data->_cache->set_tracking_dirty();
@@ -419,6 +434,17 @@ void TrackingScene::activate() {
     });
     
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+}
+
+void TrackingScene::init_undistortion() {
+    if(not SETTING(cam_undistort)) {
+        _data->_background->set_undistortion(std::nullopt, std::nullopt);
+    } else {
+        
+        auto cam_data = SETTING(cam_matrix).value<std::vector<double>>();
+        auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<double>>();
+        _data->_background->set_undistortion(std::move(cam_data), std::move(undistort_data));
+    }
 }
 
 void TrackingScene::deactivate() {

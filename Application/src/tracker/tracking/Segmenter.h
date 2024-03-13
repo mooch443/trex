@@ -23,6 +23,8 @@ class Segmenter {
     GETTER(Range<Frame_t>, video_conversion_range);
     file::Path _output_file_name;
     
+    CallbackCollection _undistort_callbacks;
+    
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);
     std::atomic<bool> _processor_initializing{false};
@@ -96,6 +98,8 @@ private:
     void start_recording_ffmpeg();
     void graceful_end();
     void stop_average_generator(bool blocking);
+    
+    void init_undistort_from_settings();
 };
 
 }

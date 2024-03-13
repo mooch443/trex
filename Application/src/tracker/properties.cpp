@@ -37,8 +37,8 @@ void async_main(void*) {
 	//SETTING(do_history_split) = false;
 
 	GlobalSettings::load_from_string(sprite::MapSource::defaults, {}, GlobalSettings::map(),
-		"blob_size_ranges = [[0.001,0.07]]\n"
-		//"blob_size_ranges = [[80, 400]]\n"
+		"track_size_filter = [[0.001,0.07]]\n"
+		//"track_size_filter = [[80, 400]]\n"
 		"blob_split_global_shrink_limit = 0.005\n"
 		"blob_split_max_shrink = 0.1\n"
 		"gpu_enable_accumulation = false\n"

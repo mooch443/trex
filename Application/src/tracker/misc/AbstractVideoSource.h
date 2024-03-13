@@ -45,6 +45,10 @@ protected:
     GETTER(VideoFunction, source_frame);
     GETTER(PreprocessFunction, resize_cvt);
     
+    gpuMat map1;
+    gpuMat map2;
+    gpuMat gpuBuffer;
+    
 public:
     AbstractBaseVideoSource(VideoInfo info);
     virtual ~AbstractBaseVideoSource();
@@ -78,7 +82,11 @@ public:
     static std::string class_name();
     
     virtual std::set<std::string_view> recovered_errors() const { return {}; }
+    
+    void set_undistortion(std::optional<std::vector<double>>&& cam_matrix,
+                          std::optional<std::vector<double>>&& undistort_vector);
+    
 protected:
-    virtual void undistort(const gpuMat& input, gpuMat& output) = 0;
-    virtual void undistort(const cv::Mat& input, cv::Mat& output) = 0;
+    virtual void undistort(const gpuMat& input, gpuMat& output);
+    virtual void undistort(const cv::Mat& input, cv::Mat& output);
 };

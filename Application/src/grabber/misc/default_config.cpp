@@ -67,14 +67,14 @@ namespace default_config {
         using namespace settings;
         Adding adding(config, docs, fn);
         
-        std::vector<float> buffer {
-            -0.2576632f , -0.19233586f,  0.00245493f,  0.00398822f,  0.35924019f
+        std::vector<double> buffer {
+            -0.2576632 , -0.19233586,  0.00245493,  0.00398822,  0.35924019
         };
         
-        std::vector<float> matrix = {
-            2.94508959e+03f,   0.00000000e+00f,   6.17255441e+02f,
-            0.00000000e+00f,   2.94282514e+03f,   6.82473623e+02f,
-            0.00000000e+00f,   0.00000000e+00f,   1.00000000e+00f
+        std::vector<double> matrix = {
+            2.94508959e+03,   0.00000000e+00,   6.17255441e+02,
+            0.00000000e+00,   2.94282514e+03,   6.82473623e+02,
+            0.00000000e+00,   0.00000000e+00,   1.00000000e+00
         };
         
         CONFIG("cam_undistort_vector", buffer, "");
@@ -226,7 +226,7 @@ namespace default_config {
             "cam_undistort_vector",
             "cam_matrix",
             "cm_per_pixel",
-            "blob_size_ranges",
+            "track_size_filter",
             "track_threshold",
             "track_posture_threshold",
             "track_do_history_split",

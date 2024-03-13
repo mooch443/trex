@@ -55,7 +55,7 @@ struct slow {
     DEF_SLOW_SETTINGS_T(float, blob_split_max_shrink);
     DEF_SLOW_SETTINGS_T(float, blob_split_global_shrink_limit);
     DEF_SLOW_SETTINGS(cm_per_pixel);
-    DEF_SLOW_SETTINGS(blob_size_ranges);
+    DEF_SLOW_SETTINGS(track_size_filter);
     DEF_SLOW_SETTINGS(track_threshold);
     DEF_SLOW_SETTINGS(track_posture_threshold);
     DEF_SLOW_SETTINGS_T(blob_split_algorithm_t::Class, blob_split_algorithm);
@@ -89,7 +89,7 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
             DEF_CALLBACK(blob_split_max_shrink);
             DEF_CALLBACK(blob_split_global_shrink_limit);
             DEF_CALLBACK(cm_per_pixel);
-            DEF_CALLBACK(blob_size_ranges);
+            DEF_CALLBACK(track_size_filter);
             DEF_CALLBACK(track_threshold);
             DEF_CALLBACK(track_posture_threshold);
             
@@ -103,7 +103,7 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
             "blob_split_max_shrink",
             "blob_split_global_shrink_limit",
             "cm_per_pixel",
-            "blob_size_ranges",
+            "track_size_filter",
             "track_threshold",
             "track_posture_threshold",
             "blob_split_algorithm"
@@ -170,8 +170,8 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
  * The rules are enforced in this order:
  *  1. given `presumed_number` of expected objects, are enough objects found?
  *  2. the overall number of pixels should not shrink further than `blob_split_max_shrink * first_size`, i.e. a certain percentage of the unthresholded image
- *  3. all objects smaller than `blob_size_ranges.max.start * blob_split_global_shrink_limit` are removed
- *  4. if the smallest found object is bigger than `blob_size_ranges.max.end`, ignore the results
+ *  3. all objects smaller than `track_size_filter.max.start * blob_split_global_shrink_limit` are removed
+ *  4. if the smallest found object is bigger than `track_size_filter.max.end`, ignore the results
  */
 split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs)
 {
@@ -186,7 +186,7 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
         return split::Action::ABORT;
     }
     
-    const float min_size_threshold = SPLIT_SETTING(blob_size_ranges).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
+    const float min_size_threshold = SPLIT_SETTING(track_size_filter).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
     auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
         auto fsize = blob->num_pixels() * sqrcm;
         return fsize < min_size_threshold;
@@ -200,7 +200,7 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
     }
     
     if(min_size.has_value()
-       && min_size.value() * sqrcm > SPLIT_SETTING(blob_size_ranges).max_range().end)
+       && min_size.value() * sqrcm > SPLIT_SETTING(track_size_filter).max_range().end)
     {
         return split::Action::REMOVE;
     }
@@ -501,7 +501,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     
     if(action != split::Action::KEEP
        && action != split::Action::KEEP_ABORT
-        && _blob->pixels()->size() * sqrcm < SPLIT_SETTING(blob_size_ranges).max_range().end * 100)
+        && _blob->pixels()->size() * sqrcm < SPLIT_SETTING(track_size_filter).max_range().end * 100)
     {
         
         if(presumed_nr > 1) {

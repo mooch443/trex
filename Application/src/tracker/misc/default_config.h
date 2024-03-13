@@ -78,7 +78,7 @@ namespace default_config {
     ENUM_CLASS(visual_identification_version_t, current, v118_3, v110, v100)
     ENUM_CLASS_HAS_DOCS(visual_identification_version_t)
 
-    ENUM_CLASS(TRexTask_t, none, track, convert, annotate)
+    ENUM_CLASS(TRexTask_t, none, track, convert, annotate, rst)
     ENUM_CLASS_HAS_DOCS(TRexTask_t)
 
     ENUM_CLASS(gpu_torch_device_t, automatic, cuda, mps, cpu)
