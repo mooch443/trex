@@ -128,11 +128,11 @@ int DataStore::number_labels() {
 std::mutex _processed_segments_mutex;
 std::vector<std::tuple<std::thread::id, Range<Frame_t>>> _currently_processed_segments;
 
-void add_currently_processed_segment(std::thread::id id, Range<Frame_t> range) {
+void DataStore::add_currently_processed_segment(std::thread::id id, Range<Frame_t> range) {
     std::unique_lock g{_processed_segments_mutex};
     _currently_processed_segments.insert(_currently_processed_segments.end(), { id, range });
 }
-bool remove_currently_processed_segment(std::thread::id id) {
+bool DataStore::remove_currently_processed_segment(std::thread::id id) {
     std::unique_lock g{_processed_segments_mutex};
     for(auto it = _currently_processed_segments.begin(); it != _currently_processed_segments.end(); ++it)
     {
@@ -144,7 +144,7 @@ bool remove_currently_processed_segment(std::thread::id id) {
     
     return false;
 }
-static std::vector<Range<Frame_t>> currently_processed_segments() {
+std::vector<Range<Frame_t>> DataStore::currently_processed_segments() {
     std::vector<Range<Frame_t>> result;
     
     std::unique_lock g{_processed_segments_mutex};
