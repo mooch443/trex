@@ -679,11 +679,22 @@ int main(int argc, char**argv) {
                        SETTING(detect_type),
                        {}, {});
         
+        /// in terminal we dont want to async a GUI anyway.
+        /// also, on windows we might get in trouble here
+        /// if GlobalSettings isnt assigned the right instance
+        /// yet in python_dll:
+        print("Waiting for python...");
+        f.get();
+
         if(task == TRexTask_t::convert) {
             last_error = start_converting(f);
             
         } else if(task == TRexTask_t::track) {
             last_error = start_tracking(f);
+        } else if(task == TRexTask_t::rst) {
+            save_rst_files();
+        } else {
+            throw U_EXCEPTION("Unknown task type: ", task);
         }
         
     } else {

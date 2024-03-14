@@ -44,7 +44,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 _output_file = nullptr;
                 
                 /// preserve all parameters
-                sprite::Map parm;
+                /*sprite::Map parm;
                 for(auto &key : GlobalSettings::map().keys())
                     GlobalSettings::map().at(key).get().copy_to(&parm);
                     
@@ -53,7 +53,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                                  default_config::TRexTask_t::track,
                                  SETTING(detect_type),
                                  {},
-                                 parm);
+                                 parm);*/
                 
                 try {
                     pv::File test(filename, pv::FileMode::READ);
