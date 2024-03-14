@@ -8,6 +8,7 @@
 #include <python/Yolo8.h>
 #include <misc/SettingsInitializer.h>
 #include <tracking/Tracker.h>
+#include <tracking/Export.h>
 
 using namespace track::detect;
 
@@ -58,6 +59,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 try {
                     pv::File test(filename, pv::FileMode::READ);
                     test.print_info();
+                    
                 } catch(...) {
                     // we are not interested in open-errors
                 }
@@ -123,6 +125,25 @@ Segmenter::~Segmenter() {
         if(_tracker && _tracker->end_frame().valid() && (not _output_file || _output_file->length() > 0_f)) {
             Output::TrackingResults results(*_tracker);
             results.save();
+        }
+        
+        if(_tracker
+           && SETTING(auto_quit))
+        {
+            pv::File* video{nullptr};
+            std::shared_ptr<pv::File> _video;
+            if(_output_file)
+                video = _output_file.get();
+            else {
+                _video = std::make_shared<pv::File>(_output_file_name, pv::FileMode::READ);
+                video = _video.get();
+            }
+            
+            track::export_data(*video, *_tracker, {}, {}, [](float p, std::string_view m) {
+                if(int(p * 100) % 10 == 0) {
+                    print("Exporting ", int(p * 100), "%...");
+                }
+            });
         }
 
         _tracker = nullptr;

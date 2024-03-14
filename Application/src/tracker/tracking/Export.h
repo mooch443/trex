@@ -8,6 +8,6 @@
 
 namespace track {
     class Tracker;
-    void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range);
+    void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range, const std::function<void(float, std::string_view)>& progress_callback);
     void temporary_save(file::Path path, std::function<void(file::Path)> fn);
 }

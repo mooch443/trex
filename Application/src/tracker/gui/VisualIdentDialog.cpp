@@ -7,7 +7,7 @@
 #include <tracking/Output.h>
 #include <tracking/Tracker.h>
 #include <misc/SettingsInitializer.h>
-#include <gui/Export.h>
+#include <tracking/Export.h>
 #include <tracking/ConnectedTasks.h>
 #include <misc/IdentifiedTag.h>
 
@@ -307,7 +307,13 @@ void VIController::export_tracks() {
     
     auto video = _video.lock();
     if(video)
-        track::export_data(*video, *_tracker, {}, {});
+        track::export_data(*video, *_tracker, {}, {}, [](float p, std::string_view m) {
+            if(not m.empty()) {
+                WorkProgress::set_item((std::string)m);
+            }
+            if(p >= 0)
+                WorkProgress::set_percent(p);
+        });
     else
         throw InvalidArgumentException("There was no video to export from.");
     

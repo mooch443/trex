@@ -2,8 +2,6 @@
 
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>
-#include <tracker/gui/WorkProgress.h>
-#include <tracker/gui/DrawGraph.h>
 #include <misc/cnpy_wrapper.h>
 #include <tracking/MemoryStats.h>
 #include <file/DataLocation.h>
@@ -13,6 +11,7 @@
 #include <tracking/VisualIdentification.h>
 #include <tracking/IndividualManager.h>
 #include <processing/PadImage.h>
+#include <gui/DrawGraph.h>
 
 #if WIN32
 #include <io.h>
@@ -166,7 +165,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
     return cmn::abs(area / 2.0f);
 }
 
-void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range) {
+void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range, const std::function<void(float, std::string_view)>& progress_callback) {
     using namespace gui;
     using namespace track::image;
     
@@ -254,7 +253,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             if(SETTING(terminate))
                 return;
             
-            std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &fishdata, output_posture_data](float percent) {
+            std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &fishdata, output_posture_data, &progress_callback](float percent) {
                 float overall_percent = 0;
                 
                 {
@@ -270,8 +269,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     
                     //if(GUI::instance())
                     //{
-                        WorkProgress::set_percent(overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f));
-                        overall_percent = WorkProgress::percent();
+                    overall_percent = overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
+                    progress_callback(overall_percent, "");
+                        //WorkProgress::set_percent(overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f));
+                        //overall_percent = WorkProgress::percent();
                     //} else
                     //    overall_percent = overall_percent / (float)all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
                 }
@@ -780,7 +781,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         
         // if there are representative tracklet images, save them...
         if(!waiting_pixels.empty()) {
-            WorkProgress::set_item("saving tracklet images...");
+            progress_callback(0, "saving tracklet images...");
             
             std::vector<uchar> all_images, single_images, split_masks;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
@@ -1001,7 +1002,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
                     print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTING(track_max_individuals) == 0 ? float(vec.size()) : float(vec.size()) / float((float)FAST_SETTING(track_max_individuals) + 0.0001) * 100),"% identities / frame)");
-                    WorkProgress::set_percent(index / float(waiting_pixels.size()));
+                    progress_callback(index / float(waiting_pixels.size()), "");
                 }
             }
             
