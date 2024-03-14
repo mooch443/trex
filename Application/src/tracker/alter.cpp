@@ -42,6 +42,7 @@
 #include <gui/TrackingState.h>
 #include <gui/WorkProgress.h>
 #include <tracking/Segmenter.h>
+#include <tracking/OutputLibrary.h>
 
 #include <python/Yolo8.h>
 //#include <python/Yolo7InstanceSegmentation.h>
@@ -407,7 +408,8 @@ std::string start_tracking(std::future<void>& f) {
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
     
     //! get the python init future at this point
-    f.get();
+    if(f.valid())
+        f.get();
     
     while(not terminate)
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -678,13 +680,17 @@ int main(int argc, char**argv) {
                        task,
                        SETTING(detect_type),
                        {}, {});
+
+        Output::Library::InitVariables();
+        Output::Library::Init();
         
         /// in terminal we dont want to async a GUI anyway.
         /// also, on windows we might get in trouble here
         /// if GlobalSettings isnt assigned the right instance
         /// yet in python_dll:
         print("Waiting for python...");
-        f.get();
+        if(f.valid())
+            f.get();
 
         if(task == TRexTask_t::convert) {
             last_error = start_converting(f);

@@ -250,8 +250,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             if(fdx.valid() && fdx != id)
                 return;
             
-            if(SETTING(terminate))
-                return;
+            //if(SETTING(terminate))
+            //    return;
             
             std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &fishdata, output_posture_data, &progress_callback](float percent) {
                 float overall_percent = 0;
@@ -792,8 +792,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             
             size_t index = 0;
             for(auto && [frame, vec] : waiting_pixels) {
-                if(SETTING(terminate))
-                    break;
+                //if(SETTING(terminate))
+                //    break;
                 
                 {
                     static Timing timing("[tracklet_images] preprocess", 20);
