@@ -61,6 +61,8 @@ target_link_libraries(test_matching PUBLIC
     commons
 )
 
+target_link_libraries(test_matching PUBLIC tracker_python)
+
 if(WIN32)
     set_target_properties(test_matching PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
