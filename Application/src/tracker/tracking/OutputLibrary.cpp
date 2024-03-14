@@ -330,7 +330,9 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         });
         
         _cache_func[Functions::BORDER_DISTANCE.name()] = LIBFNC({
-            if(SETTING(video_mask)) {
+            if(GlobalSettings::has("video_mask")
+               && SETTING(video_mask))
+            {
                 // circular tank
                 Vec2 center(CENTER_X, CENTER_Y);
                 const float radius = min(center.x, center.y);
@@ -342,7 +344,13 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
             } else {
                 // rectangular tank
-                Size2 size = SETTING(video_size);
+                Size2 size;
+                if(GlobalSettings::has("meta_video_size")) {
+                    size = SETTING(meta_video_size).value<Size2>();
+                } else {
+                    size = Tracker::average().dimensions();
+                }
+                
                 cv::Rect2f r(0, 0, size.width * FAST_SETTING(cm_per_pixel), size.height * FAST_SETTING(cm_per_pixel));
                 
                 auto pt = props->pos<Units::CM_AND_SECONDS>();
