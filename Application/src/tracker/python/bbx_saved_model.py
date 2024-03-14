@@ -256,6 +256,7 @@ class StrippedYolo8Results:
             unscaled[..., 2:4] = unscale_coords(results.masks.data.shape[1:], unscaled[..., 2:4], new_size)#.round().astype(int)
             
             assert len(coords) == len(results.masks.data)
+            index = 0
             for orig, unscale, k in zip(coords.round().astype(int), unscaled, (results.masks.data * 255).byte()):
                 sub = k[max(0, int(unscale[1])):max(0, int(unscale[3])), max(0,int(unscale[0])):max(0, int(unscale[2]))]
                 if orig[3] - orig[1] <= 0 or orig[2] - orig[0] <= 0 or sub.shape[0] <= 0 or sub.shape[1] <= 0:
@@ -264,7 +265,13 @@ class StrippedYolo8Results:
                           => unscale={unscale} \n\
                           => k={k.shape}\n\
                           => orig={orig}")
-                    raise Exception("Invalid mask size")
+                    #raise Exception("Invalid mask size")
+                    
+                    # remove invalid mask from self.boxes at the same index
+                    self.boxes = np.delete(self.boxes, index, axis=0)
+                    continue
+
+                index += 1
                 # resize sub to scaled size using pytorch
                 #sub = cv2.rectangle((sub * 255).byte().cpu().numpy(), (5,5), (sub.shape[1]-5, sub.shape[0]-5), (0,0,0), 1)
                 #print("sub.shape=",sub.shape, " orig=",orig, (orig[3] - orig[1], orig[2] - orig[0]))
