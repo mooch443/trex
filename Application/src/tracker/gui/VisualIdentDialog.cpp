@@ -7,7 +7,7 @@
 #include <tracking/Output.h>
 #include <tracking/Tracker.h>
 #include <misc/SettingsInitializer.h>
-#include <tracking/Export.h>
+#include <gui/Export.h>
 #include <tracking/ConnectedTasks.h>
 #include <misc/IdentifiedTag.h>
 

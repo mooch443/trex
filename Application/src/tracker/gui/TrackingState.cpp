@@ -2,7 +2,7 @@
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
 #include <gui/GUITaskQueue.h>
-#include <tracking/Export.h>
+#include <gui/Export.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Output.h>

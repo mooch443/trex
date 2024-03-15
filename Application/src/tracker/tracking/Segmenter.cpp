@@ -8,7 +8,7 @@
 #include <python/Yolo8.h>
 #include <misc/SettingsInitializer.h>
 #include <tracking/Tracker.h>
-#include <tracking/Export.h>
+#include <gui/Export.h>
 
 using namespace track::detect;
 
