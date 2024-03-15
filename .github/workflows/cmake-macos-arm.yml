@@ -69,6 +69,8 @@ jobs:
         cd $GITHUB_WORKSPACE/conda
         p=${GITHUB_REF##*/}
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
+        echo "Replacing ffmpeg =6 version with >=4"
+        sed -i -e '/ffmpeg =6/ s+6+>=4+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
