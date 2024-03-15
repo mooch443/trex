@@ -58,6 +58,7 @@ CREATE_STRUCT(Settings,
   (uint32_t, smooth_window),
   (float, cm_per_pixel),
   (uint32_t, frame_rate),
+  (bool, track_enforce_frame_rate),
   (float, track_max_reassign_time),
   (float, speed_extrapolation),
   (bool, calculate_posture),
@@ -139,6 +140,7 @@ struct slow {
     DEF_SLOW_SETTINGS(calculate_posture);
     DEF_SLOW_SETTINGS(track_absolute_difference);
     DEF_SLOW_SETTINGS(track_background_subtraction);
+    DEF_SLOW_SETTINGS(track_enforce_frame_rate);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);

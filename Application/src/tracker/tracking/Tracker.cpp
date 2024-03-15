@@ -51,6 +51,7 @@ void initialize_slows() {
         Settings::init();
         
         DEF_CALLBACK(frame_rate);
+        DEF_CALLBACK(track_enforce_frame_rate);
         DEF_CALLBACK(track_max_speed);
         DEF_CALLBACK(track_consistent_categories);
         DEF_CALLBACK(cm_per_pixel);
@@ -564,16 +565,22 @@ void Tracker::update_history_log() {
 
 void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, const Size2& resolution, bool do_history_split)
 {
-    double time = double(frame.timestamp()) / double(1000*1000);
-    
     //! Free old memory
     pp.clear();
+    
+    double time;
+    if(SLOW_SETTING(track_enforce_frame_rate)) {
+        time = double(frame.index().get()) / double(SLOW_SETTING(frame_rate));
+        pp.timestamp = timestamp_t{uint64_t(time * 1000 * 1000)};
+    } else {
+        time = double(frame.timestamp()) / double(1000*1000);
+        pp.timestamp = frame.timestamp();
+    }
     
     pp.time = time;
     assert(frame.index().valid());
     pp.set_index(frame.index());
     pp.set_source_index(frame.source_index());
-    pp.timestamp = frame.timestamp();
     pp.set_loading_time(frame.loading_time());
     pp.init_from_blobs(std::move(frame).steal_blobs());
     if(SETTING(image_invert)) {

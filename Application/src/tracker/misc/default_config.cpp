@@ -354,6 +354,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
 
         CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.");
+        CONFIG("track_enforce_frame_rate", true, "Enforce the `frame_rate` and override the frame_rate provided by the video file for calculating kinematic properties and probabilities. If this is not enabled, `frame_rate` is only a cosmetic property that influences the GUI and not exported data (for example).");
+        
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");

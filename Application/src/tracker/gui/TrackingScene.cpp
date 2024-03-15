@@ -341,6 +341,7 @@ void TrackingScene::activate() {
         "gui_run",
         "track_pause",
         "analysis_range",
+        "frame_rate",
         
         "cam_matrix",
         "cam_undistort",
@@ -403,7 +404,7 @@ void TrackingScene::activate() {
         }
         
         if(utils::beginsWith(key, "gui_show_")
-           || is_in(key, "track_threshold", "track_size_filter"))
+           || is_in(key, "track_threshold", "track_size_filter", "frame_rate"))
         {
             if(_data && _data->_cache) {
                 _data->_cache->set_tracking_dirty();
