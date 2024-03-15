@@ -252,34 +252,6 @@ Sample::Ptr Work::front_sample() {
     return sample;
 }
 
-
-#ifndef NDEBUG
-static void log_event(const std::string& name, Frame_t frame, const Identity& identity) {
-    time_t rawtime;
-    struct tm * timeinfo;
-    char buffer[128];
-    
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    
-    strftime(buffer, sizeof(buffer), "%H:%M:%S", timeinfo);
-    
-    static std::vector<std::string> log_;
-    static std::mutex log_lock;
-    
-    auto text = std::string(buffer) + " "+name+" "+Meta::toStr(frame)+" for "+Meta::toStr(identity);
-    
-    {
-        std::lock_guard g(log_lock);
-        log_.push_back(text);
-        
-        auto f = file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+"_categorize.log")).fopen("ab");
-        text += "\n";
-        fwrite(text.c_str(), sizeof(char), text.length(), f.get());
-    }
-}
-#endif
-
 void start_applying(std::weak_ptr<pv::File> video_source) {
     using namespace extract;
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();

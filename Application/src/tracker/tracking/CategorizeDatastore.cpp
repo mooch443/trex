@@ -2,6 +2,9 @@
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/FilterCache.h>
+#ifndef NDEBUG
+#include <file/DataLocation.h>
+#endif
 
 using namespace track::constraints;
 
@@ -756,6 +759,33 @@ int DataStore::_label_unsafe(Frame_t idx, pv::bid bdx) {
 Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob) {
     return DataStore::label(_label_unsafe(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id()));
 }
+
+#ifndef NDEBUG
+static void log_event(const std::string& name, Frame_t frame, const Identity& identity) {
+    time_t rawtime;
+    struct tm * timeinfo;
+    char buffer[128];
+    
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", timeinfo);
+    
+    static std::vector<std::string> log_;
+    static std::mutex log_lock;
+    
+    auto text = std::string(buffer) + " "+name+" "+Meta::toStr(frame)+" for "+Meta::toStr(identity);
+    
+    {
+        std::lock_guard g(log_lock);
+        log_.push_back(text);
+        
+        auto f = file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+"_categorize.log")).fopen("ab");
+        text += "\n";
+        fwrite(text.c_str(), sizeof(char), text.length(), f.get());
+    }
+}
+#endif
 
 void DataStore::clear() {
     clear_cache();
