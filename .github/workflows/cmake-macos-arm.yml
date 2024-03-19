@@ -53,7 +53,8 @@ jobs:
         channel_priority: strict" > "$CONDARC_PATH"
         echo ".condarc has been updated to only include the conda-forge channel:"
         cat "$CONDARC_PATH"
-        conda update --all --yes
+        conda search conda
+        conda update --override-channels -c conda-forge --all --yes
     - name: Build
       shell: bash -l {0}
       working-directory: ${{runner.workspace}}
