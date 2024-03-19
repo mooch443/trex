@@ -37,7 +37,7 @@ pin_run_as_build:
   ffmpeg:
     min_pin: x.x.x
     max_pin: x.x.x
-
+    
 channel_sources:
   - conda-forge # [arm64]
   - pytorch
