@@ -15,7 +15,7 @@ namespace cmn {
             _stages.at(i).timings = 0;
             _stages.at(i).samples = 0;
             
-            for(int j=0; j<(i == 0 ? 2 : 1); ++j) {
+            for(int j=0; j<(i == 0 ? 1 : 1); ++j) {
                 _stages.at(i).paused.push_back(false);
                 _threads.push_back(new std::thread([this](size_t i, size_t j) {
                     auto name = "ConnectedTasks::stage_"+Meta::toStr(i)+"_"+Meta::toStr(j);

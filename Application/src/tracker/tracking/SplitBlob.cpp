@@ -478,6 +478,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         if(first_size == 0)
             first_size = max_size;
         
+        //PPFrame::Log("Resolved action ", action, " for presumed=",presumed_nr, " of ", *_blob, " to ", blobs);
+        
         // we found enough blobs, so we're allowed to keep it
         if(is_in(action, split::Action::KEEP, split::Action::KEEP_ABORT))
         {

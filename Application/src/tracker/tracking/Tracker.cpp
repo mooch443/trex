@@ -262,6 +262,10 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
     initialize_slows();
     
     _instance = this;
+    
+    PPFrame::CloseLogs();
+    update_history_log();
+    
     set_average(std::move(average));
     
     if(not GlobalSettings::has("meta_real_width")

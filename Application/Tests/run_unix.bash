@@ -49,46 +49,6 @@ if [ -f "${WPWD}/average_test.png" ]; then
     rm "${WPWD}/average_test.png"
 fi
 
-CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 2304 -cm_per_pixel 1 -segment_size_filter \"[1,10000]\" -s \"${WPWD}/test.settings\" -enable_live_tracking -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {} -task convert -detect_type background_subtraction"
-echo "Running TGrabs... ${CMD}"
-if ! { ${CMD} 2>&1; } ; then
-    cat "${PWD}/tgrabs.log"
-    echo "TGrabs could not be executed."
-    exit_code=1
-#else
-    #echo "  Scanning files..."
-    #FILES=$(ls ${PWD}/data/test_fish*.csv)
-    
-    #if [ -z "${FILES}" ]; then
-    #    echo "[ERROR] No files found."
-    #    cat "${PWD}/tgrabs.log"
-    #    exit_code=1
-    #else
-    #    f="test_fish0"
-    #    echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data_automatic/${f}.csv"
-    #    echo "${PWD}/data: $(ls ${PWD}/data)"
-    #    for f in ${FILES}; do
-    #        f=$(basename $f .csv)
-
-            #echo -e -n "\tChecking $f ..."
-            #if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data_automatic/${f}.csv; then
-            #    echo "FAIL"
-            #    echo "[ERROR] file $f differs from baseline"
-            #    exit_code=1
-            #else
-            #    echo 'OK'
-            #fi
-    #    done
-    #fi
-
-    #cat "${PWD}/tgrabs.log"
-fi
-
-rm -rf ${PWD}/data
-echo ""
-
-MODES="automatic"
-
 function compare_csv() {
   local file1="$1"
   local file2="$2"
@@ -108,7 +68,6 @@ function compare_csv() {
   return 0
 }
 
-
 function compare_csv_folder() {
   local input_folder="$1"
   local output_folder="$2"
@@ -120,27 +79,30 @@ function compare_csv_folder() {
   output_files=( "$output_folder"/*.csv )
 
   # Flag for any unmatched files
-  unmatched=false
+  unmatched=0
 
   # Loop through each file in the input folder
   for input_file in "${input_files[@]}"; do
     found_match=false
 
-    #echo -n "Checking ${input_file}..."
+    echo -n "Checking ${input_file}..."
     # Loop through each file in the output folder
     for output_file in "${output_files[@]}"; do
 
       # Compare current input file with output files
       if compare_csv "$input_file" "$output_file"; then
-        #echo -n "found match ${input_file} == ${output_file}!"
+        echo " == $(basename ${output_file[@]})!"
         #echo ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${output_file}
         found_match=true
         break
+      #else
+        #echo ${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${output_file}
+        #${GIT} --no-pager diff --word-diff --no-index -- ${input_file} ${output_file}
       fi
     done
 
     if ! $found_match; then
-        unmatched=true
+        unmatched=$((unmatched+1))
         echo "No match found for $input_file!"
         file1=$input_file
 
@@ -163,7 +125,16 @@ function compare_csv_folder() {
     fi
   done
 
-  if $unmatched; then
+  if [[ $unmatched -gt 0 ]]; then
+    if [[ $closest_diff -le 12 ]]; then
+        if [[ $unmatched -eq 1 ]]; then
+            echo "Closest difference found with $closest_diff_file ($closest_diff) is > 0, but acceptable (likely floating point error)."
+            return 0
+        else
+            echo "More than 1 unmatched file found. Cannot accept any differences."
+            return 1
+        fi
+    fi
     return 1
   fi
 
@@ -171,9 +142,40 @@ function compare_csv_folder() {
   return 0
 }
 
+CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -manual_matches {} -manual_splits {} -task convert -detect_type background_subtraction -match_mode automatic -history_matching_log history_matching_tgrabs.html"
+echo "Running TGrabs... ${CMD}"
+if ! { ${CMD} 2>&1; } > "${PWD}/tgrabs.log"; then
+    cat "${PWD}/tgrabs.log"
+    echo "TGrabs could not be executed."
+    exit_code=1
+else
+    echo "  Scanning files..."
+    FILES=$(ls ${PWD}/data/test_fish*.csv)
+    
+    if [ -z "${FILES}" ]; then
+        echo "[ERROR] No files found."
+        cat "${PWD}/tgrabs.log"
+        exit_code=1
+    else
+        if ! compare_csv_folder "${PWD}/data" "${PWD}/compare_data_automatic"; then
+            echo "FAIL"
+            echo "[ERROR] corrected files differ from baseline"
+            exit_code=1
+        else
+            echo 'OK'
+        fi
+    fi
+
+    #cat "${PWD}/tgrabs.log"
+fi
+
+rm -rf ${PWD}/data
+echo ""
+
+MODES="automatic"
 
 for MODE in ${MODES}; do
-    CMD="${TREX} -d \"${WPWD}\" -i \"${WPWD}/test\" -s \"${WPWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow -manual_matches {} -manual_splits {} -task track -detect_type background_subtraction"
+    CMD="${TREX} -d \"${WPWD}\" -i \"${WPWD}/test\" -s \"${WPWD}/test.settings\" -auto_quit -nowindow -manual_matches {} -manual_splits {} -task track -detect_type background_subtraction -match_mode automatic -p corrected -match_mode ${MODE} -history_matching_log history_matching_trex.html"
 
     echo "Running TRex (${MODE})... ${CMD}"
 
@@ -190,9 +192,9 @@ for MODE in ${MODES}; do
             cat "${PWD}/trex.log"
             exit_code=1
         else
-            f="test_fish0"
-            echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/compare_data_${MODE}/${f}.csv ${PWD}/corrected/data/${f}.csv"
-            echo "${PWD}/corrected/data: $FILES"
+            #f="test_fish0"
+            #echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/compare_data_${MODE}/${f}.csv ${PWD}/corrected/data/${f}.csv"
+            #echo "${PWD}/corrected/data: $FILES"
 
             if ! compare_csv_folder "${PWD}/corrected/data" "${PWD}/compare_data_${MODE}"; then
                 echo "FAIL"

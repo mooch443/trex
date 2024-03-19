@@ -105,7 +105,8 @@ void PPFrame::write_log(std::string str) {
         return;
     
     const auto tname = get_thread_name();
-    if(not utils::beginsWith(tname, "ConnectedTasks::stage_1_"))
+    if(not utils::beginsWith(tname, "ConnectedTasks::stage_1_")
+       && not utils::contains(tname, "tracking-thread"))
         return;
     
     str = "<line>[<warning>"+tname+"</warning>] "+ settings::htmlify(str) + "</line>";
@@ -401,7 +402,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         
         print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        auto bid0 = pv::bid::from_blob(blob);
+        auto bid0 = pv::bid::from_blob(*blob);
         auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
         
         FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
@@ -684,7 +685,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
             _num_pixels += blob->num_pixels();
             
         #ifdef TREX_DEBUG_BLOBS
-            print(this->index(), " Added ", blob, " with regular=", regular);
+            //print(this->index(), " Added ", blob, " with regular=", blobs);
         #endif
         };
         

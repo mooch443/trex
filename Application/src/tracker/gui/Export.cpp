@@ -225,6 +225,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         print("[exporting] Writing posture data to ",posture_path);
     print("[exporting] Writing recognition data to ",recognition_path);
     
+    print("[exporting] functions: ", Output::Library::functions());
+    
+    Output::Library::Init();
+    print("[exporting] functions: ", Output::Library::functions());
+    DebugHeader("...");
+    
     try {
         std::map<Idx_t, float> all_percents;
         std::mutex percent_mutex;

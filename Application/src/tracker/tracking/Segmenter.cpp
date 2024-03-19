@@ -287,7 +287,7 @@ void Segmenter::open_video() {
         {
             std::unique_lock guard(_mutex_tracker);
             if(not _tracker)
-                _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
+                _tracker = std::make_unique<Tracker>(Image::Make(bg), SETTING(meta_real_width).value<float>());
             //else
             //    _tracker->set_average(Image::Make(bg));
         }
@@ -343,11 +343,11 @@ void Segmenter::open_video() {
         
         /// if background subtraction is disabled for tracking, we don't need to
         /// wait for the average image to generate first:
-        if(not FAST_SETTING(track_background_subtraction)) {
+        if(not SETTING(track_background_subtraction).value<bool>()) {
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, 1), float(track::detect::get_model_image_size().width * 10));
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, 1), SETTING(meta_real_width).value<float>());
             }
 
             std::unique_lock vlock(_mutex_general);
@@ -448,7 +448,7 @@ void Segmenter::open_camera() {
 
     {
         std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), float(track::detect::get_model_image_size().width * 10));
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), SETTING(meta_real_width).value<float>());
     }
     static_assert(ObjectDetection<Detection>);
 

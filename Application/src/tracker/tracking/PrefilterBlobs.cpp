@@ -19,14 +19,14 @@ PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const BlobSizeRange
 
 void PrefilterBlobs::big_blob(pv::BlobPtr&& b) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Big blob ", b);
+    thread_print(frame_index, " Big blob ", b);
 #endif
     big_blobs.emplace_back(std::move(b));
 }
 
 void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Commit ", b);
+    thread_print(frame_index, " Commit ", b);
 #endif
     overall_pixels += b->num_pixels();
     ++samples;
@@ -35,7 +35,7 @@ void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 
 void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Commit ", v);
+    thread_print(frame_index, " Commit ", v);
 #endif
     for(const auto &b:v) {
         assert(b != nullptr);
@@ -52,7 +52,7 @@ void PrefilterBlobs::filter_out(pv::BlobPtr&& b, FilterReason reason) {
     overall_pixels += b->num_pixels();
     ++samples;
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Filter out ", b);
+    thread_print(frame_index, " Filter out ", b);
 #endif
     _filtered_out.emplace_back(std::move(b));
     filtered_out_reasons.emplace_back(reason);
@@ -79,7 +79,7 @@ void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v,
 
 void PrefilterBlobs::filter_out_head(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Filter out ", v);
+    thread_print(frame_index, " Filter out ", v);
 #endif
     for(const auto &b:v) {
         assert(b != nullptr);
@@ -207,6 +207,7 @@ void PrefilterBlobs::split_big(
             
             size_t counter = 0;
             for(auto && [r, id, ptr] : found) {
+                assert(ptr != b);
                 ptr->force_set_recount(threshold, ptr->raw_recount(-1));
                 ptr->add_offset(b->bounds().pos());
                 ptr->set_split(true, b);
