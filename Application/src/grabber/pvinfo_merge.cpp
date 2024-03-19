@@ -33,18 +33,18 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     std::map<pv::File*, float> cms_per_pixel;
     Size2 resolution;
     
-    file::DataLocation::register_path("merge", [](file::Path filename) -> file::Path {
+    file::DataLocation::register_path("merge", [](const sprite::Map& map, file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-            if(!SETTING(quiet))
+            if(GlobalSettings::is_runtime_quiet())
                 print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
         
-        auto path = SETTING(merge_dir).value<file::Path>();
+        auto path = map.at("merge_dir").value<file::Path>();
         if(path.empty()) {
-            return file::DataLocation::parse("input", filename);
+            return file::DataLocation::parse("input", filename, &map);
         } else
             return path / filename;
     });
@@ -76,24 +76,22 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(settings_file.exists()) {
             print("settings for ",name.str()," found");
             auto config = std::make_shared<sprite::Map>();
-            config->set_do_print(false);
-            
             GlobalSettings::docs_map_t docs;
-            default_config::get(*config, docs, NULL);
+            grab::default_config::get(*config, docs, NULL);
             
-            GlobalSettings::load_from_string({}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
+            GlobalSettings::load_from_string(sprite::MapSource{settings_file}, {}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
             if(!file->header().metadata.empty())
-                sprite::parse_values(*config, file->header().metadata);
-            if(!config->has("meta_real_width") || config->get<float>("meta_real_width").value() == 0)
-                config->get<float>("meta_real_width").value(30);
-            if(!config->has("cm_per_pixel") || config->get<float>("cm_per_pixel").value() == 0)
-                config->get<float>("cm_per_pixel") = config->get<float>("meta_real_width").value() / float(file->average().cols);
+                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata);
+            if(!config->has("meta_real_width") || config->at("meta_real_width").value<float>() == 0)
+                (*config)["meta_real_width"].value<float>(30);
+            if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<float>() == 0)
+                (*config)["cm_per_pixel"] = config->at("meta_real_width").value<float>() / float(file->average().cols);
             
-            cms_per_pixel[file.get()] = config->get<float>("cm_per_pixel");
+            cms_per_pixel[file.get()] = config->at("cm_per_pixel").value<float>();
             configs.push_back(config);
             
         } else {
-            throw U_EXCEPTION("Cant find settings for '",name.str(),"' at '",settings_file.str(),"'");
+            throw U_EXCEPTION("Cant find settings for ",name.str()," at ",settings_file.str());
         }
     }
     
@@ -143,7 +141,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(!files.front()->header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), files.front()->header().metadata);
+            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata);
         
         //SETTING(frame_rate) = int(1000 * 1000 / float(frame.timestamp()));
     }
@@ -161,16 +159,24 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         "meta_build",
         "meta_conversion_time",
         "meta_number_merged_videos",
-        "frame_rate"
+        "frame_rate",
+        "meta_video_scale",
+        "detect_classes",
+        "meta_encoding"
     };
     
     SETTING(meta_conversion_time) = std::string(date_time());
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {
-        ss << " " << argv[i];
+        if(i > 0)
+            ss << " ";
+        if(argv[i][0] == '-')
+            ss << argv[i];
+        else
+            ss << "'" << argv[i] << "'";
     }
     SETTING(meta_cmd) = ss.str();
-    SETTING(meta_source_path) = file::Path();
+    SETTING(meta_source_path) = std::string();
     SETTING(meta_number_merged_videos) = size_t(files.size());
     
     // frame: {blob : source}
@@ -189,7 +195,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     //auto start_time = output.header().timestamp;
     print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
-    GlobalSettings::map().dont_print("cm_per_pixel");
+    GlobalSettings::map()["cm_per_pixel"].get().set_do_print(false);
     const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
     //const float scaled_video_width = floor(sqrt(resolution.width * resolution.height / float(files.size())));
     
@@ -253,20 +259,17 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         for(uint64_t vdx = 0; vdx < files.size(); ++vdx) {
             auto &file = files.at(vdx);
             file->read_frame(f, frame);
-            if(!vdx) o.set_timestamp(timestamp_offset.get() + f.timestamp());
+            if(!vdx) o.set_timestamp(timestamp_offset + f.timestamp());
             //o.set_timestamp(start_time + f.timestamp() - file->start_timestamp());
             
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
             Vec2 scale = merge_mode == merge_mode_t::centered ? Vec2(1) : Vec2(Size2(average).div(Size2(file->average())));
-            auto blob_size_range = configs.at(vdx)->get<Rangef>("blob_size_range").value();
-            const int track_threshold = configs.at(vdx)->get<int>("track_threshold").value();
+            auto blob_size_range = configs.at(vdx)->at("blob_size_range").value<Rangef>();
+            const int track_threshold = configs.at(vdx)->at("track_threshold").value<int>();
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {
-                auto b = pv::Blob::Make(
-                    std::move(f.mask().at(i)),
-                    std::move(f.pixels().at(i)),
-                    f.flags().at(i));
+                auto b = f.steal_blob(i);
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
                 
                 if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)

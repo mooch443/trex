@@ -4,10 +4,10 @@
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
 #include <tracker/misc/default_config.h>
+#include <grabber/misc/default_config.h>
 #include <misc/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/Timer.h>
-#include <misc/vec2.h>
 #include <tracking/Tracker.h>
 
 using namespace cmn;
@@ -16,7 +16,7 @@ using namespace default_config;
 namespace track {
 namespace image {
 
-std::tuple<Image::UPtr, Vec2> normalize_image(
+std::tuple<Image::Ptr, Vec2> normalize_image(
       const cv::Mat& mask,
       const cv::Mat& image,
       const gui::Transform &midline_transform,
@@ -63,7 +63,12 @@ std::tuple<Image::UPtr, Vec2> normalize_image(
     image.copyTo(image, mask);
     //tf::imshow("before", image);
     
-    cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+    //TODO: if larger?
+    using namespace grab::default_config;
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
+       cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_NEAREST, cv::BORDER_CONSTANT);
+    else
+       cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
     //resize_image(padded, SETTING(individual_image_scale).value<float>());
     
     //tf::imshow("after", padded);
@@ -107,7 +112,7 @@ std::tuple<Image::UPtr, Vec2> normalize_image(
     return { Image::Make(padded), pt };
 }
 
-std::tuple<Image::UPtr, Vec2>
+std::tuple<Image::Ptr, Vec2>
 calculate_normalized_image(const gui::Transform &midline_transform,
                            const pv::BlobWeakPtr& blob,
                            float midline_length,
@@ -123,7 +128,7 @@ calculate_normalized_image(const gui::Transform &midline_transform,
     return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
 
-std::tuple<Image::UPtr, Vec2>
+std::tuple<Image::Ptr, Vec2>
 calculate_normalized_diff_image(const gui::Transform &midline_transform,
                                 const pv::BlobWeakPtr& blob,
                                 float midline_length,
@@ -134,12 +139,15 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
     cv::Mat mask, image;
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    if(FAST_SETTING(track_background_subtraction) && background)
+        imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    else
+        imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
     
     return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
 
-std::tuple<Image::UPtr, Vec2>
+std::tuple<Image::Ptr, Vec2>
 calculate_diff_image(pv::BlobWeakPtr blob,
                      const Size2& output_size,
                      const Image* background)
@@ -149,7 +157,10 @@ calculate_diff_image(pv::BlobWeakPtr blob,
     
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    if(FAST_SETTING(track_background_subtraction))
+        imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    else
+        imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
     image.copyTo(padded, mask);
     
     auto scale = FAST_SETTING(individual_image_scale);
@@ -220,7 +231,10 @@ std::string FilterCache::toStr() const {
     return "TFC<l:" + Meta::toStr(median_midline_length_px) + "+-" + Meta::toStr(midline_length_px_std) + " pts:" + Meta::toStr(median_number_outline_pts) + "+-" + Meta::toStr(outline_pts_std) + " angle:" + Meta::toStr(median_angle_diff) + ">";
 }
 
-inline static std::mutex _filter_mutex;
+static auto& filter_mutex() {
+    static auto _filter_mutex = new LOGGED_MUTEX("FilterCache::_filter_mutex");
+    return *_filter_mutex;
+}
 inline static std::map<Idx_t, std::map<Range<Frame_t>, std::shared_ptr<FilterCache>>> _filter_cache_std, _filter_cache_no_std;
 
 inline float standard_deviation(const std::set<float> & v) {
@@ -234,7 +248,7 @@ inline float standard_deviation(const std::set<float> & v) {
     return (float)std::sqrt(sq_sum / v.size());
 }
 
-std::tuple<Image::UPtr, Vec2> diff_image(
+std::tuple<Image::Ptr, Vec2> diff_image(
      const individual_image_normalization_t::Class &normalize,
      pv::BlobWeakPtr blob,
      const gui::Transform& midline_transform,
@@ -251,9 +265,9 @@ std::tuple<Image::UPtr, Vec2> diff_image(
         blob->calculate_moments();
         
         gui::Transform tr;
-        float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
+        float angle = narrow_cast<float>(DEGREE(-blob->orientation() + float(M_PI) * 0.25f));
         
-        tr.rotate(DEGREE(angle));
+        tr.rotate(angle);
         tr.translate( -blob->bounds().size() * 0.5);
         //tr.translate(-offset());
         
@@ -266,13 +280,13 @@ std::tuple<Image::UPtr, Vec2> diff_image(
 }
 
 void FilterCache::clear() {
-    std::lock_guard<std::mutex> guard(_filter_mutex);
+    auto guard = LOGGED_LOCK(filter_mutex());
     _filter_cache_std.clear();
     _filter_cache_no_std.clear();
 }
 
 bool cached_filter(Idx_t fdx, const Range<Frame_t>& segment, FilterCache & constraints, const bool with_std) {
-    std::lock_guard<std::mutex> guard(_filter_mutex);
+    auto guard = LOGGED_LOCK(filter_mutex());
     const auto &cache = with_std ? _filter_cache_std : _filter_cache_no_std;
     auto fit = cache.find(fdx);
     if(fit != cache.end()) {
@@ -357,7 +371,7 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     constraints->median_angle_diff = median_angle_diff.added() ? median_angle_diff.getValue() : 0;
     
     if(!constraints->empty()) {
-        std::lock_guard<std::mutex> guard(_filter_mutex);
+        auto guard = LOGGED_LOCK(filter_mutex());
         if(calculate_std)
             _filter_cache_std[fish->identity().ID()][segment] = constraints;
         else

@@ -1,6 +1,5 @@
 #include "DatasetQuality.h"
 #include <tracking/Individual.h>
-#include <gui/gui.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
@@ -30,6 +29,9 @@ void print_info() {
 }
 
 Quality quality(const Range<Frame_t> &range) {
+    if(range.empty())
+        return Quality();
+    
     auto it = _quality.find(range);
     if(it == _quality.end())
         return Quality();
@@ -71,6 +73,8 @@ void remove_frames(Frame_t start) {
 }
 
 bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const LockGuard& guard) {
+    if(consec.empty())
+        return false;
     if(consec.length().get() < 5) {
         return true; // skipping range because its too short, but send "ok" signal
     }
@@ -125,8 +129,12 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     if(not success)
         return false;
     
-    for(auto fish : found)
-        Tracker::instance()->thread_pool().enqueue(work, fish);
+    try {
+        for(auto fish : found)
+            Tracker::instance()->thread_pool().enqueue(work, fish);
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads: ", e.what());
+    }
     
     Tracker::instance()->thread_pool().wait();
     
@@ -159,9 +167,12 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
 }
 
 void remove_segment(const Range<Frame_t> &range) {
+    if(range.empty())
+        return;
+    
     auto it = _cache.find(range);
     if(it != _cache.end()) {
-        _sorted.erase(range);
+        _sorted.erase(Quality(range));
         _cache.erase(it);
         _quality.erase(range);
     }
@@ -241,6 +252,8 @@ Range<Frame_t> best_range() {
 }
 
 std::map<Idx_t, Single> per_fish(const Range<Frame_t> &range) {
+    if(range.empty())
+        return {};
     auto it = _cache.find(range);
     if(it == _cache.end())
         return {};
@@ -248,6 +261,8 @@ std::map<Idx_t, Single> per_fish(const Range<Frame_t> &range) {
 }
 
 bool has(const Range<Frame_t>& range) {
+    if(range.empty())
+        return {};
     auto it = _cache.find(range);
     return it != _cache.end() && !it->second.empty();
 }
@@ -280,11 +295,11 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     float travelled = 0;
     
     long_t number_frames = 0;
-    bool debug = false;
+    //bool debug = false;
     
     auto manually_approved = FAST_SETTING(manually_approved);
-    if(manually_approved.find(_consec.start.get()) != manually_approved.end())
-        debug = true;
+    //if(manually_approved.find(_consec.start.get()) != manually_approved.end())
+    //    debug = true;
     
     FrameRange consec(Range<Frame_t>({}, {}));
     auto it = std::lower_bound(fish->frame_segments().begin(), fish->frame_segments().end(), _consec.start, [](const auto& ptr, Frame_t frame) {

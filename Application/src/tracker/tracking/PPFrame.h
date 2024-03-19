@@ -5,17 +5,16 @@
 #include <pv.h>
 #include <misc/bid.h>
 #include <misc/idx_t.h>
-#include <misc/vec2.h>
 #include <tracking/IndividualCache.h>
 #include <misc/ProximityGrid.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <misc/ThreadPool.h>
 
-#ifndef NDEBUG
+//#ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true
-#else
-#define TREX_ENABLE_HISTORY_LOGS false
-#endif
+//#else
+//#define TREX_ENABLE_HISTORY_LOGS false
+//#endif
 
 namespace track {
 using namespace cmn;
@@ -67,18 +66,15 @@ public:
     std::atomic<uint64_t> _split_objects{0}, _split_pixels{0};
     
 #if TREX_ENABLE_HISTORY_LOGS
-    inline static std::shared_ptr<std::ofstream> history_log;
-    inline static std::mutex log_mutex;
+    static std::shared_ptr<std::ofstream>& history_log();
+    static LOGGED_MUTEX_TYPE& log_mutex();
 #endif
     
     template<typename... Args>
     static inline void Log([[maybe_unused]] Args&& ...args) {
 #if TREX_ENABLE_HISTORY_LOGS
-        if(!history_log)
-            return;
         write_log(format<FormatterType::NONE>(std::forward<Args>(args)...));
 #else
-        
         return;
 #endif
     }
@@ -93,17 +89,19 @@ public:
     using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
     
     //! Time in seconds
-    double time;
+    double time{0};
     
     CacheHints hints;
-    GETTER_SETTER(double, loading_time)
+    GETTER_SETTER_I(double, loading_time, 0);
     
 public:
     //! Original timestamp
     timestamp_t timestamp;
     
     //! Original frame index
-    GETTER_SETTER(Frame_t, index)
+    GETTER_SETTER(Frame_t, index);
+    //! Original frame index in the video
+    GETTER_SETTER(Frame_t, source_index);
 
 public:
     bool _finalized = false;
@@ -113,20 +111,22 @@ public:
     
 private:
     std::vector<pv::BlobPtr> _tags;
-    //GETTER(std::vector<pv::bid>, blobs)
-    //GETTER(std::vector<pv::bid>, original_blobs)
-    //GETTER(std::vector<pv::bid>, noise)
+    //GETTER(std::vector<pv::bid>, blobs);
+    //GETTER(std::vector<pv::bid>, original_blobs);
+    //GETTER(std::vector<pv::bid>, noise);
     std::vector<pv::BlobPtr> _blob_owner;
     std::vector<pv::BlobPtr> _noise_owner;
     robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _blob_map;
     robin_hood::unordered_flat_map<pv::bid, pv::BlobWeakPtr> _noise_map;
+    robin_hood::unordered_flat_set<pv::bid> _big_ids;
     
-    GETTER_I(size_t, num_pixels, 0)
-    GETTER_I(size_t, pixel_samples, 0)
+    GETTER_I(size_t, num_pixels, 0);
+    GETTER_I(size_t, pixel_samples, 0);
+    GETTER_SETTER(Size2, resolution);
     
-    GETTER_NCONST(cache_map_t, individual_cache)
+    GETTER_NCONST(cache_map_t, individual_cache);
     
-    GETTER(std::vector<Idx_t>, previously_active_identities)
+    GETTER(std::vector<Idx_t>, previously_active_identities);
     
 public:
     const IndividualCache* cached(Idx_t) const;
@@ -144,7 +144,7 @@ protected:
     std::mutex _blob_grid_mutex;
     
 public:
-    const grid::ProximityGrid& blob_grid() noexcept;
+    const grid::ProximityGrid& blob_grid();
     auto& unsafe_access_all_blobs() { return _blob_owner; }
     
     int label(const pv::bid&) const;
@@ -198,6 +198,8 @@ public:
     {
 #ifndef NDEBUG
         std::set<pv::bid> bdxes;
+        auto name = Meta::name<T>();
+        Log("extract_from_single_range<", name.c_str(),">: ", owner, " objects:",objects);
 #endif
         for(auto it = owner.begin(); it != owner.end(); ) {
             auto&& own = *it;
@@ -375,7 +377,7 @@ public:
     std::vector<pv::BlobPtr> extract_from_noise(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range<compress, remove>(std::forward<T>(vector), objects,  std::move(_noise_owner));
+        extract_from_range<compress, remove>(std::forward<T>(vector), objects,  _noise_owner);
         _check_owners();
         return objects;
     }
@@ -433,9 +435,10 @@ public:
     //! Adds both from blobs and noise, assuming that pixels and samples are already known.
     void add_blobs(std::vector<pv::BlobPtr>&& blobs,
                    std::vector<pv::BlobPtr>&& noise,
+                   robin_hood::unordered_flat_set<pv::bid>&& big_ids,
                    size_t pixels, size_t samples);
     
-    void fill_proximity_grid();
+    void fill_proximity_grid(const Size2&);
     void finalize(source_location loc = source_location::current());
     void init_from_blobs(std::vector<pv::BlobPtr>&& vec);
     
@@ -519,6 +522,29 @@ public:
         }
     }
     
+    template<typename K, typename T, typename Target = pv::Blob>
+        requires Transformer<T, Target> && set_type<K>
+    void transform_noise_ids(const K& ids, T&& F) const {
+        size_t i = 0;
+        for(auto &id : ids) {
+            auto it = _noise_map.find(id);
+            if(it != _noise_map.end()) {
+                auto &blob = *it->second;
+                
+                if constexpr(VoidTransformer<T, Target>) {
+                    F(blob);
+                } else if constexpr(Predicate<T, Target>) {
+                    if(!F(blob))
+                        break;
+                } else if constexpr(IndexedTransformer<T, Target>) {
+                    F(i++, blob);
+                } else {
+                    static_assert(sizeof(T) == 0, "Transformer type not implemented.");
+                }
+            }
+        }
+    }
+    
     template<typename F>
         requires Transformer<F, pv::Blob>
     void transform_blobs(F&& fn) const {
@@ -536,6 +562,30 @@ public:
                 fn(i++, *own);
             } else {
                 static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+            }
+        }
+    }
+    template<typename F, typename Container>
+        requires Transformer<F, pv::Blob>
+    void transform_blobs_by_bid(const Container& c, F&& fn) const {
+        size_t i = 0;
+        for(auto const& idx : c) {
+            auto it = _blob_map.find(idx);
+            if(it != _blob_map.end()) {
+                auto own = it->second;
+                if(not own)
+                    continue;
+                
+                if constexpr(VoidTransformer<F, pv::Blob>) {
+                    fn(*own);
+                } else if constexpr(Predicate<F, pv::Blob>) {
+                    if(!fn(*own))
+                        break;
+                } else if constexpr(IndexedTransformer<F, pv::Blob>) {
+                    fn(i++, *own);
+                } else {
+                    static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+                }
             }
         }
     }
@@ -567,7 +617,8 @@ public:
     
     bool is_regular(pv::bid bdx) const;
     
-    PPFrame();
+    PPFrame() noexcept = default;
+    PPFrame(const Size2&);
 
     PPFrame(const PPFrame&) = delete;
     PPFrame(PPFrame&&) noexcept = delete;

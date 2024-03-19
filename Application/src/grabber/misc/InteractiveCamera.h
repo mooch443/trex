@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
 #include "Camera.h"
 
 namespace fg {
@@ -23,14 +23,17 @@ namespace fg {
         
         std::vector<Fish> _fishies;
         
+        GETTER_SETTER(Vec2, mouse_position);
+        
     public:
         InteractiveCamera();
         ~InteractiveCamera() {
         }
         
+        virtual ImageMode colors() const override { return ImageMode::GRAY; }
         virtual Size2 size() const override { return _size; }
         virtual bool next(Image& image) override;
-        virtual bool open() override { return true; }
+        virtual bool open() const override { return true; }
         virtual void close() override { }
     };
 }

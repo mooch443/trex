@@ -1,10 +1,10 @@
 #include "VisualIdentification.h"
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <misc/frame_t.h>
 #include <misc/PVBlob.h>
 #include <tracking/Tracker.h>
-#include <tracking/Accumulation.h>
+#include <ml/Accumulation.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>
@@ -290,11 +290,11 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
     }
 }
 
-void VINetwork::set_variables(std::vector<cmn::Image::UPtr> && images, callback_t&& callback) {
+void VINetwork::set_variables(std::vector<cmn::Image::Ptr> && images, callback_t&& callback) {
     set_variables_internal(std::move(images), std::move(callback));
 }
 
-void VINetwork::set_variables(std::vector<cmn::Image::Ptr> && images, callback_t&& callback)
+void VINetwork::set_variables(std::vector<cmn::Image::SPtr> && images, callback_t&& callback)
 {
     set_variables_internal(std::move(images), std::move(callback));
 }
@@ -428,7 +428,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 
                 uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
-                py::set_variable("max_epochs", gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
+                py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), "learn_static");
                 py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<uchar>()), "learn_static");
                 py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), "learn_static");
                 
@@ -536,8 +536,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                         auto ss = size.to_string();
                         print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                         
-                        cmn::npz_save(ranges_path.str(), "ranges", all_ranges.data(), { all_ranges.size() / 2, 2 }, "w");
-                        cmn::npz_save(ranges_path.str(), "positions", positions.data(), {positions.size() / 2, 2}, "a");
+                        cmn::npz_save(ranges_path.str(), "ranges", all_ranges.data(), { all_ranges.size() / 2u, 2u }, "w");
+                        cmn::npz_save(ranges_path.str(), "positions", positions.data(), {positions.size() / 2u, 2u}, "a");
                         cmn::npz_save(ranges_path.str(), "ids", ids, "a");
                         cmn::npz_save(ranges_path.str(), "frames", frames, "a");
                         cmn::npz_save(ranges_path.str(), "images", images.data(), { ids.size(), (size_t)resolution.height, (size_t)resolution.width }, "a");
@@ -596,7 +596,7 @@ std::vector<float> VINetwork::transform_results(
     for(int64_t j=0; j<(int64_t)indexes.size(); ++j, ++i) {
         size_t idx = narrow_cast<size_t>(indexes.at((size_t)j));
         if(i < idx) {
-            std::fill(probs.begin() + i * M, probs.begin() + idx * M, -1);
+            std::fill(probs.begin() + i * M, probs.begin() + idx * M, -1.f);
             i = idx;
         }
         
@@ -636,7 +636,7 @@ this->stop_running();
 }
 */
 
-/*auto VINetwork::probabilities(std::vector<Image::UPtr>&& images, auto&& callback)
+/*auto VINetwork::probabilities(std::vector<Image::Ptr>&& images, auto&& callback)
 {
     
     namespace py = pybind11;
@@ -665,7 +665,7 @@ this->stop_running();
         }
         
         module.attr("images") = images;
-        /*module.def("receive", [&](py::array_t<float> x, py::array_t<float> idx) {
+        / *module.def("receive", [&](py::array_t<float> x, py::array_t<float> idx) {
             std::vector<float> temporary;
             auto array = x.unchecked<2>();
             auto idxes = idx.unchecked<1>();

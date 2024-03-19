@@ -1,16 +1,36 @@
 #pragma once
 
-#include <types.h>
-#include <gui/GuiTypes.h>
-#include <tracking/Individual.h>
-#include <tracking/Tracker.h>
-#include <tracking/ConfirmedCrossings.h>
+#include <commons.pc.h>
+//#include <gui/GuiTypes.h>
+//#include <gui/ConfirmedCrossings.h>
+#include <gui/FramePreloader.h>
+#include <misc/Buffers.h>
+#include <tracker/misc/default_config.h>
+#include <pv.h>
+#include <misc/TrackingSettings.h>
+#include <misc/ThreadPool.h>
+#include <tracking/MotionRecord.h>
+#include <processing/Background.h>
+#include <misc/Border.h>
+#include <tracking/Stuffs.h>
+#include <gui/ShadowSegment.h>
 
 class Timer;
-namespace track { class Individual; }
+namespace track {
+class Individual;
+class PPFrame;
+namespace constraints {
+struct FilterCache;
+}
+}
 
 namespace gui {
-    namespace globals {
+class ExternalImage;
+class DrawStructure;
+class Circle;
+class Drawable;
+
+namespace globals {
     CREATE_STRUCT(Cache,
         (bool, gui_run),
         (gui::mode_t::Class, gui_mode),
@@ -41,6 +61,7 @@ namespace gui {
         (bool, gui_show_histograms),
         (bool, gui_auto_scale),
         (bool, gui_auto_scale_focus_one),
+        (bool, gui_show_timeline),
         (uint16_t, output_min_frames),
         (gui::Color, gui_background_color),
         (bool, gui_equalize_blob_histograms),
@@ -51,76 +72,128 @@ namespace gui {
         (uchar, gui_timeline_alpha),
         (bool, gui_happy_mode),
         (bool, auto_categorize),
-        (bool, gui_blur_enabled)
+        (bool, gui_macos_blur),
+        (Size2, gui_zoom_limit),
+        (blob::Pose::Skeleton, detect_skeleton)
     )
-    }
+}
 
-#define GUI_SETTINGS(NAME) gui::globals::Cache::copy< gui::globals::Cache:: NAME >()
+#define GUI_SETTINGS(NAME) ::gui::globals::Cache::copy< ::gui::globals::Cache:: NAME >()
 
     struct SimpleBlob {
         pv::BlobWeakPtr blob;
         int threshold;
         std::unique_ptr<ExternalImage> ptr;
+        Vec2 image_pos;
+        Frame_t frame;
         
         SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
         void convert();
     };
     
     class Fish;
-    
+    class Posture;
+
     using namespace track;
     
     class GUICache {
-        pv::File* _video{ nullptr };
+        GETTER_NCONST(GenericThreadPool, pool);
+
+        struct PPFrameMaker {
+            std::unique_ptr<PPFrame> operator()() const;
+        };
+        
+        std::unique_ptr<PPFrame> _current_processed_frame;
+        Buffers< std::unique_ptr<PPFrame>, PPFrameMaker > buffers;
+        std::weak_ptr<pv::File> _video;
         gui::DrawStructure* _graph{ nullptr };
+        std::unique_ptr<gui::Posture> _posture_window;
+        using FramePtr = std::unique_ptr<PPFrame>;
+        FramePreloader<FramePtr> _preloader;
+        Timer _last_success;
+        std::unique_ptr<PPFrame> _next_processed_frame;
+        
+        LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
 
     public:
+        Size2 _video_resolution;
         int last_threshold = -1;
-        Frame_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
         std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
         Vec2 previous_mouse_position;
         bool _dirty = true;
-        FOIStatus _current_foi;
+        //FOIStatus _current_foi;
         size_t _num_pixels = 0;
 
         Frame_t frame_idx;
         
+        bool _frame_contained{false};
+        std::optional<FrameProperties> _props;
+        std::optional<FrameProperties> _next_props;
+        
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
         
-        GETTER_I(bool, blobs_dirty, false)
-        GETTER_I(bool, raw_blobs_dirty, false)
-        GETTER_I(mode_t::Class, mode, mode_t::tracking)
-        GETTER_I(double, gui_time, 0)
-        GETTER_SETTER_I(float, zoom_level, 1)
-        GETTER_I(float, dt, 0)
+        GETTER(std::vector<Range<Frame_t>>, global_segment_order);
+        GETTER_I(bool, blobs_dirty, false);
+        GETTER_I(bool, raw_blobs_dirty, false);
+        GETTER_SETTER_I(bool, fish_dirty, false);
+        GETTER_I(mode_t::Class, mode, mode_t::tracking);
+        GETTER_I(double, gui_time, 0);
+        GETTER_SETTER_I(float, zoom_level, 1);
+        GETTER_I(float, dt, 0);
         std::atomic_bool _tracking_dirty = false;
         
-        std::map<Drawable*, Drawable::delete_function_handle_t> _delete_handles;
-        std::set<Drawable*> _animators;
+        GETTER_PTR(const Background*, background){nullptr};
         
     public:
         bool recognition_updated = false;
-
+        
         static GUICache& instance();
         static bool exists();
-        std::tuple<Vec2, Vec2> scale_with_boundary(Bounds& boundary, bool recording, Base* base, DrawStructure& graph, Section* section, bool singular_boundary);
-        
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
+    private:
+        mutable std::mutex individuals_mutex;
         std::unordered_map<Idx_t, Individual*> individuals;
+        set_of_individuals_t _registered_callback;
+        
+    public:
+        struct LockIndividuals {
+            std::unique_lock<std::mutex> guard;
+            const std::unordered_map<Idx_t, Individual*>& individuals;
+            
+            LockIndividuals(std::mutex& individuals_mutex, auto const& individuals)
+                : guard(individuals_mutex), individuals(individuals)
+            { }
+            LockIndividuals(LockIndividuals&&) = default;
+        };
+        
+        auto lock_individuals() const {
+            return LockIndividuals{ individuals_mutex, individuals };
+        }
+        
+        std::set<Idx_t> all_ids;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
+        std::unordered_map<Idx_t, std::vector<ShadowSegment>> _individual_ranges;
         
-        set_of_individuals_t _registered_callback;
+        struct BdxAndPred {
+            pv::bid bdx;
+            std::optional<BasicStuff> basic_stuff;
+            std::optional<PostureStuff> posture_stuff;
+            std::optional<std::vector<float>> pred;
+            Midline::Ptr midline;
+        };
         
-        std::map<Idx_t, pv::bid> fish_selected_blobs;
+        std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
+        std::map<Idx_t, BdxAndPred> fish_selected_blobs;
+        std::map<Idx_t, std::shared_ptr<constraints::FilterCache>> filter_cache;
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
@@ -128,28 +201,36 @@ namespace gui {
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
-    protected:
-        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
+        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, DetailProbability>> probabilities;
         std::set<Idx_t> checked_probs;
         
     public:
-        std::unordered_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
-        std::map<Frame_t, track::Tracker::Statistics> _statistics;
+        std::mutex _fish_map_mutex;
+        std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
+        std::map<Frame_t, track::Statistics> _statistics;
         std::unordered_map<pv::bid, int> _ranged_blob_labels;
         
-        std::vector<Tracker::Clique> _cliques;
+        std::vector<track::Clique> _cliques;
         
         Frame_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;
         
-        PPFrame processed_frame;
         std::vector<Idx_t> selected;
         cmn::atomic<uint64_t> _current_pixels = 0;
         std::atomic<double> _average_pixels = 0;
         
+    protected:
+        std::unique_ptr<std::thread> percentile_ptr;
+        std::mutex percentile_mutex;
+        std::once_flag _percentile_once;
+        std::atomic<bool> done_calculating{false};
+        
+        GETTER(Border, border){nullptr};
+        
     public:
         bool has_selection() const;
         Individual * primary_selection() const;
+        Idx_t primary_selected_id() const;
         void deselect_all();
         bool is_selected(Idx_t id) const;
         void do_select(Idx_t id);
@@ -157,15 +238,13 @@ namespace gui {
         void deselect(Idx_t id);
         void deselect_all_select(Idx_t id);
         
-        const ska::bytell_hash_map<pv::bid, Individual::Probability>* probs(Idx_t fdx);
+        const ska::bytell_hash_map<pv::bid, DetailProbability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();
         void set_blobs_dirty();
         void set_raw_blobs_dirty();
         void set_redraw();
-        void set_animating(Drawable* obj, bool v);
-        bool is_animating(Drawable* obj = nullptr) const;
         void set_dt(float dt);
         
         void set_mode(const gui::mode_t::Class&);
@@ -174,13 +253,27 @@ namespace gui {
         void updated_blobs() { _blobs_dirty = false; }
         void updated_raw_blobs() { _raw_blobs_dirty = false; }
         void on_redraw() { _dirty = false; }
-        void update_data(Frame_t frameIndex);
+        Frame_t update_data(Frame_t frameIndex);
         
-        bool is_tracking_dirty() { return _tracking_dirty; }
+        bool is_tracking_dirty() const { return _tracking_dirty; }
         bool must_redraw() const;
-    
-        GUICache(gui::DrawStructure*, pv::File*);
+        
+        bool something_important_changed(Frame_t) const;
+        
+        /// We can preload a pv::Frame here already, but not invalidate
+        /// any of the actual data.
+        void request_frame_change_to(Frame_t);
+        
+        const PPFrame& processed_frame() const {
+            return *_current_processed_frame;
+        }
+        
+        const grid::ProximityGrid& blob_grid();
+        
+        GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>);
         ~GUICache();
+        
+        void draw_posture(gui::DrawStructure &base, Frame_t frameNr);
     };
 }
 

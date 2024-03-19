@@ -49,7 +49,7 @@ else
             fi
 
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-            export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk"
+            export CONDA_BUILD_SYSROOT="/Applications/Xcode_15.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk"
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
             export MACOSX_DEPLOYMENT_TARGET="11.0"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
@@ -89,6 +89,7 @@ cmake .. \
     -DCONDA_PREFIX:PATH=${PREFIX} \
     -DCMAKE_BUILD_TYPE=Release \
     -DWITH_GITSHA1=ON \
+    -DWITH_FFMPEG=ON \
     -DCMAKE_INSTALL_PREFIX=$PREFIX \
     -DWITH_PYLON=OFF \
     -DCOMMONS_BUILD_OPENCV=ON \
@@ -96,56 +97,52 @@ cmake .. \
     -DCOMMONS_BUILD_ZLIB=ON \
     -DCOMMONS_BUILD_PNG=ON \
     -DCOMMONS_BUILD_ZIP=ON \
+    -DCOMMONS_BUILD_EXAMPLES=OFF \
     -DTREX_CONDA_PACKAGE_INSTALL=ON \
     -DCOMMONS_CONDA_PACKAGE_INSTALL=ON \
     -DCOMMONS_DONT_USE_PCH=ON \
     -DCMN_USE_OPENGL2=OFF \
-    -DTREX_WITH_TESTS=OFF \
+    -DTREX_WITH_TESTS=ON \
+    -DBUILD_LEGACY_TREX=OFF -DBUILD_LEGACY_TGRABS=OFF \
     -DCMAKE_PREFIX_PATH=$PREFIX \
     -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE \
+    -DBUILD_LEGACY_TREX=OFF -DBUILD_LEGACY_TGRABS=OFF \
     -DCMAKE_C_COMPILER=$CC \
     -DCMAKE_CXX_COMPILER=$CXX \
     ${CMAKE_PLATFORM_FLAGS[@]}
     #-DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     #-DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
+
+PROCS=8
 if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) Z_LIB
+    if [ ! -z $(nproc) ]; then
+        PROCS=$(( $(nproc) - 1 ))
+    fi
+    echo "Processors on Linux: ${PROCS}"
 else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) Z_LIB
+    if [ ! -z $(sysctl -n hw.ncpu) ]; then
+        PROCS=$(( $(sysctl -n hw.ncpu) - 1 ))
+    fi
+    echo "Processors on macOS: $PROCS"
 fi
 
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) libzip
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) libzip
-fi  
+echo "Choose processor number = ${PROCS}"
+
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target Z_LIB --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libzip --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libpng_custom --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target CustomOpenCV --parallel ${PROCS}
 
 if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) libpng_custom
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) libpng_custom
-fi  
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) CustomOpenCV
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV
-fi
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) gladex
-fi
-
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) imgui
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) imgui
-fi
+    CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS}
+fi 
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS}
 
 cmake ..
 
-if [ "$(uname)" == "Linux" ]; then
-    make -j$(( $(nproc) - 1 )) && make install
-else
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) && make install
-fi
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release
+
+cmake .. -DTREX_WITH_TESTS=OFF
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
+
+#make -j${PROCS} && make install

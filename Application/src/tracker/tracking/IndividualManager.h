@@ -3,7 +3,7 @@
 #include <commons.pc.h>
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Stuffs.h>
 
@@ -19,7 +19,7 @@ class Individual;
 // collect all the currently active individuals
 class IndividualManager {
     const Frame_t _frame;
-    GETTER(set_of_individuals_t, current)
+    GETTER(set_of_individuals_t, current);
     mutable std::shared_mutex current_mutex;
     
 private:
@@ -68,7 +68,7 @@ public:
         for(auto it = map.begin(); it != map.end();) {
             //auto&& blob = *bit;
             
-            std::scoped_lock scoped(_global_mutex(), assign_mutex, current_mutex);
+            std::scoped_lock scoped(_global_mutex(), current_mutex);
             auto result = retrieve_inactive();
             auto bdx = *it;
             
@@ -94,6 +94,17 @@ public:
     }
     
     template<bool safe = true, class Map,
+             typename F>
+        requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
+              && is_map<std::remove_cvref_t<Map>>::value
+    void assign(AssignInfo&& info,
+                Map&& map,
+                F&& apply)
+    {
+        assign(std::move(info), std::move(map), std::move(apply), [](pv::bid, Idx_t, Individual*, const char*){});
+    }
+    
+    template<bool safe = true, class Map,
              typename F, typename ErrorF>
         requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
               && VoidTransformer<ErrorF, pv::bid, Idx_t, Individual*, const char*>
@@ -109,8 +120,14 @@ public:
         //blobs.reserve(map.size());
         //individuals.reserve(map.size());
         
-        auto assigned_bdx = _blob_assigned;
-        auto assigned_fdx = _fish_assigned;
+        decltype(_blob_assigned) assigned_bdx;
+        decltype(_fish_assigned) assigned_fdx;
+        
+        {
+            std::shared_lock guard(assign_mutex);
+            assigned_bdx = _blob_assigned;
+            assigned_fdx = _fish_assigned;
+        }
         
         for(auto&& [bdx, fdx] : map) {
             if(not bdx.valid()) {
@@ -169,6 +186,7 @@ public:
         }
         
         assert(ptrs.size() == individuals.size());*/
+        PPFrame::Log("Got pointers: ", ptrs, " for map: ", blob_map);
         for(size_t i=0; i<ptrs.size(); ++i) {
             if(ptrs.at(i) == nullptr)
                 continue;

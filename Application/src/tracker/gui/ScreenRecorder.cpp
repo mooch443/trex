@@ -25,22 +25,26 @@ struct ScreenRecorder::Data {
     Frame_t _last_recording_frame;
     std::atomic_bool _recording = false;
     
-    void do_record(Base* _base, Frame_t frame, Frame_t max_frame) {
-        if(!_recording || !_base || (_last_recording_frame.valid() && _recording_frame == _last_recording_frame))
+    void do_record(Image::Ptr&& image, Base* , Frame_t , Frame_t max_frame) {
+        if(!_recording /*|| !_base || (_last_recording_frame.valid() && _recording_frame == _last_recording_frame)*/)
             return;
         
-        assert(_base->frame_recording());
+        //assert(_base->frame_recording());
         static Timing timing("recording_timing");
         TakeTiming take(timing);
         
-        if(!_last_recording_frame.valid()) {
-            _last_recording_frame = _recording_frame;
-            return; // skip first frame
-        }
+        if(not _recording_frame.valid())
+            _recording_frame = 0_f;
+        else
+            _recording_frame += 1_f;
+        
+        //if(!_last_recording_frame.valid()) {
+        //    _last_recording_frame = _recording_frame;
+        //    return; // skip first frame
+        //}
         
         _last_recording_frame = _recording_frame;
         
-        auto& image = _base->current_frame_buffer();
         if(!image || image->empty() || !image->cols || !image->rows) {
             FormatWarning("Expected image, but there is none.");
             return;
@@ -77,6 +81,7 @@ struct ScreenRecorder::Data {
                 cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
                 if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
                     FormatExcept("Cannot save to ",filename.str(),". Stopping recording.");
+                    SETTING(gui_is_recording) = false;
                     _recording = false;
                 }
                 
@@ -97,6 +102,7 @@ struct ScreenRecorder::Data {
                     fclose(f);
                 } else {
                     FormatExcept("Cannot write to ",filename.str(),". Stopping recording.");
+                    SETTING(gui_is_recording) = false;
                     _recording = false;
                 }
             }
@@ -104,7 +110,7 @@ struct ScreenRecorder::Data {
         
         static Timer last_print;
         if(last_print.elapsed() > 2) {
-            DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start).get() / float(SETTING(frame_rate).value<uint32_t>()) * 1000) * 1000};
+            DurationUS duration{static_cast<uint64_t>((_recording_frame.try_sub(_recording_start.valid() ? _recording_start : 0_f)).get() / float(SETTING(frame_rate).value<uint32_t>()) * 1000) * 1000};
             auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(max_frame)+" length: "+Meta::toStr(duration));
             auto playback_speed = SETTING(gui_playback_speed).value<float>();
             if(playback_speed > 1) {
@@ -152,6 +158,7 @@ struct ScreenRecorder::Data {
         }
         
         _recording = false;
+        SETTING(gui_is_recording) = false;
         _last_recording_frame.invalidate();
         
         DebugCallback("Stopped recording to ", _recording_path, ".");
@@ -165,7 +172,7 @@ struct ScreenRecorder::Data {
         if(!base)
             return;
         
-        _recording_start = frame + 1_f;
+        _recording_start = frame;
         _last_recording_frame = {};
         _recording = true;
         
@@ -178,15 +185,17 @@ struct ScreenRecorder::Data {
             }
         }
         
+        std::string clip_prefix = (std::string)SETTING(filename).value<file::Path>().filename()+"_";
+        
         size_t max_number = 0;
         try {
             for(auto &file : frames.find_files()) {
                 auto name = std::string(file.filename());
-                if(utils::beginsWith(name, "clip")) {
+                if(utils::beginsWith(name, clip_prefix)) {
                     try {
                         if(utils::endsWith(name, ".avi"))
                             name = name.substr(0, name.length() - 4);
-                        auto number = Meta::fromStr<size_t>(name.substr(std::string("clip").length()));
+                        auto number = Meta::fromStr<size_t>(name.substr(clip_prefix.length()));
                         if(number > max_number)
                             max_number = number;
                         
@@ -204,7 +213,7 @@ struct ScreenRecorder::Data {
         
         print("Clip index is ", max_number,". Starting at frame ",frame,".");
         
-        frames = frames / ("clip" + Meta::toStr(max_number));
+        frames = frames / (clip_prefix + Meta::toStr(max_number));
         cv::Size size(base
                     && dynamic_cast<IMGUIBase*>(base)
                     ? static_cast<IMGUIBase*>(base)->real_dimensions()
@@ -227,7 +236,7 @@ struct ScreenRecorder::Data {
                 frames.str(),
                 format == gui_recording_format_t::mp4
 #ifdef __APPLE__
-                    ? cv::VideoWriter::fourcc('H','2','6','4')
+                    ? cv::VideoWriter::fourcc('a','v','c','1')
                     : cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
 #else
                     ? cv::VideoWriter::fourcc('m', 'p', '4', 'v')
@@ -264,6 +273,7 @@ struct ScreenRecorder::Data {
         _recording_size = size;
         _recording_path = frames;
         _recording_format = format;
+        SETTING(gui_is_recording) = true;
     }
 };
 
@@ -281,12 +291,16 @@ ScreenRecorder::~ScreenRecorder() {
     delete _data;
 }
 
-void ScreenRecorder::update_recording(Base *base, Frame_t frame, Frame_t max_frame) {
-    _data->do_record(base, frame, max_frame);
+void ScreenRecorder::update_recording(Image::Ptr&& image, Base *base, Frame_t frame, Frame_t max_frame) {
+    _data->do_record(std::move(image), base, frame, max_frame);
 }
 
 void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     _data->start_recording(base, frame);
+    
+    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([&](Image::Ptr&& image){
+        update_recording(std::move(image), base, Frame_t{}, Frame_t{});
+    });
 }
 
 void ScreenRecorder::stop_recording(Base *base, DrawStructure *graph) {

@@ -64,12 +64,12 @@ void IndividualManager::clear_blob_assigned() noexcept {
 }
 
 bool IndividualManager::blob_assigned(pv::bid blob) const {
-    //std::shared_lock guard(assign_mutex);
+    std::shared_lock guard(assign_mutex);
     return _blob_assigned.contains(blob);
 }
 
 bool IndividualManager::fish_assigned(Idx_t fish) const {
-    //std::shared_lock guard(assign_mutex);
+    std::shared_lock guard(assign_mutex);
     return _fish_assigned.contains(fish);
 }
 
@@ -79,7 +79,7 @@ void IndividualManager::clear_fish_assigned() noexcept {
 }
 
 void IndividualManager::_assign(Idx_t fish, pv::bid bdx) {
-    //std::scoped_lock guard(assign_mutex);
+    std::scoped_lock guard(assign_mutex);
     _fish_assigned.insert(fish);
     _blob_assigned.insert(bdx);
 }
@@ -175,9 +175,11 @@ void IndividualManager::clear() noexcept {
     track::last_active = nullptr;
     _individuals.clear();
     inactive_individuals.clear();
-    Identity::set_running_id(Idx_t(0));
+    Identity::Reset();
     
+#ifndef NDEBUG
     print("[IManager] Cleared all individuals.");
+#endif
 }
 
 void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individual*)>&& delete_callback) {
@@ -187,6 +189,9 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     //std::scoped_lock scoped(global_mutex, individual_mutex);
     for(auto it = all_frames.begin(); it != all_frames.end(); ) {
         if(not from.valid() || it->first >= from) {
+            if(track::last_active == it->second.get())
+                track::last_active = nullptr;
+            
             it = all_frames.erase(it);
         } else {
             if(not largest.valid() || largest < it->first) {
@@ -205,8 +210,22 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
             if(delete_callback)
                 delete_callback(it->second.get());
             
-            print("Deleting individual ", it->second.get(), " aka ", it->second->identity());
+            auto fish = it->second.get();
+            print("Deleting individual ", fish, " aka ", fish->identity());
             //assert(not track::last_active or not track::last_active->contains(it->second.get()));
+            
+            for(auto &[frame, fishes] : all_frames) {
+                auto it = fishes->find(fish);
+                if(it != fishes->end())
+                    fishes->erase(it);
+            }
+            
+            if(track::last_active) {
+                auto it = track::last_active->find(fish);
+                if(it != track::last_active->end())
+                    track::last_active->erase(it);
+            }
+            
             it = _individuals.erase(it);
         } else {
             if(not largest_valid.valid() || it->second->identity().ID() > largest_valid)
@@ -221,23 +240,40 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     if(largest.valid()) {
         track::last_active = all_frames.at(largest).get();
         
+#ifndef NDEBUG
+        std::unordered_set<const Individual*> allfishes;
+#endif
         //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
         for(auto& [id, fish] : _individuals) {
             if(not track::last_active->contains(fish.get()))
                 track::inactive_individuals[fish->identity().ID()] = (fish.get());
+#ifndef NDEBUG
+            allfishes.insert(fish.get());
+#endif
         }
+        
+#ifndef NDEBUG
+        for(auto fish : *track::last_active) {
+            if(not allfishes.contains(fish)) {
+                throw U_EXCEPTION("Individual ", fish, " is gone from the global map, but still in last_active.");
+            }
+        }
+#endif
+        
     } else
         track::last_active = nullptr;
     
     if(not largest_valid.valid())
-        Identity::set_running_id(Idx_t(0));
+        Identity::Reset();
     else
-        Identity::set_running_id(largest_valid + Idx_t(1));
+        Identity::Reset(largest_valid + Idx_t(1));
     
+#ifndef NDEBUG
     print("[IManager] Removed frames from ", from, ".");
     print("[IManager] Inactive individuals: ", track::inactive_individuals);
     print("[IManager] Active individuals: ", track::last_active ? Meta::toStr(*track::last_active) : "null");
     print("[IManager] All individuals: ", individuals());
+#endif
 }
 
 bool IndividualManager::has_individual(Idx_t fdx) noexcept {
@@ -248,11 +284,12 @@ bool IndividualManager::has_individual(Idx_t fdx) noexcept {
 Individual* IndividualManager::make_individual(Idx_t fdx) {
     assert(not fdx.valid() || not has_individual(fdx));
     
-    auto fish = std::make_unique<Individual>(fdx);
+    auto fish = std::make_unique<Individual>(Identity::Make(fdx));
     auto raw = fish.get();
     
-    if(Tracker::identities().contains(fish->identity().ID()))
+    if(Tracker::identities().contains(fish->identity().ID())) {
         fish->identity().set_manual(true);
+    }
     
     {
         std::unique_lock guard(individual_mutex);
@@ -282,19 +319,14 @@ std::set<Idx_t> IndividualManager::all_ids() noexcept {
 
 IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Idx_t fdx) noexcept {
     auto result = individual_by_id(fdx).and_then([this](Individual* fish)
-          -> expected_individual_t
+        -> expected_individual_t
     {
+        if(auto it = track::inactive_individuals.find(fish->identity().ID());
+           it != track::inactive_individuals.end())
         {
-            //std::scoped_lock scoped(global_mutex);
-            auto it = track::inactive_individuals.find(fish->identity().ID());
-            /*auto it = std::find(track::inactive_individuals.begin(),
-                                track::inactive_individuals.end(),
-                                fish);*/
-            if(it != track::inactive_individuals.end()) {
-                // is marked as inactive, so has to be set active
-                // and removed here:
-                track::inactive_individuals.erase(it);
-            }
+            // is marked as inactive, so has to be set active
+            // and removed here:
+            track::inactive_individuals.erase(it);
         }
         
         _current.insert(fish);
@@ -462,6 +494,7 @@ IndividualManager::~IndividualManager() {
     
     //! keep track of individuals that aren't assigned
     //! THIS SHOULD NOT HAPPEN
+#ifndef NDEBUG
     if constexpr(is_debug_mode()) {
         if(track::last_active) {
             for(auto fish : *track::last_active) {
@@ -470,6 +503,7 @@ IndividualManager::~IndividualManager() {
             }
         }
     }
+#endif
     
     // move from local storage to replace the global
     // state set:

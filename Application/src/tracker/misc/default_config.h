@@ -1,26 +1,37 @@
 #pragma once
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <file/Path.h>
-#include <misc/utilsexception.h>
 
 namespace default_config {
     using namespace cmn;
-    
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn);
 
-    void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level);
-    bool execute_settings_file(const file::Path& source, AccessLevelType::Class level);
+    using graphs_type = std::vector<std::pair<std::string, std::vector<std::string>>>;
+    using default_options_type = std::unordered_map<std::string, std::vector<std::string>>;
+    
+    const std::string& homedir();
+    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn);
+
+    void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
+    bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
 
     void warn_deprecated(const file::Path& source, sprite::Map& map);
     void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
     bool is_deprecated(const std::string& key);
     const std::map<std::string, std::string>& deprecations();
     std::string replacement(const std::string& key);
-    std::string generate_delta_config(bool include_build_number = false, std::vector<std::string> additional_exclusions = {});
+
+    struct Config {
+        std::map<std::string, const sprite::PropertyType*> map;
+        ExtendableVector excluded;
+        std::string to_settings() const;
+        void write_to(sprite::Map& other);
+        const sprite::PropertyType*& operator[](const std::string& key);
+    };
+    Config generate_delta_config(bool include_build_number = false, std::vector<std::string> additional_exclusions = {});
     void register_default_locations();
-    void load_string_with_deprecations(const file::Path& source, const std::string& content, sprite::Map& map, AccessLevel, bool quiet = false);
+    void load_string_with_deprecations(const file::Path& source, const std::string& content, sprite::Map& map, AccessLevel, const std::vector<std::string>& exclude = {}, bool quiet = false);
 
     file::Path conda_environment_path();
 
@@ -33,9 +44,6 @@ namespace default_config {
         template<typename U> static int Test(...);
         static const bool Has = sizeof(Test<T>(0)) == sizeof(char);
     };*/
-    
-    ENUM_CLASS(recognition_border_t, none, heatmap, outline, shapes, grid, circle)
-    ENUM_CLASS_HAS_DOCS(recognition_border_t)
 
     ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance)
     ENUM_CLASS_HAS_DOCS(heatmap_normalization_t)
@@ -69,6 +77,14 @@ namespace default_config {
 
     ENUM_CLASS(visual_identification_version_t, current, v118_3, v110, v100)
     ENUM_CLASS_HAS_DOCS(visual_identification_version_t)
+
+    ENUM_CLASS(TRexTask_t, none, track, convert, annotate, rst)
+    ENUM_CLASS_HAS_DOCS(TRexTask_t)
+
+    ENUM_CLASS(gpu_torch_device_t, automatic, cuda, mps, cpu)
+    ENUM_CLASS_HAS_DOCS(gpu_torch_device_t)
+
+    using TRexTask = TRexTask_t::Class;
 }
 
 namespace gui {

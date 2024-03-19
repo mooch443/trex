@@ -110,7 +110,7 @@ std::string TrainingData::DataRange::toStr() const {
     return ss.str();
 }
 
-void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Frame_t frame_index, Idx_t id, Idx_t original_id, Image::Ptr image, const Vec2 & pos, size_t px, const FrameRange& from_range)
+void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Frame_t frame_index, Idx_t id, Idx_t original_id, const Image::SPtr& image, const Vec2 & pos, size_t px, const FrameRange& from_range)
 {
     assert(!image_is(image, ImageClass::NONE));
     /*auto it = original_ids_check.find(image.get());
@@ -168,9 +168,9 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Fram
     data->images.push_back(image);
     data->ids.push_back(id);
     
-    if(frame_index > data->frames.end)
+    if(not data->frames.end.valid() || frame_index > data->frames.end)
         data->frames.end = frame_index;
-    if(!data->frames.start.valid() || frame_index < data->frames.start)
+    if(not data->frames.start.valid() || frame_index < data->frames.start)
         data->frames.start = frame_index;
     
     if(_all_classes.find(id) == _all_classes.end())
@@ -243,7 +243,7 @@ void TrainingData::set_classes(const std::set<Idx_t>& classes) {
     _all_classes = classes;
 }
 
-Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Range<Frame_t>>& next_ranges, const std::vector<Range<Frame_t>>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Range<Frame_t>, std::tuple<double, FrameRange>>& assigned_unique_averages) const
+Image::Ptr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Range<Frame_t>>& next_ranges, const std::vector<Range<Frame_t>>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Range<Frame_t>, std::tuple<double, FrameRange>>& assigned_unique_averages) const
 {
     auto analysis_range = Tracker::analysis_range();
     auto image = Image::Make(500, 1800, 4);
@@ -535,8 +535,8 @@ size_t TrainingData::size() const {
     return n;
 }
 
-std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>> TrainingData::join_arrays() const {
-    std::vector<Image::Ptr> images;
+std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>> TrainingData::join_arrays() const {
+    std::vector<Image::SPtr> images;
     std::vector<Idx_t> ids;
     
     const size_t L = size();
@@ -801,7 +801,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
         for(auto && [range, ptr, d, ID] : ranges) {
             size_t step_size = max(1u, (size_t)ceil(SR / (max_images_per_class * (double)(range.length() / N).get())));
             
-            std::vector<std::tuple<Frame_t, Image::Ptr, Vec2, size_t>> frames;
+            std::vector<std::tuple<Frame_t, Image::SPtr, Vec2, size_t>> frames;
             for(size_t i=0; i<ptr->frame_indexes.size(); ++i) {
                 if(range.contains(ptr->frame_indexes[i]))
                     frames.push_back({ptr->frame_indexes[i], ptr->images[i], ptr->positions[i], ptr->num_pixels[i]});
@@ -919,7 +919,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             // collect all frames where this individual is present
             
             std::set<Frame_t> empty_frames;
-            size_t count = 0, after = 0;
+            size_t after = 0;
             double acc = 0;
             
             for(auto && [frame, ids] : individuals_per_frame) {
@@ -932,7 +932,6 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                         acc -= 1;
                         ++after;
                     }
-                    ++count;
                     acc += step_size;
                 }
             }
@@ -961,7 +960,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     Frame_t inserted_start = Frame_t(std::numeric_limits<Frame_t::number_t>::max()), inserted_end{};
     
     // copy available images to map for easy access
-    std::map<Idx_t, std::map<Frame_t, std::tuple<Idx_t, Image::Ptr>>> available_images;
+    std::map<Idx_t, std::map<Frame_t, std::tuple<Idx_t, Image::SPtr>>> available_images;
     if(source) {
         for(auto & data : source->data()) {
             for(auto && [id, per] : data->mappings) {
@@ -1000,7 +999,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     size_t N_validation_images = 0, N_training_images = 0;
     size_t N_reused_images = 0;
     const bool calculate_posture = FAST_SETTING(calculate_posture);
-    std::map<Idx_t, std::vector<std::tuple<Frame_t, Image::Ptr>>> individual_training_images;
+    std::map<Idx_t, std::vector<std::tuple<Frame_t, Image::SPtr>>> individual_training_images;
     size_t failed_blobs = 0, found_blobs = 0;
     
     for(auto frame : frames) {
@@ -1025,9 +1024,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 filtered_ids.insert(id);
         }
         
-        if(frame < inserted_start)
+        if(frame.valid() and (not inserted_start.valid() or frame < inserted_start))
             inserted_start = frame;
-        if(frame > inserted_end)
+        if(frame.valid() and (not inserted_end.valid() or frame > inserted_end))
             inserted_end = frame;
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish) {
@@ -1067,7 +1066,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
         
         video_file.read_frame(video_frame, frame);
-        Tracker::instance()->preprocess_frame(video_file, std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+        Tracker::instance()->preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
             /**
@@ -1119,7 +1118,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             maximum_size = max(maximum_size, blob->bounds().size());
             
             // try loading it all into a vector
-            Image::Ptr image;
+            Image::SPtr image;
             
             /*auto iit = did_image_already_exist.find({id, frame});
             if(iit != did_image_already_exist.end()) {
@@ -1202,11 +1201,11 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     return N_training_images + N_validation_images > 0;
 }
 
-std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<Frame_t>, std::map<Frame_t, Range<size_t>>> TrainingData::join_arrays_ordered() const
+std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>, std::vector<Frame_t>, std::map<Frame_t, Range<size_t>>> TrainingData::join_arrays_ordered() const
 {
     using fdx_t = Idx_t;
     
-    std::vector<Image::Ptr> images;
+    std::vector<Image::SPtr> images;
     std::vector<fdx_t> ids;
     std::vector<Frame_t> frames;
     
@@ -1215,7 +1214,7 @@ std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<Frame_t>, st
     images.reserve(L);
     frames.reserve(L);
     
-    std::map<Frame_t, std::tuple<std::vector<fdx_t>, std::vector<Image::Ptr>>> collector;
+    std::map<Frame_t, std::tuple<std::vector<fdx_t>, std::vector<Image::SPtr>>> collector;
     
     if(_data.size() > 1)
         print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");

@@ -1,14 +1,12 @@
 #include "Outline.h"
 #include "Posture.h"
 #include "DebugDrawing.h"
-#include <types.h>
 #include <misc/GlobalSettings.h>
 #include "Tracker.h"
 #include <misc/curve_discussion.h>
 #include <misc/Timer.h>
 #include <misc/stacktrace.h>
 #include <misc/CircularGraph.h>
-#include <gui/Graph.h>
 #include <gui/DrawCVBase.h>
 #include <misc/default_config.h>
 #include <misc/create_struct.h>
@@ -501,13 +499,13 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         
         std::vector<Vec2> maxi;
         float max_h = -1, max_int = -1, max_y = -1;
-        scalar_t max_int_index = 0, max_y_idx = 0;
+        scalar_t max_y_idx = 0;
         std::vector<Vec2> max_int_pts;
         for (auto &peak : *maxima_ptr) {
             auto h = cmn::abs(peak.range.end - peak.range.start);
             max_h = max(max_h, h);
             if(peak.integral > max_int) {
-                max_int_index = peak.position.x;
+                //max_int_index = peak.position.x;
                 max_int = peak.integral;
                 max_int_pts = peak.points;
             }
@@ -559,12 +557,12 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             for(auto peak : high_peaks)
                 highmax.push_back(Vec2(peak.position.x, (ma - mi) * 0.5 + mi));
             
-            using namespace gui;
+           /* using namespace gui;
             gui::Graph graph(Bounds(0, 0, 800, 400), "curvature", Rangef(0, size()), Rangef(mi, ma));
             graph.add_function(Graph::Function("curv", Graph::Type::DISCRETE, [&](float x) -> float {
                 if(x>=0 && x<curv->size())
                     return curv->at(x);
-                return gui::Graph::invalid();
+                return GlobalSettings::invalid();
             }));
             graph.add_points("max", maximums);
             graph.add_points("high", highmax);
@@ -584,7 +582,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             cv::Mat mat = cv::Mat::zeros(400, 800, CV_8UC4);
             CVBase base(mat);
             base.paint(g);
-            base.display();
+            base.display();*/
         }
         
         scalar_t idx = -1;
@@ -635,7 +633,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         
         scalar_t max_d = 0;
         scalar_t broadest = 0;
-        scalar_t broadest_idx = -1;
+        //scalar_t broadest_idx = -1;
         for(auto &peak : *maxima_ptr) {
             scalar_t d;
             if(peak.position.x >= idx) {
@@ -650,7 +648,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             
             if(peak.range.length() > broadest) {
                 broadest = peak.range.length();
-                broadest_idx = peak.position.x;
+                //broadest_idx = peak.position.x;
             }
             
         }
@@ -683,56 +681,6 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
     }
     
     return {-1, -1};
-}
-
-bool LineSegementsIntersect(Vec2 p, Vec2 p2, Vec2 q, Vec2 q2, Vec2& intersection)
-{
-    constexpr bool considerCollinearOverlapAsIntersect = false;
-    
-    auto r = p2 - p;
-    auto s = q2 - q;
-    auto rxs = cross(r, s);
-    auto qpxr = cross(q - p, r);
-    
-    // If r x s = 0 and (q - p) x r = 0, then the two lines are collinear.
-    if (rxs == 0 && qpxr == 0)
-    {
-        // 1. If either  0 <= (q - p) * r <= r * r or 0 <= (p - q) * s <= * s
-        // then the two lines are overlapping,
-        if constexpr (considerCollinearOverlapAsIntersect)
-            if ((0 <= (q - p).dot(r) && (q - p).dot(r) <= r.dot(r)) || (0 <= (p - q).dot(s) && (p - q).dot(s) <= s.dot(s)))
-                return true;
-        
-        // 2. If neither 0 <= (q - p) * r = r * r nor 0 <= (p - q) * s <= s * s
-        // then the two lines are collinear but disjoint.
-        // No need to implement this expression, as it follows from the expression above.
-        return false;
-    }
-    
-    // 3. If r x s = 0 and (q - p) x r != 0, then the two lines are parallel and non-intersecting.
-    if (rxs == 0 && qpxr != 0)
-        return false;
-    
-    // t = (q - p) x s / (r x s)
-    auto t = cross(q - p,s)/rxs;
-    
-    // u = (q - p) x r / (r x s)
-    
-    auto u = cross(q - p, r)/rxs;
-    
-    // 4. If r x s != 0 and 0 <= t <= 1 and 0 <= u <= 1
-    // the two line segments meet at the point p + t r = q + u s.
-    if (rxs != 0 && (0 <= t && t < 1) && (0 <= u && u < 1))
-    {
-        // We can calculate the intersection point using either t or u.
-        intersection = p + t*r;
-        
-        // An intersection was found.
-        return true;
-    }
-    
-    // 5. Otherwise, the two line segments are not parallel but do not intersect.
-    return false;
 }
 
 int Outline::calculate_curvature_range(size_t number_points) {
@@ -1412,7 +1360,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     tf.translate(-offx, -offy);
     
     std::vector<MidlineSegment> rotated;
-    long_t L = reduced.size();
+    long_t L = narrow_cast<long_t>(reduced.size());
     
     for (long_t i=L-1; i>=0; i--) {
         long_t idx0 = i+1;
@@ -1506,7 +1454,7 @@ long_t Outline::find_tail(const DebugInfo&) {
     //static Timing timing("find_tail", 0.001);
     //TakeTiming take(timing);
     
-    long_t _tail_index = -1, _head_index = -1;
+    //long_t _tail_index = -1, _head_index = -1;
     
     //if(!FAST_SETTING(midline_invert)) {
     if(_points->empty() || size() <= 3)
@@ -1596,11 +1544,11 @@ long_t Outline::find_tail(const DebugInfo&) {
                 }
             }
             
-            _tail_index = round(idx0);
+            //_tail_index = round(idx0);
             
             if(max_i != areas.end()) {
                 idx = max_i->idx; // head?
-                _head_index = round(idx);
+                //_head_index = round(idx);
             } else {
                 idx = idx0;
                 //_needs_invert = true;

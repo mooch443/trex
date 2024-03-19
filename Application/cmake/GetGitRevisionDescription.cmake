@@ -130,6 +130,29 @@ function(git_describe _var)
 	set(${_var} "${out}" PARENT_SCOPE)
 endfunction()
 
+function(git_get_branch _var)
+	if(NOT GIT_FOUND)
+		find_package(Git QUIET)
+	endif()
+	execute_process(COMMAND
+		"${GIT_EXECUTABLE}"
+		branch
+		--show-current
+		WORKING_DIRECTORY
+		"${CMAKE_CURRENT_SOURCE_DIR}"
+		RESULT_VARIABLE
+		res
+		OUTPUT_VARIABLE
+		out
+		ERROR_QUIET
+		OUTPUT_STRIP_TRAILING_WHITESPACE)
+	if(NOT res EQUAL 0)
+		set(out "${out}-${res}-NOTFOUND")
+	endif()
+
+	set(${_var} "${out}" PARENT_SCOPE)
+endfunction()
+
 function(git_get_description _var)
 	if(NOT GIT_FOUND)
 		find_package(Git QUIET)
@@ -143,11 +166,11 @@ function(git_get_description _var)
 		set(${_var} "HEAD-HASH-NOTFOUND" PARENT_SCOPE)
 		return()
 	endif()
-    
 	execute_process(COMMAND
 		"${GIT_EXECUTABLE}"
 		describe
 		--tags
+		--always
 		WORKING_DIRECTORY
 		"${CMAKE_CURRENT_SOURCE_DIR}"
 		RESULT_VARIABLE

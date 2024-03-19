@@ -1,12 +1,13 @@
 #ifndef _PAIRING_GRAPH_H
 #define _PAIRING_GRAPH_H
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
 #include <tracking/MotionRecord.h>
 #include <misc/idx_t.h>
+#include <misc/TrackingSettings.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -99,10 +100,6 @@ struct hash<track::Match::fish_index_t>
 
 namespace track {
 namespace Match {
-    using prob_t = double;
-    using Blob_t = pv::bid;
-    using Fish_t = Idx_t;
-
     template<typename K, typename V>
     using pairing_map_t = robin_hood::unordered_flat_map<K, V>;
 
@@ -134,8 +131,8 @@ namespace Match {
         };
         
     protected:
-        GETTER(row_t, rows)
-        GETTER(col_t, cols)
+        GETTER(row_t, rows);
+        GETTER(col_t, cols);
         
         fish_index_t _num_rows{0};
         blob_index_t _num_cols{0};
@@ -143,7 +140,7 @@ namespace Match {
         std::vector<size_t> _offsets;
         std::vector<size_t> _degree;
         std::vector<prob_t> _row_max_probs;
-        GETTER(std::vector<Edge>, probabilities) //! size is individuals + edges per individual
+        GETTER(std::vector<Edge>, probabilities); //! size is individuals + edges per individual
         
         pairing_map_t<row_t::value_type, fish_index_t> _row_index;
         pairing_map_t<col_t::value_type, blob_index_t> _col_index;
@@ -154,6 +151,23 @@ namespace Match {
         
     public:
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
+        void clear() {
+            _row_index.clear();
+            _col_index.clear();
+            _col_edges.clear();
+            _offsets.clear();
+            _degree.clear();
+            _row_max_probs.clear();
+            _probabilities.clear();
+            _num_rows = fish_index_t(0);
+            _num_cols = blob_index_t(0);
+            _rows.clear();
+            _cols.clear();
+        }
+        void reserve(size_t N) {
+            if(_probabilities.capacity() < N)
+                _probabilities.reserve(N);
+        }
         
         using ordered_assign_map_t = robin_hood::unordered_node_map<col_t::value_type, prob_t>;
         fish_index_t add(row_t::value_type, const ordered_assign_map_t&);
@@ -203,6 +217,8 @@ namespace Match {
     };
 
     class PairingGraph {
+        std::mutex _mutex;
+        
     public:
         using ordered_map_t = robin_hood::unordered_node_map<Blob_t, Fish_t>;
         //! this is the "queue" for permutations from this node on
@@ -264,14 +280,14 @@ namespace Match {
         };
         
     protected:
-        GETTER(Frame_t, frame)
-        GETTER(float, time)
-        GETTER(PairedProbabilities, paired)
+        GETTER(Frame_t, frame);
+        GETTER(float, time);
+        GETTER_NCONST(PairedProbabilities, paired);
         
         std::vector<prob_t> _ordered_max_probs;
-        GETTER_PTR(Result*, optimal_pairing)
+        GETTER_PTR(Result*, optimal_pairing);
         
-        //GETTER(EdgeMap, edges)
+        //GETTER(EdgeMap, edges);
         
     public:
         PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired);

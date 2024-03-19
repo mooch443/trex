@@ -101,14 +101,17 @@ int main(int argc, char**argv) {
     //static_assert(std::is_trivial<pv::bid>::value, "pv::bid has to be trivial.");
     static_assert(std::is_standard_layout<pv::bid>::value, "pv::bid has to be standard layout.");
     
-    file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
+    file::DataLocation::register_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
         using namespace file;
-        auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
+        auto settings_file = path.str().empty() ? map.at("settings_file").value<Path>() : path;
         if(settings_file.empty())
             throw U_EXCEPTION("settings_file is an empty string.");
         
         if(!settings_file.is_absolute()) {
-            settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
+            settings_file = map.at("output_dir").value<file::Path>() / settings_file;
         }
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
@@ -131,14 +134,15 @@ int main(int argc, char**argv) {
     SETTING(use_differences) = false;
     SETTING(crop) = CropOffsets();
     
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     
-    CommandLine cmd(argc, argv, true);
+    CommandLine::init(argc, argv, true);
     
     /**
      * Try to load Settings from the command-line that have been
      * ignored previously.
      */
+    auto &cmd = CommandLine::instance();
     cmd.load_settings();
     
     for(auto &option : cmd) {
@@ -206,7 +210,7 @@ int main(int argc, char**argv) {
     pv::File video(input, pv::FileMode::READ);
 
     if(SETTING(end_frame).value<long_t>() == -1) {
-        SETTING(end_frame).value<long_t>() = video.length().get() - 1;
+        SETTING(end_frame) = long_t(video.length().get() - 1);
     }
     
     long_t start_frame = SETTING(start_frame),

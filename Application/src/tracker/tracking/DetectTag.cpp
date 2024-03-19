@@ -1,6 +1,5 @@
 #include "DetectTag.h"
 #include <misc/GlobalSettings.h>
-#include <types.h>
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>
 #include <processing/PadImage.h>

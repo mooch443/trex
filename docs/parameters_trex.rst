@@ -3,16 +3,16 @@
 
 TRex parameters
 ###############
-.. function:: analysis_paused(bool)
+.. function:: adaptive_threshold_scale(float)
 
-	**default value:** false
-
-
-	Halts the analysis.
+	**default value:** 2
 
 
+	Threshold value to be used for adaptive thresholding, if enabled.
 
-.. function:: analysis_range(pair<int,int>)
+
+
+.. function:: analysis_range(range<int>)
 
 	**default value:** [-1,-1]
 
@@ -60,6 +60,16 @@ TRex parameters
 
 	Name of the application.
 
+
+
+.. function:: approximate_length_minutes(uint)
+
+	**default value:** 0
+
+
+	If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by ``stop_after_minutes``.
+
+	.. seealso:: :func:`stop_after_minutes`
 
 
 .. function:: auto_apply(bool)
@@ -124,9 +134,9 @@ TRex parameters
 	**default value:** false
 
 
-	Program will automatically try to find the number of individuals (with sizes given in ``blob_size_ranges``) and set ``track_max_individuals`` to that value.
+	Program will automatically try to find the number of individuals (with sizes given in ``track_size_filter``) and set ``track_max_individuals`` to that value.
 
-	.. seealso:: :func:`blob_size_ranges`, :func:`track_max_individuals`
+	.. seealso:: :func:`track_size_filter`, :func:`track_max_individuals`
 
 
 .. function:: auto_quit(bool)
@@ -185,14 +195,38 @@ TRex parameters
 	.. seealso:: :func:`auto_train`, :func:`auto_train`
 
 
-.. function:: blob_size_ranges(BlobSizeRange)
+.. function:: average_samples(uint)
 
-	**default value:** [[0.1,3]]
+	**default value:** 25
 
 
-	Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing ``D`` in TRex to get to the raw view (see `<https://trex.run/docs/gui.html>`_ for details). The unit is #pixels * (cm/px)^2. ``cm_per_pixel`` is used for this conversion.
+	Number of samples taken to generate an average image. Usually fewer are necessary for ``averaging_method``'s max, and min.
 
-	.. seealso:: :func:`cm_per_pixel`
+	.. seealso:: :func:`averaging_method`
+
+
+.. function:: averaging_method(averaging_method_t)
+
+	**default value:** mode
+
+	**possible values:**
+		- `mean`: Sum all samples and divide by N.
+		- `mode`: Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.
+		- `max`: Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.
+		- `min`: Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much.
+
+	Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.
+
+
+
+
+.. function:: blob_size_range(range<float>)
+
+	**default value:** [0.01,500000]
+
+
+	Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.
+
 
 
 .. function:: blob_split_algorithm(blob_split_algorithm_t)
@@ -214,9 +248,9 @@ TRex parameters
 	**default value:** 0.2
 
 
-	The minimum percentage of the minimum in ``blob_size_ranges``, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
+	The minimum percentage of the minimum in ``track_size_filter``, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
 
-	.. seealso:: :func:`blob_size_ranges`
+	.. seealso:: :func:`track_size_filter`
 
 
 .. function:: blob_split_max_shrink(float)
@@ -234,6 +268,15 @@ TRex parameters
 
 
 	Number of blobs for which properties will be calculated per thread.
+
+
+
+.. function:: blur_difference(bool)
+
+	**default value:** false
+
+
+	Enables a special mode that will 1. truncate all difference values below threshold, 2. blur the remaining difference, 3. threshold again.
 
 
 
@@ -257,7 +300,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wthread-safety -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -DNDEBUG -std=c++2a -mcpu=apple-m1 -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing -Werror=return-stack-address -Wthread-safety -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -DNDEBUG -mcpu=apple-m1 -O3 -flto -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -300,12 +343,39 @@ TRex parameters
 
 
 
-.. function:: cam_matrix(array<float>)
+.. function:: cam_framerate(int)
 
-	**default value:** [2945.0896,0,617.255432,0,2942.825195,682.473633,0,0,1]
+	**default value:** -1
+
+
+	If set to anything else than 0, this will limit the basler camera framerate to the given fps value.
+
+
+
+.. function:: cam_limit_exposure(int)
+
+	**default value:** 5500
+
+
+	Sets the cameras exposure time in micro seconds.
+
+
+
+.. function:: cam_matrix(array<double>)
+
+	**default value:** [2945.08959,0,617.255441,0,2942.82514,682.473623,0,0,1]
 
 
 	
+
+
+
+.. function:: cam_resolution(size)
+
+	**default value:** [-1,-1]
+
+
+	Defines the dimensions of the camera image.
 
 
 
@@ -328,9 +398,9 @@ TRex parameters
 	.. seealso:: :func:`cam_undistort_vector`, :func:`cam_matrix`
 
 
-.. function:: cam_undistort_vector(array<float>)
+.. function:: cam_undistort_vector(array<double>)
 
-	**default value:** [-0.257663,-0.192336,0.002455,0.003988,0.35924]
+	**default value:** [-0.2576632,-0.19233586,0.00245493,0.00398822,0.35924019]
 
 
 	
@@ -339,7 +409,7 @@ TRex parameters
 
 .. function:: categories_min_sample_images(uint)
 
-	**default value:** 50
+	**default value:** 0
 
 
 	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``track_segment_max_length``, if that parameter is set. If ``track_segment_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
@@ -354,6 +424,16 @@ TRex parameters
 
 	Ordered list of names of categories that are used in categorization (classification of types of individuals).
 
+
+
+.. function:: closing_size(int)
+
+	**default value:** 3
+
+
+	Size of the dilation/erosion filters for if ``use_closing`` is enabled.
+
+	.. seealso:: :func:`use_closing`
 
 
 .. function:: cm_per_pixel(float)
@@ -375,6 +455,15 @@ TRex parameters
 
 
 
+.. function:: color_channel(uchar)
+
+	**default value:** 1
+
+
+	Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file.
+
+
+
 .. function:: correct_illegal_lines(bool)
 
 	**default value:** false
@@ -384,13 +473,50 @@ TRex parameters
 
 
 
-.. function:: debug(bool)
+.. function:: correct_luminance(bool)
 
 	**default value:** false
 
 
-	Enables some verbose debug print-outs.
+	Attempts to correct for badly lit backgrounds by evening out luminance across the background.
 
+
+
+.. function:: crop_offsets(offsets)
+
+	**default value:** [0,0,0,0]
+
+
+	Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).
+
+
+
+.. function:: crop_window(bool)
+
+	**default value:** false
+
+
+	If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.
+
+
+
+.. function:: cwd(path)
+
+	**default value:** ""
+
+
+	Working directory the program was started from.
+
+
+
+.. function:: data_prefix(path)
+
+	**default value:** "data"
+
+
+	Subfolder (below ``output_dir``) where the exported NPZ or CSV files will be saved (see ``output_graphs``).
+
+	.. seealso:: :func:`output_dir`, :func:`output_graphs`
 
 
 .. function:: debug_recognition_output_all_methods(bool)
@@ -402,12 +528,163 @@ TRex parameters
 
 
 
+.. function:: detect_batch_size(uchar)
+
+	**default value:** 1
+
+
+	The batching size for object detection.
+
+
+
+.. function:: detect_classes(array<string>)
+
+	**default value:** ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat","dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza","donut","cake","chair","couch","potted plant","bed","dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven","toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"]
+
+
+	Class names for object classification in video during conversion.
+
+
+
+.. function:: detect_conf_threshold(float)
+
+	**default value:** 0.1
+
+
+	Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.
+
+
+
+.. function:: detect_format(ObjectDetectionFormat)
+
+	**default value:** none
+
+
+	The type of data returned by the ``detect_model``, which can be an instance segmentation
+
+	.. seealso:: :func:`detect_model`
+
+
+.. function:: detect_iou_threshold(float)
+
+	**default value:** 0.7
+
+
+	Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.
+
+
+
+.. function:: detect_model(path)
+
+	**default value:** ""
+
+
+	The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).
+
+
+
+.. function:: detect_only_classes(array<uchar>)
+
+	**default value:** []
+
+
+	An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.
+
+
+
+.. function:: detect_resolution(uint16)
+
+	**default value:** 640
+
+
+	The input resolution of the object detection model (``detect_model``).
+
+	.. seealso:: :func:`detect_model`
+
+
+.. function:: detect_skeleton(Skeleton)
+
+	**default value:** ["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]]
+
+
+	Skeleton to be used when displaying pose data.
+
+
+
+.. function:: detect_tile_image(uchar)
+
+	**default value:** 0
+
+
+	If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be ``detect_resolution`` pixels high and wide (with zero padding).
+
+	.. seealso:: :func:`detect_resolution`
+
+
+.. function:: detect_type(ObjectDetectionType)
+
+	**default value:** none
+
+
+	The method used to separate background from foreground when converting videos.
+
+
+
+.. function:: dilation_size(int)
+
+	**default value:** 0
+
+
+	If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).
+
+
+
 .. function:: enable_absolute_difference(bool)
 
 	**default value:** true
 
 
-	If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``track_absolute_difference``, but during conversion instead of tracking.
+
+	.. seealso:: :func:`threshold`, :func:`threshold`, :func:`track_absolute_difference`
+
+
+.. function:: enable_closed_loop(bool)
+
+	**default value:** false
+
+
+	When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets ``enable_live_tracking`` to true. Allows the tracker to skip frames by default, in order to catch up to the video.
+
+	.. seealso:: :func:`enable_live_tracking`
+
+
+.. function:: enable_difference(bool)
+
+	**default value:** true
+
+
+	Enables background subtraction. If disabled, ``threshold`` will be applied to the raw greyscale values instead of difference values.
+
+	.. seealso:: :func:`threshold`
+
+
+.. function:: enable_live_tracking(bool)
+
+	**default value:** false
+
+
+	When enabled, the program will save a .results file for the recorded video plus export the data (see ``output_graphs`` in the tracker documentation).
+
+	.. seealso:: :func:`output_graphs`
+
+
+.. function:: equalize_histogram(bool)
+
+	**default value:** false
+
+
+	Equalizes the histogram of the image before thresholding and background subtraction.
 
 
 
@@ -447,6 +724,15 @@ TRex parameters
 
 
 
+.. function:: ffmpeg_crf(uint)
+
+	**default value:** 20
+
+
+	Quality for crf (see ffmpeg documentation) used when encoding as libx264.
+
+
+
 .. function:: ffmpeg_path(path)
 
 	**default value:** ""
@@ -461,18 +747,8 @@ TRex parameters
 	**default value:** ""
 
 
-	Opened filename (without .pv).
+	The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.
 
-
-
-.. function:: fishdata_dir(path)
-
-	**default value:** "data"
-
-
-	Subfolder (below ``output_dir``) where the exported NPZ or CSV files will be saved (see ``output_graphs``).
-
-	.. seealso:: :func:`output_dir`, :func:`output_graphs`
 
 
 .. function:: frame_rate(uint)
@@ -480,7 +756,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).
+	Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.
 
 
 
@@ -574,6 +850,39 @@ TRex parameters
 
 
 
+.. function:: gpu_torch_device(gpu_torch_device_t)
+
+	**default value:** automatic
+
+	**possible values:**
+		- `automatic`: The device is automatically chosen by PyTorch.
+		- `cuda`: Use a CUDA device (requires an NVIDIA graphics card).
+		- `mps`: Use a METAL device (requires an Apple Silicone Mac).
+		- `cpu`: Use the CPU (everybody should have this).
+
+	If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/[...]orch.cuda.device <https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device>`_.
+
+
+
+
+.. function:: gpu_torch_index(int)
+
+	**default value:** -1
+
+
+	Index of the GPU used by torch (or -1 for automatic selection).
+
+
+
+.. function:: gpu_torch_no_fixes(bool)
+
+	**default value:** false
+
+
+	Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.
+
+
+
 .. function:: gpu_verbosity(gpu_verbosity_t)
 
 	**default value:** full
@@ -586,6 +895,16 @@ TRex parameters
 	Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.
 
 
+
+
+.. function:: grabber_force_settings(bool)
+
+	**default value:** false
+
+
+	If set to true, live tracking will always overwrite a settings file with ``filename``.settings in the output folder.
+
+	.. seealso:: :func:`filename`
 
 
 .. function:: grid_points(array<vec>)
@@ -628,19 +947,10 @@ TRex parameters
 
 .. function:: gui_background_color(color)
 
-	**default value:** [0,0,0,150]
+	**default value:** [0,0,0,255]
 
 
-	Values < 255 will make the background more transparent in standard view. This might be useful with very bright backgrounds.
-
-
-
-.. function:: gui_blur_enabled(bool)
-
-	**default value:** false
-
-
-	MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.
+	Values < 255 will make the background (or video background) more transparent in standard view. This might be useful with very bright backgrounds.
 
 
 
@@ -662,14 +972,23 @@ TRex parameters
 
 
 
+.. function:: gui_displayed_frame(frame)
+
+	**default value:** 0
+
+
+	The currently visible frame.
+
+
+
 .. function:: gui_draw_blobs_separately(bool)
 
 	**default value:** false
 
 
-	Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if ``gui_blur_enabled`` is set to true).
+	Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if ``gui_macos_blur`` is set to true).
 
-	.. seealso:: :func:`gui_blur_enabled`
+	.. seealso:: :func:`gui_macos_blur`
 
 
 .. function:: gui_draw_only_filtered_out(bool)
@@ -683,7 +1002,7 @@ TRex parameters
 
 .. function:: gui_equalize_blob_histograms(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Equalize histograms of blobs wihtin videos (makes them more visible).
@@ -740,8 +1059,9 @@ TRex parameters
 	**default value:** 0
 
 
-	The currently visible frame.
+	The currently selected frame. ``gui_displayed_frame`` might differ, if loading from file is currently slow.
 
+	.. seealso:: :func:`gui_displayed_frame`
 
 
 .. function:: gui_happy_mode(bool)
@@ -765,10 +1085,28 @@ TRex parameters
 
 .. function:: gui_interface_scale(float)
 
-	**default value:** 1.25
+	**default value:** 1
 
 
 	Scales the whole interface. A value greater than 1 will make it smaller.
+
+
+
+.. function:: gui_is_recording(bool)
+
+	**default value:** false
+
+
+	Is set to true when recording is active.
+
+
+
+.. function:: gui_macos_blur(bool)
+
+	**default value:** false
+
+
+	MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.
 
 
 
@@ -886,7 +1224,7 @@ TRex parameters
 
 
 
-.. function:: gui_show_fish(pair<blob,frame>)
+.. function:: gui_show_fish(tuple<blob,frame,>)
 
 	**default value:** [null,null]
 
@@ -924,7 +1262,7 @@ TRex parameters
 
 .. function:: gui_show_inactive_individuals(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Show/hide individuals that have not been seen for longer than ``track_max_reassign_time``.
@@ -940,6 +1278,15 @@ TRex parameters
 	Shows preview images for all selected individuals as they would be processed during network training, based on settings like ``individual_image_size``, ``individual_image_scale`` and ``individual_image_normalization``.
 
 	.. seealso:: :func:`individual_image_size`, :func:`individual_image_scale`, :func:`individual_image_normalization`
+
+
+.. function:: gui_show_infocard(bool)
+
+	**default value:** true
+
+
+	Showing / hiding some facts about the currently selected individual on the top left of the window.
+
 
 
 .. function:: gui_show_match_modes(bool)
@@ -1096,12 +1443,30 @@ TRex parameters
 
 
 
+.. function:: gui_show_timeline(bool)
+
+	**default value:** true
+
+
+	If enabled, the timeline (top of the screen) will be shown in the tracking view.
+
+
+
 .. function:: gui_show_uniqueness(bool)
 
 	**default value:** false
 
 
 	Show/hide uniqueness overview after training.
+
+
+
+.. function:: gui_show_video_background(bool)
+
+	**default value:** true
+
+
+	If available, show an animated background of the original video.
 
 
 
@@ -1130,6 +1495,16 @@ TRex parameters
 
 	If set to something else than transparent, all individuals will be displayed with this color.
 
+
+
+.. function:: gui_source_video_frame(frame)
+
+	**default value:** 0
+
+
+	Best information the system has on which frame index in the original video the given ``gui_frame`` corresponds to (integrated into the pv file starting from V_9).
+
+	.. seealso:: :func:`gui_frame`
 
 
 .. function:: gui_timeline_alpha(uchar)
@@ -1248,24 +1623,6 @@ TRex parameters
 
 
 
-.. function:: httpd_accepted_ip(string)
-
-	**default value:** ""
-
-
-	Set this to an IP address that you want to accept exclusively.
-
-
-
-.. function:: httpd_port(int)
-
-	**default value:** 8080
-
-
-	This is where the webserver tries to establish a socket. If it fails, this will be set to the port that was chosen.
-
-
-
 .. function:: huge_timestamp_ends_segment(bool)
 
 	**default value:** true
@@ -1284,12 +1641,51 @@ TRex parameters
 
 
 
+.. function:: image_adjust(bool)
+
+	**default value:** false
+
+
+	Converts the image to floating-point (temporarily) and performs f(x,y) * ``image_contrast_increase`` + ``image_brightness_increase`` plus, if enabled, squares the image (``image_square_brightness``).
+
+	.. seealso:: :func:`image_contrast_increase`, :func:`image_brightness_increase`, :func:`image_square_brightness`
+
+
+.. function:: image_brightness_increase(float)
+
+	**default value:** 0
+
+
+	Value that is added to the preprocessed image before applying the threshold (see ``image_adjust``). The neutral value is 0 here.
+
+	.. seealso:: :func:`image_adjust`
+
+
+.. function:: image_contrast_increase(float)
+
+	**default value:** 3
+
+
+	Value that is multiplied to the preprocessed image before applying the threshold (see ``image_adjust``). The neutral value is 1 here.
+
+	.. seealso:: :func:`image_adjust`
+
+
 .. function:: image_invert(bool)
 
 	**default value:** false
 
 
 	Inverts the image greyscale values before thresholding.
+
+
+
+.. function:: image_square_brightness(bool)
+
+	**default value:** false
+
+
+	Squares the floating point input image after background subtraction. This brightens brighter parts of the image, and darkens darker regions.
 
 
 
@@ -1362,12 +1758,30 @@ TRex parameters
 
 
 
+.. function:: load(bool)
+
+	**default value:** false
+
+
+	If set to true, the application will attempt to load results for the given pv file. If it does not exist then the application will proceed as usual.
+
+
+
 .. function:: log_file(path)
 
 	**default value:** ""
 
 
 	Set this to a path you want to save the log file to.
+
+
+
+.. function:: manual_ignore_bdx(map<frame,set<blob>>)
+
+	**default value:** {}
+
+
+	This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.
 
 
 
@@ -1398,6 +1812,15 @@ TRex parameters
 
 
 
+.. function:: mask_path(path)
+
+	**default value:** ""
+
+
+	Path to a video file containing a mask to be applied to the video while recording. Only works for conversions.
+
+
+
 .. function:: match_mode(matching_mode_t)
 
 	**default value:** automatic
@@ -1425,12 +1848,79 @@ TRex parameters
 	.. seealso:: :func:`track_max_speed`
 
 
+.. function:: meta_age_days(int)
+
+	**default value:** -1
+
+
+	Age of the individuals used in days.
+
+
+
+.. function:: meta_build(string)
+
+	**default value:** ""
+
+
+	The current commit hash. The video is branded with this information for later inspection of errors that might have occured.
+
+
+
+.. function:: meta_cmd(string)
+
+	**default value:** ""
+
+
+	Command-line of the framegrabber when conversion was started.
+
+
+
+.. function:: meta_conditions(string)
+
+	**default value:** ""
+
+
+	Treatment name.
+
+
+
+.. function:: meta_conversion_time(string)
+
+	**default value:** ""
+
+
+	This contains the time of when this video was converted / recorded as a string.
+
+
+
+.. function:: meta_encoding(meta_encoding_t)
+
+	**default value:** gray
+
+	**possible values:**
+		- `gray`: Grayscale video, calculated by simply extracting one channel (default R) from the video.
+		- `r3g3b2`: Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).
+
+	The encoding used for the given .pv video.
+
+
+
+
 .. function:: meta_mass_mg(float)
 
 	**default value:** 200
 
 
 	Used for exporting event-energy levels.
+
+
+
+.. function:: meta_misc(string)
+
+	**default value:** ""
+
+
+	Other information.
 
 
 
@@ -1444,12 +1934,48 @@ TRex parameters
 	.. seealso:: :func:`cm_per_pixel`, :func:`track_max_speed`
 
 
-.. function:: meta_source_path(path)
+.. function:: meta_source_path(string)
 
 	**default value:** ""
 
 
 	Path of the original video file for conversions (saved as debug info).
+
+
+
+.. function:: meta_species(string)
+
+	**default value:** ""
+
+
+	Name of the species used.
+
+
+
+.. function:: meta_video_scale(float)
+
+	**default value:** 1
+
+
+	Scale applied to the original video / footage.
+
+
+
+.. function:: meta_video_size(size)
+
+	**default value:** [0,0]
+
+
+	Resolution of the original video.
+
+
+
+.. function:: meta_write_these(array<string>)
+
+	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","meta_video_scale","meta_video_size","detect_classes","meta_encoding","detect_skeleton","frame_rate","calculate_posture","cam_undistort_vector","cam_matrix","cm_per_pixel","track_size_filter","track_threshold","track_posture_threshold","track_do_history_split","track_max_individuals","track_background_subtraction","track_max_speed","detect_model","region_model","detect_resolution","region_resolution","detect_batch_size","detect_type","detect_iou_threshold","detect_conf_threshold","video_conversion_range","detect_batch_size"]
+
+
+	The given settings values will be written to the video file.
 
 
 
@@ -1468,15 +1994,6 @@ TRex parameters
 
 
 	Number of midline points that are saved. Higher number increases detail.
-
-
-
-.. function:: midline_samples(uint64)
-
-	**default value:** 0
-
-
-	The maximum number of samples taken for generating a ``median midline length``. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individuals, for memory reasons.
 
 
 
@@ -1609,7 +2126,7 @@ TRex parameters
 
 .. function:: output_dir(path)
 
-	**default value:** "/Users/tristan/Videos"
+	**default value:** ""
 
 
 	Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.
@@ -1641,7 +2158,7 @@ TRex parameters
 
 .. function:: output_graphs(array<pair<string,array<string>>>)
 
-	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]]]
+	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]],["poseX0",["RAW"]],["poseY0",["RAW"]],["poseX1",["RAW"]],["poseY1",["RAW"]],["poseX2",["RAW"]],["poseY2",["RAW"]],["poseX3",["RAW"]],["poseY3",["RAW"]],["poseX4",["RAW"]],["poseY4",["RAW"]],["poseX5",["RAW"]],["poseY5",["RAW"]],["poseX6",["RAW"]],["poseY6",["RAW"]],["poseX7",["RAW"]],["poseY7",["RAW"]],["poseX8",["RAW"]],["poseY8",["RAW"]],["poseX9",["RAW"]],["poseY9",["RAW"]],["poseX10",["RAW"]],["poseY10",["RAW"]],["poseX11",["RAW"]],["poseY11",["RAW"]],["poseX12",["RAW"]],["poseY12",["RAW"]],["poseX13",["RAW"]],["poseY13",["RAW"]],["poseX14",["RAW"]],["poseY14",["RAW"]],["poseX15",["RAW"]],["poseY15",["RAW"]],["poseX16",["RAW"]],["poseY16",["RAW"]]]
 
 
 	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
@@ -1817,10 +2334,19 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.10"
+	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.11"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
+
+
+
+.. function:: quit_after_average(bool)
+
+	**default value:** false
+
+
+	If set to true, this will terminate the program directly after generating (or loading) a background average image.
 
 
 
@@ -1856,9 +2382,9 @@ TRex parameters
 	**default value:** 0.5
 
 
-	The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in ``blob_size_ranges`` (e.g. 0.5 means that the sizes can range between ``blob_size_ranges.min * (1 - 0.5)`` and ``blob_size_ranges.max * (1 + 0.5)``).
+	The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in ``track_size_filter`` (e.g. 0.5 means that the sizes can range between ``track_size_filter.min * (1 - 0.5)`` and ``track_size_filter.max * (1 + 0.5)``).
 
-	.. seealso:: :func:`blob_size_ranges`
+	.. seealso:: :func:`track_size_filter`
 
 
 .. function:: recognition_coeff(uint16)
@@ -1918,6 +2444,70 @@ TRex parameters
 	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, :func:`outline_smooth_samples`
 
 
+.. function:: recording(bool)
+
+	**default value:** true
+
+
+	If set to true, the program will record frames whenever individuals are found.
+
+
+
+.. function:: region_model(path)
+
+	**default value:** ""
+
+
+	The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).
+
+
+
+.. function:: region_resolution(uint16)
+
+	**default value:** 320
+
+
+	The resolution of the region proposal network (``region_model``).
+
+	.. seealso:: :func:`region_model`
+
+
+.. function:: reset_average(bool)
+
+	**default value:** false
+
+
+	If set to true, the average will be regenerated using the live stream of images (video or camera).
+
+
+
+.. function:: save_raw_movie(bool)
+
+	**default value:** false
+
+
+	Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.
+
+
+
+.. function:: save_raw_movie_path(path)
+
+	**default value:** ""
+
+
+	The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).
+
+
+
+.. function:: segment_size_filter(BlobSizeRange)
+
+	**default value:** [[0.0001,1000]]
+
+
+	During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.
+
+
+
 .. function:: settings_file(path)
 
 	**default value:** ""
@@ -1937,6 +2527,26 @@ TRex parameters
 
 
 
+.. function:: solid_background_color(uchar)
+
+	**default value:** 255
+
+
+	A greyscale value in case ``enable_difference`` is set to false - TGrabs will automatically generate a background image with the given color.
+
+	.. seealso:: :func:`enable_difference`
+
+
+.. function:: source(PathArray)
+
+	**default value:** ""
+
+
+	This is the (video) source for the current session. Typically this would point to the original video source of ``filename``.
+
+	.. seealso:: :func:`filename`
+
+
 .. function:: speed_extrapolation(float)
 
 	**default value:** 3
@@ -1946,12 +2556,69 @@ TRex parameters
 
 
 
+.. function:: stop_after_minutes(uint)
+
+	**default value:** 0
+
+
+	If set to a value above 0, the video will stop recording after X minutes of recording time.
+
+
+
+.. function:: system_memory_limit(uint64)
+
+	**default value:** 0
+
+
+	Custom override of how many bytes of system RAM the program is allowed to fill. If ``approximate_length_minutes`` or ``stop_after_minutes`` are set, this might help to increase the resulting RAW video footage frame_rate.
+
+	.. seealso:: :func:`approximate_length_minutes`, :func:`stop_after_minutes`
+
+
+.. function:: tags_approximation(float)
+
+	**default value:** 0.025
+
+
+	Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.
+
+
+
+.. function:: tags_debug(bool)
+
+	**default value:** false
+
+
+	(beta) Enable debugging for tags.
+
+
+
 .. function:: tags_dont_track(bool)
 
 	**default value:** true
 
 
 	If true, disables the tracking of tags as objects in TRex. This means that tags are not displayed like other objects and are instead only used as additional 'information' to correct tracks. However, if you enabled ``tags_saved_only`` in TGrabs, setting this parameter to true will make your TRex look quite empty.
+
+	.. seealso:: :func:`tags_saved_only`
+
+
+.. function:: tags_enable(bool)
+
+	**default value:** false
+
+
+	(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see ``tags_recognize``), and/or exported to PNG files using ``tags_save_predictions``.
+
+	.. seealso:: :func:`tags_recognize`, :func:`tags_save_predictions`
+
+
+.. function:: tags_equalize_hist(bool)
+
+	**default value:** false
+
+
+	Apply a histogram equalization before applying a threshold. Mostly this should not be necessary due to using adaptive thresholds anyway.
 
 
 
@@ -1964,12 +2631,102 @@ TRex parameters
 
 
 
+.. function:: tags_maximum_image_size(size)
+
+	**default value:** [80,80]
+
+
+	Tags that are bigger than these pixel dimensions may be cropped off. All extracted tags are then pre-aligned to any of their sides, and normalized/scaled down or up to a 32x32 picture (to make life for the machine learning network easier).
+
+
+
+.. function:: tags_model_path(path)
+
+	**default value:** "tag_recognition_network.h5"
+
+
+	The pretrained model used to recognize QRcodes/tags according to `https://github.com/jgravi[...]/master_list.pdf <https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf>`_. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.
+
+
+
+.. function:: tags_num_sides(range<int>)
+
+	**default value:** [3,7]
+
+
+	The number of sides of the tag (e.g. should be 4 if it is a rectangle).
+
+
+
 .. function:: tags_path(path)
 
 	**default value:** ""
 
 
 	If this path is set, the program will try to find tags and save them at the specified location.
+
+
+
+.. function:: tags_recognize(bool)
+
+	**default value:** false
+
+
+	(beta) Apply an existing machine learning network to turn images of tags into tag ids (numbers, e.g. 1-122). Be sure to set ``tags_model_path`` along-side this.
+
+	.. seealso:: :func:`tags_model_path`
+
+
+.. function:: tags_save_predictions(bool)
+
+	**default value:** false
+
+
+	Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '``output_dir`` / ``tags_`` ``filename`` / ``<individual>.<frame>`` / ``*``'. 
+
+	.. seealso:: :func:`output_dir`, :func:`filename`
+
+
+.. function:: tags_saved_only(bool)
+
+	**default value:** false
+
+
+	(beta) If set to true, all objects other than the detected blobs are removed and will not be written to the output video file.
+
+
+
+.. function:: tags_size_range(range<double>)
+
+	**default value:** [0.08,2]
+
+
+	The minimum and maximum area accepted as a (square) physical tag on the individuals.
+
+
+
+.. function:: tags_threshold(int)
+
+	**default value:** -5
+
+
+	Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them. Positive numbers may invert the image/mask.
+
+
+
+.. function:: task(TRexTask_t)
+
+	**default value:** none
+
+	**possible values:**
+		- `none`: No task forced. Auto-select.
+		- `track`: Load an existing .pv file and track / edit individuals.
+		- `convert`: Convert source material to .pv file.
+		- `annotate`: Annotate video or image source material.
+		- `rst`: Save .rst parameter documentation files to the output folder.
+
+	The task selected by the user upon startup. This is used to determine which GUI mode to start in.
+
 
 
 
@@ -1982,12 +2739,58 @@ TRex parameters
 
 
 
+.. function:: terminate_error(bool)
+
+	**default value:** false
+
+
+	Internal variable.
+
+
+
 .. function:: terminate_training(bool)
 
 	**default value:** false
 
 
 	Setting this to true aborts the training in progress.
+
+
+
+.. function:: test_image(string)
+
+	**default value:** "checkerboard"
+
+
+	Defines, which test image will be used if ``video_source`` is set to 'test_image'.
+
+	.. seealso:: :func:`video_source`
+
+
+.. function:: tgrabs_use_threads(bool)
+
+	**default value:** true
+
+
+	Use threads to process images (specifically the blob detection).
+
+
+
+.. function:: threshold(int)
+
+	**default value:** 9
+
+
+	Threshold to be applied to the input image to find blobs.
+
+
+
+.. function:: threshold_maximum(int)
+
+	**default value:** 255
+
+
+	
 
 
 
@@ -1999,6 +2802,25 @@ TRex parameters
 	If ``track_threshold_2`` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.
 
 	.. seealso:: :func:`track_threshold_2`
+
+
+.. function:: track_absolute_difference(bool)
+
+	**default value:** true
+
+
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``enable_absolute_difference``, but during tracking instead of converting.
+
+	.. seealso:: :func:`threshold`, :func:`threshold`, :func:`enable_absolute_difference`
+
+
+.. function:: track_background_subtraction(bool)
+
+	**default value:** false
+
+
+	If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). ``track_enable_absolute_difference`` then decides whether this term is evaluated in an absolute or signed manner.
+
 
 
 .. function:: track_consistent_categories(bool)
@@ -2056,6 +2878,15 @@ TRex parameters
 
 
 
+.. function:: track_label_confidence_threshold(float)
+
+	**default value:** 0.1
+
+
+	Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.
+
+
+
 .. function:: track_max_individuals(uint)
 
 	**default value:** 0
@@ -2093,9 +2924,36 @@ TRex parameters
 
 
 
+.. function:: track_only_classes(array<string>)
+
+	**default value:** []
+
+
+	If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.
+
+
+
+.. function:: track_only_segmentations(bool)
+
+	**default value:** false
+
+
+	If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.
+
+
+
+.. function:: track_pause(bool)
+
+	**default value:** false
+
+
+	Halts the analysis.
+
+
+
 .. function:: track_posture_threshold(int)
 
-	**default value:** 15
+	**default value:** 0
 
 
 	Same as ``track_threshold``, but for posture estimation.
@@ -2112,9 +2970,19 @@ TRex parameters
 
 
 
+.. function:: track_size_filter(BlobSizeRange)
+
+	**default value:** [[0.01,100]]
+
+
+	Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing ``D`` in TRex to get to the raw view (see `<https://trex.run/docs/gui.html>`_ for details). The unit is #pixels * (cm/px)^2. ``cm_per_pixel`` is used for this conversion.
+
+	.. seealso:: :func:`cm_per_pixel`
+
+
 .. function:: track_speed_decay(float)
 
-	**default value:** 0.7
+	**default value:** 1
 
 
 	The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to ``0.7 > value > 0``.
@@ -2123,7 +2991,7 @@ TRex parameters
 
 .. function:: track_threshold(int)
 
-	**default value:** 15
+	**default value:** 0
 
 
 	Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.
@@ -2151,7 +3019,7 @@ TRex parameters
 
 .. function:: track_trusted_probability(float)
 
-	**default value:** 0.5
+	**default value:** 0.25
 
 
 	If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).
@@ -2186,6 +3054,25 @@ TRex parameters
 
 
 
+.. function:: use_adaptive_threshold(bool)
+
+	**default value:** false
+
+
+	Enables or disables adaptive thresholding (slower than normal threshold). Deals better with weird backgrounds.
+
+
+
+.. function:: use_closing(bool)
+
+	**default value:** false
+
+
+	Toggles the attempt to close weird blobs using dilation/erosion with ``closing_size`` sized filters.
+
+	.. seealso:: :func:`closing_size`
+
+
 .. function:: use_differences(bool)
 
 	**default value:** false
@@ -2197,10 +3084,19 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-170-gc99c1d9"
+	**default value:** "v1.1.9-894-gba5f98d2_interface"
 
 
 	Current application version.
+
+
+
+.. function:: video_conversion_range(range<int>)
+
+	**default value:** [-1,-1]
+
+
+	If set to a valid value (!= -1), start and end values determine the range converted.
 
 
 
@@ -2222,12 +3118,30 @@ TRex parameters
 
 
 
+.. function:: video_reading_use_threads(bool)
+
+	**default value:** true
+
+
+	Use threads to read images from a video file.
+
+
+
 .. function:: video_size(size)
 
 	**default value:** [-1,-1]
 
 
 	The dimensions of the currently loaded video.
+
+
+
+.. function:: video_source(string)
+
+	**default value:** "webcam"
+
+
+	Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].
 
 
 
@@ -2260,7 +3174,7 @@ TRex parameters
 
 .. function:: visual_identification_version(visual_identification_version_t)
 
-	**default value:** current
+	**default value:** v118_3
 
 	**possible values:**
 		- `current`: This always points to the current version.
@@ -2270,6 +3184,15 @@ TRex parameters
 
 	Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.
 
+
+
+
+.. function:: wd(path)
+
+	**default value:** ""
+
+
+	Working directory that the software was started from (defaults to the user directory).
 
 
 
@@ -2288,6 +3211,34 @@ TRex parameters
 
 
 	Maximum refresh rate in seconds for the web interface.
+
+
+
+.. function:: webcam_index(uchar)
+
+	**default value:** 0
+
+
+	cv::VideoCapture index of the current webcam. If the program chooses the wrong webcam (``source`` = webcam), increase this index until it finds the correct one.
+
+	.. seealso:: :func:`source`
+
+
+.. function:: yolo8_region_tracking_enabled(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.
+
+
+
+.. function:: yolo8_tracking_enabled(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.
 
 
 

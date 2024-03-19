@@ -1,12 +1,13 @@
 #include "DrawPreviewImage.h"
 #include <gui/GUICache.h>
-#include <tracking/FilterCache.h>
-#include <gui/gui.h>
 #include <tracking/PPFrame.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Checkbox.h>
 #include <gui/types/SettingsTooltip.h>
+#include <grabber/misc/default_config.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Individual.h>
 
 namespace gui {
 namespace meta {
@@ -19,7 +20,7 @@ struct LabeledField {
     //gui::derived_ptr<gui::HorizontalLayout> _joint;
     
     LabeledField(const std::string& name = "")
-        : _text(std::make_shared<gui::Text>(name))
+        : _text(std::make_shared<gui::Text>(Str(name)))
           //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
     {
         _text->set_font(Font(0.6f, Style::Bold));
@@ -70,7 +71,7 @@ struct LabeledCheckbox : public LabeledField {
 
 LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
-      _checkbox(std::make_shared<gui::Checkbox>(Vec2(), name)),
+      _checkbox(std::make_shared<gui::Checkbox>(Str{name})),
       _ref(GlobalSettings::map()[name])
 {
     _docs = GlobalSettings::docs()[name];
@@ -92,7 +93,7 @@ void LabeledCheckbox::update() {
 
 LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>(Bounds(0, 0, default_element_width, 28))),
+      _text_field(std::make_shared<gui::Textfield>(Box(0, 0, default_element_width, 28))),
       _ref(GlobalSettings::map()[name])
 {
     _text_field->set_placeholder(name);
@@ -119,7 +120,7 @@ void LabeledTextField::update() {
 
 LabeledDropDown::LabeledDropDown(const std::string& name)
     : LabeledField(name),
-      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, default_element_width, 28))),
+      _dropdown(std::make_shared<gui::Dropdown>(Box(0, 0, default_element_width, 28))),
       _ref(GlobalSettings::map()[name])
 {
     _docs = GlobalSettings::docs()[name];
@@ -132,15 +133,15 @@ LabeledDropDown::LabeledDropDown(const std::string& name)
         items.push_back(Dropdown::TextItem(name, index++));
     }
     _dropdown->set_items(items);
-    _dropdown->select_item(narrow_cast<long>(_ref.get().enum_index()()));
+    _dropdown->select_item(Dropdown::RawIndex{narrow_cast<long>(_ref.get().enum_index()())});
     _dropdown->textfield()->set_text(_ref.get().valueString());
     
     _dropdown->on_select([this](auto index, auto) {
-        if(index < 0)
+        if(not index.valid())
             return;
         
         try {
-            _ref.get().set_value_from_string(_ref.get().enum_values()().at((size_t)index));
+            _ref.get().set_value_from_string(_ref.get().enum_values()().at((size_t)index.value));
         } catch(...) {}
         
         _dropdown->set_opened(false);
@@ -148,7 +149,7 @@ LabeledDropDown::LabeledDropDown(const std::string& name)
 }
 
 void LabeledDropDown::update() {
-    _dropdown->select_item(narrow_cast<long>(_ref.get().enum_index()()));
+    _dropdown->select_item(Dropdown::RawIndex{narrow_cast<long>(_ref.get().enum_index()())});
 }
 
 }
@@ -164,7 +165,53 @@ std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
 VerticalLayout layout;
 SettingsTooltip tooltip;
 
-void draw(Frame_t frame, DrawStructure& graph) {
+std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
+                                        const track::Midline* midline,
+                                        const track::constraints::FilterCache* filters,
+                                        const track::Background* background)
+{
+    const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
+    auto output_shape = FAST_SETTING(individual_image_size);
+    auto transform = midline ? midline->transform(normalize) : gui::Transform();
+    
+    auto &&[image, pos] = constraints::diff_image(normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background ? &background->image() : nullptr);
+    
+    if(not image)
+        return {nullptr, Vec2{}};
+    
+    /*if(FAST_SETTING(track_background_subtraction)) {
+        for(size_t i=0; i<image->size(); ++i) {
+            image->data()[i] = 255 - image->data()[i];
+        }
+    }*/
+    
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2)
+    {
+        auto rgba = Image::Make(image->rows, image->cols, 4);
+        cv::Mat output = rgba->get();
+        convert_from_r3g3b2<4, 1, true>(image->get(), output);
+        return {std::move(rgba), pos};
+        
+    } else {
+        if(image->dims == 1) {
+            auto rgba = Image::Make(image->rows, image->cols, 4);
+            cv::merge(std::array{image->get(), image->get(), image->get(), image->get()}, rgba->get());
+            /*cv::cvtColor(image->get(), rgba->get(), cv::COLOR_GRAY2BGRA);
+            
+            rgba->set_channel<4>(3, [](uchar b, uchar g, uchar r, uchar) -> uchar {
+                static_assert(static_cast<uint8_t>(true) == uint8_t(1));
+                static_assert(static_cast<uint8_t>(false) == uint8_t(0));
+                return static_cast<uint8_t>((b > 0 || g > 0 || r > 0)
+                                                && (b != 255 || g != 255 || r != 255))
+                                            * 255;
+            });*/
+            return {std::move(rgba), pos};
+        }
+        return {std::move(image), pos};
+    }
+}
+
+void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
     if(!SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
@@ -174,6 +221,8 @@ void draw(Frame_t frame, DrawStructure& graph) {
         ADD_FIELD(LabeledTextField, "individual_image_size");
         ADD_FIELD(LabeledTextField, "individual_image_scale");
         ADD_FIELD(LabeledDropDown, "individual_image_normalization");
+        ADD_FIELD(LabeledCheckbox, "track_background_subtraction");
+        ADD_FIELD(LabeledDropDown, "meta_encoding");
         
         std::vector<Layout::Ptr> objects;
         for(auto &[key, obj] : fields)
@@ -181,18 +230,24 @@ void draw(Frame_t frame, DrawStructure& graph) {
         layout.set_children(objects);
     }
     
-    const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
-    auto output_shape = FAST_SETTING(individual_image_size);
+    
     static bool first = true;
     
     auto& cache = GUICache::instance();
     Loc offset(5);
     
-    PPFrame pp;
-    pv::Frame vframe;
-    pp.set_index(frame);
-    GUI::video_source()->read_frame(vframe, frame);
-    Tracker::preprocess_frame(*GUI::video_source(), std::move(vframe), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+    /*PPFrame pp;
+    try {
+        pv::Frame vframe;
+        pp.set_index(frame);
+        GUI::video_source()->read_frame(vframe, frame);
+        Tracker::preprocess_frame(std::move(vframe), pp, nullptr, PPFrame::NeedGrid::NoNeed);
+    } catch(const UtilsException& e) {
+        UNUSED(e);
+#ifndef NDEBUG
+        FormatError("DrawPreviewImage failed for frame ", frame, ": ", e.what());
+#endif
+    }*/
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {
@@ -202,14 +257,14 @@ void draw(Frame_t frame, DrawStructure& graph) {
     
     auto size = graph.dialog_window_size();
     
-    static StaticText text("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details.", Loc(offset), SizeLimit(240, -1), Font(0.65));
-    static Button button("x", Bounds(5, 5, 25, 25));
+    static StaticText text(Str("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details."), Loc(offset), SizeLimit(240, 0), Font(0.65));
+    static Button button(Str("x"), Box(5, 5, 25, 25));
     button.set_scale(graph.scale().reciprocal());
     offset.x += button.local_bounds().width + 10;
     
     preview.update([&](Entangled& e) {
         ExternalImage *ptr{nullptr};
-        auto bds = e.add<Text>("Image settings", offset, White.alpha(200), Font(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
+        auto bds = e.add<Text>(Str("Image settings"), offset, TextClr(White.alpha(200)), Font(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
         
         offset.y += bds.height + 10;
         offset.x = 5;
@@ -222,11 +277,17 @@ void draw(Frame_t frame, DrawStructure& graph) {
             offset.x = 5;
         }
         
+        auto lock = cache.lock_individuals();
         for(auto idx : cache.selected) {
-            if(!cache.individuals.count(idx))
+            // check whether this id has an image for the current frame
+            if(not cache.active_ids.contains(idx))
                 continue;
             
-            auto fish = cache.individuals.at(idx);
+            auto it = lock.individuals.find(idx);
+            if(it == lock.individuals.end())
+                continue;
+            
+            auto fish = it->second;
             if(!fish->has(frame))
                 continue;
             
@@ -238,24 +299,21 @@ void draw(Frame_t frame, DrawStructure& graph) {
             }
             
             auto midline = fish->midline(frame);
-            auto transform = midline ? midline->transform(normalize) : gui::Transform();
+            
             auto segment = fish->segment_for(frame);
             if(!segment)
-                U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", fish->identity(), " despite finding a blob ", *blob);
+                U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", idx, " despite finding a blob ", *blob);
             
             auto filters = constraints::local_midline_length(fish, segment->range);
-            auto &&[image, pos] = constraints::diff_image(normalize, pixels, transform, filters ? filters->median_midline_length_px : 0, output_shape, &Tracker::average());
+            auto &&[image, pos] = make_image(pixels, midline.get(), filters.get(), average);
             
             if(!image || image->empty())
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
-            for(size_t i=0; i<image->size(); ++i) {
-                image->data()[i] = 255 - image->data()[i];
-            }
-            
             ptr = e.add<ExternalImage>(std::move(image), offset, scale);
-            e.add<Text>(fish->identity().name(), Loc(offset + Vec2(5, 2)), White.alpha(200), Font(0.5), Scale(graph.scale().reciprocal()));
+            
+            e.add<Text>(Str(Identity::Temporary(idx).name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font(0.5), Scale(graph.scale().reciprocal()));
             
             offset.x += ptr->local_bounds().width + 5;
             if(offset.x >= size.width * 0.25) {

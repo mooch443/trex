@@ -1,9 +1,10 @@
 #include "PrefilterBlobs.h"
 #include <processing/Background.h>
 #include <misc/ThreadPool.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
+#include <tracking/PPFrame.h>
 
 //#define TREX_BLOB_DEBUG
 
@@ -18,23 +19,23 @@ PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const BlobSizeRange
 
 void PrefilterBlobs::big_blob(pv::BlobPtr&& b) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Big blob ", b);
+    thread_print(frame_index, " Big blob ", b);
 #endif
     big_blobs.emplace_back(std::move(b));
 }
 
 void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Commit ", b);
+    thread_print(frame_index, " Commit ", b);
 #endif
     overall_pixels += b->num_pixels();
     ++samples;
-    filtered.emplace_back(std::move(b));
+    _filtered.emplace_back(std::move(b));
 }
 
 void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Commit ", v);
+    thread_print(frame_index, " Commit ", v);
 #endif
     for(const auto &b:v) {
         assert(b != nullptr);
@@ -42,31 +43,77 @@ void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
     }
     samples += v.size();
     
-    filtered.insert(filtered.end(),
+    _filtered.insert(_filtered.end(),
                     std::make_move_iterator(v.begin()),
                     std::make_move_iterator(v.end()));
 }
 
-void PrefilterBlobs::filter_out(pv::BlobPtr&& b) {
+void PrefilterBlobs::filter_out(pv::BlobPtr&& b, FilterReason reason) {
     overall_pixels += b->num_pixels();
     ++samples;
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Filter out ", b);
+    thread_print(frame_index, " Filter out ", b);
 #endif
-    filtered_out.emplace_back(std::move(b));
+    _filtered_out.emplace_back(std::move(b));
+    filtered_out_reasons.emplace_back(reason);
 }
 
-void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v) {
+void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v, std::vector<FilterReason>&& reasons)
+{
+    filter_out_head(std::move(v));
+    
+    filtered_out_reasons.insert(filtered_out_reasons.end(),
+                                std::make_move_iterator(reasons.begin()),
+                                std::make_move_iterator(reasons.end()));
+    assert(_filtered_out.size() == filtered_out_reasons.size());
+}
+
+void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v,
+                                FilterReason reason)
+{
+    filter_out_head(std::move(v));
+    
+    filtered_out_reasons.insert(filtered_out_reasons.end(), v.size(), reason);
+    assert(_filtered_out.size() == filtered_out_reasons.size());
+}
+
+void PrefilterBlobs::filter_out_head(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
-    print(frame_index, " Filter out ", v);
+    thread_print(frame_index, " Filter out ", v);
 #endif
     for(const auto &b:v) {
         assert(b != nullptr);
         overall_pixels += b->num_pixels();
     }
     samples += v.size();
+    _filtered_out.insert(_filtered_out.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
+}
+
+void PrefilterBlobs::to(PPFrame &frame) && {
+    robin_hood::unordered_flat_set<pv::bid> big_ids;
+    for(auto &b : big_blobs)
+        big_ids.insert(b->blob_id());
     
-    filtered_out.insert(filtered_out.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
+    filter_out(std::move(big_blobs), FilterReason::OutsideRange);
+    big_blobs.clear();
+    
+    for(size_t i=0; i<_filtered_out.size(); ++i) {
+        if(filtered_out_reasons[i] != FilterReason::Unknown)
+            _filtered_out[i]->set_reason(filtered_out_reasons[i]);
+    }
+    
+    frame.add_blobs(std::move(_filtered),
+                    std::move(_filtered_out),
+                    std::move(big_ids),
+                    overall_pixels, samples);
+}
+
+void PrefilterBlobs::to(PrefilterBlobs &other) && {
+    other.commit(std::move(_filtered));
+    other.filter_out(std::move(_filtered_out), std::move(filtered_out_reasons));
+    other.big_blobs = std::move(big_blobs);
+    other.overall_pixels += overall_pixels;
+    other.samples += samples;
 }
 
 void PrefilterBlobs::split_big(
@@ -81,7 +128,7 @@ void PrefilterBlobs::split_big(
     UNUSED(out);
     
     const int threshold = FAST_SETTING(track_threshold);
-    const BlobSizeRange fish_size = FAST_SETTING(blob_size_ranges);
+    const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
     const float cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
     const auto track_ignore = FAST_SETTING(track_ignore);
     const auto track_include = FAST_SETTING(track_include);
@@ -112,7 +159,7 @@ void PrefilterBlobs::split_big(
             if(not b)
                 continue;
             
-            if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
+            if(!track_size_filter.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
             {
                 noise.push_back(std::move(b));
                 continue;
@@ -125,7 +172,7 @@ void PrefilterBlobs::split_big(
                 ex = expect.at(bdx);
             
             auto rec = b->recount(threshold, *Tracker::background());
-            if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number)) {
+            if(!track_size_filter.close_to_maximum_of_one(rec, 10 * ex.number)) {
                 noise.push_back(std::move(b));
                 continue;
             }
@@ -139,7 +186,7 @@ void PrefilterBlobs::split_big(
             }
             
             if(ex.allow_less_than && ret.empty()) {
-                if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25))) {
+                if((!discard_small || track_size_filter.close_to_minimum_of_one(rec, 0.25))) {
                     regular.push_back(std::move(b));
                 } else {
                     noise.push_back(std::move(b));
@@ -160,6 +207,7 @@ void PrefilterBlobs::split_big(
             
             size_t counter = 0;
             for(auto && [r, id, ptr] : found) {
+                assert(ptr != b);
                 ptr->force_set_recount(threshold, ptr->raw_recount(-1));
                 ptr->add_offset(b->bounds().pos());
                 ptr->set_split(true, b);
@@ -171,7 +219,7 @@ void PrefilterBlobs::split_big(
                     continue;
                 }
                 
-                if(fish_size.in_range_of_one(r, 0.35, 1)
+                if(track_size_filter.in_range_of_one(r, 0.35, 1)
                    && (!discard_small || counter < ex.number))
                 {
                     for_this_blob.emplace_back(std::move(ptr));
@@ -201,7 +249,7 @@ void PrefilterBlobs::split_big(
     
     if(big_blobs.size() >= 2 && pool) {
         distribute_indexes(work, *pool, std::make_move_iterator(big_blobs.begin()), std::make_move_iterator(big_blobs.end()));
-    } else
+    } else if(not big_blobs.empty())
         work(0,
              std::make_move_iterator(big_blobs.begin()),
              std::make_move_iterator(big_blobs.end()),
@@ -231,6 +279,36 @@ bool PrefilterBlobs::blob_matches_shapes(const pv::Blob & b, const std::vector<s
             if(pnpoly(rect, b.center())) {
                 return true;
             }
+        }
+#ifndef NDEBUG
+        else {
+            static bool warned = false;
+            if(!warned) {
+                print("Array of numbers ",rect," is not a polygon (or rectangle).");
+                warned = true;
+            }
+        }
+#endif
+    }
+    
+    return false;
+}
+
+bool PrefilterBlobs::rect_overlaps_shapes(const Bounds & b, const std::vector<std::vector<Vec2> > & shapes) {
+    for(auto &rect : shapes) {
+        if(rect.size() == 2) {
+            Bounds bds(rect[0], rect[1] - rect[0]);
+            if(bds.overlaps(b))
+                return true;
+        } else if(rect.size() > 2) {
+            Bounds bds(0, 0, FLT_MAX, FLT_MAX);
+            for(auto &p : rect) {
+                bds.insert_point(p);
+            }
+            bds.width -= bds.x;
+            bds.height -= bds.y;
+            if(bds.overlaps(b))
+                return true;
         }
 #ifndef NDEBUG
         else {

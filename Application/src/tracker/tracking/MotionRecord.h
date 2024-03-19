@@ -1,8 +1,6 @@
 #pragma once
 
-#include <misc/defines.h>
-#include <misc/Blob.h>
-#include <misc/GlobalSettings.h>
+#include <commons.pc.h>
 #include <misc/frame_t.h>
 
 namespace track {
@@ -13,7 +11,7 @@ class Individual;
 class PairDistance {
     GETTER_SETTER_PTR(const Individual*, fish0)
     GETTER_SETTER_PTR(const Individual*, fish1)
-    GETTER_SETTER(float, d)
+    GETTER_SETTER(float, d);
         
 public:
     PairDistance(const Individual* fish0, const Individual* fish1, float d)
@@ -48,19 +46,16 @@ struct FrameProperties {
     }
     
 public:
-    double time;
-    timestamp_t org_timestamp;
+    double time{-1};
+    timestamp_t org_timestamp{0};
     Frame_t frame;
-    long_t active_individuals;
+    long_t active_individuals{-1};
         
     FrameProperties(Frame_t frame, double t, timestamp_t ot)
-        : time(t), org_timestamp(ot), frame(frame), active_individuals(-1)
+        : time(t), org_timestamp(ot), frame(frame)
     {}
-        
-    FrameProperties()
-        : time(-1), org_timestamp(0), active_individuals(-1)
-    {}
-        
+    FrameProperties() noexcept = default;
+    
     bool operator<(Frame_t frame) const {
         return this->frame < frame;
     }
@@ -100,7 +95,7 @@ public:
 
 protected:
     friend class DataFormat;
-    GETTER(double, time)
+    GETTER(double, time);
 
     std::array<Vec2, MotionRecord::max_derivatives> _pos;
     std::array<float, MotionRecord::max_derivatives> _angle;

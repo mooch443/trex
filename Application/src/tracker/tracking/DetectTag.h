@@ -1,5 +1,6 @@
 #pragma once
 
+#include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/bid.h>
 #include <misc/ranges.h>
@@ -16,8 +17,8 @@ namespace track {
             Image::Ptr image;
             Frame_t frame;
             
-            Tag(float v, pv::bid bdx, Image::Ptr img, Frame_t frame = {})
-                : variance(v), blob_id(bdx), image(img), frame(frame)
+            Tag(float v, pv::bid bdx, Image::Ptr&& img, Frame_t frame = {})
+                : variance(v), blob_id(bdx), image(std::move(img)), frame(frame)
             {}
             
             bool operator>(const Tag& other) const {
@@ -31,8 +32,8 @@ namespace track {
         
         struct result_t {
             const pv::bid bdx;
-            Image::UPtr grey;
-            Image::UPtr mask;
+            Image::Ptr grey;
+            Image::Ptr mask;
         };
         
         std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const std::vector<blob_pixel>& original, const Image& average);

@@ -1,8 +1,25 @@
+#!/bin/bash
+
+# if arm or linux, or macos, check for pip
+if [ "$(uname -p)" == "arm" ] || [ "${OSTYPE}" == "linux-gnu" ] || "$(uname)" == "Linux" || [ "$(uname)" == "Darwin" ]; then
+	# Ensure pip is installed
+	if ! command -v pip &> /dev/null
+	then
+		echo "pip could not be found, installing..."
+		conda install pip -y
+	fi
+fi
+
+# install pip packages
 if [ "$(uname -p)" == "arm" ]; then
+	{ python -m pip install 'tensorflow-macos' 'tensorflow-metal' opencv-python 'ultralytics<=8.0.227' tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.2 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
-	echo "============ TRex ===========" >> $PREFIX/.messages.txt;
-	echo "Please consider installing the macos-native tensorflow package from https://developer.apple.com/metal/tensorflow-plugin" >> $PREFIX/.messages.txt;
-	echo "Quick-start (maybe not up-to-date, see https://trex.run/docs/install.html#apple-silicone-macos-arm64):" >> $PREFIX/.messages.txt;
-	echo "    conda activate $(basename ${PREFIX}) && conda install -c apple -y tensorflow-deps=2.10 && python -m pip install 'tensorflow-macos<2.11,>=2.10' 'tensorflow-metal==0.6.0'"  >> $PREFIX/.messages.txt;
-	echo "============ /TRex ==========" >> $PREFIX/.messages.txt;
+
+elif [ "$(uname)" == "Darwin" ]; then
+    { python -m pip install opencv-python 'ultralytics<=8.0.227' tensorflow==2.14 tensorflow-estimator==2.14 numpy==1.26.2 2>&1; } >> $PREFIX/.messages.txt;
+    echo "" >> $PREFIX/.messages.txt;
+
+else
+	{ python -m pip install opencv-python 'ultralytics<=8.0.227' tensorflow-gpu==2.10 tensorflow-estimator==2.10 2>&1; }  >> $PREFIX/.messages.txt;
+	echo "" >> $PREFIX/.messages.txt;
 fi

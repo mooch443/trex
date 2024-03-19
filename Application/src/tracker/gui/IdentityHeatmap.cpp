@@ -1,12 +1,13 @@
 #include "IdentityHeatmap.h"
 #include <tracking/Tracker.h>
-#include <tracker/gui/gui.h>
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
-#include <tracking/Export.h>
+#include <gui/Export.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+
+using namespace track;
 
 namespace gui {
 namespace heatmap {
@@ -129,7 +130,7 @@ void HeatmapController::save() {
 
     std::vector<double> per_frame;
     uint64_t expected = uint64_t((max_frames + 1) * N * N * 2);
-    const bool be_quiet = SETTING(quiet);
+    const bool be_quiet = GlobalSettings::is_runtime_quiet();
     //if (!be_quiet) 
     {
         print("Likely memory size: ", FileSize{ expected * sizeof(double) });
@@ -149,8 +150,8 @@ void HeatmapController::save() {
     std::vector<long_t> frames;
     size_t package_index = 0;
     
-    auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
+    auto data_prefix = SETTING(data_prefix).value<file::Path>();
+    auto fishdata = file::DataLocation::parse("output", data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
@@ -431,7 +432,7 @@ void HeatmapController::sort_data_into_custom_grid() {
 void HeatmapController::frames_deleted_from(Frame_t frame) {
     _iterators.clear();
     _capacities.clear();
-    _grid.keep_only(Range<Frame_t>(0_f, max(0_f, frame - 1_f)));
+    _grid.keep_only(Range<Frame_t>(0_f, frame.try_sub(1_f)));
 }
 
 HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_frame) {
@@ -500,6 +501,8 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 }
                 
                 auto frame = max(Tracker::start_frame(), range.start);
+                if(fish->empty())
+                    return;
                 if(fish->end_frame() < frame)
                     return;
                 if(fish->start_frame() > range.end)
@@ -571,7 +574,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                         double v = 1;
                         if(!_source.empty())
                             v = Output::Library::get_with_modifiers(_source, info, frame);
-                        if(!Graph::is_invalid(v)) {
+                        if(!GlobalSettings::is_invalid(v)) {
                             data.push_back(heatmap::DataPoint{
                                 .frame   = frame,
                                 .x       = uint32_t(pos.x),
@@ -744,12 +747,14 @@ void HeatmapController::set_frame(Frame_t current_frame) {
     bool has_to_paint = update_variables();
     
     //! check if we have to update the data
-    if(current_frame != _frame) {
+    if(not _frame.valid() || current_frame != _frame) {
         auto updated = update_data(current_frame);
         if(updated.added != 0 || updated.removed != 0)
             has_to_paint = true;
         
-        if(_frame.get() % 50 == 0){
+        if(_frame.valid()
+           && _frame.get() % 50 == 0)
+        {
             print("-------------------");
             Grid::print_stats("STATS (frame "+Meta::toStr(_frame)+", "+Meta::toStr(_grid.root()->IDs())+")");
             print("");
@@ -995,7 +1000,7 @@ std::string DataPoint::toStr() const {
 size_t Leaf::keep_only(const Range<Frame_t> &frames) {
     size_t count = _data.size();
     
-    auto it = std::upper_bound(_data.begin(), _data.end(), frames.start - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
+    auto it = std::upper_bound(_data.begin(), _data.end(), frames.start.try_sub(1_f), [](Frame_t frame, const DataPoint& A) -> bool
     {
         return frame < A.frame;
     });
@@ -1003,7 +1008,7 @@ size_t Leaf::keep_only(const Range<Frame_t> &frames) {
     if(_data.begin() != it)
         _data.erase(_data.begin(), it);
     
-    it = std::upper_bound(_data.begin(), _data.end(), frames.end - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
+    it = std::upper_bound(_data.begin(), _data.end(), frames.end.try_sub(1_f), [](Frame_t frame, const DataPoint& A) -> bool
     {
         return frame < A.frame;
     });
@@ -1068,7 +1073,7 @@ size_t Leaf::erase(const Range<Frame_t> &frames) {
             _data.erase(it, _data.end());
             update_ranges();
         } else {
-            auto end = std::upper_bound(it, _data.end(), frames.end - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
+            auto end = std::upper_bound(it, _data.end(), frames.end.try_sub(1_f), [](Frame_t frame, const DataPoint& A) -> bool
             {
                 return frame < A.frame;
             });
@@ -1107,7 +1112,7 @@ void Grid::prepare_data(std::vector<DataPoint> &data) {
         if(it != _identity_aliases.end())
             d.IDindex = it->second;
         else {
-            _identity_aliases[d.ID] = d.IDindex = _identities.size();
+            _identity_aliases[d.ID] = d.IDindex = narrow_cast<uint32_t>(_identities.size());
             assert(!contains(_identities, d.ID));
             _identities.push_back(d.ID);
         }
@@ -1591,14 +1596,14 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
     
     auto it = start;
     //size_t items = std::distance(start, end);
-    size_t counted = 0;
+    //size_t counted = 0;
     
     for(; it != end; ++it) {
         if(it->_d != previous) {
             sections[size_t(previous) * 2] = last_section;
             sections[size_t(previous) * 2 + 1] = it;
             
-            counted += std::distance(last_section, it);
+            //counted += std::distance(last_section, it);
             previous = it->_d;
             last_section = it;
         }
@@ -1607,7 +1612,7 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
     if(std::distance(last_section, it) != 0) {
         sections[size_t(previous) * 2] = last_section;
         sections[size_t(previous) * 2 + 1] = end;
-        counted += std::distance(last_section, it);
+        //counted += std::distance(last_section, it);
     }
     
     for(size_t i=0; i<4; ++i) {

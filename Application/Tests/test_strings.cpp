@@ -1,0 +1,1722 @@
+#include "gtest/gtest.h"
+#include <commons.pc.h>
+#include <misc/parse_parameter_lists.h>
+#include <misc/format.h>
+#include <misc/Timer.h>
+#include <file/Path.h>
+#include <misc/default_settings.h>
+#include <gui/types/StaticText.h>
+#include <tracking/IndividualCache.h>
+
+static constexpr auto lower = utils::lowercase("hiIbImS");
+
+using namespace cmn;
+using namespace utils;
+
+
+TEST(CacheSizeTest, Basic) {
+    UNUSED(lower);
+    
+    using namespace track;
+    //static_assert(std::is_trivial_v<TrivialOptional<uint32_t>>);
+    static_assert(std::is_trivially_copyable_v<TrivialOptional<uint32_t>>);
+    print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
+    //static_assert(std::is_trivial_v<Frame_t>);
+}
+
+TEST(JSONTest, TestBasicJSON) {
+    std::vector<std::pair<std::string, std::vector<std::string>>> object {
+        {{"X", {"RAW", "WCENTROID"}}}
+    };
+    SETTING(graphs) = object;
+    
+    auto json = SETTING(graphs).get().to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(json.dump()), SETTING(graphs).get().valueString());
+}
+
+TEST(JSONTest, TestSkeletonJSON) {
+    blob::Pose::Skeleton object{
+        "skeleton",
+        {
+            {0, 1, "first"},
+            {1, 2, "second"}
+        }
+    };
+    SETTING(skeleton) = object;
+    
+    auto json = SETTING(skeleton).get().to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(json.dump()), SETTING(skeleton).get().valueString());
+}
+
+TEST(JSONTest, TestVec2JSON) {
+    std::vector<Vec2> object {
+        Vec2(10,25)
+    };
+    SETTING(vectors) = object;
+    
+    /// the strings will not be exactly the same.
+    auto json = SETTING(vectors).get().to_json();
+    ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(json.dump())), object);
+    
+    /// nlohmann does not remove trailing zeros
+    auto s = json.dump();
+    ASSERT_STREQ(s.c_str(), "[[10.0,25.0]]");
+}
+
+// Tests for the split function.
+TEST(SplitTest, TestBasicSplit) {
+    std::string s = "foo,bar,baz";
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
+    auto result = split(s, ',');
+    static_assert(are_the_same<decltype(result), decltype(expected)>, "Has to be a vector of string_view");
+    EXPECT_EQ(result, expected);
+    
+    for(auto &view : result) {
+        EXPECT_GE(view.data(), s.data());
+        EXPECT_LE(view.data() + view.length(), s.data() + s.length());
+    }
+
+    std::wstring ws = L"hello,world";
+    std::vector<std::wstring_view> expected_ws = {L"hello", L"world"};
+    EXPECT_EQ(split(ws, ','), expected_ws);
+}
+
+TEST(SplitTest, CombinedTests) {
+    // Test data
+    std::vector<std::tuple<std::string, char, bool, bool, std::vector<std::string>>> test_data{
+        {"a,b,c,d,e", ',', false, false, {"a", "b", "c", "d", "e"}},
+        {"a,,b,c,d,,e,", ',', true, false, {"a", "b", "c", "d", "e"}},
+        {" a , b , c , d , e ", ',', false, true, {"a", "b", "c", "d", "e"}},
+        {" a ,, b , c , d ,, e ,", ',', true, true, {"a", "b", "c", "d", "e"}},
+        {"", ',', false, false, {""}},
+        {"abcdef", ',', false, false, {"abcdef"}}
+    };
+
+    // Test for normal string
+    for (const auto& [input, separator, skip_empty, trim, expected] : test_data) {
+        EXPECT_EQ(split(input, separator, skip_empty, trim), expected);
+    }
+
+    // Test data for wide string
+    std::vector<std::tuple<std::wstring, char, bool, bool, std::vector<std::wstring>>> test_data_wide{
+        {L"a,b,c,d,e", ',', false, false, {L"a", L"b", L"c", L"d", L"e"}},
+        {L"a,,b,c,d,,e,", ',', true, false, {L"a", L"b", L"c", L"d", L"e"}},
+        {L" a , b , c , d , e ", ',', false, true, {L"a", L"b", L"c", L"d", L"e"}},
+        {L" a ,, b , c , d ,, e ,", ',', true, true, {L"a", L"b", L"c", L"d", L"e"}},
+        {L"", ',', false, false, {L""}},
+        {L"abcdef", ',', false, false, {L"abcdef"}}
+    };
+
+    // Test for wide string
+    for (const auto& [input, separator, skip_empty, trim, expected] : test_data_wide) {
+        EXPECT_EQ(split(input, separator, skip_empty, trim), expected);
+    }
+}
+
+TEST(SplitTest, ComplexTests) {
+    // Test data
+    std::vector<std::tuple<std::string, char, bool, bool, std::vector<std::string>>> test_data{
+        // Test case with multiple characters between separators and mixed casing
+        {"HeLLo:WorlD:::AnoTher:Word", ':', true, false, {"HeLLo", "WorlD", "AnoTher", "Word"}},
+
+        // Test case with spaces and tabs around separators, and trimming enabled
+        {" apple , banana  , cherry, kiwi , peach ", ',', false, true, {"apple", "banana", "cherry", "kiwi", "peach"}},
+
+        // Test case with different consecutive separators, and skip_empty enabled
+        {"this||is|||a||test|||", '|', true, false, {"this", "is", "a", "test"}},
+
+        // Test case with varying spaces between words and trimming enabled
+        {"first    second   third       fourth", ' ', true, true, {"first", "second", "third", "fourth"}},
+    };
+
+    // Test for normal string
+    for (const auto& [input, separator, skip_empty, trim, expected] : test_data) {
+        EXPECT_EQ(split(input, separator, skip_empty, trim), expected);
+    }
+
+    // Test data for wide string
+    std::vector<std::tuple<std::wstring, char, bool, bool, std::vector<std::wstring>>> test_data_wide{
+        // Test case with multiple characters between separators and mixed casing (wide string)
+        {L"HeLLo:WorlD:::AnoTher:Word", ':', true, false, {L"HeLLo", L"WorlD", L"AnoTher", L"Word"}},
+
+        // Test case with spaces and tabs around separators, and trimming enabled (wide string)
+        {L" apple , banana     , cherry, kiwi , peach ", ',', false, true, {L"apple", L"banana", L"cherry", L"kiwi", L"peach"}},
+
+        // Test case with different consecutive separators, and skip_empty enabled (wide string)
+        {L"this||is|||a||test|||", '|', true, false, {L"this", L"is", L"a", L"test"}},
+
+        // Test case with varying spaces between words and trimming enabled (wide string)
+        {L"first   second      third    fourth", ' ', true, true, {L"first", L"second", L"third", L"fourth"}},
+        
+        // Test case with varying spaces between words and trimming disabled (wide string)
+        {L"first   second      third    fourth", ' ', true, true, {L"first", L"second", L"third", L"fourth"}},
+    };
+
+    // Test for wide string
+    for (const auto& [input, separator, skip_empty, trim, expected] : test_data_wide) {
+        EXPECT_EQ(split(input, separator, skip_empty, trim), expected);
+    }
+}
+
+
+
+TEST(SplitTest, TestEmptyString) {
+    std::string s = "";
+    std::vector<std::string_view> expected = {""};
+    EXPECT_EQ(split(s, ','), expected);
+
+    std::wstring ws = L"";
+    std::vector<std::wstring_view> expected_ws = {L""};
+    EXPECT_EQ(split(ws, ','), expected_ws);
+}
+
+TEST(SplitTest, TestSingleDelimiter) {
+    std::string s = ",";
+    std::vector<std::string_view> expected = {"", ""};
+    EXPECT_EQ(split(s, ',', false, false), expected);
+
+    std::wstring ws = L",";
+    std::vector<std::wstring_view> expected_ws = {L"", L""};
+    EXPECT_EQ(split(ws, ',', false, false), expected_ws);
+}
+
+TEST(SplitTest, TestNoDelimiter) {
+    std::string s = "foobar";
+    std::vector<std::string_view> expected = {"foobar"};
+    EXPECT_EQ(split(s, ','), expected);
+
+    std::wstring ws = L"hello";
+    std::vector<std::wstring_view> expected_ws = {L"hello"};
+    EXPECT_EQ(split(ws, ','), expected_ws);
+}
+
+TEST(SplitTest, TestMultipleDelimiters) {
+    std::string s = "foo,,bar,,baz";
+    std::vector<std::string_view> expected = {"foo", "", "bar", "", "baz"};
+    auto result = split(s, ',');
+    EXPECT_EQ(result, expected);
+    
+    for(auto &view : result) {
+        EXPECT_GE(view.data(), s.data());
+        EXPECT_LE(view.data() + view.length(), s.data() + s.length());
+    }
+
+    std::wstring ws = L"hello, ,world";
+    std::vector<std::wstring_view> expected_ws = {L"hello", L" ", L"world"};
+    EXPECT_EQ(split(ws, ','), expected_ws);
+}
+
+TEST(SplitTest, TestTrimming) {
+    std::string s = "  foo , bar ,  baz  ";
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
+    EXPECT_EQ(split(s, ',', false, true), expected);
+
+    std::wstring ws = L"  hello  ,  world  ";
+    std::vector<std::wstring_view> expected_ws = {L"hello", L"world"};
+    EXPECT_EQ(split(ws, ',', false, true), expected_ws);
+}
+
+TEST(StringTrimTests, LTrimBasicTest) {
+    std::string str1 = "    leading";
+    auto result1 = ltrim(str1);
+    ASSERT_EQ(result1, "leading");
+
+    std::string_view str2 = "    leading";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "leading");
+}
+
+TEST(StringTrimTests, LTrimNoTrimTest) {
+    std::string str1 = "noleading";
+    auto result1 = ltrim(str1);
+    ASSERT_EQ(result1, "noleading");
+
+    std::string_view str2 = "noleading";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "noleading");
+}
+
+TEST(StringTrimTests, RTrimBasicTest) {
+    std::string str1 = "trailing    ";
+    auto result1 = rtrim(str1);
+    ASSERT_EQ(result1, "trailing");
+
+    std::string_view str2 = "trailing    ";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "trailing");
+}
+
+TEST(StringTrimTests, RTrimNoTrimTest) {
+    std::string str1 = "notrailing";
+    auto result1 = rtrim(str1);
+    ASSERT_EQ(result1, "notrailing");
+
+    std::string_view str2 = "notrailing";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "notrailing");
+}
+
+TEST(StringTrimTests, LTrimConstRefTest) {
+    const std::string str = "    leading";
+    auto result = ltrim(str);
+    ASSERT_EQ(result, "leading");
+}
+
+TEST(StringTrimTests, RTrimConstRefTest) {
+    const std::string str = "trailing    ";
+    auto result = rtrim(str);
+    ASSERT_EQ(result, "trailing");
+}
+
+TEST(StringTrimTests, LTrimRValueTest) {
+    auto result = ltrim(std::string("    leading"));
+    ASSERT_EQ(result, "leading");
+}
+
+TEST(StringTrimTests, RTrimRValueTest) {
+    auto result = rtrim(std::string("trailing    "));
+    ASSERT_EQ(result, "trailing");
+}
+
+TEST(StringTrimTests, LTrimEmptyTest) {
+    std::string str = "";
+    auto result = ltrim(str);
+    ASSERT_EQ(result, "");
+
+    std::string_view str2 = "";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, RTrimEmptyTest) {
+    std::string str = "";
+    auto result = rtrim(str);
+    ASSERT_EQ(result, "");
+
+    std::string_view str2 = "";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimOnlySpacesTest) {
+    std::string str1 = "    ";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = "    ";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimMixedSpacesTest) {
+    std::string str1 = " \t \r \n ";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = " \t \r \n ";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimConstRefTest) {
+    const std::string str = "  both  ";
+    auto result = trim(str);
+    ASSERT_EQ(result, "both");
+}
+
+TEST(StringTrimTests, TrimRValueTest) {
+    auto result = trim(std::string("  both  "));
+    ASSERT_EQ(result, "both");
+}
+
+TEST(StringTrimTests, TrimEmptyTest) {
+    std::string str1 = "";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = "";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(SplitTest, TestSkipEmpty) {
+    std::string s = "foo,,bar,,baz";
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
+    EXPECT_EQ(split(s, ',', true, false), expected);
+
+    std::wstring ws = L"hello, ,world";
+    std::vector<std::wstring_view> expected_ws = {L"hello", L" ", L"world"};
+    EXPECT_EQ(split(ws, ',', false, false), expected_ws);
+}
+
+// repeat
+
+TEST(RepeatTest, TestBasicRepeat) {
+  std::string s = "hello";
+  std::string expected = "hellohellohellohellohello";
+  EXPECT_EQ(repeat(s, 5), expected);
+}
+
+TEST(RepeatTest, TestEmptyString) {
+  std::string s = "";
+  std::string expected = "";
+  EXPECT_EQ(repeat(s, 10), expected);
+}
+
+TEST(RepeatTest, TestZeroRepetitions) {
+  std::string s = "world";
+  std::string expected = "";
+  EXPECT_EQ(repeat(s, 0), expected);
+}
+
+TEST(RepeatTest, TestLargeRepetitions) {
+  std::string s = "abc";
+  std::string expected = "";
+  for (int i = 0; i < 1000000; i++) {
+    expected += s;
+  }
+  EXPECT_EQ(repeat(s, 1000000), expected);
+}
+
+// upper lower
+// Test with identical strings
+TEST(StringLowercaseEqual, IdenticalStrings) {
+    std::string_view str1 = "hello";
+    const char str2[] = "hello";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with different strings
+TEST(StringLowercaseEqual, DifferentStrings) {
+    std::string_view str1 = "hello";
+    const char str2[] = "world";
+    EXPECT_FALSE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with strings that differ only in case
+TEST(StringLowercaseEqual, CaseInsensitive) {
+    std::string_view str1 = "Hello";
+    const char str2[] = "hello";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with one string as a substring of the other
+TEST(StringLowercaseEqual, Substring) {
+    std::string_view str1 = "hello";
+    const char str2[] = "hell";
+    EXPECT_FALSE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with empty strings
+TEST(StringLowercaseEqual, EmptyStrings) {
+    std::string_view str1 = "";
+    const char str2[] = "";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with empty strings
+TEST(StringLowercaseEqual, RawTest) {
+    std::string_view str1 = "RAW";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, "raw"));
+}
+
+// Test with non-alphabetic characters
+TEST(StringLowercaseEqual, NonAlphabetic) {
+    std::string_view str1 = "123@!";
+    const char str2[] = "123@!";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+// Test with strings containing uppercase non-alphabetic characters
+TEST(StringLowercaseEqual, MixedCaseNonAlphabetic) {
+    std::string_view str1 = "HeLlO123@!";
+    const char str2[] = "hello123@!";
+    EXPECT_TRUE(utils::lowercase_equal_to(str1, str2));
+}
+
+TEST(StringUtilTest, Lowercase) {
+    // Test with std::string
+    EXPECT_EQ(lowercase(std::string("Hello")), "hello");
+    
+    // Test with std::wstring
+    EXPECT_EQ(lowercase(std::wstring(L"Hello")), L"hello");
+    
+    // Test with std::string_view
+    EXPECT_EQ(lowercase(std::string_view("Hello")), "hello");
+    
+    // Test with const char*
+    EXPECT_EQ(lowercase("Hello"), "hello");
+    
+    // Test with const wchar_t*
+    EXPECT_EQ(lowercase(L"Hello"), L"hello");
+
+    // Test with an empty std::string
+    EXPECT_EQ(lowercase(std::string("")), "");
+
+    // Test with an empty std::string_view
+    EXPECT_EQ(lowercase(std::string_view("")), "");
+}
+
+TEST(StringUtilTest, Uppercase) {
+    // Test with std::string
+    EXPECT_EQ(uppercase(std::string("Hello")), "HELLO");
+    
+    // Test with std::wstring
+    EXPECT_EQ(uppercase(std::wstring(L"Hello")), L"HELLO");
+    
+    // Test with std::string_view
+    EXPECT_EQ(uppercase(std::string_view("Hello")), "HELLO");
+    
+    // Test with const char*
+    EXPECT_EQ(uppercase("Hello"), "HELLO");
+    
+    // Test with const wchar_t*
+    EXPECT_EQ(uppercase(L"Hello"), L"HELLO");
+
+    // Test with an empty std::string
+    EXPECT_EQ(uppercase(std::string("")), "");
+
+    // Test with an empty std::string_view
+    EXPECT_EQ(uppercase(std::string_view("")), "");
+}
+
+// find_replace
+
+TEST(FindReplaceTest, BasicTest) {
+    std::string str = "The quick brown fox jumps over the lazy dog.";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"quick", "fast"},
+        {"brown", "red"},
+        {"jumps", "leaps"},
+        {"lazy", "sleepy"}
+    };
+    std::string expected = "The fast red fox leaps over the sleepy dog.";
+    EXPECT_EQ(find_replace(str, search_strings), expected);
+}
+
+TEST(FindReplaceTest, EmptyInput) {
+    std::string str = "";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"quick", "fast"},
+        {"brown", "red"},
+        {"jumps", "leaps"},
+        {"lazy", "sleepy"}
+    };
+    std::string expected = "";
+    EXPECT_EQ(find_replace(str, search_strings), expected);
+}
+
+TEST(FindReplaceTest, NoMatches) {
+    std::string str = "The quick brown fox jumps over the lazy dog.";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"foo", "bar"},
+        {"baz", "qux"}
+    };
+    std::string expected = "The quick brown fox jumps over the lazy dog.";
+    EXPECT_EQ(find_replace(str, search_strings), expected);
+}
+
+TEST(FindReplaceTest, OverlappingMatches) {
+    std::string str = "The quick brown fox jumps over the lazy dog.";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"the", "THE"},
+        {"THE", "the"},
+    };
+    std::string expected = "The quick brown fox jumps over THE lazy dog.";
+    EXPECT_EQ(find_replace(str, search_strings), expected);
+}
+
+
+
+TEST(FindReplaceTest, EmptyInputString) {
+    std::string input = "";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}, {"def", "uvw"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "");
+}
+
+
+TEST(FindReplaceTest, EmptySearchStrings) {
+    std::string str = "The quick brown fox jumps over the lazy dog.";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {};
+    std::string expected = "The quick brown fox jumps over the lazy dog.";
+    EXPECT_EQ(find_replace(str, search_strings), expected);
+    
+    {
+        std::string input = "abcdefgh";
+        std::vector<std::pair<std::string_view, std::string_view>> search_strings;
+        std::string result = find_replace(input, search_strings);
+        ASSERT_EQ(result, "abcdefgh");
+    }
+}
+
+TEST(FindReplaceTest, EmptyInputAndSearchStrings) {
+    std::string input = "";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings;
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "");
+}
+
+TEST(FindReplaceTest, NoMatchingSearchStrings) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"ijk", "xyz"}, {"lmn", "uvw"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "abcdefgh");
+}
+
+TEST(FindReplaceTest, SomeMatchingSearchStrings) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}, {"lmn", "uvw"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "xyzdefgh");
+}
+
+TEST(FindReplaceTest, AllMatchingSearchStrings) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}, {"def", "uvw"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "xyzuvwgh");
+}
+
+TEST(FindReplaceTest, MultipleInstancesOfSearchStrings) {
+    std::string input = "abcdeabc";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "xyz"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "xyzdexyz");
+}
+
+TEST(FindReplaceTest, SpecialCharactersAndDigits) {
+    std::string input = "a$b%c123";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"$", "X"}, {"%", "Y"}, {"1", "2"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "aXbYc223");
+}
+
+TEST(FindReplaceTest, IdenticalReplacements) {
+    std::string input = "abcabc";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"abc", "abc"}};
+    std::string result = find_replace(input, search_strings);
+    ASSERT_EQ(result, "abcabc");
+}
+
+TEST(FindReplaceTest, ComplexSearchStrings) {
+    std::string input = "A quick brown fox jumps over the lazy dog, and the dog returns the favor.";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"quick", "swift"},
+        {"the lazy dog", "a sleeping canine"},
+        {"the favor", "a compliment"}
+    };
+    std::string expected = "A swift brown fox jumps over a sleeping canine, and the dog returns a compliment.";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, UnicodeCharacters) {
+    std::string input = "こんにちは世界";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"こんにちは", "さようなら"}, {"世界", "宇宙"}};
+    std::string expected = "さようなら宇宙";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, CaseSensitivity) {
+    std::string input = "The Quick Brown Fox Jumps Over The Lazy Dog.";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"The", "A"}, {"Quick", "Swift"}, {"Brown", "Red"}};
+    std::string expected = "A Swift Red Fox Jumps Over A Lazy Dog.";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, ComplexOverlappingSearchStrings) {
+    std::string input = "appleappletreeapple";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {{"apple", "orange"}, {"appletree", "peachtree"}};
+    std::string expected = "orangeorangetreeorange";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, RespectOrderOfSearchStrings) {
+    std::string input = "this is an orangetree";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"orange", "apple"},
+        {"orangetree", "appletree"},
+    };
+    std::string expected = "this is an appletree";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, MultipleReplacementsInARow) {
+    std::string input = "helloorangeapplegrape";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"orange", "banana"},
+        {"apple", "cherry"},
+        {"grape", "kiwi"},
+    };
+    std::string expected = "hellobananacherrykiwi";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, OverlappingSearchStrings) {
+    std::string input = "abcde";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"abc", "xyz"},
+        {"bcd", "uv"},
+    };
+    std::string expected = "xyzde";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+TEST(FindReplaceTest, ReplaceSubstringsWithDifferentLengths) {
+    std::string input = "this is an orangetree";
+    std::vector<std::pair<std::string_view, std::string_view>> search_strings = {
+        {"orange", "app"},
+        {"orangetree", "appletree"},
+    };
+    std::string expected = "this is an apptree";
+    EXPECT_EQ(find_replace(input, search_strings), expected);
+}
+
+
+// more complex parsing
+
+TEST(ParseSetMetaTest, HandlesSimpleKeyValuePairs) {
+    std::string input = "option1=value1;option2=value2";
+    auto result = parse_set_meta(input);
+
+    ASSERT_EQ(2, result.size());
+    ASSERT_EQ("value1", result["option1"]);
+    ASSERT_EQ("value2", result["option2"]);
+}
+
+TEST(ParseSetMetaTest, HandlesQuotedValues) {
+    std::string input = R"(option1="value1 with spaces";option2='value2 with spaces')";
+    auto result = parse_set_meta(input);
+
+    ASSERT_EQ(2, result.size());
+    ASSERT_EQ("value1 with spaces", result["option1"]);
+    ASSERT_EQ("value2 with spaces", result["option2"]);
+}
+
+TEST(ParseSetMetaTest, HandlesValuesWithEqualSigns) {
+    std::string input = R"(option1="value=1";option2='value=2 with spaces';option3=value3=extra)";
+    auto result = parse_set_meta(input);
+
+    ASSERT_EQ(3, result.size());
+    ASSERT_EQ("value=1", result["option1"]);
+    ASSERT_EQ("value=2 with spaces", result["option2"]);
+    ASSERT_EQ("value3=extra", result["option3"]);
+}
+
+TEST(ParseSetMetaTest, HandlesEscapedQuotes) {
+    std::string input = R"(option1="value1 \"with escaped\" quotes";option2='value2 \'with escaped\' quotes')";
+    auto result = parse_set_meta(input);
+
+    ASSERT_EQ(2, result.size());
+    ASSERT_EQ(R"(value1 "with escaped" quotes)", result["option1"]);
+    ASSERT_EQ(R"(value2 'with escaped' quotes)", result["option2"]);
+}
+
+TEST(ParseSetMetaTest, HandlesEmptyInput) {
+    std::string input = "";
+    auto result = parse_set_meta(input);
+
+    ASSERT_EQ(0, result.size());
+}
+
+std::string which_from(const auto& indexes, const auto& corpus, size_t len = 0) {
+    std::string r = "[";
+    bool first = true;
+    size_t I{0u};
+    for(auto index : indexes) {
+        if(not first) {
+            r += ',';
+        }
+        r += size_t(index) < corpus.size() ? "'"+corpus.at(index)+"'" : "<invalid:"+std::to_string(index)+">";
+        first = false;
+        
+        if(len > 0u && ++I >= len)
+            break;
+    }
+    
+    return r+"] from the corpus";
+}
+
+bool compare_to_first_n_elements(const std::vector<int>& vec1, const std::vector<int>& vec2) {
+    if (vec1.size() > vec2.size()) {
+        return false;
+    }
+
+    return std::equal(vec1.begin(), vec1.end(), vec2.begin());
+}
+
+bool first_elements_should_contain(const std::vector<int>& vec1, const std::vector<int>& vec2) {
+    if (vec1.size() > vec2.size()) {
+        return false;
+    }
+    auto sub = std::vector<int>(vec2.begin(), vec2.begin() + vec1.size());
+    for(auto& v : vec1)
+        if(not contains(sub, v))
+            return false;
+    return true;
+}
+
+TEST(TextSearchTest, HandlesMultipleWords) {
+    std::vector<std::string> corpus = {"apples", "oranges", "apples_oranges"};
+
+    // Test case: search for "apples oranges", should return only "apples_oranges" (index 2)
+    auto result = text_search("apples oranges", corpus);
+    decltype(result) expected{2, 1, 0};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size());
+}
+
+TEST(TextSearchTest, ReturnsLongerStringFirst) {
+    std::vector<std::string> corpus = {
+        "potoo6511_small_abstract_t-rex_silhouette_black_and_white_minim_d1dd143b-dsg-4ca8-fsd46-fgd43234234.png",
+        "640-yolov8n-seg-2023-09-14-10_MouseSourveillance-2-mAP5095_0.93182-mAP50_0.97449.pt",
+        "2023-02-21-raspios-bullseye-armhf-lite.img.xz",
+        "yolov7-tiny-640p-20230418T075703Z-001.zip",
+        "reversals3m_1024_dotbot_20181025_105202.stitched.pv",
+        "65MP01_10Kmarching_01_2023-03-29_10-10-24-924.jpg",
+        "20230622_ContRamp_60deg_0.5degmin_R1_Myrmica_rubra_C3_C2_1920x1080@20FPS_11-42-01.mp4",
+        "640-yolov8n-2023-07-18-13_mais-2-mAP5095_0.94445-mAP50_0.995.pt"
+    };
+
+    // Test case: search for "apples oranges", should return only "apples_oranges" (index 2)
+    auto result = text_search("yolov8n 640 seg mouse", corpus);
+    decltype(result) expected{1,7,3};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size());
+}
+
+TEST(TextSearchTest, HandlesSingleWord) {
+    std::vector<std::string> corpus = {"apples", "oranges", "apples_oranges"};
+
+    // Test case: search for "apples", should return "apples" (index 0) and "apples_oranges" (index 2)
+    auto search = "apples";
+    auto result = text_search(search, corpus);
+    decltype(result) expected{0, 2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search '" << search << "'";
+}
+
+TEST(TextSearchTest, HandlesSingleCharacter) {
+    std::vector<std::string> corpus = {"$"};
+
+    // Test case: search for "apples", should return "apples" (index 0) and "apples_oranges" (index 2)
+    auto result = text_search("$", corpus);
+    decltype(result) expected{0};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size());
+}
+
+TEST(TextSearchTest, HandlesMisspelledWord) {
+    std::vector<std::string> corpus = {"apple", "oranges", "apples_oranges"};
+
+    // Test case: search for "organes" (misspelled), should return "oranges" (index 1) and "apples_oranges" (index 2)
+    auto result = text_search("organes", corpus);
+    decltype(result) expected{1,2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'organes'";
+}
+
+TEST(SearchText, HandlesPhrasesWithCommonWords) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("apple banana", corpus);
+    decltype(result) expected = {2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'apple banana'";
+}
+
+TEST(SearchText, HandlesPaths) {
+    std::vector<std::string> corpus = {
+        "apple/pie/recipe",
+        "/rooted/path/to/folder",
+        "/folder/ending/"
+    };
+
+    auto input = "rooted banana";
+    auto result = text_search(input, corpus);
+    decltype(result) expected = {1};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<input<<"'";
+    
+    input = "rooted/folder";
+    result = text_search(input, corpus);
+    expected = {1,2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<input<<"'";
+}
+
+TEST(SearchText, MatchesPathsCorrectly) {
+    std::vector<std::string> corpus = {
+        "apple/pie/recipe",
+        "/rooted/path/to/folder/2023-02-21-raspios-bullseye-armhf-lite.img.xz",
+        "/rooted/path/to/folder/yolov7-tiny-640p-20230418T075703Z-001.zip",
+        "/folder/ending/640-yolov8n-seg-2023-09-14-10_MouseSourveillance-2-mAP5095_0.93182-mAP50_0.97449.pt"
+    };
+
+    auto input = "640 yolov8n";
+    auto result = text_search(input, corpus);
+    auto expected = {3,2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<input<<"'";
+}
+
+TEST(SearchText, EmptyInput) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("", corpus);
+    decltype(result) expected = {0,1,2,3,4,5};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'aplpe banan'";
+}
+
+TEST(SearchText, AlwaysReturnAllItems) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("banana", corpus);
+    ASSERT_EQ(result.size(), corpus.size()) << " only returned " << which_from(result, corpus) << " instead of the entire corpus of " << Meta::toStr(corpus);
+}
+
+TEST(SearchText, ExactInput) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe",
+        "$"
+    };
+
+    auto search_term = "$";
+    auto result = text_search(search_term, corpus);
+    decltype(result) expected = {6};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term '"<<search_term<<"'";
+}
+
+TEST(SearchText, HandlesMultipleMisspellings) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("aplpe banan", corpus);
+    decltype(result) expected = {3,2,1};
+    ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'aplpe banan'";
+}
+
+TEST(SearchText, HandlesPunctuationAndSpaces) {
+    std::vector<std::string> corpus = {
+        "apple-pie recipe",
+        "banana_bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple, and orange juice",
+        "orange chicken recipe"
+    };
+
+    auto result = text_search("apple, banana", corpus);
+    decltype(result) expected = {2};
+    ASSERT_TRUE(compare_to_first_n_elements(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'apple, banana'";
+}
+
+TEST(SearchText, HandlesPartialParameterNames) {
+    std::vector<std::string> corpus = {
+        "track_threshold",
+        "track_posture_threshold",
+        "track_threshold2",
+        "app_version"
+    };
+    
+    {
+        auto result = text_search("track_th", corpus);
+        decltype(result) expected = {0,2,1};
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'track_th'";
+    }
+    
+    {
+        auto result = text_search("track_threshold", corpus);
+        decltype(result) expected = {0,2,1};
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'track_threshold'";
+    }
+}
+
+TEST(SearchText, HandlesPartialWordMatches) {
+    std::vector<std::string> corpus = {
+        "apple pie recipe",
+        "banana bread recipe",
+        "apple and banana smoothie",
+        "banana split",
+        "apple and orange juice",
+        "orange chicken recipe",
+        "track_threshold",
+        "track_posture_threshold",
+        "track_threshold2"
+    };
+    
+    {
+        auto result = text_search("track_th", corpus);
+        decltype(result) expected = {6, 8, 7};
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'track_th'";
+    }
+    {
+        auto result = text_search("rec", corpus);
+        decltype(result) expected = {0, 1, 5};
+        ASSERT_TRUE(first_elements_should_contain(expected, result)) << "selecting " << which_from(result, corpus, expected.size()) << " from " << Meta::toStr(corpus) << " instead of " << which_from(expected, corpus, expected.size()) << " for search term 'rec'";
+    }
+    
+    
+    
+}
+
+#ifndef NDEBUG
+// Test narrow_cast with warn_on_error
+TEST(NarrowCastTest, WarnOnError) {
+    EXPECT_NO_THROW({
+        int negative_value = -5;
+        unsigned int result = narrow_cast<unsigned int>(negative_value, tag::warn_on_error{});
+        EXPECT_EQ(result, static_cast<unsigned int>(negative_value));
+    });
+
+    EXPECT_NO_THROW({
+        int large_value = 100000;
+        short result = narrow_cast<short>(large_value, tag::warn_on_error{});
+        EXPECT_EQ(result, static_cast<short>(large_value));
+    });
+}
+
+// Test narrow_cast with fail_on_error
+TEST(NarrowCastTest, FailOnError) {
+    int negative_value = -5;
+    ASSERT_ANY_THROW(narrow_cast<unsigned int>(negative_value, tag::fail_on_error{}));
+
+    int large_value = 100000;
+    ASSERT_ANY_THROW(narrow_cast<short>(large_value, tag::fail_on_error{}));
+}
+
+// Test narrow_cast without tags
+TEST(NarrowCastTest, NoTags) {
+    int value = 42;
+    short result = narrow_cast<short>(value);
+    EXPECT_EQ(result, static_cast<short>(value));
+
+    value = -42;
+    result = narrow_cast<short>(value);
+    EXPECT_EQ(result, static_cast<short>(value));
+}
+#endif
+
+// Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
+TEST(ToStrFromStrRoundTripTest, BasicTest) {
+    std::string original1 = "hello";
+    std::string original2 = R"(world)";
+    std::string original3 = R"(\n\t\\)";
+    
+    std::string intermediate1 = Meta::toStr<std::string>(original1);
+    std::string intermediate2 = Meta::toStr<std::string>(original2);
+    std::string intermediate3 = Meta::toStr<std::string>(original3);
+    
+    std::string result1 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate1));
+    std::string result2 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate2));
+    std::string result3 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate3));
+    
+    EXPECT_EQ(result1, intermediate1);
+    EXPECT_EQ(result2, intermediate2);
+    EXPECT_EQ(result3, intermediate3);
+}
+
+// Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
+TEST(ToStrFromStrRoundTripTest, EscapingTest) {
+    std::vector<std::string> testStrings = {
+        R"(\\\test\\)",
+        R"(\)",
+        R"(testwithend\)",
+        R"("trailing spaces beyond end"    )",
+        R"(hello)",
+        R"(world)",
+        R"('single quotes')",
+        R"("double quotes")",
+        R"(\"escaped double quotes\")",
+        R"('\'escaped single quotes\'')",
+        R"(\\)",
+        R"(\\\")",
+        R"(\\\\)",
+        R"(\n\t\b\r\f\a)",
+        R"(\\n\\t\\b\\r\\f\\a)",
+        R"(   leading spaces)",
+        R"(trailing spaces   )",
+        R"("trailing spaces beyond end"    )",
+        R"(    "leading spaces beyond start")"
+    };
+    
+    for (const auto& original : testStrings) {
+        std::string intermediate = Meta::toStr<std::string>(original);
+        print("original ", original.c_str());
+        print("intermed ", intermediate.c_str());
+        
+        // Assuming your fromStr function trims spaces beyond the enclosing quotes
+        std::string trimmed_intermediate = intermediate;
+        
+        std::string result = Meta::toStr<std::string>(Meta::fromStr<std::string>(trimmed_intermediate));
+        
+        print("result   ", result.c_str());
+        
+        EXPECT_EQ(result, intermediate) << "Failed round-trip test for string: " << original;
+        
+        std::string fully_reversed = Meta::fromStr<std::string>(result);
+        print("fully r  ", fully_reversed.c_str());
+        EXPECT_EQ(fully_reversed, original) << "Failed round-trip test for string: " << original;
+    }
+}
+
+bool isWindowsOS() {
+#if defined(_WIN32) || defined(_WIN64)
+    return true;
+#else
+    return false;
+#endif
+}
+
+TEST(PathSerializationTest, CrossOSPath) {
+    file::Path path("/unix/style/path");
+    
+    std::string serialized = Meta::toStr(path);
+    
+    // Debug output
+    print("Debug Info: Path = ", path.str());
+    print("Serialized: ", serialized);
+    
+    if (isWindowsOS()) {
+        EXPECT_EQ(serialized, "\"\\\\unix\\\\style\\\\path\"");
+    } else {
+        EXPECT_EQ(serialized, "\"/unix/style/path\"");
+    }
+}
+
+TEST(PathSerializationTest, WindowsPath) {
+    file::Path path("C:\\windows\\style\\path");
+    
+    std::string serialized = Meta::toStr(path);
+    
+    // Debug output
+    print("Debug Info: Path = ", path.str());
+    print("Serialized: ", serialized);
+    
+    if (isWindowsOS()) {
+        EXPECT_EQ(serialized, "\"C:\\\\windows\\\\style\\\\path\"");
+    } else {
+        EXPECT_EQ(serialized, "\"C:/windows/style/path\"");
+    }
+}
+
+TEST(PathSerializationTest, RoundTripCrossOS) {
+    file::Path original_path("/unix/or/windows/path");
+    
+    std::string serialized = Meta::toStr(original_path);
+    file::Path deserialized_path = Meta::fromStr<file::Path>(serialized);
+    
+    // Debug output
+    print("Debug Info: Original Path = ", original_path.str());
+    print("Serialized: ", serialized);
+    print("Debug Info: Deserialized Path = ", deserialized_path.str());
+    
+    if (isWindowsOS()) {
+        EXPECT_EQ(deserialized_path.str(), "\\unix\\or\\windows\\path");
+    } else {
+        EXPECT_EQ(deserialized_path.str(), "/unix/or/windows/path");
+    }
+}
+
+using namespace util;
+TEST(ParseArrayParts, BasicTest) {
+    auto result = parse_array_parts("a,b,c");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], "b");
+    EXPECT_EQ(result[2], "c");
+}
+
+TEST(ParseArrayParts, BasicTest2) {
+    auto result = parse_array_parts("[a,b,c]");
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0], "[a,b,c]");
+}
+
+TEST(ParseArrayParts, WithWhiteSpace) {
+    auto result = parse_array_parts(" a , b , c ");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], "b");
+    EXPECT_EQ(result[2], "c");
+}
+
+TEST(ParseArrayParts, WithNestedBrackets) {
+    auto result = parse_array_parts("a, [b,c], {d,e}");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], "[b,c]");
+    EXPECT_EQ(result[2], "{d,e}");
+}
+
+TEST(ParseArrayParts, WithEscapedDelimiter) {
+    auto result = parse_array_parts(R"(a, "b,c", 'd,e')");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "a");
+    EXPECT_EQ(result[1], R"("b,c")");
+    EXPECT_EQ(result[2], R"('d,e')");
+}
+
+TEST(ParseArrayParts, SingleValue) {
+    auto result = parse_array_parts("a");
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0], "a");
+}
+
+TEST(ParseArrayParts, EmptyString) {
+    auto result = parse_array_parts("");
+    ASSERT_EQ(result.size(), 0);
+}
+
+TEST(ParseArrayParts, OnlyDelimiters) {
+    auto result = parse_array_parts(",,");
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], "");
+    EXPECT_EQ(result[1], "");
+    EXPECT_EQ(result[2], "");
+}
+
+TEST(ParseArrayParts, WithDifferentTypes) {
+    auto result1 = parse_array_parts(std::string("a,b,c"));
+    ASSERT_EQ(result1.size(), 3);
+
+    auto result2 = parse_array_parts("a,b,c");
+    ASSERT_EQ(result2.size(), 3);
+
+    std::string_view sv("a,b,c");
+    auto result3 = parse_array_parts(sv);
+    ASSERT_EQ(result3.size(), 3);
+}
+
+
+TEST(TruncateTests, HandlesCurlyBracesInStdString) {
+    std::string input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInStdString) {
+    std::string input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesCurlyBracesInStdStringView) {
+    std::string_view input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInStdStringView) {
+    std::string_view input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesCurlyBracesInConstCharPointer) {
+    const char* input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInConstCharPointer) {
+    const char* input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesCurlyBracesInConstStdString) {
+    const std::string input = "{test}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesSquareBracketsInConstStdString) {
+    const std::string input = "[test]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "test");
+}
+
+TEST(TruncateTests, HandlesNestedCurlyBraces) {
+    std::string input = "{{nested}}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "{nested}");
+}
+
+TEST(TruncateTests, HandlesNestedSquareBrackets) {
+    std::string input = "[[nested]]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "[nested]");
+}
+
+TEST(TruncateTests, HandlesEmptyCurlyBraces) {
+    std::string input = "{}";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(TruncateTests, HandlesEmptySquareBrackets) {
+    std::string input = "[]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(TruncateTests, HandlesWhitespaceInCurlyBraces) {
+    std::string input = "{  }";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(TruncateTests, HandlesWhitespaceInSquareBrackets) {
+    std::string input = "[  ]";
+    auto result = truncate(input);
+    ASSERT_EQ(result, "");
+}
+
+TEST(ToStringTest, BasicTests) {
+    EXPECT_EQ(to_string(1.0), "1");
+    EXPECT_EQ(to_string(1.01), "1.01");
+    EXPECT_EQ(to_string(1.0100000), "1.01");
+    EXPECT_EQ(to_string(0.0), "0");
+    EXPECT_EQ(to_string(0.1), "0.1");
+    EXPECT_EQ(to_string(0.00001), "0.00001");
+    EXPECT_EQ(to_string(100.0), "100");
+    EXPECT_EQ(to_string(100.01), "100.01");
+    EXPECT_EQ(to_string(100.01000), "100.01");
+    EXPECT_EQ(to_string(1080.0), "1080");
+}
+
+TEST(ToStringTest, NegativeNumbers) {
+    EXPECT_EQ(to_string(-1.0), "-1");
+    EXPECT_EQ(to_string(-1.01), "-1.01");
+    EXPECT_EQ(to_string(-1.0100000), "-1.01");
+    EXPECT_EQ(to_string(-0.1), "-0.1");
+    EXPECT_EQ(to_string(-0.00001), "-0.00001");
+    EXPECT_EQ(to_string(-100.0), "-100");
+    EXPECT_EQ(to_string(-100.01), "-100.01");
+    EXPECT_EQ(to_string(-100.01000), "-100.01");
+}
+
+TEST(ToStringTest, EdgeCases) {
+    EXPECT_EQ(to_string(1.00001), "1.00001");
+    EXPECT_EQ(to_string(1.99999), "1.99999");
+}
+
+TEST(ToStringTest, ExceptionCase) {
+    // Assuming the buffer is of size 128 as in your example.
+    // Here we test if a really big float that cannot fit in our buffer would throw the exception.
+    float bigNumber = 1e40;
+    EXPECT_EQ(to_string(bigNumber), "inf");
+}
+
+TEST(ToStringTest, HandleCompileTimeUnsignedInt) {
+    // only check using static_assert if not using GCC
+#if defined(__GNUC__)
+    assert(to_string(1234) == "1234");
+    assert(to_string(0) == "0");
+#else
+    static_assert(to_string(1234) == "1234");
+    static_assert(to_string(0) == "0");
+#endif
+}
+
+TEST(ToStringTest, HandleRunTimeUnsignedInt) {
+    std::vector<uint> v{
+        9876, 10
+    };
+    ASSERT_EQ(to_string(v.front()), "9876");
+    ASSERT_EQ(to_string(v.back()), "10");
+}
+
+TEST(ToStringTest, HandleCompileTimeSignedInt) {
+#if defined(__GNUC__)
+    assert(to_string(-1234) == "-1234");
+    assert(to_string(0) == "0");
+#else
+    static_assert(to_string(-1234) == "-1234");
+    static_assert(to_string(0) == "0");
+#endif
+}
+
+TEST(ToStringTest, HandleRunTimeSignedInt) {
+    ASSERT_EQ(to_string(-9876), "-9876");
+    ASSERT_EQ(to_string(-10), "-10");
+}
+
+// printto function for gunit automatic printing of conststring_t
+namespace cmn::util {
+    void PrintTo(const cmn::util::ConstString_t& str, std::ostream* os) {
+        *os << str.view();
+    }
+}
+
+TEST(ToStringTest, ConstExprFloat) {
+    // Simple whole number
+    constexpr auto number = 1.0f;
+    static constexpr auto sv = to_string(number);
+    EXPECT_EQ(sv, "1");
+    
+    // Zero
+    static constexpr auto sv0 = to_string(0.f);
+    static_assert(sv0 == "0");
+
+    // Fractional number, no trailing zeros
+    static constexpr auto sv1 = to_string(123.456);
+    EXPECT_EQ(sv1, "123.456");
+
+    // Fractional number with trailing zeros
+    static constexpr auto sv2 = to_string(45.600);
+    EXPECT_EQ(sv2, "45.6");
+
+    // Negative number
+    static constexpr auto sv3 = to_string(-3.21f);
+    EXPECT_EQ(sv3, "-3.21");
+
+    // NaN
+    static constexpr auto nan_float = std::numeric_limits<float>::quiet_NaN();
+    static constexpr auto sv4 = to_string(nan_float);
+    static_assert(sv4 == "nan");
+
+    // Infinity
+    static constexpr auto inf_float = std::numeric_limits<float>::infinity();
+    static constexpr auto sv5 = to_string(inf_float);
+    static_assert(sv5 == "inf");
+
+    // Negative infinity
+    static constexpr auto neg_inf_float = -std::numeric_limits<float>::infinity();
+    static constexpr auto sv6 = to_string(neg_inf_float);
+    EXPECT_EQ(sv6, "-inf");
+}
+
+using namespace settings;
+TEST(HtmlifyTests, EmptyDocument) {
+    std::string doc = "";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "");
+}
+
+TEST(HtmlifyTests, Complex) {
+    std::string doc = R"(["/Volumes/Public/work/yolov7-seg.pt","/Volumes/Public/work/yolov7-tiny.pt","/Volumes/Public/work/yolov8l-seg.pt","/Volumes/Public/work/yolov8m-seg.pt","/Volumes/Public/work/yolov8n-seg.pt","/Volumes/Public/work/yolov8n.pt","/Volumes/Public/work/yolov8s-seg.pt","/Volumes/Public/work/yolov8x-seg.pt"])";
+    std::string expected = R"([<str>"/Volumes/Public/work/yolov7-seg.pt"</str>,<str>"/Volumes/Public/work/yolov7-tiny.pt"</str>,<str>"/Volumes/Public/work/yolov8l-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8m-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8n-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8n.pt"</str>,<str>"/Volumes/Public/work/yolov8s-seg.pt"</str>,<str>"/Volumes/Public/work/yolov8x-seg.pt"</str>])";
+    
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, expected);
+}
+
+TEST(HtmlifyTests, QuotedText) {
+    std::string doc = "This \"is 'plain' text\".";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "This <str>\"is 'plain' text\"</str>.");
+}
+
+TEST(HtmlifyTests, PlainText) {
+    std::string doc = "This is plain text.";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "This is plain text.");
+}
+
+TEST(HtmlifyTests, Keywords) {
+    std::string doc = "true int";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<key>true</key> <key>int</key>");
+}
+
+TEST(HtmlifyTests, NumberFormatting) {
+    std::string doc = "123 45.67";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<nr>123</nr> <nr>45.67</nr>");
+}
+
+TEST(HtmlifyTests, Links) {
+    std::string doc = "`http://example.com`";
+    std::string result = htmlify(doc, true);
+    ASSERT_EQ(result, "<a href=\"http://example.com\" target=\"_blank\">http://example.com</a>");
+}
+
+TEST(HtmlifyTests, Newlines) {
+    std::string doc = "Line 1\nLine 2";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "Line <nr>1</nr><br/>Line <nr>2</nr>");
+}
+
+TEST(HtmlifyTests, Quotations) {
+    std::string doc = "'quoted' \"also quoted\"";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<str>'quoted'</str> <str>\"also quoted\"</str>");
+}
+
+TEST(HtmlifyTests, Headings) {
+    std::string doc = "$Heading$";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "<h4>Heading</h4>\n");
+}
+
+TEST(HtmlifyTests, UnknownHeadings) {
+    std::string doc = "<test>Heading</test>";
+    std::string result = htmlify(doc, false);
+    ASSERT_EQ(result, "&lt;test&gt;Heading&lt;/test&gt;");
+}
+
+TEST(ContainsTest, StringAndChar) {
+    std::string s = "hello world";
+    ASSERT_TRUE(contains(s, 'e'));
+    ASSERT_FALSE(contains(s, 'z'));
+}
+
+TEST(ContainsTest, StringAndString) {
+    std::string s = "hello world";
+    ASSERT_TRUE(contains(s, "world"));
+    ASSERT_FALSE(contains(s, "universe"));
+}
+
+TEST(ContainsTest, CStringAndChar) {
+    const char* s = "hello world";
+    ASSERT_TRUE(contains(s, 'e'));
+    ASSERT_FALSE(contains(s, 'z'));
+}
+
+TEST(ContainsTest, CStringAndCString) {
+    const char* s = "hello world";
+    ASSERT_TRUE(contains(s, "world"));
+    ASSERT_FALSE(contains(s, "universe"));
+}
+
+TEST(ContainsTest, StringViewAndChar) {
+    std::string_view sv = "hello world";
+    ASSERT_TRUE(contains(sv, 'e'));
+    ASSERT_FALSE(contains(sv, 'z'));
+}
+
+TEST(ContainsTest, StringViewAndStringView) {
+    std::string_view sv = "hello world";
+    std::string_view needle = "world";
+    ASSERT_TRUE(contains(sv, needle));
+    ASSERT_FALSE(contains(sv, "universe"));
+}
+
+TEST(ContainsTest, EmptyStrings) {
+    std::string s = "hello world";
+    ASSERT_FALSE(contains(s, ""));
+    ASSERT_FALSE(contains("", s));
+    ASSERT_FALSE(contains("", ""));
+}
+
+template<typename T>
+class ContainsTest : public ::testing::TestWithParam<T> {
+};
+
+using ContainsTestTypes = ::testing::Types<
+    std::tuple<std::string, std::string>,
+    std::tuple<std::string, const char*>,
+    std::tuple<std::string, std::string_view>,
+    std::tuple<std::string, char>,
+    std::tuple<const char*, std::string>,
+    std::tuple<const char*, const char*>,
+    std::tuple<const char*, std::string_view>,
+    std::tuple<const char*, char>
+>;
+
+TYPED_TEST_SUITE(ContainsTest, ContainsTestTypes);
+
+TYPED_TEST(ContainsTest, EmptyCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType emptyStr{};
+    if constexpr(std::is_same_v<StrType, const char*>)
+        emptyStr = "";
+    NeedleType emptyNeedle{};
+    if constexpr(std::is_same_v<NeedleType, const char*>)
+        emptyNeedle = "";
+    
+    EXPECT_FALSE(contains(emptyStr, emptyNeedle));
+    EXPECT_FALSE(contains(emptyStr, "needle"));
+    EXPECT_FALSE(contains("haystack", emptyNeedle));
+}
+
+TYPED_TEST(ContainsTest, SingleCharacterCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"a"};
+    NeedleType needle;
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>)
+        needle = 'a';
+    else needle = "a";
+    
+    EXPECT_TRUE(contains(str, needle));
+    EXPECT_FALSE(contains(str, "b"));
+}
+
+TYPED_TEST(ContainsTest, LongerCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>)
+        return;
+    else {
+        StrType str{"abcdef"};
+        NeedleType needle{"cd"};
+        
+        EXPECT_TRUE(contains(str, needle));
+        EXPECT_FALSE(contains(str, "gh"));
+    }
+}
+
+TYPED_TEST(ContainsTest, StartEndCases) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"abcdef"};
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needleStart{'a'};
+        NeedleType needleEnd{'f'};
+        EXPECT_TRUE(contains(str, needleStart));
+        EXPECT_TRUE(contains(str, needleEnd));
+    } else {
+        NeedleType needleStart{"ab"};
+        NeedleType needleEnd{"ef"};
+        EXPECT_TRUE(contains(str, needleStart));
+        EXPECT_TRUE(contains(str, needleEnd));
+    }
+}
+
+TYPED_TEST(ContainsTest, MultipleOccurrences) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"abcabcabc"};
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needle{'a'};
+        EXPECT_TRUE(contains(str, needle));
+    } else {
+        NeedleType needle{"abc"};
+        EXPECT_TRUE(contains(str, needle));
+    }
+}
+
+TYPED_TEST(ContainsTest, AllSameCharacters) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"aaaaaa"};
+
+    if constexpr(std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needle{'a'};
+        EXPECT_TRUE(contains(str, needle));
+    } else {
+        NeedleType needle{"aaa"};
+        EXPECT_TRUE(contains(str, needle));
+    }
+}
+
+TYPED_TEST(ContainsTest, NeedleLongerThanStr) {
+    using StrType = typename std::tuple_element<0, TypeParam>::type;
+    using NeedleType = typename std::tuple_element<1, TypeParam>::type;
+
+    StrType str{"short"};
+
+    if constexpr(not std::is_same_v<std::remove_cvref_t<NeedleType>, char>) {
+        NeedleType needle{"very long needle"};
+        EXPECT_FALSE(contains(str, needle));
+    } else {
+        // Do nothing, not applicable for char type
+    }
+}
+
+// Test suite for ConstexprString
+TEST(ConstexprStringTest, ConstructorFromArray) {
+    const char testStr[] = "Test";
+    ConstString_t myStr(testStr);
+    EXPECT_STREQ(myStr.data(), testStr);
+}
+
+TEST(ConstexprStringTest, ConstructorFromStdArray) {
+    std::array<char, 4> testArray = {'T', 'e', 's', 't'};
+    ConstString_t myStr(testArray);
+    EXPECT_EQ(myStr[0], 'T');
+    EXPECT_EQ(myStr[3], 't');
+}
+
+TEST(ConstexprStringTest, ViewMethod) {
+    ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr.view(), "Hello");
+}
+
+TEST(ConstexprStringTest, SizeMethod) {
+    ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr.size(), 5);
+}
+
+TEST(ConstexprStringTest, SquareBracketsOperator) {
+    ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr[1], 'e');
+}
+
+TEST(ConstexprStringTest, EqualityOperator) {
+    ConstString_t myStr("Hello");
+    ConstString_t myStr2("Hello");
+    EXPECT_TRUE(myStr == myStr2);
+}
+
+TEST(ConstexprStringTest, ToStringConversion) {
+    ConstString_t myStr("Hello");
+    std::string stdStr = static_cast<std::string>(myStr);
+    EXPECT_EQ(stdStr, "Hello");
+}
+
+// Test suite for to_string function template
+TEST(ToStringTest, HandleNormalFloat) {
+    auto str = to_string(123.456);
+    EXPECT_EQ(str, "123.456") << str.view() << " != " << "123.456";
+}
+
+TEST(ToStringTest, HandleNaN) {
+    float nanValue = std::numeric_limits<float>::quiet_NaN();
+    auto str = to_string(nanValue);
+    EXPECT_EQ(str, "nan");
+}
+
+TEST(ToStringTest, HandleInfinity) {
+    float infValue = std::numeric_limits<float>::infinity();
+    auto str = to_string(infValue);
+    EXPECT_EQ(str, "inf");
+}
+
+TEST(ToStringTest, PrecisionTest) {
+    auto str = to_string(0.0001f);
+    EXPECT_EQ(str, "0.0001");
+}
+
+TEST(StaticParseTest, invalid_label) {
+    std::string fail = R"(<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.76</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[464.265,144.67377,836.8988,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.76</i>) (Drawable*)Label<[464.265,146.71002,836.8988,828.75385], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.72</i>) (Drawable*)Label<[464.265,146.71002,836.8988,828.75385], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.72</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,142.63751,843.00757,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,144.67377,843.00757,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[460.19254,144.67377,843.00757,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[460.19254,144.67377,843.00757,830.7901], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[460.19254,140.60126,840.9713,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[460.19254,140.60126,840.9713,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.93</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[460.19254,138.56502,843.00757,836.89886], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=17.01</i>) (Drawable*)Label<[460.19254,138.56502,843.00757,836.89886], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=17.01</i>) (Drawable*)Label<[464.265,140.60126,836.8988,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,142.63751,836.8988,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.80</i>) (Drawable*)Label<[464.265,140.60126,836.8988,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[462.2288,142.63751,838.93506,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[462.2288,142.63751,838.93506,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.85</i>) (Drawable*)Label<[460.19254,140.60126,843.00757,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.97</i>) (Drawable*)Label<[460.19254,140.60126,843.00757,834.8626], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.97</i>) (Drawable*)Label<[462.2288,142.63751,840.9713,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[462.2288,142.63751,840.9713,832.82635], '<c><b><nr>1</nr></b>:<unknown:0></c> (p=<i>0.92 s=16.89</i>) (Drawable*)Label<[0,0,0,0], ''>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>'>)";
+
+    using namespace gui;
+    auto ranges = StaticText::to_tranges(fail);
+
+}

@@ -1,5 +1,6 @@
 #include "FlowMenu.h"
-#include <misc/metastring.h>
+
+#include <gui/DrawStructure.h>
 
 namespace gui {
     FlowMenu::Layer::Layer(const std::string& title, const std::vector<std::string>& names)
@@ -51,7 +52,7 @@ namespace gui {
     void FlowMenu::display_layer(size_t layer) {
         check_layer_index(layer);
         _pie.set_slices(generate_layer(layer));
-        _current = layer;
+        _current = narrow_cast<long_t>(layer);
         set_content_changed(true);
     }
     
@@ -106,11 +107,11 @@ namespace gui {
         if(_current != -1) {
             check_layer_index(_current);
             auto clr = ColorWheel(_current >= 0 ? _current : 0).next().alpha(200).saturation(0.2).exposure(0.2);
-            auto rect = add<Rect>(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), FillClr{clr}, LineClr{White.alpha(200)}, Origin(0.5, 0));
+            auto rect = add<Rect>(Box(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), FillClr{clr}, LineClr{White.alpha(200)}, Origin(0.5, 0));
             //auto rect = new Rect(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), clr, White.alpha(200));
             //rect->set_origin(Vec2(0.5, 0));
             //rect = advance(rect);
-            add<Text>(_layers.at(_current)._title, Loc(rect->pos() + Vec2(0, rect->height() * 0.5)), White, Font(0.5, Style::Bold, Align::Center));
+            add<Text>(Str{_layers.at(_current)._title}, Loc(rect->pos() + Vec2(0, rect->height() * 0.5)), TextClr{White}, Font(0.5, Style::Bold, Align::Center));
             //advance(new Text(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center)));
         }
         

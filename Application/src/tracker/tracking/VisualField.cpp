@@ -141,57 +141,6 @@ void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, d
     }
 }
 
-//! LineSegementsIntersect (modified a bunch) from https://www.codeproject.com/Tips/862988/Find-the-Intersection-Point-of-Two-Line-Segments under CPOL (https://www.codeproject.com/info/cpol10.aspx)
-bool LineSegementsIntersect(const Vec2& p, const Vec2& p2, const Vec2& q, const Vec2& q2, Vec2& intersection)
-{
-    constexpr bool considerCollinearOverlapAsIntersect = false;
-    
-    auto r = p2 - p;
-    auto s = q2 - q;
-    auto rxs = cross(r, s);
-    auto qpxr = cross(q - p, r);
-    
-    // If r x s = 0 and (q - p) x r = 0, then the two lines are collinear.
-    if (rxs == 0 && qpxr == 0)
-    {
-        // 1. If either  0 <= (q - p) * r <= r * r or 0 <= (p - q) * s <= * s
-        // then the two lines are overlapping,
-        if constexpr (considerCollinearOverlapAsIntersect)
-            if ((0 <= (q - p).dot(r) && (q - p).dot(r) <= r.dot(r)) || (0 <= (p - q).dot(s) && (p - q).dot(s) <= s.dot(s)))
-                return true;
-        
-        // 2. If neither 0 <= (q - p) * r = r * r nor 0 <= (p - q) * s <= s * s
-        // then the two lines are collinear but disjoint.
-        // No need to implement this expression, as it follows from the expression above.
-        return false;
-    }
-    
-    // 3. If r x s = 0 and (q - p) x r != 0, then the two lines are parallel and non-intersecting.
-    if (rxs == 0 && qpxr != 0)
-        return false;
-    
-    // t = (q - p) x s / (r x s)
-    auto t = cross(q - p,s)/rxs;
-    
-    // u = (q - p) x r / (r x s)
-    
-    auto u = cross(q - p, r)/rxs;
-    
-    // 4. If r x s != 0 and 0 <= t <= 1 and 0 <= u <= 1
-    // the two line segments meet at the point p + t r = q + u s.
-    if (rxs != 0 && (0 <= t && t < 1) && (0 <= u && u < 1))
-    {
-        // We can calculate the intersection point using either t or u.
-        intersection = p + t*r;
-        
-        // An intersection was found.
-        return true;
-    }
-    
-    // 5. Otherwise, the two line segments are not parallel but do not intersect.
-    return false;
-}
-
 void VisualField::remove_frames_after(Frame_t frame) {
     std::unique_lock guard(history_mutex);
     for(auto &[key, value] : history) {
@@ -268,7 +217,6 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Fra
         Vec2 right_end = pt + right_direction * h1 * 2;
         
         Vec2 right_intersect(FLT_MAX), left_intersect(FLT_MAX);
-        Vec2 intersect;
         
         for(size_t i=0; i<opts.size(); ++i) {
             auto j = i ? (i - 1) : (opts.size()-1);
@@ -276,8 +224,9 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Fra
             auto &pt1 = opts[j];
             
             if(left_intersect.x == FLT_MAX) {
-                if(LineSegementsIntersect(pt0, pt1, pt, left_end, intersect)) {
-                    left_intersect = intersect;
+                auto intersect = LineSegmentsIntersect(pt0, pt1, pt, left_end);
+                if(intersect) {
+                    left_intersect = intersect.value();
                     
                     // check if both are found already
                     if(right_intersect.x != FLT_MAX)
@@ -286,8 +235,9 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Fra
             }
             
             if(right_intersect.x == FLT_MAX) {
-                if(LineSegementsIntersect(pt0, pt1, pt, right_end, intersect)) {
-                    right_intersect = intersect;
+                auto intersect = LineSegmentsIntersect(pt0, pt1, pt, right_end);
+                if(intersect) {
+                    right_intersect = intersect.value();
                     
                     // check if both are found
                     if(left_intersect.x != FLT_MAX)
@@ -533,7 +483,7 @@ void VisualField::show(gui::DrawStructure &base) {
             {
                 auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
                 //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
-                base.line(eye.pos, eye._visible_points[i + VisualField::field_resolution], Black.alpha((uint8_t)saturate(50 * w * w + 10)));
+                base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye._visible_points[i + VisualField::field_resolution] }, LineClr{ Black.alpha((uint8_t)saturate(50 * w * w + 10)) });
             }
         }
         
@@ -549,7 +499,7 @@ void VisualField::show(gui::DrawStructure &base) {
     for(auto &eye : _eyes) {
         Vec2 straight(cos(eye.angle), sin(eye.angle));
         
-        base.line(eye.pos, eye.pos + straight * 11, 1, Black);
+        base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + straight * 11 }, LineClr{ Black });
         
         auto left = Vec2((Float2_t)cos(eye.angle - symmetric_fov),
                          (Float2_t)sin(eye.angle - symmetric_fov));
@@ -569,8 +519,8 @@ void VisualField::show(gui::DrawStructure &base) {
         ptr->set_fill_clr(eye.clr.alpha(80));
         base.add_object(ptr);*/
         
-        base.line(eye.pos, eye.pos + left * 100, 1, eye.clr.exposure(0.65f));
-        base.line(eye.pos, eye.pos + right * 100, 1, eye.clr.exposure(0.65f));
+        base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + left * 100 }, LineClr{ eye.clr.exposure(0.65f) });
+        base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + right * 100 }, LineClr{ eye.clr.exposure(0.65f) });
     }
     
 }

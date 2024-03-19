@@ -1,4 +1,18 @@
-{% set version = environ.get('GIT_DESCRIBE_TAG', '-failed')[1:] %}
+{% set git_cmd = "git describe --tags --always --abbrev=0" %}
+{% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
+{% set git_tag = "main" %}
+{% set version_postfix = "" %}
+#{% set version_postfix = "i" %} # for installer packages
+
+####
+{% if git_tag != 'main' %}
+{% set version_prefix = '_' + git_tag %}
+{% else %}
+{% set version_prefix = '' %}
+{% endif %}
+
+{% set version = ((latest_tag if latest_tag else '-failed') + version_prefix + version_postfix)[1:] %}
+
 {% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
 {% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
 
@@ -7,13 +21,21 @@ package:
   version: "{{ version }}"
 
 channels:
-  - conda-forge [arm64 or linux]
-  - apple [arm64]
-  - nodefaults [arm64]
+  - conda-forge     # [arm64 or linux]
+  - pytorch
+  - apple           # [arm64]
+  - nodefaults      # [arm64]
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
-    git_tag: main
+    git_tag: {{ git_tag }}
+
+app:
+  entry: trex
+  icon: ../Application/src/tracker/gfx/TRex_1024.png
+  summary: TRex
+  type: console
+  own_environment: True
 
 build:
     script_env:
@@ -21,7 +43,7 @@ build:
       - SDKROOT
       - CC
       - CXX
-    number: 42
+    number: 69
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
@@ -29,11 +51,9 @@ build:
     detect_binary_files_with_prefix: True
     files_with_prefix:
         - bin/trex
-        - bin/tgrabs
         - bin/pvinfo
         - bin/pvconvert
-        - bin/TRex.app/Contents/MacOS/TRex [osx]
-        - bin/TGrabs.app/Contents/MacOS/TGrabs [osx]
+        - bin/TRex.app/Contents/MacOS/TRex # [osx]
     
 requirements:
   build:
@@ -47,8 +67,6 @@ requirements:
     - cmake >=3.20
     - git # [not win]
     - git <2.34|>=2.35 # [win]
-    - {{ cdt('mesa-libgl-devel') }}  # [linux]
-    - {{ cdt('mesa-dri-drivers') }}  # [linux]
     - {{ cdt('libselinux') }}  # [linux]
     - {{ cdt('libxdamage') }}  # [linux]
     - {{ cdt('libxxf86vm') }}  # [linux]
@@ -71,27 +89,56 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
-    - python
+    - python =3.9 # [win]
+    - nasm
 
   host:
     - pthread-stubs  # [linux]
+    - python =3.11 # [osx and arm64]
+    - python =3.11 # [osx and not arm64]
+    - python =3.9 # [win]
+    - python =3.10 # [linux]
+    - openblas # [arm64]
+    - ffmpeg =6 # [osx and arm64]
+    - ffmpeg >=4.3,<=6 # [win]
+    - defaults::ffmpeg >=4,<=6 # [osx and not arm64]
+    - defaults::ffmpeg =4.2 # [linux]
+    - openh264 # [osx] 
+    - numpy ==1.26.2 # [osx and not arm64]
+    - numpy ==1.26.2 # [arm64]
+    - numpy >=1.19,<=1.24 # [linux]
+    - numpy ==1.26.2 # [win]
+
+  run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
-    - python >=3.7,<4
-    - ffmpeg =4 # [not osx or arm64]
-    - ffmpeg <=4.2.2 # [osx and not arm64]
-    
-  run:
-    - tensorflow-gpu >=2.4,<3 # [win or linux]
-    - tensorflow >=2,<3   # [osx and not arm64]
-    - cudatoolkit # [win]
-    - cudnn # [win]
+    - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
+    - {{ pin_compatible('numpy', min_pin='x.x.x', max_pin='x.x.x') }}
+    - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
+    #- tensorflow-gpu =2 # [win]
+    # disable tensorflow packages for install builds
+    #- tensorflow-gpu =2.4.1 # [linux]
+    #- tensorflow-estimator =2.4.1 # [linux]
+    #- tensorflow >=2,<3   # [osx and not arm64]
+    - "pytorch::pytorch-mutex=*=cuda" # [linux or win]
+    - "pytorch::pytorch=2.*=py3*" # [osx and not arm64]
+    - "pytorch::pytorch=2.*=py3*" # [osx and arm64]
+    - "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" # [win]
+    - "pytorch::pytorch=1.*=py3.*_cuda11.7_cudnn*" # [linux]
+    - "pytorch::pytorch-cuda=11.7" # [linux or win]
+    - "pytorch::torchvision=*=py3*" # [osx and not arm64]
+    - "pytorch::torchvision=*=py3*" # [osx and arm64]
+    - "pytorch::torchvision=*=py3*_cu117" # [linux or win]
+    # disable this for install builds
+    #- cudatoolkit =10.1 # [linux]
+    #- cudatoolkit =11 # [win]
+    #- cudnn # [win]
+    # disable this for install builds
+    #- cudnn =7.6 # [linux]
     - scikit-learn
-    - numpy # [not arm64]
-    - pip  # [arm64]
-    - protobuf =3.19 # [arm64]
+    - seaborn
+    - pip
     - requests
-    - python
 
 about:
   home: https://trex.run
@@ -107,7 +154,6 @@ about:
       - Application/build/opencv_install/share/licenses/opencv4/libjpeg-turbo-README.md # [not win]
       - Application/build/opencv_install/share/licenses/opencv4/libtiff-COPYRIGHT # [not win]
       - Application/build/opencv_install/share/licenses/opencv4/protobuf-LICENSE # [not win]
-      - Application/build/opencv_install/share/licenses/opencv4/quirc-LICENSE # [not win]
       - Application/build/opencv_install/share/licenses/opencv4/SoftFloat-COPYING.txt # [not win]
       - Application/build/opencv_install/etc/licenses/ade-LICENSE  # [win]
       - Application/build/opencv_install/etc/licenses/ffmpeg-license.txt # [win]
@@ -117,7 +163,6 @@ about:
       - Application/build/opencv_install/etc/licenses/libjpeg-turbo-README.md # [win]
       - Application/build/opencv_install/etc/licenses/libtiff-COPYRIGHT # [win]
       - Application/build/opencv_install/etc/licenses/protobuf-LICENSE # [win]
-      - Application/build/opencv_install/etc/licenses/quirc-LICENSE # [win]
       - Application/build/opencv_install/etc/licenses/SoftFloat-COPYING.txt # [win]
       - licenses/glfw/LICENSE.md
       - licenses/robin-hood/LICENSE

@@ -1,7 +1,7 @@
 #include "Posture.h"
 #include <misc/Timer.h>
 #include <misc/GlobalSettings.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 
 #include <tracking/DebugDrawing.h>
 #include <thread>
@@ -28,7 +28,7 @@ namespace track {
 
     std::vector<Posture::EntryPoint> Posture::subpixel_threshold(const cv::Mat& greyscale, const int threshold) {
         static Timing timing("subpixel thresholding", 30);
-        static std::mutex average_mutex;
+        static auto average_mutex = LOGGED_MUTEX("Posture::average_mutex");
         static size_t average_eps_count = 1000;
         static size_t eps_samples = 1;
         
@@ -42,9 +42,8 @@ namespace track {
         EntryPoint strips[2];
         
         {
-            average_mutex.lock();
+            auto g = LOGGED_LOCK(average_mutex);
             eps.reserve(average_eps_count / eps_samples * 1.1f);
-            average_mutex.unlock();
         }
         
         const float t = threshold;
@@ -214,7 +213,7 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::lock_guard<std::mutex> guard(average_mutex);
+        auto guard = LOGGED_LOCK(average_mutex);
         if(eps_samples < 10000) {
             average_eps_count += eps.size();
             eps_samples++;
@@ -278,8 +277,8 @@ namespace track {
                         _outline.resample(FAST_SETTING(outline_resample));
                 }
                 
-                std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-                auto debug = gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second;
+                std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+                auto debug = std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
                 float confidence = calculate_midline(debug);
                 bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
                 error = !_normalized_midline;
@@ -296,22 +295,8 @@ namespace track {
                 outline_point = selected;
                 
                 if(!error && confidence > 0.9f) {
-                    if(/* DISABLES CODE */ (false) && FAST_SETTING(debug)) /*&& threshold-initial_threshold > 0*/
-                    {
-                        printf("raw_outline=np.asarray([");
-                        for (auto &a : *selected) {
-                            printf("[%f,%f],", a.x, a.y);
-                        }
-                        printf("])\n");
-
-                        print("Frame ", frameIndex," rendered with threshold ", FAST_SETTING(track_posture_threshold),"+", threshold - FAST_SETTING(track_posture_threshold)," (", selected->size()," -> ", _outline.size()," points).");
-                    }
-                    
                     // found a good configuration! escape.
                     break;
-                    
-                } else if(FAST_SETTING(debug)) {
-                    print("Error in outline (threshold ", threshold,") @",frameIndex," for ",fishID," ", error);
                 }
             }
             
@@ -319,10 +304,6 @@ namespace track {
             threshold += 2;
             
             if(threshold >= initial_threshold + 50) {
-                if(FAST_SETTING(debug)) {
-                    print("Outline failed (threshold ", threshold,") @", frameIndex," for ", fishID);
-                }
-                
                 break;
             }
         }
@@ -332,8 +313,8 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-        if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second
+        std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+        if(std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish)
            && outline_point) {
             print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto &blob = thresholded_blob;
@@ -422,7 +403,7 @@ namespace track {
         for(size_t i=0; i<N; ++i)
             unassigned.push_back((long_t)i);
         
-        size_t assigned = 0;
+        //size_t assigned = 0;
         
 #define pdist(A, b) sqdistance(A, entry_points[b].interp.front())
 #define rpdist(A, b) sqdistance(A, entry_points[b].interp.back())
@@ -485,7 +466,7 @@ namespace track {
         // repeat until we found the biggest object
         while (unassigned.size() > N * 0.05) {//unassigned.size() > assigned) {
             _outline.clear();
-            assigned = 0;
+            //assigned = 0;
             //current_min_rawd = FLT_MAX;
             direction = Vec2(FLT_MAX, FLT_MAX);
             prev_angle = FLT_MAX;
@@ -500,7 +481,7 @@ namespace track {
                 if(!_outline.empty())
                     prev_point = _outline.back();
                 _outline.insert(_outline.size(), entry_points[pt].interp.begin(), entry_points[pt].interp.end());
-                assigned++;
+                //assigned++;
                 
                 back_front = _outline.size() > 3 ? rdist_points(_outline.back(), _outline.front(), sqdistance(_outline.back(), _outline.front())) : FLT_MAX;
                 

@@ -6,7 +6,12 @@
 
 //-Includes--------------------------------------------------------------------
 
-#include <types.h>
+#include <commons.pc.h>
+
+#if WITH_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
 #endif
@@ -37,7 +42,7 @@
 #include <video/Video.h>
 #include "CropWindow.h"
 
-#include "default_config.h"
+#include "misc/default_config.h"
 #include <tracker/misc/default_config.h>
 #include <misc/default_settings.h>
 
@@ -224,6 +229,9 @@ int main(int argc, char** argv)
     XInitThreads();
 #endif
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifdef __APPLE__
 //char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
 //    putenv(env);
@@ -237,15 +245,15 @@ int main(int argc, char** argv)
     
     ::default_config::register_default_locations();
     
-    file::DataLocation::replace_path("settings", [](file::Path path) -> file::Path {
-        auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
+    file::DataLocation::replace_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
+        auto settings_file = path.str().empty() ? map.at("settings_file").value<Path>() : path;
         if(settings_file.empty()) {
             print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s 'path/to/file.settings'");
             return settings_file;
         }
 		
         if(!settings_file.is_absolute()) {
-            settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
+            settings_file = map.at("output_dir").value<file::Path>() / settings_file;
         }
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
@@ -254,7 +262,7 @@ int main(int argc, char** argv)
         return settings_file;
     });
     
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     
     gui::init_errorlog();
     ocl::init_ocl();
@@ -353,7 +361,7 @@ int main(int argc, char** argv)
         
         // switch working directory
         DebugHeader("LOADING COMMANDLINE");
-        CommandLine cmd(argc, argv, true, grab::default_config::deprecations());
+        CommandLine::init(argc, argv, true, grab::default_config::deprecations());
         file::cd(file::DataLocation::parse("app"));
         
         auto default_path = file::DataLocation::parse("default.settings");
@@ -363,6 +371,7 @@ int main(int argc, char** argv)
             DebugHeader("LOADED ",default_path);
         }
         
+        auto& cmd = CommandLine::instance();
         for(auto &option : cmd) {
             if(Arguments::has(option.name)) {
                 switch (Arguments::get(option.name)) {
@@ -424,8 +433,7 @@ int main(int argc, char** argv)
                             auto f = path.fopen("wb");
                             if(!f)
                                 throw U_EXCEPTION("Cannot open ",path.str());
-                            fwrite(rst.data(), sizeof(char), rst.length(), f);
-                            fclose(f);
+                            fwrite(rst.data(), sizeof(char), rst.length(), f.get());
                             
                             //printf("%s\n", rst.c_str());
                             print("Saved at ", path.str(),".");
@@ -522,7 +530,7 @@ int main(int argc, char** argv)
             SETTING(enable_live_tracking) = true;
         }
 
-        SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());
+        SETTING(meta_source_path) = SETTING(video_source).value<std::string>();
         std::vector<file::Path> filenames;
         
         // recognize keywords in video_source
@@ -597,7 +605,12 @@ int main(int argc, char** argv)
         
         std::stringstream ss;
         for(int i=0; i<argc; ++i) {
-            ss << " " << argv[i];
+            if(i > 0)
+                ss << " ";
+            if(argv[i][0] == '-')
+                ss << argv[i];
+            else
+                ss << "'" << argv[i] << "'";
         }
         SETTING(meta_cmd) = ss.str();
 #if WITH_GITSHA1
@@ -632,13 +645,16 @@ int main(int argc, char** argv)
             exec_main_queue([&](){}).get();
         });
             
-        if (SETTING(crop_window) && grabber.video() && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
+        if (SETTING(crop_window) 
+            //&& grabber.video() 
+            && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
 #if CMN_WITH_IMGUI_INSTALLED
-            gui::CropWindow cropwindow(grabber);
+            gui::CropWindow cropwindow;
 #endif
         }
             
-        auto gui = std::make_unique<GUI>(grabber);
+        auto graph = std::make_unique<DrawStructure>();
+        auto gui = std::make_unique<GUI>(graph.get(), grabber);
 #if WITH_MHD
         Httpd httpd([&](Httpd::Session*, const std::string& url){
             cv::Mat image;
@@ -688,8 +704,11 @@ int main(int argc, char** argv)
             }
             
             
-            if(!SETTING(nowindow) && !imgui_base && grabber.task()._complete) {
-                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui->gui(), [&](){
+            if(not SETTING(nowindow)
+               && not imgui_base
+               && grabber.task()._complete)
+            {
+                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", std::move(graph), [&](auto&){
                     //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
                     if(SETTING(terminate))
                         return false;
@@ -714,8 +733,9 @@ int main(int argc, char** argv)
                 std::this_thread::sleep_for(ms);
             }
         }
-
+            
         gui = nullptr;
+        graph = nullptr;
         imgui_base = nullptr;
         print("Ending the program.");
         

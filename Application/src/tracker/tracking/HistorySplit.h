@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/PPFrame.h>
 #include <tracking/PrefilterBlobs.h>
 #include <misc/ThreadPool.h>
@@ -10,7 +10,7 @@ namespace track {
 
 class HistorySplit {
     UnorderedVectorSet<pv::bid> already_walked;
-    std::set<pv::bid> big_blobs;
+    robin_hood::unordered_flat_set<pv::bid> big_blobs;
     robin_hood::unordered_map<pv::bid, split_expectation> expect;
     
 public:

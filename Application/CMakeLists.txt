@@ -1,8 +1,6 @@
-cmake_minimum_required(VERSION 3.0)
-if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
-    message(STATUS "* Please consider to switch to CMake 3.11.0")
-endif()
-
+cmake_minimum_required(VERSION 3.17)
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 message("-- USER environment variable is set to: " $ENV{USER})
 
 project(TRex LANGUAGES CXX C)
@@ -10,12 +8,13 @@ if(POLICY CMP0114)
   cmake_policy(PUSH)
   cmake_policy(SET CMP0114 NEW)
 endif()
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
-    include(FetchContent)
-endif()
+include(FetchContent)
 
 enable_testing()
 
@@ -26,7 +25,7 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
 set(CMAKE_XCODE_ATTRIBUTE_GCC_INCREASE_PRECOMPILED_HEADER_SHARING "YES")
 set(CMAKE_XCODE_ATTRIBUTE_GCC_PRECOMPILE_PREFIX_HEADER "YES")
-set(CMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
+#set(CMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
 
 #set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 option(TREX_NO_PYTHON OFF)
@@ -34,6 +33,25 @@ option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
 option(WITH_GITSHA1 "include git hash" ON)
+option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
+option(BUILD_LEGACY_TGRABS "Build the TGrabs (legacy) target" OFF)
+
+if(APPLE)
+    option(BUILD_FOR_ARM64 "Build for arm64 architecture" ON)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+        set(BUILD_FOR_ARM64 ON)
+    else()
+        set(BUILD_FOR_ARM64 OFF)
+    endif()
+
+    if(BUILD_FOR_ARM64)
+        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architecture for macOS" FORCE)
+    else()
+        set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architecture for macOS" FORCE)
+    endif()
+
+    message(STATUS "Architectures: ${CMAKE_OSX_ARCHITECTURES}")
+endif()
 
 if(COMMONS_NO_PYTHON)
     set(TREX_NO_PYTHON ON)
@@ -63,38 +81,57 @@ endif()
 
 add_subdirectory(src/commons)
 
-set(CMAKE_CXX_STANDARD 20)
-message(STATUS "Using c++20 standard (${CMAKE_CXX_STANDARD}).")
+message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "CMAKE_CXX_COMPILER_VERSION: ${CMAKE_CXX_COMPILER_VERSION}")
 
-set(cxx_flag_std_number "")
-if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag(-std=c++2a HAVE_FLAG_STD_CXX20)
-    if(HAVE_FLAG_STD_CXX20)
-        message(STATUS "Using support for C++20")
-        set(CMAKE_CXX_STANDARD 20)
-        set(cxx_flag_std_number "-std=c++2a")
+include(CheckCXXCompilerFlag)
+
+if(MSVC)
+    check_cxx_compiler_flag("/std:c++23" COMPILER_SUPPORTS_CXX23)
+    if(NOT COMPILER_SUPPORTS_CXX23)
+        set(COMPILER_SUPPORTS_CXX23 ON) # we dont have a way to check for C++23 in MSVC?
     endif()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /MP")
+else()
+    check_cxx_compiler_flag("-std=c++2b" COMPILER_SUPPORTS_CXX23)  # c++2b is often used for C++23 in GCC and Clang
+endif()
 
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${cxx_flag_std_number}")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${cxx_flag_std_number}")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${cxx_flag_std_number}")
+if(COMPILER_SUPPORTS_CXX23)
+    set(CMAKE_CXX_STANDARD 23)
+else()
+    set(CMAKE_CXX_STANDARD 20)
+endif()
+
+if(MSVC)
+    message(STATUS "Using latest C++ standard.")
+else()
+    message(STATUS "Using c++${CMAKE_CXX_STANDARD} standard.")
 endif()
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
 string( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
 set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 
 set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
 endif()
 
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 message(STATUS "ORIGINAL_CXX_FLAGS=${ORIGINAL_CXX_FLAGS}")
+
+if(MSVC)
+    # Enable incremental linking for Debug builds
+    #set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL")
+    
+    # Enable incremental linking for Release builds (optional)
+    #set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /INCREMENTAL")
+    #set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /PROFILE")
+endif()
 
 if(WIN32)
     set(BUILD_SHARED_LIBS OFF)
@@ -109,6 +146,15 @@ if(WIN32)
     #endif()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DCURL_STATICLIB")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /DEBUG")
+    
+    #set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG")
+    #set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} /LTCG")
+    #set(CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO} /LTCG")
+    #set(CMAKE_STATIC_LINKER_FLAGS_RELEASE "${CMAKE_STATIC_LINKER_FLAGS_RELEASE} /LTCG")
+    #set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO} /LTCG")
+    #set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG")
+
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
@@ -129,6 +175,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten") #-pthread -s PTHREAD_POOL_SIZE=8  
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -pthread")
 
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --preload-file fonts --preload-file group_1.pv -s TOTAL_MEMORY=1000MB")
+    #set(CMAKE_CONFIGURATION_TYPES Debug;Release FORCE)
     set(CMAKE_CONFIGURATION_TYPES "Release" FORCE)
 endif()
 
@@ -171,11 +218,14 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     elseif(NOT TREX_CONDA_PACKAGE_INSTALL)
         set(M1OPTIONS "-march=native")
     endif()
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+        set(M1OPTIONS "")
+    endif()
 
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-stack-address -Wthread-safety")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g ${C_SANITIZE_OPTIONS}")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O3 -g ${C_SANITIZE_OPTIONS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic")
     
@@ -199,7 +249,7 @@ else()
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-local-addr")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-local-addr -Wno-stringop-overflow -static-libstdc++")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall -Wextra -Wno-long-long -ggdb -DOM_DEBUG -O0 -no-pie")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g0 -no-pie")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -ggdb -no-pie")
@@ -214,7 +264,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 if(XCODE)
-    set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++20")
+    set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++2a")
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
     
     set(CMAKE_XCODE_ATTRIBUTE_GCC_WARN_ABOUT_RETURN_TYPE "YES")
@@ -313,7 +363,9 @@ if(NOT WIN32 AND ${TREX_BUILD_DOCS})
           doc ALL
           COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
           COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND PATH=$ENV{PATH}:${SPHINX_DIR} make html
+          COMMAND export PATH="$ENV{PATH}:${SPHINX_DIR}"
+          COMMAND echo "CONDA_PREFIX=${CONDA_PREFIX} PATH=${PATH}"
+          COMMAND make html
           DEPENDS
             TRex
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
@@ -348,8 +400,6 @@ add_subdirectory(Tests)
 if(POLICY CMP0114)
   cmake_policy(POP)
 endif()
-
-
 
 message(STATUS "LINK_OPTIONS = ${CMAKE_CXX_LINK_FLAGS} ${CMAKE_CXX_LINK_FLAGS_RELEASE} ")
 message(STATUS "CMAKE_EXE_LINKER_FLAGS = ${CMAKE_EXE_LINKER_FLAGS}")

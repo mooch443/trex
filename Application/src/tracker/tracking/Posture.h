@@ -1,7 +1,7 @@
 #ifndef _POSTURE_H
 #define _POSTURE_H
 
-#include <types.h>
+#include <commons.pc.h>
 
 #include "Outline.h"
 #include <misc/bid.h>
@@ -32,8 +32,8 @@ namespace track {
         
         Frame_t frameIndex;
         Idx_t fishID;
-        GETTER(Outline, outline)
-        GETTER_PTR(Midline::Ptr, normalized_midline)
+        GETTER(Outline, outline);
+        GETTER_PTR(Midline::Ptr, normalized_midline);
         
     public:
         Posture(Frame_t frameIndex, Idx_t fishID);

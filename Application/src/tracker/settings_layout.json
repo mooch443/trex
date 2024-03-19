@@ -1,0 +1,625 @@
+{ "defaults": {
+    "font": {
+        "size": 0.6,
+        "align": "left"
+    },
+    "color":[225,225,225,255],
+    "highlight_clr":[50,50,75],
+    "window_color":[10,10,10],
+    "vars":{
+        "label_w":185,
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:70}}",
+        "is_small_window":"{<:{element_w}:1020004}",
+        "inside_label_w":"{+:{label_w}:10}",
+        "textfield_w":"{max:100:{+:{element_w}:160}}",
+        "machine_learning":"{equal:{global.detect_type}:yolo8}",
+        "label_offset":[15,-5],
+        "label_origin":[0,0],
+        "label_padding":[0,5,10,5],
+        "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
+        "bg_scale":"[{ratio},{ratio}]",
+        "valid_pv_file":"{file_exists:{resulting_path}.pv}"
+    }
+  },
+  "objects":[
+    {
+        "type":"video",
+        "path":"{if:{video_file}:{video_file}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
+        "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
+        "origin":[0.5,0.5],
+        "blur":0.7,
+        "alpha":0.5,
+        "frame_seconds":0.25,
+        "scale":"{bg_scale}"
+    },
+    {
+    "type":"vlayout",
+    "align":"left",
+    "line":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,150]}",
+    "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
+    "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
+    "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
+    "pad":[0,0,0,5],
+    "children":[
+        { "type":"stext",
+          "pad":[35,25,0,20],
+          "max_size":"[{element_w},0]",
+          "text":"<h2>Configuration</h2>\nBelow are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.", 
+          "font":{ "size":0.65 }
+        },
+        {
+            "type":"hlayout",
+            "pad":[35,0,-36,0],
+            "children":[
+                {
+                    "type":"hlayout",
+                    "align":"center",
+                    "origin":[0,0],
+                    "clickable":true,
+                    "pad":[-1,0,0,0],
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                    "children":[
+                        {
+                            "type":"button",
+                            "text":"<sym>🗁</sym> Locations",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[200,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "change_layout:choose_settings_layout"
+                        },
+                        {
+                            "type":"collection",
+                            "fill":[20,20,20,220],
+                            "clickable":true,
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[200,40],
+                            "children":[
+                                {
+                                    "pos":[100,20],
+                                    "origin":[0.5,0.5],
+                                    "type":"stext",
+                                    "text":"<sym>💻</sym> Detection",
+                                    "font":{
+                                        "align":"center",
+                                        "size":0.65
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "type":"button",
+                            "text":"<sym>🐟</sym> Tracking",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[200,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "change_layout:tracking_settings_layout"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type":"gridlayout",
+            "vertical_clr":[0,0,0,0],
+            "horizontal_clr":[10,50,80,40],
+            "pad":[20,25,20,25],
+            "clickable":true,
+            "halign":"left",
+            "valign":"top",
+            "children":[
+                [
+                    {
+                        "type":"stext",
+                        "text":"<b>Detection mode</b>\n<small><gray>Here we select how individuals are found.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{addVector:{label_offset}:[0,5]}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    [{
+                        "type":"rect",
+                        "fill":[0,0,0,0],
+                        "size":"[{-:{window_size.x}:{label_w}},10]"
+                    },{
+                        "type":"vlayout",
+                        "pad":[0,0,0,5],
+                        "children":[
+                            {
+                                "type":"hlayout",
+                                "pad":[0,0,5,0],
+                                "children":[
+                                    {
+                                        "type":"settings",
+                                        "var":"detect_type",
+                                        "label":{
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                            "font":{"size":0.65}
+                                        },
+                                        "size":"[{min:350:{max:100:{-:{element_w}:195}}},45]",
+                                        "pad":[0,0,10,0],
+                                        "desc":""
+                                    },
+                                    {
+                                        "type":"condition",
+                                        "var":"{machine_learning}",
+                                        "then":
+                                        {
+                                            "type":"hlayout",
+                                            "children":[
+                                                {
+                                                    "type":"settings",
+                                                    "var":"gpu_torch_device",
+                                                    "label":{
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                        "font":{"size":0.65}
+                                                    },
+                                                    "size":"[{min:200:{max:120:{element_w}}},45]",
+                                                    "desc":"GPU: "
+                                                },
+                                                {
+                                                    "type":"condition",
+                                                    "var":"{not:{equal:{global.gpu_torch_device}:automatic}}",
+                                                    "then":{
+                                                        "type":"settings",
+                                                        "var":"gpu_torch_index",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":"[{min:50:{max:120:{element_w}}},45]",
+                                                        "desc":""
+                                                    },
+                                                    "else":{
+                                                        "type":"rect",
+                                                        "size":[0,0]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+
+                            {
+                                "type":"stext",
+                                "max_size": "[{min:900:{element_w}},50]",
+                                "font":{"size":0.5},
+                                "text": "{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}"
+                            }
+                        ]
+                    }]
+                ],
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"{if:{machine_learning}:'<h2><sym>🐟</sym></h2> Detection model\n<small><gray>Final step, deciding object vs. background.</gray></small>':'<sym>▦</sym> Background generator mode'}",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    
+                    {
+                        "type":"condition",
+                        "var":"{machine_learning}",
+                        "then":{
+                            "type":"vlayout",
+                            "name":"detect_model_setting",
+                            "clickable":true,
+                            "pad":[0,5,0,5],
+                            "children":[
+                                {
+                                    "type":"hlayout",
+                                    "pad":[0,0,5,0],
+                                    "children":[
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_model",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
+                                            },
+                                            "size":"[{max:50:{element_w}},40]",
+                                            "desc":""
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type":"hlayout",
+                                    "pad":[0,0,10,0],
+                                    "children":[
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_resolution",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
+                                            },
+                                            "size":[116,40],
+                                            "desc":"resolution: "
+                                        },
+
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_iou_threshold",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
+                                            },
+                                            "size":[116,40],
+                                            "desc":"iou threshold: "
+                                        },
+
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_conf_threshold",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
+                                            },
+                                            "size":[116,40],
+                                            "desc":"confidence threshold: "
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type":"condition",
+                                    "var":"{||:true:{selected:detect_model_setting}}",
+                                    "then":
+                                    { 
+                                        "type":"hlayout",
+                                        "pad":[0,0,20,0],
+                                        "align":"top",
+                                        "children":[
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>default models:</b>",
+                                                "font":{"size":0.5},
+                                                "pad":[0,2,0,0]
+                                            },
+                                            {
+                                                "type":"gridlayout",
+                                                "pad":[0,0,5,5],
+                                                "halign":"left",
+                                                "children":[
+                                                    [
+                                                        {
+                                                            "type":"button",
+                                                            "text":"<sym>⮞</sym> yolov8n-pose",
+                                                            "click":"set:detect_model:'yolov8n-pose'",
+                                                            "fill":[50,90,50],
+                                                            "size":[120,30],
+                                                            "font":{"size":0.5}
+                                                        },
+                                                        {
+                                                            "type":"button",
+                                                            "text":"<sym>⮞</sym> yolov8n",
+                                                            "click":"set:detect_model:'yolov8n'",
+                                                            "fill":[50,90,50],
+                    
+                                                            "size":[90,30],
+                                                            "font":{"size":0.5}
+                                                        },
+                                                        {
+                                                            "type":"button",
+                                                            "text":"<sym>⮞</sym> yolov8m-pose",
+                                                            "click":"set:detect_model:'yolov8m-pose'",
+                                                            "fill":[50,90,50],
+                                                            "size":[120,30],
+                                                            "font":{"size":0.5}
+                                                        },
+
+
+                                                        {
+                                                            "type":"button",
+                                                            "text":"<sym>⮞</sym> yolov8m",
+                                                            "click":"set:detect_model:'yolov8m'",
+                                                            "fill":[50,90,50],
+                                                            "size":[90,30],
+                                                            "font":{"size":0.5}
+                                                        },
+                                                        {
+                                                            "type":"button",
+                                                            "text":"<sym>⮞</sym> yolov8x-pose",
+                                                            "click":"set:detect_model:'yolov8x-pose'",
+                                                            "fill":[50,90,50],
+                                                            "size":[120,30],
+                                                            "font":{"size":0.5}
+                                                        },
+                                                        {
+                                                            "type":"button",
+                                                            "text":"<sym>⮞</sym> yolov8x",
+                                                            "click":"set:detect_model:'yolov8x'",
+                                                            "fill":[50,90,50],
+                                                            "size":[90,30],
+                                                            "font":{"size":0.5}
+                                                        }
+                                                    ]
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "else":{
+                            "type":"settings",
+                            "var":"averaging_method",
+                            "label":{
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                "font":{"size":0.65}
+                            },
+                            "list":{
+                                "line":[220,220,220,200],
+                                "fill":[25,25,25,220],
+                                "size":"[{element_w},200]",
+                                "font":{"size":0.6}
+                            },
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                            "size":[250,45],
+                            "desc":""
+                        }
+                    }
+                ],
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"{if:{machine_learning}:'<h2><sym>🖽</sym></h2> Region proposal\n<small><gray>Use a model to identify regions of interest within large images <i>(optional)</i>.</gray></small>':'<h3><sym>◐</sym></h3> Threshold'}",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    {
+                        "type":"vlayout",
+                        "pad":[0,0,0,5],
+                        "children": [
+                            {
+                                "type":"hlayout",
+                                "pad":[0,0,5,0],
+                                "children":[
+
+                                    {
+                                        "type":"settings",
+                                        "var":"{if:{machine_learning}:'region_model':'threshold'}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                        "list":{
+                                            "line":[220,220,220,200],
+                                            "fill":[25,25,25,220],
+                                            "size":"[{element_w},200]",
+                                            "font":{"size":0.6}
+                                        },
+                                        "size":"[{max:50:{element_w}},40]",
+                                        "desc":""
+                                    }
+                                ]
+                            },
+                            {
+                                "type":"condition",
+                                "var":"{machine_learning}",
+                                "then":
+                                {
+                                    "type":"settings",
+                                    "var":"region_resolution",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                    "list":{
+                                        "line":[220,220,220,200],
+                                        "fill":[25,25,25,220],
+                                        "size":"[{element_w},200]",
+                                        "font":{"size":0.6}
+                                    },
+                                    "size":[116,40],
+                                    "desc":"resolution: "
+                                }
+                            },
+                            {
+                                "type":"stext",
+                                "pad":[0,5,0,0],
+                                "max_size": "[{min:900:{element_w}},65]",
+                                "text": "{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':'This threshold is the {if:{global.enable_absolute_difference}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.'}",
+                                "font":{"size":0.5}
+                            }
+                        ]
+                    }
+                ],
+
+
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"{if:{&&:{not:{global.region_model}}:{machine_learning}}:'<h2><sym>◫</sym></h2> Tiling\n<small><gray>Other detection settings <i>(optional)</i>.</gray></small>':''}",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    {
+                        "type":"condition",
+                        "var":"{&&:{not:{global.region_model}}:{machine_learning}}",
+                        "then": {
+                            "type":"vlayout",
+                            "pad":[0,0,0,5],
+                            "children": [
+                                {
+                                    "type":"hlayout",
+                                    "pad":[0,0,10,0],
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>Tile images</b>\n<gray>before detection.</gray>",
+                                            "font":{"size":0.6}
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_tile_image",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]"
+                                            },
+                                            "size":[50,40],
+                                            "desc":""
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type":"stext",
+                                    "pad":[0,5,0,0],
+                                    "max_size": "[{min:900:{element_w}},65]",
+                                    "text": "{if:{machine_learning}:'If enabled, the input images will be split into smaller tiles before being processed by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model. This can be an alternative to using <sym>🖽</sym> <lightgray><c>region proposals</c></lightgray> and similarly help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step. <lightgray>This number is a multiplier and will increase the number of predictions per frame - it will impact processing speed.</lightgray>':''}",
+                                    "font":{"size":0.5}
+                                }
+                            ]
+                        }
+                    }
+                ]
+            ]
+        }
+    ]},
+
+    {
+        "type":"collection",
+        "fill":[0,0,0,30],
+        "size":"[{window_size.x},55]",
+        "origin":[0,1],
+        "pos":"[0,{window_size.y}]",
+        "clickable":true,
+        "children":[
+
+            {
+                "type":"hlayout",
+                "align":"center",
+                "pad":[5,0,5,0],
+                "pos":[10,8],
+                "origin":[0,0],
+                "children":[
+                    {
+                        "type":"settings",
+                        "var":"",
+                        "font":{"size":0.6,"align":"center"},
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "placeholder":"<sym>🔍</sym> Parameters",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{max:350:{-:{element_w}:90}},300]",
+                            "font":{"size":0.6}
+                        },
+                        "size":"[{max:350:{-:{element_w}:220}},40]",
+                        "color":[225,225,225],
+                        "desc":"",
+                        "highlight_clr":[75,75,75,255]
+                    }
+                ]
+            },
+        
+            {
+                "type":"hlayout",
+                "align":"center",
+                "pad":[5,0,5,0],
+                "pos":"[{-:{window_size.x}:10},8]",
+                "origin":[1,0],
+                "children":[
+                    {
+                        "type":"button",
+                        "text":"<sym>🛇</sym> Back to menu",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[150,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "change_scene:'starting-scene'"
+                    },
+                    {
+                        "type":"button",
+                        "text":"<sym>⮜</sym> Back",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[100,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "go-back"
+                    },
+                    {
+                        "type":"button",
+                        "text":"<sym>⭯</sym> Reset",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[100,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "reset_settings"
+                    },
+                    {
+                        "type":"button",
+                        "text":"Convert <sym>⮞</sym>",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[100,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "convert"
+                    },
+                    {
+                        "type":"condition",
+                        "var":"{valid_pv_file}",
+                        "then":{
+                            "type":"button",
+                            "text":"Track <sym>⮞</sym>",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[100,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "track"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+]}

@@ -8,16 +8,12 @@ set(GIT_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
 
 file(GLOB SRCS
     ${HTML}
-	tomp4.h
-	tomp4.cpp
 	grabber.h
 	grabber.cpp
      gpuImage.h
      gpuImage.cpp
 	gui.h
 	gui.cpp
-	default_config.cpp
-	default_config.h
     CropWindow.h
     CropWindow.cpp
     ImageThreads.h
@@ -39,30 +35,62 @@ endif()
 
 source_group(html FILES ${HTML})
 		
-if(APPLE)
-    set(TGRABS_EXEC_NAME TGrabs)
-else()
-    set(TGRABS_EXEC_NAME tgrabs)
-endif()
-add_executable(${TGRABS_EXEC_NAME} ${SRCS})
-#target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
-
-if(WIN32 AND NOT COMMONS_NO_PYTHON)
-	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DELAYLOAD:tracker_python.dll" )
-	set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}  /DELAYLOAD:tracker_python.dll")
-	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_DEBUG "/DELAYLOAD:tracker_python-d.dll" )
-	set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}  /DELAYLOAD:tracker_python-d.dll")
-endif()
-
-if(NOT COMMONS_NO_PYTHON)
+if(BUILD_LEGACY_TGRABS)
     if(APPLE)
-        ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
+        set(TGRABS_EXEC_NAME TGrabs)
+    else()
+        set(TGRABS_EXEC_NAME tgrabs)
     endif()
-    add_dependencies(${TGRABS_EXEC_NAME} trex_check_python ) #Commons::OpenCV)
-endif()
+    add_executable(${TGRABS_EXEC_NAME} ${SRCS})
+    #target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
 
-add_dependencies(${TGRABS_EXEC_NAME} commons)
+    if(WIN32 AND NOT COMMONS_NO_PYTHON)
+        set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DELAYLOAD:tracker_python.dll" )
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}  /DELAYLOAD:tracker_python.dll")
+        set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_DEBUG "/DELAYLOAD:tracker_python-d.dll" )
+        set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}  /DELAYLOAD:tracker_python-d.dll")
+    endif()
+
+    if(NOT COMMONS_NO_PYTHON)
+        if(APPLE)
+            ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
+        endif()
+        add_dependencies(${TGRABS_EXEC_NAME} trex_check_python ) #Commons::OpenCV)
+    endif()
+
+    add_dependencies(${TGRABS_EXEC_NAME} commons)
+
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
+        framegrabber_misc
+        tracker_misc
+        tracker_tracking
+        tracker_gui
+        pv
+        commons
+    )
+
+    #if(NOT COMMONS_NO_PYTHON)
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
+        if(WIN32)
+            set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+        endif()
+
+        if(NOT pybind11_external)
+            target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
+        else()
+            target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+        endif()
+    #endif()
+
+    if(WITH_HTTPD)
+        add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
+    endif()
+    #if(WITH_FFMPEG)
+    #    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE Commons::FFMPEG)
+    #endif()
+
+endif()
 
 add_executable(pvconvert pvconvert.cpp gif.h ${GIT_SOURCES})
 target_link_libraries(pvconvert PUBLIC
@@ -75,49 +103,23 @@ add_dependencies(pvconvert commons)#Commons::OpenCV)
 #target_precompile_headers(pvconvert REUSE_FROM commons)
 
 
-
-target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
-    framegrabber_misc
-    tracker_misc
-	tracker_tracking
-	tracker_gui
-	pv
-	commons
-)
-
-if(NOT COMMONS_NO_PYTHON)
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
-    if(WIN32)
-        set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
-    endif()
-
-    if(NOT pybind11_external)
-        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
-    else()
-        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
-    endif()
-endif()
-
-if(WITH_HTTPD)
-    add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
-endif()
-#if(WITH_FFMPEG)
-#    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE Commons::FFMPEG)
-#endif()
-
 add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${GIT_SOURCES})
 
 target_link_libraries(pvinfo PRIVATE
 	tracker_tracking
     tracker_gui
     tracker_misc
+    framegrabber_misc
 	commons
 	pv
 )
 
-if(NOT COMMONS_NO_PYTHON)
+#if(NOT COMMONS_NO_PYTHON)
     target_link_libraries(pvinfo PRIVATE tracker_python)
-endif()
+    if(WIN32)
+        set_target_properties(pvinfo PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    endif()
+#endif()
 
 #target_precompile_headers(pvinfo REUSE_FROM commons)
 
@@ -157,56 +159,56 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL )
         endforeach()
     endif()
 
-    if(APPLE)
-        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-            get_filename_component(comp_s ${comp} NAME)
-            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+    if(BUILD_LEGACY_TGRABS)
+        if(APPLE)
+            foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+                get_filename_component(comp_s ${comp} NAME)
+                add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy
+                                "${comp}"
+                                "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
+            endforeach()
+        elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+            foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+                get_filename_component(comp_s ${comp} NAME)
+
+                add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy
-                            "${comp}"
-                            "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
-        endforeach()
-    elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
+            endforeach()
+        endif()
 
-            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
-        endforeach()
+        IF("${CMAKE_SYSTEM}" MATCHES "Linux")
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
+                add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
+            endforeach()
+        elseif(APPLE)
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
+                add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
+            endforeach()
+        elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
+                add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
+            endforeach()
+        endif()
     endif()
-
-    IF("${CMAKE_SYSTEM}" MATCHES "Linux")
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
-            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
-        endforeach()
-    elseif(APPLE)
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
-            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
-        endforeach()
-    elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
-            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
-        endforeach()
-    endif()
-
-else()
+elseif(BUILD_LEGACY_TGRABS)
     set(RESOURCE_COPY_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/gfx
     )
-
     if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         foreach(comp ${RESOURCE_COPY_FILES})
             get_filename_component(comp_s ${comp} NAME)
@@ -218,7 +220,25 @@ else()
     endif()
 endif()
 
-set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)
+if(BUILD_LEGACY_TGRABS)
+    set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)
+
+    if(WITH_FFMPEG)
+        target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
+    endif()
+
+    if(APPLE)
+        target_sources(${TGRABS_EXEC_NAME} PRIVATE gfx/TGrabsIcons.xcassets)
+        set_source_files_properties(gfx/TGrabsIcons.xcassets PROPERTIES
+            MACOSX_PACKAGE_LOCATION Resources
+        )
+        set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
+            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+    endif()
+
+else()
+    set(targets pvinfo pvconvert)
+endif()
 
 if(APPLE)
     add_executable(tgrabs_starter tgrabs.cpp ${GIT_SOURCES})
@@ -226,19 +246,6 @@ if(APPLE)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
     #target_precompile_headers(tgrabs_starter REUSE_FROM commons)
-endif()
-
-if(WITH_FFMPEG)
-    target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
-endif()
-
-if(APPLE)
-target_sources(${TGRABS_EXEC_NAME} PRIVATE gfx/TGrabsIcons.xcassets)
-set_source_files_properties(gfx/TGrabsIcons.xcassets PROPERTIES
-    MACOSX_PACKAGE_LOCATION Resources
-)
-set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
-    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
 

@@ -1,14 +1,15 @@
 #pragma once
 
-#include <types.h>
-#include <tracking/Network.h>
+#include <commons.pc.h>
+#include <python/Network.h>
 #include <tracker/misc/default_config.h>
 #include <misc/Image.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <misc/idx_t.h>
 #include <file/Path.h>
 #include <tracking/TrainingData.h>
 #include <tracking/Stuffs.h>
+#include <misc/format.h>
 
 namespace Python {
 
@@ -22,8 +23,8 @@ ENUM_CLASS(TrainingMode,
 )
 
 template<typename T>
-concept image_ptr =    cmn::_clean_same<T, cmn::Image::Ptr>
-                    || cmn::_clean_same<T, cmn::Image::UPtr>;
+concept image_ptr =    cmn::_clean_same<T, cmn::Image::SPtr>
+                    || cmn::_clean_same<T, cmn::Image::Ptr>;
 
 class VINetwork {
 protected:
@@ -118,6 +119,9 @@ public:
             }
         });
         
+        if(not future.valid()) {
+            throw cmn::SoftException("Invalid future.");
+        }
         return future.get();
     }
     
@@ -198,8 +202,8 @@ public:
     
 private:
     static void set_variables_internal(auto&&, callback_t&&);
-    static void set_variables(std::vector<cmn::Image::UPtr>&&, callback_t&&);
     static void set_variables(std::vector<cmn::Image::Ptr>&&, callback_t&&);
+    static void set_variables(std::vector<cmn::Image::SPtr>&&, callback_t&&);
     void setup(bool force);
     
     void set_work_variables(bool force);

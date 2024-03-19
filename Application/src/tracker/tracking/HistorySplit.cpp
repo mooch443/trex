@@ -49,6 +49,8 @@ Settings::manual_splits_t::mapped_type HistorySplit::apply_manual_matches(PPFram
 
 HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThreadPool* pool)
 {
+    PPFrame::Log("FRAME ", frame.index());
+    
     //! Finalize the cache and this frame:
     frame.init_cache(pool, need);
     
@@ -260,9 +262,19 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     
     //for(auto& b : big_blobs)
     //    frame.erase_regular(b->blob_id());
+    PPFrame::Log("big_blobs = ", big_blobs);
+    //PPFrame::Log("blob_grid = ", frame.blob_grid().value_where());
+    PPFrame::Log("blob_mappings = ", frame.blob_mappings);
+    PPFrame::Log("blobs = ",frame.unsafe_access_all_blobs());
     
-    auto collection = frame.extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave>(big_blobs);
-    assert(frame.extract_from_blobs(big_blobs).empty());
+    std::vector<pv::bid> bids;
+    frame.transform_noise([&](const pv::Blob& blob){
+        bids.push_back(blob.blob_id());
+    });
+    PPFrame::Log("noise = ", bids);
+    
+    auto collection = frame.extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave>(big_blobs);
+    assert(frame.extract_from_noise(big_blobs).empty());
     //assert(collection.size() == big_blobs.size());
     big_blobs.clear();
     
@@ -273,7 +285,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     
     PrefilterBlobs::split_big(
            std::move(collection),
-           BlobReceiver(frame, BlobReceiver::noise),
+           BlobReceiver(frame, BlobReceiver::noise, FilterReason::SplitFailed),
            BlobReceiver(frame, BlobReceiver::regular),
            expect, true, nullptr, pool);
     
@@ -287,7 +299,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     
     //! final filtering step that filters out small blobs
     //! from the split_big TODO: (which might not be possible?)
-    frame.move_to_noise_if([size = FAST_SETTING(blob_size_ranges)](const pv::Blob& blob) {
+    frame.move_to_noise_if([size = FAST_SETTING(track_size_filter)](const pv::Blob& blob) {
         if(!size.in_range_of_one(blob.recount(-1))) {
             PPFrame::Log("&nbsp;Filtering out ", blob, " not in ", size);
             return true;

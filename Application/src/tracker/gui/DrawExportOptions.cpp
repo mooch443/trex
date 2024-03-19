@@ -1,7 +1,7 @@
 #include "DrawExportOptions.h"
 #include <gui/types/Entangled.h>
 #include <misc/GlobalSettings.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <gui/types/Button.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/ScrollableList.h>
@@ -51,12 +51,12 @@ struct DrawExportOptions::Data {
     ScrollableList<Item> export_options;
     
     Data()
-        :   parent(Bounds(100, 100, 200, 500)),
-            close("x", Bounds(Vec2(parent.width() - 3, 5), Size2(25, 25))),
-            search(Bounds(Vec2(5, close.height() + 15), Size2(parent.width() - 10, 30))),
-            export_options(Bounds(
+        :   parent(Box(100, 100, 200, 500)),
+            close(Str{"x"}, Box(Vec2(parent.width() - 3, 5), Size2(25, 25))),
+            search(Box(Vec2(5, close.height() + 15), Size2(parent.width() - 10, 30))),
+            export_options(Box(
                search.pos() + Vec2(0, search.height() + 10),
-               Size2(search.width(), parent.height() - (search.pos().y + search.height() + 20))), {}, Font(0.5, Align::Left))
+               Size2(search.width(), parent.height() - (search.pos().y + search.height() + 20))), ItemFont_t(0.5, Align::Left))
     {
         close.set_font(Font(0.5, Align::Center));
         search.set_placeholder("Type to search...");
@@ -148,7 +148,7 @@ struct DrawExportOptions::Data {
                     std::set<std::string> append;
                     auto it = graphs_map.find(f);
                     if (it != graphs_map.end()) {
-                        count = max(it->second.size(), 1u);
+                        count = narrow_cast<uint32_t>(max(it->second.size(), 1u));
                         append = it->second;
                     }
                     

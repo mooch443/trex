@@ -4,6 +4,10 @@
 #include <misc/BlobSizeRange.h>
 #include <misc/idx_t.h>
 #include "GitSHA1.h"
+#include <misc/bid.h>
+#include <misc/colors.h>
+#include <misc/DetectionTypes.h>
+#include <misc/Border.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -13,6 +17,7 @@
 
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
+#include <grabber/misc/default_config.h>
 
 const auto homedir = []() {
 #ifndef WIN32
@@ -30,22 +35,15 @@ const auto homedir = []() {
 #endif
 }();
 
-#include <tracking/Tracker.h>
 #include <misc/default_settings.h>
-#include <misc/OutputLibrary.h>
 
 using namespace file;
-#define CONFIG adding.add
+#define CONFIG adding.add<ParameterCategoryType::CONVERTING>
 
 namespace default_config {
-    ENUM_CLASS_DOCS(recognition_border_t,
-        "No border at all. All points are inside the recognition boundary. (default)", // none
-        "Looks at a subset of frames from the video, trying to find out where individuals go and masking all the places they do not.", // "heatmap"
-        "Similar to heatmap, but tries to build a convex border around the around (without holes in it).", // {"outline"
-        "Any array of convex shapes. Set coordinates by changing `recognition_shapes`.", // {"shapes"
-        "The points defined in `grid_points` are turned into N different circles inside the arena (with points in `grid_points` being the circle centers), which define in/out if inside/outside any of the circles.", // "grid"
-        "The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out." // {"circle",
-    )
+    const std::string& homedir() {
+        return ::homedir;
+    }
 
     ENUM_CLASS_DOCS(individual_image_normalization_t,
                     "No normalization. Images will only be cropped out and used as-is.",
@@ -116,8 +114,29 @@ ENUM_CLASS_DOCS(visual_identification_version_t,
     "Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.",
     "The original layout."
 )
-    
+
+ENUM_CLASS_DOCS(TRexTask_t,
+    "No task forced. Auto-select.",
+    "Load an existing .pv file and track / edit individuals.",
+    "Convert source material to .pv file.",
+    "Annotate video or image source material.",
+    "Save .rst parameter documentation files to the output folder."
+)
+
+ENUM_CLASS_DOCS(gpu_torch_device_t,
+    "The device is automatically chosen by PyTorch.",
+    "Use a CUDA device (requires an NVIDIA graphics card).",
+    "Use a METAL device (requires an Apple Silicone Mac).",
+    "Use the CPU (everybody should have this)."
+)
+
     static const std::map<std::string, std::string> deprecated = {
+        {"analysis_paused", "track_pause"},
+        {"meta_classes", "detect_classes"},
+        {"meta_skeleton", "detect_skeleton"},
+        {"detection_type", "detect_type"},
+        {"detection_resolution", "detect_resolution"},
+        {"model", "detect_model"},
         {"outline_step", "outline_smooth_step"},
         {"outline_smooth_range", "outline_smooth_samples"},
         {"max_frame_distance", "track_max_reassign_time"},
@@ -134,8 +153,9 @@ ENUM_CLASS_DOCS(visual_identification_version_t,
         {"gui_stop_after", "analysis_range"},
         {"analysis_stop_after", "analysis_range"},
         {"fixed_count", ""},
-        {"fish_minmax_size", "blob_size_ranges"},
-        {"blob_size_range", "blob_size_ranges"},
+        {"fish_minmax_size", "track_size_filter"},
+        {"blob_size_range", "segment_size_filter"},
+        {"blob_size_ranges", "track_size_filter"},
         {"fish_max_speed", "track_max_speed"},
         {"fish_speed_decay", "track_speed_decay"},
         {"fish_enable_direction_smoothing", "posture_direction_smoothing"},
@@ -186,7 +206,7 @@ file::Path conda_environment_path() {
 
     if(is_in(home, "CONDA_PREFIX", "", compiled_path)) {
 #ifndef NDEBUG
-        if(!SETTING(quiet))
+        if(!GlobalSettings::is_runtime_quiet())
             print("Reset conda prefix ",home," / ",compiled_path);
 #endif
         auto conda_prefix = getenv("CONDA_PREFIX");
@@ -213,8 +233,8 @@ file::Path conda_environment_path() {
     } else
         home = compiled_path;
     
-    if(!SETTING(quiet))
-        print("Set conda environment path = ",home);
+    //if(!SETTING(quiet))
+    //    print("Set conda environment path = ",home);
     return home;
 }
     
@@ -268,9 +288,9 @@ file::Path conda_environment_path() {
 #define PYTHON_TIPPS " (containing pythonXX.exe)"
 #endif
 
-void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level) {
+void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude) {
     try {
-        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level);
+        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level, exclude);
         
     } catch(const cmn::illegal_syntax& e) {
         FormatError("Illegal syntax in settings file.");
@@ -278,12 +298,12 @@ void execute_settings_string(const std::string &content, const file::Path& sourc
     }
 }
 
-bool execute_settings_file(const file::Path& source, AccessLevelType::Class level) {
+bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude) {
     if(source.exists()) {
         DebugHeader("LOADING ", source);
         try {
             auto content = utils::read_file(source.str());
-            execute_settings_string(content, source, level);
+            execute_settings_string(content, source, level, exclude);
             
         } catch(const cmn::illegal_syntax& e) {
             FormatError("Illegal syntax in settings file.");
@@ -296,48 +316,89 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     return false;
 }
     
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn)
+    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn)
     {
-        auto old = config.do_print();
-        config.set_do_print(false);
+        //auto old = config.print_by_default();
+        //config.set_print_by_default(true);
         //constexpr auto PUBLIC = AccessLevelType::PUBLIC;
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
+        constexpr auto LOAD = AccessLevelType::LOAD;
         
         using namespace settings;
         Adding adding(config, docs, fn);
         
-        CONFIG<std::string>("app_name", "TRex", "Name of the application.", SYSTEM);
+        CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
+        CONFIG("cwd", file::Path(""), "Working directory the program was started from.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
         CONFIG("app_last_update_check", uint64_t(0), "Time-point of when the application has last checked for an update.", SYSTEM);
         CONFIG("app_last_update_version", std::string(), "");
-        CONFIG("version", std::string(g_GIT_DESCRIBE_TAG), "Current application version.", SYSTEM);
+        CONFIG("version", std::string(g_GIT_DESCRIBE_TAG)+(std::string(g_GIT_CURRENT_BRANCH) != "main" ? "_"+std::string(g_GIT_CURRENT_BRANCH) : ""), "Current application version.", SYSTEM);
         CONFIG("build_architecture", std::string(g_TREX_BUILD_ARCHITECTURE), "The architecture this executable was built for.", SYSTEM);
         CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
         CONFIG("build_is_debug", std::string(compile_mode_name()), "If built in debug mode, this will show 'debug'.", SYSTEM);
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);
+        CONFIG("wd", file::Path(), "Working directory that the software was started from (defaults to the user directory).", SYSTEM);
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
         CONFIG("individuals_per_thread", 1.f, "Number of individuals for which positions will be estimated per thread.");
         CONFIG("postures_per_thread", 1.f, "Number of individuals for which postures will be estimated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", Path("").remove_extension(), "Opened filename (without .pv).", STARTUP);
-        CONFIG("output_dir", Path(std::string(homedir)+"/Videos"), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
-        CONFIG("fishdata_dir", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
-        CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
-        CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
+        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
+        CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
+        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", LOAD);
+        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
+        CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
+        CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
 
-        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
-        CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
+        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.");
+        CONFIG("track_enforce_frame_rate", true, "Enforce the `frame_rate` and override the frame_rate provided by the video file for calculating kinematic properties and probabilities. If this is not enabled, `frame_rate` is only a cosmetic property that influences the GUI and not exported data (for example).");
         
-        CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
-        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
-        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.", STARTUP);
-        CONFIG("video_length", uint64_t(0), "The length of the video in frames", STARTUP);
-        CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", SYSTEM);
-        CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
+        CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
+        
+        CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
+        static const auto detect_classes = std::vector<std::string>{
+            "person", "bicycle", "car", "motorcycle", "airplane",
+            "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
+            "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse",
+            "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+            "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard",
+            "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork",
+            "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+            "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+            "couch", "potted plant", "bed", "dining table", "toilet", "tv",
+            "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave",
+            "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
+            "scissors", "teddy bear", "hair drier", "toothbrush"
+        };
+        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
+        CONFIG("detect_skeleton", blob::Pose::Skeleton("human", {
+                {0, 1, "Nose to Left Eye"},
+                {0, 2, "Nose to Right Eye"},
+                {1, 3, "Left Eye to Ear"},
+                {2, 4, "Right Eye to Ear"},
+                {5, 6, "Left to Right Shoulder"},
+                {5, 7, "Left Upper Arm"},
+                {7, 9, "Left Forearm"},
+                {6, 8, "Right Upper Arm"},
+                {8, 10, "Right Forearm"},
+                {5, 11, "Left Shoulder to Hip"},
+                {6, 12, "Right Shoulder to Hip"},
+                {11, 12, "Left to Right Hip"},
+                {11, 13, "Left Thigh"},
+                {13, 15, "Left Shin"},
+                {12, 14, "Right Thigh"},
+                {14, 16, "Right Shin"}
+            }), "Skeleton to be used when displaying pose data.");
+        CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
+        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", LOAD);
+        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
+        CONFIG("video_length", uint64_t(0), "The length of the video in frames", LOAD);
+        CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", LOAD);
+        CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", LOAD);
         
         /*
          * According to @citation the average zebrafish larvae weight would be >200mg after 9-week trials.
@@ -346,38 +407,38 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Siccardi AJ, Garris HW, Jones WT, Moseley DB, D’Abramo LR, Watts SA. Growth and Survival of Zebrafish (Danio rerio) Fed Different Commercial and Laboratory Diets. Zebrafish. 2009;6(3):275-280. doi:10.1089/zeb.2008.0553.
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
-        CONFIG("midline_samples", uint64_t(0), "The maximum number of samples taken for generating a `median midline length`. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individuals, for memory reasons.");
-        
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
-        CONFIG("debug", false, "Enables some verbose debug print-outs.");
+        CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_enable_absolute_difference` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
-        CONFIG("analysis_paused", false, "Halts the analysis.");
+        CONFIG("track_pause", false, "Halts the analysis.");
         CONFIG("limit", 0.09f, "Limit for tailbeat event detection.");
         CONFIG("event_min_peak_offset", 0.15f, "");
-        CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.");
+        CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.", STARTUP);
         CONFIG("log_file", file::Path(), "Set this to a path you want to save the log file to.", STARTUP);
-        CONFIG("httpd_port", 8080, "This is where the webserver tries to establish a socket. If it fails, this will be set to the port that was chosen.", STARTUP);
-        CONFIG("httpd_accepted_ip", std::string(), "Set this to an IP address that you want to accept exclusively.");
         CONFIG("error_terminate", false, "", SYSTEM);
-        CONFIG("terminate", false, "If set to true, the application terminates.");
+        CONFIG("terminate", false, "If set to true, the application terminates.", SYSTEM);
         
         CONFIG("gui_transparent_background", false, "If enabled, fonts might look weird but you can record movies (and images) with transparent background (if gui_background_color.alpha is < 255).");
         
-        CONFIG("gui_interface_scale", float(1.25), "Scales the whole interface. A value greater than 1 will make it smaller.");
+        CONFIG("gui_interface_scale", float(1), "Scales the whole interface. A value greater than 1 will make it smaller.", SYSTEM);
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
-        CONFIG<std::pair<pv::bid, Frame_t>>("gui_show_fish", {pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
-        CONFIG("gui_frame", Frame_t(0u), "The currently visible frame.");
+        CONFIG("gui_show_timeline", true, "If enabled, the timeline (top of the screen) will be shown in the tracking view.");
+        CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
+        CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
+        CONFIG("gui_frame", Frame_t(0u), "The currently selected frame. `gui_displayed_frame` might differ, if loading from file is currently slow.");
+        CONFIG("gui_displayed_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-        CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
+        CONFIG("gui_macos_blur", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");
 //#endif
         CONFIG("gui_faded_brightness", uchar(255), "The alpha value of tracking-related elements when timeline is hidden (0-255).");
-        CONFIG("gui_equalize_blob_histograms", true, "Equalize histograms of blobs wihtin videos (makes them more visible).");
+        CONFIG("gui_equalize_blob_histograms", false, "Equalize histograms of blobs wihtin videos (makes them more visible).");
+        CONFIG("gui_show_video_background", true, "If available, show an animated background of the original video.");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
         CONFIG("gui_show_individual_preview", false, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
-        CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_blur_enabled` is set to true).");
+        CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_macos_blur` is set to true).");
         CONFIG("heatmap_ids", std::vector<track::Idx_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");
@@ -397,11 +458,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_shadows", true, "Showing or hiding individual shadows in tracking view.");
         CONFIG("gui_outline_thickness", uint8_t(1), "The thickness of outline / midlines in the GUI.");
         CONFIG("gui_show_texts", true, "Showing or hiding individual identity (and related) texts in tracking view.");
+        CONFIG("gui_show_infocard", true, "Showing / hiding some facts about the currently selected individual on the top left of the window.");
         CONFIG("gui_show_blobs", true, "Showing or hiding individual raw blobs in tracking view (are always shown in RAW mode).");
         CONFIG("gui_show_paths", true, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_pixel_grid", false, "Shows the proximity grid generated for all blobs, which is used for history splitting.");
         CONFIG("gui_show_selections", true, "Show/hide circles around selected individual.");
-        CONFIG("gui_show_inactive_individuals", true, "Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.");
+        CONFIG("gui_show_inactive_individuals", false, "Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.");
         //config["gui_show_texts"] = true;
         CONFIG("gui_show_histograms", false, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_posture", true, "Show/hide the posture window on the top-right.");
@@ -425,7 +487,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_auto_scale", false, "If set to true, the tracker will always try to zoom in on the whole group. This is useful for some individuals in a huge video (because if they are too tiny, you cant see them and their posture anymore).");
         CONFIG("gui_auto_scale_focus_one", true, "If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.");
         CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / consecutive segments display.");
-        CONFIG("gui_background_color", gui::Color(0,0,0,150), "Values < 255 will make the background more transparent in standard view. This might be useful with very bright backgrounds.");
+        CONFIG("gui_background_color", gui::Color(0,0,0,255), "Values < 255 will make the background (or video background) more transparent in standard view. This might be useful with very bright backgrounds.");
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
@@ -437,6 +499,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 #endif
 
         CONFIG("gui_recording_format", default_recording_t, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
+        CONFIG("gui_is_recording", false, "Is set to true when recording is active.", SYSTEM);
         CONFIG("gui_happy_mode", false, "If `calculate_posture` is enabled, enabling this option likely improves your experience with TRex.");
         CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of `{individual-id: \"individual-name\", ...}` that names individuals in the GUI and exported data.");
         CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");
@@ -446,7 +509,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("outline_curvature_range_ratio", float(0.03), "Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).");
         CONFIG("midline_walk_offset", float(0.025), "This percentage of the number of outline points is the amount of points that the midline-algorithm is allowed to move left and right upon each step. Higher numbers will make midlines more straight, especially when extremities are present (that need to be skipped over), but higher numbers will also potentially decrease accuracy for less detailed objects.");
         CONFIG("midline_stiff_percentage", float(0.15), "Percentage of the midline that can be assumed to be stiff. If the head position seems poorly approximated (straighened out too much), then decrease this value.");
-        CONFIG("midline_resolution", uint32_t(25), "Number of midline points that are saved. Higher number increases detail.", STARTUP);
+        CONFIG("midline_resolution", uint32_t(25), "Number of midline points that are saved. Higher number increases detail.");
         CONFIG("posture_head_percentage", float(0.1), "The percentage of the midline-length that the head is moved away from the front of the body.");
         CONFIG("posture_closing_steps", uint8_t(0), "When enabled (> 0), posture will be processed using a combination of erode / dilate in order to close holes in the shape and get rid of extremities. An increased number of steps will shrink the shape, but will also be more time intensive.");
         CONFIG("posture_closing_size", uint8_t(2), "The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  `posture_closing_steps` > 0.");
@@ -457,15 +520,17 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
         CONFIG("manual_matches", std::map<Frame_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
         CONFIG("manual_splits", std::map<Frame_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
+        CONFIG("manual_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
-        CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
+        CONFIG("segment_size_filter", BlobSizeRange({Rangef(0.0001f, 1000.f)}), "During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.");
+        CONFIG("track_size_filter", BlobSizeRange({Rangef(0.01f, 100)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
-        CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
+        CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `track_size_filter`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
         
         CONFIG("visual_field_eye_offset", float(0.15), "A percentage telling the program how much the eye positions are offset from the start of the midline.");
@@ -473,27 +538,30 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("visual_field_history_smoothing", uint8_t(0), "The maximum number of previous values (and look-back in frames) to take into account when smoothing visual field orientations. If greater than 0, visual fields will use smoothed previous eye positions to determine the optimal current eye position. This is usually only necessary when postures are somewhat noisy to a degree that makes visual fields unreliable.");
         
         CONFIG("auto_minmax_size", false, "Program will try to find minimum / maximum size of the individuals automatically for the current `cm_per_pixel` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.", STARTUP);
-        CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `blob_size_ranges`) and set `track_max_individuals` to that value.");
+        CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `track_size_filter`) and set `track_max_individuals` to that value.");
         
-        CONFIG("track_speed_decay", float(0.7), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
+        CONFIG("track_speed_decay", float(1.0), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
         CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
         CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
         CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
         CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
-        CONFIG("track_threshold", int(15), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
+        CONFIG("track_threshold", int(0), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
         CONFIG("threshold_ratio_range", Rangef(0.5, 1.0), "If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.");
         CONFIG("track_threshold_2", int(0), "If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).");
-        CONFIG("track_posture_threshold", int(15), "Same as `track_threshold`, but for posture estimation.");
-        CONFIG("enable_absolute_difference", true, "If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).");
+        CONFIG("track_posture_threshold", int(0), "Same as `track_threshold`, but for posture estimation.");
+        CONFIG("track_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `enable_absolute_difference`, but during tracking instead of converting.");
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
-        CONFIG("categories_min_sample_images", uint32_t(50), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `track_segment_max_length`, if that parameter is set. If `track_segment_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
+        CONFIG("categories_min_sample_images", uint32_t(0), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `track_segment_max_length`, if that parameter is set. If `track_segment_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
         CONFIG("track_segment_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.");
         
+        CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
+        CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
+        CONFIG("track_label_confidence_threshold", float(0.1), "Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
@@ -534,7 +602,41 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"num_pixels", {}},
             {"ACCELERATION", {"RAW", "PCENTROID"}},
             //{"ACCELERATION", {"SMOOTH", "PCENTROID"}},
-            {"ACCELERATION", {"RAW", "WCENTROID"}}
+            {"ACCELERATION", {"RAW", "WCENTROID"}},
+            {"poseX0", {"RAW"}},
+            {"poseY0", {"RAW"}},
+            {"poseX1", {"RAW"}},
+            {"poseY1", {"RAW"}},
+            {"poseX2", {"RAW"}},
+            {"poseY2", {"RAW"}},
+            {"poseX3", {"RAW"}},
+            {"poseY3", {"RAW"}},
+            {"poseX4", {"RAW"}},
+            {"poseY4", {"RAW"}},
+            {"poseX5", {"RAW"}},
+            {"poseY5", {"RAW"}},
+            {"poseX6", {"RAW"}},
+            {"poseY6", {"RAW"}},
+            {"poseX7", {"RAW"}},
+            {"poseY7", {"RAW"}},
+            {"poseX8", {"RAW"}},
+            {"poseY8", {"RAW"}},
+            {"poseX9", {"RAW"}},
+            {"poseY9", {"RAW"}},
+            {"poseX10", {"RAW"}},
+            {"poseY10", {"RAW"}},
+            {"poseX11", {"RAW"}},
+            {"poseY11", {"RAW"}},
+            {"poseX12", {"RAW"}},
+            {"poseY12", {"RAW"}},
+            {"poseX13", {"RAW"}},
+            {"poseY13", {"RAW"}},
+            {"poseX14", {"RAW"}},
+            {"poseY14", {"RAW"}},
+            {"poseX15", {"RAW"}},
+            {"poseY15", {"RAW"}},
+            {"poseX16", {"RAW"}},
+            {"poseY16", {"RAW"}}
         };
         
         auto output_annotations = std::map<std::string, std::string>
@@ -549,7 +651,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"global", "px"}
         };
         
-        auto output_default_options = Output::Library::default_options_type
+        auto output_default_options = default_options_type
         {
             {"NEIGHBOR_DISTANCE", {"/10"}},
             {"DOT_V", {"/10"}},
@@ -572,6 +674,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"global", {"/10"}}
         };
         
+        CONFIG("task", TRexTask_t::none, "The task selected by the user upon startup. This is used to determine which GUI mode to start in.", STARTUP);
+        CONFIG("load", false, "If set to true, the application will attempt to load results for the given pv file. If it does not exist then the application will proceed as usual.", LOAD);
         CONFIG("auto_quit", false, "If set to true, the application will automatically save all results and export CSV files and quit, after the analysis is complete."); // save and quit after analysis is done
         CONFIG("auto_apply", false, "If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.");
         CONFIG("auto_categorize", false, "If set to true, the program will try to load <video>_categories.npz from the `output_dir`. If successful, then categories will be computed according to the current categories_ settings. Combine this with the `auto_quit` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.");
@@ -582,7 +686,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
         CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
-        CONFIG("analysis_range", std::pair<long_t,long_t>(-1, -1), "Sets start and end of the analysed frames.");
+        CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
@@ -615,25 +719,41 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("recognition_segment_add_factor", float(1.5), "This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
         CONFIG("recognition_save_progress_images", false, "If set to true, an image will be saved for all training epochs, documenting the uniqueness in each step.");
         CONFIG("recognition_shapes", std::vector<std::vector<Vec2>>(), "If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.");
-        CONFIG("recognition_border", recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
+        CONFIG("recognition_border", track::recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
         );
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
         CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
-        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
+        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `track_size_filter` (e.g. 0.5 means that the sizes can range between `track_size_filter.min * (1 - 0.5)` and `track_size_filter.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("individual_image_normalization", individual_image_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
-        CONFIG("visual_identification_version", visual_identification_version_t::current, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.");
+        CONFIG("visual_identification_version", visual_identification_version_t::v118_3, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.");
         CONFIG("gpu_enable_accumulation", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
         CONFIG("gpu_accepted_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
         CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
-        CONFIG("gpu_learning_rate", float(0.0001), "Learning rate for training a recognition network.");
+        CONFIG("gpu_learning_rate", float(0.0001f), "Learning rate for training a recognition network.");
         CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
+        CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
+        CONFIG("gpu_torch_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
+        CONFIG("gpu_torch_no_fixes", false, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
+        CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.");
+        CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation");
+        CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
+        CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
+        CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
+        CONFIG("yolo8_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
+        CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
+        CONFIG("detect_only_classes", std::vector<uint8_t>{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
+        CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
+        CONFIG("region_resolution", uint16_t(320), "The resolution of the region proposal network (`region_model`).");
+        CONFIG("detect_resolution", uint16_t(640), "The input resolution of the object detection model (`detect_model`).");
+        CONFIG("detect_iou_threshold", float(0.7), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
+        CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
@@ -648,26 +768,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
         CONFIG("huge_timestamp_ends_segment", true, "");
-        CONFIG("track_trusted_probability", float(0.5), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
+        CONFIG("track_trusted_probability", float(0.25), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
-        CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", STARTUP);
+        CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", LOAD);
         
         CONFIG("gui_connectivity_matrix_file", file::Path(), "Path to connectivity table. Expected structure is a csv table with columns [frame | #(track_max_individuals^2) values] and frames in y-direction.");
-        CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.", STARTUP);
+        CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.");
         
-        std::vector<float> buffer {
-            -0.2576632f , -0.19233586f,  0.00245493f,  0.00398822f,  0.35924019f
-        };
-        
-        std::vector<float> matrix = {
-            2.94508959e+03f,   0.00000000e+00f,   6.17255441e+02f,
-            0.00000000e+00f,   2.94282514e+03f,   6.82473623e+02f,
-            0.00000000e+00f,   0.00000000e+00f,   1.00000000e+00f
-        };
-        
-        CONFIG("cam_undistort_vector", buffer, "");
-        CONFIG("cam_matrix", matrix, "");
+        CONFIG("webcam_index", uint8_t(0), "cv::VideoCapture index of the current webcam. If the program chooses the wrong webcam (`source` = webcam), increase this index until it finds the correct one.");
         CONFIG("cam_scale", float(1.0), "Scales the image down or up by the given factor.");
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");
@@ -677,23 +786,39 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         config["nowindow"] = true;
 #endif
         
-        config.set_do_print(old);
+        //config.set_print_by_default(old);
+    }
+
+    std::string Config::to_settings() const {
+        std::stringstream ss;
+        for (auto& [key, value] : map) {
+            ss << key << " = " << value->valueString() << "\n";
+        }
+        return ss.str();
+    }
+    void Config::write_to(sprite::Map& other) {
+        for (auto& [key, value] : this->map) {
+            value->copy_to(&other);
+        }
+    }
+
+    const sprite::PropertyType*& Config::operator[](const std::string& key) {
+		return map[key];
     }
     
-    std::string generate_delta_config(bool include_build_number, std::vector<std::string> additional_exclusions) {
+    Config generate_delta_config(bool include_build_number, std::vector<std::string> additional_exclusions) {
         auto keys = GlobalSettings::map().keys();
-        std::stringstream ss;
         
-        static sprite::Map config;
-        static GlobalSettings::docs_map_t docs;
-        config.set_do_print(false);
+        sprite::Map config;
+        GlobalSettings::docs_map_t docs;
         
-        if(config.empty())
-            default_config::get(config, docs, NULL);
+        config = GlobalSettings::current_defaults();
+        //grab::default_config::get(config, docs, nullptr);
+        //default_config::get(config, docs, NULL);
         
         std::vector<std::string> exclude_fields = {
-            "analysis_paused",
-            "filename",
+            "track_pause",
+            //"filename",
             "app_name",
             "app_check_for_updates",
             "app_last_update_version",
@@ -716,18 +841,32 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_foi_types",
             "gui_mode",
             "gui_frame",
+            "gui_show_infocard",
+            "gui_displayed_frame",
+            "gui_source_video_frame",
             "gui_run",
-            "settings_file",
+            //"settings_file",
             "nowindow",
+            "task",
             "wd",
             "gui_show_fish",
             "auto_quit",
             "auto_apply",
-            "output_dir",
+            "auto_no_results",
+            "auto_no_tracking_data",
+            //"output_dir",
             "auto_categorize",
             "tags_path",
             "analysis_range",
-            "output_prefix",
+            //"output_prefix",
+
+            "detect_model",
+            "region_model",
+            "detect_format",
+            "detect_type",
+            "region_resolution",
+            "detect_resolution",
+
             "cmd_line",
             "ffmpeg_path",
             "httpd_port",
@@ -765,10 +904,14 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         /**
          * Write the remaining settings.
          */
+        Config result;
+        result.excluded += exclude_fields;
+
         for(auto &key : keys) {
             // dont write meta variables. this could be confusing if those
             // are loaded from the video file as well
             if(utils::beginsWith(key, "meta_")) {
+                result.excluded.push_back(key);
                 continue;
             }
             
@@ -776,21 +919,23 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             // to the default options
             if(!config.has(key) || config[key] != GlobalSettings::get(key)) {
                 if((include_build_number && utils::beginsWith(key, "build"))
-                   || (GlobalSettings::access_level(key) <= AccessLevelType::STARTUP
+                   || (GlobalSettings::access_level(key) < AccessLevelType::LOAD
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
-                    ss << key << " = " << GlobalSettings::get(key).get().valueString() << "\n";
+                    auto str = GlobalSettings::get(key).get().valueString();
+                    //print("adding ", key, " = ", str.c_str());
+                    result[key] = &GlobalSettings::get(key).get();
                 }
             }
         }
         
-        return ss.str();
+        return result;
     }
     
     void register_default_locations() {
-        file::DataLocation::register_path("app", [](file::Path path) -> file::Path {
-            auto wd = SETTING(wd).value<file::Path>();
+        file::DataLocation::register_path("app", [](const sprite::Map& map, file::Path path) -> file::Path {
+            auto wd = map.at("wd").value<file::Path>();
 #if defined(TREX_CONDA_PACKAGE_INSTALL)
             auto conda_prefix = ::default_config::conda_environment_path();
             if(!conda_prefix.empty()) {
@@ -804,97 +949,145 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             return wd / path;
         });
         
-        file::DataLocation::register_path("default.settings", [](file::Path) -> file::Path {
-            auto settings_file = file::DataLocation::parse("app", "default.settings");
+        file::DataLocation::register_path("default.settings", [](const sprite::Map& map, file::Path) -> file::Path {
+            auto settings_file = file::DataLocation::parse("app", "default.settings", &map);
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+        file::DataLocation::register_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
             if(path.empty())
-                path = SETTING(settings_file).value<Path>();
+                path = map.at("settings_file").value<Path>();
             if(path.empty()) {
-                path = SETTING(filename).value<Path>();
+                path = map.at("filename").value<Path>();
                 if(path.has_extension() && path.extension() == "pv")
                     path = path.remove_extension();
             }
+            if(path.empty()) {
+                auto array = map.at("source").value<file::PathArray>();
+                auto base = file::find_basename(array);
+                path = base;
+            }
+            
+            if(path.empty())
+                return "";
             
             if(!path.has_extension() || path.extension() != "settings")
                 path = path.add_extension("settings");
             
-            auto settings_file = file::DataLocation::parse("input", path);
+            auto settings_file = file::DataLocation::parse("output", path, &map);
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        file::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
-            file::Path settings_file = SETTING(filename).value<Path>().filename();
+        file::DataLocation::register_path("output_settings", [](const sprite::Map& map, file::Path) -> file::Path {
+            file::Path settings_file = map.at("filename").value<Path>().filename();
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
-            return file::DataLocation::parse("output", settings_file);
+            return file::DataLocation::parse("output", settings_file, &map);
         });
         
-        file::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
-            file::Path settings_file(SETTING(filename).value<Path>().filename());
+        file::DataLocation::register_path("backup_settings", [](const sprite::Map& map, file::Path) -> file::Path {
+            file::Path settings_file(map.at("filename").value<Path>().filename());
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
             
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
-            return file::DataLocation::parse("output", "backup") / settings_file;
+            return file::DataLocation::parse("output", "backup", &map) / settings_file;
         });
         
-        file::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
-            if(!filename.empty() && filename.is_absolute()) {
+        file::DataLocation::register_path("input", [](const sprite::Map& map, file::Path filename) -> file::Path {
+            if(filename.empty())
+                return {};
+            if(not filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-                if(!SETTING(quiet))
+                if(!GlobalSettings::is_runtime_quiet())
                     print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }
             
-            auto path = SETTING(output_dir).value<file::Path>();
-            if(path.empty())
-                return filename;
-            else
-                return path / filename;
+            auto path = map.at("cwd").value<file::Path>();
+            if(path.empty()) {
+                auto d = map.at("output_dir").value<file::Path>();
+                if(d.empty())
+                    return filename;
+                else
+                    return (d / filename);
+            } else
+                return (path / filename);
         });
         
-        file::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
-            if(!filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-                if(!SETTING(quiet))
-                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-                return filename;
+        file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path
+        {
+            if(filename.empty())
+                return {};
+            
+            auto prefix = map.at("output_prefix").value<std::string>();
+            auto output_path = map.at("output_dir").value<file::Path>();
+            auto absolute = filename.is_absolute();
+            
+            if(output_path.empty()) {
+                auto source = map.at("source").value<file::PathArray>();
+                auto base = file::find_parent(source);
+                if(not base) {
+                    output_path = map.at("cwd").value<file::Path>();
+                } else {
+                    output_path = base.value();
+                }
             }
             
-            auto prefix = SETTING(output_prefix).value<std::string>();
-            auto path = SETTING(output_dir).value<file::Path>();
+            //! an output file is specified, we want to change whatever folder
+            //! the input comes from to whatever folder we want to write to:
+            if(not absolute) {
+                //! file is not an absolute path
+                if(not output_path.empty()) {
+                    filename = output_path / filename.filename();
+                } else {
+                    print(map.at("cwd").value<file::Path>());
+                    if(not map.at("cwd").value<file::Path>().empty())
+                        filename = map.at("cwd").value<file::Path>() / filename;
+                }
+                
+            } else if(not filename.has_extension() || filename.extension() == "pv") {
+                if(not output_path.empty())
+                    filename = output_path / filename.filename();
+            }
             
             if(!prefix.empty()) {
-                path = path / prefix;
+                //! insert a prefix in between the filename and the path
+                if(not filename.remove_filename().empty()
+                   && not absolute)
+                    filename = filename.remove_filename() / prefix / filename.filename();
+                else if(not absolute)
+                    filename = prefix / filename.filename();
             }
             
-            if(path.empty())
+            /*if(!filename.empty() && filename.is_absolute()) {
+#ifndef NDEBUG
+                if(!GlobalSettings::is_runtime_quiet())
+                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
+#endif
                 return filename;
-            else
-                return path / filename;
+            }*/
+            
+            return filename;
         });
     }
 
 
-void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, bool quiet) {
-    auto rejections = GlobalSettings::load_from_string(deprecations(), map, content, accessLevel);
+void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, const std::vector<std::string>& exclude, bool quiet) {
+    auto rejections = GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, content, accessLevel, false, exclude);
     if(!rejections.empty()) {
         for (auto && [key, val] : rejections) {
             if (default_config::is_deprecated(key)) {
@@ -928,19 +1121,19 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         
                     } else if(key == "output_npz") {
                         auto value = Meta::fromStr<bool>(val);
-                        GlobalSettings::load_from_string(deprecations(), map, r + " = " + (value ? "npz" : "csv") + "\n", accessLevel);
+                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r + " = " + (value ? "npz" : "csv") + "\n", accessLevel);
                         
                     } else if(key == "match_use_approximate") {
                         auto value = Meta::fromStr<bool>(val);
-                        GlobalSettings::load_from_string(deprecations(), map, r+" = "+(value ? "approximate" : "accurate")+"\n", accessLevel);
+                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+(value ? "approximate" : "accurate")+"\n", accessLevel);
                     
                     } else if(key == "analysis_stop_after") {
-                        GlobalSettings::load_from_string(deprecations(), map, r+" = [-1,"+val+"]\n", accessLevel);
+                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = [-1,"+val+"]\n", accessLevel);
                     } else if(key == "recognition_normalize_direction") {
                         bool value = utils::lowercase(val) != "false";
-                        GlobalSettings::load_from_string(deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
+                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
                         
-                    } else GlobalSettings::load_from_string(deprecations(), map, r+" = "+val+"\n", accessLevel);
+                    } else GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+val+"\n", accessLevel);
                 }
             }
         }

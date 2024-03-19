@@ -5,6 +5,7 @@
 #include <tracking/Tracker.h>
 #include <misc/frame_t.h>
 #include <tracking/IndividualManager.h>
+#include <misc/PixelTree.h>
 #include <filesystem>
 
 using ::testing::TestWithParam;
@@ -12,6 +13,16 @@ using ::testing::Values;
 
 using namespace track;
 using namespace track::Match;
+
+#include <python/Yolo8.h>
+
+TEST(TestValidModels, Valid) {
+#ifndef WIN32
+    ASSERT_TRUE(track::Yolo8::valid_model(R"(/path/to/models/640-yolov8x-pose-2023-10-12-14_dataset-1-mAP5095_0.64125-mAP50_0.93802.pt)"));
+#else
+    ASSERT_TRUE(track::Yolo8::valid_model(R"(C:\\path\\to\\models\\640-yolov8x-pose-2023-10-12-14_dataset-1-mAP5095_0.64125-mAP50_0.93802.pt)"));
+#endif
+}
 
 static auto _ = [](){
     print("Initializing global maps.");
@@ -40,11 +51,11 @@ struct PairingTest {
     match_mode(match_mode),
     switch_order(switch_order),
     individuals({
-        new Individual(Identity(Idx_t(0))),
-        new Individual(Identity(Idx_t(1))),
-        new Individual(Identity(Idx_t(2))),
-        new Individual(Identity(Idx_t(3))),
-        new Individual(Identity(Idx_t(4)))
+        new Individual(Identity::Make(Idx_t(0))),
+        new Individual(Identity::Make(Idx_t(1))),
+        new Individual(Identity::Make(Idx_t(2))),
+        new Individual(Identity::Make(Idx_t(3))),
+        new Individual(Identity::Make(Idx_t(4)))
     }) {
         blobs.emplace_back(pv::Blob::Make(std::vector<HorizontalLine>{
             HorizontalLine(0, 0, 10),
@@ -138,6 +149,19 @@ auto _format(auto&&... args) {
 }
 
 TEST_P(TestPairing, TestOrder) {
+    auto ts = Image::now();
+    pv::Frame p0, p1;
+    p0.set_index(42_f);
+    p0.set_timestamp((uint64_t)ts);
+    
+    p1 = std::move(p0);
+    ASSERT_EQ(p1.timestamp(), ts.get());
+    ASSERT_EQ(p1.index(), 42_f);
+    
+    p0 = pv::Frame(p1);
+    ASSERT_EQ(p0.timestamp(), ts.get());
+    ASSERT_EQ(p0.index(), 42_f);
+    
     /**
      * Create some objects with the same probabilities.
      */
@@ -223,12 +247,58 @@ TEST_P(TestPairing, TestOrder) {
         
         ASSERT_EQ(expected.size(), pairing.pairings.size());
         for(auto& [bdx, fish] : pairing.pairings) {
-            ASSERT_EQ(expected.contains(fish), true) << _format("fish ", fish, " should be contained in pairings: ", pairing.pairings);
+            ASSERT_EQ(expected.contains(fish), true) << _format("fish ", fish, " was unexpected in pairings: ", pairing.pairings, " expectations: ", extract_keys(expected));
             ASSERT_EQ(expected.at(fish), bdx) << _format("expected ", expected.at(fish), " but found ", bdx, " for fish ", fish);
         }
     };
     
     initialize.operator()(table_->switch_order);
+}
+
+TEST(TestLines, Threshold) {
+    SETTING(track_background_subtraction) = false;
+    
+    auto black = Image::Make(cv::Mat::zeros(320, 240, CV_8UC3));
+    cv::Mat gray;
+    convert_to_r3g3b2<3>(black->get(), gray);
+    //cv::cvtColor(black->get(), gray, cv::COLOR_BGR2GRAY);
+    Background bg(Image::Make(gray), nullptr);
+    cv::circle(black->get(), Vec2(90,80), 25, gui::Cyan, -1);
+    cv::rectangle(black->get(), Vec2(100,100), Vec2(125,125), gui::Purple, -1);
+    
+    cv::Mat gs;
+    convert_to_r3g3b2<3>(black->get(), gs);
+    //cv::cvtColor(black->get(), gs, cv::COLOR_BGR2GRAY);
+    //cv::imwrite("test_image.png", gs);
+    auto blobs = CPULabeling::run(gs);
+    ASSERT_EQ(blobs.size(), 1u);
+    
+    
+    auto blob = pv::Blob(std::move(blobs.front().lines), std::move(blobs.front().pixels), blobs.front().extra_flags, blob::Prediction());
+    
+    auto bds = blob.bounds();
+    print(blob.hor_lines());
+    
+    //cv::imshow("bg", black->get());
+    //cv::imshow("gs", gs);
+    
+    auto [off,img] = blob.image(&bg, Bounds(), 0);
+    cv::Mat g;
+    convert_from_r3g3b2(img->get(), g);
+    //cv::imshow("img", g);
+    //cv::waitKey(0);
+    
+    CPULabeling::ListCache_t cache;
+    auto b = pixel::threshold_blob(cache, pv::BlobWeakPtr(&blob), 0, &bg);
+    ASSERT_EQ(b.size(), 1u);
+    //ASSERT_EQ(b.front()->hor_lines().size(), blob.hor_lines().size());
+    ASSERT_EQ(b.front()->hor_lines(), blob.hor_lines()) << _format(b.front()->hor_lines());
+    //line_without_grid<DifferenceMethod::none>(&bg, blobs.front()->hor_lines(), px, threshold, lines, pixels);
+    
+    auto next = CPULabeling::run(img->get());
+    ASSERT_EQ(next.size(), 1u) << _format(next.size());
+    blob.add_offset(-blob.bounds().pos());
+    ASSERT_EQ(*next.front().lines, blob.hor_lines()) << _format(*next.front().lines);
 }
 
 TEST_P(TestPairing, TestInit) {
@@ -306,13 +376,15 @@ INSTANTIATE_TEST_SUITE_P(TestPairing, TestPairing,
             &CreateData<default_config::matching_mode_t::approximate>*/));
 
 struct TrackerAndVideo {
-    Tracker tracker;
     pv::File video;
+    Tracker tracker;
     
-    TrackerAndVideo() : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string(), pv::FileMode::READ) {
+    TrackerAndVideo()
+        : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string(), pv::FileMode::READ),
+          tracker(Image::Make(video.average()), video)
+    {
         video.set_project_name("Test");
         video.print_info();
-        tracker.set_average(Image::Make(video.average()));
     }
 };
 
@@ -334,12 +406,12 @@ TEST_F(TestSystemTracker, TrackingTest) {
     SETTING(track_max_speed) = Settings::track_max_speed_t(800);
     SETTING(match_mode) = Settings::match_mode_t(default_config::matching_mode_t::automatic);
     SETTING(track_max_individuals) = Settings::track_max_individuals_t(8);
-    SETTING(blob_size_ranges) = Settings::blob_size_ranges_t({Rangef{80, 400}});
+    SETTING(track_size_filter) = Settings::track_size_filter_t({Rangef{80, 400}});
     
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(data->video, std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
     data->tracker.add(pp);
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);
@@ -360,6 +432,12 @@ namespace cmn {
 std::ostream& operator<<(std::ostream& os, const Frame_t& dt)
 {
     os << dt.get();
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const FrameRange& dt)
+{
+    os << dt.toStr();
     return os;
 }
 }
@@ -392,4 +470,16 @@ TYPED_TEST(TestRanges, Ranges) {
     ASSERT_EQ(Number_t(used.size()), range.end) << _format(used);
     ASSERT_EQ(used.size(), range.iterable().size()) << _format(used);
     ASSERT_EQ(Number_t(used.size()), range.length()) << _format(used);
+    
+    if constexpr(std::same_as<Frame_t, Number_t>) {
+        FrameRange default_init{};
+        FrameRange other_default_init{};
+        FrameRange actual_number{Range<Frame_t>(0_f, 100_f)};
+        FrameRange other_actual_number{Range<Frame_t>(50_f, 1000_f)};
+        
+        ASSERT_LT(default_init, actual_number) << _format("default_init ", default_init, " < actual ", actual_number);
+        ASSERT_EQ(default_init, other_default_init) << _format("default_init ",default_init," == ", other_default_init);
+        ASSERT_LT(actual_number, other_actual_number) << _format("actual ", actual_number," < other ", other_actual_number);
+        //ASSERT_GT(actual_number, other_default_init);
+    }
 }

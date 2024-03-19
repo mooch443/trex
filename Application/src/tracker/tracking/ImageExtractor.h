@@ -1,10 +1,10 @@
 #pragma once
 
+#include <commons.pc.h>
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
 #include <misc/bid.h>
 #include <tracking/Stuffs.h>
-#include <misc/vec2.h>
 #include <tracker/misc/default_config.h>
 #include <pv.h>
 #include <misc/PackLambda.h>
@@ -34,7 +34,7 @@ struct Result {
     Frame_t frame;
     Idx_t fdx;
     pv::bid bdx;
-    Image::UPtr image;
+    Image::Ptr image;
 };
 
 enum class Flag {
@@ -80,15 +80,15 @@ public:
     static bool is(uint32_t flags, Flag flag);
     
 protected:
-    GETTER_I(uint64_t, pushed_items, 0)
-    GETTER_I(uint64_t, collected_items, 0)
+    GETTER_I(uint64_t, pushed_items, 0);
+    GETTER_I(uint64_t, collected_items, 0);
     
 private:
     Settings _settings{};
     ska::bytell_hash_map<Frame_t, std::vector<Task>> _tasks;
     std::promise<void> _promise{};
     std::future<void> _future{_promise.get_future()};
-    pv::File& _video;
+    std::shared_ptr<pv::File> _video;
     
     std::thread _thread;
     
@@ -102,7 +102,7 @@ private:
     
 public:
     template<typename F>
-    ImageExtractor(pv::File & video,
+    ImageExtractor(std::shared_ptr<pv::File>&& video,
                    F && selector,
                    auto && partial_apply,
                    auto && callback,

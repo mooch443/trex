@@ -1,5 +1,4 @@
 #include "MotionRecord.h"
-#include <misc/detail.h>
 #include <tracking/Tracker.h>
 
 namespace track {

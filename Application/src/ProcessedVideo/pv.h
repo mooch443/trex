@@ -1,7 +1,7 @@
 #ifndef _PV_H
 #define _PV_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <file/DataFormat.h>
 #include <video/GenericVideo.h>
 #include <file/Path.h>
@@ -81,44 +81,48 @@ namespace pv {
         /** Added flags per object */
         V_8,
         
+        /** Added source frame index */
+        V_9,
+        
+        /** Adding Prediction + Pose */
+        V_10,
+        
         //! current
-        current = V_8
+        current = V_10
     };
     
     class Frame {
     private:
-        GETTER_SETTER(Frame_t, index)
+        GETTER_SETTER(Frame_t, index);
         
         //! time since movie start in microseconds
-        GETTER_SETTER(uint64_t, timestamp)
+        GETTER_SETTER(timestamp_t, timestamp);
         //! number of mask/pixel arrays
-        GETTER(uint16_t, n)
-        GETTER_SETTER(float, loading_time)
+        GETTER_I(uint16_t, n, 0u);
+        GETTER_SETTER_I(float, loading_time, 0.f);
+        GETTER_SETTER(Frame_t, source_index);
         
-        GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
-        GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
-        GETTER_NCONST(std::vector<uint8_t>, flags)
+        GETTER_NCONST(std::vector<blob::line_ptr_t>, mask);
+        GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels);
+        GETTER_NCONST(std::vector<uint8_t>, flags);
+        
+        //! predictions either empty or same size as _mask
+        GETTER_NCONST(std::vector<blob::Prediction>, predictions);
         
     public:
-        void operator=(const Frame& other);
-        void operator=(Frame&& other);
+        Frame& operator=(const Frame& other) = delete;
+        Frame& operator=(Frame&& other) = default;
         
         //! initialize empty object
-        Frame() : Frame(0, 0) {}
+        Frame() = default;
         Frame(Frame&&) noexcept = default;
+        explicit Frame(const Frame&);
         
         //! create a new one from scratch
-        Frame(const uint64_t& timestamp, decltype(_n) n);
+        Frame(const timestamp_t& timestamp, decltype(_n) n);
         
         //! read from a file
         Frame(File& ref, Frame_t idx);
-        
-        ~Frame() {
-            //for(auto m: _mask)
-            //    delete m;
-            //for(auto p: _pixels)
-            //    delete p;
-        }
         
         void read_from(File& ref, Frame_t idx);
         
@@ -126,16 +130,16 @@ namespace pv {
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
         std::unique_ptr<pv::Blob> steal_blob(size_t i);
         std::vector<pv::BlobPtr> get_blobs() const;
-        std::vector<pv::BlobPtr> steal_blobs();
+        std::vector<pv::BlobPtr> steal_blobs() &&;
         
         /**
          * Adds a new object to this frame.
          * ! takes ownership of both arrays
          **/
         void add_object(blob::Pair&& pair);
-        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags);
+        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const cmn::blob::Prediction&);
 
-        uint64_t size() const;
+        uint64_t size() const noexcept;
         void clear();
         void serialize(DataPackage&, bool& compressed) const;
         
@@ -188,7 +192,7 @@ namespace pv {
         
         //! Timestamp in microseconds since 1970 of when the recording started
         //  (all following frames have delta-timestamps)
-        uint64_t timestamp{0u};
+        timestamp_t timestamp;
         
         //! Contains an index for each frame, pointing
         //  to its location in the file
@@ -230,7 +234,7 @@ namespace pv {
         uint64_t _index_offset{0u};
         uint64_t _timestamp_offset{0u};
         double _running_average_tdelta{0.0};
-        GETTER_I(uint64_t, meta_offset, 0u)
+        GETTER_I(uint64_t, meta_offset, 0u);
         
     public:
         void write(DataFormat& ref);
@@ -240,6 +244,7 @@ namespace pv {
         
     public:
         Header() = default;
+        Header(Header&&) = default;
         Header(const std::string& n)
             : name(n)
         { }
@@ -250,6 +255,13 @@ namespace pv {
         }
         
         std::string generate_metadata() const;
+        
+        static Header move(Header&& src) {
+            Header dest = std::move(src);
+            src.average = nullptr;
+            src.mask = nullptr;
+            return dest;
+        }
     };
 
     struct TaskSentinel;
@@ -280,11 +292,11 @@ namespace pv {
         std::mutex _lock;
         Header _header;
         cv::Mat _average, _mask;
-        GETTER(file::Path, filename)
-        uint64_t _prev_frame_time;
+        GETTER(file::Path, filename);
+        timestamp_t _prev_frame_time;
         
         // debug compression
-        GETTER_I(std::atomic<double>, compression_ratio, 0.0)
+        GETTER_I(std::atomic<double>, compression_ratio, 0.0);
         double _compression_value = 0;
         uint32_t _compression_samples = 0;
         
@@ -302,18 +314,16 @@ namespace pv {
         using DataFormat::start_writing;
         using DataFormat::start_reading;
         using DataFormat::start_modifying;
+        
+    public:
+        bool is_read_mode() const override;
+        bool is_write_mode() const override;
         //void start_writing(bool overwrite) override;
         //void start_reading() override;
         
     public:
-        File(const file::Path& filename, FileMode mode)
-            : DataFormat(filename.add_extension("pv"), filename.str()),
-                _header(filename.str()),
-                _filename(filename),
-                _prev_frame_time(0),
-                _mode(mode)
-        { }
-        
+        File(const file::Path& filename, FileMode mode);
+        File(File&&) noexcept;
         ~File();
         
         void close() override;
@@ -342,7 +352,7 @@ namespace pv {
         virtual void stop_writing() override;
         
     public:
-        void set_resolution(const Size2& size) { _header.resolution = (cv::Size)size; }
+        void set_resolution(const Size2& size) { _header.resolution = Size2((cv::Size)size); }
         void set_average(const cv::Mat& average);
         const Header& header() const; //{ return _header; }
         Header& header(); //{ return _header; }
@@ -362,10 +372,15 @@ namespace pv {
          **/
         const cv::Size& size() const override { return _header.resolution; }
         Frame_t length() const override { return Frame_t(_header.num_frames); }
-        void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
+        
+        using GenericVideo::frame;
+        void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current());
 #ifdef USE_GPU_MAT
         void frame(Frame_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #endif
+        bool frame(Frame_t, Image&, cmn::source_location = cmn::source_location::current()) override {
+            throw InvalidArgumentException("Method not implemented.");
+        }
         void frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background);
         bool supports_multithreads() const override { return false; }
         
@@ -394,6 +409,17 @@ namespace pv {
     protected:
         virtual void _write_header() override;
         virtual void _read_header() override;
+        void _update_global_settings();
+        
+    protected:
+        // declared here so memory doesnt have to be freed/allocated all the time
+        // when reading a frame and we can make use of the vectors existing capacity
+        DataPackage frame_pixels;
+        std::vector<Header::line_type> frame_mask_cache{cmn::NoInitializeAllocator<Header::line_type>{}};
+        std::vector<LegacyShortHorizontalLine> frame_mask_legacy{cmn::NoInitializeAllocator<LegacyShortHorizontalLine>{}};
+        DataPackage frame_compressed_block, frame_uncompressed_block;
+        friend class pv::Frame;
+        //
     };
     
     //! Tries to find irregular frames (timestamp smaller than timestamp from previous frame)

@@ -35,6 +35,48 @@ There is no official tensorflow package yet, which is why |trex| will not allow 
 
 Now |trex|, if installed within the same environment, has the full power of your Mac at its disposal. Have fun!
 
+Installing the Beta Version
+***************************
+The beta version of TRex, known as TRexA, is currently under development aiming to consolidate the functionalities of TRex and TGrabs into a single streamlined tool. While it's capable of performing segmentation, tracking, and additional machine learning tasks, it's still in the beta phase and may not be stable for production use.
+
+However, it may contain some bug fixes for issues that are present in the latest stable release. If you're experiencing issues with the stable version, you may want to try the beta version to see if it resolves your issue.
+
+Using Beta Installers
+---------------------
+Installers for the beta version are provided for Windows, Linux, and MacOS. `These <https://drive.google.com/drive/folders/1TNGnDQP4gqPwCBvAgBRDlJ_U4CCdPSAx>`_ installers set up a minimal portable version of conda and TRexA. 
+
+- On MacOS, after installation to `~/trex-beta`, open a new terminal and type:
+
+    .. code-block:: bash
+
+        eval "$(~/trex-beta/condabin/conda shell.bash hook)"
+
+- On Windows and Linux, an icon will be created on your desktop or in your start-menu to launch TRexA.
+
+Installing via Conda
+--------------------
+Alternatively, you can install the beta version using Conda. Create an environment named `beta` and use the following commands based on your operating system:
+
+- **Linux, Windows**:
+
+    .. code-block:: bash
+
+        conda create -n beta --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex pytorch-cuda=11.7
+        conda activate beta
+        python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" 'tensorflow-gpu>=2,<3'
+
+- **MacOS**:
+
+    .. code-block:: bash
+
+        conda create -n beta --override-channels -c trex-beta -c pytorch-nightly -c conda-forge trex
+
+Once installed, you can access TRexA by typing `trexa` in the terminal, you can still access the other programs like `trex` and `tgrabs` as well, of course.
+
+.. warning::
+    The beta version is under development and may not be stable. It is not recommended for use in a production environment without thorough testing.
+
+
 Compile it yourself
 *******************
 
@@ -48,21 +90,27 @@ Both are obviously similar in result, but there *are* differences (the local cha
 Local conda channel
 ===================
 
-In order to get your own (local) conda channel, all you need to do is make sure you have Anaconda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages from within the base environment (use ``conda deactivate``, until it says ``base`` on the left). It creates a virtual environment, within which it compiles/tests the software you are trying to build. You can install it using::
+In order to get your own (local) conda channel, all you need to do is make sure you have conda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages locally (use ``conda deactivate``, until it says ``base`` on the left). Now you should probably create a new build environment first, keeping your base environment clean::
 
-	conda install conda-build
+	conda create -n build conda-build git python
+	conda activate build
 
-After that, from within the conda ``base`` environment, clone the |trex| repository using::
+Once this is done, you can clone the |trex| repository and change your directory to the ``conda`` folder::
 
 	git clone --recursive https://github.com/mooch443/trex
 	cd trex/conda
 
-Now, from within that folder, run::
+Next, make sure you have Visual Studio 2019 installed (yes, this is an older version that you need to download from Microsoft's archive), or Xcode on macOS. Linux should work out of the box, and if not you could try to install `build-essential` first.
+
+Finally, you can build the package using::
 
 	./build_conda_package.bat # Windows
 	./build_conda_package.sh  # Linux, macOS
 
-This runs ``conda build .``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that. Although beware that you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
+This runs ``conda build .`` (+ possibly additional arguments), which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that.
+
+.. NOTE::
+	Note that if you want to add Pylon SDKs etc., you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
 
 After compilation was successful, |trex| can be installed using::
 
@@ -95,8 +143,18 @@ The easiest way to ensure that all requirements are met, is by using conda to cr
 	# Windows
 	conda create -n trex git cmake ffmpeg tensorflow=2
 	
-	# Linux
-	conda create -n trex git cmake ffmpeg tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+	# Linux (minila)
+	conda create -n trex git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler
+
+	# Linux (graphics) - if compilation is missing graphics driver things, try recreating the environment like this and start over:
+	conda create -n trex gcc git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+
+	# on linux you may also need this, so that you don't need to set LD_LIBRARY_PATH every time you want to run trex:
+	conda activate trex
+	conda install -c conda-forge gcc pkg-config libxcursor-devel-cos6-x86_64 libxrender-devel-cos6-x86_64 libx11-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libxcb-cos6-x86_64 libxrandr-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libXxf86vm-devel-cos6-x86_64 xorg-x11-proto-devel-cos6-x86_64 libxext-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxinerama-devel-cos6-x86_64 libselinux-cos6-x86_64 libXau-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 libdc1394
+
+
+	conda create -n track -c pytorch-nightly -c nvidia pytorch-cuda=11.7 torchvision torchaudio cmake ffmpeg=4 git scikit-learn requests python 'tensorflow-gpu>=2.4,<3' pip pandas seaborn 'numpy=1.19'
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	

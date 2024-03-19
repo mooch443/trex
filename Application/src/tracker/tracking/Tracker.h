@@ -1,19 +1,18 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
 #include <misc/PVBlob.h>
 #include "Individual.h"
 #include <pv.h>
 #include <misc/ThreadPool.h>
 #include <processing/Background.h>
-#include <tracking/FOI.h>
-#include <tracking/Border.h>
+#include <misc/Border.h>
 #include <misc/Timer.h>
 #include <misc/BlobSizeRange.h>
 #include <misc/idx_t.h>
 #include <misc/create_struct.h>
 #include <tracker/misc/default_config.h>
-#include <tracking/TrackingSettings.h>
+#include <misc/TrackingSettings.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/LockGuard.h>
 
@@ -52,40 +51,50 @@ public:
     static GenericThreadPool& thread_pool() { return instance()->_thread_pool; }
     
 protected:
-    GETTER_NCONST(Border, border)
-    
-protected:
+    mutable std::shared_mutex _vi_mutex;
     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> _vi_predictions;
 public:
-    const auto& vi_predictions() const {
+    void transform_vi_predictions(auto&& fn) const {
+        std::shared_lock g(_vi_mutex);
+        for(auto const& [frame, pred] : _vi_predictions) {
+            if constexpr(Predicate<decltype(fn), Frame_t, decltype(pred)>) {
+                if(not fn(frame, pred))
+                    break;
+            } else {
+                fn(frame, pred);
+            }
+        }
+    }
+    /*auto vi_predictions() const {
         return _vi_predictions;
+    }*/
+    size_t number_vi_predictions() const {
+        std::shared_lock g(_vi_mutex);
+        return _vi_predictions.size();
     }
     bool has_vi_predictions() const {
+        std::shared_lock g(_vi_mutex);
         return !_vi_predictions.empty();
     }
     
     void set_vi_data(const decltype(_vi_predictions)& predictions);
-    void predicted(Frame_t, pv::bid, std::vector<float>&&);
+    void predicted(Frame_t, pv::bid, std::span<float>);
     const std::vector<float>& get_prediction(Frame_t, pv::bid) const;
     const std::vector<float>* find_prediction(Frame_t, pv::bid) const;
-    static std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
     
 protected:
     std::vector<FrameProperties::Ptr> _added_frames;
 public:
     const std::vector<FrameProperties::Ptr>& frames() const { return _added_frames; }
 protected:
+    CallbackCollection _callback;
     Image::Ptr _average;
-    GETTER_SETTER(cv::Mat, mask)
+    GETTER_SETTER(cv::Mat, mask);
     
     //! All the individuals that have been detected and are being maintained
     friend class Individual;
     
 public:
-    struct Clique {
-        UnorderedVectorSet<pv::bid> bids;  // index of blob, not blob id
-        UnorderedVectorSet<Idx_t> fishs; // index of fish
-    };
     ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
     
     //set_of_individuals_t _active_individuals;
@@ -101,6 +110,7 @@ public:
     
 protected:
     Background* _background{nullptr};
+    GETTER_NCONST(Border, border);
 public:
     static Background* background() { return instance()->_background; }
     
@@ -109,31 +119,8 @@ public:
     std::vector<IndividualStatus> _warn_individual_status;
     
 public:
-    struct Statistics {
-        float adding_seconds;
-        float combined_posture_seconds;
-        float number_fish;
-        float loading_seconds;
-        float posture_seconds;
-        float match_number_fish;
-        float match_number_blob;
-        float match_number_edges;
-        float match_stack_objects;
-        float match_max_edges_per_blob;
-        float match_max_edges_per_fish;
-        float match_mean_edges_per_blob;
-        float match_mean_edges_per_fish;
-        float match_improvements_made;
-        float match_leafs_visited;
-        float method_used;
-        
-        Statistics() {
-            std::fill((float*)this, (float*)this + sizeof(Statistics) / sizeof(float), infinity<float>());
-        }
-    };
-    
-    
-    std::map<Frame_t, Statistics> _statistics;
+    using stats_map_t = std::map<Frame_t, Statistics>;
+    GETTER(stats_map_t, statistics);
     
     struct SecondsPerFrame {
         double _seconds_per_frame, _frames_sampled;
@@ -147,15 +134,17 @@ public:
     
 private:
     inline static SecondsPerFrame _time_samples;
+    GenericThreadPool recognition_pool;
     
 public:
     static double average_seconds_per_individual();
     
-    GETTER(std::deque<Range<Frame_t>>, consecutive)
+    GETTER(std::deque<Range<Frame_t>>, consecutive);
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
 public:
-    Tracker();
+    Tracker(Image::Ptr&& average, float meta_real_width);
+    Tracker(Image::Ptr&& average, const pv::File& file);
     ~Tracker();
     
     /**
@@ -169,14 +158,47 @@ public:
 private:
     void add(Frame_t frameIndex, PPFrame& frame);
     
+    CallbackManagerImpl<void> _delete_frame_callbacks;
+    CallbackManagerImpl<Frame_t> _add_frame_callbacks;
+    static inline std::atomic<bool> _segment_order_changed{false};
+    
 public:
-    void set_average(const Image::Ptr& average) {
-        _average = average;
-        _background = new Background(_average, nullptr);
+    /**
+     * Registers a new callback function and returns its unique ID.
+     * The callback will be invoked when certain events or changes occur.
+     *
+     * @param callback The callback function to register.
+     * @return A unique identifier for the registered callback.
+     */
+    std::size_t register_delete_callback(const std::function<void()>& callback) {
+        return _delete_frame_callbacks.registerCallback(callback);
+    }
+    std::size_t register_add_callback(const std::function<void(Frame_t)>& callback) {
+        return _add_frame_callbacks.registerCallback(callback);
+    }
+
+    /**
+     * Unregisters (removes) a previously registered callback using its unique ID.
+     *
+     * @param id The unique identifier of the callback to unregister.
+     */
+    void unregister_delete_callback(std::size_t id) {
+        _delete_frame_callbacks.unregisterCallback(id);
+    }
+    void unregister_add_callback(std::size_t id) {
+        _add_frame_callbacks.unregisterCallback(id);
+    }
+    
+    void set_average(Image::Ptr&& average) {
+        _average = std::move(average);
+        _background = new Background(Image::Make(*_average), nullptr);
+        _border = Border(_background);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
+        if(not instance())
+            throw _U_EXCEPTION(loc, "Instance is nullptr.");
         if(!instance()->_average)
-            throw U_EXCEPTION<FormatterType::UNIX, const char*>("Pointer to average image is nullptr.", loc);
+            throw _U_EXCEPTION(loc, "Pointer to average image is nullptr.");
         return *instance()->_average;
     }
     
@@ -198,7 +220,7 @@ public:
     static size_t number_frames() { return instance()->_added_frames.size(); }
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(const pv::File&, pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, bool do_history_split = true);
+    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, const Size2& resolution, bool do_history_split = true);
     
     friend class VisualField;
     
@@ -212,6 +234,7 @@ public:
 
     static std::vector<Range<Frame_t>> global_segment_order();
     static void global_segment_order_changed();
+    static std::vector<Range<Frame_t>> unsafe_global_segment_order();
 
     void check_segments_identities(bool auto_correct, IdentitySource, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
     void clear_segments_identities();

@@ -14,7 +14,7 @@
 #include <misc/frame_t.h>
 
 #if WITH_FFMPEG
-#include "tomp4.h"
+#include <misc/tomp4.h>
 #endif
 
 #include <video/AveragingAccumulator.h>
@@ -48,12 +48,12 @@ public:
     };
     
 protected:
-    GETTER(Task, task)
+    GETTER(Task, task);
     std::unique_ptr<AveragingAccumulator> _accumulator;
     
-    GETTER(cv::Size, cam_size)
-    GETTER(cv::Size, cropped_size)
-    GETTER(Bounds, crop_rect)
+    GETTER(cv::Size, cam_size);
+    GETTER(cv::Size, cropped_size);
+    GETTER(Bounds, crop_rect);
 
     //! to ensure that all frames are processed, this will have to be zero in the end
     //! (meaning all added frames have been removed)
@@ -63,26 +63,26 @@ protected:
     
     AnalysisType* _analysis = nullptr;
 
-    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0)
+    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0);
     std::mutex _current_image_lock;
-    Image::UPtr _current_image;
+    Image::Ptr _current_image;
     gpuMat _average;
-    GETTER(cv::Mat, original_average)
+    GETTER(cv::Mat, original_average);
     cv::Mat _current_average;
     cmn::atomic<uint64_t> _current_average_timestamp;
     std::atomic<double> _tracking_time, _saving_time;
     
-    GETTER(std::atomic_bool, average_finished)
-    GETTER(uint32_t, average_samples)
-    GETTER(std::atomic_long, last_index)
+    GETTER(std::atomic_bool, average_finished);
+    GETTER(uint32_t, average_samples);
+    GETTER(std::atomic_long, last_index);
     
     //std::chrono::time_point<Image::clock_> _start_timing;
     timestamp_t _start_timing;
     std::chrono::time_point<std::chrono::system_clock> _real_timing;
 	
-    GETTER_PTR(VideoSource*, video)
+    GETTER_PTR(VideoSource*, video);
     VideoSource * _video_mask;
-    GETTER_PTR(fg::Camera*, camera)
+    GETTER_PTR(fg::Camera*, camera);
     
 public:
     std::mutex _fps_lock;
@@ -90,14 +90,14 @@ public:
     
 protected:
 	long _current_fps;
-	GETTER(std::atomic<float>, fps)
+	GETTER(std::atomic<float>, fps);
 	Timer _fps_timer;
     
 	std::mutex _lock;
     std::mutex _camera_lock;
 	
 	//std::vector<std::thread*> _pool;
-    GETTER_NCONST(pv::File, processed)
+    GETTER_NCONST(pv::File, processed);
     std::atomic_bool _paused;
     
     std::queue<ImagePtr> _image_queue;
@@ -154,7 +154,7 @@ public:
     bool load_image(Image_t& current);
     Queue::Code process_image(Image_t& current);
     
-    Image::UPtr latest_image();
+    Image::Ptr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);

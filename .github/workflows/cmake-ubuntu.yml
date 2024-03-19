@@ -17,22 +17,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-20.04"]
-        python-version: ["3.8.2"]
+        os: ["ubuntu-22.04"]
+        solver: ["classic"]
+        python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.ref }}
         submodules: 'recursive'
     - name: Cache conda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       env:
         # Increase this value to reset cache if etc/example-environment.yml has not changed
         CACHE_NUMBER: 0
       with:
         path: ~/conda_pkgs_dir
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         environment-file: .github/environment.yml
         activate-environment: tracking
@@ -40,7 +41,6 @@ jobs:
         channels: main
         auto-activate-base: true
         auto-update-conda: true
-        use-only-tar-bz2: true
     - name: Build
       shell: bash -l {0}
       working-directory: ${{runner.workspace}}
@@ -52,15 +52,20 @@ jobs:
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
         p=${GITHUB_REF##*/}
-        sed -i -e 's+main+'$p'+g' meta.yaml
+        sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build .
+        conda build . --override-channels -c pytorch -c nvidia -c defaults
         echo "::endgroup::"
+        echo $CONDA_PREFIX
+    - name: Test
+      shell: bash -l {0}
+      working-directory: ${{runner.workspace}}
+      run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
+        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c pytorch -c nvidia -c defaults trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support

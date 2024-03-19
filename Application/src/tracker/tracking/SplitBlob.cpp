@@ -1,9 +1,8 @@
 #include "SplitBlob.h"
-#include <types.h>
 #include <processing/CPULabeling.h>
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>
-#include <misc/metastring.h>
+
 #include <misc/PixelTree.h>
 #include <misc/cnpy_wrapper.h>
 #include <tracker/misc/default_config.h>
@@ -19,22 +18,28 @@ namespace track::split {
 //! secures the CPULabeling caches while in use
 //! + queue & dequeue and reusing
 struct Guard {
-    inline static std::queue<CPULabeling::ListCache_t*> caches;
-    inline static std::mutex clock;
+    static auto& caches() {
+        static std::queue<CPULabeling::ListCache_t*> c;
+        return c;
+    }
+    static auto& clock() {
+        static auto m = LOGGED_MUTEX("track::split::clock");
+        return m;
+    }
     
     CPULabeling::ListCache_t* c{ nullptr };
     Guard() {
-        std::unique_lock guard(clock);
-        if(caches.empty()) {
+        auto guard = LOGGED_LOCK(clock());
+        if(caches().empty()) {
             c = new CPULabeling::ListCache_t;
         } else {
-            c = caches.front();
-            caches.pop();
+            c = caches().front();
+            caches().pop();
         }
     }
     ~Guard() {
-        std::unique_lock guard(clock);
-        caches.push(c);
+        auto guard = LOGGED_LOCK(clock());
+        caches().push(c);
     }
 };
 
@@ -50,7 +55,7 @@ struct slow {
     DEF_SLOW_SETTINGS_T(float, blob_split_max_shrink);
     DEF_SLOW_SETTINGS_T(float, blob_split_global_shrink_limit);
     DEF_SLOW_SETTINGS(cm_per_pixel);
-    DEF_SLOW_SETTINGS(blob_size_ranges);
+    DEF_SLOW_SETTINGS(track_size_filter);
     DEF_SLOW_SETTINGS(track_threshold);
     DEF_SLOW_SETTINGS(track_posture_threshold);
     DEF_SLOW_SETTINGS_T(blob_split_algorithm_t::Class, blob_split_algorithm);
@@ -76,21 +81,15 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         SPLIT_SETTING( X ) = value.value<track::split::slow:: X##_t >(); \
     } void()
         
-        auto callback = "SplitBlob";
-        
-        auto fn = [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
-        {
+        auto fn = [](std::string_view name) {
             static bool first = true;
-            
-            if(signal == sprite::Map::Signal::EXIT) {
-                map.unregister_callback(callback);
-                return;
-            }
+            auto &map = GlobalSettings::map();
+            auto &value = map.at(name).get();
             
             DEF_CALLBACK(blob_split_max_shrink);
             DEF_CALLBACK(blob_split_global_shrink_limit);
             DEF_CALLBACK(cm_per_pixel);
-            DEF_CALLBACK(blob_size_ranges);
+            DEF_CALLBACK(track_size_filter);
             DEF_CALLBACK(track_threshold);
             DEF_CALLBACK(track_posture_threshold);
             
@@ -100,10 +99,18 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
                 first = false;
         };
         
-#undef DEF_CALLBACK
+        GlobalSettings::map().register_callbacks({
+            "blob_split_max_shrink",
+            "blob_split_global_shrink_limit",
+            "cm_per_pixel",
+            "track_size_filter",
+            "track_threshold",
+            "track_posture_threshold",
+            "blob_split_algorithm"
+            
+        }, fn);
         
-        GlobalSettings::map().register_callback(callback, fn);
-        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "", GlobalSettings::map()["cm_per_pixel"].get());
+#undef DEF_CALLBACK
         
         return 0;
     }(); UNUSED(_);
@@ -122,14 +129,14 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
         auto out = _diff_px.data();
         auto bg = Tracker::instance()->background();
         //auto grid = Tracker::instance()->grid();
-        constexpr LuminanceGrid* grid = nullptr;
+        //constexpr LuminanceGrid* grid = nullptr;
         min_pixel = 254;
         max_pixel = 0;
         
-        auto work = [&]<DifferenceMethod method>() {
+        auto work = [&]<DifferenceMethod method, ImageMode mode>() {
             for (auto &line : _blob->hor_lines()) {
                 for (auto x=line.x0; x<=line.x1; ++x, ++px, ++out) {
-                    *out = (uchar)saturate(float(bg->diff<method>(x, line.y, *px)) / 1.f);//(grid ? float(grid->relative_threshold(x, line.y)) : 1.f));
+                    *out = (uchar)saturate(float(bg->diff<method, mode>(x, line.y, *px)) / 1.f);//(grid ? float(grid->relative_threshold(x, line.y)) : 1.f));
                     if(*out < min_pixel)
                         min_pixel = *out;
                     if(*out > max_pixel)
@@ -138,12 +145,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
             }
         };
         
-        if(SLOW_SETTING(enable_absolute_difference)) {
-            work.operator()<DifferenceMethod::absolute>();
-        } else {
-            work.operator()<DifferenceMethod::sign>();
-        }
-        
+        call_image_mode_function(work);
         threshold = max(threshold, (int)min_pixel);
     }
     
@@ -168,8 +170,8 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
  * The rules are enforced in this order:
  *  1. given `presumed_number` of expected objects, are enough objects found?
  *  2. the overall number of pixels should not shrink further than `blob_split_max_shrink * first_size`, i.e. a certain percentage of the unthresholded image
- *  3. all objects smaller than `blob_size_ranges.max.start * blob_split_global_shrink_limit` are removed
- *  4. if the smallest found object is bigger than `blob_size_ranges.max.end`, ignore the results
+ *  3. all objects smaller than `track_size_filter.max.start * blob_split_global_shrink_limit` are removed
+ *  4. if the smallest found object is bigger than `track_size_filter.max.end`, ignore the results
  */
 split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs)
 {
@@ -184,7 +186,7 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
         return split::Action::ABORT;
     }
     
-    const float min_size_threshold = SPLIT_SETTING(blob_size_ranges).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
+    const float min_size_threshold = SPLIT_SETTING(track_size_filter).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
     auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
         auto fsize = blob->num_pixels() * sqrcm;
         return fsize < min_size_threshold;
@@ -198,7 +200,7 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
     }
     
     if(min_size.has_value()
-       && min_size.value() * sqrcm > SPLIT_SETTING(blob_size_ranges).max_range().end)
+       && min_size.value() * sqrcm > SPLIT_SETTING(track_size_filter).max_range().end)
     {
         return split::Action::REMOVE;
     }
@@ -417,8 +419,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             //print("Detections: ", detections.size());
 
             output.clear();
-            for(auto&& [lines, pixels, flags] : detections) {
-                output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags));
+            for(auto&& [lines, pixels, flags, pred] : detections) {
+                output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags, std::move(pred)));
                 //output.back()->add_offset(-_blob->bounds().pos());
             }
         }
@@ -476,6 +478,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         if(first_size == 0)
             first_size = max_size;
         
+        //PPFrame::Log("Resolved action ", action, " for presumed=",presumed_nr, " of ", *_blob, " to ", blobs);
+        
         // we found enough blobs, so we're allowed to keep it
         if(is_in(action, split::Action::KEEP, split::Action::KEEP_ABORT))
         {
@@ -499,7 +503,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     
     if(action != split::Action::KEEP
        && action != split::Action::KEEP_ABORT
-        && _blob->pixels()->size() * sqrcm < SPLIT_SETTING(blob_size_ranges).max_range().end * 100)
+        && _blob->pixels()->size() * sqrcm < SPLIT_SETTING(track_size_filter).max_range().end * 100)
     {
         
         if(presumed_nr > 1) {

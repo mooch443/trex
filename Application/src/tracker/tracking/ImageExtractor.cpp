@@ -1,5 +1,4 @@
 #include "ImageExtractor.h"
-#include <tracking/VisualIdentification.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
@@ -33,7 +32,7 @@ void ImageExtractor::filter_tasks() {
     
     for (auto it = _tasks.begin(); it != _tasks.end(); ++it) {
         if(it->second.size() < average) {
-            remove.insert(it->first);
+            //remove.insert(it->first);
         }
     }
     
@@ -204,8 +203,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             auto &[index, samples] = *it;
             pp.set_index(index);
             try {
-                _video.read_frame(frame, index);
-                Tracker::preprocess_frame(_video, std::move(frame), pp, NULL, PPFrame::NeedGrid::NoNeed);
+                _video->read_frame(frame, index);
+                Tracker::preprocess_frame(std::move(frame), pp, NULL, PPFrame::NeedGrid::NoNeed, _video->header().resolution);
             } catch(const UtilsException& e) {
                 FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());
                 {
@@ -261,8 +260,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 
                 auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
                 
-                if(!image) {
-                    //! can this happen?
+                if(not image) {
+                    //! can this happen? (yes, when no posture is available)
                     FormatWarning("[IE] Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
                     {
                         std::unique_lock guard(mutex);

@@ -1,6 +1,6 @@
 #include "PPFrame.h"
 #include <tracking/Tracker.h>
-#include <tracking/Categorize.h>
+#include <tracking/CategorizeDatastore.h>
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
 
@@ -8,19 +8,30 @@
 
 namespace track {
 
+#if TREX_ENABLE_HISTORY_LOGS
+std::shared_ptr<std::ofstream>& PPFrame::history_log() {
+    static std::shared_ptr<std::ofstream> history_log;
+    return history_log;
+}
+LOGGED_MUTEX_TYPE& PPFrame::log_mutex() {
+    static auto m = new LOGGED_MUTEX("PPFrame::log_mutex");
+    return *m;
+}
+#endif
+
 void PPFrame::UpdateLogs() {
 #if TREX_ENABLE_HISTORY_LOGS
-    if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
-        history_log = std::make_shared<std::ofstream>();
+    if(history_log() == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
+        history_log() = std::make_shared<std::ofstream>();
         
         auto path = SETTING(history_matching_log).value<file::Path>();
         if(!path.empty()) {
             path = file::DataLocation::parse("output", path);
             DebugCallback("Opening history_log at ", path, "...");
             //!TODO: CHECK IF THIS WORKS
-            history_log->open(path.str(), std::ios_base::out | std::ios_base::binary);
-            if(history_log->is_open()) {
-                auto &ss = *history_log;
+            history_log()->open(path.str(), std::ios_base::out | std::ios_base::binary);
+            if(history_log()->is_open()) {
+                auto &ss = *history_log();
                 ss << "<html><head>";
                 ss << "<style>";
                 ss << "map{ \
@@ -32,6 +43,9 @@ void PPFrame::UpdateLogs() {
                 } \
                 row.header { \
                 background-color: #EEE; \
+                } \
+                warning { \
+                color:rgb(193, 134, 23); display:inline; \
                 } \
                 key, value, doc { \
                 border: 1px solid #999999; \
@@ -50,9 +64,14 @@ void PPFrame::UpdateLogs() {
                 display: table-footer-group; \
                 font-weight: bold; \
                 } \
+                line { \
+                display: block; \
+                padding-left: 1.5em; \
+                text-indent: -1.5em; \
+                } \
                 string { display:inline; color: red; font-style: italic; }    \
                 ref { display:inline; font-weight:bold; } ref:hover { color: gray; } \
-                number { display:inline; color: green; } \
+                number,nr { display:inline; color: green; } \
                 keyword { display:inline; color: purple; } \
                 .body { \
                 display: table-row-group; \
@@ -68,26 +87,31 @@ void PPFrame::UpdateLogs() {
 
 void PPFrame::CloseLogs() {
 #if TREX_ENABLE_HISTORY_LOGS
-    std::lock_guard guard(log_mutex);
-    if(history_log != nullptr && history_log->is_open()) {
+    auto guard = LOGGED_LOCK(log_mutex());
+    if(history_log() != nullptr && history_log()->is_open()) {
         print("Closing history log.");
-        *history_log << "</body></html>";
-        history_log->flush();
-        history_log->close();
+        *history_log() << "</body></html>";
+        history_log()->flush();
+        history_log()->close();
     }
-    history_log = nullptr;
+    history_log() = nullptr;
 #endif
 }
 
 void PPFrame::write_log(std::string str) {
 #if TREX_ENABLE_HISTORY_LOGS
-    if(!history_log)
+    auto guard = LOGGED_LOCK(log_mutex());
+    if(!history_log())
         return;
     
-    str = settings::htmlify(str) + "</br>";
+    const auto tname = get_thread_name();
+    if(not utils::beginsWith(tname, "ConnectedTasks::stage_1_")
+       && not utils::contains(tname, "tracking-thread"))
+        return;
     
-    std::lock_guard guard(log_mutex);
-    *history_log << str << std::endl;
+    str = "<line>[<warning>"+tname+"</warning>] "+ settings::htmlify(str) + "</line>";
+    
+    *history_log() << str << std::endl;
 #else
     UNUSED(str)
 #endif
@@ -109,8 +133,9 @@ inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv
     }
 }
 
-PPFrame::PPFrame()
-    : _blob_grid(Tracker::average().bounds().size())
+PPFrame::PPFrame(const Size2& size)
+    : _resolution(size), _blob_grid(size)
+    //: _blob_grid(Tracker::average().bounds().size())
 {
 }
 
@@ -166,6 +191,11 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
         if(props == nullptr) {
             //! initial frame
             assert(previous_frame.valid());
+            if(Tracker::start_frame().valid()
+               && FrameRange(Range<Frame_t>(Tracker::start_frame(), Tracker::end_frame())).contains(previous_frame))
+            {
+                FormatWarning("Previous frame has already been processed: ", Range(Tracker::start_frame(), Tracker::end_frame()), " and previous:", previous_frame);
+            }
             assert(not Tracker::start_frame().valid()
                    or previous_frame < Tracker::start_frame()
                    or previous_frame > Tracker::end_frame());
@@ -238,8 +268,8 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                 continue;
             }
             
-            if(!history_split)
-                continue;
+            //if(!history_split)
+             //   continue;
             
             
             const auto time_limit = cache->previous_frame.get() - frame_limit; // dont allow too far to the past
@@ -343,7 +373,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     }
     
     if(need == NeedGrid::NoNeed) {
-        std::scoped_lock guard(_blob_grid_mutex);
+        std::unique_lock guard(_blob_grid_mutex);
         _blob_grid.clear();
     }
 }
@@ -372,7 +402,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         
         print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        auto bid0 = pv::bid::from_blob(blob);
+        auto bid0 = pv::bid::from_blob(*blob);
         auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
         
         FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
@@ -410,6 +440,9 @@ void PPFrame::_assume_not_finalized(const char* file, int line) {
     if(_finalized) {
         throw U_EXCEPTION("PPFrame already finalized @ [",file,":",line,"]. Finalized at ", _finalized_at.file_name(),":", _finalized_at.line(), " in function ", _finalized_at.function_name(), ".");
     }
+#else
+    UNUSED(file);
+    UNUSED(line);
 #endif
 }
 
@@ -463,11 +496,13 @@ pv::BlobPtr PPFrame::extract(pv::bid bdx) {
     return ptr;
 }
 
-const grid::ProximityGrid& PPFrame::blob_grid() noexcept {
+const grid::ProximityGrid& PPFrame::blob_grid() {
     std::scoped_lock guard(_blob_grid_mutex);
     if(_blob_grid.empty()) {
         // have to fill the grid
-        fill_proximity_grid();
+        if(_resolution.empty())
+            throw U_EXCEPTION("Resolution not set at time of use.");
+        fill_proximity_grid(_resolution);
     }
     
     return _blob_grid;
@@ -579,7 +614,7 @@ void PPFrame::clear_blobs() {
 }
 
 void PPFrame::_check_owners() {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(TREX_DEBUG_BLOBS)
     for(auto& [bdx, ptr] : _blob_map) {
         auto it = std::find(_blob_owner.begin(), _blob_owner.end(), bdx);
         if(it == _blob_owner.end())
@@ -607,8 +642,9 @@ void PPFrame::_check_owners() {
 
 void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
                         std::vector<pv::BlobPtr>&& noise,
-                        size_t pixels,
-                        size_t samples)
+                        robin_hood::unordered_flat_set<pv::bid>&& big_ids,
+                        size_t /*pixels*/,
+                        size_t /*samples*/)
 {
     ASSUME_NOT_FINALIZED;
     
@@ -616,6 +652,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     //_num_pixels += pixels;
     //_pixel_samples += samples;
     
+    _big_ids = std::move(big_ids);
     _blob_owner.reserve(_blob_owner.size() + blobs.size());
     _noise_owner.reserve(_noise_owner.size() + noise.size());
     
@@ -648,7 +685,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
             _num_pixels += blob->num_pixels();
             
         #ifdef TREX_DEBUG_BLOBS
-            print(this->index(), " Added ", blob, " with regular=", regular);
+            //print(this->index(), " Added ", blob, " with regular=", blobs);
         #endif
         };
         
@@ -732,6 +769,7 @@ void PPFrame::clear() {
     blob_mappings.clear();
     paired.clear();
     last_positions.clear();
+    fixed_matches.clear();
     
     _check_owners();
 }
@@ -740,7 +778,7 @@ bool PPFrame::has_fixed_matches() const {
     return !fixed_matches.empty();
 }
 
-void PPFrame::fill_proximity_grid() {
+void PPFrame::fill_proximity_grid(const Size2& size) {
     ASSUME_NOT_FINALIZED;
     
     /*if(!SETTING(gui_show_pixel_grid).value<bool>())
@@ -748,8 +786,10 @@ void PPFrame::fill_proximity_grid() {
         // do not need a blob_grid, so dont waste time here
         return;
     }*/
+    _resolution = size;
+    _blob_grid.set_resolution(size, grid::proximity_res);
     
-    transform_blobs([this](pv::Blob& b) {
+    auto add_blob = [this](const pv::Blob& b) {
         auto N = b.hor_lines().size();
         auto ptr = b.hor_lines().data();
         const auto end = ptr + N;
@@ -775,7 +815,10 @@ void PPFrame::fill_proximity_grid() {
             for(; ptr != end; ++ptr)
                 insert_line(_blob_grid, ptr, bdx, step_size_x);
         }
-    });
+    };
+    
+    transform_blobs(add_blob);
+    transform_noise_ids(_big_ids, add_blob);
 }
 
 }

@@ -1,9 +1,9 @@
 #ifndef _FISHP_H
 #define _FISHP_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <tracker/misc/idx_t.h>
-#include <gui/colors.h>
+#include <misc/colors.h>
 #include <misc/Blob.h>
 #include "Posture.h"
 #include "MotionRecord.h"
@@ -21,6 +21,8 @@
 #include <misc/ranges.h>
 #include <tracking/Stuffs.h>
 #include <tracking/SegmentInformation.h>
+
+#include <misc/Identity.h>
 
 #define DEBUG_ORIENTATION false
 
@@ -104,33 +106,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         return end;
     }
-    
-    class Identity {
-    protected:
-        GETTER_SETTER(gui::Color, color)
-        Idx_t _myID;
-        std::string _name;
-        GETTER_SETTER(bool, manual)
-        
-    public:
-        static void set_running_id(Idx_t value);
-        static Idx_t running_id();
-        Identity(Idx_t myID = Idx_t());
-        Idx_t ID() const { return _myID; }
-        void set_ID(Idx_t val) {
-            _color = ColorWheel(val.get()).next();
-            _myID = val;
-            _name = Meta::toStr(_myID);
-        }
-        const std::string& raw_name();
-        std::string raw_name() const;
-        std::string name() const;
-        std::string toStr() const {
-            return name();
-        }
-        
-        friend class Output::TrackingResults;
-    };
 
 #if DEBUG_ORIENTATION
     struct OrientationProperties {
@@ -160,23 +135,23 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! misc warnings
         Timer _warned_normalized_midline;
         
-        int _last_predicted_id{-1};
+        int64_t _last_predicted_id{-1};
         Frame_t _last_predicted_frame;
         
     protected:
         //! dense array of all the basic stuff we want to save
-        GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff)
-        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using)
+        GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff);
+        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using);
         
     protected:
         //! dense array of all posture related stuff we are saving
-        GETTER(std::vector<std::unique_ptr<PostureStuff>>, posture_stuff)
+        GETTER(std::vector<std::unique_ptr<PostureStuff>>, posture_stuff);
         Frame_t _last_posture_added;
         
     public:
         
     protected:
-        //GETTER(std::set<Frame_t>, manually_matched)
+        //GETTER(std::set<Frame_t>, manually_matched);
         std::set<Frame_t> automatically_matched;
         std::mutex _delete_callback_mutex;
         
@@ -192,8 +167,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         using small_segment_map = std::map<Frame_t, FrameRange>;
         
     protected:
-        GETTER(segment_map, frame_segments)
-        GETTER(small_segment_map, recognition_segments)
+        GETTER(segment_map, frame_segments);
+        GETTER(small_segment_map, recognition_segments);
         
         //! Contains a map with individual -> probability for the blob that has been
         //  assigned to this individual.
@@ -203,7 +178,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Contains a map from fish id to probability that averages over
         //  all available segments when "check identities" was last clicked
         std::map<Idx_t, float> _average_recognition;
-        GETTER(size_t, average_recognition_samples)
+        GETTER(size_t, average_recognition_samples);
         
         Frame_t _startFrame, _endFrame;
         
@@ -276,13 +251,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         size_t midline_samples() const;
         float outline_size() const;
         
-        void add_tag_image(const tags::Tag& tag);
+        void add_tag_image(tags::Tag&& tag);
         const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
         std::set<Frame_t> added_postures;
         CacheHints _hints;
         
     public:
-        Individual(Identity&& id = Identity());
+        Individual(std::optional<Identity>&& id = std::nullopt);
         ~Individual();
         
 #if DEBUG_ORIENTATION
@@ -343,7 +318,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void save_posture(const BasicStuff& ptr, Frame_t frameIndex, pv::BlobPtr&& pixels);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
-        long_t thresholded_size(Frame_t frameIndex) const;
+        int64_t thresholded_size(Frame_t frameIndex) const;
         
         const Midline::Ptr midline(Frame_t frameIndex) const;
         //const Midline::Ptr cached_fixed_midline(Frame_t frameIndex);
@@ -357,19 +332,17 @@ constexpr std::array<const char*, 8> ReasonsNames {
         PostureStuff* posture_stuff(Frame_t frameIndex) const;
         std::tuple<BasicStuff*, PostureStuff*> all_stuff(Frame_t frameIndex) const;
         
-        using Probability = Match::prob_t;
-        struct DetailProbability {
-            Match::prob_t p, p_time, p_pos, p_angle;
-        };
-        
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
-        Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
-        //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
-        Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
+    private:
+        Match::prob_t time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) const;
+        //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
+        Match::prob_t position_probability(const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
+        
+    public:
         const BasicStuff* find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
@@ -404,6 +377,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void clear_post_processing();
         void update_midlines(const CacheHints*);
         Midline::Ptr calculate_midline_for(const BasicStuff& basic, const PostureStuff& posture_stuff) const;
+        
+        blob::Pose pose_window(Frame_t start, Frame_t end, Frame_t ref) const;
         
     private:
         friend class gui::Fish;

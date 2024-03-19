@@ -13,14 +13,14 @@ elseif(WIN32)
 endif()
 
 if(WIN32)
-    target_link_libraries(tracker_python PUBLIC
+    target_compile_definitions(tracker_python PRIVATE TREX_EXPORTS)
+    target_link_libraries(tracker_python PRIVATE
         tracker_misc
         pv
         commons
     )
-    target_compile_options(tracker_python PUBLIC /D"TREX_EXPORTS")
 else()
-    target_link_libraries(tracker_python PRIVATE commons)
+    target_link_libraries(tracker_python PUBLIC tracker_misc pv commons)
 endif()
 
 if(NOT pybind11_external)
@@ -31,12 +31,12 @@ else()
 endif()
 
 add_executable(trex_check_python check_python.cpp)
-target_link_libraries(trex_check_python commons)
+target_link_libraries(trex_check_python PUBLIC commons)
 
 if(NOT pybind11_external)
-    target_link_libraries(trex_check_python pybind11::pybind11 pybind11::embed pybind11::module)
+    target_link_libraries(trex_check_python PUBLIC pybind11::pybind11 pybind11::embed pybind11::module)
 else()
-    target_link_libraries(trex_check_python ${PYTHON_LIBRARIES})
+    target_link_libraries(trex_check_python PUBLIC ${PYTHON_LIBRARIES})
 endif()
 
 #target_precompile_headers(trex_check_python REUSE_FROM commons)

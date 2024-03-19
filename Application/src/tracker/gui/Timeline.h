@@ -1,10 +1,10 @@
 #ifndef _TIMELINE_H
 #define _TIMELINE_H
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/ranges.h>
 #include <misc/idx_t.h>
-#include <misc/vec2.h>
+#include <misc/Image.h>
 
 class GUI;
 
@@ -41,20 +41,37 @@ namespace gui {
     
     class Timeline {
         //Size2 size;
+        static auto& mutex() {
+            static auto _mutex = new LOGGED_MUTEX("Timeline::mutex");
+            return *_mutex;
+        }
+        static Timeline& instance();
+        std::atomic<bool> foi_update_scheduled{false};
+        std::atomic<float> use_scale{1.f};
+        std::atomic<Size2> bar_size;
+        std::atomic<float> timeline_max_w;
+        std::atomic<Vec2> timeline_offset;
+        
+        std::mutex bar_mutex;
+        Image::Ptr bar_image;
+        
     public:
-        inline static std::mutex _frame_info_mutex;
+        static auto& frame_info_mutex() {
+            static auto _frame_info_mutex = new LOGGED_MUTEX("Timeline::_frame_info_mutex");
+            return *_frame_info_mutex;
+        }
         
     protected:
-        GETTER(std::unique_ptr<ExternalImage>, bar)
-        GETTER(std::unique_ptr<ExternalImage>, consecutives)
+        GETTER(std::unique_ptr<ExternalImage>, bar);
+        GETTER(std::unique_ptr<ExternalImage>, consecutives);
         
         float tdelta;
         
         bool _visible;
-        GETTER(Frame_t, mOverFrame)
+        GETTER(Frame_t, mOverFrame);
 
         GETTER_SETTER_PTR_I(Base*, base, nullptr)
-        GETTER(std::atomic_bool, update_thread_updated_once)
+        GETTER(std::atomic_bool, update_thread_updated_once);
         std::function<void()> _updated_recognition_rect;
         std::function<void(bool)> _hover_status_text;
         

@@ -1,7 +1,7 @@
 #include "LockGuard.h"
-#include <misc/detail.h>
+
 #include <misc/Timer.h>
-#include <misc/metastring.h>
+
 
 namespace track {
 using namespace cmn;
@@ -9,7 +9,10 @@ using namespace cmn;
 
 auto *tracker_lock = new std::shared_timed_mutex;
 
-static std::mutex read_mutex;
+static auto& read_mutex() {
+    static std::mutex m;
+    return m;
+}
 static std::unordered_set<std::thread::id> read_locks;
 
 static std::string _last_thread = "<none>", _last_purpose = "";
@@ -22,7 +25,8 @@ std::mutex thread_switch_mutex;
 LockGuard::~LockGuard() {
     if(_write && _set_name) {
         std::unique_lock tswitch(thread_switch_mutex);
-        if(_timer.elapsed() >= 0.1) {
+#ifndef NDEBUG
+        if(_timer.elapsed() >= 1) {
             auto name = get_thread_name();
             if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
                 auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
@@ -30,11 +34,21 @@ LockGuard::~LockGuard() {
                 _last_printed_purpose[_purpose].reset();
             }
         }
+#endif
         
         _last_purpose = "";
         _last_thread = "<none>";
         _thread_holding_lock_timer.reset();
     }
+    
+#ifndef NDEBUG
+    auto tm = _timer.elapsed();
+    if(tm >= 1) {
+        auto name = get_thread_name();
+        auto str = Meta::toStr(DurationUS{uint64_t(tm * 1000 * 1000)});
+        print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
+    }
+#endif
     
     _locked = false;
         
@@ -42,9 +56,9 @@ LockGuard::~LockGuard() {
         if(_owns_write) {
             {
                 std::unique_lock tswitch(thread_switch_mutex);
-                //std::stringstream ss, ss1;
-                //ss << _writing_thread_id;
-                //ss1 << std::this_thread::get_id();
+                std::stringstream ss, ss1;
+                ss << _writing_thread_id;
+                ss1 << std::this_thread::get_id();
                 
                 //print("[TG] ",_purpose, " resets _writing_thread_id(old=", ss.str()," vs. mine=", ss1.str(),") write=", _write, " regain=", _regain_read, " owned=", _owns_write);
                 _writing_thread_id = std::thread::id();
@@ -59,7 +73,7 @@ LockGuard::~LockGuard() {
                 
                 tracker_lock->lock_shared();
                 
-                std::unique_lock rm(read_mutex);
+                std::unique_lock rm(read_mutex());
                 read_locks.insert(std::this_thread::get_id());
             }
             
@@ -70,7 +84,7 @@ LockGuard::~LockGuard() {
         //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str());
         
         {
-            std::unique_lock rm(read_mutex);
+            std::unique_lock rm(read_mutex());
             read_locks.erase(std::this_thread::get_id());
         }
         
@@ -108,7 +122,7 @@ bool LockGuard::owns_write() noexcept {
 bool LockGuard::owns_read() noexcept {
     auto my_id = std::this_thread::get_id();
     {
-        std::unique_lock rm(read_mutex);
+        std::unique_lock rm(read_mutex());
         if(read_locks.contains(my_id)) {
             return true;
         }
@@ -135,7 +149,7 @@ bool LockGuard::init(uint32_t timeout_ms)
     }
     
     if(!_write) {
-        std::unique_lock rm(read_mutex);
+        std::unique_lock rm(read_mutex());
         if(read_locks.contains(my_id)) {
             //! we are already reading in this thread, dont
             //! reacquire the lock
@@ -144,7 +158,7 @@ bool LockGuard::init(uint32_t timeout_ms)
         }
         
     } else {
-        std::unique_lock rm(read_mutex);
+        std::unique_lock rm(read_mutex());
         if(read_locks.contains(my_id)) {
             read_locks.erase(my_id);
             tracker_lock->unlock_shared();
@@ -169,7 +183,7 @@ bool LockGuard::init(uint32_t timeout_ms)
                 
                 tracker_lock->lock_shared();
                 
-                std::unique_lock rm(read_mutex);
+                std::unique_lock rm(read_mutex());
                 read_locks.insert(my_id);
             }
             
@@ -221,7 +235,7 @@ bool LockGuard::init(uint32_t timeout_ms)
         //ss << my_id;
         //print("[TG] ",_purpose," acquire read lock in thread ", ss.str());
         
-        std::unique_lock rm(read_mutex);
+        std::unique_lock rm(read_mutex());
         read_locks.insert(my_id);
     }
     

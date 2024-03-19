@@ -1,21 +1,24 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <tracking/Individual.h>
 #include <tracking/VisualField.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
 #include <gui/Label.h>
-#include <tracking/Categorize.h>
+#include <ml/Categorize.h>
 #include <gui/IMGUIBase.h>
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
 #include <gui/GUICache.h>
 //#include <gui.h>
 #include <misc/IdentifiedTag.h>
+#include <gui/Skelett.h>
+#include <tracking/Individual.h>
+#include <processing/Background.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
-#include <gui.h>
+//#include <gui.h>
 #endif
 
 using namespace track;
@@ -48,21 +51,22 @@ Fish::~Fish() {
     if (_label) {
         delete _label;
     }
-
 }
 
     Fish::Fish(Individual& obj)
-        :   _obj(obj),
-            _info(&_obj, Output::Options_t{}),
+        :   _id(obj.identity()),
+            _info(&obj, Output::Options_t{}),
             _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
     {
+        _previous_color = obj.identity().color();
         CachedGUIOptions::init();
         
-        assert(_obj.identity().ID().valid());
-        auto ID = _obj.identity().ID();
+        assert(_id.ID().valid());
+        auto ID = _id.ID();
         _view.set_clickable(true);
         _circle.set_clickable(true);
-        _view.on_hover([](auto e) {
+        _view.on_hover([this](auto e) {
+            _path_dirty = true;
             if(!GUICache::exists() || !e.hover.hovered)
                 return;
             GUICache::instance().set_tracking_dirty();
@@ -89,24 +93,25 @@ Fish::~Fish() {
             _view.set_dirty();
         });
         
-        _posture.set_origin(Vec2(0.5));
+        _posture.set_origin(Vec2(0));
     }
 
     void Fish::check_tags() {
-        if (_blob) {
+        //if (_blob)
+        {
             std::vector<pv::BlobPtr> blobs;
             std::vector<pv::BlobPtr> noise;
             
-            GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob &blob) {
+            GUICache::instance().processed_frame().transform_blobs([&](const pv::Blob &blob) {
                 blobs.emplace_back(pv::Blob::Make(blob));
             });
-            GUICache::instance().processed_frame.transform_noise([&](const pv::Blob &blob) {
+            GUICache::instance().processed_frame().transform_noise([&](const pv::Blob &blob) {
                 noise.emplace_back(pv::Blob::Make(blob));
             });
             
             auto p = tags::prettify_blobs(blobs, noise, {},
-                //GUICache::instance().processed_frame.original_blobs(),
-                Tracker::instance()->background()->image());
+                //GUICache::instance().processed_frame().original_blobs(),
+                GUICache::instance().background()->image());
 
             for (auto& image : p) {
 
@@ -136,7 +141,7 @@ Fish::~Fish() {
             }
 
 
-            /*for (auto& b : GUI::instance()->cache().processed_frame.blobs()) {
+            /*for (auto& b : GUI::instance()->cache().processed_frame().blobs()) {
                 if (b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
                     auto&& [image_pos, image] = b->difference_image(*Tracker::instance()->background(), 0);
                     tf::imshow("blob", image->get());
@@ -146,79 +151,270 @@ Fish::~Fish() {
         }
     }
     
-    void Fish::set_data(Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
+    void Fish::set_data(Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
-        _safe_frame = _obj.find_frame(frameIndex)->frame;
+        _safe_frame = frameIndex;
         _time = time;
         _events = events;
         
-        if(_frame != frameIndex) {
-            _library_y = Graph::invalid();
-            _avg_cat = -1;
-            _next_frame_cache.valid = false;
-            if (_image.source())
-                _image.unsafe_get_source().set_index(-1);
-            points.clear();
+        //if(_frame == frameIndex)
+        //    return;
+        
+        _path_dirty = true;
+        _frame = frameIndex;
+        
+        _library_y = GlobalSettings::invalid();
+        _avg_cat = -1;
+        _next_frame_cache.valid = false;
+        if (_image.source())
+            _image.unsafe_get_source().set_index(-1);
+        points.clear();
+        
+        auto seg = _frame.valid() ? obj.segment_for(_frame) : nullptr;
+        if(seg) {
+            _match_mode = (int)obj.matched_using().at(seg->basic_stuff(_frame)).value();
+        } else
+            _match_mode = -1;
+        
+        if(auto it = GUICache::instance().fish_selected_blobs.find(_id.ID());
+           it != GUICache::instance().fish_selected_blobs.end())
+        {
+            _basic_stuff = it->second.basic_stuff;
+            _posture_stuff = it->second.posture_stuff;
+        
+            if(it->second.pred)
+                _pred = it->second.pred.value();
+            else
+                _pred.clear();
             
-            auto seg = _frame.valid() ? _obj.segment_for(_frame) : nullptr;
-            if(seg) {
-                _match_mode = (int)_obj.matched_using().at(seg->basic_stuff(_frame)).value();
-            } else
-                _match_mode = -1;
+        } else {
+            _basic_stuff.reset();
+            _posture_stuff.reset();
+            _pred.clear();
             
-            auto && [basic, posture] = _obj.all_stuff(_safe_frame);
-            
-            const PostureStuff* current_posture;
-            const BasicStuff* current_basic;
-            
-            if(frameIndex == _safe_frame) {
-                current_posture = posture;
-                current_basic = basic;
-            } else {
-                auto && [basic, posture] = _obj.all_stuff(frameIndex);
-                current_posture = posture;
-                current_basic = basic;
-            }
-            
-            _cached_outline = current_posture ? current_posture->outline : nullptr;
-            
-            if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline) || GUIOPTION(gui_happy_mode)) {
-                if(current_posture) {
-                    _cached_midline = SETTING(output_normalize_midline_data) ? _obj.fixed_midline(frameIndex) : _obj.calculate_midline_for(*current_basic, *current_posture);
-                    assert(!_cached_midline || _cached_midline->is_normalized());
-                }
-            }
-            
-            _view.set_dirty();
-            
-            _blob = _obj.compressed_blob(_safe_frame);
-            _blob_bounds = _blob ? _blob->calculate_bounds() : _view.bounds();
-
-            //check_tags();
-            
-            auto [_basic, _posture] = _obj.all_stuff(_safe_frame);
-            _basic_stuff = _basic;
-            _posture_stuff = _posture;
-            
-#if !COMMONS_NO_PYTHON
-            if(frameIndex == _safe_frame && _basic) {
-                auto c = Categorize::DataStore::_label_averaged_unsafe(&_obj, Frame_t(frameIndex));
-                if(c)
-                    _avg_cat = c->id;
-            }
-#endif
-            
-            auto color_source = GUIOPTION(gui_fish_color);
-            if(color_source != "identity" && _blob) {
-                _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
-                if(!Graph::is_invalid(_library_y)) {
-                    if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTING(cm_per_pixel);
-                    else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTING(cm_per_pixel);
-                }
+            if(not obj.empty()) {
+                auto current_basic = obj.find_frame(frameIndex);
+                if(not current_basic)
+                    throw U_EXCEPTION(_id," should have a safe frame given that its not empty.");
+                
+                _basic_stuff = *current_basic;
+                _safe_frame = _basic_stuff->frame;
+                
+                auto posture = obj.posture_stuff(_safe_frame);
+                if(posture)
+                    _posture_stuff = *posture;
+                else
+                    _posture_stuff.reset();
             }
         }
         
-        _frame = frameIndex;
+        _cached_outline = _posture_stuff 
+                            ? _posture_stuff->outline
+                            : nullptr;
+        
+        _ML = obj.midline_length();
+        
+        if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline) || GUIOPTION(gui_happy_mode)) {
+            if(_posture_stuff) {
+                _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_basic_stuff, *_posture_stuff);
+                assert(!_cached_midline || _cached_midline->is_normalized());
+            }
+        }
+        
+        _view.set_dirty();
+        
+        _blob_bounds = _basic_stuff
+                            ? _basic_stuff->blob.calculate_bounds()
+                            : _view.bounds();
+        
+#if !COMMONS_NO_PYTHON
+        if(frameIndex == _safe_frame && _basic_stuff) {
+            auto c = Categorize::DataStore::_label_averaged_unsafe(&obj, Frame_t(frameIndex));
+            if(c) {
+                _avg_cat = c->id;
+                _avg_cat_name = c->name;
+            }
+        }
+        
+        auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
+        _cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), bdx);
+        if (_cat != -1 && _cat != _avg_cat) {
+            _cat_name = Categorize::DataStore::label(_cat)->name;
+        }
+#endif
+        
+        auto color_source = GUIOPTION(gui_fish_color);
+        if(_basic_stuff
+           && color_source != "identity")
+        {
+            _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
+            if(!GlobalSettings::is_invalid(_library_y)) {
+                auto video_size = FindCoord::get().video_size();
+                if(color_source == "X") 
+                    _library_y /= video_size.width * FAST_SETTING(cm_per_pixel);
+                else if(color_source == "Y")
+                    _library_y /= video_size.height * FAST_SETTING(cm_per_pixel);
+            }
+        }
+        
+        _range = Range<Frame_t>(obj.start_frame(), obj.end_frame());
+        _empty = obj.empty();
+        
+        _has_processed_segment = obj.has_processed_segment(_frame);
+        if(std::get<0>(_has_processed_segment)) {
+            processed_segment = obj.processed_recognition(std::get<1>(_has_processed_segment).start());
+        } else
+            processed_segment = {};
+        
+        _segment = obj.segment_for(_frame);
+        if(_segment) {
+            _segment = std::make_shared<SegmentInformation>(*_segment);
+            _qr_code = obj.qrcode_at(_segment->start());
+        } else
+            _qr_code = {};
+        
+        const auto frame_rate = slow::frame_rate;
+        auto current_time = _time;
+        auto next_props = GUICache::instance()._next_props ? &GUICache::instance()._next_props.value() : nullptr;
+        //auto next_props = Tracker::properties(_frame + 1_f);
+        auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
+        
+        //if(!_next_frame_cache.valid)
+        if(GUICache::instance()._props) {
+            auto result = obj.cache_for_frame(&GUICache::instance()._props.value(), _frame + 1_f, next_time);
+            if(result) {
+                _next_frame_cache = std::move(result.value());
+            } else {
+                FormatWarning("Cannot create cache_for_frame of ", _id, " for frame ", _frame + 1_f, " because: ", result.error());
+            }
+        }
+        
+        _color = get_color(&_basic_stuff.value());
+
+        _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f, frameIndex);
+        if (not _skelett) {
+            _skelett = std::make_unique<Skelett>();
+        }
+        if(frameIndex == _safe_frame)
+            _skelett->set_color(_color.alpha(150));
+        else
+            _skelett->set_color(Gray.alpha(100));
+        _skelett->set_name(Meta::toStr(_id.color()));
+        
+        _skelett->set_pose(_average_pose);
+        _skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
+
+        updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
+        
+        auto &cache = GUICache::instance();
+        if(GUIOPTION(gui_show_probabilities)
+           && cache.is_selected(_id.ID()))
+        {
+            auto c = cache.processed_frame().cached(_id.ID());
+            if (c) {
+                auto &mat = _image.unsafe_get_source();
+                //if(mat.index() != narrow_cast<long_t>(_frame.get()))
+                {
+                    _probability_radius = saturate(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel) * 0.5, 1, 5000);
+                    //auto coord = FindCoord::get();
+                    
+                    auto res_factor = max(1.0, _probability_radius * 2 / max(512, _probability_radius * 2 / 4));
+                    const auto res = _probability_radius * 2 / res_factor;
+                    if(mat.cols != res || mat.rows != res || mat.dims != 4)
+                    {
+                        mat.create(_probability_radius * 2 / res_factor, _probability_radius * 2 / res_factor, 4);
+                        mat.set_to(0);
+                    } //coord.video_size().height, coord.video_size().width, 4);
+                    mat.set_index(_frame.get());
+                    //mat.set_to(0);
+                    
+                    /*if(_probability_radius < 10 || _probability_center.empty())
+                        mat.set_to(0);
+                    else {*/
+                        /*for (int y = 0; y < _probability_radius * 2; ++y) {
+                            auto ptr = mat.ptr(y, 0);
+                            auto end = mat.ptr(y, _probability_radius);
+                            if (end > mat.data() + mat.size())
+                                throw U_EXCEPTION("Mat end ", mat.size(), " end: ", uint64_t(end - mat.data()));
+                            std::fill(ptr, end, 0);
+                        }*/
+                    //}
+                    
+                    _probability_center = c->estimated_px;
+                    float sum;
+                    
+                    auto plot = [&](int x, int y) {
+                        auto pos = Vec2(x, y);
+                        if (pos.x < 0 || pos.x >= mat.cols)
+                            return;
+                        if (pos.y < 0 || pos.y >= mat.rows)
+                            return;
+                        if (_frame <= _range.start)
+                            return;
+                        
+                        auto ptr = mat.ptr(pos.y, pos.x);
+                        
+                        auto p = obj.probability(-1, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
+                        if (p < FAST_SETTING(matching_probability_threshold))
+                            return;
+                        
+                        auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));
+                        *(ptr + 0) = clr.r;
+                        *(ptr + 1) = clr.g;
+                        *(ptr + 2) = clr.b;
+                        *(ptr + 3) = clr.a;
+                        sum += p;
+                    };
+                    
+                    /*do {
+                        sum = 0;
+                        int r = _probability_radius;
+                        
+                        for (int y = 0; y < _probability_radius; ++y) {
+                            int x = std::sqrt(r * r - y * y);
+                            plot(x, y);
+                            plot(-x, y);
+                            
+                            plot(x,  -y);
+                            plot(-x, -y);
+                        }
+                        
+                        ++_probability_radius;
+                        
+                    } while (sum > 0 || _probability_radius < 10);*/
+                    
+                    distribute_indexes([&](auto, auto it, auto nex, auto){
+                        //print("y ", it, " - ", nex);
+                        for(auto y = it; y < nex; ++y) {
+                            int x = 0;
+                            auto ptr = mat.ptr(y, 0);
+                            auto end = mat.ptr(y, mat.cols);
+                            
+                            for (; ptr != end; ++ptr, ++x) {
+                                //if (*(ptr) <= 5)
+                                plot(x, y);
+                            }
+                        }
+                    }, cache.pool(), int(0), int(mat.rows));
+                    
+                    /*for (int y = 0; y < _probability_radius * 2; ++y) {
+                     int x = 0;
+                     auto ptr = mat.ptr(y, x);
+                     auto end = mat.ptr(y, _probability_radius * 2);
+                     
+                     for (; ptr != end; ++ptr, ++x) {
+                         //if (*(ptr) <= 5)
+                         plot(x, y);
+                     }
+                    }*/
+                    
+                    _image.set_pos(_probability_center - _probability_radius - _blob_bounds.pos());
+                    _image.set_scale(res_factor);
+                    _image.updated_source();
+                    //tf::imshow("image", mat.get());
+                }
+            }
+        }
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
@@ -226,8 +422,8 @@ Fish::~Fish() {
         window.image(blob_bounds.pos(), _image);
     }*/
     
-    void Fish::update(Base* base, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
-        const auto frame_rate = FAST_SETTING(frame_rate);
+    void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
+        //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
@@ -239,33 +435,30 @@ Fish::~Fish() {
         
         const Vec2 offset = -_blob_bounds.pos();
         
-        const auto centroid = _basic_stuff ? &_basic_stuff->centroid : nullptr;
-        const auto head = _posture_stuff ? _posture_stuff->head : nullptr;
+        const auto centroid = _basic_stuff.has_value() ? &_basic_stuff->centroid : nullptr;
+        const auto head = _posture_stuff.has_value() ? _posture_stuff->head : nullptr;
         
         _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = _view.hovered();
-        const bool timeline_visible = GUICache::exists() && Timeline::visible();
-        const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
+        //const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
+        //const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
         
-        auto base_color = single_identity != Transparent ? single_identity : _obj.identity().color();
+        auto base_color = single_identity != Transparent ? single_identity : _id.color();
         //auto clr = base_color.alpha(saturate(((cache.is_selected(_obj.identity().ID()) || hovered) ? max_color : max_color * 0.4f) * time_fade_percent));
-        auto clr = base_color.alpha(saturate(max_color));// * time_fade_percent));
-        _color = clr;
+        //auto clr = base_color.alpha(saturate(max_color));// * time_fade_percent));
+        //_color = clr;
         
-        auto current_time = _time;
-        auto next_props = Tracker::properties(_frame + 1_f);
-        auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
         
-        auto active = GUICache::instance().active_ids.find(_obj.identity().ID()) != GUICache::instance().active_ids.end();
-        bool is_selected = cache.is_selected(_obj.identity().ID());
+        auto active = GUICache::instance().active_ids.find(_id.ID()) != GUICache::instance().active_ids.end();
+        bool is_selected = cache.is_selected(_id.ID());
         std::vector<Vec2> points;
 
 
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-        if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE && false
+        if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
         {
             if (!is_selected) _view.tag(Effects::blur);
             else _view.untag(Effects::blur);
@@ -297,7 +490,7 @@ Fish::~Fish() {
 
     #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
     #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-                if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
                 {
                     if(is_selected)_polygon->tag(Effects::blur);
                     else _polygon->untag(Effects::blur);
@@ -309,18 +502,14 @@ Fish::~Fish() {
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-        auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
-        if (it != cache.fish_selected_blobs.end()) {
-            for (auto& [b, ptr] : cache.display_blobs) {
-                if (b == it->second) {
-                    //ptr->ptr->set_pos(Vec2());
-                    if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value
-                        && is_selected)
-                    {
-                        ptr->ptr->untag(Effects::blur);
+        if constexpr(std::is_same<MetalImpl, default_impl_t>::value) {
+            if(GUI_SETTINGS(gui_macos_blur) && is_selected) {
+                auto it = cache.fish_selected_blobs.find(_id.ID());
+                if (it != cache.fish_selected_blobs.end()) {
+                    auto dp = cache.display_blobs.find(it->second.bdx);
+                    if(dp != cache.display_blobs.end()) {
+                        dp->second->ptr->untag(Effects::blur);
                     }
-                    //_view.advance_wrap(*ptr->ptr);
-                    break;
                 }
             }
         }
@@ -340,7 +529,7 @@ Fish::~Fish() {
             mp = mouse_position - _view.pos();
         }
 
-        _posture.update([this, panic_button, mp, &_force, max_color, &head, &offset, active, &points](Entangled& window) {
+        _posture.update([this, panic_button, mp, &_force, &head, &offset, active, &points](Entangled& window) {
             if (panic_button) {
                 if (float(rand()) / float(RAND_MAX) > 0.75) {
                     _color = _wheel.next();
@@ -382,7 +571,7 @@ Fish::~Fish() {
             }
 
             if (active && _cached_outline && GUIOPTION(gui_show_outline)) {
-                std::vector<Vertex> oline;
+                Line::Vertices_t oline;
                 points = _cached_outline->uncompress();
 
                 if (GUIOPTION(gui_show_shadows)) {
@@ -392,9 +581,11 @@ Fish::~Fish() {
                         _polygon->set_origin(Vec2(0.5));
                     }
                     _polygon->set_vertices(points);
-                    float size = Tracker::average().bounds().size().length() * 0.0025f;
-                    Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
-                        SQR(offset.y / float(Tracker::average().rows)));
+                    
+                    auto video_size = FindCoord::get().video_size();
+                    float size = video_size.length() * 0.0025f;
+                    Vec2 scaling(SQR(offset.x / video_size.width),
+                                 SQR(offset.y / video_size.height));
                     _polygon->set_pos(-offset + scaling * size + _view.size() * 0.5);
                     _polygon->set_scale(scaling * 0.25 + 1);
                     _polygon->set_fill_clr(Black.alpha(25));
@@ -404,23 +595,23 @@ Fish::~Fish() {
 
                 // check if we actually have a tail index
                 if (GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
-                    window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), Radius{2}, LineClr{Blue.alpha(max_color * 0.3f)});
+                    window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), Radius{2}, LineClr{Blue.alpha(255 * 0.3f)});
 
                 //float right_side = outline->tail_index() + 1;
                 //float left_side = points.size() - outline->tail_index();
 
                 for (size_t i = 0; i < points.size(); i++) {
                     auto& pt = points[i];
-                    Color c = _color.alpha(max_color);
+                    //Color c = _color;
                     /*if(outline->tail_index() != -1) {
                         float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
                         c = Color(clr.r, clr.g, clr.b, max_color * d);
                     }*/
-                    oline.push_back(Vertex(pt, c));
+                    oline.push_back(Vertex(pt, _color));
                 }
-                oline.push_back(Vertex(points.front(), _color.alpha(0.04 * max_color)));
+                oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
                 //auto line =
-                window.add<Line>(oline, GUIOPTION(gui_outline_thickness));
+                window.add<Line>(oline, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
@@ -437,7 +628,7 @@ Fish::~Fish() {
                 auto& _midline = *_cached_midline;
                 midline_points = _midline.segments();
 
-                std::vector<Vertex> line;
+                Line::Vertices_t line;
                 auto tf = _cached_midline->transform(default_config::individual_image_normalization_t::none, true);
 
                 for (auto &segment : midline_points) {
@@ -450,37 +641,49 @@ Fish::~Fish() {
                     line.push_back(Vertex(tf.transformPoint(segment.pos), _color));
                 }
 
-                window.add<Line>(line, GUIOPTION(gui_outline_thickness));
+                window.add<Line>(line, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
                 //window.vertices(line);
 
                 if (head) {
-                    window.add<Circle>(Loc(head->pos<Units::PX_AND_SECONDS>() + offset), Radius{3}, LineClr{Red.alpha(max_color)});
+                    window.add<Circle>(Loc(head->pos<Units::PX_AND_SECONDS>() + offset), Radius{3}, LineClr{Red.alpha(255)});
                 }
             }
             });
         
         
+        //! this does not work since update() is called within before_draw :S
+        //! this function is not supposed to do what its doing apparently
+        //! need to overwrite update() method?
+        //if(_view.content_changed())
+        //if(_path_dirty)
         _view.update([&](Entangled&) {
-            if (GUIOPTION(gui_show_paths))
-                paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame.try_sub(1000_f)), base_color);
+            if(not _basic_stuff.has_value())
+				return;
+
+            _path_dirty = false;
+            
+            if (GUIOPTION(gui_show_paths)) {
+                for(auto& p : _paths)
+                    _view.advance_wrap(*p);
+                //paintPath(offset);
+            }
 
             if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
 
             if(panic_button) {
-                _view.add<Line>(_posture.pos(), mp, White.alpha(50));
-                GUICache::instance().set_animating(&_view, true);
-            } else
-                GUICache::instance().set_animating(&_view, false);
+                _view.add<Line>(Line::Point_t(_posture.pos()), Line::Point_t(mp), LineClr{ White.alpha(50) });
+            }
         
             _view.advance_wrap(_posture);
         
             // DISPLAY LABEL AND POSITION
+            auto bg = GUICache::instance().background();
             auto c_pos = centroid->pos<Units::PX_AND_SECONDS>() + offset;
-            if(c_pos.x > Tracker::average().cols || c_pos.y > Tracker::average().rows)
+            if(not bg || c_pos.x > bg->image().cols || c_pos.y > bg->image().rows)
                 return;
         
-            auto v = 255 - int(Tracker::average().at(c_pos.y, c_pos.x));
+            auto v = 255 - int(bg->image().at(c_pos.y, c_pos.x));
             if(v >= 100)
                 v = 220;
             else
@@ -491,24 +694,14 @@ Fish::~Fish() {
                 angle = -head->angle();
             }
         
-            auto ML = _obj.midline_length();
-            auto radius = (FAST_SETTING(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
+            auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
-                if(!_next_frame_cache.valid) {
-                    auto result = _obj.cache_for_frame(Tracker::properties(_frame), _frame + 1_f, next_time);
-                    if(result) {
-                        _next_frame_cache = std::move(result.value());
-                    } else {
-                        FormatWarning("Cannot create cache_for_frame of ", _obj.identity(), " for frame ", _frame + 1_f, " because: ", result.error());
-                    }
-                }
-                
                 if(_next_frame_cache.valid) {
                     auto estimated = _next_frame_cache.estimated_px + offset;
                     
-                    _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(max_color)});
-                    _view.add<Line>(c_pos, estimated, clr);
-                    _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
+                    _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(255)});
+                    _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(estimated), LineClr{ _color });
+                    _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{_color});
                 }
             }
         
@@ -524,8 +717,8 @@ Fish::~Fish() {
             
                 constexpr double damping_linear = .5;
                 constexpr float stiffness = 100, spring_L = 0, spring_damping = 1;
-                static std::unordered_map<const Individual*, Physics> _current_angle;
-                auto &ph = _current_angle[&_obj];
+                static std::unordered_map<Idx_t, Physics> _current_angle;
+                auto &ph = _current_angle[_id.ID()];
                 double dt = GUICache::instance().dt();
                 if(dt > 0.1)
                     dt = 0.1;
@@ -554,8 +747,8 @@ Fish::~Fish() {
                 ph.v += force / mass * dt;
                 ph.direction += ph.v * dt;
             
-                if (_basic_stuff) {
-                    auto&& [eyes, off] = VisualField::generate_eyes(_frame, _obj.identity().ID(), *_basic_stuff, points, _cached_midline, alpha);
+                if (_basic_stuff.has_value()) {
+                    auto&& [eyes, off] = VisualField::generate_eyes(_frame, _id.ID(), *_basic_stuff, points, _cached_midline, alpha);
 
                     auto d = ph.direction;
                     auto L = d.length();
@@ -579,7 +772,7 @@ Fish::~Fish() {
                     ph.blink += dt;
 
                     auto sun_direction = (offset - Vec2(0)).normalize();
-                    auto eye_scale = max(0.5, _obj.midline_length() / 90);
+                    auto eye_scale = max(0.5, _ML / 90);
                     for (auto& eye : eyes) {
                         eye.pos += ph.direction;
                         _view.add<Circle>(Loc(eye.pos + offset), Radius(5 * eye_scale), LineClr{Black.alpha(200)}, FillClr{White.alpha(125)});
@@ -590,145 +783,70 @@ Fish::~Fish() {
                     }
                 }
             }
-        
-        
-                auto color_source = GUIOPTION(gui_fish_color);
-                if(color_source == "viridis") {
-                    GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob& b)
-                    {
-                        if(!is_in(b.blob_id(), _blob->blob_id(), _blob->parent_id))
-                            return true;
-                        
-                        auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
-                        auto rgba = Image::Make(difference->rows, difference->cols, 4);
+
+            auto color_source = GUIOPTION(gui_fish_color);
+            auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
+            auto pdx = _basic_stuff.has_value() ? _basic_stuff->blob.parent_id : pv::bid();
+
+            if(color_source == "viridis") {
+                GUICache::instance().processed_frame().transform_blobs_by_bid(std::array{bdx, pdx}, [&,bdx,pdx] (const pv::Blob& b)
+                {
+                    if(!is_in(b.blob_id(), bdx, pdx))
+                        return true;
                     
-                        uchar maximum_grey = 255, minimum_grey = 0;
-                        
-                        auto ptr = rgba->data();
-                        auto m = difference->data();
-                        for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
-                            auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
-                            *(ptr) = c.r;
-                            *(ptr+1) = c.g;
-                            *(ptr+2) = c.b;
-                            *(ptr+3) = *m;
-                        }
-                    
-                        _view.add<ExternalImage>(std::move(rgba), dpos + offset);
-                        
-                        return false;
-                    });
+                    auto && [dpos, difference] = b.difference_image(*GUICache::instance().background(), 0);
+                    auto rgba = Image::Make(difference->rows, difference->cols, 4);
                 
-                } else if(!Graph::is_invalid(_library_y)) {
-                    auto percent = min(1.f, cmn::abs(_library_y));
-                    Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
+                    uchar maximum_grey = 255, minimum_grey = 0;
+                    
+                    auto ptr = rgba->data();
+                    auto m = difference->data();
+                    for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
+                        auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
+                        *(ptr) = c.r;
+                        *(ptr+1) = c.g;
+                        *(ptr+2) = c.b;
+                        *(ptr+3) = *m;
+                    }
                 
-                    GUICache::instance().processed_frame.transform_blobs([&](const pv::Blob& b)
-                    {
-                        if(!is_in(b.blob_id(), _blob->blob_id(), _blob->parent_id))
-                            return true;
-                        
-                        auto && [image_pos, image] = b.binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
-                        auto && [dpos, difference] = b.difference_image(*Tracker::instance()->background(), 0);
+                    _view.add<ExternalImage>(std::move(rgba), dpos + offset);
                     
-                        auto rgba = Image::Make(image->rows, image->cols, 4);
+                    return false;
+                });
+            
+            } else if(not GlobalSettings::is_invalid(_library_y)) {
+                auto percent = min(1.f, cmn::abs(_library_y));
+                Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
+            
+                GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b)
+                {
+                    if(!is_in(b.blob_id(), bdx, pdx))
+                        return true;
                     
-                        uchar maximum = 0;
-                        for(size_t i=0; i<difference->size(); ++i) {
-                            maximum = max(maximum, difference->data()[i]);
-                        }
-                        for(size_t i=0; i<difference->size(); ++i)
-                            difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
-                    
-                        rgba->set_channels(image->data(), {0, 1, 2});
-                        rgba->set_channel(3, difference->data());
-                    
-                        _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
-                    
-                        return false;
-                    });
-                }
+                    auto && [image_pos, image] = b.binary_image(*GUICache::instance().background(), FAST_SETTING(track_threshold));
+                    auto && [dpos, difference] = b.difference_image(*GUICache::instance().background(), 0);
+                
+                    auto rgba = Image::Make(image->rows, image->cols, 4);
+                
+                    uchar maximum = 0;
+                    for(size_t i=0; i<difference->size(); ++i) {
+                        maximum = max(maximum, difference->data()[i]);
+                    }
+                    for(size_t i=0; i<difference->size(); ++i)
+                        difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
+                
+                    rgba->set_channels(image->data(), {0, 1, 2});
+                    rgba->set_channel(3, difference->data());
+                
+                    _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
+                
+                    return false;
+                });
+            }
         
             
             if(is_selected && GUIOPTION(gui_show_probabilities)) {
-                auto c = cache.processed_frame.cached(_obj.identity().ID());
-                if (c) {
-                    auto &mat = _image.unsafe_get_source();
-                    if(mat.index() != _frame.get()) {
-                        mat.create(Tracker::average().rows, Tracker::average().cols, 4);
-                        mat.set_index(_frame.get());
-
-                        if(_probability_radius < 10 || _probability_center.empty())
-                            mat.set_to(0);
-                        else {
-                            for (int y = max(0, _probability_center.y - _probability_radius - 1); y < min((float)mat.rows - 1, _probability_center.y + _probability_radius); ++y) {
-                                auto ptr = mat.ptr(y, max(0, _probability_center.x - _probability_radius - 1));
-                                auto end = mat.ptr(y, min((float)mat.cols - 1, _probability_center.x + _probability_radius + 1));
-                                if (end > mat.data() + mat.size())
-                                    throw U_EXCEPTION("Mat end ", mat.size(), " end: ", uint64_t(end - mat.data()));
-                                std::fill(ptr, end, 0);
-                            }
-                        }
-                        
-                        _probability_center = c->estimated_px;
-                        float sum;
-                        _probability_radius = 0;
-
-                        auto plot = [&](int x, int y) {
-                            Vec2 pos = _probability_center + Vec2(x, y);
-                            if (pos.x < 0 || pos.x >= mat.cols)
-                                return;
-                            if (pos.y < 0 || pos.y >= mat.rows)
-                                return;
-                            if (_frame <= _obj.start_frame())
-                                return;
-
-                            auto ptr = mat.ptr(pos.y, pos.x);
-                            auto p = _obj.probability(-1, *c, _frame, pos + 1 * 0.5, 1);
-                            if (p/*.p*/ < FAST_SETTING(matching_probability_threshold))
-                                return;
-
-                            auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));
-                            *(ptr + 0) = clr.r;
-                            *(ptr + 1) = clr.g;
-                            *(ptr + 2) = clr.b;
-                            *(ptr + 3) = clr.a;
-                            sum += p/*.p*/;
-                        };
-
-                        do {
-                            sum = 0;
-                            int r = _probability_radius;
-
-                            for (int y = 0; y < _probability_radius; ++y) {
-                                int x = std::sqrt(r * r - y * y);
-                                plot(x, y);
-                                plot(-x, y);
-
-                                plot(x,  -y);
-                                plot(-x, -y);
-                            }
-
-                            ++_probability_radius;
-
-                        } while (sum > 0 || _probability_radius < 10);
-
-                        for (int y = max(0, _probability_center.y - _probability_radius - 1); y < min((float)mat.rows - 1, _probability_center.y + _probability_radius); ++y) {
-                            int x = max(0, _probability_center.x - _probability_radius - 1);
-                            auto ptr = mat.ptr(y, x);
-                            auto end = mat.ptr(y, min((float)mat.cols - 1, _probability_center.x + _probability_radius + 1));
-                            
-                            for (; ptr != end; ++ptr, ++x) {
-                                //if (*(ptr) <= 5)
-                                    plot(x - _probability_center.x, y - _probability_center.y);
-                            }
-                        }
-
-                        _image.updated_source();
-                    }
-                }
-
-                _image.set_pos(offset);
+                //_image.set_pos(offset);
                 _view.advance_wrap(_image);
             }
             else if(!_image.source()->empty()) {
@@ -736,18 +854,24 @@ Fish::~Fish() {
             }
         
             if ((hovered || is_selected) && GUIOPTION(gui_show_selections)) {
-                Color circle_clr = Color(v).alpha(saturate(max_color * (hovered ? 1.7 : 1)));
-                if(cache.primary_selection() != &_obj)
+                auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
+                if(cache.primary_selected_id() != _id.ID())
                     circle_clr = Gray.alpha(circle_clr.a);
             
                 // draw circle around the fish
             
-            
                 _circle.set_pos(c_pos);
                 _circle.set_radius(radius);
+                _circle.set_origin(Vec2(0.5));
                 _circle.set_line_clr(circle_clr);
                 _circle.set_fill_clr(hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
+                //_circle.set_scale(Vec2(1));
                 _view.advance_wrap(_circle);
+                
+                auto &gb = _circle.global_bounds();
+                if(gb.width < 15) {
+                    _circle.set_scale(_circle.scale().mul(15 / gb.width));
+                }
             
                 //window.circle(c_pos, radius, circle_clr, hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
             
@@ -756,7 +880,7 @@ Fish::~Fish() {
                 pos = pos * radius + c_pos;
             
                 _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
-                _view.add<Line>(c_pos, pos, circle_clr);
+                _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
             
                 if(FAST_SETTING(posture_direction_smoothing)) {
                     std::map<Frame_t, float> angles;
@@ -765,11 +889,11 @@ Fish::~Fish() {
                     float previous = FLT_MAX;
                     bool hit = false;
                     float value = 0;
-                    size_t count_ones = 0;
+                    //size_t count_ones = 0;
                 
                     for (auto frame = _frame - Frame_t(FAST_SETTING(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTING(posture_direction_smoothing)); ++frame)
                     {
-                        auto midline = _obj.pp_midline(frame);
+                        auto midline = _pp_midline;
                         if(midline) {
                             auto angle = midline->original_angle();
                             angles[frame] = angle;
@@ -791,9 +915,9 @@ Fish::~Fish() {
                                 }
                             
                                 interp[frame] = value;
-                                if(hit) {
-                                    ++count_ones;
-                                }
+                                //if(hit) {
+                                    //++count_ones;
+                                //}
                             
                                 dangle[frame] = val;
                             }
@@ -843,149 +967,183 @@ Fish::~Fish() {
                     _view.advance_wrap(_graph);
                 }
             }
+            
         });
 
         
         parent.advance_wrap(_view);
         
-        _label_parent.update([&](auto&){
-            label(base, bowl, _label_parent);
-        });
-        
+        if(_basic_stuff.has_value() && _basic_stuff->blob.pred.pose.size() > 0) {
+            if(_skelett)
+                parent.advance_wrap(*_skelett);
+        }
+
         parent.advance_wrap(_label_parent);
-        
-        //static auto change = parent.children();
-        /*if(parent.children().size() != change.size()) {
-            print("_view:");
-            for(auto c : parent.children()) {
-                auto name = c->toStr();
-                print("\t", name);
-            }
-            print("--");
-            change = parent.children();
-        }*/
+        _label_parent.update([&](auto&){
+            label(coord, _label_parent);
+        });
+    }
+
+Color Fish::get_color(const BasicStuff * basic) const {
+    if(not basic)
+        return Transparent;
+    
+    const auto single_identity = GUIOPTION(gui_single_identity_color);
+    auto base_color = single_identity != Transparent ? single_identity : _id.color();
+    
+    auto color_source = GUIOPTION(gui_fish_color);
+    auto clr = base_color.alpha(255);
+    if(single_identity.a != 0) {
+        clr = single_identity;
     }
     
-    void Fish::paintPath(const Vec2& offset, Frame_t to, Frame_t from, const Color& base_color) {
-        if (!to.valid())
-            to = _obj.end_frame();
-        if (!from.valid())
-            from = _obj.start_frame();
+    if(color_source != "identity") {
+        auto y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
         
-        from = _obj.start_frame();
-        to = min(_obj.end_frame(), _frame);
-        
-        float color_start = max(0, round(_frame.get() - FAST_SETTING(frame_rate) * GUIOPTION(gui_max_path_time)));
-        float color_end = max(color_start + 1, (float)_frame.get());
-        
-        from = max(Frame_t(sign_cast<Frame_t::number_t>(color_start)), from);
-        
-        if(_prev_frame_range.start != _obj.start_frame() || _prev_frame_range.end > _obj.end_frame()) {
-            frame_vertices.clear();
+        if(not GlobalSettings::is_invalid(y)) {
+            auto video_size = FindCoord::get().video_size();
+            if(color_source == "X")
+                y /= video_size.width * slow::cm_per_pixel;
+            else if(color_source == "Y")
+                y /= video_size.height * slow::cm_per_pixel;
+            
+            auto percent = saturate(cmn::abs(y), 0.f, 1.f);
+            return clr.alpha(255) * percent + Color(50, 50, 50, 255) * (1 - percent);
         }
+    } else
+        return base_color;
+    
+    return Transparent;
+}
+
+void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
+    if (!to.valid())
+        to = _range.end;
+    if (!from.valid())
+        from = _range.start;
+    
+    from = _empty ? _frame : _range.start;
+    to = _empty ? _frame : min(_range.end, _frame);
         
-        _prev_frame_range = Range<Frame_t>(_obj.start_frame(), _obj.end_frame());
+    _color_start = max(sign_cast<int64_t>(_range.start.get()), round(sign_cast<int64_t>(_frame.get()) - FAST_SETTING(frame_rate) * GUIOPTION(gui_max_path_time)));
+    _color_end = max(_color_start + 1, (float)_frame.get());
+    
+    from = max(Frame_t(sign_cast<Frame_t::number_t>(_color_start)), from);
+    
+    if(_prev_frame_range.start != _range.start
+       || _prev_frame_range.end > _range.end)
+    {
+        frame_vertices.clear();
+    }
+    
+    _prev_frame_range = _range;
+    
+    const float max_speed = FAST_SETTING(track_max_speed);
+    //const float thickness = GUIOPTION(gui_outline_thickness);
+    
+    auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
+    
+    if(first.valid() && first < from && !frame_vertices.empty()) {
+        auto it = frame_vertices.begin();
+        while (it != frame_vertices.end() && it->frame < from)
+            ++it;
         
-        const float max_speed = FAST_SETTING(track_max_speed);
-        const float thickness = GUIOPTION(gui_outline_thickness);
+        //auto end = it != frame_vertices.begin() ? it-1 : it;
         
-        auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
+        frame_vertices.erase(frame_vertices.begin(), it);
+        first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
+    }
+    
+    
+    if(not first.valid()
+       || first > from)
+    {
+        auto i = (first.valid() ? first - 1_f : from);
+        auto fit = obj.iterator_for(i);
+        auto end = obj.frame_segments().end();
+        auto begin = obj.frame_segments().begin();
+        //auto seg = _obj.segment_for(i);
         
-        if(first.valid() && first < from && !frame_vertices.empty()) {
-            auto it = frame_vertices.begin();
-            while (it != frame_vertices.end() && it->frame < from)
-                ++it;
-            
-            //auto end = it != frame_vertices.begin() ? it-1 : it;
-            
-            frame_vertices.erase(frame_vertices.begin(), it);
-            first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
-        }
-        
-        if(not first.valid()
-           || first > from)
-        {
-            auto i = (first.valid() ? first - 1_f : from);
-            auto fit = _obj.iterator_for(i);
-            auto end = _obj.frame_segments().end();
-            auto begin = _obj.frame_segments().begin();
-            //auto seg = _obj.segment_for(i);
-            
-            for (; i.valid() && i>=from; --i) {
-                if(fit == end || (*fit)->start() > i) {
-                    while(fit != begin && (fit == end || (*fit)->start() > i))
-                    {
-                        --fit;
-                    }
-                }
-                
-                if(fit != end && (*fit)->contains(i)) {
-                    auto id = (*fit)->basic_stuff(i);
-                    if(id != -1) {
-                        auto &stuff = _obj.basic_stuff()[id];
-                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)});
-                    }
+        for (; i.valid() && i>=from; --i) {
+            if(fit == end || (*fit)->start() > i) {
+                while(fit != begin && (fit == end || (*fit)->start() > i))
+                {
+                    --fit;
                 }
             }
             
-            first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
+            if(fit != end && (*fit)->contains(i)) {
+                auto id = (*fit)->basic_stuff(i);
+                if(id != -1) {
+                    auto &stuff = obj.basic_stuff()[id];
+                    frame_vertices.push_front(FrameVertex{
+                        .frame = i,
+                        .vertex = Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>(), get_color(stuff.get())),
+                        .speed_percentage = min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
+                    });
+                }
+            }
         }
         
-        auto last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
-        if(!last.valid())
-            last = from;
+        first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
+    }
+    
+    auto last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
+    if(!last.valid())
+        last = from;
+    
+    if(last > to && !frame_vertices.empty()) {
+        auto it = --frame_vertices.end();
+        while(it->frame > to && it != frame_vertices.begin())
+            --it;
         
-        if(last > to && !frame_vertices.empty()) {
-            auto it = --frame_vertices.end();
-            while(it->frame > to && it != frame_vertices.begin())
-                --it;
+        
+        frame_vertices.erase(it, frame_vertices.end());
+    }
+    
+    last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
+    
+    if(not last.valid()
+       || last < to)
+    {
+        auto i = last.valid() ? max(from, last) : from;
+        auto fit = obj.iterator_for(i);
+        auto end = obj.frame_segments().end();
+        
+        for (; i<=to; ++i) {
+            if(fit == end || (*fit)->end() < i) {
+                //seg = _obj.segment_for(i);
+                while(fit != end && (*fit)->end() < i)
+                    ++fit;
+            }
             
-            
-            frame_vertices.erase(it, frame_vertices.end());
+            if(fit != end && (*fit)->contains(i)) {
+                auto id = (*fit)->basic_stuff(i);
+                if(id != -1) {
+                    auto &stuff = obj.basic_stuff()[id];
+                    frame_vertices.push_back(FrameVertex{
+                        .frame = i,
+                        .vertex = Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>(), get_color(stuff.get())),
+                        .speed_percentage = min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
+                    });
+                }
+            }
         }
         
         last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
+    }
+    
+    const Vec2 offset = -_blob_bounds.pos();
+    paintPath(offset);
+}
+    
+    void Fish::paintPath(const Vec2& offset) {
+        //const float max_speed = FAST_SETTING(track_max_speed);
+        const float thickness = GUIOPTION(gui_outline_thickness);
         
-        if(not last.valid()
-           || last < to)
-        {
-            auto i = last.valid() ? max(from, last) : from;
-            auto fit = _obj.iterator_for(i);
-            auto end = _obj.frame_segments().end();
-            
-            for (; i<=to; ++i) {
-                if(fit == end || (*fit)->end() < i) {
-                    //seg = _obj.segment_for(i);
-                    while(fit != end && (*fit)->end() < i)
-                        ++fit;
-                }
-                
-                if(fit != end && (*fit)->contains(i)) {
-                    auto id = (*fit)->basic_stuff(i);
-                    if(id != -1) {
-                        auto &stuff = _obj.basic_stuff()[id];
-                        frame_vertices.push_back(FrameVertex{i, Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)});
-                    }
-                }
-            }
-            
-            last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
-        }
-        
-        auto clr = base_color.alpha(255);
-        if(!Graph::is_invalid(_library_y)) {
-            const auto single_identity = GUIOPTION(gui_single_identity_color);
-            auto percent = min(1.f, cmn::abs(_library_y));
-            if(single_identity.a != 0) {
-                clr = single_identity;
-            }
-            
-            clr = clr.alpha(255) * percent + Color(50, 50, 50, 255) * (1 - percent);
-        }
-        auto inactive_clr = clr.saturation(0.5);
-        Color use = clr;
-        
-        const float max_distance = Individual::weird_distance() * 0.1 / FAST_SETTING(cm_per_pixel);
+        ///TODO: could try to replace vertices 1by1 and get "did change" for free, before we even
+        ///      try to update the object.
+        const float max_distance = SQR(Individual::weird_distance() * 0.1 / slow::cm_per_pixel);
         size_t paths_index = 0;
         _vertices.clear();
         _vertices.reserve(frame_vertices.size());
@@ -993,21 +1151,28 @@ Fish::~Fish() {
         auto prev = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         Vec2 prev_pos = frame_vertices.empty() ? Vec2(-1) : frame_vertices.begin()->vertex.position();
         for(auto & fv : frame_vertices) {
-            float percent = (fv.speed_percentage * 0.15 + 0.85) * (float(fv.frame.get() - color_start) / float(color_end - color_start));
+            float percent = (fv.speed_percentage * 0.15 + 0.85) * (float(fv.frame.get() - _color_start) / float(_color_end - _color_start));
+            
+            assert(fv.speed_percentage >= 0 && fv.speed_percentage <= 1);
+            assert(fv.frame.get() >= _color_start);
+            assert(_color_end - _color_start > 0);
+            assert(percent >= 0 && percent <= 1);
             percent = percent * percent;
             
-            if(fv.frame - prev > 1_f || (prev.valid() && euclidean_distance(prev_pos, fv.vertex.position()) >= max_distance)) {
-                use = inactive_clr;
+            if(fv.frame - prev > 1_f || (prev.valid() && sqdistance(prev_pos, fv.vertex.position()) >= max_distance)) {
+                //use = inactive_clr;
                 if(_vertices.size() > 1) {
                     if (_paths.size() <= paths_index) {
-                        _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));
+                        _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::COPY));
                         _paths[paths_index]->set_thickness(thickness);
-                        _view.advance_wrap(*_paths[paths_index]);
-                    } else { 
+                        //_view.advance_wrap(*_paths[paths_index]);
+                    } else {
                         auto& v = _paths[paths_index];
-                        std::swap(v->change_points(), _vertices);
-                        v->confirm_points();
-                        _view.advance_wrap(*v);
+                        if(v->change_points() != _vertices) {
+                            std::swap(v->change_points(), _vertices);
+                            v->confirm_points();
+                        }
+                        //_view.advance_wrap(*v);
                     }
 
                     ++paths_index;
@@ -1016,125 +1181,33 @@ Fish::~Fish() {
                 _vertices.clear();
                 
                 //window.circle(fv.vertex.position() + offset, 1, White.alpha(percent * 255));
-            } else
-                use = clr;
+            } //else
+               // use = clr;
             prev = fv.frame;
             prev_pos = fv.vertex.position();
-            
-            _vertices.push_back(Vertex(fv.vertex.position() + offset, use.alpha(percent * 255)));
+            _vertices.emplace_back(fv.vertex.position() + offset, fv.vertex.clr().alpha(percent * 255));
         }
         
         
         if (_paths.size() <= paths_index) {
-            _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));
+            _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::COPY));
             _paths[paths_index]->set_thickness(thickness);
-            _view.advance_wrap(*_paths[paths_index]);
+            //_view.advance_wrap(*_paths[paths_index]);
         }
         else {
             auto& v = _paths[paths_index];
-            std::swap(v->change_points(), _vertices);
-            v->confirm_points();
-            _view.advance_wrap(*v);
-        }
-
-            //window.line(vertices, 2.0f);
-        
-        /*auto last = _obj.find_frame(to)->centroid->pos(Units::PX_AND_SECONDS) + offset;
-        int count = 0;
-        
-        const float max_speed = SETTING(track_max_speed);
-        vertices.clear();
-        
-        long_t lastframe = to;
-        from = max(to-max_frames, from);
-        
-        std::vector<Drawable*> events;
-        
-        const bool timeline_visible = GUI::instance() && GUI::instance()->timeline().visible();
-        const float max_color = timeline_visible ? 255 : SETTING(gui_faded_brightness).value<uchar>();
-        const Font font(1 / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5)) * 0.7, Align::Center);
-        
-        // make it so that max_frames is actually the number of frames available
-        // even if more could be displayed.
-        if(max_frames != -1)
-            max_frames = min(max_frames, max(1, to - from + 1));
-        
-        MotionRecord* prev_centroid = NULL;
-        for (long_t i=to; i>=from; i--) {
-            // draw lines between previous locations
-            auto c = _obj.centroid_weighted(i);
-            if (c) {
-                auto pos = c->pos(Units::PX_AND_SECONDS) + offset;
-                auto clr = _obj.identity().color().alpha(255);
-                
-                float percent = c->speed(Units::CM_AND_SECONDS) / max_speed * 7;
-                percent = min(1.f, percent) * 0.8;
-                
-                //if (cmn::abs(lastframe - i) > 1)
-                //    clr = Transparent;
-                //else
-                    clr = clr * (1.0 - percent) + White * percent;
-                
-                float fade = (i - from) + 1;
-                if(max_frames != -1) {
-                    fade = min(float(max_frames), fade) / float(max_frames);
-                } else {
-                    fade /= float(max(1, to - from + 1));
-                }
-                
-                if(_events) {
-                    auto it = _events->events.find(i);
-                    if(it != _events->events.end()) {
-                        events.push_back(new Circle(pos, 1, White.alpha(0.7 * max_color * fade)));
-                    }
-                }
-                
-                if(_obj.is_manual_match(i) && SETTING(gui_show_manual_matches)) {
-                    auto blob = _obj.compressed_blob(i);
-                    events.push_back(new Circle(pos, 3, Transparent, _obj.identity().color().alpha(fade * max_color)));
-                    events.push_back(new Text(Meta::toStr(_obj.identity().ID())+"="+Meta::toStr(blob ? blob->blob_id() : -1), pos, _obj.identity().color().alpha(fade * max_color), font, window.scale().reciprocal()));
-                }
-                
-                //float distance = euclidean_distance(pos * FAST_SETTING(cm_per_pixel), vertices.back().position() * FAST_SETTING(cm_per_pixel));
-                if(!vertices.empty() && (!prev_centroid || prev_centroid->time() - c->time() >= FAST_SETTING(track_max_reassign_time) * 0.5))
-                {
-                    if(vertices.size() > 1)
-                        window.line(vertices, 2.0f);
-                    vertices.clear();
-                }
-                
-                Color clr0 = clr.alpha(fade * max_color);
-                vertices.push_back(Vertex(pos, clr0));
-                //cv::circle(target, pos, 1, clr * (1.0 - percent) + original * percent, -1);
-                //cv::line(target, last, pos, clr * (1.0 - percent) + original * percent);
-                last = pos;
-                
-                lastframe = i;
-                count++;
-                
-                prev_centroid = c;
-            }
-            
-            if (max_frames != -1 && count >= max_frames) {
-                break;
+            if(v->change_points() != _vertices) {
+                std::swap(v->change_points(), _vertices);
+                v->confirm_points();
+                //_view.advance_wrap(*v);
             }
         }
-        
-        if(vertices.size() > 1)
-            window.line(vertices, 2.0f);
-        
-        for(auto c : events) {
-            if(c->type() == Type::CIRCLE)
-                window.add_object((Circle*)c);
-            else if(c->type() == Type::TEXT)
-                window.add_object((Text*)c);
-            else
-                throw U_EXCEPTION("Unknown type.");
-        }*/
+        if(paths_index + 1 < _paths.size())
+            _paths.resize(paths_index + 1);
     }
     
     void Fish::update_recognition_circle() {
-        if(Tracker::instance()->border().in_recognition_bounds(_fish_pos)) {
+        if(GUICache::instance().border().in_recognition_bounds(_fish_pos)) {
             if(!_recognition_circle) {
                 // is inside bounds, but we didnt know that yet! start animation
                 _recognition_circle = std::make_shared<Circle>(Radius{1}, LineClr{Transparent}, FillClr{Cyan.alpha(50)});
@@ -1144,18 +1217,14 @@ Fish::~Fish() {
             float target_radius = 100;
             float percent = min(1, _recognition_circle->radius() / target_radius);
             
-            if(percent < 0.99) {
+            if(percent < 1.0) {
                 percent *= percent;
                 
                 _recognition_circle->set_pos(_fish_pos - _view.pos());
                 _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
                 _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
-                GUICache::instance().set_animating(&_view, true);
-                
                 _view.advance_wrap(*_recognition_circle);
                 
-            } else {
-                GUICache::instance().set_animating(&_view, false);
             }
             
         } else if(_recognition_circle) {
@@ -1163,7 +1232,7 @@ Fish::~Fish() {
         }
     }
 
-void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
+void Fish::label(const FindCoord& coord, Entangled &e) {
     if(GUIOPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
             e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
@@ -1171,10 +1240,10 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
                           LineClr{Transparent},
                           FillClr{ColorWheel(_avg_cat).next().alpha(75)});
         } else {
-            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+            /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
                           LineClr{Transparent},
-                          FillClr{Purple.alpha(15)});
+                          FillClr{Purple.alpha(15)});*/
         }
     }
     
@@ -1189,7 +1258,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     if(GUIOPTION(gui_show_cliques)) {
         uint32_t i=0;
         for(auto &clique : GUICache::instance()._cliques) {
-            if(clique.fishs.contains(_obj.identity().ID())) {
+            if(clique.fishs.contains(_id.ID())) {
                 e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                               Radius{_view.size().length()},
                               LineClr{Transparent},
@@ -1203,37 +1272,36 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     if (!GUIOPTION(gui_show_texts))
         return;
     
-    auto blob = _obj.compressed_blob(_frame);
-    if(!blob)
-        return;
+    //if(!_basic_stuff.has_value())
+    //    return;
     
     std::string color = "";
     std::stringstream text;
     std::string secondary_text;
+    
 
-    text << _obj.identity().raw_name() << " ";
+    text << _id.raw_name() << " ";
     
     /*if (DrawMenu::matching_list_open() && blob) {
         secondary_text = "blob" + Meta::toStr(blob->blob_id());
     }
     else*/ if (GUI_SETTINGS(gui_show_recognition_bounds)) {
-        auto&& [valid, segment] = _obj.has_processed_segment(_frame);
+        auto& [valid, segment] = _has_processed_segment;
         if (valid) {
-            auto [samples, map] = _obj.processed_recognition(segment.start());
+            auto& [samples, map] = processed_segment;
             auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                 return a.second < b.second;
             });
 
-            if (it == map.end() || it->first != _obj.identity().ID()) {
+            if (it == map.end() || it->first != _id.ID()) {
                 color = "str";
                 secondary_text += " avg" + Meta::toStr(it->first);
             }
             else
                 color = "nr";
         } else {
-            auto pred = Tracker::instance()->find_prediction(_frame, blob->blob_id());
-            if(pred) {
-                auto map = Tracker::prediction2map(*pred);
+            if(not _pred.empty()) {
+                auto map = track::prediction2map(_pred);
                 auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                         return a.second < b.second;
                     });
@@ -1247,54 +1315,63 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
+    auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
 #if !COMMONS_NO_PYTHON
-    auto detection = tags::find(_frame, blob->blob_id());
+    auto detection = tags::find(_frame, bdx);
     if (detection.valid()) {
         secondary_text += "<a>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</a>";
     }
-    auto segment = _obj.segment_for(_frame);
-    if(segment) {
-        auto [id, p, n] = _obj.qrcode_at(segment->start());
+    
+    if(_segment) {
+        auto [id, p, n] = _qr_code;
         if(id >= 0 && p > 0) {
             secondary_text += std::string(" ") + "<a><i>QR:"+Meta::toStr(id)+" ("+dec<2>(p).toStr() + ")</i></a>";
         }
     }
     
-    auto c = GUICache::instance().processed_frame.cached(_obj.identity().ID());
+    auto c = GUICache::instance().processed_frame().cached(_id.ID());
     if(c) {
         auto cat = c->current_category;
         if(cat != -1 && cat != _avg_cat) {
-            auto l = Categorize::DataStore::label(cat);
-            if(l) {
-                secondary_text += std::string(" ") + "<key>"+l->name+"</key>";
-            }
+            secondary_text += std::string(" ") + "<key>"+_cat_name+"</key>";
         }
     }
     
-    auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), blob->blob_id());
-    if (cat != -1 && cat != _avg_cat) {
-        secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + Categorize::DataStore::label(cat)->name + "</i>" + (cat ? "</b>" : "");
+    if (_cat != -1 && _cat != _avg_cat) {
+        secondary_text += std::string(" ") + (_cat ? "<b>" : "") + "<i>" + _cat_name + "</i>" + (_cat ? "</b>" : "");
     }
     
     if(_avg_cat != -1) {
-        auto c = Categorize::DataStore::label(_avg_cat);
-        if(c)
-            secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
+        secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + _avg_cat_name + "</nr>";
     }
 #endif
     
     auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
+    if(not _basic_stuff.has_value())
+        return;
+    
+    auto pos = fish_pos();
+    if(not _average_pose.empty()) {
+        pos = _average_pose.points.front();
+    }
+    
     if (!_label) {
-        _label = new Label(label_text, blob->calculate_bounds(), fish_pos());
+        _label = new Label(label_text, _basic_stuff->blob.calculate_bounds(), pos);
     }
     else
-        _label->set_data(label_text, blob->calculate_bounds(), fish_pos());
+        _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), pos);
 
-    _label->update(base, bowl, e, 1, blob == nullptr);
+    //print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
+    
+    e.advance_wrap(*_label);
+    
+    auto disabled = _frame != _safe_frame;
+    _label->set_line_color(disabled ? Gray.alpha(150) : _color);
+    _label->update(coord, 1, 0, disabled, GUICache::instance().dt());
 }
 
-void Fish::shadow(DrawStructure &window) {
-    auto active = GUICache::instance().active_ids.find(_obj.identity().ID()) != GUICache::instance().active_ids.end();
+Drawable* Fish::shadow() {
+    auto active = GUICache::instance().active_ids.find(_id.ID()) != GUICache::instance().active_ids.end();
     
     if(GUIOPTION(gui_show_shadows) && active) {
         if(!_polygon) {
@@ -1305,15 +1382,16 @@ void Fish::shadow(DrawStructure &window) {
         
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
-        if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+        if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
         {
-            auto is_selected = GUICache::instance().is_selected(_obj.identity().ID());
+            auto is_selected = GUICache::instance().is_selected(_id.ID());
             if (!is_selected) _polygon->tag(Effects::blur);
             else _polygon->untag(Effects::blur);
         }
 #endif
 #endif
-        window.wrap_object(*_polygon);
+        return _polygon.get();//window.wrap_object(*_polygon);
     }
+    return nullptr;
 }
 }

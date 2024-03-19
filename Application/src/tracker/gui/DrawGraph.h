@@ -8,7 +8,7 @@
 #include <tracking/Individual.h>
 #include <tracking/Tracker.h>
 #include <gui/Graph.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 
 namespace gui {
     class PropertiesGraph {
@@ -30,7 +30,7 @@ namespace gui {
         const Vec2& _mouse_position;
         
         //! The graph that was displayed last
-        GETTER_NCONST(Graph, graph)
+        GETTER_NCONST(Graph, graph);
         
     public:
         PropertiesGraph(const track::Tracker& tracker, const Vec2& mouse_position);

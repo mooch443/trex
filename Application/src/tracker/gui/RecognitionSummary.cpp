@@ -1,6 +1,5 @@
 #include "RecognitionSummary.h"
 #include <tracking/Tracker.h>
-#include <gui/gui.h>
 #include <tracking/VisualIdentification.h>
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
@@ -10,7 +9,7 @@ namespace py = Python;
 
 namespace gui {
     void RecognitionSummary::update(gui::DrawStructure& base) {
-        auto & cache = GUI::instance()->cache();
+        auto & cache = GUICache::instance();
         
         const float interface_scale = gui::interface_scale();
         
@@ -22,7 +21,7 @@ namespace gui {
         auto manual_identities = Tracker::identities();
         auto sorted = manual_identities;
         for(auto id : manual_identities) {
-            if(cache.individuals.find(id) == cache.individuals.end())
+            if(cache.all_ids.find(id) == cache.all_ids.end())
                 sorted.erase(id);
         }
 
@@ -35,8 +34,7 @@ namespace gui {
 
         float sidebar_width = 0;
         for(auto id : sorted) {
-            auto fish = cache.individuals.at(id);
-            auto bds = Base::default_text_bounds(fish->identity().name(), &obj, side_font);
+            auto bds = Base::default_text_bounds(Identity::Temporary(id).name(), &obj, side_font);
             sidebar_width = max(sidebar_width, bds.width);
         }
         sidebar_width += 3 * margin;
@@ -49,7 +47,7 @@ namespace gui {
         if(!cache.recognition_updated) {
             obj.update([&] (Entangled& base) {
                 std::vector<float> outputs;
-                base.add<Text>("recognition summary", Loc(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), White, title_font);
+                base.add<Text>(Str("recognition summary"), Loc(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), TextClr(White), title_font);
                 
                 size_t counter = 0, j = 0;
                 std::map<Idx_t, size_t> fdx_to_idx;
@@ -57,26 +55,28 @@ namespace gui {
                 
                 outputs.resize(output_size * sorted.size());
                 
-                for(auto id : sorted) {
-                    auto fish = cache.individuals.at(id);
-                    
-                    float maxp = 0;
-                    
-                    for(auto && [fdx, p] : fish->average_recognition()) {
-                        if(p > maxp) {
-                            maxp = p;
+                {
+                    auto lock = cache.lock_individuals();
+                    for(auto id : sorted) {
+                        auto fish = lock.individuals.at(id);
+                        float maxp = 0;
+                        
+                        for(auto && [fdx, p] : fish->average_recognition()) {
+                            if(p > maxp) {
+                                maxp = p;
+                            }
+                            
+                            auto it = fdx_to_idx.find(fdx);
+                            if(it == fdx_to_idx.end()) {
+                                idx_to_fdx[counter] = fdx;
+                                fdx_to_idx[fdx] = counter++;
+                            }
+                            auto idx = fdx_to_idx.at(fdx);
+                            outputs.at(j * output_size + idx) = p;
                         }
                         
-                        auto it = fdx_to_idx.find(fdx);
-                        if(it == fdx_to_idx.end()) {
-                            idx_to_fdx[counter] = fdx;
-                            fdx_to_idx[fdx] = counter++;
-                        }
-                        auto idx = fdx_to_idx.at(fdx);
-                        outputs.at(j * output_size + idx) = p;
+                        ++j;
                     }
-                    
-                    ++j;
                 }
                 
                 auto image = Image::Make(bar_width * sorted.size(), bar_width * output_size, 4);
@@ -97,24 +97,23 @@ namespace gui {
                 }
                 
                 auto pos = Vec2(margin + sidebar_width, margin + title_height);
-                auto bounds = Bounds(pos, image->bounds().size());
+                auto bounds = Box(pos, image->bounds().size());
                 base.add<ExternalImage>(std::move(image), pos);
-                base.add<Rect>(bounds, FillClr{Transparent}, LineClr{White.alpha(200)});
+                base.add<Rect>(Box(bounds), FillClr{Transparent}, LineClr{White.alpha(200)});
                 
                 // draw vertical bar (active fish)
                 pos = Vec2(margin) + Vec2(sidebar_width - 10 / interface_scale, bar_width * 0.5f - Base::default_line_spacing(font) * 0.5f + title_height);
                 
                 size_t row = 0;
                 for(auto id : sorted) {
-                    auto fish = cache.individuals.at(id);
-                    base.add<Text>(fish->identity().name(), Loc(pos + Vec2(0, bar_width) * row), White, side_font);
+                    base.add<Text>(Str(Identity::Temporary(id).name()), Loc(pos + Vec2(0, bar_width) * row), TextClr(White), side_font);
                     ++row;
                 }
                 
                 // draw horizontal bar (matched fish from network)
                 pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5f, bounds.height + margin + Base::default_line_spacing(font) * 0.5f + title_height);
                 for(size_t idx = 0; idx < output_size; ++idx) {
-                    base.add<Text>(Meta::toStr(idx), Loc(pos), White, bottom_font);
+                    base.add<Text>(Str(Meta::toStr(idx)), Loc(pos), TextClr(White), bottom_font);
                     pos += Vec2(bar_width, 0);
                 }
             });

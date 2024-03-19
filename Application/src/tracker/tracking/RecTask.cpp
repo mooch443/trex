@@ -7,7 +7,7 @@
 #include <misc/Image.h>
 #include <misc/GlobalSettings.h>
 #include <python/GPURecognition.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 #include <file/DataLocation.h>
 
 namespace py = Python;
@@ -17,7 +17,10 @@ namespace track {
 inline static std::atomic<bool> _initialized = false;
 inline static constexpr auto tagwork = "pretrained_tagwork";
 inline static std::atomic_bool _terminate = false;
-inline static std::mutex _mutex;
+static auto& mutex() {
+    static std::mutex m;
+    return m;
+}
 inline static std::condition_variable _variable;
 inline static std::vector<RecTask> _queue;
 inline static std::atomic<double> _average_time_per_task{0.0};
@@ -29,7 +32,7 @@ inline static std::unique_ptr<std::thread> _update_thread;
 bool RecTask::can_take_more() {
     static Timer last_print_timer;
     
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(mutex());
     if(last_print_timer.elapsed() > 5)
     {
         print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
@@ -57,7 +60,7 @@ void RecTask::thread() {
         RecTask::init();
         Timer task_timer;
 
-        std::unique_lock guard(_mutex);
+        std::unique_lock guard(mutex());
         while(!_terminate || !_queue.empty()) {
             while(!_queue.empty()) {
                 task_timer.reset();
@@ -124,7 +127,7 @@ void RecTask::thread() {
 }
 
 bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, const std::function<void()>& callback) {
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(mutex());
     static std::once_flag flag;
 
     std::call_once(flag, []() {
@@ -169,31 +172,36 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
 }
 
 void RecTask::update(RecTask&& task) {
-    auto individual = task.individual;
-    
-    auto apply = [task = std::move(task)]() mutable -> void {
+    //auto individual = task.individual;
+    auto apply = [task = std::move(task)]() 
+        mutable -> void 
+    {
         using py = PythonIntegration;
         py::set_variable("tag_images", task._images, tagwork);
-        
-        auto receive = [task = std::move(task)](std::vector<int64_t> values) mutable {
-            Predictions result{
-                ._segment_start = task._segment_start,
-                .individual = task.individual,
-                ._frames = std::move(task._frames),
-                ._ids = std::move(values)
-            };
-            
-            //std::copy(values.begin(), values.end(), result._ids.end());
-            
+
+        Predictions result{
+            ._segment_start = task._segment_start,
+            .individual = task.individual,
+            ._frames = std::move(task._frames)
+        };
+
+        auto receive = [
+            images = std::move(task._images), 
+            callback = std::move(task._callback),
+            result = std::move(result)](std::vector<int64_t> values) 
+                mutable -> void 
+        {
+            result._ids = std::move(values);
+
             std::unordered_map<int, int> _best_id;
-            for(auto i : result._ids)
+            for (auto i : result._ids)
                 _best_id[i]++;
 
             int maximum = -1;
             int max_key = -1;
             int N = result._ids.size();
-            for(auto& [k, v] : _best_id) {
-                if(v > maximum) {
+            for (auto& [k, v] : _best_id) {
+                if (v > maximum) {
                     maximum = v;
                     max_key = k;
                 }
@@ -204,47 +212,48 @@ void RecTask::update(RecTask&& task) {
             //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
             static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
-            if(tags_save_predictions) {
+            if (tags_save_predictions) {
                 static std::atomic<int64_t> saved_index{ 0 };
                 static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
 
                 //if(result.p <= 0.7)
                 {
-                    file::Path output = file::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
-                    if(!output.exists())
+                    file::Path output = file::DataLocation::parse("output", "tags_" + filename) / Meta::toStr(max_key);
+                    if (!output.exists())
                         output.create_folder();
-                    
+
                     auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
-                    if(!(output / prefix).exists())
+                    if (!(output / prefix).exists())
                         (output / prefix).create_folder();
-                    
+
                     auto files = (output / prefix).find_files();
-                    
+
                     // delete files that already existed for this individual AND segment
-                    for(auto &f : files) {
-                        if(utils::beginsWith((std::string)f.filename(), prefix))
+                    for (auto& f : files) {
+                        if (utils::beginsWith((std::string)f.filename(), prefix))
                             f.delete_file();
                     }
-                    
+
                     // save example image
-                    if(!task._images.empty())
-                        cv::imwrite((output / prefix).str() + ".png", task._images.front()->get());
-                    
+                    if (!images.empty())
+                        cv::imwrite((output / prefix).str() + ".png", images.front()->get());
+
                     output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
 
-                    print("\t\t-> exporting ", task._images.size()," guesses to ", output);
-                    
-                    for (size_t i=0; i<task._images.size(); ++i) {
-                        cv::imwrite(output.str() + Meta::toStr(i) + ".png", task._images[i]->get());
+                    print("\t\t-> exporting ", images.size(), " guesses to ", output);
+
+                    for (size_t i = 0; i < images.size(); ++i) {
+                        cv::imwrite(output.str() + Meta::toStr(i) + ".png", images[i]->get());
                     }
                 }
-                
+
                 ++saved_index;
             }
-            
+
             //print("Calling callback on ", result.individual, " and frame ", result._segment_start);
-            task._callback(std::move(result));
+            callback(std::move(result));
         };
+
         
         auto pt = cmn::package::F<void(std::vector<int64_t>)>(std::move(receive));
         py::set_function("receive", std::move(pt), tagwork);
@@ -258,7 +267,7 @@ void RecTask::update(RecTask&& task) {
 
 
 void RecTask::remove(Idx_t fdx) {
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(mutex());
     for(auto it = _queue.begin(); it != _queue.end(); ) {
         if(it->_fdx == fdx) {
             it = _queue.erase(it);

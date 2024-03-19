@@ -26,6 +26,9 @@ endif()
 add_dependencies(framegrabber_misc commons) #Commons::OpenCV)
 
 
+if(WITH_FFMPEG)
+    target_compile_definitions(framegrabber_misc PRIVATE WITH_FFMPEG=true)
+endif()
 
 option(WITH_PYLON "use pylon support" OFF)
 
@@ -38,13 +41,13 @@ if(APPLE AND WITH_PYLON)
         set(PYLON_FOUND true)
         target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=true)
         message(STATUS "Pylon found. ${PYLON_LIBRARIES} lol")
-        include_directories(/Library/Frameworks/pylon.framework/Headers/GenICam)
+        target_include_directories(framegrabber_misc PUBLIC /Library/Frameworks/pylon.framework/Headers/GenICam)
     endif()
     
 elseif(WITH_PYLON)
     find_package(BaslerPylon)
     if(${PYLON_FOUND})
-        include_directories(${PYLON_INCLUDE_DIRS})
+        target_include_directories(framegrabber_misc PUBLIC ${PYLON_INCLUDE_DIRS})
         target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=true)
         message(STATUS "Pylon found.")
     else()

@@ -2,13 +2,12 @@
 
 #if !COMMONS_NO_PYTHON
 #include <misc/GlobalSettings.h>
-#include <misc/metastring.h>
+
 #include <python/GPURecognition.h>
-#include <tracker/gui/gui.h>
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
 #include <gui/GUICache.h>
-#include <tracking/PythonWrapper.h>
+#include <misc/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -19,18 +18,82 @@ namespace py = Python;
 namespace track {
 namespace CheckUpdates {
 
-static void update_loop();
+static void update_loop(gui::DrawStructure*);
 static void check_thread();
 
 std::string _newest_version = "";
 std::string _last_error = "";
 
-std::unique_ptr<std::thread> _thread;
-std::mutex _mutex;
-std::condition_variable _variable;
-std::atomic_bool _good_time = false;
-std::atomic_bool _terminate = false;
 std::atomic_bool _last_check_success = true;
+
+struct Thread {
+    std::unique_ptr<std::thread> _thread;
+    std::condition_variable _variable;
+    std::atomic_bool _good_time = false;
+    std::atomic_bool _terminate = false;
+    std::mutex _mutex;
+    std::mutex _thread_mutex;
+    gui::DrawStructure* _graph{nullptr};
+    
+    static Thread& instance() {
+        static Thread thread;
+        return thread;
+    }
+    
+    ~Thread() {
+        stop();
+    }
+    
+    static void notify() {
+        Thread::instance()._good_time = true;
+        Thread::instance()._variable.notify_one();
+    }
+    void stop() {
+        bool expected = false;
+        if(_terminate.compare_exchange_strong(expected, true)) {
+            _graph = nullptr;
+            _variable.notify_all();
+            
+            std::unique_lock guard(_thread_mutex);
+            if(_thread) {
+                _thread->join();
+                _thread = nullptr;
+            }
+        }
+    }
+    void start() {
+        std::unique_lock guard(_thread_mutex);
+        if(_thread)
+            return;
+        
+        _terminate = false;
+        _thread = std::make_unique<std::thread>([this](){
+            set_thread_name("CheckUpdate::thread");
+            
+            std::unique_lock guard(_mutex);
+            while(!_terminate) {
+                // wait for something to happen
+                // e.g. the main program giving us a hint that this might be a good time to check
+                _variable.wait_for(guard, std::chrono::seconds(10));
+                
+                // only end the _good_time if we have a graph
+                //if(not _graph)
+                //    continue;
+                
+                if(not _terminate
+                   && _good_time.exchange(false))
+                {
+                    guard.unlock();
+                    update_loop(_graph);
+                    guard.lock();
+                }
+            }
+            
+            _terminate = false;
+        });
+    }
+};
+
 
 const std::string& newest_version() {
     return _newest_version;
@@ -44,7 +107,7 @@ std::string current_version() {
     auto v = SETTING(version).value<std::string>();
     if(v.empty() || v[0] != 'v')
         return "0";
-    return utils::split(utils::split(v, 'v').back(), '-').front();
+    return (std::string)utils::split(utils::split(v, 'v').back(), '-').front();
 }
 
 std::string last_asked_version() {
@@ -53,25 +116,14 @@ std::string last_asked_version() {
 }
 
 void cleanup() {
-    std::unique_lock guard(_mutex);
-    if(_thread) {
-        guard.unlock();
-        
-        _terminate = true;
-        _variable.notify_all();
-        
-        print("Cleaning up...");
-        _thread->join();
-        guard.lock();
-        _thread = nullptr;
-    }
+    Thread::instance().stop();
 }
 
-void init() {
+void init(gui::DrawStructure* gui) {
     std::string contents;
     try {
         if (!file::Path("update_check").exists()) {
-            if (!SETTING(quiet))
+            if (GlobalSettings::is_runtime_quiet())
                 print("Initial start, no update_check file exists.");
             return;
         }
@@ -81,9 +133,9 @@ void init() {
             file::Path("update_check").delete_file();
             throw U_EXCEPTION("Array does not have the right amount of elements ('",contents,"', ",array.size(),"). Deleting file.");
         }
-        SETTING(app_last_update_check) = Meta::fromStr<uint64_t>(array.front());
-        SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.at(1));
-        SETTING(app_last_update_version) = array.back();
+        SETTING(app_last_update_check) = Meta::fromStr<uint64_t>((std::string)array.front());
+        SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>((std::string)array.at(1));
+        SETTING(app_last_update_version) = (std::string)array.back();
         
     } catch(const UtilsException& ex) {
         FormatExcept("Utils Exception: '", ex.what(),"'");
@@ -92,39 +144,20 @@ void init() {
     } catch(...) {
         print("Illegal content, or parsing failed for app_last_update_check: ",contents);
     }
+    
+    Thread::instance()._graph = gui;
 }
 
 void check_thread() {
-    std::lock_guard guard(_mutex);
-    if(!_thread) {
-        if(user_has_been_asked() && automatically_check()) {
-            _thread = std::make_unique<std::thread>([](){
-                set_thread_name("CheckUpdate::thread");
-                
-                std::unique_lock guard(_mutex);
-                while(!_terminate) {
-                    // wait for something to happen
-                    // e.g. the main program giving us a hint that this might be a good time to check
-                    _variable.wait_for(guard, std::chrono::seconds(10));
-                    
-                    if(_good_time) {
-                        guard.unlock();
-                        update_loop();
-                        guard.lock();
-                        
-                        _good_time = false;
-                    }
-                }
-            });
-        }
+    if(user_has_been_asked() && automatically_check()) {
+        Thread::instance().start();
     }
 }
 
 void this_is_a_good_time() {
     check_thread();
     
-    _good_time = true;
-    _variable.notify_one();
+    Thread::notify();
 }
 
 bool user_has_been_asked() {
@@ -137,13 +170,13 @@ bool automatically_check() {
     return SETTING(app_check_for_updates).value<app_update_check_t::Class>() == app_update_check_t::automatically;
 }
 
-void display_update_dialog() {
-    if(!GUI::instance() && !GUI_SETTINGS(nowindow)) {
+void display_update_dialog(gui::DrawStructure* graph) {
+    if(not graph /*&& not GUI_SETTINGS(nowindow)*/) {
         print("Newer version (",CheckUpdates::newest_version(),") available for download. Visit https://trex.run/docs/update.html for instructions on how to update.");
         return;
     }
     
-    GUI::instance()->gui().dialog([](gui::Dialog::Result r) {
+    graph->dialog([](gui::Dialog::Result r) {
         if(r == gui::Dialog::OKAY) {
             auto website = "https://trex.run/docs/update.html";
 #if __linux__
@@ -185,7 +218,7 @@ void write_version_file() {
         FormatExcept("Cannot open update_check file for writing to save the settings (maybe no permissions in ",file::cwd(),"?).");
 }
 
-void update_loop() {
+void update_loop(gui::DrawStructure* graph) {
     using namespace default_config;
     
     if(SETTING(app_check_for_updates).value<app_update_check_t::Class>() == app_update_check_t::automatically)
@@ -223,8 +256,9 @@ void update_loop() {
                         print("[CHECK_UPDATES] Already have the newest version (",newest_version(),").");
                     } else if(status == VersionStatus::ALREADY_ASKED) {
                         print("[CHECK_UPDATES] There is a new version available (",newest_version(),"), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
+                        
                     } else {
-                        display_update_dialog();
+                        display_update_dialog(graph);
                     }
                     
                 } else {
@@ -242,7 +276,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     auto promise = std::make_shared<std::promise<VersionStatus>>();
     auto future = promise->get_future();
     
-    if(manually_triggered && !GUI_SETTINGS(nowindow) && GUI::instance()) {
+    if(manually_triggered && !GUI_SETTINGS(nowindow)) {
         gui::WorkProgress::add_queue("Initializing python...", [](){
             py::init().get();
         });

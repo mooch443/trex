@@ -1,7 +1,5 @@
 #pragma once
-#include <misc/defines.h>
-#include <misc/checked_casts.h>
-#include <misc/metastring.h>
+#include <commons.pc.h>
 
 namespace track {
 struct Idx_t {
@@ -55,6 +53,7 @@ struct Idx_t {
     
     static std::string class_name() { return "Idx_t"; }
     static Idx_t fromStr(const std::string&);
+    nlohmann::json to_json() const;
     std::string toStr() const { return !valid() ? "-1" : std::to_string((uint32_t)_identity); }
 };
 

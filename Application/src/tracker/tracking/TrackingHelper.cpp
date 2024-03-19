@@ -4,6 +4,7 @@
 #include <misc/pretty.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/IndividualManager.h>
+#include <misc/FOI.h>
 
 namespace track {
 
@@ -30,7 +31,7 @@ TrackingHelper::~TrackingHelper() {
 TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Ptr>& added_frames)
       : cache(new CachedSettings), frame(f), _manager(frame)
 {
-    const BlobSizeRange minmax = FAST_SETTING(blob_size_ranges);
+    const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
     double time(double(frame.timestamp) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     
@@ -44,8 +45,8 @@ TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Pt
     }
     
     if(save_tags()) {
-        frame.transform_noise([this, &minmax](const pv::Blob& blob){
-            if(blob.recount(-1) <= minmax.max_range().start)
+        frame.transform_noise([this, max_range = track_size_filter.max_range()](const pv::Blob& blob){
+            if(blob.recount(-1) <= max_range.start)
                 noise.emplace_back(pv::Blob::Make(blob));
         });
     }
@@ -201,7 +202,7 @@ void TrackingHelper::apply_manual_matches()
             
             PrefilterBlobs::split_big(
                       std::move(single),
-                      BlobReceiver(frame,  BlobReceiver::noise),
+                      BlobReceiver(frame,  BlobReceiver::noise, FilterReason::SplitFailed),
                       BlobReceiver(big_filtered),
                       expect);
             //split_objects++;
@@ -234,7 +235,7 @@ void TrackingHelper::apply_manual_matches()
                     print("frame ", frame.index(),": All missing manual matches perfectly matched.");
 #endif
                 } else {
-                    FormatError("frame ",frame.index(),": Missing some matches (",found_perfect,"/",clique.size(),") for blob ",bdx," (identities ", clique,").");
+                    FormatError("frame ",frame.index(),": Missing some matches (",found_perfect,"/",clique.size(),") for blob ",bdx," (identities ", clique,"). big_filtered=", big_filtered);
                 }
             }
         }
@@ -302,23 +303,22 @@ void TrackingHelper::apply_automatic_matches() {
         .f_prev_prop = prev_props,
         .match_mode = default_config::matching_mode_t::none
         
-    }, std::move(automatic_assignments), [frameIndex](pv::bid, Idx_t, Individual* fish)
-    {
+    }, std::move(automatic_assignments), [frameIndex](pv::bid, Idx_t, Individual* fish) {
         fish->add_automatic_match(frameIndex);
-        
-    }, [frameIndex, this](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+    }
 #ifndef NDEBUG
+    , [frameIndex, this](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+
             FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(", _manager.fish_assigned(fdx) ? "assigned" : "unassigned",") and bdx ",bdx,"(",bdx.valid() ? (_manager.blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob","): ", error);
+      }
 #endif
-    });
+    );
 }
 
 void TrackingHelper::apply_matching() {
     // calculate optimal permutation of blob assignments
     static Timing perm_timing("PairingGraph", 30);
     TakeTiming take(perm_timing);
-    
-    PPFrame::Log(paired);
     
     using namespace Match;
     const auto frameIndex = frame.index();
@@ -377,6 +377,7 @@ void TrackingHelper::apply_matching() {
     
     try {
         auto &optimal = graph.get_optimal_pairing(false, match_mode);
+        PPFrame::Log("Got pairing = ", optimal.pairings);
         
         if(match_mode != default_config::matching_mode_t::approximate) {
             /*
@@ -399,7 +400,7 @@ void TrackingHelper::apply_matching() {
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = match_mode
-        }, std::move(optimal.pairings), [&](pv::bid, Idx_t fdx, Individual*)
+        }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
 #ifdef TREX_DEBUG_MATCHING
             for(auto &[i, b] : pairs) {
@@ -441,13 +442,14 @@ void TrackingHelper::apply_matching() {
 #endif
         
         auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
+        PPFrame::Log("Got backup pairing = ", optimal.pairings);
         
         _manager.assign<false>(AssignInfo{
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = default_config::matching_mode_t::hungarian
-        }, std::move(optimal.pairings), [&](pv::bid, Idx_t fdx, Individual*)
+        }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
             
         }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
@@ -464,11 +466,11 @@ void TrackingHelper::apply_matching() {
 double TrackingHelper::process_postures() {
     const auto frameIndex = frame.index();
     
-    static Timing timing("Tracker::need_postures", 30);
+    static Timing timing("Tracker::need_postures", 100);
     TakeTiming take(timing);
     
     double combined_posture_seconds = 0;
-    static std::mutex _statistics_mutex;
+    static auto _statistics_mutex = LOGGED_MUTEX("TrackingHelper::statistics_mutex");
     
     if(cache->do_posture && !_manager.need_postures.empty()) {
         static std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> all;
@@ -492,8 +494,8 @@ double TrackingHelper::process_postures() {
                 collected += t.elapsed();
             }
             
-            std::lock_guard guard((_statistics_mutex));
-            combined_posture_seconds += narrow_cast<float>(collected);
+            auto guard = LOGGED_LOCK(_statistics_mutex);
+            combined_posture_seconds += collected;
             
         }, Tracker::instance()->thread_pool(), all.begin(), all.end());
         
