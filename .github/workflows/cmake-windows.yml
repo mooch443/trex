@@ -58,6 +58,11 @@ jobs:
         echo "::group::Build"
         conda build . --override-channels -c pytorch -c nvidia -c defaults
         echo "::endgroup::"
+        echo $CONDA_PREFIX
+    - name: Test
+      shell: bash -l {0}
+      working-directory: ${{runner.workspace}}
+      run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c pytorch -c nvidia -c defaults trex

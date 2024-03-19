@@ -64,6 +64,7 @@ jobs:
         conda list
         conda create -n build --override-channels -c conda-forge conda-build conda-verify
         conda activate build
+        conda list
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
@@ -71,6 +72,10 @@ jobs:
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         echo "Replacing ffmpeg =6 version with >=4"
         sed -i -e '/ffmpeg =6/ s+6+>=4+g' meta.yaml
+        echo "Replacing python =3.11 with python =3"
+        sed -i -e '/python =3.11/ s+3.11+3+g' meta.yaml
+        echo "Replacing numpy ==1.26.2 with numpy =1.26"
+        sed -i -e '/numpy ==1.26.2/ s+1.26.2+1.26+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
