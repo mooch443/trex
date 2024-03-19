@@ -456,6 +456,8 @@ std::string start_converting(std::future<void>& f) {
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
+    bar.set_progress(0);
+    
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{"Recording..."},
         ind::option::ForegroundColor{ind::Color::white},
@@ -471,6 +473,17 @@ std::string start_converting(std::future<void>& f) {
     
     Timer last_tick;
     segmenter.set_progress_callback([&](float percent){
+        if(std::isnan(percent)
+           || std::isinf(percent))
+        {
+            spinner.tick();
+            static std::once_flag flag;
+            std::call_once(flag, [](){
+                FormatWarning("Percent is infinity.");
+            });
+            return;
+        }
+        
         if(percent >= 0)
             bar.set_progress(saturate(percent, 0.f, 100.f));
         else if(last_tick.elapsed() > 1) {

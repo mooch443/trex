@@ -39,10 +39,6 @@ class ConvertScene : public Scene {
     std::shared_future<void> _scene_active;
     std::promise<void> _scene_promise;
     
-    ind::ProgressBar bar;
-    ind::ProgressSpinner spinner;
-
-    
     std::function<void(ConvertScene&)> _on_activate, _on_deactivate;
     
     std::unique_ptr<Data> _data;

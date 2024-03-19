@@ -61,6 +61,36 @@ struct ConvertScene::Data {
     
     ScreenRecorder _recorder;
     
+    ind::ProgressBar bar{
+        ind::option::BarWidth{50},
+        ind::option::Start{"["},
+#ifndef _WIN32
+        ind::option::Fill{"█"},
+        ind::option::Lead{"▂"},
+        ind::option::Remainder{"▁"},
+#else
+        ind::option::Fill{"="},
+        ind::option::Lead{">"},
+        ind::option::Remainder{" "},
+#endif
+        ind::option::End{"]"},
+        ind::option::PostfixText{"Converting video..."},
+        ind::option::ShowPercentage{true},
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+
+    ind::ProgressSpinner spinner{
+        ind::option::PostfixText{""},
+        ind::option::ForegroundColor{ind::Color::white},
+#ifndef _WIN32
+        ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
+#else
+        ind::option::SpinnerStates{std::vector<std::string>{".","..","..."}},
+#endif
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
     double dt = 0;
     std::atomic<double> _time{0};
     std::unique_ptr<Bowl> _bowl;
@@ -231,37 +261,6 @@ ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_a
         }
     }
 },*/
-
-bar{
-    ind::option::BarWidth{50},
-        ind::option::Start{"["},
-#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-},
-
-spinner{
-    ind::option::PostfixText{""},
-        ind::option::ForegroundColor{ind::Color::white},
-#ifndef _WIN32
-        ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
-#else
-        ind::option::SpinnerStates{std::vector<std::string>{".","..","..."}},
-#endif
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-},
-
 _on_activate(on_activate),
 _on_deactivate(on_deactivate)
 
@@ -291,11 +290,22 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
     _data->_segmenter = seg;
     if(seg) {
         seg->set_progress_callback([this](float percent){
+            if(std::isnan(percent)
+               || std::isinf(percent))
+            {
+                _data->spinner.tick();
+                static std::once_flag flag;
+                std::call_once(flag, [](){
+                    FormatWarning("Percent is infinity.");
+                });
+                return;
+            }
+            
             if(percent >= 0)
-                bar.set_progress(percent);
+                _data->bar.set_progress(percent);
             else if(last_tick.elapsed() > 1) {
-                spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame)+")"});
-                spinner.tick();
+                _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame)+")"});
+                _data->spinner.tick();
                 last_tick.reset();
             }
         });
@@ -310,15 +320,15 @@ void ConvertScene::deactivate() {
         if(_data && _data->_recorder.recording())
             _data->_recorder.stop_recording(window(), nullptr);
 
-        bar.set_progress(100);
-        bar.mark_as_completed();
+        _data->bar.set_progress(100);
+        _data->bar.mark_as_completed();
         
-        spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
-        spinner.set_option(ind::option::PrefixText{"✔"});
-        spinner.set_option(ind::option::ShowSpinner{false});
-        spinner.set_option(ind::option::PostfixText{"Done."});
-        spinner.set_progress(100);
-        spinner.mark_as_completed();
+        _data->spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+        _data->spinner.set_option(ind::option::PrefixText{"✔"});
+        _data->spinner.set_option(ind::option::ShowSpinner{false});
+        _data->spinner.set_option(ind::option::PostfixText{"Done."});
+        _data->spinner.set_progress(100);
+        _data->spinner.mark_as_completed();
         
         if (_data) {
             _data->_object_blobs.clear();
@@ -364,7 +374,8 @@ void ConvertScene::Data::check_video_info(bool wait, std::string* result) {
 }
 
 void ConvertScene::open_video() {
-    bar.set_option(ind::option::ShowPercentage{true});
+    _data->bar.set_progress(0);
+    _data->bar.set_option(ind::option::ShowPercentage{true});
     segmenter().open_video();
     
     _video_info["resolution"] = segmenter().size();
@@ -384,8 +395,8 @@ void ConvertScene::open_camera() {
         SETTING(save_raw_movie) = true;
     }
     
-    spinner.set_option(ind::option::PrefixText{"Recording"});
-    spinner.set_option(ind::option::ShowPercentage{false});
+    _data->spinner.set_option(ind::option::PrefixText{"Recording"});
+    _data->spinner.set_option(ind::option::ShowPercentage{false});
     
     segmenter().open_camera();
     
@@ -447,7 +458,7 @@ void ConvertScene::activate()  {
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
     window()->set_title(window_title());
-    bar.set_progress(0);
+    _data->bar.set_progress(0);
     
     auto range = SETTING(video_conversion_range).value<Range<long_t>>();
     if (range.start == -1 && range.end == -1) {
