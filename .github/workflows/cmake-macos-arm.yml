@@ -34,7 +34,6 @@ jobs:
       uses: conda-incubator/setup-miniconda@v3
       with:
         environment-file: .github/macos-environment-arm64.yml
-        activate-environment: tracking
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
         architecture: arm64
@@ -62,7 +61,8 @@ jobs:
         echo "::group::Info"
         conda info
         conda list
-        conda create -n build --override-channels -c conda-forge conda-build conda-verify
+        conda update --override-channels -c conda-forge --all -y
+        conda create -n build --override-channels -c conda-forge conda-build conda-verify -y
         conda activate build
         conda list
         echo "::endgroup::"
