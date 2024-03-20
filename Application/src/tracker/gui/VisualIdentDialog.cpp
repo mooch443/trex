@@ -150,6 +150,21 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         auto mode = TrainingMode::Restart;
         if(force_load)
             mode = TrainingMode::Apply;
+        
+        if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
+        {
+            print("Registering auto correct callback.");
+            
+            Accumulation::register_apply_callback([controller, gui](){
+                print("Finished. Auto correcting...");
+                controller->on_apply_done();
+                controller->auto_correct(gui, true);
+            });
+            Accumulation::register_apply_callback([controller](double percent){
+                controller->on_apply_update(percent);
+            });
+        }
+        
         if(!fn(mode, nullptr, nullptr)) {
             if(SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
@@ -237,6 +252,7 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         controller->_analysis->set_paused(true).get();
         
         DatasetQuality::update();
+        controller->_tracker->global_segment_order();
         
         try {
             generate_training_data(gui, force_load, controller);
@@ -254,9 +270,8 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
     });
 }
 
-void VIController::auto_correct(GUITaskQueue_t* gui, bool) {
-    
-    if(gui) {
+void VIController::auto_correct(GUITaskQueue_t* gui, bool force_correct) {
+    if(gui && not force_correct) {
         gui->enqueue([this, gui](IMGUIBase*, DrawStructure& graph){
             const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
             const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
@@ -277,23 +292,24 @@ void VIController::auto_correct(GUITaskQueue_t* gui, bool) {
             }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
         });
     } else {
-        WorkProgress::add_queue("checking identities...", [this](){
+        WorkProgress::add_queue("checking identities...", [this, force_correct](){
             const bool tags_available = tags::available();
-            correct_identities(nullptr, false, tags_available ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
+            correct_identities(nullptr, force_correct, tags_available ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
         });
     }
 }
 
 void VIController::correct_identities(GUITaskQueue_t* gui, bool force_correct, IdentitySource source) {
     WorkProgress::add_queue("checking identities...", [this, force_correct, source, gui](){
-        _tracker->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui](const std::string&, const std::function<void()>& fn, const std::string&) {
-            gui->enqueue([this, fn, source, gui](auto, DrawStructure&) {
+        _tracker->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&) 
+        {
+            if(force_correct) {
                 on_tracking_ended([this, source, gui](){
                     correct_identities(gui, false, source);
                 });
-                
-                fn();
-            });
+            }
+            
+            fn();
         });
     });
 }
@@ -355,6 +371,14 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
     SETTING(auto_quit) = false;
     if(!SETTING(terminate))
         SETTING(terminate) = true;
+}
+
+void VIController::auto_apply(GUITaskQueue_t *, std::function<void()> callback) {
+    training_data_dialog(nullptr, true, callback, this);
+}
+
+void VIController::auto_train(GUITaskQueue_t *, std::function<void()> callback) {
+    training_data_dialog(nullptr, false, callback, this);
 }
 
 }

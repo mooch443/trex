@@ -423,7 +423,25 @@ void load(file::PathArray source,
     auto exclude_from_default = exclude;
     //if(task == TRexTask_t::track)
     {
-        auto path = find_output_name(combined.map, source, filename);
+        file::Path path;
+        if(source.size() == 1) {
+            path = source.get_paths().front();
+            if(not path.has_extension()
+               || (path.has_extension() && path.extension() != "pv"))
+            {
+                path = path.add_extension("pv");
+            }
+            
+            if(path.extension() != "pv"
+               || not path.exists())
+            {
+                path = "";
+            }
+        }
+        
+        if(path.empty())
+            path = find_output_name(combined.map, source, filename);
+        
         //auto path = combined.map.at("filename").value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");

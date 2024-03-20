@@ -18,6 +18,8 @@ namespace vident {
 
 struct VIController {
     void auto_quit(GUITaskQueue_t*);
+    void auto_apply(GUITaskQueue_t*, std::function<void()> callback);
+    void auto_train(GUITaskQueue_t*, std::function<void()> callback);
     void auto_correct(GUITaskQueue_t*, bool force);
     void correct_identities(GUITaskQueue_t* gui, bool force_correct, track::IdentitySource source);
     void export_tracks();
