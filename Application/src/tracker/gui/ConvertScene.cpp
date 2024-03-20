@@ -1,4 +1,4 @@
-#include "ConvertScene.h"
+﻿#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -64,15 +64,15 @@ struct ConvertScene::Data {
     ind::ProgressBar bar{
         ind::option::BarWidth{50},
         ind::option::Start{"["},
-#ifndef _WIN32
+/*#ifndef _WIN32
         ind::option::Fill{"█"},
         ind::option::Lead{"▂"},
         ind::option::Remainder{"▁"},
-#else
+#else*/
         ind::option::Fill{"="},
         ind::option::Lead{">"},
         ind::option::Remainder{" "},
-#endif
+//#endif
         ind::option::End{"]"},
         ind::option::PostfixText{"Converting video..."},
         ind::option::ShowPercentage{true},

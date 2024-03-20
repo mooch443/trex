@@ -109,14 +109,14 @@ public:
     template<Units to> float acceleration(bool smooth) const { return length(a<to>(smooth)); }
     template<Units to> float acceleration() const { return length(a<to>()); }
         
-    float angle(bool smooth) const { return value<float>(0, smooth); };
-    float angle() const { return get<float>(0); };
+    float angle(bool smooth) const { return value<float>(0, smooth); }
+    float angle() const { return get<float>(0); }
         
-    template<Units to> float angular_velocity(bool smooth) const { return value<to, float>(1, smooth); };
-    template<Units to> float angular_velocity() const { return value<to, float>(1); };
+    template<Units to> float angular_velocity(bool smooth) const { return value<to, float>(1, smooth); }
+    template<Units to> float angular_velocity() const { return value<to, float>(1); }
         
-    template<Units to> float angular_acceleration(bool smooth) const { return value<to, float>(2, smooth); };
-    template<Units to> float angular_acceleration() const { return value<to, float>(2); };
+    template<Units to> float angular_acceleration(bool smooth) const { return value<to, float>(2, smooth); }
+    template<Units to> float angular_acceleration() const { return value<to, float>(2); }
         
     template<Units to> Vec2 pos(bool smooth) const { return value<to, Vec2>(0, smooth); }
     template<Units to> Vec2 pos() const { return value<to, Vec2>(0); }
