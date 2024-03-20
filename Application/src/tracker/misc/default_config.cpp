@@ -1054,8 +1054,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(not output_path.empty()) {
                     filename = output_path / filename.filename();
                 } else {
-                    print(map.at("cwd").value<file::Path>());
-                    if(not map.at("cwd").value<file::Path>().empty())
+                    /// QUESTIONABLE: we might want to include / and \ again, but
+                    /// right now this is turning it into /webcam a lot of the time.
+                    if(not is_in(map.at("cwd").value<file::Path>(), "", "/", "\\"))
                         filename = map.at("cwd").value<file::Path>() / filename;
                 }
                 
