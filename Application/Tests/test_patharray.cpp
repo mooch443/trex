@@ -32,6 +32,11 @@ TEST(NarrowCast, UnsignedToSigned) {
     EXPECT_FALSE(check_narrow_cast<int>(std::numeric_limits<uint32_t>::max()));  // uint32_t to int, out of range
 }
 
+TEST(NarrowCast, FloatInfToDoubleInf) {
+    EXPECT_TRUE(std::isinf(narrow_cast<double>(std::numeric_limits<float>::infinity())));  // uint32_t to int, within range
+    EXPECT_TRUE(std::isinf(narrow_cast<float>(std::numeric_limits<double>::infinity())));  // uint32_t to int, out of range
+}
+
 // Floating-Point to Integer Conversions
 TEST(NarrowCast, FloatToSignedInt) {
     EXPECT_TRUE(check_narrow_cast<int>(12345.67f));  // float to int, within range

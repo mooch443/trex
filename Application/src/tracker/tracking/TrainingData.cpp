@@ -799,7 +799,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
         
         size_t actually_added = 0;
         for(auto && [range, ptr, d, ID] : ranges) {
-            size_t step_size = max(1u, (size_t)ceil(SR / (max_images_per_class * (double)(range.length() / N).get())));
+            size_t step_size = max(1u, (size_t)ceil(SR / max(1, (max_images_per_class * (double)(range.length() / N).get()))));
             
             std::vector<std::tuple<Frame_t, Image::SPtr, Vec2, size_t>> frames;
             for(size_t i=0; i<ptr->frame_indexes.size(); ++i) {
