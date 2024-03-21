@@ -131,26 +131,46 @@
                     },{
                         "type":"vlayout",
                         "children":[
-
                             {
-                                "type":"settings",
-                                "var":"source",
-                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "list":{
-                                    "line":[220,220,220,200],
-                                    "fill":[25,25,25,220],
-                                    "size":"[{element_w},200]",
-                                    "font":{"size":0.6}
-                                },
-                                "size":"[{element_w},40]",
-                                "desc":"",
-                                "preview":{
-                                    "font":{"size":0.5},
-                                    "color":[125,125,125,125],
-                                    "max_size":"[{-:{element_w}:300},80]",
-                                    "fade_out":0
-                                }
+                                "type":"hlayout",
+                                "pad":[0,0,7,0],
+                                "align":"top",
+                                "children":[
+                                    {
+                                        "type":"settings",
+                                        "var":"source",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                        "list":{
+                                            "line":[220,220,220,200],
+                                            "fill":[25,25,25,220],
+                                            "size":"[{element_w},200]",
+                                            "font":{"size":0.6}
+                                        },
+                                        "size":"[{-:{element_w}:47},40]",
+                                        "desc":"",
+                                        "preview":{
+                                            "font":{"size":0.5},
+                                            "color":[125,125,125,125],
+                                            "max_size":"[{-:{element_w}:300},80]",
+                                            "fade_out":0
+                                        }
+                                    },
+                                    {
+                                        "type":"button",
+                                        "text":"<sym>🗁</sym>",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                        "size":[40,40],
+                                        "pad":[1,0,0,0],
+                                        "font":{
+                                            "align":"center",
+                                            "size":0.8,
+                                            "style":"bold"
+                                        },
+                                        "action": "choose-file:source:{folder:{source}}:Videos:*.mp4 *.avi *.mov *.mkv *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.m2v *.m4v *.ts *.mts *.m2ts *.vob *.3gp *.3g2 *.asf *.ogv *.ogg *.rm *.rmvb *.divx *.xvid *.flv *.f4v *.h264 *.h265 *.hevc *.mxf *.m2p *.m2v *.m2t *.m2ts *.m4p *.m4v *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r"
+                                    }
+                                ]
                             },
                             {
                                 "type":"gridlayout",
@@ -217,8 +237,22 @@
                                                         "size":"[{-:{element_w}:93},200]",
                                                         "font":{"size":0.6}
                                                     },
-                                                    "size":"[{-:{element_w}:93},40]",
+                                                    "size":"[{-:{-:{element_w}:93}:50},40]",
                                                     "desc":""
+                                                },
+                                                {
+                                                    "type":"button",
+                                                    "text":"<sym>🗁</sym>",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "size":[40,40],
+                                                    "pad":[1,0,0,0],
+                                                    "font":{
+                                                        "align":"center",
+                                                        "size":0.8,
+                                                        "style":"bold"
+                                                    },
+                                                    "action": "choose-folder:output_dir:{output_dir}"
                                                 }
                                             ]
                                         }

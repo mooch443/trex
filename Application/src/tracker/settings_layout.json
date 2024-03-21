@@ -232,8 +232,22 @@
                                                 "size":"[{element_w},200]",
                                                 "font":{"size":0.6}
                                             },
-                                            "size":"[{max:50:{element_w}},40]",
+                                            "size":"[{max:50:{-:{element_w}:50}},40]",
                                             "desc":""
+                                        },
+                                        {
+                                            "type":"button",
+                                            "text":"<sym>🗁</sym>",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":[40,40],
+                                            "pad":[1,0,0,0],
+                                            "font":{
+                                                "align":"center",
+                                                "size":0.8,
+                                                "style":"bold"
+                                            },
+                                            "action": "choose-file:detect_model:{folder:{detect_model}}:model file:*.pt"
                                         }
                                     ]
                                 },
@@ -418,8 +432,27 @@
                                             "size":"[{element_w},200]",
                                             "font":{"size":0.6}
                                         },
-                                        "size":"[{max:50:{element_w}},40]",
+                                        "size":"[{max:50:{-:{element_w}:50}},40]",
                                         "desc":""
+                                    },
+                                    {
+                                        "type":"condition",
+                                        "var":"{machine_learning}",
+                                        "then":
+                                        {
+                                            "type":"button",
+                                            "text":"<sym>🗁</sym>",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":[40,40],
+                                            "pad":[1,0,0,0],
+                                            "font":{
+                                                "align":"center",
+                                                "size":0.8,
+                                                "style":"bold"
+                                            },
+                                            "action": "choose-file:region_model:{folder:{region_model}}:model file:*.pt"
+                                        }
                                     }
                                 ]
                             },

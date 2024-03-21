@@ -21,6 +21,8 @@
 #include <misc/Coordinates.h>
 #include <python/Yolo8.h>
 
+#include <portable-file-dialogs.h>
+
 namespace gui {
 
 struct SettingsScene::Data {
@@ -302,6 +304,40 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("choose-settings", [](auto){
                         print("choose-settings");
+                    }),
+                    ActionFunc("choose-folder", [](const Action& action) {
+                        REQUIRE_AT_LEAST(1, action);
+                        WorkProgress::add_queue("Selecting folder", [action](){
+                            auto parm = action.parameters.front();
+                            auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                            if(not file::Path{folder}.is_folder())
+                                folder = {};
+                            
+                            auto dir = pfd::select_folder("Select a folder", folder).result();
+                            GlobalSettings::get(parm).get().set_value_from_string(dir);
+                            std::cout << "Selected "<< parm <<": " << dir << "\n";
+                        });
+                    }),
+                    ActionFunc("choose-file", [](const Action& action) {
+                        REQUIRE_AT_LEAST(1, action);
+                        WorkProgress::add_queue("Selecting file", [action](){
+                            auto parm = action.parameters.front();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : file::cwd().str();
+                            if(not file::Path{folder}.is_folder())
+                                folder = {};
+                            
+                            std::vector<std::string> filters;
+                            if(action.parameters.size() > 2) {
+                                filters.insert(filters.end(), action.parameters.begin() + 2, action.parameters.end());
+                            }
+                            
+                            auto dir = pfd::open_file("Select a file", folder, filters).result();
+                            for(auto &file : dir) {
+                                std::cout << "Selected " << parm << ": " << file << "\n";
+                                GlobalSettings::get(parm).get().set_value_from_string(file);
+                                break;
+                            }
+                        });
                     }),
                     ActionFunc("toggle-background-subtraction", [](auto){
                         SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
