@@ -124,7 +124,7 @@ TRexTask determineTaskType() {
     return TRexTask_t::convert;
 }
 
-void launch_gui(std::future<void>&& f) {
+void launch_gui(std::future<void>& f) {
     IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
@@ -716,7 +716,7 @@ int main(int argc, char**argv) {
         
     } else {
         // get the python init future
-        launch_gui(std::move(f));
+        launch_gui(f);
     }
     
     try {

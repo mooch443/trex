@@ -52,6 +52,9 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSour
             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
             std::swap(buffer, tmp);
         }*/
+
+        if (not buffer || buffer->empty())
+            throw tl::unexpected("Failed to read frame");
         
         return std::make_tuple(index, std::move(buffer));
     }

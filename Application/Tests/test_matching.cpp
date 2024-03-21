@@ -7,6 +7,7 @@
 #include <tracking/IndividualManager.h>
 #include <misc/PixelTree.h>
 #include <filesystem>
+#include <misc/Image.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -482,4 +483,75 @@ TYPED_TEST(TestRanges, Ranges) {
         ASSERT_LT(actual_number, other_actual_number) << _format("actual ", actual_number," < other ", other_actual_number);
         //ASSERT_GT(actual_number, other_default_init);
     }
+}
+
+class ImageConversionTestFixture : public ::testing::Test {
+protected:
+    cv::Mat image1C, image3C, image4C; // 1, 3, and 4 channel images
+
+    virtual void SetUp() override {
+        // Creating dummy images with 100x100 pixels
+        image1C = cv::Mat::zeros(100, 100, CV_8UC1);
+        image3C = cv::Mat::zeros(100, 100, CV_8UC3);
+        image4C = cv::Mat::zeros(100, 100, CV_8UC4);
+    }
+
+    template<int C, int Rows = 100, int Cols = 100>
+    void test_conversion(const cv::Mat& inputImage, ImageMode targetMode, bool expectSuccess = true) {
+        cv::Mat output = cv::Mat::zeros(Rows, Cols, CV_8UC(C));
+        bool exceptionThrown = false;
+
+        try {
+            load_image_to_format(targetMode, inputImage, output);
+        } catch (const std::exception&) {
+            exceptionThrown = true;
+        }
+
+        if (expectSuccess) {
+            EXPECT_FALSE(exceptionThrown);
+            int expectedChannels = C;
+            // Special handling for R3G3B2 mode
+            if (targetMode == ImageMode::R3G3B2) {
+                expectedChannels = 1; // R3G3B2 should be stored in a single channel
+            }
+            EXPECT_EQ(output.channels(), expectedChannels);
+            EXPECT_EQ(output.cols, 100);
+            EXPECT_EQ(output.rows, 100);
+        } else {
+            EXPECT_TRUE(exceptionThrown);
+        }
+    }
+};
+
+TEST_F(ImageConversionTestFixture, Convert1ChannelImage) {
+    // Testing all conversions from a 1-channel image
+    test_conversion<1>(image1C, ImageMode::GRAY);
+    test_conversion<3>(image1C, ImageMode::RGB);
+    test_conversion<1>(image1C, ImageMode::R3G3B2, false); // Expect failure
+    test_conversion<4>(image1C, ImageMode::RGBA);
+}
+
+TEST_F(ImageConversionTestFixture, Convert3ChannelImage) {
+    // Testing all conversions from a 3-channel image
+    test_conversion<1>(image3C, ImageMode::GRAY);
+    test_conversion<3>(image3C, ImageMode::RGB);
+    test_conversion<1>(image3C, ImageMode::R3G3B2);
+    test_conversion<4>(image3C, ImageMode::RGBA);
+}
+
+TEST_F(ImageConversionTestFixture, Convert4ChannelImage) {
+    // Testing all conversions from a 4-channel image
+    test_conversion<1>(image4C, ImageMode::GRAY);
+    test_conversion<3>(image4C, ImageMode::RGB);
+    test_conversion<1>(image4C, ImageMode::R3G3B2);
+    test_conversion<4>(image4C, ImageMode::RGBA);
+}
+
+TEST_F(ImageConversionTestFixture, ConvertWrongDimensions) {
+    // Testing conversions with wrong dimensions
+    test_conversion<4, 50, 50>(image3C, ImageMode::RGBA, false);
+    test_conversion<3, 100, 50>(image3C, ImageMode::RGBA, false);
+    test_conversion<3, 50, 100>(image3C, ImageMode::RGBA, false);
+    test_conversion<1, 100, 100>(image3C, ImageMode::RGBA, false);
+
 }
