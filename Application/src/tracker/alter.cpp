@@ -305,8 +305,6 @@ void launch_gui(std::future<void>&& f) {
 #endif
     
     base.graph()->root().set_stage(nullptr);
-    Detection::manager().clean_up();
-    Detection::deinit();
 }
 
 void panic(const char *fmt, ...) {
@@ -722,6 +720,10 @@ int main(int argc, char**argv) {
     }
     
     try {
+        if (f.valid())
+            f.get();
+
+        Detection::manager().clean_up();
         Detection::deinit();
         py::deinit();
     } catch(const std::exception& e) {
