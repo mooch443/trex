@@ -96,7 +96,8 @@ namespace Output {
     };
     
     class Library {
-        
+        static std::atomic<Vec2>& CENTER();
+        static CallbackCollection _callback;
         
     public:
         

@@ -849,7 +849,10 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
             } catch(...) {}
             
         } else {
-            
+            if(_current_boundary.size() == 1 && _current_boundary.front().size() == 1) {
+                // set center point
+                SETTING(output_origin) = Vec2(_current_boundary.front().front());
+            }
         }
         
         print("Selected boundary:");
@@ -972,12 +975,20 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             }
             
             if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + Vec2(0, Base::default_line_spacing(Font(0.6)) + 10).mul(sca), Size2(0, 35));
+                Bounds bds{
+                    (top_left + bottom_right) * 0.5 + Vec2{
+                            0.f,
+                            Base::default_line_spacing(Font(0.6)) + 10.f
+                        },
+                    Size2(0, 35)
+                };
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
                     if(bdry.size() == 1 && bdry.front().size() == 2)
                         name = "use known length to calibrate";
+                    else if(bdry.size() == 1 && bdry.front().size() == 1)
+                        name = "set "+Meta::toStr(bdry.front().front())+" as <c>output_origin</c>";
                     else
                         name = "deselect";
                     
@@ -1042,8 +1053,9 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     }
                 });
                 
-                combine->set_scale(sca);
+                base.wrap_object(*combine);
                 combine->auto_size(Margin{0, 0});
+                
                 Vec2 p;
                 //if(bdry.size() > 1
                 //    || bdry.front().size() > 2)
@@ -1074,18 +1086,18 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 auto coords = FindCoord::get();
                 auto viewport = coords.viewport();
                 
-                auto object_bounds = Bounds{p, combine->size().mul(sca) * 0.75};
+                auto object_bounds = Bounds{p, combine->size()};
                 
-                if(object_bounds.x - viewport.x < object_bounds.width) {
-                    object_bounds.x = viewport.x + object_bounds.width;
+                if(object_bounds.x - viewport.x < 0) {
+                    object_bounds.x = viewport.x;
                 }
-                if(object_bounds.y - viewport.y < object_bounds.height) {
-                    object_bounds.y = viewport.y + object_bounds.height;
+                if(object_bounds.y - viewport.y < 0) {
+                    object_bounds.y = viewport.y;
                 }
-                if(object_bounds.x + object_bounds.width >= viewport.width + viewport.x) {
+                if(object_bounds.x - viewport.x >= viewport.width) {
                     object_bounds.x = viewport.x + viewport.width - object_bounds.width;
                 }
-                if(object_bounds.y + object_bounds.height >= viewport.height + viewport.y) {
+                if(object_bounds.y - viewport.y >= viewport.height) {
                     object_bounds.y = viewport.y + viewport.height - object_bounds.height;
                 }
                 
@@ -1129,9 +1141,8 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 p += Vec2(combine->origin().x == 0 ? 15 : -15,
                           combine->origin().y == 0 ? 5 : -5).mul(sca);
                 combine->set_pos(p);
-                //combine->set_rotation(r);
-                
-                base.wrap_object(*combine);
+                combine->set_scale(sca);
+                combine->set(LineClr{Red});
             }
         }
     });

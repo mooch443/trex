@@ -520,7 +520,9 @@ void load(file::PathArray source,
             "meta_encoding", meta_encoding_t::r3g3b2,
             "track_do_history_split", false,
             "individual_image_normalization", individual_image_normalization_t::moments,
-            "detect_model", file::Path("yolov8x-pose")
+            "detect_model", file::Path("yolov8x-pose"),
+            "blob_split_algorithm", blob_split_algorithm_t::fill,
+            "track_max_reassign_time", 1.f
         };
         
         for(auto &key : values.keys()) {
@@ -543,7 +545,9 @@ void load(file::PathArray source,
             "meta_encoding", meta_encoding_t::gray,
             "track_do_history_split", true,
             "detect_classes", std::vector<std::string>{},
-            "individual_image_normalization", individual_image_normalization_t::posture
+            "individual_image_normalization", individual_image_normalization_t::posture,
+            "blob_split_algorithm", blob_split_algorithm_t::threshold,
+            "track_max_reassign_time", 0.5f
         };
         
         for(auto &key : values.keys()) {

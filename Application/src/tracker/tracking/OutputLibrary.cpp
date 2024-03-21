@@ -12,6 +12,8 @@
 
 namespace Output {
     using namespace gui;
+
+    IMPLEMENT(Library::_callback);
     
     LibraryCache::Ptr _default_cache = std::make_shared<LibraryCache>();
     std::map<std::string, Library::FunctionType> _cache_func;
@@ -114,6 +116,11 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         //_cache.clear();
         _default_cache->clear();
     }
+
+    std::atomic<Vec2>& Library::CENTER() {
+        static std::atomic<Vec2> center;
+        return center;
+    }
     
     void Library::Init() {
         // add the standard functions
@@ -122,9 +129,18 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         std::lock_guard<std::mutex> lock(_output_variables_lock);
         _cache_func.clear();
         
-        const float cm_per_px = FAST_SETTING(cm_per_pixel);
-        static const float CENTER_X = SETTING(output_centered) ? SETTING(video_size).value<Size2>().width * 0.5f * cm_per_px : 0;
-        static const float CENTER_Y = SETTING(output_centered) ?SETTING(video_size).value<Size2>().height * 0.5f * cm_per_px : 0;
+        if(not _callback) {
+            _callback = GlobalSettings::map().register_callbacks({"output_centered", "output_origin"}, [](auto) {
+                const float cm_per_px = FAST_SETTING(cm_per_pixel);
+                const float CENTER_X = SETTING(output_centered)
+                    ? (SETTING(meta_video_size).value<Size2>().width * 0.5f * cm_per_px)
+                    : (SETTING(output_origin).value<Vec2>().x * cm_per_px);
+                const float CENTER_Y = SETTING(output_centered)
+                    ? (SETTING(meta_video_size).value<Size2>().height * 0.5f * cm_per_px)
+                    : (SETTING(output_origin).value<Vec2>().y * cm_per_px);
+                CENTER() = Vec2{CENTER_X, CENTER_Y};
+            });
+        }
         
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -132,6 +148,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         using namespace track;
         
         _cache_func[Functions::X.name()] = LIBGLFNC( {
+            auto center = CENTER().load();
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
                     return GlobalSettings::invalid();
@@ -143,13 +160,14 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
                 return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
                      + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
-                     - CENTER_X;
+                     - center.x;
                 
             } else
-                return (props->pos<Units::CM_AND_SECONDS>(smooth).x - CENTER_X);
+                return (props->pos<Units::CM_AND_SECONDS>(smooth).x - center.x);
         });
         
         _cache_func[Functions::Y.name()] = LIBGLFNC( {
+            auto center = CENTER().load();
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
                     return GlobalSettings::invalid();
@@ -161,10 +179,10 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 
                 return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
                      + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
-                     - CENTER_Y;
+                     - center.y;
                 
             } else
-                return (props->pos<Units::CM_AND_SECONDS>(smooth).y - CENTER_Y);
+                return (props->pos<Units::CM_AND_SECONDS>(smooth).y - center.y);
         });
         
         _cache_func[Functions::VX.name()] = LIBFNC ( return props->v<Units::CM_AND_SECONDS>(smooth).x; );
@@ -333,8 +351,8 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if(GlobalSettings::has("video_mask")
                && SETTING(video_mask))
             {
+                auto center = CENTER().load();
                 // circular tank
-                Vec2 center(CENTER_X, CENTER_Y);
                 const float radius = min(center.x, center.y);
                 
                 auto pos = props->pos<Units::CM_AND_SECONDS>();
