@@ -55,10 +55,7 @@ conda create -n betarex --override-channels -c trex-beta -c pytorch -c conda-for
 
 ## Manual compilation
 
-Pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda versions do not offer support for Basler cameras. If you need to use TGrabs with machine vision cameras, or need as much speed as possible (or the newest version), please consider compiling the software yourself.
-
-If you want compatibility with the Basler API (or other things with licensing/portability issues), please 
-use one of the manual compilation options (see https://trex.run/docs/install.html).
+Pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda versions do not offer support for Basler cameras. If you need to use TRex with machine vision cameras (e.g. Basler), or need as much speed as possible (or the newest version), please consider compiling the software yourself. *Beta note: This feature is not yet available, since the VideoSource for this purpose is not yet implemented. You can implement it yourself, or be patient, sorry :(*
 
 # Usage
 
