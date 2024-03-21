@@ -240,7 +240,7 @@ else()
     set(targets pvinfo pvconvert)
 endif()
 
-if(APPLE)
+if(APPLE AND BUILD_LEGACY_TGRABS)
     add_executable(tgrabs_starter tgrabs.cpp ${GIT_SOURCES})
     target_link_libraries(tgrabs_starter PRIVATE commons)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
@@ -248,20 +248,21 @@ if(APPLE)
     #target_precompile_headers(tgrabs_starter REUSE_FROM commons)
 endif()
 
+if(BUILD_LEGACY_TGRABS)
+    install(TARGETS ${targets}
+        EXPORT TGrabs
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin
+        BUNDLE DESTINATION bin
+        INCLUDES DESTINATION include
+        CONFIGURATIONS Release
+    )
 
-install(TARGETS ${targets}
-    EXPORT TGrabs
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    RUNTIME DESTINATION bin
-    BUNDLE DESTINATION bin
-    INCLUDES DESTINATION include
-    CONFIGURATIONS Release
-)
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+    install(FILES ${CMAKE_SOURCE_DIR}/closed_loop.py ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
-install(FILES ${CMAKE_SOURCE_DIR}/closed_loop.py ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
-
-if(APPLE)
-target_compile_definitions(tgrabs_starter PRIVATE -DTGRABS_TARGET_PATH="${CMAKE_INSTALL_PREFIX}/bin")
+    if(APPLE)
+    target_compile_definitions(tgrabs_starter PRIVATE -DTGRABS_TARGET_PATH="${CMAKE_INSTALL_PREFIX}/bin")
+    endif()
 endif()
