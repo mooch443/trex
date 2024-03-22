@@ -33,7 +33,6 @@ public:
     void set_data(Frame_t frame);
     
     void draw_shapes(DrawStructure&, const FindCoord&);
-    void update_shapes();
     
     Vec2 _current_scale;
     Vec2 _target_scale;

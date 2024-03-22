@@ -25,9 +25,12 @@ VisualFieldWidget::~VisualFieldWidget() {
 
 void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_of_individuals_t& individuals) {
     
-    if(_last_frame != frame) {
+    if(_last_frame != frame
+       || content_changed())
+    {
         _fields.clear();
-        //_last_frame = frame;
+        _last_frame = frame;
+        set_content_changed(false);
     }
     
     begin();

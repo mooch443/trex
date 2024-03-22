@@ -31,8 +31,27 @@ struct Bowl::Data {
     gui::heatmap::HeatmapController* _heatmapController{nullptr};
     
     std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes, _vf_shapes;
+    std::atomic<bool> _shapes_updated{false};
+    CallbackCollection _callback;
+    
+    bool update_shapes();
+    
+    Data() {
+        _callback = GlobalSettings::map().register_callbacks({
+            "track_ignore",
+            "track_include",
+            "visual_field_shapes"
+            
+        }, [this](auto) {
+            _shapes_updated = true;
+            _vf_widget.set_content_changed(true);
+        });
+    }
     
     ~Data() {
+        if(_callback)
+            GlobalSettings::map().unregister_callbacks(std::move(_callback));
+        
         if(_heatmapController)
             delete _heatmapController;
     }
@@ -90,19 +109,24 @@ void Bowl::set_target_focus(const std::vector<Vec2>& target_points) {
     update_goals();
 }
 
-void Bowl::update_shapes() {
+bool Bowl::Data::update_shapes() {
+    /// only update shapes if necessary -- this might be expensive
+    if(_shapes_updated.load()) {
+        return false;
+    }
+    
     if(!FAST_SETTING(track_include).empty())
     {
-        auto keys = extract_keys(_data->_include_shapes);
+        auto keys = extract_keys(_include_shapes);
         
         for(auto &rect : FAST_SETTING(track_include)) {
             Shape shape{rect};
-            auto it = _data->_include_shapes.find(shape);
-            if(it == _data->_include_shapes.end()) {
+            auto it = _include_shapes.find(shape);
+            if(it == _include_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_unique<Rect>(Box(rect[0], rect[1] - rect[0]), FillClr{Green.alpha(25)}, LineClr{Green.alpha(100)});
                     //ptr->set_clickable(true);
-                    _data->_include_shapes[shape] = std::move(ptr);
+                    _include_shapes[shape] = std::move(ptr);
                     
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
@@ -111,39 +135,34 @@ void Bowl::update_shapes() {
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
                     //ptr->set_clickable(true);
-                    _data->_include_shapes[shape] = std::move(ptr);
+                    _include_shapes[shape] = std::move(ptr);
                 }
             }
             keys.erase(shape);
         }
         
         for(auto &key : keys) {
-            _data->_include_shapes.erase(key);
+            _include_shapes.erase(key);
         }
         
-        if(_cache)
-            _cache->set_raw_blobs_dirty();
-        
     } else if(FAST_SETTING(track_include).empty()
-              && !_data->_include_shapes.empty())
+              && !_include_shapes.empty())
     {
-        _data->_include_shapes.clear();
-        if(_cache)
-            _cache->set_raw_blobs_dirty();
+        _include_shapes.clear();
     }
     
     if(!FAST_SETTING(track_ignore).empty())
     {
-        auto keys = extract_keys(_data->_ignore_shapes);
+        auto keys = extract_keys(_ignore_shapes);
         
         for(auto &rect : FAST_SETTING(track_ignore)) {
             Shape shape{rect};
-            auto it = _data->_ignore_shapes.find(shape);
-            if(it == _data->_ignore_shapes.end()) {
+            auto it = _ignore_shapes.find(shape);
+            if(it == _ignore_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_unique<Rect>(Box(rect[0], rect[1] - rect[0]), FillClr{Red.alpha(25)}, LineClr{Red.alpha(100)});
                     //ptr->set_clickable(true);
-                    _data->_ignore_shapes[shape] = std::move(ptr);
+                    _ignore_shapes[shape] = std::move(ptr);
                     
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
@@ -152,34 +171,29 @@ void Bowl::update_shapes() {
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
                     //ptr->set_clickable(true);
-                    _data->_ignore_shapes[shape] = std::move(ptr);
+                    _ignore_shapes[shape] = std::move(ptr);
                 }
             }
             keys.erase(shape);
         }
         
         for(auto &key : keys) {
-            _data->_ignore_shapes.erase(key);
+            _ignore_shapes.erase(key);
         }
         
-        if(_cache)
-            _cache->set_raw_blobs_dirty();
-        
-    } else if(FAST_SETTING(track_ignore).empty() && !_data->_ignore_shapes.empty()) {
-        _data->_ignore_shapes.clear();
-        if(_cache)
-            _cache->set_raw_blobs_dirty();
+    } else if(FAST_SETTING(track_ignore).empty() && !_ignore_shapes.empty()) {
+        _ignore_shapes.clear();
     }
     
     auto visual_field_shapes = SETTING(visual_field_shapes).value<std::vector<std::vector<Vec2>>>();
     if(!visual_field_shapes.empty())
     {
-        auto keys = extract_keys(_data->_vf_shapes);
+        auto keys = extract_keys(_vf_shapes);
         
         for(auto &rect : visual_field_shapes) {
             Shape shape{rect};
-            auto it = _data->_vf_shapes.find(shape);
-            if(it == _data->_vf_shapes.end()) {
+            auto it = _vf_shapes.find(shape);
+            if(it == _vf_shapes.end()) {
                 if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
                     auto r = poly_convex_hull(&rect); // force a convex polygon for these shapes, as thats the only thing that the in/out polygon test works with
@@ -193,26 +207,24 @@ void Bowl::update_shapes() {
                     ptr->set_fill_clr(Orange.alpha(25));
                     ptr->set_border_clr(Orange.alpha(100));
                     //ptr->set_clickable(true);
-                    _data->_vf_shapes[shape] = std::move(ptr);
+                    _vf_shapes[shape] = std::move(ptr);
                 }
             }
             keys.erase(shape);
         }
         
         for(auto &key : keys) {
-            _data->_vf_shapes.erase(key);
+            _vf_shapes.erase(key);
         }
         
-        if(_cache)
-            _cache->set_raw_blobs_dirty();
-        
     } else if(visual_field_shapes.empty()
-              && !_data->_vf_shapes.empty())
+              && !_vf_shapes.empty())
     {
-        _data->_vf_shapes.clear();
-        if(_cache)
-            _cache->set_raw_blobs_dirty();
+        _vf_shapes.clear();
     }
+    
+    _shapes_updated = false;
+    return true;
 }
 
 void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
@@ -255,7 +267,10 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
     if(not GUI_SETTINGS(gui_show_timeline))
         return;
     
-    update_shapes();
+    if(_data->update_shapes()) {
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
+    }
     
     Scale scale{coord.bowl_scale()};
     for(auto && [rect, ptr] : _data->_include_shapes) {

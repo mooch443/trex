@@ -274,6 +274,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
     
     Frame_t GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
+        const bool output_normalize_midline_data = SETTING(output_normalize_midline_data);
         //const auto posture_threshold = FAST_SETTING(track_posture_threshold);
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
@@ -569,7 +570,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         
                         /// this could be optimized by using the posture stuff
                         /// in the fixed midline function + SETTING()
-                        blob.midline = SETTING(output_normalize_midline_data) ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*basic, *posture);
+                        blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*basic, *posture);
                     }
                     
                     blob_selected_fish[blob.bdx] = fish->identity().ID();
