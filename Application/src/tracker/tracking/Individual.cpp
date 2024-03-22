@@ -2994,14 +2994,14 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
             frames.push_back(frame.get());
             
-            fish_pos.push_back(ptr->fish_pos());
+            fish_pos.emplace_back(ptr->fish_pos());
             fish_angle.push_back(ptr->fish_angle());
             
             for(long_t j=0; j<2; j++) {
                 auto &e = ptr->eyes()[j];
                 
                 eye_angle.push_back(e.angle);
-                eye_pos.push_back(e.pos);
+                eye_pos.emplace_back(e.pos);
                 
                 depth.insert(depth.end(), e._depth.begin(), e._depth.begin() + vres);
                 body_part.insert(body_part.end(), e._visible_head_distance.begin(), e._visible_head_distance.begin() + vres);

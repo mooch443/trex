@@ -11,18 +11,23 @@ namespace gui {
 namespace track {    
     class VisualField {
     public:
+        using Scalar64 = double;
+        using Vec64 = Vector2D<Scalar64, true>;
+        
+    public:
         static constexpr uint8_t layers = 2;
         static constexpr uint16_t field_resolution = 512;
-        static constexpr double symmetric_fov = RADIANS(130);
+        static constexpr Scalar64 symmetric_fov = RADIANS(130);
         static constexpr int32_t custom_id = 1234;
+        static constexpr Scalar64 invalid_value = FLT_MAX;
         //static constexpr double eye_separation = RADIANS(60);
         
         struct eye {
         public:
             gui::Color clr;
-            float angle;
-            Vec2 pos;
-            Vec2 rpos;
+            Scalar64 angle;
+            Vec64 pos;
+            Vec64 rpos;
             
             std::array<uchar, field_resolution * layers> _fov;
             std::array<float, field_resolution * layers> _depth;
@@ -42,8 +47,8 @@ namespace track {
     protected:
         const float max_d;
         std::array<eye, 2> _eyes;
-        GETTER(Vec2, fish_pos);
-        GETTER(double, fish_angle);
+        GETTER(Vec64, fish_pos);
+        GETTER(Scalar64, fish_angle);
         
         GETTER(Idx_t, fish_id);
         GETTER(Frame_t, frame);
@@ -53,13 +58,15 @@ namespace track {
         
         const decltype(_eyes)& eyes() const { return _eyes; }
         void calculate(const BasicStuff& basic, const PostureStuff* posture, bool blocking = true);
-        void show(gui::DrawStructure &graph);
-        static void show_ts(gui::DrawStructure &graph, Frame_t frameNr, Individual* selected);
-        void plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, Idx_t id, float hd);
+        //void show(gui::DrawStructure &graph);
+        //static void show_ts(gui::DrawStructure &graph, Frame_t frameNr, Individual* selected);
+        void plot_projected_line(eye& e, std::tuple<Scalar64, Scalar64>& tuple, Scalar64 d, const Vec64& point, Idx_t id, float hd);
         
         static void remove_frames_after(Frame_t);
         
-        static std::tuple<std::array<eye, 2>, Vec2> generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, float angle);
+        static std::tuple<std::array<eye, 2>, Vec64> generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, Scalar64 angle);
+        
+        static std::vector<Vec64> tesselate_outline(const std::vector<Vec2>& outline, Scalar64 max_distance = Scalar64(5));
     };
 }
 

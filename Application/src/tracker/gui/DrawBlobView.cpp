@@ -1027,7 +1027,8 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     std::vector<std::string>{
                         "track_ignore",
                         "track_include",
-                        "recognition_shapes"
+                        "recognition_shapes",
+                        "visual_field_shapes"
                     });
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());

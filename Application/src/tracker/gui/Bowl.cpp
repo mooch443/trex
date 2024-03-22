@@ -6,6 +6,7 @@
 #include <gui/IdentityHeatmap.h>
 #include <gui/DrawBase.h>
 #include <tracking/LockGuard.h>
+#include <tracking/VisualField.h>
 
 using namespace track;
 
@@ -29,7 +30,7 @@ struct Bowl::Data {
     //! The heatmap controller.
     gui::heatmap::HeatmapController* _heatmapController{nullptr};
     
-    std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes;
+    std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes, _vf_shapes;
     
     ~Data() {
         if(_heatmapController)
@@ -169,6 +170,49 @@ void Bowl::update_shapes() {
         if(_cache)
             _cache->set_raw_blobs_dirty();
     }
+    
+    auto visual_field_shapes = SETTING(visual_field_shapes).value<std::vector<std::vector<Vec2>>>();
+    if(!visual_field_shapes.empty())
+    {
+        auto keys = extract_keys(_data->_vf_shapes);
+        
+        for(auto &rect : visual_field_shapes) {
+            Shape shape{rect};
+            auto it = _data->_vf_shapes.find(shape);
+            if(it == _data->_vf_shapes.end()) {
+                if(rect.size() > 2) {
+                    //auto r = std::make_shared<std::vector<Vec2>>(rect);
+                    auto r = poly_convex_hull(&rect); // force a convex polygon for these shapes, as thats the only thing that the in/out polygon test works with
+                    auto copy = VisualField::tesselate_outline(*r);
+                    r->clear();
+                    for(auto &pt : copy)
+                        r->emplace_back(pt);
+                    
+                    auto ptr = std::make_unique<gui::Polygon>(std::move(r));
+                    ptr->set_show_points(true);
+                    ptr->set_fill_clr(Orange.alpha(25));
+                    ptr->set_border_clr(Orange.alpha(100));
+                    //ptr->set_clickable(true);
+                    _data->_vf_shapes[shape] = std::move(ptr);
+                }
+            }
+            keys.erase(shape);
+        }
+        
+        for(auto &key : keys) {
+            _data->_vf_shapes.erase(key);
+        }
+        
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
+        
+    } else if(visual_field_shapes.empty()
+              && !_data->_vf_shapes.empty())
+    {
+        _data->_vf_shapes.clear();
+        if(_cache)
+            _cache->set_raw_blobs_dirty();
+    }
 }
 
 void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
@@ -224,6 +268,15 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
     }
     
     for(auto && [rect, ptr] : _data->_ignore_shapes) {
+        advance_wrap(*ptr);
+        
+        if(ptr->hovered()) {
+            const Font font(0.85 / (1 - ((1 - _cache->zoom_level()) * 0.5)), Align::VerticalCenter);
+            add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
+        }
+    }
+    
+    for(auto && [rect, ptr] : _data->_vf_shapes) {
         advance_wrap(*ptr);
         
         if(ptr->hovered()) {

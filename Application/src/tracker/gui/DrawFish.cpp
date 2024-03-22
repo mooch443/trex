@@ -775,11 +775,13 @@ Fish::~Fish() {
                     auto eye_scale = max(0.5, _ML / 90);
                     for (auto& eye : eyes) {
                         eye.pos += ph.direction;
-                        _view.add<Circle>(Loc(eye.pos + offset), Radius(5 * eye_scale), LineClr{Black.alpha(200)}, FillClr{White.alpha(125)});
-                        auto c = _view.add<Circle>(Loc(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset), Radius(3 * eye_scale), LineClr{Transparent}, FillClr{Black.alpha(200)});
+                        auto epos = Vec2(eye.pos);
+                        
+                        _view.add<Circle>(Loc(epos + offset), Radius(5 * eye_scale), LineClr{Black.alpha(200)}, FillClr{White.alpha(125)});
+                        auto c = _view.add<Circle>(Loc(epos + Vec2(2.5).mul(d * eye_scale) + offset), Radius(3 * eye_scale), LineClr{Transparent}, FillClr{Black.alpha(200)});
                         c->set_scale(Vec2(1, ph.blinking ? h : 1));
                         c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                        _view.add<Circle>(Loc(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset), Radius(sqrt(eye_scale)), LineClr{Transparent}, FillClr{White.alpha(200 * c->scale().min())});
+                        _view.add<Circle>(Loc(epos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset), Radius(sqrt(eye_scale)), LineClr{Transparent}, FillClr{White.alpha(200 * c->scale().min())});
                     }
                 }
             }
