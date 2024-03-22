@@ -64,7 +64,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
             std::vector<Vertex> crosses;
             
             for(auto &eye : ptr->eyes()) {
-                crosses.emplace_back(eye.pos, eye.clr);
+                crosses.emplace_back(Vec2(eye.pos), eye.clr);
                 
                 for (size_t i=0; i<VisualField::field_resolution; i++) {
                     if(eye._depth[i] < VisualField::invalid_value) {
@@ -90,7 +90,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
                     }
                 }
                 
-                crosses.emplace_back(eye.pos, eye.clr);
+                crosses.emplace_back(Vec2(eye.pos), eye.clr);
                 add<Circle>(Loc(eye.pos), Radius{3}, LineClr{White.alpha(125)});
                 //if(&eye == &_eyes[0])
                 //auto poly = new gui::Polygon(crosses);
