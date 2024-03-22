@@ -500,6 +500,7 @@ std::string date_time() {
 }
 
 void Segmenter::start() {
+    initialize_slows();
     SETTING(meta_conversion_time) = std::string(date_time());
     
     start_recording_ffmpeg();
@@ -672,6 +673,9 @@ double Segmenter::fps() const {
 void Segmenter::perform_tracking() {
     Timer timer;
     
+    if(FAST_SETTING(frame_rate) == 0)
+        throw InvalidArgumentException("frame_rate should not be zero: ", FAST_SETTING(frame_rate), " vs. ", SETTING(frame_rate));
+    assert(FAST_SETTING(frame_rate) > 0);
     auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
     _progress_data.frame.set_timestamp(uint64_t(fake));
     _progress_data.frame.set_index(running_id++);

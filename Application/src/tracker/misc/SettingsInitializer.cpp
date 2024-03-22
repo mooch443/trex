@@ -159,6 +159,9 @@ void load(file::PathArray source,
                 //if(do_print)
                 //    print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
                 from.at(key).get().copy_to(&combined.map);
+                
+                if(key == "detect_type")
+                    type = from.at(key).value<decltype(type)>();
             }
             else {
                 //print("// ", key, " is already set to ", combined.map.at(key).get().valueString());
