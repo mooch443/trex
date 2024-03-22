@@ -292,6 +292,8 @@ private:
 public:
     void print_memory();
 };
+
+void initialize_slows();
 }
 
 STRUCT_META_EXTENSIONS(track::Settings)

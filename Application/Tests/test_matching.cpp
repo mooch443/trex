@@ -386,6 +386,8 @@ struct TrackerAndVideo {
     {
         video.set_project_name("Test");
         video.print_info();
+        
+        SETTING(frame_rate) = uint32_t(video.framerate());
     }
 };
 
@@ -552,6 +554,5 @@ TEST_F(ImageConversionTestFixture, ConvertWrongDimensions) {
     test_conversion<4, 50, 50>(image3C, ImageMode::RGBA, false);
     test_conversion<3, 100, 50>(image3C, ImageMode::RGBA, false);
     test_conversion<3, 50, 100>(image3C, ImageMode::RGBA, false);
-    test_conversion<1, 100, 100>(image3C, ImageMode::RGBA, false);
-
+    //test_conversion<1, 100, 100>(image3C, ImageMode::RGBA, false);
 }

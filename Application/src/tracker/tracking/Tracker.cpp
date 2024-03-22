@@ -574,6 +574,7 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     
     double time;
     if(SLOW_SETTING(track_enforce_frame_rate)) {
+        assert(SLOW_SETTING(frame_rate) > 0);
         time = double(frame.index().get()) / double(SLOW_SETTING(frame_rate));
         pp.timestamp = timestamp_t{uint64_t(time * 1000 * 1000)};
     } else {
