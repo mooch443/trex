@@ -331,11 +331,17 @@ struct SettingsScene::Data {
                                 filters.insert(filters.end(), action.parameters.begin() + 2, action.parameters.end());
                             }
                             
-                            auto dir = pfd::open_file("Select a file", folder, filters).result();
-                            for(auto &file : dir) {
-                                std::cout << "Selected " << parm << ": " << file << "\n";
-                                GlobalSettings::get(parm).get().set_value_from_string(file);
-                                break;
+                            auto flags = GlobalSettings::get(parm).is_type<file::PathArray>() ? pfd::opt::multiselect : pfd::opt::none;
+                            auto dir = pfd::open_file("Select a file", folder, filters, flags).result();
+                            
+                            if(GlobalSettings::get(parm).is_type<file::PathArray>())
+                            {
+                                if(not dir.empty())
+                                    GlobalSettings::get(parm).get().set_value_from_string(Meta::toStr(dir));
+                            } else {
+                                if(not dir.empty()) {
+                                    GlobalSettings::get(parm).get().set_value_from_string(dir.front());
+                                }
                             }
                         });
                     }),
