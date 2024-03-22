@@ -367,7 +367,7 @@ void load(file::PathArray source,
                 filename = {};
             }
             
-            if(filename.has_extension() && filename.extension() != "pv")
+            if(filename.has_extension() && filename.extension() == "pv")
                 filename = filename.remove_extension();
             
             combined.map["filename"] = filename;
