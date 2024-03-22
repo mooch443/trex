@@ -4,6 +4,7 @@
 #include <file/DataLocation.h>
 #include <tracker/misc/default_config.h>
 #include <grabber/misc/default_config.h>
+#include <misc/SettingsInitializer.h>
 
 using namespace gui;
 using namespace cmn;
@@ -29,10 +30,12 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
     //if (recent.has(name)) {
     //    return;
     //}
+    auto basename = settings::find_output_name(GlobalSettings::map(), SETTING(source), SETTING(filename), true);
+    if(basename.empty())
+        basename = file::DataLocation::parse("output", file::find_basename(name));
+    //file::Path basepath = file::DataLocation::parse("output", basename);
     
-    file::Path basepath = file::DataLocation::parse("output", file::find_basename(name));
-    
-    recent.add(basepath.str(), options);
+    recent.add(basename.str(), options);
     recent.write();
 }
 

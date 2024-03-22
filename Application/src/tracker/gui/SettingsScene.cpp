@@ -6,7 +6,7 @@
 //#include <gui/types/Dropdown.h>
 //#include <gui/types/Checkbox.h>
 #include <gui/dyn/Action.h>
-//#include <video/VideoSource.h>
+#include <video/VideoSource.h>
 //#include <misc/AbstractVideoSource.h>
 //#include <misc/VideoVideoSource.h>
 //#include <misc/WebcamVideoSource.h>
@@ -31,6 +31,8 @@ struct SettingsScene::Data {
     Timer video_image_timer, animation_timer;
     double blur_target{1};
     double blur_percentage{0};
+    
+    std::future<void> check_new_video_source;
     
     dyn::DynamicGUI dynGUI;
     CallbackCollection callback;
@@ -478,6 +480,122 @@ SettingsScene::~SettingsScene() {
     
 }
 
+void SettingsScene::check_video_source(file::PathArray initial_source, file::PathArray source) {
+    ExtendableVector exclude{
+        "output_prefix",
+        "filename",
+        "source",
+        "output_dir"
+    };
+
+    try {
+        if (source != initial_source
+            && source.get_paths().size() == 1
+            && source.get_paths().front().has_extension()
+            && source.get_paths().front().extension() == "pv")
+        {
+            //auto output = settings::find_output_name(GlobalSettings::map());
+            auto output = source.get_paths().front();
+            pv::File video(output, pv::FileMode::READ);
+            
+            /// process in main thread
+            SceneManager::getInstance().enqueue([this, str = video.header().metadata, source, output](){
+                sprite::Map metadata;
+                try {
+                    sprite::parse_values(sprite::MapSource{ output }, metadata, str, &GlobalSettings::defaults(), {}, default_config::deprecations());
+                    
+                    if(_data)
+                        _data->current_path.set(std::move(source));
+                }
+                catch (...) {
+                    /// do nothing
+                }
+            });
+            
+            /// escape!
+            return;
+
+            /*if (metadata.has("meta_source_path")) {
+                auto source_path = file::PathArray(metadata.at("meta_source_path").value<std::string>());
+                if (not source_path.empty()
+                    && source_path.get_paths().front().exists())
+                {
+                    try {
+                        //WorkProgress::add_queue("loading...", [source_path, output]() {
+                            //SETTING(output_dir) = output.remove_filename();
+                            file::Path filename = output.remove_extension();
+                            //source = source_path;
+
+                            try {
+                                //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, {});
+
+                            }
+                            catch (const std::exception& ex) {
+                                FormatWarning("Ex = ", ex.what());
+                            }
+                        //});
+                        
+                        return;
+                    }
+                    catch (...) {
+                        /// do nothing
+                    }
+                }
+            }*/
+            
+        } else if(source == file::PathArray("webcam")) {
+            /// should be okay
+        } else if(source != initial_source) {
+            VideoSource v(source);
+            print("VideoSource for ",source," of size ", v.size(),".");
+        }
+        
+        SceneManager::getInstance().enqueue([this, source](){
+            try {
+                if(_data)
+                    _data->current_path.set(std::move(source));
+                
+            } catch(...) {
+                /// do nothing
+            }
+        });
+    }
+    catch (...) {
+        /// do nothing
+    }
+
+    /// some stuff regarding reloading settings when the source changes:
+    /// *currently disabled since it feels bad*
+    /*if (source == initial_source) {
+        return;
+    }
+
+    if (not source.empty()
+        && file::DataLocation::parse("input", source.get_paths().front()).is_regular())
+    {
+        file::Path filename = GlobalSettings::map().at("filename");
+        try {
+            //settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+
+        }
+        catch (const std::exception& ex) {
+            FormatWarning("Ex = ", ex.what());
+        }
+    }
+    else if (not source.empty()
+        && settings::find_output_name(GlobalSettings::map()).add_extension("pv").is_regular())
+    {
+        file::Path filename = settings::find_output_name(GlobalSettings::map());//GlobalSettings::map().at("filename");
+        try {
+            //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+
+        }
+        catch (const std::exception& ex) {
+            FormatWarning("Ex = ", ex.what());
+        }
+    }*/
+}
+
 void SettingsScene::activate() {
     WorkProgress::instance().start();
     
@@ -506,97 +624,12 @@ void SettingsScene::activate() {
             //SETTING(filename) = file::Path();
 
             file::PathArray source = GlobalSettings::map().at("source");
-                
-            ExtendableVector exclude{
-                "output_prefix",
-                "filename",
-                "source",
-                "output_dir"
-            };
-
-            try {
-                auto path = SETTING(source).value<file::PathArray>();
-                if (source != initial_source
-                    && path.get_paths().size() == 1
-                    && path.get_paths().front().has_extension()
-                    && path.get_paths().front().extension() == "pv")
-                {
-                    //auto output = settings::find_output_name(GlobalSettings::map());
-                    auto output = path.get_paths().front();
-                    pv::File video(output, pv::FileMode::READ);
-                    video.header();
-
-                    sprite::Map metadata;
-                    try {
-                        sprite::parse_values(sprite::MapSource{ output }, metadata, video.header().metadata, &GlobalSettings::defaults(), {}, default_config::deprecations());
-                    }
-                    catch (...) {
-						/// do nothing
-					}
-
-                    if (metadata.has("meta_source_path")) {
-                        auto source_path = file::PathArray(metadata.at("meta_source_path").value<std::string>());
-                        if (not source_path.empty()
-                            && source_path.get_paths().front().exists())
-                        {
-                            try {
-                                //WorkProgress::add_queue("loading...", [source_path, output]() {
-                                    //SETTING(output_dir) = output.remove_filename();
-                                    file::Path filename = output.remove_extension();
-                                    //source = source_path;
-
-                                    try {
-                                        //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, {});
-
-                                    }
-                                    catch (const std::exception& ex) {
-                                        FormatWarning("Ex = ", ex.what());
-                                    }
-								//});
-                                
-                                return;
-                            }
-                            catch (...) {
-								/// do nothing
-							}
-                        }
-                    }
-                }
-                if(_data)
-                    _data->current_path.set(std::move(path));
-            }
-            catch (...) {
-                /// do nothing
-            }
-
-            if (source == initial_source) {
-                return;
-            }
-
-            if (not source.empty()
-                && file::DataLocation::parse("input", source.get_paths().front()).is_regular())
-            {
-                file::Path filename = GlobalSettings::map().at("filename");
-                try {
-                    //settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
-
-                }
-                catch (const std::exception& ex) {
-                    FormatWarning("Ex = ", ex.what());
-                }
-            }
-            else if (not source.empty()
-                && settings::find_output_name(GlobalSettings::map()).add_extension("pv").is_regular())
-            {
-                file::Path filename = settings::find_output_name(GlobalSettings::map());//GlobalSettings::map().at("filename");
-                try {
-                    //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
-
-                }
-                catch (const std::exception& ex) {
-                    FormatWarning("Ex = ", ex.what());
-                }
-            }
+            if(_data->check_new_video_source.valid())
+                _data->check_new_video_source.get();
+            
+            _data->check_new_video_source = std::async(std::launch::async, [initial_source, source, this](){
+                check_video_source(initial_source, source);
+            });
         }
     });
     
@@ -611,6 +644,8 @@ void SettingsScene::deactivate() {
     if(_data && _data->callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
     _data->dynGUI.clear();
+    if(_data && _data->check_new_video_source.valid())
+        _data->check_new_video_source.get();
     _data = nullptr;
     dyn::Modules::remove("follow");
 }
