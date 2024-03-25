@@ -619,7 +619,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 // Helper function to draw outlines
 void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2) {
     if (not _current_data.outlines.empty()) {
-        graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
+        //graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
         ColorWheel wheel;
         for (const auto& v : _current_data.outlines) {
@@ -1063,11 +1063,11 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         }
 
         for (auto &box : _current_data.tiles)
-            graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red});
-        ColorWheel wheel;
+            graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
         //auto coord = FindCoord::get();
         //print(coord.bowl_scale());
         
+        ColorWheel wheel;
         size_t pose_index{ 0 };
         for (auto& keypoint : _current_data.keypoints) {
             auto pose = keypoint.toPose();

@@ -175,6 +175,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_SOURCE_DIR}/default.settings
         ${CMAKE_SOURCE_DIR}/learn_static.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py
@@ -213,6 +214,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                     "${comp}"
                     "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
         endforeach()
+        
     elseif(WIN32)
         message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
         message(STATUS "(install_prefix) :${CMAKE_INSTALL_PREFIX} :${CMAKE_BINARY_DIR}")
@@ -334,6 +336,7 @@ install(FILES
         ${CMAKE_SOURCE_DIR}/default.settings 
         ${CMAKE_SOURCE_DIR}/learn_static.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py 
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py 
