@@ -46,6 +46,8 @@ struct ConvertScene::Data {
 
     CallbackCollection callback;
     Skeleton skelet;
+    bool closed_loop_enable{SETTING(closed_loop_enable)};
+    file::Path closed_loop_path{SETTING(closed_loop_path).value<file::Path>().remove_extension()};
     
     std::mutex _current_json_mutex;
     nlohmann::json _current_json;
@@ -122,11 +124,11 @@ struct ConvertScene::Data {
     bool fetch_new_data();
     
     void check_module() {
-        if(not SETTING(enable_closed_loop))
+        if(not closed_loop_enable)
             return;
         
         Python::schedule([this](){
-            ModuleProxy proxy("closed_loop_beta", [this](ModuleProxy& m) {
+            ModuleProxy proxy(closed_loop_path.str(), [this](ModuleProxy& m) {
                 m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
                     std::unique_lock guard{_current_json_mutex};
                     return _current_json;
@@ -352,10 +354,9 @@ void ConvertScene::deactivate() {
         _data->spinner.set_progress(100);
         _data->spinner.mark_as_completed();
         
-        if(GlobalSettings::has("enable_closed_loop") && SETTING(enable_closed_loop)) {
-            Python::schedule([](){
-                using py = PythonIntegration;
-                ModuleProxy proxy("closed_loop_beta", [](auto&){});
+        if(_data->closed_loop_enable) {
+            Python::schedule([this](){
+                ModuleProxy proxy(_data->closed_loop_path.str(), [](auto&){});
                 proxy.run("deinit");
             }).get();
         }
@@ -514,10 +515,14 @@ void ConvertScene::activate()  {
     segmenter().start();
     RecentItems::open(source, GlobalSettings::current_defaults_with_config());
     
-    if(GlobalSettings::has("enable_closed_loop") && SETTING(enable_closed_loop)) {
+    if(auto path = _data->closed_loop_path.add_extension("py");
+       _data->closed_loop_enable)
+    {
+        if(not path.is_regular())
+            throw U_EXCEPTION("Cannot find module ", path, " as is specified in `closed_loop_path`.");
+        
         Python::schedule([this](){
-            using py = PythonIntegration;
-            ModuleProxy proxy("closed_loop_beta", [this](ModuleProxy& m) {
+            ModuleProxy proxy(_data->closed_loop_path.str(), [this](ModuleProxy& m) {
                 m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
                     std::unique_lock guard{_data->_current_json_mutex};
                     return _data->_current_json;
@@ -657,7 +662,6 @@ void ConvertScene::Data::drawBlobs(
 		map["visible"] = false;
 	}
 
-    const bool enable_closed_loop = SETTING(enable_closed_loop);
     auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
     std::vector<Vec2> targets;
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
@@ -764,7 +768,7 @@ void ConvertScene::Data::drawBlobs(
         (*tmp)["p"] = Meta::toStr(assign.p);
         
         /// save for closed loop
-        if(enable_closed_loop)
+        if(closed_loop_enable)
             acc_json.push_back(sprite_map_to_json(*tmp));
 
         if (tracked_id.valid() 
@@ -830,7 +834,7 @@ void ConvertScene::Data::drawBlobs(
         _bowl->set_target_focus(targets);
     }
     
-    if(enable_closed_loop) {
+    if(closed_loop_enable) {
         std::unique_lock guard{_current_json_mutex};
         _current_json["objects"] = acc_json;
     }

@@ -742,8 +742,8 @@ bool PythonIntegration::check_module(const std::string& name,
     std::unique_lock guard{module_mutex};
     bool result = false;
     
-    auto cwd = file::cwd().absolute();
-    auto app = file::DataLocation::parse("app", name + ".py");
+    //auto cwd = file::cwd().absolute();
+    //auto app = file::DataLocation::parse("app", name + ".py");
     /*if(cwd != app) {
         print("check_module:CWD: ", cwd);
         file::cd(app);

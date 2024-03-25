@@ -247,7 +247,8 @@ namespace default_config {
         }, "The given settings values will be written to the video file.");
 
         CONFIG("nowindow", false, "Start without a window enabled (for terminal-only use).", STARTUP);
-        CONFIG("enable_closed_loop", false, "When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets `enable_live_tracking` to true. Allows the tracker to skip frames by default, in order to catch up to the video.");
+        CONFIG("closed_loop_enable", false, "When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets `enable_live_tracking` to true. Allows the tracker to skip frames by default, in order to catch up to the video.");
+        CONFIG("closed_loop_path", file::Path("closed_loop_beta.py"), "Set the path to a Python file to be used in closed_loop. Please also enable closed loop processing by setting `closed_loop_enable` to true.");
         CONFIG("enable_live_tracking", false, "When enabled, the program will save a .results file for the recorded video plus export the data (see `output_graphs` in the tracker documentation).");
         CONFIG("grabber_force_settings", false, "If set to true, live tracking will always overwrite a settings file with `filename`.settings in the output folder.");
         

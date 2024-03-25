@@ -72,6 +72,7 @@ def init():
         TRex.log("ending thread for reinit...")
         quit_app = True
         polling_thread.join()
+        polling_thread = None
     
     TRex.log("starting thread...")
     quit_app = False
@@ -80,7 +81,10 @@ def init():
     polling_thread.start()
 
 def deinit():
-    global quit_app
-    quit_app = True
-    polling_thread.join()
-    TRex.log("deinit message")
+    global quit_app, polling_thread
+    if polling_thread is not None:
+        quit_app = True
+        polling_thread.join()
+        polling_thread = None
+        quit_app = False
+        TRex.log("deinit message")
