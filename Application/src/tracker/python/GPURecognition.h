@@ -314,7 +314,7 @@ namespace track {
         static void execute(const std::string&, bool safety_check = true);
         static void import_module(const std::string&);
         static void unload_module(const std::string&);
-        static bool check_module(const std::string&);
+        static bool check_module(const std::string&, std::function<void()> unloader = nullptr);
         static bool is_none(const std::string& name, const std::string& attribute);
         static void run(const std::string& module_name, const std::string& function);
         static std::string run_retrieve_str(const std::string& module_name, const std::string& function);
@@ -339,6 +339,7 @@ namespace track {
         static void set_function(const char* name_, std::function<void(const std::vector<track::detect::Result>&)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>, std::vector<int>)> f, const std::string& m = "");
+        static void set_function(const char* name_, std::function<nlohmann::json()>, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uint64_t>, std::vector<float>)> f, const std::string& m = "");
         static void set_function(const char* name_, std::function<void(std::vector<int>)> f, const std::string &m = "");
         static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");

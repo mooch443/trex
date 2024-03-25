@@ -734,10 +734,12 @@ void PythonIntegration::deinit() {
     }
 }
 
-bool PythonIntegration::check_module(const std::string& name) {
+bool PythonIntegration::check_module(const std::string& name,
+                                     std::function<void()> unloader)
+{
     check_correct_thread_id();
     
-    std::lock_guard<std::mutex> guard(module_mutex);
+    std::unique_lock guard{module_mutex};
     bool result = false;
     
     auto cwd = file::cwd().absolute();
@@ -754,6 +756,10 @@ bool PythonIntegration::check_module(const std::string& name) {
         try {
             if (CHECK_NONE(mod)) {
                 mod = _main.import(name.c_str());
+            } else if(unloader) {
+                guard.unlock();
+                unloader();
+                guard.lock();
             }
             mod.reload();
             print("Reloaded ",name+".py",".");
@@ -952,8 +958,55 @@ std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Yol
     }
 }
 
+// Forward declaration of the function to handle recursive calls
+py::object json_to_pyobject(const nlohmann::json& j);
+
+py::dict json_to_pydict(const nlohmann::json& j) {
+    py::dict dict;
+    for (const auto& item : j.items()) {
+        dict[py::str(item.key())] = json_to_pyobject(item.value());
+    }
+    return dict;
+}
+
+py::list json_to_pylist(const nlohmann::json& j) {
+    py::list list;
+    for (const auto& item : j) {
+        list.append(json_to_pyobject(item));
+    }
+    return list;
+}
+
+py::object json_to_pyobject(const nlohmann::json& j) {
+    if (j.is_null()) {
+        return py::none();
+    } else if (j.is_boolean()) {
+        return py::bool_(j.get<bool>());
+    } else if (j.is_number()) {
+        // Checking for integer vs. floating-point
+        if (j.is_number_integer()) {
+            return py::int_(j.get<int>());
+        } else {
+            return py::float_(j.get<double>());
+        }
+    } else if (j.is_string()) {
+        return py::str(j.get<std::string>());
+    } else if (j.is_array()) {
+        return json_to_pylist(j);
+    } else if (j.is_object()) {
+        return json_to_pydict(j);
+    }
+    throw std::runtime_error("Unsupported JSON type");
+}
+
 void PythonIntegration::set_function(const char* name_, std::function<bool()> f, const std::string &m) {
     set_function_internal(name_, f, m);
+}
+void PythonIntegration::set_function(const char* name_, std::function<nlohmann::json()> f, const std::string &m) {
+    set_function_internal(name_, [f = std::move(f)]() -> py::dict{
+        py::dict dict = json_to_pydict(f());
+        return dict;
+    }, m);
 }
 void PythonIntegration::set_function(const char* name_, std::function<float()> f, const std::string &m) {
     set_function_internal(name_, f, m);

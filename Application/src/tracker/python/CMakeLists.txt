@@ -7,6 +7,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 if(UNIX)
     add_library(tracker_python STATIC ${SRCS} ${HDRS} 
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_init.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_learn_category.py)
 elseif(WIN32)
     add_library(tracker_python SHARED ${SRCS} ${HDRS} "${CMAKE_CURRENT_BINARY_DIR}/../../GitSHA1.cpp" ../../GitSHA1.h)

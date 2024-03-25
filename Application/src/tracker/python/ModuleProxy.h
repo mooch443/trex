@@ -7,11 +7,13 @@ struct TREX_EXPORT ModuleProxy {
     bool _unset;
     std::string m;
     std::set<std::string> set_functions;
-    ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit, bool unset = false);
+    ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit, bool unset = false, std::function<void(ModuleProxy&)> unloader = nullptr);
     ~ModuleProxy();
-    void set_function(const char* name, auto &&fn) {
+    
+    template<typename Fn>
+    void set_function(const char* name, Fn fn) {
         set_functions.insert(name);
-        PythonIntegration::set_function(name, std::forward<decltype(fn)>(fn), m);
+        PythonIntegration::set_function(name, std::forward<Fn>(fn), m);
     }
     void set_variable(const char* name, auto&& value) {
         //set_functions.insert(name);

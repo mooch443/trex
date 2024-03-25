@@ -1,4 +1,4 @@
-﻿#include "ConvertScene.h"
+#include "ConvertScene.h"
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -27,6 +27,7 @@
 #include <gui/ScreenRecorder.h>
 #include <gui/DynamicGUI.h>
 #include <misc/SettingsInitializer.h>
+#include <misc/PythonWrapper.h>
 
 namespace gui {
 using namespace dyn;
@@ -45,6 +46,9 @@ struct ConvertScene::Data {
 
     CallbackCollection callback;
     Skeleton skelet;
+    
+    std::mutex _current_json_mutex;
+    nlohmann::json _current_json;
 
     // Individual properties for each object
     std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui, _joint;
@@ -116,6 +120,24 @@ struct ConvertScene::Data {
     void check_video_info(bool wait, std::string*);
     
     bool fetch_new_data();
+    
+    void check_module() {
+        if(not SETTING(enable_closed_loop))
+            return;
+        
+        Python::schedule([this](){
+            ModuleProxy proxy("closed_loop_beta", [this](ModuleProxy& m) {
+                m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
+                    std::unique_lock guard{_current_json_mutex};
+                    return _current_json;
+                });
+                m.run("init");
+            }, false, [](ModuleProxy& m){
+                m.unset_function("frame_info");
+                m.run("deinit");
+            });
+        });
+    }
     
     dyn::DynamicGUI init_gui(Base* window);
     void check_gui(DrawStructure& graph, Base* window) {
@@ -330,6 +352,14 @@ void ConvertScene::deactivate() {
         _data->spinner.set_progress(100);
         _data->spinner.mark_as_completed();
         
+        if(GlobalSettings::has("enable_closed_loop") && SETTING(enable_closed_loop)) {
+            Python::schedule([](){
+                using py = PythonIntegration;
+                ModuleProxy proxy("closed_loop_beta", [](auto&){});
+                proxy.run("deinit");
+            }).get();
+        }
+        
         if (_data) {
             _data->_object_blobs.clear();
             _data->_current_data = {};
@@ -404,6 +434,16 @@ void ConvertScene::open_camera() {
     _video_info["length"] = segmenter().video_length();
 }
 
+nlohmann::json sprite_map_to_json(const sprite::Map& map) {
+    nlohmann::json json;
+    for(auto& key : map.keys()) {
+        auto &prop = map.at(key).get();
+        json[key] = prop.to_json();
+        
+    }
+    return json;
+}
+
 void ConvertScene::activate()  {
     _scene_promise = {};
     _scene_active = _scene_promise.get_future().share();
@@ -473,6 +513,19 @@ void ConvertScene::activate()  {
     
     segmenter().start();
     RecentItems::open(source, GlobalSettings::current_defaults_with_config());
+    
+    if(GlobalSettings::has("enable_closed_loop") && SETTING(enable_closed_loop)) {
+        Python::schedule([this](){
+            using py = PythonIntegration;
+            ModuleProxy proxy("closed_loop_beta", [this](ModuleProxy& m) {
+                m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
+                    std::unique_lock guard{_data->_current_json_mutex};
+                    return _data->_current_json;
+                });
+                m.run("init");
+            });
+        });
+    }
 }
 
 bool ConvertScene::on_global_event(Event e) {
@@ -542,6 +595,8 @@ bool ConvertScene::Data::fetch_new_data() {
         }
 
         _current_data.image = nullptr;
+        
+        check_module();
     }
     return dirty;
 }
@@ -602,9 +657,12 @@ void ConvertScene::Data::drawBlobs(
 		map["visible"] = false;
 	}
 
+    const bool enable_closed_loop = SETTING(enable_closed_loop);
     auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
     std::vector<Vec2> targets;
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
+    
+    nlohmann::json::array_t acc_json;
 
     for (auto& blob : _object_blobs) {
         auto bds = blob->bounds();
@@ -632,6 +690,7 @@ void ConvertScene::Data::drawBlobs(
             .clid = size_t(-1)
         };
         Vec2 first_pose = bds.center();
+        blob::Pose pose;
 
         if (_current_data.frame.index().valid()) {
             if (blob->prediction().valid()) {
@@ -642,8 +701,11 @@ void ConvertScene::Data::drawBlobs(
                 };
                 if (pred.pose.size() > 0) {
                     auto& pt = pred.pose.point(0);
-                    if(pt.x > 0 || pt.y > 0)
+                    if(pt.x > 0 || pt.y > 0) {
                         first_pose = coords.convert(BowlCoord(pt));
+                    }
+                    
+                    pose = pred.pose;
                 }
             }
             //else
@@ -681,6 +743,8 @@ void ConvertScene::Data::drawBlobs(
         }
         
         bool selected = contains(selected_ids, tracked_id);
+        (*tmp)["pose"] = pose;
+        (*tmp)["box"] = blob->bounds();
         (*tmp)["pos"] = bds.pos();
         (*tmp)["selected"] = selected;
         (*tmp)["bdx"] = blob->blob_id();
@@ -698,6 +762,10 @@ void ConvertScene::Data::drawBlobs(
             (*tmp)["px"] = blob->recount(-1);
 
         (*tmp)["p"] = Meta::toStr(assign.p);
+        
+        /// save for closed loop
+        if(enable_closed_loop)
+            acc_json.push_back(sprite_map_to_json(*tmp));
 
         if (tracked_id.valid() 
             && selected) 
@@ -760,6 +828,11 @@ void ConvertScene::Data::drawBlobs(
     if (dirty) {
         _bowl->fit_to_screen(coords.screen_size());
         _bowl->set_target_focus(targets);
+    }
+    
+    if(enable_closed_loop) {
+        std::unique_lock guard{_current_json_mutex};
+        _current_json["objects"] = acc_json;
     }
 }
 

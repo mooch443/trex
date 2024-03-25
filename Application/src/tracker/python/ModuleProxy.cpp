@@ -3,11 +3,16 @@
 namespace track {
 ModuleProxy::ModuleProxy(const std::string& name,
             std::function<void(ModuleProxy&)> reinit,
-            bool unset)
+            bool unset,
+            std::function<void(ModuleProxy&)> unloader)
     : _unset(unset), m(name)
 {
-    if(PythonIntegration::check_module("bbx_saved_model"))
+    if(PythonIntegration::check_module(name, [this, unloader]() mutable {
+        unloader(*this);
+    }))
+    {
         reinit(*this);
+    }
 }
 ModuleProxy::~ModuleProxy() {
     if (not _unset)
