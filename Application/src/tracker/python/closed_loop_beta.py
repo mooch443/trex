@@ -29,7 +29,7 @@ def poll_cpp():
                 center = box[:2] + box[2:] / 2
 
                 # Log object information
-                TRex.log(f"Object {obj['id']} is at {center} and of size {box[2:]} with color {clr} and pose {obj['pose']}")
+                #TRex.log(f"Object {obj['id']} is at {center} and of size {box[2:]} with color {clr} and pose {obj['pose']}")
 
                 # Draw circles and rectangles on the image
                 cv2.circle(image, (int(center[0]), int(center[1])), 15, (125,125,125), 1)
@@ -53,7 +53,7 @@ def poll_cpp():
                         cv2.circle(image, (int(x), int(y)), 10, clr, 1)        
 
             TRex.imshow("Objects", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
+            #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
             #TRex.log(f"Polled C++ message and got: {status} (took {time.time() - start} seconds)")
         except Exception as e:
             TRex.log(f"Error polling C++: {e}")
