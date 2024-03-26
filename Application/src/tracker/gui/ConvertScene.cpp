@@ -521,6 +521,8 @@ void ConvertScene::activate()  {
         if(not path.is_regular())
             throw U_EXCEPTION("Cannot find module ", path, " as is specified in `closed_loop_path`.");
         
+        print("Loading closed_loop module at ", path.absolute().add_extension("py"));
+        
         Python::schedule([this](){
             ModuleProxy proxy(_data->closed_loop_path.str(), [this](ModuleProxy& m) {
                 m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
