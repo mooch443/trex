@@ -734,6 +734,35 @@ void PythonIntegration::deinit() {
     }
 }
 
+py::module_ import_module_from_file(pybind11::module& main, const file::Path& module_file_path) {
+    // Extract directory path and module name from module_file_path
+    file::Path directory_path = module_file_path.remove_filename();
+    if(directory_path.empty())
+        return main.import(module_file_path.c_str());
+    
+    // Remove extension to get module name
+    file::Path module_name_path = module_file_path.has_extension() && module_file_path.extension() == "py"
+            ? module_file_path.remove_extension()
+            : module_file_path;
+
+    py::module_ sys = main.import("sys");
+    py::list original_sys_path = sys.attr("path").cast<py::list>(); // Save original sys.path
+    sys.attr("path").attr("append")(directory_path.str()); // Temporarily add new path
+
+    py::module_ mod;
+    try {
+        auto filename = module_name_path.filename();
+        mod = main.import(filename.c_str());
+    } catch (py::error_already_set& e) {
+        std::cerr << "Failed to import module: " << e.what() << std::endl;
+        e.restore();
+        mod = py::none(); // Set to None to indicate failure
+    }
+
+    sys.attr("path") = original_sys_path; // Restore original sys.path
+    return mod;
+}
+
 bool PythonIntegration::check_module(const std::string& name,
                                      std::function<void()> unloader)
 {
@@ -755,13 +784,15 @@ bool PythonIntegration::check_module(const std::string& name,
 
         try {
             if (CHECK_NONE(mod)) {
-                mod = _main.import(name.c_str());
+                mod = import_module_from_file(_main, name);
+                //mod = _main.import(name.c_str());
             } else if(unloader) {
                 guard.unlock();
                 unloader();
                 guard.lock();
+                
+                mod.reload();
             }
-            mod.reload();
             print("Reloaded ",name+".py",".");
             result = true;
         }
