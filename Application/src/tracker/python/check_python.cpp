@@ -3,15 +3,23 @@
 #undef PYBIND11_CPP14
 #endif
 
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wrange-loop-analysis"
+#endif
 #include <pybind11/embed.h>
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 namespace py = pybind11;
 
 #include <cstdio>
+#include <locale>
 
 int main(int , char**) {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifndef NDEBUG
     printf("trex_check_python\n");
 #endif

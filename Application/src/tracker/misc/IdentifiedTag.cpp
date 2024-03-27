@@ -2,7 +2,6 @@
 #include <misc/ProximityGrid.h>
 #include <misc/ranges.h>
 
-
 namespace track {
 namespace tags {
 
@@ -244,11 +243,11 @@ namespace tags {
         print("tags take up ", FileSize{counter});
         
         DataPackage package(counter);
-        package.write<uint32_t>(assignments.size());
+        package.write<uint32_t>(narrow_cast<uint32_t>(assignments.size()));
         
         for(const auto &[id, tag] : assignments) {
             package.write<uint32_t>(id._identity);
-            package.write<uint32_t>(tag.detections.size());
+            package.write<uint32_t>(narrow_cast<uint32_t>(tag.detections.size()));
             for(auto &[frame, pair] : tag.detections) {
                 package.write<uint32_t>(frame.get());
                 package.write<uint32_t>(pair.bdx._id);
@@ -270,8 +269,6 @@ namespace tags {
         assignments.clear();
         added_entries = 0;
         
-        print("Reading ", N, " assignments.");
-        
         for (uint32_t i=0; i<N; ++i) {
             data.read<uint32_t>(identity);
             
@@ -288,7 +285,8 @@ namespace tags {
             }
         }
         
-        print("Read ", N, " tags.");
+        if(N>0)
+            print("Read ", N, " tags.");
     }
 
     Assignment find(Frame_t frame, pv::bid bdx) {

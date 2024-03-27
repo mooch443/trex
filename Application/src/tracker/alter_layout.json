@@ -1,0 +1,275 @@
+{
+	"defaults":{
+		"vars":{
+			"same_folder":"{equal:{folder:{global.source}}:{folder:{output_name}}}",
+			"same_parent":"{equal:{folder:{global.source}}:{folder:{folder:{output_name}}}}",
+			"indent":"{if:{same_parent}:'   ':''}",
+			"movie_in_sub":"{&&:{equal:{folder:{global.save_raw_movie_path}}:{folder:{output_name}}}:{global.save_raw_movie}}",
+			"movie_elsewhere":"{&&:{global.save_raw_movie}:{not:{movie_in_sub}}}",
+			
+			"circles":"[○,◔,◑,◕,●]",
+			"animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
+
+			"ffmpeg_fix":"ffmpeg -i {global.source} -c copy \"{basename:{global.source}}_fixed.mp4\"",
+
+			"clocks":"[🕛,🕐,🕑,🕒,🕓,🕔,🕕,🕖,🕗,🕘,🕙,🕚,🕛]",
+			"animation2":"<sym>{at:{mod:{time}:{array_length:{clocks}}}:{clocks}}</sym>",
+
+			"long_text":"This is a long text that will be animated.",
+			"text_length":"{array_length:'{long_text}'}",
+			"buildup":"{substr:0:{mod:{*:{+:5:{time}}:2}:{+:1:{text_length}}}:{long_text}}",
+
+			"slide_window":10,
+			"spots":"{-:{slide_window}:1}",
+			"text_start":"{mod:{*:{time}:4}:{+:{slide_window}:{text_length}}}",
+			"animation_begin":"{max:0:{-:{spots}:{text_start}}}",
+			"slide":"{pad_string:{animation_begin}:''}{substr:0:{-:{slide_window}:{animation_begin}}:{pad_string:{slide_window}:{substr:{max:0:{-:{-:{text_start}:{spots}}:{animation_begin}}}:{+:{spots}:{text_start}}:{long_text}}}}",
+			"animated_text":"{animation} {animation2}  [<c>{slide}</c>]  <c>{pad_string:{text_length}:{buildup}<sym>❚</sym>}</c>"
+		}
+	},
+	"objects":[
+	{
+		"type":"each",
+		"var":"fishes",
+		"do": {
+			"type":"condition",
+			"var":"{i.visible}",
+			"then":{
+				"type":"collection",
+				"children":[
+					{
+						"type":"condition",
+						"var":"{i.selected}",
+						"else":{
+							"type":"rect",
+							"pos":"{i.pos}",
+							"size":"{i.size}",
+							"fill":"{if:{hovered}:[0,255,0,30]:[255,255,0,30]}",
+							"line":"{i.color}",
+							"origin":[0,0],
+							"clickable":true,
+							"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.id}]}:[]:[{i.id}]}"
+						},
+						"then":{
+							"type":"circle",
+							"radius":"{i.radius}",
+							"origin":[0.5,0.5],
+							"pos":"{addVector:{i.pos}:{mulVector:{i.size}:0.5}}",
+							"line":[250,250,250,255],
+							"clickable":true,
+							"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.id}]}:[]:[{i.id}]}"
+						}
+					},
+					
+					{
+						"type":"condition",
+						"var":"{global.gui_show_texts}",
+						"then":{
+							"type":"label",
+							"text":"<c><b><nr>{i.id}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+							"pos":"{i.pos}",
+							"length":100,
+							"line":"{i.color}",
+							"fill":[50,50,50,150],
+							"id":"{i.id}",
+							"center":"{i.center}",
+							"size":"{i.size}",
+							"font":{"size":0.5,"align":"middle"}
+						}
+					}
+					
+				]
+			},
+			"else":{
+				"type":"rect",
+				"size":[0,0]
+			}
+		}
+	},
+
+	{
+		"type":"each",
+		"var":"untracked",
+		"do": {
+			"type":"condition",
+			"var":"{i.visible}",
+			"then":{
+				"type":"collection",
+				"children":[
+					{
+						"type":"rect",
+						"pos":"{i.pos}",
+						"size":"{i.size}",
+						"fill":[50,50,50,30],
+						"line":[200,200,200,200],
+						"origin":[0,0]
+					},
+					{
+						"type":"condition",
+						"var":"{global.gui_show_texts}",
+						"then":{
+							"type":"label",
+							"text":"<c><b><ref>untracked</ref></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+							"pos":"{i.pos}",
+							"length":100,
+							"color":[200,200,200,255],
+							"line":[200,200,200,255],
+							"fill":[50,50,50,150],
+							"center":"{i.center}",
+							"size":"{i.size}",
+							"font":{"size":0.5,"align":"middle"}
+						}
+					}
+				]
+			},
+			"else":{ "type":"rect", "size":[0,0] }
+		}
+	},
+
+	{ 
+		"type":"gridlayout",
+		"pos":[20,10],
+		"scale":[1.0,1.0],
+		"pad":[10,10,10,10],
+		"fill":[0,0,0,100],
+		"clickable":false,
+		"valign":"top",
+		"children": [[
+			{ 
+				"type":"hlayout", 
+				"pad":[0,5,-10,0],
+				"children": [
+					{ 
+						"type":"button", 
+						"text":"Stop", 
+						"action":"terminate",
+						"font":{"size":0.6},
+
+						"fill":[40,40,40,220],
+                   		"line":"{if:{||:{selected}:{hovered}}:[100,175,250,220]:[120,120,120,200]}",
+						"color":[225,225,225]
+					}
+				]
+			},
+
+			{
+				"type":"vlayout",
+				"children":[
+					{
+						"name":"desc",
+						"clickable":true,
+						"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''} <sym>◦</sym> <cyan>{num_tracked}</cyan> <i>{global.individual_prefix}s</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+					},
+					{
+						"type":"stext", 
+						"text":"{at:0:{video.resolution}}<sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> <cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> <cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> <cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {output_size.x}<sym>×</sym>{output_size.y}<i>px</i>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{average_is_generating}:\n{animation} generating average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					{
+						"type":"stext",
+						"text":"<i>tracking:</i> <c><cyan>{int:{track_fps}}</cyan></c><i>fps</i> <sym>❯</sym> {.+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} known individuals, {.array_length:{inactive_ids}} inactive, <nr>{.array_length:{active_ids}} active</nr>",
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					
+					{
+						"type":"condition",
+						"var":"{video_error}",
+						"then":{
+							"type":"stext",
+							"name":"video_error_text",
+							"clickable":true,
+							"click":"set_clipboard:{ffmpeg_fix}",
+							"text":"<orange><sym>⮿</sym> {video_error}</orange>",
+							"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+						},
+						"else":{ "type":"rect", "size":[0,0] }
+					}
+				]
+			}
+		]]
+	},
+	{
+		"type":"stext",
+		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
+		"origin":[1,1],
+		"font":{"size":0.5},
+		"clickable":true,
+		"pad":[5,5,5,5],
+		"fill":"{if:{hovered}:[0,0,0,200]:[0,0,0,100]}",
+		"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
+
+		"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+	},
+
+	{
+		"type":"hlayout",
+		"pos":"[10,{-:{window_size.y}:10}]",
+		"origin":[0,1],
+		"children":[
+			{
+				"type":"settings",
+				"var":"",
+				"font":{"size":0.6,"align":"center"},
+				"color":[225,225,225],
+				"placeholder":"<sym>🔍</sym> Parameters",
+				"size":[500,40],
+				"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,150]}",
+				"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+				"list":{
+					"line":[220,220,220,200],
+					"fill":[25,25,25,220],
+					"size":[640,300]
+				},
+				"desc":"",
+				"highlight_clr":[75,75,75,255]
+			}
+		]
+	},
+	{
+		"type":"condition",
+		"var":"{hovered:video_error_text}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
+			"origin":[0,0],
+			"font":{"size":0.5},
+			"color":[255,255,255],
+			"max_size":[300,0],
+			"text":"You may want to fix your video file (e.g. using <c>ffmpeg</c>) and try again. <c>ffmpeg</c> is a widely used command-line tool for video processing, already installed within your current conda environment (<c><cyan>{folder:{folder:{global.python_path}}}</cyan></c>). It can also be downloaded from <c><cyan>https://ffmpeg.org/</cyan></c>.\n\nA simple way to remux your file from the terminal is:\n<c><cyan>{ffmpeg_fix}</cyan></c>\n<sym>⮩</sym> <i>click to copy to clipboard</i>\n\nThis will create a new file with the extension <c><cyan>.mp4</cyan></c> without reencoding."
+		},
+		"else":{"type":"rect", "size":[0,0]}
+	},
+	{
+		"type":"condition",
+		"var":"{hovered:desc}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
+			"origin":[0,0],
+			"font":{"size":0.5},
+			"color":[255,255,255],
+			"text":"<h4>Preview of the resulting folder structure</h4>\n{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {folder:{global.source}}{if:{not:{same_folder}}:'\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>':''}\n{indent}\":\"<sym>🗁</sym> {folder:{global.source}}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}}\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:'\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}{if:{movie_elsewhere}:'\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}':''}"
+		},
+		"else":{"type":"rect", "size":[0,0]}
+	},
+	
+	{
+		"type":"condition",
+		"var":"{&&:{average_is_generating}:{equal:{global.detect_type}:background_subtraction}}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"{mulVector:{window_size}:0.5}",
+			"origin":[0.5,0.5],
+			"font":{"size":0.6},
+			"color":[255,255,255],
+			"max_size":[400,0],
+			"text":"A background image for your video is currently being generated in the background ({animation2} <i><cyan>{int:{*:100:{average_percent}}}</cyan>%</i>).\n\n<i>This is a slow process and may take a while - since it is used for <key>detect_type</key>&lt;<cyan>{global.detect_type}</cyan>&gt;, we will have to wait for it to be finished before we can start tracking.</i>"
+		}
+	}
+]}

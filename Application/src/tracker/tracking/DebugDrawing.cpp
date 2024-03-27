@@ -35,7 +35,7 @@ void DebugDrawing::reset_image() {
 }
 
 void DebugDrawing::paint(const Outline &outline, bool erase) {
-    //Tracker::LockGuard guard(*Tracker::instance());
+    //LockGuard guard(*Tracker::instance());
     
     print("First: ", outline.points().front().x,",",outline.points().front().y);
     
@@ -198,7 +198,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
                
                if(area.find(x) != area.end())
                    return area[narrow_cast<uint>(x)] / 50;
-               return gui::Graph::invalid();
+               return GlobalSettings::invalid();
                //return output_area[x] / 100;
            }));
             

@@ -1,70 +1,27 @@
 #ifndef _GRABBER_H
 #define _GRABBER_H
 
-#include <types.h>
 #include <misc/ranges.h>
 #include <misc/ThreadedAnalysis.h>
-#include <misc/Median.h>
-
 #include <misc/Timer.h>
 #include <pv.h>
 
 #include <video/VideoSource.h>
-
-#include <misc/PylonCamera.h>
-#include <misc/Webcam.h>
 #include <misc/Camera.h>
 
 #include <misc/ThreadPool.h>
 #include <processing/LuminanceGrid.h>
 #include <misc/frame_t.h>
 
-#if CV_MAJOR_VERSION >= 3
-#include <opencv2/core/ocl.hpp>
-#endif
-
 #if WITH_FFMPEG
-#include "tomp4.h"
+#include <misc/tomp4.h>
 #endif
 
 #include <video/AveragingAccumulator.h>
 #include "gpuImage.h"
+#include "ImageThreads.h"
 
 using namespace cmn;
-
-class ImageThreads {
-    std::function<ImagePtr()> _fn_create;
-    std::function<bool(long_t, Image_t&)> _fn_prepare;
-    std::function<bool(Image_t&)> _fn_load;
-    std::function<Queue::Code(Image_t&)> _fn_process;
-    
-    std::atomic_bool _terminate{false}, _loading_terminated{false};
-    std::mutex _image_lock;
-    std::condition_variable _condition;
-    
-    std::thread *_load_thread;
-    std::thread *_process_thread;
-    
-    std::deque<ImagePtr> _used;
-    std::deque<ImagePtr> _unused;
-    
-public:
-    ImageThreads(const decltype(_fn_create)& create,
-                 const decltype(_fn_prepare)& prepare,
-                 const decltype(_fn_load)& load,
-                 const decltype(_fn_process)& process);
-    
-    ~ImageThreads();
-    
-    void terminate();
-    
-    const std::thread* loading_thread() const { return _load_thread; }
-    const std::thread* analysis_thread() const { return _process_thread; }
-    
-private:
-    void loading();
-    void processing();
-};
 
 namespace track {
 class Tracker;
@@ -75,7 +32,7 @@ struct ProcessingTask;
 class FrameGrabber {
 public:
     //typedef ThreadedAnalysis<Image, 10> AnalysisType;
-    typedef ImageThreads AnalysisType;
+    using AnalysisType = grab::ImageThreads;
     Range<Frame_t> processing_range() const;
     
     static track::Tracker* tracker_instance();
@@ -91,12 +48,12 @@ public:
     };
     
 protected:
-    GETTER(Task, task)
+    GETTER(Task, task);
     std::unique_ptr<AveragingAccumulator> _accumulator;
     
-    GETTER(cv::Size, cam_size)
-    GETTER(cv::Size, cropped_size)
-    GETTER(Bounds, crop_rect)
+    GETTER(cv::Size, cam_size);
+    GETTER(cv::Size, cropped_size);
+    GETTER(Bounds, crop_rect);
 
     //! to ensure that all frames are processed, this will have to be zero in the end
     //! (meaning all added frames have been removed)
@@ -106,36 +63,41 @@ protected:
     
     AnalysisType* _analysis = nullptr;
 
-    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0)
+    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0);
     std::mutex _current_image_lock;
-    Image::UPtr _current_image;
+    Image::Ptr _current_image;
     gpuMat _average;
-    GETTER(cv::Mat, original_average)
+    GETTER(cv::Mat, original_average);
     cv::Mat _current_average;
     cmn::atomic<uint64_t> _current_average_timestamp;
     std::atomic<double> _tracking_time, _saving_time;
     
-    GETTER(std::atomic_bool, average_finished)
-    GETTER(uint32_t, average_samples)
-    GETTER(std::atomic_long, last_index)
+    GETTER(std::atomic_bool, average_finished);
+    GETTER(uint32_t, average_samples);
+    GETTER(std::atomic_long, last_index);
     
     //std::chrono::time_point<Image::clock_> _start_timing;
     timestamp_t _start_timing;
     std::chrono::time_point<std::chrono::system_clock> _real_timing;
 	
-    GETTER_PTR(VideoSource*, video)
+    GETTER_PTR(VideoSource*, video);
     VideoSource * _video_mask;
-    GETTER_PTR(fg::Camera*, camera)
+    GETTER_PTR(fg::Camera*, camera);
     
+public:
+    std::mutex _fps_lock;
+    DurationUS saving, loading, processing, rest, tracking;
+    
+protected:
 	long _current_fps;
-	GETTER(std::atomic<float>, fps)
+	GETTER(std::atomic<float>, fps);
 	Timer _fps_timer;
     
 	std::mutex _lock;
     std::mutex _camera_lock;
 	
 	//std::vector<std::thread*> _pool;
-    GETTER_NCONST(pv::File, processed)
+    GETTER_NCONST(pv::File, processed);
     std::atomic_bool _paused;
     
     std::queue<ImagePtr> _image_queue;
@@ -156,7 +118,7 @@ protected:
     
     LuminanceGrid *_grid;
     
-    std::mutex _log_lock, _fps_lock;
+    std::mutex _log_lock;
     
     FILE* file;
     
@@ -183,11 +145,16 @@ public:
     bool is_paused() const {
         if(!is_recording())
             return false;
-        return !_processed.open() || _paused;
+        return !_processed.is_open() || _paused;
     }
+    
+    void initialize_from_source(const std::string& source);
+    
+    bool prepare_image(long_t prev, Image_t& current);
     bool load_image(Image_t& current);
     Queue::Code process_image(Image_t& current);
-    Image::UPtr latest_image();
+    
+    Image::Ptr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);

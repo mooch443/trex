@@ -1,15 +1,19 @@
 #ifndef _OUTLINE_H
 #define _OUTLINE_H
 
-#include <types.h>
-#include <misc/GlobalSettings.h>
-#include <file/DataFormat.h>
+#include <commons.pc.h>
+//#include <file/DataFormat.h>
 #include <gui/Transform.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
+#include <misc/idx_t.h>
 
 namespace Output {
     class ResultsFormat;
+}
+
+namespace cmn {
+class Data;
 }
 
 namespace track {
@@ -19,7 +23,7 @@ namespace track {
     
     struct DebugInfo {
         Frame_t frameIndex;
-        uint32_t fdx;
+        Idx_t fdx;
         bool debug;
         //Vec2 previous_position;
     };
@@ -40,16 +44,16 @@ namespace track {
         typedef std::shared_ptr<Midline> Ptr;
         
     private:
-        GETTER_NCONST(float, len)
-        GETTER_NCONST(float, angle)
-        GETTER_NCONST(Vec2, offset)
-        GETTER_NCONST(Vec2, front)
-        GETTER_NCONST(std::vector<MidlineSegment>, segments)
-        GETTER_NCONST(long_t, head_index)
-        GETTER_NCONST(long_t, tail_index)
-        GETTER_NCONST(bool, inverted_because_previous)
+        GETTER_NCONST(float, len);
+        GETTER_NCONST(float, angle);
+        GETTER_NCONST(Vec2, offset);
+        GETTER_NCONST(Vec2, front);
+        GETTER_NCONST(std::vector<MidlineSegment>, segments);
+        GETTER_NCONST(long_t, head_index);
+        GETTER_NCONST(long_t, tail_index);
+        GETTER_NCONST(bool, inverted_because_previous);
         
-        GETTER_NCONST(bool, is_normalized)
+        GETTER_NCONST(bool, is_normalized);
         
     public:
         bool empty() const { return _segments.empty(); }
@@ -77,7 +81,7 @@ namespace track {
          * from the global system to the midline coordinate system (in order to e.g.
          * normalize an image)
          **/
-        gui::Transform transform(const default_config::recognition_normalization_t::Class &type, bool to_real_world = false) const;
+        gui::Transform transform(const default_config::individual_image_normalization_t::Class &type, bool to_real_world = false) const;
         
     private:
         friend class Outline;
@@ -124,17 +128,17 @@ namespace track {
         std::shared_ptr<std::vector<Vec2>> _points;
         
         //! confidence in the results
-        GETTER_NCONST(float, confidence)
+        GETTER_NCONST(float, confidence);
         
         //! the uncorrected angle of the posture detection
-        GETTER(float, original_angle)
-        GETTER(bool, inverted_because_previous)
+        GETTER(float, original_angle);
+        GETTER(bool, inverted_because_previous);
         
-        //GETTER(long_t, tail_index)
-        //GETTER(long_t, head_index)
+        //GETTER(long_t, tail_index);
+        //GETTER(long_t, head_index);
         
         //! When set to true, this Outline cannot be changed anymore.
-        GETTER(bool, concluded)
+        GETTER(bool, concluded);
         
         int curvature_range;
         
@@ -142,7 +146,7 @@ namespace track {
          * Temporary memory
          */
         std::vector<float> _curvature;
-        //GETTER(bool, needs_invert)
+        //GETTER(bool, needs_invert);
         
     public:
         Outline(std::shared_ptr<std::vector<Vec2>> points, Frame_t f = {});
@@ -226,10 +230,10 @@ namespace track {
         static constexpr int factor = 10;
         
     protected:
-        GETTER(Vec2, first)
+        GETTER(Vec2, first);
         std::vector<uint16_t> _points;
-        //GETTER_NCONST(long_t, tail_index)
-        //GETTER_NCONST(long_t, head_index)
+        //GETTER_NCONST(long_t, tail_index);
+        //GETTER_NCONST(long_t, head_index);
         
         friend class Output::ResultsFormat;
         friend class cmn::Data;

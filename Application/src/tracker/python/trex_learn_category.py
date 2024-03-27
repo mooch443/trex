@@ -129,7 +129,7 @@ class Categorize:
             shape = npz["x"].shape
 
             if shape[1] != self.height or shape[2] != self.width:
-                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+" != "+str(shape[2])+"x"+str(shape[1])+". Change recognition_image_size accordingly, or restart the process.")
+                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+" != "+str(shape[2])+"x"+str(shape[1])+". Change individual_image_size accordingly, or restart the process.")
                 return
 
             assert shape[1] == self.height and shape[2] == self.width
@@ -175,9 +175,9 @@ class Categorize:
             self.updated_data(prev_L, [], False)
 
         if len(self.samples) > 0:
-            X = np.array(self.samples)
+            X = np.array(self.samples).astype(np.float32)
 
-            Y = np.zeros(len(self.labels), dtype=int)
+            Y = np.zeros(len(self.labels), dtype=np.float32)
             L = self.categories
             for i in range(len(L)):
                 Y[np.array(self.labels) == L[i]] = self.categories_map[L[i]]
@@ -205,8 +205,8 @@ class Categorize:
         for i in range(len(L)):
             Y[np.array(self.labels) == L[i]] = self.categories_map[L[i]]
 
-        Y = to_categorical(Y, len(L))
-        X = np.array(self.samples)
+        Y = to_categorical(Y, len(L)).astype(np.float32)
+        X = np.array(self.samples).astype(np.float32)
 
         training_indexes = np.arange(len(X), dtype=int)
         TRex.log("training:"+str(type(training_indexes))+" val:"+str(type(self.validation_indexes)))
@@ -252,8 +252,8 @@ class Categorize:
 
     def update_best_accuracy(self, X_test, Y_test):
         global set_best_accuracy
-        y_test = np.argmax(Y_test, axis=1) # Convert one-hot to index
-        y_pred = np.argmax(self.model.predict(X_test), axis=-1)
+        y_test = np.argmax(Y_test, axis=1).astype(np.float32) # Convert one-hot to index
+        y_pred = np.argmax(self.model.predict(X_test, verbose=0), axis=-1)
         report = classification_report(y_test, y_pred, output_dict=True)
         for key in report:
             TRex.log("report: "+str(key)+" "+str(report[key]))
@@ -268,7 +268,7 @@ class Categorize:
     def predict(self, images):
         assert self.model
         images = np.array(images, dtype=float)
-        y = np.argmax(self.model.predict(images), axis=-1)
+        y = np.argmax(self.model.predict(images, verbose=0), axis=-1)
         return  y
 
 def start():
@@ -314,9 +314,9 @@ def predict():
     global categorize, images, receive
     assert type(categorize) != type(None)
 
-    receive(categorize.predict(images))
-
+    results = categorize.predict(images)
     del images
+    receive(results)
 
 def clear_images():
     global categorize

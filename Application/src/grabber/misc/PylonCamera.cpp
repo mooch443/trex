@@ -16,7 +16,7 @@ namespace fg {
         for(size_t i=0; i<list.size(); i++) {
             auto &device = list[i];
             std::string name(device.GetFriendlyName());
-            print("[", i,"] Camera: ",name);
+            print("[", i,"] Camera: ",name, " SN:",std::string(device.GetSerialNumber()));
             
             if(std::string(device.GetSerialNumber()) == serial_number) {
                 _camera = new Camera_t(CTlFactory::GetInstance().CreateDevice(device));
@@ -51,9 +51,10 @@ namespace fg {
             _camera->OffsetY.SetValue(0);
         }
         
-        cv::Size target_res = SETTING(cam_resolution);
+        Size2 target_res = SETTING(cam_resolution);
         if(target_res.width == -1) {
-            target_res = cv::Size(_camera->WidthMax.GetValue(), _camera->HeightMax.GetValue());
+            target_res = Size2(_camera->WidthMax.GetValue(),
+                               _camera->HeightMax.GetValue());
             SETTING(cam_resolution) = target_res;
         }
 
@@ -158,7 +159,6 @@ namespace fg {
                 
                 current.set_timestamp(t);
                 //current.set_timestamp(Image::now());
-                //current.set_timestamp(<#const std::chrono::time_point<clock_> &value#>)
                 
                 return true;
                 

@@ -1,18 +1,17 @@
 #pragma once
 
-#include <misc/defines.h>
-#include <misc/Blob.h>
-#include <misc/GlobalSettings.h>
+#include <commons.pc.h>
 #include <misc/frame_t.h>
 
 namespace track {
 
+using namespace cmn;
 class Individual;
 
 class PairDistance {
     GETTER_SETTER_PTR(const Individual*, fish0)
     GETTER_SETTER_PTR(const Individual*, fish1)
-    GETTER_SETTER(float, d)
+    GETTER_SETTER(float, d);
         
 public:
     PairDistance(const Individual* fish0, const Individual* fish1, float d)
@@ -39,19 +38,24 @@ public:
 };
 
 struct FrameProperties {
-    double time;
-    timestamp_t org_timestamp;
+    using Ptr = std::unique_ptr<FrameProperties>;
+    
+    template<typename... Args>
+    static auto Make(Args... args) {
+        return std::make_unique<FrameProperties>(std::forward<Args>(args)...);
+    }
+    
+public:
+    double time{-1};
+    timestamp_t org_timestamp{0};
     Frame_t frame;
-    long_t active_individuals;
+    long_t active_individuals{-1};
         
     FrameProperties(Frame_t frame, double t, timestamp_t ot)
-        : time(t), org_timestamp(ot), frame(frame), active_individuals(-1)
+        : time(t), org_timestamp(ot), frame(frame)
     {}
-        
-    FrameProperties()
-        : time(-1), org_timestamp(0), frame(-1), active_individuals(-1)
-    {}
-        
+    FrameProperties() noexcept = default;
+    
     bool operator<(Frame_t frame) const {
         return this->frame < frame;
     }
@@ -91,7 +95,7 @@ public:
 
 protected:
     friend class DataFormat;
-    GETTER(double, time)
+    GETTER(double, time);
 
     std::array<Vec2, MotionRecord::max_derivatives> _pos;
     std::array<float, MotionRecord::max_derivatives> _angle;
@@ -105,14 +109,14 @@ public:
     template<Units to> float acceleration(bool smooth) const { return length(a<to>(smooth)); }
     template<Units to> float acceleration() const { return length(a<to>()); }
         
-    float angle(bool smooth) const { return value<float>(0, smooth); };
-    float angle() const { return get<float>(0); };
+    float angle(bool smooth) const { return value<float>(0, smooth); }
+    float angle() const { return get<float>(0); }
         
-    template<Units to> float angular_velocity(bool smooth) const { return value<to, float>(1, smooth); };
-    template<Units to> float angular_velocity() const { return value<to, float>(1); };
+    template<Units to> float angular_velocity(bool smooth) const { return value<to, float>(1, smooth); }
+    template<Units to> float angular_velocity() const { return value<to, float>(1); }
         
-    template<Units to> float angular_acceleration(bool smooth) const { return value<to, float>(2, smooth); };
-    template<Units to> float angular_acceleration() const { return value<to, float>(2); };
+    template<Units to> float angular_acceleration(bool smooth) const { return value<to, float>(2, smooth); }
+    template<Units to> float angular_acceleration() const { return value<to, float>(2); }
         
     template<Units to> Vec2 pos(bool smooth) const { return value<to, Vec2>(0, smooth); }
     template<Units to> Vec2 pos() const { return value<to, Vec2>(0); }

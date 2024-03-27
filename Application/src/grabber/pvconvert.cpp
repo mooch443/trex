@@ -4,6 +4,7 @@
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
 #include <misc/CommandLine.h>
+#include <file/DataLocation.h>
 
 using namespace file;
 
@@ -100,14 +101,17 @@ int main(int argc, char**argv) {
     //static_assert(std::is_trivial<pv::bid>::value, "pv::bid has to be trivial.");
     static_assert(std::is_standard_layout<pv::bid>::value, "pv::bid has to be standard layout.");
     
-    pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
+    file::DataLocation::register_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
         using namespace file;
-        auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
+        auto settings_file = path.str().empty() ? map.at("settings_file").value<Path>() : path;
         if(settings_file.empty())
             throw U_EXCEPTION("settings_file is an empty string.");
         
         if(!settings_file.is_absolute()) {
-            settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
+            settings_file = map.at("output_dir").value<file::Path>() / settings_file;
         }
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
@@ -130,14 +134,15 @@ int main(int argc, char**argv) {
     SETTING(use_differences) = false;
     SETTING(crop) = CropOffsets();
     
-    GlobalSettings::map().set_do_print(true);
+    GlobalSettings::map().set_print_by_default(true);
     
-    CommandLine cmd(argc, argv, true);
+    CommandLine::init(argc, argv, true);
     
     /**
      * Try to load Settings from the command-line that have been
      * ignored previously.
      */
+    auto &cmd = CommandLine::instance();
     cmd.load_settings();
     
     for(auto &option : cmd) {
@@ -202,11 +207,10 @@ int main(int argc, char**argv) {
     print("Input: ",input);
     print("Output to: ",output_dir);
     
-    pv::File video(input);
-    video.start_reading();
-    
+    pv::File video(input, pv::FileMode::READ);
+
     if(SETTING(end_frame).value<long_t>() == -1) {
-        SETTING(end_frame).value<long_t>() = video.length() - 1;
+        SETTING(end_frame) = long_t(video.length().get() - 1);
     }
     
     long_t start_frame = SETTING(start_frame),
@@ -222,13 +226,13 @@ int main(int argc, char**argv) {
     
     GifWriter *writer = NULL;
     pv::Frame current_frame;
-    video.read_frame(current_frame, frame_index);
+    video.read_frame(current_frame, Frame_t(frame_index));
     
     auto prev_time = current_frame.timestamp();
     
     float framerate;
     {
-        video.read_frame(current_frame, frame_index+1);
+        video.read_frame(current_frame, Frame_t(frame_index+1));
         framerate = 1000.f / (double(current_frame.timestamp() - prev_time) / 1000.f);
     }
     
@@ -248,7 +252,7 @@ int main(int argc, char**argv) {
         
         writer = new GifWriter();
         video.read_frame(current_frame,
-                         frame_index+step);
+                         Frame_t(frame_index+step));
         GifBegin(writer, ss.str().c_str(), crop_rect.width * SETTING(scale).value<float>(), crop_rect.height * SETTING(scale).value<float>(), 1);//(current_frame.timestamp()-prev_time)/1000.0);
     }
     
@@ -256,8 +260,8 @@ int main(int argc, char**argv) {
     = !SETTING(disable_background);
     while(frame_index < (long_t)video.header().num_frames && frame_index < end_frame) {
         cv::Mat image;
-        video.read_frame(current_frame, frame_index);
-        video.frame_optional_background(frame_index, image, with_background);
+        video.read_frame(current_frame, Frame_t(frame_index));
+        video.frame_optional_background(Frame_t(frame_index), image, with_background);
         
         if(SETTING(print_framenr)) {
             std::stringstream ss;

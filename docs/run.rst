@@ -115,7 +115,7 @@ Preferably set parameters in this order (with the goal to only match those objec
 
 	- :func:`cm_per_pixel` (in .settings files, command-line or in |trex|) / :func:`meta_real_width` (during conversion)
 	- :func:`track_threshold`
-	- :func:`blob_size_ranges`
+	- :func:`track_size_filter`
 
 Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of consecutive segments:
 

@@ -14,9 +14,12 @@ from visual_identification_network import Network
 import numpy as np
 import TRex
 
+channels = 1
+
 def reinitialize_network():
+    global channels
     global model, image_width, image_height, classes, learning_rate, sess, network_version
-    model = Network(image_width=image_width, image_height=image_height, classes=classes, learning_rate=learning_rate, version=network_version).model
+    model = Network(image_width=image_width, image_height=image_height, classes=classes, learning_rate=learning_rate, version=network_version, channels=channels).model
 
 class UserCancelException(Exception):
     """Raised when user clicks cancel"""
@@ -90,16 +93,16 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         return result, predictions
     
     def update_status(self, print_out = False, logs = {}):
-        description = "epoch "+str(min(self.epoch+1, self.epochs))+"/"+str(self.epochs)
-        if np.shape(self.X_test)[-1] > 0 and len(self.worst_values) > 0:
-            description += " -- worst acc/class: {0:.3f}".format(self.worst_values[-1])
+        description = "Epoch <c><nr>"+str(min(self.epoch+1, self.epochs))+"</nr></c>/<c><nr>"+str(self.epochs)+"</nr></c>"
+        if len(self.X_test) > 0 and len(self.worst_values) > 0:
+            description += " -- worst acc/class: <c><nr>{0:.3f}</nr></c>".format(self.worst_values[-1])
 
         if self.best_result["unique"] > -1:
-            description = description + " current best: "+str(float(int(self.best_result["unique"] * 10000)) / 100) + "%"
+            description = description + " best: <nr>"+str(float(int(self.best_result["unique"] * 1000)) / 10) + "</nr><i>%</i>"
         if self.compare_acc > 0:
-            description += " compare_acc: " + str(float(int(self.compare_acc * 10000)) / 100)+"%"
+            description += " compare_acc: <nr>" + str(float(int(self.compare_acc * 1000)) / 10)+"</nr><i>%</i>"
         if len(self.losses) >= 5:
-            description += " loss_diff: " + str(float(int(abs(np.mean(self.loss_diffs[-5:])) / self.minimal_loss_allowed * 10000)) / 100)+"% of minimum"
+            description += " <sym>△</sym>loss: <c><nr>" + str(float(int(abs(np.mean(self.loss_diffs[-5:])) / self.minimal_loss_allowed * 10000)) / 100)+"</nr></c><i>%</i> of minimum"
         
         update_work_description(description)
         description = "[TRAIN] "+description
@@ -117,7 +120,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         
         self.epoch = min(epoch + 1, self.epochs)
 
-        if np.shape(self.X_test)[-1] > 0:
+        if len(self.X_test) > 0:
             result, predictions = self.plot_comparison_raw(do_plot = False, length = -1)
             
             for i in range(0, len(result[:, 3])):
@@ -127,7 +130,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             self.mean_values.append(np.mean(result[:, 3]))
             self.worst_values.append(np.min(result[:, 3]))
 
-            set_per_class_accuracy(result[:, 3].astype(np.float))
+            set_per_class_accuracy(result[:, 3].astype(float))
             worst_acc_per_class = np.min(result[:, 3])
         else:
             result = None
@@ -144,10 +147,10 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         if unique >= acceptable_uniqueness() and self.settings["accumulation_step"] >= -1:
             if self.settings["accumulation_step"] == -1:
                 self.model.stop_training = True
-                set_stop_reason("Uniqueness is sufficient ("+str(unique)+").")
+                set_stop_reason("Uniqueness is sufficient ("+str(unique)+")")
             elif unique >= accepted_uniqueness():
                 self.model.stop_training = True
-                set_stop_reason("Uniqueness is sufficient ("+str(unique)+").")
+                set_stop_reason("Uniqueness is sufficient ("+str(unique)+")")
 
         # check whether our worst value improved, but only use it if it wasnt the first epoch
         if unique > self.best_result["unique"] and (self.compare_acc <= 0 or unique >= self.compare_acc**2):
@@ -192,7 +195,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
 
         assert key in logs
         current_loss = logs[key]
-        previous_loss = np.finfo(np.float).max
+        previous_loss = np.finfo(float).max
         
         if len(self.losses) > 0:
             l = np.nanmean(self.losses[-5:])
@@ -244,10 +247,13 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                 if not self.model.stop_training:
                     if len(self.losses) >= 5 and abs(np.mean(self.loss_diffs[-5:])) < self.minimal_loss_allowed:
                     #if len(self.losses) >= 5 and (np.array(self.loss_diffs[-2:]) < self.minimal_loss_allowed).all():
-                        if self.settings["accumulation_step"] > 0 or (self.last_skip_step == self.settings["accumulation_step"]):
+                        if self.settings["accumulation_step"] > 0 or (self.last_skip_step == self.settings["accumulation_step"] and len(self.uniquenesses) >= self.epochs * 0.5):
                             self.model.stop_training = True
                             set_stop_reason("small loss in consecutive epochs")
-                            TRex.log("[STOP] Loss is very small in consecutive epochs (epoch "+str(epoch)+"). stopping. loss was "+str(current_loss)+" vs. "+str(mu)+" "+str(self.loss_diffs[-2:]))
+                            if self.settings["accumulation_step"] <= 0:
+                                TRex.log("[STOP] Before second accumulation step, but #"+str(len(self.uniquenesses))+" epochs / "+str(self.epochs)+" is more than 50%.")
+                            else:
+                                TRex.log("[STOP] Loss is very small in consecutive epochs (epoch "+str(epoch)+"). stopping. loss was "+str(current_loss)+" vs. "+str(mu)+" "+str(self.loss_diffs[-2:]))
                         else:
                             TRex.log("(skipping small loss stopping criterion in first accumulation step)")
                             self.last_skip_step = self.settings["accumulation_step"]
@@ -274,24 +280,24 @@ class ValidationCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
         worst_value = self.evaluate(epoch, True, logs)
 
-        global gui_terminated, gui_custom_button
-        if gui_terminated():
+        global get_abort_training, get_skip_step
+        if get_abort_training():
             global UserCancelException
             self.model.stop_training = True
             #TRex.log("aborting because we have been asked to by main")
             raise UserCancelException()
-        if gui_custom_button():
+        if get_skip_step():
             global UserSkipException
             self.model.stop_training = True
             raise UserSkipException()
 
     def on_batch_end(self, batch, logs={}):
-        global gui_terminated, gui_custom_button
-        if gui_terminated():
+        global get_abort_training, get_skip_step
+        if get_abort_training():
             global UserCancelException
             self.model.stop_training = True
             raise UserCancelException()
-        if gui_custom_button():
+        if get_skip_step():
             global UserSkipException
             self.model.stop_training = True
             raise UserSkipException()
@@ -319,12 +325,46 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         #if self.verbose and self.seen < self.target and self.display_step % #self.display_per_batches == 0:
         #    self.progbar.update(self.seen, self.log_values)
 
+def r3g3b2_to_vec(r3g3b2_array, channels=3, alpha=255):
+    if channels == 3:
+        return np.stack([
+            ((r3g3b2_array >> 6) & 3) * 64,
+            ((r3g3b2_array >> 3) & 7) * 32,
+            (r3g3b2_array & 7) * 32
+        ], axis=-1).astype(np.uint8)
+    elif channels == 4:
+        return np.stack([
+            ((r3g3b2_array >> 6) & 3) * 64,
+            ((r3g3b2_array >> 3) & 7) * 32,
+            (r3g3b2_array & 7) * 32,
+            np.full(r3g3b2_array.shape, alpha)
+        ], axis=-1).astype(np.uint8)
+    else:
+        raise ValueError("Unsupported number of channels: %d" % channels)
+
+def load_weights():
+    global output_path, model
+    try:
+        with np.load(output_path+'.npz', allow_pickle=True) as npz:
+           m = npz['weights'].item()
+           for i, layer in zip(range(len(model.layers)), model.layers):
+               if i in m:
+                   layer.set_weights(m[i])
+    except Exception as e:
+        TRex.warn(str(e))
+        raise Exception("Failed to load weights. This is likely because either the individual_image_size is different, or because existing weights might have been generated by a different version of TRex (see visual_identification_version).")
+
 def predict():
-    global receive, images, model
+    global receive, images, model, channels
     
-    train_X = np.array(images, copy=False)
+    if channels == 3:
+        train_X = r3g3b2_to_vec(np.array(images, copy=False)[..., 0])
+    else:
+        train_X = np.array(images, copy=False)
     if len(train_X.shape) != 4:
-        print("error with the shape")
+        print("error with the shape ", train_X.shape, " < len 4")
+    elif train_X.shape[1] != model.input.shape[1] or train_X.shape[2] != model.input.shape[2]:
+        raise Exception("Wrong image dimensions for model ("+str(train_X.shape[1:3])+" vs. "+str(model.input.shape[1:3])+").")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
     output = model.predict(tf.cast(train_X, dtype=np.float32), verbose=0)
@@ -336,9 +376,9 @@ def predict():
     del indexes
     del images
 
-
 def start_learning():
-    global best_accuracy_worst_class, max_epochs, image_width, image_height
+    global channels
+    global best_accuracy_worst_class, max_epochs, image_width, image_height, update_work_percent
     global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 
@@ -369,12 +409,18 @@ def start_learning():
         #"min_acceptable_value": 0.98
     }
 
-    X_test = np.array(X_val, copy=False) #True, dtype = float) / 255.0
+    if len(X_val) == 0 or channels != 3:
+        X_test = np.array(X_val, copy=False)
+    else:
+        X_test = r3g3b2_to_vec(np.array(X_val, copy=False)[..., 0]) #True, dtype = float) / 255.0
     Y_test = np.array(Y_val, dtype=float)
     original_classes_test = np.copy(Y_test)
     Y_test = to_categorical(Y_test, len(classes))
 
-    X_train = np.array(X, copy=False)
+    if len(X) == 0 or channels != 3:
+        X_train = np.array(X, copy=False)
+    else:
+        X_train = r3g3b2_to_vec(np.array(X, copy=False)[..., 0])
     Y_train = np.array(Y, dtype=float)
 
     original_classes = np.copy(Y_train)
@@ -425,13 +471,16 @@ def start_learning():
                 alpha.append(np.random.uniform(0.85, 1.15))
             alpha = np.array(alpha)
         
-        images = images.astype(np.float) * alpha
+        images = images.astype(float) * alpha
         
         return np.clip(images, 0, 255).astype(dtype)
 
     datagen = ImageDataGenerator(#rescale = 1.0/255.0,
-                                 #rotation_range = 360,
-                                 #brightness_range=(0.5,1.5),
+                                 rotation_range = 359,
+                                 zoom_range = 0.1,
+                                 horizontal_flip = False,
+                                 vertical_flip = False,
+                                 brightness_range=(0.75,1.25),
                                  width_shift_range=move_range,
                                  height_shift_range=move_range,
                                  cval = 0,
@@ -441,6 +490,36 @@ def start_learning():
                                  )
 
     cvalues = np.array(cvalues)
+
+    if len(X_train) > 0 and (channels == 3 or channels == 1):
+        # Initialize the batch counter and the numpy array
+        grid_shape = (2, 10)
+        image_shape = X_train.shape[1:3]  # shape of a single image
+        print(image_shape)
+        grid = np.zeros((grid_shape[0]*image_shape[0], grid_shape[1]*image_shape[1], channels))
+
+        _input = X_train
+        for y in range(grid_shape[0]):
+            for x in range(grid_shape[1]):
+                # Generate augmented images
+                for batch in datagen.flow(_input, batch_size=1):
+                    # Add to grid
+                    print(_input.shape, batch[0].shape, grid_shape, image_shape)
+                    pos = (x * image_shape[1], y * image_shape[0])
+                    dim = ((x+1) * image_shape[1], (y+1) * image_shape[0])
+                    grid[pos[1]:dim[1], pos[0]:dim[0]] = batch[0, ...].astype(np.uint8)
+
+                    #grid[(i//grid_shape[0]*image_shape[0]):((i//grid_shape[0] + 1)*image_shape[0]), 
+                    #    (i%grid_shape[1]*image_shape[1]):((i%grid_shape[1] + 1)*image_shape[1])] = 255 - batch[0].astype(np.uint8)
+                    break  # We only want one augmentation per image, so break the loop
+        
+        #print(grid.shape, grid.dtype)
+        import cv2 as cv
+        if channels == 1:
+            grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_GRAY2RGBA)
+        else:
+            grid = cv.cvtColor(grid.astype(np.uint8), cv.COLOR_RGB2RGBA)
+        #TRex.imshow("grid", grid.astype(np.uint8))
 
     TRex.log("# [init] weights per class "+str(per_class))
     TRex.log("# [training] data shapes: train "+str(X_train.shape)+" "+str(Y_train.shape)+" test "+str(Y_test.shape)+" "+str(classes))
@@ -469,7 +548,7 @@ def start_learning():
 
             dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), tf.cast(Y_train, float), batch_size=batch_size), 
                 output_types=(tf.float32, tf.float32),
-                output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
+                output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), int(channels)]), tf.TensorShape([None, int(len(classes))]))
             ).repeat().shuffle(batch_size * 2, reshuffle_each_iteration=True)#.batch(batch_size)
             
             #dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
@@ -493,9 +572,9 @@ def start_learning():
                                           #class_weight = per_class
                                           )'''
 
-            model_json = model.to_json()
-            with open(output_path+".json", "w") as f:
-                f.write(model_json)
+            #model_json = model.to_json()
+            #with open(output_path+".json", "w") as f:
+            #    f.write(model_json)
             
             if callback.best_result["unique"] != -1:
                 weights = callback.best_result["weights"]
@@ -519,7 +598,7 @@ def start_learning():
                         best_accuracy_worst_class = callback.best_result["unique"]
                 except:
                     TRex.warn("loading weights failed")
-            elif settings.accumulation_step == -2:
+            elif settings["accumulation_step"] == -2:
                 TRex.warn("could not improve upon previous steps.")
             else:
                 TRex.warn("Could not improve upon previous steps.")

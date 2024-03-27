@@ -1,6 +1,6 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <cmath>
 #include <tracking/Fish.h>
 

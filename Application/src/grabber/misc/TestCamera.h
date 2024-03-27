@@ -1,7 +1,7 @@
 #ifndef _TESTCAM_H
 #define _TESTCAM_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include "Camera.h"
 
 namespace fg {
@@ -13,9 +13,10 @@ namespace fg {
         TestCamera(cv::Size size, size_t element_size = 70);
         ~TestCamera() {}
         
+        virtual ImageMode colors() const override { return ImageMode::RGB; }
         virtual Size2 size() const override { return _size; }
         virtual bool next(Image& image) override;
-        virtual bool open() override { return true; }
+        virtual bool open() const override { return true; }
         virtual void close() override { }
     };
 }

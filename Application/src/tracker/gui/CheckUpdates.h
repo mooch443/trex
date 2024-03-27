@@ -1,6 +1,7 @@
 #pragma once
 #if !COMMONS_NO_PYTHON
 #include <commons/common/commons.pc.h>
+#include <gui/DrawStructure.h>
 
 namespace track {
 namespace CheckUpdates {
@@ -19,10 +20,10 @@ std::string current_version();
 std::string last_asked_version();
 const std::string& last_error();
 void cleanup();
-void init();
+void init(gui::DrawStructure*);
 bool user_has_been_asked();
 bool automatically_check();
-void display_update_dialog();
+void display_update_dialog(gui::DrawStructure*);
 void write_version_file();
 
 }

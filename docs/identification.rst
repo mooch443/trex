@@ -27,7 +27,7 @@ The following sections describe how to improve tracking data with the goal of ap
 General procedure
 -----------------
 
-The most important thing is that consecutive tracking sequences (see :ref:`Timeline` for how they are displayed) exist for each individual and are as long as possible - while avoiding misassignments. So you *can* relax parameters like :func:`track_max_speed` and :func:`blob_size_ranges` to lengthen consecutive segments, but make sure that this does not lead to **unrecognized** tracking errors. Tracking errors are generally "fine" for the identification algorithm, but evil lurks whenever identity switches occur in the *middle* of a consecutive segment - this would mean that the switch has *not* been recognized, as consecutive segments are ended whenever "risky business" is detected. So a non-detection like this hints at suboptimal tracking parameters.
+The most important thing is that consecutive tracking sequences (see :ref:`Timeline` for how they are displayed) exist for each individual and are as long as possible - while avoiding misassignments. So you *can* relax parameters like :func:`track_max_speed` and :func:`track_size_filter` to lengthen consecutive segments, but make sure that this does not lead to **unrecognized** tracking errors. Tracking errors are generally "fine" for the identification algorithm, but evil lurks whenever identity switches occur in the *middle* of a consecutive segment - this would mean that the switch has *not* been recognized, as consecutive segments are ended whenever "risky business" is detected. So a non-detection like this hints at suboptimal tracking parameters.
 
 .. NOTE::
    

@@ -5,17 +5,25 @@
 #include <tracking/DebugDrawing.h>
 #include <algorithm>
 #include <misc/ReverseAdapter.h>
-#include <tracking/Recognition.h>
 #include <cnpy/cnpy.h>
 #include <tracking/VisualField.h>
 #include <misc/pretty.h>
 #include <processing/PadImage.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/CircularGraph.h>
-#include <misc/metastring.h>
+
 #include <misc/SoftException.h>
 #include <gui/Graph.h>
-#include <tracking/Categorize.h>
+#include <tracking/CategorizeDatastore.h>
+#include <file/DataLocation.h>
+#include <tracking/TrackingHelper.h>
+#include <tracking/IndividualManager.h>
+#include <misc/FOI.h>
+
+#if !COMMONS_NO_PYTHON
+#include <misc/PythonWrapper.h>
+#include <tracking/RecTask.h>
+#endif
 
 #define NAN_SAFE_NORMALIZE(X, Y) { \
     const auto L = X.length(); \
@@ -26,391 +34,11 @@
 using namespace track;
 using prob_t = track::Match::prob_t;
 
-std::atomic<uint32_t> RUNNING_ID(0);
-
-void Identity::set_running_id(Idx_t value) { RUNNING_ID = value; }
-Idx_t Identity::running_id() { return Idx_t(RUNNING_ID.load()); }
-
-Identity::Identity(Idx_t myID)
-    : _color(myID.valid() ? ColorWheel(myID).next() : ColorWheel(RUNNING_ID).next()), _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)), _name(Meta::toStr(_myID))
-{
-    if(myID.valid() && RUNNING_ID < myID) {
-        RUNNING_ID = Idx_t(myID + 1);
-    }
-}
-
-const std::string& Identity::raw_name() {
-    auto names = Settings::get<Settings::individual_names>();
-    auto it = names->find(_myID);
-    if(it != names->end()) {
-        _name = it->second;
-    }
-    return _name;
-}
-
-std::string Identity::name() const {
-    {
-        auto names = Settings::get<Settings::individual_names>();
-        auto it = names->find(_myID);
-        if(it != names->end()) {
-            return it->second;
-        }
-    }
-    return FAST_SETTINGS(individual_prefix) + raw_name();
-}
-
-std::string Identity::raw_name() const {
-    auto names = Settings::get<Settings::individual_names>();
-    auto it = names->find(_myID);
-    if(it != names->end()) {
-        return it->second;
-    }
-    return _name;
+void Individual::shutdown() {
+    
 }
 
 #if !COMMONS_NO_PYTHON
-struct Predictions {
-    Frame_t  _segment_start;
-    Idx_t individual;
-    std::vector<Frame_t> _frames;
-    std::vector<int64_t> _ids;
-    int64_t best_id;
-    float p;
-};
-
-struct RecTask {
-    inline static constexpr auto tagwork = "pretrained_tagwork";
-    inline static std::atomic_bool _terminate = false;
-    inline static std::mutex _mutex;
-    inline static std::condition_variable _variable;
-    inline static std::vector<RecTask> _queue;
-    inline static std::atomic<double> _average_time_per_task{0.0};
-    inline static Timer _time_last_added;
-
-    Frame_t _segment_start;
-    Idx_t individual;
-    std::vector<Frame_t> _frames;
-    std::vector<Image::UPtr> _images;
-
-    std::function<void(Predictions&&)> _callback;
-    bool _optional;
-    Idx_t _fdx;
-    inline static Idx_t _current_fdx;
-
-    RecTask() = default;
-    RecTask(RecTask&&) = default;
-#if defined(_MSC_VER)
-    RecTask(const RecTask&) {
-        throw std::exception();
-    }
-#else
-    RecTask(const RecTask&) = delete;
-#endif
-    RecTask& operator=(RecTask&&) = default;
-    RecTask& operator=(const RecTask&) = delete;
-    
-    static bool can_take_more() {
-        static Timer last_print_timer;
-        
-        std::unique_lock guard(_mutex);
-        if(last_print_timer.elapsed() > 5)
-        {
-            print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
-            last_print_timer.reset();
-        }
-        bool result = _queue.size() < 100
-                && (_queue.size() < 10
-                    || (_queue.size() < 50 && _time_last_added.elapsed() > _average_time_per_task * 2));
-#ifndef NDEBUG
-        if(result)
-            print("\tAllowing a task to be added (",_time_last_added.elapsed(), ") size=[",_queue.size(),"].");
-#endif
-        return result;
-    }
-
-    static void thread() {
-        static std::atomic<size_t> counted{ 0 };
-        double time_per_task = 0;
-        double time_per_task_samples = 0;
-
-        set_thread_name("RecTask::update_thread");
-        print("RecTask::update_thread begun");
-
-        try {
-            RecTask::init();
-            Timer task_timer;
-
-            std::unique_lock guard(_mutex);
-            while(!_terminate || !_queue.empty()) {
-                while(!_queue.empty()) {
-                    task_timer.reset();
-                    
-                    auto task = std::move(_queue.back());
-                    _queue.erase(--_queue.end());
-                    //if(!_queue.empty())
-                    
-                    if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
-                        print("waiting for task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
-                        
-                        /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
-                        std::map<Idx_t, std::vector<Frame_t>> histo;
-                        for(auto &t : _queue) {
-                            histo[t._fdx].push_back(t._segment_start);
-                            if(segments.contains({t._fdx, t._segment_start})) {
-                                //print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
-                            } else
-                                segments.insert({t._fdx, t._segment_start});
-                        }
-                        
-                        print("\t-> ",histo);*/
-                    }
-                    
-                    _current_fdx = task._fdx;
-                    
-                    //print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
-
-                    guard.unlock();
-                    try {
-                        RecTask::update(std::move(task));
-                    } catch(...) {
-                        guard.lock();
-                        _current_fdx = Idx_t();
-                        throw;
-                    }
-                    guard.lock();
-
-                    time_per_task += task_timer.elapsed();
-                    ++time_per_task_samples;
-                    
-                    if(time_per_task_samples > 100) {
-                        time_per_task /= time_per_task_samples;
-                        time_per_task_samples = 1;
-                        _average_time_per_task = time_per_task;
-                        
-                        print("RecTask::time_per_task(",DurationUS{ uint64_t(_average_time_per_task * 1000 * 1000) },")");
-                    }
-                    
-                    ++counted;
-                    _current_fdx = Idx_t();
-                }
-
-                _variable.wait_for(guard, std::chrono::milliseconds(1));
-            }
-            
-        } catch(const SoftExceptionImpl&) {
-            // do nothing
-            SETTING(terminate_error) = true;
-            SETTING(terminate) = true;
-        }
-
-        print("RecTask::update_thread ended");
-    }
-
-    static void init();
-    static bool add(RecTask&& task, const std::function<void(RecTask&)>& fill, const std::function<void()>& callback) {
-        std::unique_lock guard(_mutex);
-        static std::once_flag flag;
-
-        std::call_once(flag, []() {
-            _update_thread = std::make_unique<std::thread>(RecTask::thread);
-        });
-        
-        if(callback)
-            callback();
-
-        for(auto it = _queue.begin(); it != _queue.end(); ) {
-            if(it->_fdx != task._fdx
-               || it->_segment_start != task._segment_start)
-            {
-                ++it;
-                continue;
-            }
-            
-            _queue.erase(it);
-            
-            fill(task);
-            //if(task._images.size() < 5)
-            //    return false;
-            
-            //print("[fill] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
-            _queue.emplace_back(std::move(task));
-            
-            return true;
-        }
-        
-        fill(task);
-        
-        if(task._images.size() < 5)
-            return false;
-        
-        //print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
-        
-        _queue.emplace_back(std::move(task));
-        _variable.notify_one();
-
-        _time_last_added.reset();
-        return true;
-    }
-
-    static void update(RecTask&& task) {
-        auto individual = task.individual;
-        
-        auto apply = [task = std::move(task)]() mutable -> bool {
-            
-            PythonIntegration::set_variable("tag_images", task._images, tagwork);
-            
-            auto receive = [task = std::move(task)](std::vector<int64_t> values) mutable {
-                Predictions result{
-                    ._segment_start = task._segment_start,
-                    .individual = task.individual,
-                    ._frames = std::move(task._frames),
-                    ._ids = std::move(values)
-                };
-                
-                //std::copy(values.begin(), values.end(), result._ids.end());
-                
-                std::unordered_map<int, int> _best_id;
-                for(auto i : result._ids)
-                    _best_id[i]++;
-
-                int maximum = -1;
-                int max_key = -1;
-                int N = result._ids.size();
-                for(auto& [k, v] : _best_id) {
-                    if(v > maximum) {
-                        maximum = v;
-                        max_key = k;
-                    }
-                }
-
-                result.best_id = max_key;
-                result.p = float(maximum) / float(N);
-                //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
-
-                static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
-                if(tags_save_predictions) {
-                    static std::atomic<int64_t> saved_index{ 0 };
-                    static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-
-                    //if(result.p <= 0.7)
-                    {
-                        file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
-                        if(!output.exists())
-                            output.create_folder();
-                        
-                        auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
-                        if(!(output / prefix).exists())
-                            (output / prefix).create_folder();
-                        
-                        auto files = (output / prefix).find_files();
-                        
-                        // delete files that already existed for this individual AND segment
-                        for(auto &f : files) {
-                            if(utils::beginsWith((std::string)f.filename(), prefix))
-                                f.delete_file();
-                        }
-                        
-                        // save example image
-                        if(!task._images.empty())
-                            cv::imwrite((output / prefix).str() + ".png", task._images.front()->get());
-                        
-                        output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
-
-                        print("\t\t-> exporting ", task._images.size()," guesses to ", output);
-                        
-                        for (size_t i=0; i<task._images.size(); ++i) {
-                            cv::imwrite(output.str() + Meta::toStr(i) + ".png", task._images[i]->get());
-                        }
-                    }
-                    
-                    ++saved_index;
-                }
-                
-                //print("Calling callback on ", result.individual, " and frame ", result._segment_start);
-                task._callback(std::move(result));
-            };
-            
-            auto pt = std::packaged_task<void(std::vector<int64_t>)>(std::move(receive));
-            PythonIntegration::set_function("receive", std::move(pt), tagwork);
-            PythonIntegration::run(tagwork, "predict");
-            PythonIntegration::unset_function("receive", tagwork);
-            
-            return true;
-        };
-
-        auto res = PythonIntegration::async_python_function(std::move(apply)).get();
-        if(!res) {
-            FormatError("There was an error during apply for ", individual);
-        }
-        //else
-        //    print("Predicted values for ", result.individual, " result: ", result._ids.size());
-    }
-
-    inline static std::unique_ptr<std::thread> _update_thread;
-
-    static void remove(Idx_t fdx) {
-        std::unique_lock guard(_mutex);
-        for(auto it = _queue.begin(); it != _queue.end(); ) {
-            if(it->_fdx == fdx) {
-                it = _queue.erase(it);
-            } else
-                ++it;
-        }
-
-        while(_current_fdx.valid() && fdx == _current_fdx) {
-            // we are currently processing an individual
-            _variable.wait_for(guard, std::chrono::milliseconds(1));
-        }
-    }
-
-    static void deinit() {
-        if(_terminate)
-            return;
-
-        _terminate = true;
-        _variable.notify_all();
-
-        if(_update_thread) {
-            _update_thread->join();
-            _update_thread = nullptr;
-        }
-    }
-};
-
-void Individual::shutdown() {
-    RecTask::deinit();
-}
-
-void RecTask::init() {
-    Recognition::fix_python(true);
-    
-    PythonIntegration::ensure_started().get();
-    //Recognition::check_learning_module(true);
-    PythonIntegration::async_python_function([]()->bool {return true; });
-    auto res = PythonIntegration::async_python_function([&]() -> bool {
-        try {
-            PythonIntegration::import_module(tagwork);
-            auto path = SETTING(tags_model_path).value<file::Path>();
-            if(path.empty() || !path.exists()) {
-                throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_tgrabs.html#tags_model_path` for more information.");
-            }
-            PythonIntegration::set_variable("model_path", path.str(), tagwork);
-            PythonIntegration::set_variable("width", 32, tagwork);
-            PythonIntegration::set_variable("height", 32, tagwork);
-            PythonIntegration::run(tagwork, "init");
-            print("tagging initialized.");
-            return true;
-        } catch(...) {
-            return false;
-        }
-        }).get();
-
-        if(res) {
-            print("Initialized tagging successfully.");
-        } else
-            FormatError("Error during tagging initialization.");
-}
-
 Individual::IDaverage Individual::qrcode_at(Frame_t segment_start) const {
     std::unique_lock guard(_qrcode_mutex);
     auto it = _qrcode_identities.find(segment_start);
@@ -469,7 +97,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                 if(segment_ended // either the segment ended
                     || !_last_requested_qrcode.valid()
                     || (RecTask::can_take_more() // or we have not requested a code yet
-                            && _last_requested_qrcode + Frame_t(5.f * (float)FAST_SETTINGS(frame_rate)) < frame) // or the last time has been at least a second ago
+                            && _last_requested_qrcode + Frame_t(Frame_t::number_t(5.f * (float)SLOW_SETTING(frame_rate))) < frame) // or the last time has been at least a second ago
                    )
                 {
                     auto it = _qrcodes.find(segment->start());
@@ -485,7 +113,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                     task._fdx = identity().ID();
                             }
 
-                            task._callback = [this, range = segment->range, N = it->second.size()](Predictions&& prediction) {
+                            task._callback = [this, range = segment->range, N = it->second.size(), segment = segment](Predictions&& prediction) {
                                 //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
                                 
                                 //print("\t",range, " individual ", identity().ID(), " has ", N, " images. ended=", segment_ended, " got callback with pred=", prediction.best_id);
@@ -494,6 +122,16 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                 _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
                                 _last_predicted_id = prediction.best_id;
                                 _last_predicted_frame = prediction._segment_start;
+                                for(size_t i=0; i<prediction._frames.size(); ++i) {
+                                    auto bix = segment->basic_stuff( prediction._frames[i]);
+                                    if(bix != -1) {
+                                        auto &basic = basic_stuff().at(bix);
+                                        basic->blob.pred = blob::Prediction{
+                                            .clid = uint8_t(prediction._ids[i]),
+                                            .p = uint8_t(float(prediction.p) * 255.f)
+                                        };
+                                    }
+                                }
                             };
 
                             auto fill = [it, ID = identity(), segment](RecTask& task)
@@ -526,7 +164,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                     return;
                                 
                                 static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-                                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
+                                file::Path output = file::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
                                 
                                 if(!output.exists())
                                     return;
@@ -575,7 +213,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
 }
 #endif
 
-void Individual::add_tag_image(const tags::Tag& tag) {
+void Individual::add_tag_image(tags::Tag&& tag) {
     assert(tag.frame.valid());
     auto && [range, first] = get_segment(tag.frame);
     
@@ -587,13 +225,13 @@ void Individual::add_tag_image(const tags::Tag& tag) {
                 last = tag.frame;
         }
         
-        if(cmn::abs((last - tag.frame).get()) >= FAST_SETTINGS(frame_rate)) {
+        if(cmn::abs((last - tag.frame).get()) >= SLOW_SETTING(frame_rate)) {
             if(set.size() > 6)
                 set.erase(--set.end());
         } else
             return;
     }
-    set.insert(tag);
+    set.insert(std::move(tag));
 }
 
 Individual::segment_map::const_iterator Individual::find_segment_with_start(Frame_t frame) const {
@@ -649,6 +287,9 @@ FrameRange Individual::get_recognition_segment_safe(Frame_t frameIndex) const {
 }
 
 const std::multiset<tags::Tag>* Individual::has_tag_images_for(Frame_t frameIndex) const {
+    if(not frameIndex.valid())
+        return nullptr;
+    
     auto range = get_segment(frameIndex);
     
     auto min_frame = Frame_t(std::numeric_limits<Frame_t::number_t>::max());
@@ -671,93 +312,52 @@ struct FrameNumber {
     Frame_t frame;
 };
 
-inline bool operator<(const std::shared_ptr<track::Individual::SegmentInformation>& ptr, const FrameNumber& frame) {
+inline bool operator<(const std::shared_ptr<track::SegmentInformation>& ptr, const FrameNumber& frame) {
     assert(ptr != nullptr);
     return ptr->end() < frame.frame;
 }
 
-inline bool operator<(const FrameNumber& frame, const std::shared_ptr<track::Individual::SegmentInformation>& ptr) {
+inline bool operator<(const FrameNumber& frame, const std::shared_ptr<track::SegmentInformation>& ptr) {
     assert(ptr != nullptr);
     return frame.frame < ptr->start();
 }
 
 bool Individual::has(Frame_t frame) const {
+    if(not _startFrame.valid() or not frame.valid())
+        return false;
     if(frame < _startFrame || frame > _endFrame)
         return false;
     
     return std::binary_search(_frame_segments.begin(), _frame_segments.end(), FrameNumber{frame});
 }
 
-void Individual::SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
-    UNUSED(frame);
-    assert(end() == frame);
-    basic_index.push_back(gdx);
-}
-
-#ifndef NDEBUG
-#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( INDEX )
-#define FRAME_SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( ( INDEX ).get() )
-#else
-#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ INDEX ]
-#define FRAME_SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ ( INDEX ).get() ]
-#endif
-
-void Individual::SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
-    long_t L = length();
-    if(posture_index.size() != size_t(L)) {
-        long_t prev = posture_index.size();
-        posture_index.resize(L);
-        for (long_t i=prev; i<L; ++i) {
-            SEGMENT_ACCESS(posture_index, i) = -1;
-        }
-    }
-    
-    long_t gdx = fish->_posture_stuff.size();
-    
-    if(fish->added_postures.find(stuff->frame) == fish->added_postures.end()) {
-        fish->added_postures.insert(stuff->frame);
-    } else {
-        print(fish->added_postures);
-        throw SoftException("(", fish->identity(),") Posture for frame ",stuff->frame," already added.");
-    }
-    
-    if(!fish->_posture_stuff.empty() && stuff->frame < fish->_posture_stuff.back()->frame)
-        throw SoftException("(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
-    
-    fish->_last_posture_added = stuff->frame;
-    FRAME_SEGMENT_ACCESS(posture_index, stuff->frame - start()) = gdx;
-
-    fish->_posture_stuff.push_back(std::move(stuff));
-}
-
-long_t Individual::SegmentInformation::basic_stuff(Frame_t frame) const {
-    //assert(frame >= start() && frame <= end() && size_t(frame-start()) < basic_index.size());
-    if(frame < start() || frame > end() || (size_t)(frame-start()).get() >= basic_index.size())
-        return -1;
-    return FRAME_SEGMENT_ACCESS(basic_index, frame - start());
-}
-
-long_t Individual::SegmentInformation::posture_stuff(Frame_t frame) const {
-    if(posture_index.empty() || !contains(frame)
-       || (posture_index.size() < basic_index.size() && (size_t)(frame - start()).get() >= posture_index.size() ))
-        return -1;
-    assert(frame >= start() && frame <= end() && (size_t)(frame-start()).get() < posture_index.size());
-    return FRAME_SEGMENT_ACCESS(posture_index, frame - start()); //posture_index .at( frame - start() );
-}
-
 decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(Frame_t frameIndex) const {
-    if(frameIndex < _startFrame || frameIndex > _endFrame)
+    if(empty())
         return _frame_segments.end();
-    if(frameIndex == _startFrame)
-        return _frame_segments.begin();
     
-    auto it = std::lower_bound(_frame_segments.begin(), _frame_segments.end(), frameIndex, [](const auto& ptr, Frame_t frame){
+    if(not frameIndex.valid()
+       || frameIndex < _startFrame)
+       //|| frameIndex > _endFrame)
+    {
+        return _frame_segments.end();
+    }
+    if(frameIndex == _startFrame) {
+        return _frame_segments.begin();
+    }
+    if(frameIndex == _endFrame)
+        return --_frame_segments.end();
+    
+    auto begin = _frame_segments.begin();
+    auto end = _frame_segments.end();
+    //assert(frameIndex <= (*--_frame_segments.end())->range.end);
+    
+    auto it = std::lower_bound(begin, end, frameIndex, [](const auto& ptr, Frame_t frame){
         return ptr->start() < frame;
     });
-    if(it != _frame_segments.end()) {
+    if(it != end) {
         if((*it)->start() > frameIndex) {
-            if(it == _frame_segments.begin())
-                it = _frame_segments.end();
+            if(it == begin)
+                it = end;
             else
                 --it;
         }
@@ -770,27 +370,33 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
     return it;
 }
 
-std::shared_ptr<Individual::SegmentInformation> Individual::segment_for(Frame_t frameIndex) const {
+std::shared_ptr<SegmentInformation> Individual::segment_for(Frame_t frameIndex) const {
+    if(not frameIndex.valid())
+        return nullptr;
+    
+    if(empty())
+        return nullptr;
     if(frameIndex < _startFrame || frameIndex > _endFrame)
         return nullptr;
     
     auto it = iterator_for(frameIndex);
-    return it == _frame_segments.end() || !(*it)->contains(frameIndex) ? nullptr : *it;
+    return it == _frame_segments.end() || not (*it)->contains(frameIndex) ? nullptr : *it;
 }
 
-Individual::PostureStuff::~PostureStuff() {
-    if(head) delete head;
-    if(centroid_posture) delete centroid_posture;
-}
+#ifndef NDEBUG
+#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( INDEX )
+#else
+#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ INDEX ]
+#endif
 
-Individual::BasicStuff* Individual::basic_stuff(Frame_t frameIndex) const {
+BasicStuff* Individual::basic_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment)
         return SEGMENT_ACCESS(_basic_stuff, segment->basic_stuff(frameIndex)).get(); //_basic_stuff.at( segment->basic_stuff(frameIndex) );
     return nullptr;
 }
 
-Individual::PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
+PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment) {
         auto index = segment->posture_stuff(frameIndex);
@@ -800,7 +406,7 @@ Individual::PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
     return nullptr;
 }
 
-std::tuple<Individual::BasicStuff*, Individual::PostureStuff*> Individual::all_stuff(Frame_t frameIndex) const {
+std::tuple<BasicStuff*, PostureStuff*> Individual::all_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment) {
         auto basic_index = segment->basic_stuff(frameIndex);
@@ -814,9 +420,9 @@ std::tuple<Individual::BasicStuff*, Individual::PostureStuff*> Individual::all_s
     return {nullptr, nullptr};
 }
 
-long_t Individual::thresholded_size(Frame_t frameIndex) const {
+int64_t Individual::thresholded_size(Frame_t frameIndex) const {
     auto ptr = basic_stuff(frameIndex);
-    return ptr ? ptr->thresholded_size : -1;
+    return ptr ? narrow_cast<int64_t>(ptr->thresholded_size) : -1;
 }
 
 const MotionRecord* Individual::centroid(Frame_t frameIndex) const {
@@ -892,7 +498,7 @@ Midline::Ptr Individual::fixed_midline(Frame_t frameIndex) const {
         return nullptr;
     
     MovementInformation movement;
-    if(FAST_SETTINGS(posture_direction_smoothing) > 1) {
+    if(FAST_SETTING(posture_direction_smoothing) > 1) {
         auto && [samples, hist, index, mov] = calculate_previous_vector(frameIndex);
         movement = mov;
     }
@@ -909,14 +515,11 @@ MinimalOutline::Ptr Individual::outline(Frame_t frameIndex) const {
     return ptr ? ptr->outline : nullptr;
 }
 
-Individual::Individual(Identity&& id)
-    : _identity(std::move(id))
-{
-    if(FAST_SETTINGS(manual_identities).count(identity().ID()))
-        identity().set_manual(true);
-    //else
-    //    throw U_EXCEPTION("Hey");
-}
+Individual::Individual(std::optional<Identity>&& id)
+    : _identity(id.has_value()
+                ? std::move(id.value())
+                : Identity::Make({}))
+{ }
 
 Individual::~Individual() {
 #if !COMMONS_NO_PYTHON
@@ -928,25 +531,21 @@ Individual::~Individual() {
     
     remove_frame(start_frame());
     
-    if(Tracker::recognition())
-        Tracker::recognition()->remove_individual(this);
+    //! TODO: MISSING remove_invidiual
+    //if(Tracker::recognition())
+    //    Tracker::recognition()->remove_individual(this);
 #ifndef NDEBUG
     print("Deleting individual ", identity().ID());
 #endif
 }
 
 void Individual::unregister_delete_callback(void* ptr) {
-    if(!Tracker::instance())
-        return;
-    Tracker::LockGuard guard("unregister_delete_callback");
+    std::unique_lock guard(_delete_callback_mutex);
     _delete_callbacks.erase(ptr);
 }
 
 void Individual::register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda) {
-    if(!Tracker::instance())
-        return;
-    
-    Tracker::LockGuard guard("register_delete_callback");
+    std::unique_lock guard(_delete_callback_mutex);
     _delete_callbacks[ptr] = lambda;
 }
 
@@ -954,9 +553,9 @@ void Individual::register_delete_callback(void* ptr, const std::function<void(In
 #define KB(x)   ((size_t) (x) << 10)
 #define MB(x)   ((size_t) (x) << 20)
 
-void Individual::add_manual_match(Frame_t frameIndex) {
+void Individual::add_manual_match(Frame_t) {
     //assert(frameIndex <= _endFrame && frameIndex >= _startFrame);
-    _manually_matched.insert(frameIndex);
+    //_manually_matched.insert(frameIndex);
 }
 
 void Individual::add_automatic_match(Frame_t frameIndex) {
@@ -964,8 +563,9 @@ void Individual::add_automatic_match(Frame_t frameIndex) {
     automatically_matched.insert(frameIndex);
 }
 
-bool Individual::is_manual_match(Frame_t frameIndex) const {
-    return _manually_matched.find(frameIndex) != _manually_matched.end();
+bool Individual::is_manual_match(Frame_t ) const {
+    return false;
+    //return _manually_matched.find(frameIndex) != _manually_matched.end();
 }
 
 bool Individual::is_automatic_match(Frame_t frameIndex) const {
@@ -973,8 +573,8 @@ bool Individual::is_automatic_match(Frame_t frameIndex) const {
 }
 
 bool Individual::recently_manually_matched(Frame_t frameIndex) const {
-    for(auto frame = frameIndex; frame >= _startFrame && frame >= frameIndex - Frame_t(FAST_SETTINGS(frame_rate) * 0.5); --frame) {
-        if(_manually_matched.find(frame) != _manually_matched.end())
+    for(auto frame = frameIndex; frame >= _startFrame && frame >= frameIndex - Frame_t(SLOW_SETTING(frame_rate) / 2u); --frame) {
+        if(is_manual_match(frame))
             return true;
     }
     
@@ -982,14 +582,22 @@ bool Individual::recently_manually_matched(Frame_t frameIndex) const {
 }
 
 void Individual::remove_frame(Frame_t frameIndex) {
-    if (frameIndex > _endFrame)
-        return;
-
     {
-        auto callbacks = _delete_callbacks;
+        decltype(_delete_callbacks) callbacks;
+        {
+            std::unique_lock guard(_delete_callback_mutex);
+            callbacks = _delete_callbacks;
+            _delete_callbacks.clear();
+        }
+
         for (auto& f : callbacks)
             f.second(this);
-        _delete_callbacks.clear();
+    }
+    
+    if (not _endFrame.valid()
+        or frameIndex > _endFrame)
+    {
+        return;
     }
 
     if(frameIndex <= start_frame())
@@ -1060,7 +668,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             (*it)->range.end = frameIndex - 1_f;
             assert((*it)->range.start <= (*it)->range.end);
             
-            (*it)->basic_index.resize((*it)->length());
+            (*it)->basic_index.resize((*it)->length().get());
             _basic_stuff.resize((*it)->basic_index.back() + 1);
             _matched_using.resize(_basic_stuff.size());
             shortened_basic_index = true;
@@ -1148,71 +756,6 @@ void Individual::remove_frame(Frame_t frameIndex) {
 //#endif
     }
     
-    /*while(!_frame_segments.empty()) {
-        auto it = --_frame_segments.end();
-        auto &segment = *it->second;
-        auto & [current, usable] = (FrameRange&)segment;
-        
-        assert(segment.basic_index.empty() || *segment.basic_index.rbegin() == (long_t)_basic_stuff.size()-1);
-        //assert(segment.posture_index.empty() || *segment.posture_index.rbegin() == (long_t)_posture_stuff.size()-1);
-        
-        if(frameIndex > current.start && frameIndex <= current.end) {
-            // contains the frame and more than the frame,
-            // so shorten it and break
-            //size_t offset = current.length() - segment.posture_index.size();
-            current.end = frameIndex - 1;
-            
-            _basic_stuff.resize(_basic_stuff.size() - (segment.basic_index.size() - current.length()));
-            
-            segment.basic_index.resize(current.length());
-            if(!segment.posture_index.empty()) {
-                long_t last_found_gdx = _posture_stuff.size();
-                for(auto kit = segment.posture_index.rbegin(); kit != segment.posture_index.rend(); ++kit) {
-                    if(*kit != -1 && SEGMENT_ACCESS(_posture_stuff, *kit)->frame <= frameIndex ) {
-                        last_found_gdx = SEGMENT_ACCESS(_posture_stuff, *kit)->frame < frameIndex ? (*kit + 1) : (*kit);
-                        assert(SEGMENT_ACCESS(_posture_stuff, *kit)->frame >= frameIndex);
-                        break;
-                    }
-                }
-                
-                print("#1 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx);
-                
-                segment.posture_index.resize(current.length());
-                _posture_stuff.resize(last_found_gdx);
-            }
-            
-            break;
-        }
-        
-        // it might still be [start, start+n] at this point,
-        // so break only if its actually smaller
-        if(current.start < frameIndex)
-            break;
-        
-        _basic_stuff.resize(_basic_stuff.size() - segment.basic_index.size());
-        
-        long_t last_found_gdx = _posture_stuff.size();
-        for(auto kit = segment.posture_index.begin(); kit != segment.posture_index.end(); ++kit) {
-            if(*kit != -1) {
-                last_found_gdx = *kit;
-                break;
-            }
-        }
-        
-        print("#2 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx);
-        _posture_stuff.resize(last_found_gdx);
-        
-        _frame_segments.erase(it);
-    }*/
-    
-    /*while(!_training_data.empty()) {
-        auto it = --_training_data.end();
-        if(it->first < frameIndex)
-            break;
-        
-        _training_data.erase(it);
-    }*/
-    
     while(!_best_images.empty()) {
         auto it = --_best_images.end();
         if(it->first < frameIndex)
@@ -1231,12 +774,12 @@ void Individual::remove_frame(Frame_t frameIndex) {
         average_recognition_segment.erase(it);
     }
     
-    while(!_manually_matched.empty()) {
+    /*while(!_manually_matched.empty()) {
         auto kit = --_manually_matched.end();
         if(*kit < frameIndex)
             break;
         _manually_matched.erase(kit);
-    }
+    }*/
     
     while(!automatically_matched.empty()) {
         auto kit = --automatically_matched.end();
@@ -1245,72 +788,13 @@ void Individual::remove_frame(Frame_t frameIndex) {
         automatically_matched.erase(kit);
     }
     
-    /*for (long_t i=frameIndex-FAST_SETTINGS(posture_direction_smoothing); i<frameIndex; i++) {
-        if (_midlines.count(i))
-            _midlines.erase(i);
-        
-        MotionRecord* ptr;
-        if((ptr = head(i))) {
-            delete ptr;
-            _head.erase(i);
-        }
-        if((ptr = centroid_posture(i))) {
-            delete ptr;
-            _centroid_posture.erase(i);
-        }
-    }*/
-    
     for (auto i=frameIndex; i<=_endFrame; ++i) {
-        /*auto c = centroid(i);
-        if(c) {
-            delete c;
-            _centroid.erase(i);
-        }
-        
-        if(centroid_weighted(i)) {
-            delete _weighted_centroid.at(i);
-            _weighted_centroid.erase(i);
-        }
-            
-        if(head(i)) {
-            delete _head.at(i);
-            _head.erase(i);
-        }
-            
-        if(centroid_posture(i)) {
-            delete _centroid_posture.at(i);
-            _centroid_posture.erase(i);
-        }
-        
-        if(_thresholded_size.find(i) != _thresholded_size.end())
-            _thresholded_size.erase(i);
-        
-        if(_blobs.count(i)) {
-            _blobs.erase(i);
-        }
-            
-        if (_midlines.count(i))
-            _midlines.erase(i);
-            
-        if(_outlines.count(i))
-            _outlines.erase(i);*/
-            
         if(_custom_data.count(i)) {
             for(auto &pair : _custom_data.at(i)) {
                 pair.second.second(pair.second.first);
             }
             _custom_data.erase(i);
         }
-            
-        /*if(_posture_original_angles.count(i)) {
-            _posture_original_angles.erase(i);
-        }
-            
-        if(_cached_fixed_midlines.count(i))
-            _cached_fixed_midlines.erase(i);
-        
-        if(_cached_pp_midlines.count(i))
-            _cached_pp_midlines.erase(i);*/
     }
     
     _endFrame.invalidate();
@@ -1345,7 +829,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
 
 void Individual::LocalCache::clear() {
     _v_samples.clear();
-    _current_velocities.clear();
+    //_current_velocities.clear();
     _current_velocity = Vec2(0);
     
     _outline_size = 0;
@@ -1360,8 +844,9 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     
     for(auto && basic : fish->_basic_stuff) {
         // make sure we dont get an infinite loop
-        assert(!_current_velocities.empty() || basic->frame == fish->start_frame());
-        add(basic->frame, &basic->centroid);
+        //assert(!_current_velocities.empty() || basic->frame == fish->start_frame());
+        if(basic)
+            add(basic->frame, &basic->centroid);
     }
     
     for(auto & p : fish->_posture_stuff) {
@@ -1374,14 +859,17 @@ void Individual::LocalCache::regenerate(Individual* fish) {
 
 float Individual::midline_length() const {
     return _local_cache._midline_samples == 0
-        ? gui::Graph::invalid()
+        ? GlobalSettings::invalid()
         : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f);
 }
 size_t Individual::midline_samples() const { return _local_cache._midline_samples; }
-float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? gui::Graph::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
+float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? GlobalSettings::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
 
-Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::MotionRecord *current) {
-    const size_t maximum_samples = max(3.f, FAST_SETTINGS(frame_rate)*0.1f);
+Vec2 Individual::LocalCache::add(Frame_t /*frameIndex*/, const track::MotionRecord *current) {
+    const auto frame_rate = track::slow::frame_rate;
+    const size_t maximum_samples = max(3.f, frame_rate * 0.1f);
+    
+    //print("frame_rate: ", frame_rate, "slow::", slow::frame_rate, " at ", (int*)&slow::frame_rate);
     
     auto raw_velocity = current->v<Units::CM_AND_SECONDS>();
 
@@ -1403,9 +891,9 @@ Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::MotionRecord *
         _v_samples.erase(_v_samples.begin());
     }
     
-    _current_velocities[frameIndex] = _v_samples.empty()
+    /*_current_velocities[frameIndex] = _v_samples.empty()
         ? raw_velocity
-        : (_current_velocity / float(_v_samples.size()));
+        : (_current_velocity / float(_v_samples.size()));*/
     
     return v;
 }
@@ -1422,40 +910,92 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode)
+blob::Pose Individual::pose_window(Frame_t start, Frame_t end, Frame_t ref) const {
+    start = saturate(start, start_frame(), end_frame());
+    end = saturate(end, start_frame(), end_frame()) + 1_f;
+    if(not ref.valid() || ref < start || ref >= end) {
+        ref = start;
+    }
+    
+    FrameRange range(Range<Frame_t>(start, end));
+    std::vector<const blob::Pose*> collection;
+    collection.reserve(range.length().get());
+    int64_t ref_index = -1;
+    
+    iterate_frames(range.range, [&](Frame_t idx, const std::shared_ptr<SegmentInformation> &, const BasicStuff * basic, const PostureStuff *)
+    {
+        if(not basic->blob.pred.pose.empty()) {
+            if(idx == ref) {
+                ref_index = collection.size();
+            }
+            
+            collection.push_back(&basic->blob.pred.pose);
+        }
+        return true;
+    });
+    
+    if(collection.empty())
+        return blob::Pose{};
+    
+    std::vector<size_t> empty_indexes;
+    if(not collection.empty()) {
+        if(ref_index == -1) {
+            return {};
+        }
+        auto& ref_pose = collection.at(ref_index);
+        for(size_t i=0; i<ref_pose->size(); ++i) {
+            auto & pt = ref_pose->point(i);
+            if(not pt.valid())
+                empty_indexes.push_back(i);
+        }
+    }
+    
+    using namespace blob;
+    return Pose::mean<GaussianTemporalWeighting<Focus::Center>>([&](size_t index){
+        return *collection.at(index);
+    }, collection.size(), empty_indexes);
+}
+
+int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t current_prob)
 {
+    const auto frameIndex = info.frame->index();
     if (has(frameIndex))
         return -1;
     
-    if (frameIndex >= _startFrame && frameIndex <= _endFrame)
+    if (_startFrame.valid() && frameIndex >= _startFrame && frameIndex <= _endFrame)
         throw UtilsException("Cannot add intermediate frames out of order.");
-    
-    if (_startFrame > frameIndex || !_startFrame.valid()) {
-        _startFrame = frameIndex;
-    }
-    
-    if (_endFrame < frameIndex || !_endFrame.valid()) {
-        _endFrame = frameIndex;
-    }
     
     // find valid previous frame
     //!TODO: can probably use segment ptr here
-    auto prev_frame = frameIndex - 1_f;
+    auto prev_frame = frameIndex > Tracker::analysis_range().start()
+                        ? frameIndex - 1_f
+                        : Frame_t();
     const MotionRecord* prev_prop = nullptr;
     if(!empty()) {
-        if(frameIndex > _startFrame) {
-            auto &previous = find_frame(prev_frame);
+        if(prev_frame.valid()) {
+            auto previous = find_frame(prev_frame);
             if(previous) {
                 prev_frame = previous->frame;
                 prev_prop = &previous->centroid;
             }
         }
+        
+        if (_startFrame > frameIndex) {
+            _startFrame = frameIndex;
+        }
+        
+        if (_endFrame < frameIndex) {
+            _endFrame = frameIndex;
+        }
+        
+    } else {
+        _startFrame = _endFrame = frameIndex;
     }
     
-    _hints.push(frameIndex, props);
+    _hints.push(frameIndex, info.f_prop);
     
     auto stuff = std::make_unique<BasicStuff>();
-    stuff->centroid.init(prev_prop, frame.time, blob->center(), blob->orientation());
+    stuff->centroid.init(prev_prop, info.frame->time, blob.center(), blob.orientation());
     
     auto v = _local_cache.add(frameIndex, &stuff->centroid);
     
@@ -1471,11 +1011,11 @@ int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const 
     }
     
     stuff->frame = frameIndex;
+    stuff->thresholded_size = blob.raw_recount(-1);//,
     stuff->blob = blob;
-    stuff->pixels = blob;
-    stuff->thresholded_size = blob->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) / SQR(FAST_SETTINGS(cm_per_pixel));
     
-    //auto centroid_point = weighted_centroid(*blob, *blob->pixels());
+    //const auto ft = FAST_SETTING(track_threshold);
+    //assert(blob->last_recount_threshold() == ft); *Tracker::instance()->background());
     
     //!TODO: can use previous segment here
     //if(prev_props)
@@ -1484,29 +1024,31 @@ int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const 
     //stuff->weighted_centroid = new MotionRecord(prev_props, time, centroid_point, current->angle());
     //push_to_segments(frameIndex, prev_frame);
     
-    auto cached = frame.cached(identity().ID());
+    auto cached = info.frame->cached(identity().ID());
     prob_t p{current_prob};
     if(current_prob == -1 && cached) {
         if(cached->individual_empty /* || frameIndex < start_frame() */)
             p = 0;
         else
-            p = probability(cached->consistent_categories ? frame.label(blob) : -1,
+            p = probability(SLOW_SETTING(track_consistent_categories)
+                                ? info.frame->label(blob.blob_id())
+                                : -1,
                             *cached,
                             frameIndex,
                             stuff->blob);//.p;
     }
     
-    auto segment = update_add_segment(frameIndex, stuff->centroid, prev_frame, &stuff->blob, p);
+    auto segment = update_add_segment(frameIndex, info.f_prop, info.f_prev_prop, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
     auto index = _basic_stuff.size();
     segment->add_basic_at(frameIndex, index);
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
         throw SoftException("(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
-    _basic_stuff.push_back(std::move(stuff));
-    _matched_using.push_back(match_mode);
+    _basic_stuff.emplace_back(std::move(stuff));
+    _matched_using.push_back(info.match_mode);
     
-    const auto video_length = Tracker::analysis_range().end;
+    const auto video_length = Tracker::analysis_range().end();
     if(frameIndex >= video_length) {
         update_midlines(&_hints);
     }
@@ -1514,7 +1056,7 @@ int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const 
     return int64_t(index);
 }
 
-void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const Individual::BasicStuff*, const Individual::PostureStuff*)>& fn) const {
+void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
     auto fit = iterator_for(segment.start);
     auto end = _frame_segments.end();
     
@@ -1581,31 +1123,42 @@ T& operator |=(T &lhs, Enum rhs)
     return lhs;
 }
 
-std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
+SegmentInformation* Individual::update_add_segment(const Frame_t frameIndex, const FrameProperties* props, const FrameProperties* prev_props, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
 {
     //! find a segment this (potentially) belongs to
-    std::shared_ptr<SegmentInformation> segment = nullptr;
+    const std::shared_ptr<SegmentInformation>* segment = nullptr;
     if(!_frame_segments.empty()) {
-        segment = *_frame_segments.rbegin();
+        const auto &last = *_frame_segments.rbegin();
         
         // check whether we found the right one
         // (it can only be the last one, or no one)
-        if(segment->end() < frameIndex - 1_f)
-            segment = nullptr; // this frame does not actually belong
+        if(last->end() >= frameIndex - 1_f)
+            segment = &last;
+        // else this frame does not actually belong within the found segment
     }
     
-    auto prop = Tracker::properties(frameIndex);
-    auto prev_prop = Tracker::properties(frameIndex - 1_f);
+    assert(Tracker::properties(frameIndex) == props);
+    assert(Tracker::properties(frameIndex - 1_f) == prev_props);
     
-    double tdelta = prop && prev_prop ? prop->time - prev_prop->time : 0;
+    double tdelta = props && prev_props
+        ? props->time - prev_props->time
+        : 0;
+    
+    const auto track_trusted_probability = SLOW_SETTING(track_trusted_probability);
+    const auto huge_timestamp_ends_segment = SLOW_SETTING(huge_timestamp_ends_segment);
+    const auto huge_timestamp_seconds = SLOW_SETTING(huge_timestamp_seconds);
+    const auto track_end_segment_for_speed = SLOW_SETTING(track_end_segment_for_speed);
+    const auto track_segment_max_length = SLOW_SETTING(track_segment_max_length);
+    const auto frame_rate = SLOW_SETTING(frame_rate);
+    
     uint32_t error_code = 0;
-    error_code |= Reasons::LostForOneFrame       * uint32_t(prev_frame != frameIndex - 1_f);
-    error_code |= Reasons::ProbabilityTooSmall   * uint32_t(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability));
-    error_code |= Reasons::TimestampTooDifferent * uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds));
+    error_code |= Reasons::FramesSkipped         * uint32_t(prev_frame != frameIndex - 1_f);
+    error_code |= Reasons::ProbabilityTooSmall   * uint32_t(current_prob != -1 && current_prob < track_trusted_probability);
+    error_code |= Reasons::TimestampTooDifferent * uint32_t(huge_timestamp_ends_segment && tdelta >= huge_timestamp_seconds);
     error_code |= Reasons::ManualMatch           * uint32_t(is_manual_match(frameIndex));
     error_code |= Reasons::NoBlob                * uint32_t(!blob);
-    error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current.speed<Units::CM_AND_SECONDS>() >= weird_distance());
-    error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
+    error_code |= Reasons::WeirdDistance         * uint32_t(track_end_segment_for_speed && current.speed<Units::CM_AND_SECONDS>() >= weird_distance());
+    error_code |= Reasons::MaxSegmentLength      * uint32_t(track_segment_max_length > 0 && segment && *segment && (*segment)->length().get() / float(frame_rate) >= track_segment_max_length);
     
     const bool segment_ended = error_code != 0;
 
@@ -1613,42 +1166,23 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         if(!_frame_segments.empty()) {
             _frame_segments.back()->error_code = error_code;
         }
-        
-        /*if(frameIndex != _startFrame) {
-            print("reasoning for ", identity(), " in ", frameIndex, ":");
-            print(prev_frame != frameIndex - 1_f, " prev: ", prev_frame, " frameIndex: ", frameIndex);
-            print(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability), " current_prob:", current_prob, " trusted = ", FAST_SETTINGS(track_trusted_probability));
-            print(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds), " flag: ", FAST_SETTINGS(huge_timestamp_ends_segment), " -> ", tdelta, " >= ", FAST_SETTINGS(huge_timestamp_seconds));
-            print(is_manual_match(frameIndex), " is manual match ", frameIndex, " = ", is_manual_match(frameIndex));
-            print(!blob, " blob: ", blob);
-            print(FAST_SETTINGS(track_end_segment_for_speed) && current.speed<Units::CM_AND_SECONDS>() >= weird_distance(), " max speed: ", FAST_SETTINGS(track_end_segment_for_speed), " speed = ", current.speed<Units::CM_AND_SECONDS>(), " weird: ", weird_distance());
-            if(segment) print(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length), " segment max length = ", FAST_SETTINGS(track_segment_max_length), " segment percent: ", segment->length() / float(FAST_SETTINGS(frame_rate)));
-            print("");
-        }*/
 
-        segment = std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? Frame_t() : frameIndex);
-        _frame_segments.push_back(segment);
-        
-#if !COMMONS_NO_PYTHON
-        //! Update recognition if enabled
-        if(Recognition::recognition_enabled())
-            Recognition::notify();
-#endif
+        return _frame_segments.emplace_back(std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? Frame_t() : frameIndex)).get();
         
     } else if(prev_frame == frameIndex - 1_f) {
         assert(!_frame_segments.empty());
-        segment = *_frame_segments.rbegin();
-        segment->range.end = frameIndex;
-        if(!segment->first_usable.valid() && blob && !blob->split())
-            segment->first_usable = frameIndex;
-
+        segment = &(*_frame_segments.rbegin());
+        (*segment)->range.end = frameIndex;
+        if(!(*segment)->first_usable.valid() && blob && !blob->split())
+            (*segment)->first_usable = frameIndex;
     } // else... nothing
 
-    return segment;
+    return segment ? segment->get() : nullptr;
 }
 
 float Individual::weird_distance() {
-    return FAST_SETTINGS(track_max_speed) * 0.99;
+    const auto track_max_speed = SLOW_SETTING(track_max_speed);
+    return track_max_speed * 0.99;
 }
 
 void Individual::clear_post_processing() {
@@ -1673,12 +1207,12 @@ void Individual::clear_post_processing() {
 }
 
 void Individual::update_midlines(const CacheHints* hints) {
-    /*if(FAST_SETTINGS(posture_direction_smoothing) == 0) {
+    /*if(FAST_SETTING(posture_direction_smoothing) == 0) {
         update_frame_with_posture(frameIndex);
     }*/
     
-    const auto smooth_range = Frame_t(FAST_SETTINGS(posture_direction_smoothing));
-    const auto video_length = Tracker::analysis_range().end;
+    const auto smooth_range = Frame_t(FAST_SETTING(posture_direction_smoothing));
+    const auto video_length = Tracker::analysis_range().end();
     auto end_frame = Tracker::end_frame();
     
     //! find the first frame that needs to be cached, but hasnt been yet
@@ -1739,13 +1273,13 @@ void Individual::update_midlines(const CacheHints* hints) {
     }*/
 }
 
-Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const PostureStuff &posture) const
+Midline::Ptr Individual::calculate_midline_for(const BasicStuff &, const PostureStuff &posture) const
 {
     //if(!posture || !basic)
     //    return nullptr;
     
     auto &ptr = posture.cached_pp_midline;
-    auto &blob = basic.blob;
+    //auto &blob = basic.blob;
     //basic.pixels = nullptr;
     
     Midline::Ptr midline;
@@ -1757,7 +1291,7 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const Po
         MovementInformation movement;
         //movement.position = blob->bounds().pos();
         
-        if(FAST_SETTINGS(posture_direction_smoothing) > 1) {
+        if(FAST_SETTING(posture_direction_smoothing) > 1) {
             auto && [samples, hist, index, mov] = calculate_previous_vector(posture.frame);
             movement = mov;
         }
@@ -1765,11 +1299,11 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const Po
         midline->post_process(movement, DebugInfo{posture.frame, identity().ID(), false});
         if(!midline->is_normalized())
             midline = midline->normalize();
-        else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
 #ifndef NDEBUG
+        else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
             FormatWarning(identity().ID()," has a pre-normalized midline in frame ",posture.frame,". not normalizing it again.");
-#endif
         }
+#endif
         
     }
     
@@ -1803,7 +1337,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         if(!midline)
             return nullptr;
         
-        size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTINGS(posture_head_percentage))));
+        size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTING(posture_head_percentage))));
         auto pt = midline->segments().at(head_index).pos;
         
         float angle = midline->angle() + M_PI;
@@ -1866,46 +1400,6 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
     
     return midline;
 }
-
-/*void Individual::push_to_segments(Frame_t frameIndex, long_t prev_frame) {
-    // conditions of when to start/end frame segments
-    double tdelta = Tracker::has(frameIndex) && Tracker::has(frameIndex-1) ? Tracker::properties(frameIndex).time - Tracker::properties(frameIndex-1).time : 0;
-    
-    auto segment = segment_for(frameIndex);
-    auto current = centroid_weighted(frameIndex);
-    auto blob = this->blob(frameIndex);
-    
-    if(frameIndex == _startFrame
-       || prev_frame != frameIndex-1
-       || (FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds))
-       || is_manual_match(frameIndex)
-       || (current && current->speed() >= weird_distance())
-       || !blob)
-    {
-        _frame_segments[frameIndex] = std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? -1 : frameIndex);
-        
-        update_midlines();
-        
-        // guard has been unlocked:
-        //! Update recognition if enabled
-        if(Recognition::recognition_enabled())
-            Recognition::notify();
-        
-    } else if(prev_frame == frameIndex-1) {
-        assert(!_frame_segments.empty());
-        auto segment = _frame_segments.rbegin()->second;
-        segment->range.end = frameIndex;
-        if(segment->first_usable == -1 && blob && !blob->split())
-            segment->first_usable = frameIndex;
-        
-        const long_t video_length = Tracker::analysis_range().end;
-        if(frameIndex >= video_length) {
-            update_midlines();
-        }
-    }
-}*/
-
-#include <random>
 
 template<class RandAccessIter, typename T = typename RandAccessIter::value_type>
 T static_median(RandAccessIter begin, RandAccessIter end) {
@@ -1981,22 +1475,6 @@ void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
         _last_second.back() = ptr;
     else
         _last_second.push_back(ptr);
-    
-    /*assert(!current.valid() || current < index);
-    assert(!ptr || ptr->frame == index);
-    assert(!_last_second.empty());
-    current = index;
-    
-#ifndef NDEBUG
-    auto tmp = _last_second.front();
-#endif
-    if(_last_second.size() > 1)
-        std::rotate(_last_second.begin(), ++_last_second.begin(), _last_second.end());
-#ifndef NDEBUG
-    assert(tmp == _last_second.back());
-#endif
-    
-    _last_second.back() = ptr;*/
 }
 
 /*void CacheHints::push_front(Frame_t index, const FrameProperties* ptr) {
@@ -2035,13 +1513,13 @@ bool CacheHints::full() const {
 }
 
 void CacheHints::clear(size_t size) {
-    if (size == 0 && FAST_SETTINGS(frame_rate) < 0) {
+    if (size == 0 && (SLOW_SETTING(frame_rate) < 0 || SLOW_SETTING(frame_rate) == uint32_t(-1))) {
 #ifndef NDEBUG
-        FormatExcept("Size=", size," frame_rate=", FAST_SETTINGS(frame_rate),"");
+        FormatExcept("Size=", size," frame_rate=", SLOW_SETTING(frame_rate),"");
 #endif
         _last_second.resize(0);
     } else {
-        _last_second.resize(size > 0 ? size : FAST_SETTINGS(frame_rate));
+        _last_second.resize(size > 0 ? size : SLOW_SETTING(frame_rate));
     }
     std::fill(_last_second.begin(), _last_second.end(), nullptr);
     current.invalidate();
@@ -2072,33 +1550,36 @@ const FrameProperties* CacheHints::properties(Frame_t index) const {
     return nullptr;
 }
 
-IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
-    IndividualCache cache;
-    cache._idx = Idx_t(identity().ID());
-    if(empty()) {
+tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* hints) const {
+    if(not frameIndex.valid())
+        return tl::unexpected("Invalid frame in cache_for_frame");
+    
+    IndividualCache cache{.valid=false};
+    //cache._idx = Idx_t(identity().ID());
+    if(empty() || !_startFrame.valid() || frameIndex <= _startFrame) {
         cache.individual_empty = true;
-        return cache;
+        return tl::unexpected("The individual is empty.");
     }
     
     cache.individual_empty = false;
     
     if (frameIndex < _startFrame)
-        throw U_EXCEPTION("Cant cache for frame before start frame");
+        return tl::unexpected("Cant cache for frame before start frame");
         //return cache;//centroid(_startFrame)->pos(PX_AND_SECONDS);
     
     // find the first frame thats set for the individual
-    auto it = iterator_for(frameIndex - 1_f);
+    const auto it = iterator_for(frameIndex - 1_f);
     
     //! collect samples from previous segments
-    bool manually_matched_segment = false;
-    cache.last_frame_manual = false;
+    //bool manually_matched_segment = false;
+    bool last_frame_manual = false;
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = -1;
-    cache.cm_per_pixel = FAST_SETTINGS(cm_per_pixel);
-    cache.consistent_categories = FAST_SETTINGS(track_consistent_categories);
-    cache.track_max_speed_px = FAST_SETTINGS(track_max_speed) / cache.cm_per_pixel;
-    const auto frame_rate = FAST_SETTINGS(frame_rate);
-    const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
+    const auto cm_per_pixel = SLOW_SETTING(cm_per_pixel);
+    const auto consistent_categories = SLOW_SETTING(track_consistent_categories);
+    const auto track_max_speed_px = SLOW_SETTING(track_max_speed) / cm_per_pixel;
+    const auto frame_rate = SLOW_SETTING(frame_rate);
+    const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
     
     //auto segment = get_segment(frameIndex-1);
     if(it != _frame_segments.end()) {
@@ -2106,8 +1587,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         
         if((*it)->contains(frameIndex - 1_f)) {
             // is a valid segment
-            if(is_manual_match((*it)->start()) && frameIndex - (*it)->start() < Frame_t(frame_rate * 0.05))
-                manually_matched_segment = true;
+            //if(is_manual_match((*it)->start()) && frameIndex - (*it)->start() < Frame_t(frame_rate * 0.05))
+            //    manually_matched_segment = true;
             
             bdx = (*it)->basic_stuff(frameIndex - 1_f);
             assert(bdx != -1);
@@ -2177,7 +1658,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     assert(pp); // fish is not empty, find_frame should at least return _startFrame
     
     //auto props = Tracker::properties(frameIndex);
-    auto prev_props = Tracker::properties(frameIndex - 1_f, hints);
+    assert(not previous || frameIndex - 1_f == previous->frame);
+    auto prev_props = previous;//Tracker::properties(frameIndex - 1_f, hints);
     if(!prev_props) {
         if(!Tracker::instance()->frames().empty()) {
             auto it = Tracker::instance()->frames().rbegin();
@@ -2197,49 +1679,103 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         : Tracker::properties(cache.previous_frame, hints);
     assert(!prev_props || prev_props->time != time);
     
-    float ptime = pp_props ? pp_props->time : (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
-    if(time - ptime >= track_max_reassign_time) {
-        ptime = (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
-    }
-    //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(FAST_SETTINGS(frame_rate)) + time);
+    float ptime = pp_props ? pp_props->time : (- ((double)frameIndex.get() - (double)cache.previous_frame.get()) * 1 / double(frame_rate) + time);
     
-    cache.tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
+    assert(ptime >= 0);
+    assert(time >= ptime);
+    if(time - ptime >= track_max_reassign_time) {
+        assert(frameIndex.valid() && cache.previous_frame.valid());
+        assert(frameIndex > cache.previous_frame);
+        ptime = (- ((double)frameIndex.get() - (double)cache.previous_frame.get()) * 1 / double(frame_rate) + time);
+    }
+    //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(SLOW_SETTING(frame_rate)) + time);
+    
+    assert(time >= ptime);
+    auto tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
     cache.local_tdelta = prev_props ? time - prev_props->time : 0;
+    
+    if(tdelta == 0) {
+        long_t bdx = -1, pdx = -1;
+        
+        if(!_frame_segments.empty()) {
+            if(it != _frame_segments.end()
+               && (*it)->contains(frameIndex - 1_f))
+            {
+                bdx = (*it)->basic_stuff(frameIndex - 1_f);
+                pdx = (*it)->posture_stuff(frameIndex - 1_f);
+                
+                print("#1 ", bdx, " ", pdx, " ", (*it)->range, " contains ", frameIndex - 1_f);
+                
+            } else {
+                if(it != _frame_segments.end() && (*it)->end() <= frameIndex - 1_f) {
+                    bdx = (*it)->basic_stuff((*it)->end());
+                    pdx = (*it)->posture_stuff((*it)->end());
+                    
+                    print("#2 ", bdx, " ", pdx, " ", (*it)->end(), " <= ", frameIndex - 1_f);
+                }
+                else if(frameIndex <= _startFrame && _startFrame.valid()) {
+                    bdx = (*_frame_segments.begin())->basic_stuff(_startFrame);
+                    pdx = (*_frame_segments.begin())->posture_stuff(_startFrame);
+                    
+                    print("#3 ", bdx, " ", pdx, " ", frameIndex, " <= ", _startFrame);
+                    
+                } else if(frameIndex >= _endFrame && _endFrame >= _startFrame && _endFrame.valid()) {
+                    bdx = (*_frame_segments.rbegin())->basic_stuff(_endFrame);
+                    pdx = (*_frame_segments.rbegin())->posture_stuff(_endFrame);
+                    
+                    print("#4 ", bdx, " ", pdx, " ", frameIndex, " >= ", _endFrame, "  && ", _endFrame, " >= ", _startFrame);
+                    
+                } else
+                    print("Nothing to be found for ",frameIndex - 1_f);
+            }
+        }
+        
+        throw U_EXCEPTION("No time difference between ",frameIndex," and ",cache.previous_frame," in calculate_next_positions. pp->frame=", pp ? pp->frame : Frame_t(), " ");
+    }
     
     auto raw = Vec2(0.0, 0.0);
     auto raw_acc = Vec2(0, 0);
     
     int used_frames = 0;
     //Median<size_t> size_median;
-    float weights = 0;
+    //float weights = 0;
     
     //! Collect recent number of valid samples within $t - \mathrm{fps} <= \dot{t} <= t$, where all distances between segments must not be reassigned ($\Delta t < fps * T_mathrm{max}$).
     size_t N = 0;
     if(it != _frame_segments.end()) {
-        const auto lower_limit = max(0_f, frameIndex - Frame_t(frame_rate));
-        auto previous_frame = frameIndex;
-        const auto time_limit = Frame_t(frame_rate * track_max_reassign_time);
+        //assert((*it)->contains(frameIndex));
         
+        const auto lower_limit = frameIndex.try_sub(Frame_t{frame_rate});
+        auto previous_frame = frameIndex;
+        const auto time_limit = Frame_t(Frame_t::number_t(frame_rate * track_max_reassign_time));
+        
+        auto copy = it;
         while(true) {
-            if((*it)->end() < lower_limit)
+            if((*copy)->end() < lower_limit) {
                 break;
+            }
             
-            if(previous_frame - (*it)->end() > time_limit)
+            if(previous_frame.try_sub((*copy)->end()) > time_limit)
             {
                 break;
             }
             
-            auto start = (*it)->start();
+            auto start = (*copy)->start();
             if(start < lower_limit)
                 start = lower_limit;
-            
+            auto end = (*copy)->end();
+            if(end > frameIndex)
+                end = frameIndex;
+                
             previous_frame = start;
             
-            N += max(0, ((*it)->end() - start).get() + 1);
-            if(it == _frame_segments.begin())
+            N += max(Frame_t::number_t(0), (end - start).get() + 1);
+            if(copy == _frame_segments.begin())
                 break;
-            --it;
+            --copy;
         }
+    } else {
+        //thread_print("** ", frameIndex, ": ", identity().ID()," no segments.");
     }
     
     
@@ -2247,7 +1783,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     //! to predict the current direction etc.
     auto recent_number_samples = N;
     
-    Range<Frame_t> range(max(_startFrame, cache.previous_frame - 6_f), cache.previous_frame);
+    Range<Frame_t> range(max(_startFrame, cache.previous_frame.try_sub(6_f)),
+                         cache.previous_frame);
     std::vector<prob_t> average_speed;
     average_speed.reserve(range.length().get() + 1);
     
@@ -2261,9 +1798,15 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     std::unordered_map<int, size_t> labels;
     size_t samples = 0;
     
-    if(cache.consistent_categories) {
+    if(consistent_categories
+       && cache.previous_frame.valid())
+    {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
-        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(frame_rate * 2)), cache.previous_frame), [&labels, &samples](auto frame, const auto&, auto basic, auto) -> bool
+        iterate_frames(Range<Frame_t>{
+                max(_startFrame,
+                    cache.previous_frame.try_sub(Frame_t(frame_rate * 2u))),
+                cache.previous_frame
+            }, [&labels, &samples](auto frame, const auto&, auto basic, auto) -> bool
         {
             auto ldx = Categorize::DataStore::_ranged_label_unsafe(frame, basic->blob.blob_id());
             if(ldx != -1) {
@@ -2277,15 +1820,15 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
 
     // cm/s / (cm/px)
     // (cm/s)^2 / (cm/px)^2 = (cm^2/s^2) / (cm^2/px^2) = 1 * px^2/s^2
-    const auto track_max_px_sq = SQR(cache.track_max_speed_px);
+    const auto track_max_px_sq = SQR(track_max_speed_px);
     const FrameProperties *properties = nullptr;
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const Individual::BasicStuff* basic, auto) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const BasicStuff* basic, auto) -> bool
     {
         if(is_manual_match(frame)) {
-            cache.last_frame_manual = true;
+            last_frame_manual = true;
             return true;
         }
         
@@ -2330,7 +1873,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
             //!         D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise}
             //!     \end{cases}
             if(L_sq >= track_max_px_sq) {
-                v *= cache.track_max_speed_px / sqrt(L_sq);
+                v *= track_max_speed_px / sqrt(L_sq);
                 L_sq = track_max_px_sq;
             }
             
@@ -2381,11 +1924,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     //! \mean{s}_{i}(t) = \underset{k \in [F(\tau)-5, F(t)]}{\median} \norm{\hat{\mathbf{v}}_i(\Tau(k))}
     prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
     
-    if(cache.tdelta == 0)
-        throw U_EXCEPTION("No time difference between ",frameIndex," and ",cache.previous_frame," in calculate_next_positions.");
-    
     //! \lambda
-    const float lambda = SQR(SQR(max(0, min(1, FAST_SETTINGS(track_speed_decay)))));
+    const float lambda = SQR(SQR(max(0, min(1, FAST_SETTING(track_speed_decay)))));
     
     //! \mean{\mathbf{d}_i}(t)
     Vec2 direction;
@@ -2414,7 +1954,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                 
                 //! \dot{\mathbf{p}}_i(t) = s_i(t) \sum_{k\in [F(\tau_i), F(t)-1]} w(k) \left(\mean{\mathbf{d}_i}(t) + \Tau'(k) * \mean{\mathbf{a}}_i(t) \right)
                 est += weight * tdelta * (speed * (direction + tdelta * raw_acc));
-                weights += weight;
+                //weights += weight;
             }
         }
     }
@@ -2423,36 +1963,56 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         est += c->pos<Units::PX_AND_SECONDS>();
     
     auto h = c;
-    if(FAST_SETTINGS(calculate_posture)) {
+    if(FAST_SETTING(calculate_posture)) {
         if(pp_posture && pp_posture->centroid_posture)
             h = pp_posture->centroid_posture;
     }
     
-    cache.speed = h ? h->speed<Units::CM_AND_SECONDS>() : 0;
-    cache.h = h;
+    //cache.speed = h ? h->speed<Units::CM_AND_SECONDS>() : 0;
+    //cache.h = h;
     cache.estimated_px = est;
-    cache.time_probability = time_probability(cache, recent_number_samples);
     
-    assert(!std::isnan(cache.estimated_px.x) && !std::isnan(cache.estimated_px.y));
+    if(not FAST_SETTING(track_time_probability_enabled)
+       || last_frame_manual)
+    {
+        cache.time_probability = 1;
+    } else if(tdelta > SLOW_SETTING(track_max_reassign_time)) {
+        cache.time_probability = 0;
+    } else {
+        cache.time_probability = time_probability(tdelta, cache.previous_frame, recent_number_samples);
+    }
+    
+    //thread_print("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
+    //PPFrame::Log("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
+    cache.valid_frame = !h || last_frame_manual;
+    
+    assert(!std::isnan(cache.estimated_px.x) 
+           && !std::isnan(cache.estimated_px.y));
     cache.valid = true;
     
     return cache;
 }
 
-prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_number_samples) const {
-    if(!FAST_SETTINGS(track_time_probability_enabled))
-        return 1;
-    if (cache.tdelta > FAST_SETTINGS(track_max_reassign_time))
-        return 0.0;
+struct TimeCache {
     
-    if(cache.last_frame_manual)
-        return 1;
+};
+
+prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) const {
     
-    const float Tdelta = 1.f / float(FAST_SETTINGS(frame_rate));
+    /// handled in cache_for_frame:
+    //if(!FAST_SETTING(track_time_probability_enabled))
+    //    return 1;
+    //if (cache.tdelta > SLOW_SETTING(track_max_reassign_time))
+    //    return 0.0;
+    
+    //if(cache.last_frame_manual)
+    //    return 1;
+    
+    const float Tdelta = 1.f / float(SLOW_SETTING(frame_rate));
     
     // make sure that very low frame rates work
     //! F_\mathrm{min} = \min\left\{\frac{1}{T_\Delta}, 5\right\}
-    const float minimum_frames = (float)min(FAST_SETTINGS(frame_rate), 5);
+    const uint32_t minimum_frames = min(SLOW_SETTING(frame_rate), 5u);
     
     //! R_i(t) = \norm{ \givenset[\Big]{ \Tau(k) | F(t) - T_\Delta^{-1} \leq k \leq t \wedge \Tau(k) - \Tau(k-1) \leq T_\mathrm{max}} }
     
@@ -2465,9 +2025,9 @@ prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_
         \end{equation}
      */
     
-    float p = 1.0f - min(1.0f, max(0, (cache.tdelta - Tdelta) / FAST_SETTINGS(track_max_reassign_time)));
-    if(cache.previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
-        p *= min(1.f, float(recent_number_samples - 1) / minimum_frames + FAST_SETTINGS(matching_probability_threshold));
+    float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
+    if(previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
+        p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + FAST_SETTING(matching_probability_threshold));
     
     return p * 0.75 + 0.25;
 }
@@ -2485,7 +2045,7 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
     return -atan2(-B.y*A.x+B.x*A.y, B.x*A.x+B.y*A.y);
 }
 
-prob_t Individual::position_probability(const IndividualCache& cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
+prob_t Individual::position_probability(const IndividualCache cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
 {
     UNUSED(frameIndex)
 #ifndef NDEBUG
@@ -2499,11 +2059,11 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     //! S_{i,b}(t) &= \left(1 + \frac{\norm{ (\mathbf{p}_b(\tau_i) - \dot{\mathbf{p}}_i(t)) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
     
     Vec2 velocity;
-    if(cache.local_tdelta != 0)
-        velocity = (position - cache.estimated_px) / cache.local_tdelta;
+    //if(cache.local_tdelta != 0)
+        velocity = (cache.local_tdelta != 0) * (position - cache.estimated_px) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = velocity.length() / cache.track_max_speed_px;
+    auto speed = velocity.length() / SLOW_SETTING(track_max_speed) * SLOW_SETTING(cm_per_pixel);
     speed = 1 / SQR(1 + speed);
     
     /*if((frameIndex >= 48181 && identity().ID() == 368) || frameIndex == 48182)
@@ -2519,37 +2079,38 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     
     // additional condition, if blobs are apart more than a pixel,
     // check for their angular difference
-    if(cache.h && !cache.last_frame_manual) {
-        /*
-             \begin{equation} \label{eq:speed_prob}
-                 S_{i}\given{t | B_j} = \left(1 + \frac{\norm{ \left(\mathbf{p}_{B_j}(t) - \dot{\mathbf{p}}_i(t) \right) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
-             \end{equation}
-             
-             $$ \mathbf{a} = \dot{\mathbf{p}}_i(t) - \mathbf{p}_i(\tau_i)  $$
-             $$ \mathbf{b} = \mathbf{p}_{B_j}(t) - \mathbf{p}_i(\tau_i) $$
-             
-             \begin{equation} \label{eq:angle_prob}
-                 A_{i}\given{t,\tau_i | B_j } =
-                 \begin{cases}
-                     1 - \frac{1}{\pi}\left|\atantwo\left\{\norm{ \mathbf{a}\times \mathbf{b} }, \mathbf{a}\cdot \mathbf{b}\right\}\right| & \mathrm{if} \norm{\mathbf{a}} > 1 \wedge \norm{\mathbf{b}} > 1 \\
-                     1 & \mathrm{otherwise}
-                 \end{cases}
-             \end{equation}
-        */
-        auto line_center_last = blob_center - cache.last_seen_px;
-        auto line_est_last = cache.estimated_px - cache.last_seen_px;
+    if(not cache.valid_frame)
+        return speed;
+    
+    /*
+         \begin{equation} \label{eq:speed_prob}
+             S_{i}\given{t | B_j} = \left(1 + \frac{\norm{ \left(\mathbf{p}_{B_j}(t) - \dot{\mathbf{p}}_i(t) \right) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
+         \end{equation}
+         
+         $$ \mathbf{a} = \dot{\mathbf{p}}_i(t) - \mathbf{p}_i(\tau_i)  $$
+         $$ \mathbf{b} = \mathbf{p}_{B_j}(t) - \mathbf{p}_i(\tau_i) $$
+         
+         \begin{equation} \label{eq:angle_prob}
+             A_{i}\given{t,\tau_i | B_j } =
+             \begin{cases}
+                 1 - \frac{1}{\pi}\left|\atantwo\left\{\norm{ \mathbf{a}\times \mathbf{b} }, \mathbf{a}\cdot \mathbf{b}\right\}\right| & \mathrm{if} \norm{\mathbf{a}} > 1 \wedge \norm{\mathbf{b}} > 1 \\
+                 1 & \mathrm{otherwise}
+             \end{cases}
+         \end{equation}
+    */
+    auto line_center_last = blob_center - cache.last_seen_px;
+    auto line_est_last = cache.estimated_px - cache.last_seen_px;
+    
+    if(line_center_last.sqlength() > 1
+       && line_est_last.sqlength() > 1)
+    {
+        float a = adiffangle(line_center_last, line_est_last);
+        assert(!std::isnan(a));
         
-        if(line_center_last.sqlength() > 1
-           && line_est_last.sqlength() > 1)
-        {
-            float a = adiffangle(line_center_last, line_est_last);
-            assert(!std::isnan(a));
-            
-            a = abs(a / M_PI);
-            a = 0.9 + SQR(1 - a) * 0.1;
-            
-            return speed * a;
-        }
+        a = abs(a / M_PI);
+        a = 0.9 + SQR(1 - a) * 0.1;
+        
+        return speed * a;
     }
     
     return speed;
@@ -2562,38 +2123,42 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     return max(0.5, 1 - 0.25 * (SQR(cmn::abs(min(2, num_pixels / cache.size_average) - 1))));
 }*/
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::CompressedBlob& blob) const {
+Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::CompressedBlob& blob) const {
     auto bounds = blob.calculate_bounds();
     return probability(label, cache, frameIndex, bounds.pos() + bounds.size() * 0.5, blob.num_pixels());
 }
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::BlobPtr& blob) const {
-    return probability(label, cache, frameIndex, blob->bounds().pos() + blob->bounds().size() * 0.5, blob->num_pixels());
+Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const pv::Blob& blob) const {
+    return probability(label, cache, frameIndex, blob.bounds().pos() + blob.bounds().size() * 0.5, blob.num_pixels());
 }
 
-Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
+Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
     assert(frameIndex >= _startFrame);
     //if (frameIndex < _startFrame)
     //    throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
     assert(!cache.individual_empty);
 
-    if (cache.consistent_categories && cache.current_category != -1) {
+    //if (//cache.consistent_categories &&
+    //    cache.current_category != -1)
+    //{
         //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
         //if(identity().ID() == 38)
         //    FormatWarning("Frame ",frameIndex,": blob ",blob.blob_id()," -> ",l ? l->name.c_str() : "N/A"," (",l ? l->id : -1,") and previous is ",cache.current_category);
-        if (label != -1) {
-            if (label != cache.current_category) {
-                //if(identity().ID() == 38)
-                 //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id());
-                //return Probability{ 0, 0, 0, 0 };
-                return 0;
-            }
+        if (label != -1
+            && label != cache.current_category
+            && cache.current_category != -1) /// label can be -1
+        {
+            //if(identity().ID() == 38)
+             //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id());
+            //return Probability{ 0, 0, 0, 0 };
+            return 0;
         }
-    }
+    //}
 
     const Vec2& blob_pos = position;
     //auto && [ p_position, p_speed, p_angle ] = 
     auto p_position =    position_probability(cache, frameIndex, pixels, blob_pos, position);
+    //thread_print("** ", frameIndex, ": ", identity().ID(), " + ", blob_pos, " => ", p_position * cache.time_probability, " t=", cache.time_probability);
     
     /**
          \begin{equation} \label{eq:combined_prob}
@@ -2601,72 +2166,72 @@ Individual::Probability Individual::probability(int label, const IndividualCache
          \end{equation}
      */
     //return {
-    return (cache.last_frame_manual ? 1.0f : 1.0f) * p_position * cache.time_probability;
+    return p_position * cache.time_probability;
     //    cache.time_probability,
     //    p_position,
     //    p_angle
     //};
 }
 
-const std::unique_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
+const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
 {
-    if(!empty()) {
-        if(frameIndex <= _startFrame)
-            return _basic_stuff.front();
-        if(frameIndex >= _endFrame)
-            return _basic_stuff.back();
-        
-        auto end = _frame_segments.end();
-        auto it = std::lower_bound(_frame_segments.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
-            return ptr->start() < frame;
-        });
-        
-        if(it == end) { // we are out of range, return last
-            auto idx = _frame_segments.back()->basic_stuff(frameIndex);
-            if(idx != -1)
-                return _basic_stuff[ idx ];
-            else
-                return _basic_stuff.back();
-        }
-        
-        int32_t index = (int32_t)_basic_stuff.size()-1;
-        if((*it)->start() > frameIndex) {
-            if(it != _frame_segments.begin()) {
-                // it is either in between segments (no frame)
-                // or inside the previous segment
-                --it;
-                
-                if((*it)->contains(frameIndex)) {
-                    index = (*it)->basic_stuff(frameIndex);
-                } else {
-                    index = (*it)->basic_index.back();
-                }
-                
-            } else {
-                // it is located before our first startFrame
-                // this should not happen
-                //index = it->second->basic_index.front();
-                throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding segment ",(*it)->start(),"-",(*it)->end(),"");
-            }
+    if(empty()) {
+        throw U_EXCEPTION("Individual ", *this," is empty. Cannot retrieve frame ",frameIndex,".");
+    }
+    
+    if(frameIndex <= _startFrame)
+        return _basic_stuff.front().get();
+    if(frameIndex >= _endFrame)
+        return _basic_stuff.back().get();
+    
+    auto end = _frame_segments.end();
+    auto it = std::lower_bound(_frame_segments.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
+        return ptr->start() < frame;
+    });
+    
+    if(it == end) { // we are out of range, return last
+        auto idx = _frame_segments.back()->basic_stuff(frameIndex);
+        if(idx != -1)
+            return _basic_stuff[ idx ].get();
+        else
+            return _basic_stuff.back().get();
+    }
+    
+    int32_t index = (int32_t)_basic_stuff.size()-1;
+    if((*it)->start() > frameIndex) {
+        if(it != _frame_segments.begin()) {
+            // it is either in between segments (no frame)
+            // or inside the previous segment
+            --it;
             
-        } else {
             if((*it)->contains(frameIndex)) {
                 index = (*it)->basic_stuff(frameIndex);
             } else {
-                assert((*it)->start() == frameIndex);
-                index = (*it)->basic_index.front();
+                index = (*it)->basic_index.back();
             }
+            
+        } else {
+            // it is located before our first startFrame
+            // this should not happen
+            //index = it->second->basic_index.front();
+            throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding segment ",(*it)->start(),"-",(*it)->end(),"");
         }
         
-        assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
-        return _basic_stuff[ index ];
+    } else {
+        if((*it)->contains(frameIndex)) {
+            index = (*it)->basic_stuff(frameIndex);
+        } else {
+            assert((*it)->start() == frameIndex);
+            index = (*it)->basic_index.front();
+        }
     }
     
-    throw U_EXCEPTION("Cannot find a frame for ",frameIndex,"");
+    assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
+    return _basic_stuff[ index ].get();
 }
 
 std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> Individual::calculate_previous_vector(Frame_t frameIndex) const {
-    const auto min_samples = Frame_t(FAST_SETTINGS(posture_direction_smoothing));
+    const auto min_samples = Frame_t(FAST_SETTING(posture_direction_smoothing));
     std::vector<float> tmp;
     std::vector<std::tuple<float, float>> samples;
     MovementInformation movement;
@@ -2717,16 +2282,21 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     //for(size_t i=0; i<all_head_positions.size(); ++i) {
     //}
     
-    Vec2 last_head(gui::Graph::invalid());
+    Vec2 last_head(GlobalSettings::invalid());
     if(!all_head_positions.empty()) {
         last_head = all_head_positions.front();
     }
     
     if(frameIndex > start_frame()) {
         auto props = Tracker::properties(frameIndex);
-        auto cache = cache_for_frame(frameIndex, props->time);
-        movement.position = cache.estimated_px;
-        movement.velocity = Vec2(position_sum);
+        auto previous = Tracker::properties(frameIndex - 1_f);
+        auto cache = cache_for_frame(previous, frameIndex, props->time);
+        if(cache) {
+            movement.position = cache.value().estimated_px;
+            movement.velocity = Vec2(position_sum);
+        } else {
+            FormatWarning("Cannot calculate cache_for_frame in ", frameIndex, " for ", *this, " because: ", cache.error());
+        }
     }
     //movement.position = last_head;
     //movement.velocity = centroid(frameIndex)->v(PX_AND_SECONDS, true);
@@ -2830,14 +2400,17 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 }
 #endif
 
-void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Image::Ptr greyscale) {
+void Individual::save_posture(const BasicStuff&,
+                              Frame_t frameIndex,
+                              pv::BlobPtr&& pixels)
+{//Image::Ptr greyscale) {
     /*auto c = centroid(frameIndex);
     auto direction = c->v();
     direction /= ::length(direction);*/
     
-    assert(stuff.pixels);
+    assert(pixels);
     Posture ptr(frameIndex, identity().ID());
-    ptr.calculate_posture(frameIndex, stuff.pixels);
+    ptr.calculate_posture(frameIndex, pixels.get());
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);
     
     if(ptr.outline_empty() /*|| !ptr.normalized_midline()*/) {
@@ -2857,12 +2430,12 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
         
         cv::putText(mat, std::to_string(frameIndex), cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN, 0.8, cv::Scalar(255));
         tf::imshow("greyscale", mat);
-        SETTING(analysis_paused) = true;
+        SETTING(track_pause) = true;
     }*/
     
 	if(!ptr.outline_empty()) {
         const auto &midline = ptr.normalized_midline();
-		/*if(midline && midline->size() != FAST_SETTINGS(midline_resolution)) {
+		/*if(midline && midline->size() != FAST_SETTING(midline_resolution)) {
             FormatWarning("Posture error (",midline->size()," segments) in ",_identity.ID()," at frame ",frameIndex,".");
 		}*/
         
@@ -2879,10 +2452,10 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
             stuff->outline = std::make_shared<MinimalOutline>(ptr.outline());
         
         if(midline && !midline->empty()) {
-            //if(!FAST_SETTINGS(midline_samples) || _midline_length.added() < FAST_SETTINGS(midline_samples))
+            //if(!FAST_SETTING(midline_samples) || _midline_length.added() < FAST_SETTING(midline_samples))
             //    _midline_length.addNumber(midline->len());
             
-            //if(!FAST_SETTINGS(midline_samples) || _outline_size.added() < FAST_SETTINGS(midline_samples))
+            //if(!FAST_SETTING(midline_samples) || _outline_size.added() < FAST_SETTING(midline_samples))
             //    _outline_size.addNumber(_outlines[frameIndex]->size());
             
             //auto copy = std::make_shared<Midline>(*midline);
@@ -2899,7 +2472,7 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
 	}
 }
 
-Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& pixels) {
+Vec2 Individual::weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels) {
     // calculate midline centroid
     Vec2 centroid_point(0, 0);
     float weights = 0;
@@ -2928,187 +2501,15 @@ Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& p
     return centroid_point / weights;
 }
 
-std::tuple<Image::UPtr, Vec2> normalize_image(const cv::Mat& mask, const cv::Mat& image, const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat padded;
-    
-    if(midline_length < 0) {
-        static Timer timer;
-        if(timer.elapsed() > 1) { // dont spam messages
-            FormatWarning("[Individual::calculate_normalized_diff_image] invalid midline_length");
-            timer.reset();
-        }
-        return {nullptr, Vec2()};
-    }
-        //throw std::invalid_argument("[Individual::calculate_normalized_diff_image] invalid midline_length");
-    
-    
-    if(!output_size.empty())
-        padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
-    else
-        image.copyTo(padded);
-    assert(padded.isContinuous());
-    
-    auto size = Size2(padded.size());
-    auto scale = FAST_SETTINGS(recognition_image_scale);
-    //Vec2 pos = size * 0.5 + Vec2(midline_length * 0.4);
-    
-    gui::Transform tr;
-    if(use_legacy) {
-        tr.translate(size * 0.5);
-        tr.scale(Vec2(scale));
-        tr.translate(Vec2(-midline_length * 0.5, 0));
-        
-    } else {
-        tr.translate(size * 0.5);
-        tr.scale(Vec2(scale));
-        tr.translate(Vec2(midline_length * 0.4));
-    }
-    tr.combine(midline_transform);
-    
-    auto t = tr.toCV();
-    
-    image.copyTo(image, mask);
-    //tf::imshow("before", image);
-    
-    cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
-    //resize_image(padded, SETTING(recognition_image_scale).value<float>());
-    
-    //tf::imshow("after", padded);
-    int left = 0, right = 0, top = 0, bottom = 0;
-    
-    if(!output_size.empty()) {
-        if(padded.cols < output_size.width) {
-            left = roundf(output_size.width - padded.cols);
-            right = left / 2;
-            left -= right;
-        }
-        
-        if(padded.rows < output_size.height) {
-            top = roundf(output_size.height - padded.rows);
-            bottom = top / 2;
-            top -= bottom;
-        }
-        
-        if(left || right || top || bottom)
-            cv::copyMakeBorder(padded, padded, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
-        
-        assert(padded.cols >= output_size.width && padded.rows >= output_size.height);
-        if(padded.cols > output_size.width || padded.rows > output_size.height) {
-            left = padded.cols - output_size.width;
-            right = left / 2;
-            left -= right;
-            
-            top = padded.rows - output_size.height;
-            bottom = top / 2;
-            top -= bottom;
-            
-            padded(Bounds(left, top, padded.cols - left - right, padded.rows - top - bottom)).copyTo(padded);
-        }
-    }
-    
-    if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
-        throw U_EXCEPTION("Padded size differs from expected size (",padded.cols,"x",padded.rows," != ",output_size.width,"x",output_size.height,")");
-    
-    auto i = tr.getInverse();
-    auto pt = i.transformPoint(left, top);
-    return { Image::Make(padded), pt };
-}
-
-std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat mask, image;
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, &Tracker::average(), 0);
-    
-    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
-}
-
-std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat mask, image;
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
-    
-    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
-}
-
-std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {
-    cv::Mat mask, image;
-    cv::Mat padded;
-    
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
-    image.copyTo(padded, mask);
-    
-    auto scale = FAST_SETTINGS(recognition_image_scale);
-    if(scale != 1)
-        resize_image(padded, scale);
-    
-    Bounds bounds(blob->bounds().pos(), blob->bounds().size() + blob->bounds().pos());
-    
-    if(!output_size.empty()) {
-        int left = 0, right = 0, top = 0, bottom = 0;
-        if(padded.cols < output_size.width) {
-            left = roundf(output_size.width - padded.cols);
-            right = left / 2;
-            left -= right;
-        }
-        
-        if(padded.rows < output_size.height) {
-            top = roundf(output_size.height - padded.rows);
-            bottom = top / 2;
-            top -= bottom;
-        }
-        
-        if(left || right || top || bottom) {
-            bounds.x -= left;
-            bounds.y -= top;
-            bounds.width += right;
-            bounds.height += bottom;
-            
-            cv::copyMakeBorder(padded, padded, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
-        }
-        
-        bounds << Size2(bounds.size() - bounds.pos());
-        
-        assert(padded.cols >= output_size.width && padded.rows >= output_size.height);
-        if(padded.cols > output_size.width || padded.rows > output_size.height) {
-            left = padded.cols - output_size.width;
-            right = left / 2;
-            left -= right;
-            
-            top = padded.rows - output_size.height;
-            bottom = top / 2;
-            top -= bottom;
-            
-            Bounds cut(left, top, padded.cols - left - right, padded.rows - top - bottom);
-            
-            bounds.x += cut.x;
-            bounds.y += cut.y;
-            bounds.width = cut.width;
-            bounds.height = cut.height;
-            
-            padded(cut).copyTo(padded);
-        }
-    }
-    
-    if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
-        throw U_EXCEPTION("Padded size differs from expected size (",padded.cols,"x",padded.rows," != ",output_size.width,"x",output_size.height,")");
-    
-    
-    return { Image::Make(padded), bounds.pos() };
-}
-
 bool Individual::evaluate_fitness() const {
 	if(frame_count() <= 25)
 		return false;
 		
 	// check posture
-    if(FAST_SETTINGS(calculate_posture)) {
+    if(FAST_SETTING(calculate_posture)) {
 		for(auto i = start_frame(); i < end_frame(); ++i) {
             const auto m = midline(i);
-			if(m && m->size() != FAST_SETTINGS(midline_resolution))
+			if(m && m->size() != FAST_SETTING(midline_resolution))
 				return false;
 		}
 	}
@@ -3144,11 +2545,8 @@ void log(FILE* f, const char* cmd, ...) {
 #endif
 }
 
-std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fish, const Individual::SegmentInformation& segment)
+std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fish, const SegmentInformation& segment)
 {
-    if (!Tracker::recognition() || Tracker::recognition()->data().empty())
-        return {};
-
     auto for_frame = [fish](Frame_t frame) -> std::tuple<long_t, float> {
         std::map<long_t, std::tuple<long_t, float>> samples;
         
@@ -3156,15 +2554,16 @@ std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fis
         if(!blob)
             return {-1.f, 0.f};
         
-        auto raw = Tracker::recognition()->ps_raw(frame, blob->blob_id());
         float max_id = -1;
         float max_p = 0;
         
-        if(!raw.empty()) {
-            for (auto && [fdx, p] : raw) {
+        auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+        if(pred) {
+            auto map = track::prediction2map(*pred);
+            for (auto && [fdx, p] : map) {
                 if(p > max_p) {
                     max_p = p;
-                    max_id = fdx;
+                    max_id = fdx.get();
                 }
             }
         }
@@ -3204,8 +2603,8 @@ std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fis
     std::map<Frame_t, long_t> assigned_ids;
     std::vector<std::tuple<Range<Frame_t>, long_t>> debug_ids;
     
-    const size_t N = FAST_SETTINGS(frame_rate) * 2;
-    const Frame_t min_samples { Frame_t(N * 0.5) };
+    const size_t N = SLOW_SETTING(frame_rate) * 2u;
+    const Frame_t min_samples { Frame_t(Frame_t::number_t(SLOW_SETTING(frame_rate))) };
     
     for(auto i = segment.start(); i < segment.end(); ++i) {
         auto && [id, p] = for_frame(i);
@@ -3284,7 +2683,7 @@ void Individual::calculate_average_recognition() {
     _average_recognition.clear();
     
     std::map<Idx_t, size_t> samples;
-    const float frame_limit = FAST_SETTINGS(frame_rate) * 2;
+    const Frame_t frame_limit(SLOW_SETTING(frame_rate) * 2u);
     
     for(auto & segment : _frame_segments) {
         auto && [n, vector] = average_recognition(segment->start());
@@ -3297,14 +2696,14 @@ void Individual::calculate_average_recognition() {
     }
     
     std::map<FrameRange, std::set<long_t>> splits;
-#ifndef NDEBUG
+/*#ifndef NDEBUG
     std::string file = identity().name()+".log";
     FILE* f = fopen(file.c_str(), "wb");
     if(!f)
        FormatError("Cannot open file ", file," for writing ('",identity(),"')");
-#else
+#else*/
     FILE* f = nullptr;
-#endif
+//#endif
     
     // anything thats below 2 seconds + at least 10% more with a different id, is considered lame and unimportant
     std::map<Frame_t, FrameRange> processed_segments;
@@ -3327,7 +2726,7 @@ void Individual::calculate_average_recognition() {
             
             auto prev_end = segment->start() - 1_f;
             for(auto && [start, range] : split_up) {
-                assert(start == range.start() && prev_end + 1_f == start);
+                assert(start == range.start() && ((not prev_end.valid() && start == start_frame()) || (prev_end.valid() && prev_end + 1_f == start)));
                 prev_end = range.end();
                 processed_segments[start] = range;
                 
@@ -3353,7 +2752,7 @@ void Individual::calculate_average_recognition() {
 }
 
 std::tuple<bool, FrameRange> Individual::frame_has_segment_recognition(Frame_t frameIndex) const {
-    if(frameIndex > _endFrame || frameIndex < _startFrame)
+    if(not frameIndex.valid() || empty() || frameIndex > _endFrame || frameIndex < _startFrame)
         return {false, FrameRange()};
     
     auto range = get_segment(frameIndex);
@@ -3362,7 +2761,7 @@ std::tuple<bool, FrameRange> Individual::frame_has_segment_recognition(Frame_t f
 }
 
 std::tuple<bool, FrameRange> Individual::has_processed_segment(Frame_t frameIndex) const {
-    if(frameIndex > _endFrame || frameIndex < _startFrame)
+    if(not frameIndex.valid() || empty() || frameIndex > _endFrame || frameIndex < _startFrame)
         return {false, FrameRange()};
     
     auto range = get_recognition_segment(frameIndex);
@@ -3377,6 +2776,9 @@ std::tuple<bool, FrameRange> Individual::has_processed_segment(Frame_t frameInde
 const decltype(Individual::average_recognition_segment)::mapped_type Individual::processed_recognition(Frame_t segment_start) {
     auto it = average_processed_segment.find(segment_start);
     if(it == average_processed_segment.end()) {
+        //! acquire write access
+        LockGuard guard(w_t{}, "average_recognition_segment");
+        
         // average cannot be found for given segment. try to calculate it...
         auto sit = _recognition_segments.find(segment_start);
         if(sit == _recognition_segments.end())
@@ -3384,27 +2786,26 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         
         const auto &[ segment, usable] = sit->second;
         
-        if(segment.end >= _endFrame && Tracker::instance()->end_frame() != Tracker::analysis_range().end) {
+        if(segment.end >= _endFrame && Tracker::instance()->end_frame() != Tracker::analysis_range().end()) {
             return {0, {}};
         }
         
         std::map<Idx_t, std::tuple<long_t, float>> samples;
         size_t overall = 0;
 
-        if (!Tracker::recognition()->data().empty()) {
-            for (auto i = segment.start; i < segment.end; ++i) {
-                auto blob = this->blob(i);
-                if (!blob)
-                    continue;
+        for (auto i = segment.start; i < segment.end; ++i) {
+            auto blob = this->blob(i);
+            if (!blob)
+                continue;
 
-                auto raw = Tracker::recognition()->ps_raw(i, blob->blob_id());
-                if (!raw.empty()) {
-                    ++overall;
+            auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
+            if(pred) {
+                auto map = track::prediction2map(*pred);
+                ++overall;
 
-                    for (auto&& [fdx, p] : raw) {
-                        ++std::get<0>(samples[Idx_t(fdx)]);
-                        std::get<1>(samples[Idx_t(fdx)]) += p;
-                    }
+                for (auto&& [fdx, p] : map) {
+                    ++std::get<0>(samples[Idx_t(fdx)]);
+                    std::get<1>(samples[Idx_t(fdx)]) += p;
                 }
             }
         }
@@ -3434,9 +2835,6 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
 const decltype(Individual::average_recognition_segment)::mapped_type Individual::average_recognition(Frame_t segment_start) {
     auto it = average_recognition_segment.find(segment_start);
     if(it == average_recognition_segment.end()) {
-        if (Tracker::recognition()->data().empty())
-            return { 0,{} };
-
         // average cannot be found for given segment. try to calculate it...
         auto sit = std::upper_bound(_frame_segments.begin(), _frame_segments.end(), segment_start, [](Frame_t frame, const auto& ptr) {
             return frame < ptr->start();
@@ -3461,11 +2859,12 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(!blob)
                 continue;
             
-            auto raw = Tracker::recognition()->ps_raw(i, blob->blob_id());
-            if(!raw.empty()) {
+            auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
+            if(pred) {
+                auto map = track::prediction2map(*pred);
                 ++overall;
                 
-                for (auto && [fdx, p] : raw) {
+                for (auto && [fdx, p] : map) {
                     ++std::get<0>(samples[Idx_t(fdx)]);
                     std::get<1>(samples[Idx_t(fdx)]) += p;
                 }
@@ -3513,6 +2912,30 @@ std::tuple<size_t, Idx_t, float> Individual::average_recognition_identity(Frame_
     return {std::get<0>(it->second), mdx, mdx_p};
 }
 
+void Individual::add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
+    LockGuard guard(w_t{}, "add_custom_data");
+    auto it = _custom_data[frame].find(id);
+    if(it != _custom_data[frame].end()) {
+        FormatWarning("Custom data with id ", id," already present in frame ",frame,".");
+        it->second.second(it->second.first);
+    }
+    _custom_data[frame][id] = { ptr, fn_delete };
+}
+
+void * Individual::custom_data(Frame_t frame, long_t id) const {
+    LockGuard guard(ro_t{}, "custom_data");
+    auto it = _custom_data.find(frame);
+    if(it == _custom_data.end())
+        return NULL;
+    
+    auto it1 = it->second.find(id);
+    if(it1 != it->second.end()) {
+        return it1->second.first;
+    }
+    
+    return NULL;
+}
+
 void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range, const std::function<void(float, const std::string&)>& update, bool blocking) {
     if(range.empty())
         range = Range<Frame_t>(_startFrame, _endFrame);
@@ -3550,12 +2973,12 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     eye_angle.reserve(len * 2);
     eye_pos.reserve(len * 2);
     
-    std::shared_ptr<Tracker::LockGuard> guard;
+    std::shared_ptr<LockGuard> guard;
     
     iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto posture) -> bool
     {
         if(blocking)
-            guard = std::make_shared<Tracker::LockGuard>("new VisualField");
+            guard = std::make_shared<LockGuard>(ro_t{}, "new VisualField");
         if(!posture || !posture->head)
             return true;
         
@@ -3571,14 +2994,14 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
             frames.push_back(frame.get());
             
-            fish_pos.push_back(ptr->fish_pos());
+            fish_pos.emplace_back(ptr->fish_pos());
             fish_angle.push_back(ptr->fish_angle());
             
             for(long_t j=0; j<2; j++) {
                 auto &e = ptr->eyes()[j];
                 
                 eye_angle.push_back(e.angle);
-                eye_pos.push_back(e.pos);
+                eye_pos.emplace_back(e.pos);
                 
                 depth.insert(depth.end(), e._depth.begin(), e._depth.begin() + vres);
                 body_part.insert(body_part.end(), e._visible_head_distance.begin(), e._visible_head_distance.begin() + vres);
@@ -3608,7 +3031,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         Timer save_timer;
         cnpy::npy_save(path.str() + "_depth.npy", depth.data(), {
             len,
-            2,
+            2u,
             VisualField::layers,
             vres / VisualField::layers
         });
@@ -3667,12 +3090,12 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     update(2.8/3. * 0.5 + 0.5, "");
     std::vector<int> colors;
-    for(auto && [fdx, fish] : Tracker::instance()->_individuals) {
-        colors.push_back((int)fish->identity().ID());
+    IndividualManager::transform_all([&colors](auto fdx, auto fish) {
+        colors.push_back(fdx.get());
         colors.push_back(fish->identity().color().r);
         colors.push_back(fish->identity().color().g);
         colors.push_back(fish->identity().color().b);
-    }
+    });
     
     try {
         file::Path meta_path = use_npz ? (path.str() + ".npz") : (path.str() + "_meta.npz");
@@ -3682,7 +3105,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         }, use_npz ? "a" : "w");
         
         cmn::npz_save(meta_path.str(), "fov_range", std::vector<double>{-VisualField::symmetric_fov, VisualField::symmetric_fov}, "a");
-        cmn::npz_save(meta_path.str(), "frame_range", std::vector<long_t>{range.start.get(), range.end.get()}, "a");
+        cmn::npz_save(meta_path.str(), "frame_range", std::vector<long_t>{(long_t)range.start.get(), (long_t)range.end.get()}, "a");
         
         assert(fish_pos.size() == len);
         cmn::npz_save(meta_path.str(), "fish_pos", (const Float2_t*)fish_pos.data(), {len, 2}, "a");
@@ -3709,85 +3132,12 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     }
 }
 
-/*size_t Individual::memory_size() const {
-    std::map<std::string, FileSize> sizes;
-    size_t overall = 0;
-    
-    overall = sizeof(Individual);
-    overall += sizeof(decltype(_manually_matched)::value_type) * _manually_matched.size();
-    overall += sizeof(decltype(_frame_segments)::value_type) * _frame_segments.size();
-    
-    sizes["misc"] = overall;
-    
-    overall = sizeof(decltype(_blobs)::value_type) * _blobs.size();
-    for(auto && [frame, blob] : _blobs)
-        overall += blob->memory_size();
-    
-    sizes["blobs"] = overall;
-    
-    overall = 0;
-    
-    foreach([&](auto& c){
-        overall += c.second->memory_size() + sizeof(long_t);
-    }, _centroid, _head, _centroid_posture, _weighted_centroid);
-    
-    //overall += sizeof(decltype(_current_velocities)::value_type) * _current_velocities.size();
-    //overall += sizeof(decltype(_v_samples)::value_type) * _v_samples.size();
-    overall += sizeof(_local_cache)
-            + sizeof(decltype(_local_cache._current_velocities)::value_type) * _local_cache._current_velocities.size()
-            + sizeof(decltype(_local_cache._v_samples)) * _local_cache._v_samples.size();
-    
-    sizes["physical_properties"] = overall;
-    
-    overall = sizeof(decltype(_midlines)::value_type) * _midlines.size();
-    foreach([&](auto &pair) {
-        overall += pair.second->memory_size();
-    }, _midlines);
-    sizes["midlines"] = overall;
-    
-    overall = sizeof(decltype(_outlines)::value_type) * _outlines.size();
-    foreach([&](auto &pair) {
-        overall += pair.second->memory_size();
-    }, _outlines);
-    sizes["outlines"] = overall;
-    
-    overall = sizeof(decltype(_posture_original_angles)::value_type) * _posture_original_angles.size();
-    //overall += sizeof(float) * _outline_size.getHeapSize();
-    //overall += sizeof(float) * _midline_length.getHeapSize();
-    
-    foreach([&](auto &pair) {
-        overall += pair.second->memory_size();
-    }, _cached_fixed_midlines);
-    sizes["erasable_cache"] = overall;
-    
-    overall = 0;
-    overall += sizeof(decltype(_custom_data)::value_type) * _custom_data.size();
-    size_t objects = 0;
-    
-    for(auto && [key, map] : _custom_data) {
-        overall += sizeof(decltype(map)::value_type) * map.size();
-        objects += map.size();
-    }
-    
-    sizes["custom"] = overall;
-    
-    auto str = prettify_array(Meta::toStr(sizes));
-    
-    overall = 0;
-    foreach([&](auto &v){
-        overall += v.second.bytes;
-    }, sizes);
-    
-    auto fs = Meta::toStr(FileSize{overall});
-    
-    print("Fish ",identity().ID(),": ",str," (overall: ",fs," + ",objects," custom objects)");
-    
-    return overall;
-}*/
-
 std::string Individual::toStr() const {
     //std::stringstream ss;
     //ss << "Individual<" << _identity.ID() << " frames:" << _centroid.size() << " pos:" << head(_endFrame)->pos() << ">";
     return _identity.name();
 }
 
+bool Individual::empty() const noexcept {
+    return not _startFrame.valid();
+}
