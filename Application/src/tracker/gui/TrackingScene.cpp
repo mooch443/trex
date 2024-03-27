@@ -513,7 +513,7 @@ void TrackingScene::update_run_loop() {
         return;
     
     if(_data->_recorder.recording()) {
-        _data->_cache->set_dt(1.0 / double(FAST_SETTING(frame_rate)));
+        _data->_cache->set_dt(0.75 / double(FAST_SETTING(frame_rate)));
     } else {
         _data->_cache->set_dt(last_redraw.elapsed());
     }

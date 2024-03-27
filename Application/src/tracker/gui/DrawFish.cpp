@@ -43,7 +43,8 @@ CREATE_STRUCT(CachedGUIOptions,
     (bool, gui_happy_mode),
     (bool, gui_highlight_categories),
     (bool, gui_show_cliques),
-    (bool, gui_show_match_modes)
+    (bool, gui_show_match_modes),
+    (Frame_t, gui_pose_smoothing)
 )
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
@@ -291,7 +292,11 @@ Fish::~Fish() {
         
         _color = get_color(&_basic_stuff.value());
 
-        _average_pose = obj.pose_window(frameIndex.try_sub(5_f), frameIndex + 5_f, frameIndex);
+        //if(GUIOPTION(gui_pose_smoothing) > 0_f)
+        auto gui_pose_smoothing = GUIOPTION(gui_pose_smoothing);
+        _average_pose = obj.pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex);
+        //else
+        //    _average_pose = obj.pos
         if (not _skelett) {
             _skelett = std::make_unique<Skelett>();
         }

@@ -8,7 +8,8 @@ ModuleProxy::ModuleProxy(const std::string& name,
     : _unset(unset), m(name)
 {
     if(PythonIntegration::check_module(name, [this, unloader]() mutable {
-        unloader(*this);
+        if(unloader)
+            unloader(*this);
     }))
     {
         reinit(*this);
