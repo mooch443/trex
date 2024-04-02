@@ -379,6 +379,11 @@
                             "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
                         },
                         {
+                            "text":"Trajectories",
+                            "detail":"{if:{global.gui_show_paths}:'hide':'show'}",
+                            "action":"set:gui_show_paths:{not:{global.gui_show_paths}}"
+                        },
+                        {
                             "text":"Zoom on Selection",
                             "detail":"{if:{global.gui_auto_scale_focus_one}:'disable':'enable'}",
                             "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"

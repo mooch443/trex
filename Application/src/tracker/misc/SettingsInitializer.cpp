@@ -237,7 +237,11 @@ void load(file::PathArray source,
     {
         if (filename.remove_filename().exists() && filename.is_absolute())
         {
-			combined.map["output_dir"] = filename.remove_filename();
+            auto output_dir = filename.remove_filename();
+            auto output_prefix = SETTING(output_prefix).value<std::string>();
+            if(not output_prefix.empty() && output_dir.filename() == output_prefix)
+                output_dir = output_dir.remove_filename();
+			combined.map["output_dir"] = output_dir;
 			set_config_if_different("output_dir", combined.map);
             //filename = filename.filename();
         }
