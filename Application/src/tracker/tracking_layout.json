@@ -42,6 +42,7 @@
                 "type":"vlayout",
                 "pos":[10,90],
                 "fill":[30,30,30,220],
+                "line":"{primary_selection.color}",
                 "pad":[5,5,5,5],
                 "clickable":true,
                 "name":"info_box",

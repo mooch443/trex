@@ -404,7 +404,15 @@ void TrackingScene::activate() {
         }
         
         if(utils::beginsWith(key, "gui_show_")
-           || is_in(key, "track_threshold", "track_size_filter", "frame_rate"))
+           || is_in(key,
+                 "cam_matrix",
+                 "cam_undistort",
+                 "cam_undistort_vector",
+                 "analysis_range", 
+                 "track_threshold", 
+                 "track_size_filter", 
+                 "frame_rate", 
+                 "gui_focus_group"))
         {
             if(_data && _data->_cache) {
                 _data->_cache->set_tracking_dirty();
@@ -1159,6 +1167,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     map["ps"] = std::vector<std::tuple<pv::bid, Probability, Probability>>{};
                     map["p"] = 0.0;
                     map["p_time"] = 0.0;
+                    map["color"] = Identity::Temporary(fdx).color();
                     
                     auto probs = fdx.valid()
                         ? _data->_cache->probs(fdx)
