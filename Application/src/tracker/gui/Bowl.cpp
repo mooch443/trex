@@ -28,10 +28,10 @@ struct Bowl::Data {
     Frame_t _last_frame;
     
     //! The heatmap controller.
-    gui::heatmap::HeatmapController* _heatmapController{nullptr};
+    std::unique_ptr<gui::heatmap::HeatmapController> _heatmapController;
     
     std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes, _vf_shapes;
-    std::atomic<bool> _shapes_updated{false};
+    std::atomic<bool> _shapes_updated{true};
     CallbackCollection _callback;
     
     bool update_shapes();
@@ -51,9 +51,6 @@ struct Bowl::Data {
     ~Data() {
         if(_callback)
             GlobalSettings::map().unregister_callbacks(std::move(_callback));
-        
-        if(_heatmapController)
-            delete _heatmapController;
     }
 };
 
@@ -111,7 +108,7 @@ void Bowl::set_target_focus(const std::vector<Vec2>& target_points) {
 
 bool Bowl::Data::update_shapes() {
     /// only update shapes if necessary -- this might be expensive
-    if(_shapes_updated.load()) {
+    if(not _shapes_updated.load()) {
         return false;
     }
     
@@ -463,7 +460,7 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         
         if(GUI_SETTINGS(gui_show_heatmap)) {
             if(!_data->_heatmapController)
-                _data->_heatmapController = new gui::heatmap::HeatmapController;
+                _data->_heatmapController = std::make_unique<gui::heatmap::HeatmapController>();
             _data->_heatmapController->set_frame(frame);
             advance_wrap(*_data->_heatmapController);
         }
