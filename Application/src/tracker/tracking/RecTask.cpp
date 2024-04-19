@@ -309,7 +309,7 @@ void RecTask::init() {
             py::import_module(tagwork);
             auto path = SETTING(tags_model_path).value<file::Path>();
             if(path.empty() || !path.exists()) {
-                throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_tgrabs.html#tags_model_path` for more information.");
+                throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_trex.html#tags_model_path` for more information.");
             }
             py::set_variable("model_path", path.str(), tagwork);
             py::set_variable("width", 32, tagwork);

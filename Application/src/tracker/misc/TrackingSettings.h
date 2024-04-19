@@ -52,8 +52,24 @@ struct AssignInfo {
     default_config::matching_mode_t::Class match_mode;
 };
 
+//! Given a pose (a set of points) this array indicates the order and indexes
+//! that shall contribute to the midline of animal poses. This is mainly used
+//! for `individual_image_normalization` right now.
+struct PoseMidlineIndexes {
+    std::vector<uint8_t> indexes;
+    
+    static PoseMidlineIndexes fromStr(const std::string&);
+    std::string toStr() const;
+    nlohmann::json to_json() const;
+    static std::string class_name() { return "PoseMidlineIndexes"; }
+
+    bool operator==(const PoseMidlineIndexes& other) const {
+        return indexes == other.indexes;
+    }
+};
+
 //! A global settings cache used across the application by
-//! calling FAST_SETTING(name).
+//! calling `FAST_SETTING(name)`.
 CREATE_STRUCT(Settings,
   (uint32_t, smooth_window),
   (float, cm_per_pixel),

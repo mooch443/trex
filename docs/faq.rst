@@ -32,18 +32,16 @@ I set :func:`track_max_individuals` to zero, but it still does not track all ind
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Pause the analysis (``,`` key, this may take a few seconds). The matching algorithm (can be changed in :func:`match_mode`) has diffculty separating individuals into distinct cliques of neighboring individuals, or there are simply too many of them - which only happens if you changed the :func:`match_mode` from `automatic` to `tree`. This could be because your video contains too many trackable objects and no limit on the number of individuals has been set (:func:`track_max_individuals`), or there are significant time-jumps in the video. If the number of individuals should be much lower than detected, check your :func:`track_threshold`/:func:`track_size_filter` settings. If that does not fix anything, check your settings for :func:`track_max_speed`, which controls the size of the neighbourhood to be considered during matching, and reduce it until there are no further warnings. Alternatively, change the :func:`match_mode` to automatic, which should get rid of these problems.
 	
-|grabs| does not quit and only shows "[...] not properly closed [...]"!
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+|trex| does not quit and seems to be stuck!
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	You may have to forcibly quit the application, either using a task manager, or by finding and manually ending its process in a Unix terminal:
 
 	.. code-block:: bash
 
-		ps aux | grep tgrabs    # on unix systems
+		ps aux | grep trex      # this is case-sensitive, so also try TRex
 		kill <pid>              # insert the correct PID from the previous call here
-		
-		killall tgrabs          # alternative (kills all instances)
 
-I have attached my Basler camera, and now |grabs| is stuck initializing the camera!
+I have attached my Basler camera, and now |trex| is stuck initializing the camera!
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Most likely the camera driver crashed. Try restarting your computer to fix it.
 

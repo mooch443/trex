@@ -32,7 +32,8 @@ author = 'Tristan Walter'
 # ones.
 extensions = [
     "sphinx_rtd_dark_mode",
-    'sphinx.ext.autosectionlabel'
+    'sphinx.ext.autosectionlabel',
+    'sphinx_copybutton'
 ]
 
 default_dark_mode = True
@@ -64,7 +65,9 @@ master_doc = 'contents'
 html_static_path = [ 
     "custom.css"
 ]
-html_css_files = []
+html_css_files = [
+    "custom.css"
+]
 
 html_theme_options = {
     'canonical_url': '',
@@ -81,5 +84,15 @@ html_theme_options = {
 #    'titles_only': True
 }
 
+from docutils import nodes, utils
+from docutils.parsers.rst.roles import set_classes
+
+def green_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    set_classes(options)
+    text = utils.unescape(text)
+    node = nodes.inline(rawtext, text, classes=['green-text'])
+    return [node], []
+
 def setup(app):
     app.add_css_file('custom.css')  # may also be an URL
+    app.add_role('green', green_role)

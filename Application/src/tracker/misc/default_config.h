@@ -48,7 +48,7 @@ namespace default_config {
     ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance)
     ENUM_CLASS_HAS_DOCS(heatmap_normalization_t)
 
-    ENUM_CLASS(individual_image_normalization_t, none, moments, posture, legacy)
+    ENUM_CLASS(individual_image_normalization_t, none, moments, posture, legacy, pose)
     ENUM_CLASS_HAS_DOCS(individual_image_normalization_t)
 
     ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)

@@ -3,11 +3,8 @@
 .. toctree::
    :maxdepth: 2
 
-.. NOTE::
-	|trex| now supports the new Apple Silicone Macs with Apple's own M1 CPU, including hardware accelerated machine learning! Please follow the instructions below to obtain a native version with hardware acceleration: :ref:`install-m1`.
-
 .. WARNING::
-	On Windows and Linux a NVIDIA graphics-card is required for hardware accelerated machine learning.
+	On Windows and Linux a NVIDIA graphics-card is required for hardware accelerated machine learning. On macOS (Apple Silicone), the Metal backend is used for hardware acceleration.
 
 Installation
 ############
@@ -15,67 +12,30 @@ Installation
 The easy way (Windows, Linux and Intel macOS)
 *********************************************
 
-|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
+|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, but you can name it whatever you like) and installing |trex| into it:
 
-	# macOS, Windows, Linux
-	conda create -n tracking -c trexing trex
+:green:`# macOS (Apple Silicone)`::
 
-The down-side is that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself.
+	conda create -n tracking --override-channels -c trex-beta -c pytorch -c conda-forge trex
 
-.. _install-m1:
+:green:`# macOS (Intel)`::
 
-Apple Silicone (macOS arm64)
-****************************
+	conda create -n tracking --override-channels -c trex-beta -c pytorch -c local trex
 
-If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works fine in Rosetta. However, I would strongly encourage installing |trex| via ``miniforge``, which is like Anaconda but supports native arm64 packages. This way, hardware accelerated machine learning on your M1 Macbook is possible! Simply follow the instructions here for installing miniforge: `github.com/apple/tensorflow_macos <https://github.com/apple/tensorflow_macos/issues/153#issue-799924913>`_. Once you're done, you can run the same command as above (only that now everything will be all fast and native ``arm64`` code).
+:green:`# Windows, Linux`::
 
-There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native macOS (`developer.apple.com <https://developer.apple.com/metal/tensorflow-plugin/>`_) backend. An Apple Silicone MacBook (2020) only needs ~50ms/step and (with the same data and code) is not much slower than my fast i7 PC with an NVIDIA Geforce 1070 -- running at roughly ~21ms/step. To install tensorflow inside your activated environment, just run::
+	conda create -n tracking --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex
 
-	conda install -c apple tensorflow-deps && python -m pip install tensorflow-macos tensorflow-metal
+After the installation is complete, you can activate the environment and run |trex| using the following commands::
 
-Now |trex|, if installed within the same environment, has the full power of your Mac at its disposal. Have fun!
+	conda activate tracking
+	trex
 
-Installing the Beta Version
-***************************
-The beta version of TRex, known as TRexA, is currently under development aiming to consolidate the functionalities of TRex and TGrabs into a single streamlined tool. While it's capable of performing segmentation, tracking, and additional machine learning tasks, it's still in the beta phase and may not be stable for production use.
+The down-side of installing through conda may be that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself. 
 
-However, it may contain some bug fixes for issues that are present in the latest stable release. If you're experiencing issues with the stable version, you may want to try the beta version to see if it resolves your issue.
-
-Using Beta Installers
----------------------
-Installers for the beta version are provided for Windows, Linux, and MacOS. `These <https://drive.google.com/drive/folders/1TNGnDQP4gqPwCBvAgBRDlJ_U4CCdPSAx>`_ installers set up a minimal portable version of conda and TRexA. 
-
-- On MacOS, after installation to `~/trex-beta`, open a new terminal and type:
-
-    .. code-block:: bash
-
-        eval "$(~/trex-beta/condabin/conda shell.bash hook)"
-
-- On Windows and Linux, an icon will be created on your desktop or in your start-menu to launch TRexA.
-
-Installing via Conda
---------------------
-Alternatively, you can install the beta version using Conda. Create an environment named `beta` and use the following commands based on your operating system:
-
-- **Linux, Windows**:
-
-    .. code-block:: bash
-
-        conda create -n beta --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex pytorch-cuda=11.7
-        conda activate beta
-        python -m pip install opencv-python ultralytics "numpy>=1.23,<1.24" 'tensorflow-gpu>=2,<3'
-
-- **MacOS**:
-
-    .. code-block:: bash
-
-        conda create -n beta --override-channels -c trex-beta -c pytorch-nightly -c conda-forge trex
-
-Once installed, you can access TRexA by typing `trexa` in the terminal, you can still access the other programs like `trex` and `tgrabs` as well, of course.
-
-.. warning::
-    The beta version is under development and may not be stable. It is not recommended for use in a production environment without thorough testing.
-
+.. NOTE::
+	
+	You can also check out our beta channel for the latest features and bug fixes (but maybe also new bugs). Just replace the ``-c trexing`` with ``-c trex-beta`` in the above command.
 
 Compile it yourself
 *******************
@@ -107,28 +67,40 @@ Finally, you can build the package using::
 	./build_conda_package.bat # Windows
 	./build_conda_package.sh  # Linux, macOS
 
-This runs ``conda build .`` (+ possibly additional arguments), which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that.
+This runs ``conda build .`` (+ possibly additional arguments for the channels, as in the ``conda create`` command), which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that.
 
 .. NOTE::
 	Note that if you want to add Pylon SDKs etc., you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
 
-After compilation was successful, |trex| can be installed using::
+After compilation was successful, |trex| can be installed using:
 
-	# macOS, Windows, Linux
-	conda create -n tracking -c local trex
+:green:`# macOS (Apple Silicone)`::
+
+	conda create -n tracking --override-channels -c local -c pytorch -c conda-forge trex
+
+:green:`# macOS (Intel)`::
+
+	conda create -n tracking --override-channels -c local -c pytorch -c defaults trex
+
+:green:`# Windows, Linux`::
+
+	conda create -n tracking --override-channels -c local -c pytorch -c defaults trex
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
 Finally, to run it simply switch to the environment you just created (tracking) using ``conda activate tracking`` and run ``trex`` to see if the window appears!
 
-Compiling manually
-==================
+Compiling manually (TODO)
+=========================
+
+.. WARNING::
+	Please note that the below instructions may not be up-to-date yet. I am working on it and will update them as soon as possible.
 
 First, make sure that you fulfill the platform-specific requirements:
 
 * **Windows**: Please make sure you have Visual Studio installed on your computer. It can be downloaded for free from https://visualstudio.microsoft.com. We have tested Visual Studio versions 2019 up to 2022. We are using the Anaconda PowerShell here in our examples.
 * **MacOS**: Make sure you have Xcode and the Xcode compiler tools installed. They can be downloaded for free from the App Store (Xcode includes the compiler tools). We used ``macOS >=10.15`` and ``Xcode >=11.5``.
-* **Linux**: You should have build-essential installed, as well as ``g++ >=9.3`` or a different compiler with full C++20 support.
+* **Linux**: You should have build-essential installed, as well as ``g++ >=11`` or a different compiler with C++23 support.
 
 As well as the general requirements:
 

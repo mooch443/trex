@@ -15,7 +15,7 @@ For example, in order to set the number of individuals to 5 and prefix all indiv
 
 	trex -i example -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
 
-A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`, and for |trex| at :doc:`parameters_trex`.
+A full reference of available parameters for |trex| at :doc:`parameters_trex`.
 
 If you're launching |trex| by double-clicking it (or using voice commands), most parameters (except system-variables) can be adjusted after loading a video.
 
@@ -79,7 +79,7 @@ Running |grabs| usually involves the following parameters::
 
 **Destination** is expected to be either a full path, or the name of the video (without extension). This will save a :code:`DESTINATION.pv` video file in the :code:`~/Videos/` folder.
 
-**Additional** can be any number of parameters -- be it for tracking or image processing. A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`.
+**Additional** can be any number of parameters -- be it for tracking or image processing. A full reference of available parameters for |trex| can be found at :doc:`parameters_trex`.
 
 If multiple files match the **pattern**, then they will be concatenated into one long video. This can be useful for videos that have been split into many small parts, or just a convenient way of e.g. training visual identification on multiple videos of the same individuals.
 
