@@ -10,6 +10,9 @@
 #include <misc/CircularGraph.h>
 #include <gui/DrawSFBase.h>
 
+#include <processing/CPULabeling.h>
+#include <misc/PVBlob.h>
+
 namespace track {
     static const std::vector<Vec2> neighbors = {
         Vec2(-1,-1),
@@ -220,6 +223,214 @@ namespace track {
         }
         
         return eps;
+    }
+
+//#define DEBUG_OUTLINES
+using namespace blob;
+
+float distanceBetweenPoints(const Vec2& p1, const Vec2& p2) {
+    float dx = p1.x - p2.x;
+    float dy = p1.y - p2.y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+bool circlesIntersect(const Vec2& center1, float radius1, const Vec2& center2, float radius2) {
+    return distanceBetweenPoints(center1, center2) < max(0, (radius1 + radius2) - 2);
+}
+
+// Cross product to determine the orientation
+float cross(const Vec2& O, const Vec2& A, const Vec2& B) {
+    return (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
+}
+
+void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) {
+#ifdef DEBUG_OUTLINES
+    Bounds start(FLT_MAX, FLT_MAX, 0, 0);
+    for(auto pt : centers)
+        start.combine(Bounds(pt - Vec2(10), Size2(pt) + Size2(10)));
+    start = start - Size2(start.pos());
+#endif
+    
+#ifdef DEBUG_OUTLINES
+    cv::Mat image = cv::Mat(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
+    for(size_t k = 0; k < centers.size(); ++k) {
+        cv::circle(image, centers[k] - start.pos(), radii[k], gui::Blue, 1);
+    }
+    cv::imshow("Circle Merging", image);
+    cv::waitKey(0);
+#endif
+    
+    if(centers.empty())
+        return;
+    
+    //print("initial = ", centers);
+    
+    int anyMerged;
+    do {
+        anyMerged = -1;
+        for (size_t i = 0; i < centers.size() - 1; ++i) {
+            const size_t next = i + 1;
+            if (!circlesIntersect(centers[i], radii[i], centers[next], radii[next])) {
+                Vec2 direction = centers[next] - centers[i];
+                //float distance = distanceBetweenPoints(centers[i], centers[j]);
+                Vec2 newPoint = centers[i] + direction * 0.5f;
+                float newRadius = (radii[i] + radii[next]) / 2.f + 1.f;
+                centers.insert(centers.begin() + next, newPoint);
+                radii.insert(radii.begin() + next, newRadius);
+                
+                //print("inserting ", newPoint, " at ", next);
+                
+                anyMerged = next;
+                
+        #ifdef DEBUG_OUTLINES
+                cv::Mat image = cv::Mat(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
+                for(size_t k = 0; k < centers.size(); ++k) {
+                    cv::circle(image, centers[k] - start.pos(), radii[k], gui::Blue, 1);
+                }
+                if(anyMerged != -1)
+                    cv::circle(image, centers[anyMerged] - start.pos(), radii[anyMerged], gui::Green, -1);
+                cv::imshow("Circle Merging", image);
+                cv::waitKey(0);
+        #endif
+                break;
+            }
+        }
+    } while (anyMerged != -1);
+}
+
+std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& midline, const std::function<float(float)>& radiusMap) {
+    std::vector<Vec2> centers;
+    std::vector<float> radii;
+    
+    /// by default we will just use "all" points if no
+    /// indexes are given:
+    if(midline.indexes.empty()) {
+        for(auto &pt : pose.points)
+            centers.push_back(pt);
+        
+    } else {
+        /// otherwise, fill with given midline indexes:
+        for (uint8_t index : midline.indexes) {
+            if (index >= pose.points.size()) {
+                FormatWarning("Index ", unsigned(index), " out of range, ignoring it.");
+                continue;
+            }
+
+            const Vec2& point = pose.points[index];
+            centers.push_back(point);
+        }
+    }
+    
+    /// calculate size of each circle statically or based on the index.
+    /// this will impact the performance of the algorithm / the number
+    /// of points created in the end:
+    for(size_t i = 0; i<centers.size(); ++i) {
+        float radius = radiusMap
+                ? (radiusMap(i / float(centers.size())) + 1.f)
+                : 10.0f;
+        radii.push_back(radius);
+    }
+
+    /// this will add new circles if necessary:
+    ensureCircleOverlap(centers, radii);
+    
+    if(not centers.empty()) {
+        /// generate an image that will fit the object.
+        /// we should actually make sure that its not too big.
+        Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
+        for (size_t i = 0; i < centers.size(); ++i) {
+            bounds.combine(Bounds(centers[i] - radii[i], centers[i] + radii[i] * 2));
+        }
+        
+        bounds = bounds - Size2(bounds.pos()) + Size2(2);
+        bounds = bounds - Vec2(1);
+        
+        /// if it is larger than 6000x6000px, we will skip it...
+        if(bounds.width * bounds.height > SQR(6000u)) {
+            FormatWarning("Object of size ", bounds.size(), " is too large to posture estimate.");
+            return {};
+        }
+        
+        cv::Mat merger = cv::Mat::zeros(bounds.height, bounds.width, CV_8UC1);
+        for (size_t i = 0; i < centers.size(); ++i) {
+            cv::circle(merger, centers.at(i) - bounds.pos(), radii.at(i), cv::Scalar(i / float(centers.size()) * 205.f + 50.f), -1);
+        }
+        
+        /// now detect the merged object(s).
+        /// theoretically there should only be one object exactly.
+        auto blobs = CPULabeling::run(merger);
+        if(blobs.empty()) {
+            /// this should not happen.
+            FormatWarning("This is not a single blob: ", blobs.size(), " pose=", pose, " indexes=", midline, " centers=",centers, " radius=", radii);
+            return {};
+            
+        } else if(blobs.size() != 1) {
+#ifndef NDEBUG
+            FormatWarning("Not a single blob: ", blobs.size(), " pose=", pose);
+#endif
+        }
+        
+        pv::Blob blob{std::move(blobs.front().lines), std::move(blobs.front().pixels), blobs.front().extra_flags, std::move(blobs.front().pred)};
+        blob.add_offset(bounds.pos());
+        
+        auto pts = pixel::find_outer_points(pv::BlobWeakPtr{&blob}, 1);
+        
+#ifdef DEBUG_OUTLINES
+        cv::cvtColor(merger, merger, cv::COLOR_GRAY2BGR);
+        Vec2 prev = pts.front()->back() - bounds.pos();
+        for(auto pt : *pts.front()) {
+            pt -= bounds.pos();
+            cv::line(merger, prev, pt, gui::Blue, 1);
+            prev = pt;
+        }
+        
+        cv::imshow("merger", merger);
+        cv::waitKey(0);
+#endif
+        
+        return std::move(*pts.front());
+    }
+    
+    return {};
+}
+
+    void Posture::calculate_posture(Frame_t frameIndex, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
+        auto pts = generateOutline(pose, indexes, [](float percent) -> float {
+            // scale center line by percentage
+            return 10.f * (1.f - percent) + 1.f;
+        });
+        auto ptr = std::make_shared<std::vector<Vec2>>(pts);
+        const auto pos = basic.blob.calculate_bounds().pos();
+        for(auto &pt : *ptr)
+            pt -= pos;
+        
+        _outline.clear();
+        _outline.replace_points(ptr);
+        _outline.minimize_memory();
+        
+        if(FAST_SETTING(outline_resample) != 0) {
+            if(FAST_SETTING(outline_resample) >= 1)
+                _outline.resample(FAST_SETTING(outline_resample));
+            else
+                _outline.resample(FAST_SETTING(outline_resample));
+        }
+        
+        std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+        auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
+        float confidence = calculate_midline(debug);
+        bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
+        error = !_normalized_midline;
+        
+        auto norma = _normalized_midline ? _normalized_midline->normalize() : nullptr;
+        if(norma && norma->size() != FAST_SETTING(midline_resolution))
+            error = true;
+        
+        //outline_point = ptr;
+        
+        if(!error && confidence > 0.9f) {
+            // found a good configuration! escape.
+            return;
+        }
     }
 
     void Posture::calculate_posture(Frame_t frame, pv::BlobWeakPtr blob)

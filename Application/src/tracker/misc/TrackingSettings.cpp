@@ -25,9 +25,10 @@ std::string PoseMidlineIndexes::toStr() const {
 }
 
 nlohmann::json PoseMidlineIndexes::to_json() const {
-    return nlohmann::json{
-        indexes
-    };
+    auto a = nlohmann::json::array();
+    for(auto i : indexes)
+        a.push_back(i);
+    return a;
 }
 
 }

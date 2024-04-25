@@ -2400,7 +2400,7 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 }
 #endif
 
-void Individual::save_posture(const BasicStuff&,
+void Individual::save_posture(const BasicStuff& basic,
                               Frame_t frameIndex,
                               pv::BlobPtr&& pixels)
 {//Image::Ptr greyscale) {
@@ -2410,7 +2410,11 @@ void Individual::save_posture(const BasicStuff&,
     
     assert(pixels);
     Posture ptr(frameIndex, identity().ID());
-    ptr.calculate_posture(frameIndex, pixels.get());
+    if(not pixels->prediction().pose.empty()) {
+        const auto pose_midline_indexes = SETTING(pose_midline_indexes).value<PoseMidlineIndexes>();
+        ptr.calculate_posture(frameIndex, basic, pixels->prediction().pose, pose_midline_indexes);
+    } else
+        ptr.calculate_posture(frameIndex, pixels.get());
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);
     
     if(ptr.outline_empty() /*|| !ptr.normalized_midline()*/) {

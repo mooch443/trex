@@ -50,8 +50,7 @@ namespace default_config {
                     "No normalization. Images will only be cropped out and used as-is.",
                     "Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.",
                     "Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.",
-                    "Images will be aligned parallel to the x axis.",
-                    "Images will be aligned by their pose according to `pose_normalization_indexes` (default bone 0 and 1)."
+                    "Images will be aligned parallel to the x axis."
     )
 
     ENUM_CLASS_DOCS(heatmap_normalization_t,
@@ -732,7 +731,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("individual_image_normalization", individual_image_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
-        CONFIG("pose_midline_indexes", track::PoseMidlineIndexes{.indexes = {0, 1}}, "This is an array of joint indexes (in the order as predicted by a YOLO-pose network), which are used to determine the joints making up the midline of an object. The first index is the head, the last the tail. This is currently only used for `individual_image_normalization`.");
+        CONFIG("pose_midline_indexes", track::PoseMidlineIndexes{.indexes = {}}, "This is an array of joint indexes (in the order as predicted by a YOLO-pose model), which are used to determine the joints making up the midline of an object. The first index is the head, the last the tail. This is used to generate a posture when using YOLO-pose models with `calculate_posture` enabled.");
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");

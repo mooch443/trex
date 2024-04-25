@@ -8,17 +8,19 @@ namespace gui {
 
     void Skelett::update() {
         auto coord = FindCoord::get();
-
+        static constexpr Font font(0.35);
+        
         begin();
 
-        //size_t i = 0;
+        size_t i = 0;
         if (not _skeleton.connections().empty()) {
             for (auto& bone : _pose.points) {
                 if (bone.valid()) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) });
-                    //add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{0.35});
+                    if(_show_text)
+                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
                 }
-                //++i;
+                ++i;
             }
 
             for (auto& c : _skeleton.connections()) {
@@ -38,17 +40,18 @@ namespace gui {
                         v = v.normalize();
                         Rotation a{ atan2(v) };
                         Scale sca(Scale{ coord.bowl_scale().reciprocal() });
-                        //Font font(0.35);
 
                         add<Line>(p0, p1, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
-                        /*add<Text>(
-                            Str(c.name),
-                            Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
-                            TextClr(Cyan.alpha(200)),
-                            font,
-                            sca,
-                            Origin(0.5),
-                            a);*/
+                        if(_show_text) {
+                            add<Text>(
+                                      Str(c.name),
+                                      Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
+                                      TextClr(Cyan.alpha(200)),
+                                      font,
+                                      sca,
+                                      Origin(0.5),
+                                      a);
+                        }
                     }
                 }
             }
@@ -59,13 +62,14 @@ namespace gui {
             for (auto& bone : _pose.points) {
                 if (bone.valid()) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
-                    //add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, Font{ 0.35 });
+                    if(_show_text)
+                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
 
                     if (last.x > 0 && last.y > 0)
                         add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                     last = bone;
                 }
-                //++i;
+                ++i;
             }
         }
     

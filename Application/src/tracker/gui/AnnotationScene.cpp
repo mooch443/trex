@@ -240,7 +240,7 @@ void AnnotationScene::activate() {
     video_length = _video->length();
     video_size = _video->size();
     
-    _skeleton = SETTING(meta_skeleton).value<Pose::Skeleton>();
+    _skeleton = SETTING(detect_skeleton).value<Pose::Skeleton>();
     _pose_in_progress = {};
     
     SETTING(frame_rate) = Settings::frame_rate_t(_video->framerate() != short(-1) ? _video->framerate() : 25);

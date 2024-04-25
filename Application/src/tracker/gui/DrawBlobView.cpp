@@ -12,6 +12,7 @@
 #include <gui/MouseDock.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Tracker.h>
+#include <gui/Skelett.h>
 
 using namespace gui;
 using namespace cmn;
@@ -34,7 +35,7 @@ SelectedSettingType _selected_setting_type;
 std::atomic<pv::bid> _clicked_blob_id;
 std::atomic<Frame_t> _clicked_blob_frame;
 
-static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>, std::unique_ptr<Skelett>>> _blob_labels;
 static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
 
 void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
@@ -452,7 +453,7 @@ void draw_blob_view(const DisplayParameters& parm)
                         //std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
-                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()) });
+                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()), nullptr });
                         it = k;
                     }
                     
@@ -469,7 +470,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     });
                 }
                 
-                auto & [visited, circ, label] = it->second;
+                auto & [visited, circ, label, skelett] = it->second;
                 //e.set_scale(sca);
                 
                 if(circ->hovered())
@@ -493,8 +494,13 @@ void draw_blob_view(const DisplayParameters& parm)
                 }*/
                 
                 if(not blob->prediction().pose.points.empty()) {
-                    for(auto& p : blob->prediction().pose.points)
-                        e.add<Circle>(Loc(p.x, p.y), FillClr{Red.alpha(50)}, Radius{5});
+                    if(not skelett) {
+                        skelett = std::make_unique<Skelett>(blob->prediction().pose, SETTING(detect_skeleton).value<blob::Pose::Skeleton>());
+                        skelett->set_show_text(true);
+                    } else {
+                        skelett->set_pose(blob->prediction().pose);
+                    }
+                    e.advance_wrap(*skelett);
                 }
 
                 if (d > 0 && real_size > 0) {

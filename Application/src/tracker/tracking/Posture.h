@@ -8,7 +8,14 @@
 #include <misc/idx_t.h>
 
 //#define POSTURE_DEBUG
+namespace cmn::blob {
+struct Pose;
+}
+
 namespace track {
+struct PoseMidlineIndexes;
+struct BasicStuff;
+
     class Posture {
     private:
     public:
@@ -41,6 +48,7 @@ namespace track {
         }
         
         void calculate_posture(Frame_t frameIndex, pv::BlobWeakPtr blob);//const cv::Mat& greyscale, Vec2 previous_direction);
+        void calculate_posture(Frame_t frameIndex, const BasicStuff&, const blob::Pose& pose, const PoseMidlineIndexes& indexes);
         
         bool outline_empty() const { return _outline.empty(); }
         static std::vector<EntryPoint> subpixel_threshold(const cv::Mat& greyscale, int threshold) 
@@ -60,6 +68,12 @@ namespace track {
         
         
     };
+
+
+std::vector<Vec2> generateOutline(const blob::Pose& pose,
+                                  const PoseMidlineIndexes& midline,
+                                  const std::function<float(float)>& radius = nullptr);
+
 }
 
 #endif
