@@ -315,7 +315,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
         [[nodiscard]] bool empty() const noexcept;
         
-        void save_posture(const BasicStuff& ptr, Frame_t frameIndex, pv::BlobPtr&& pixels);
+        void save_posture(const BasicStuff& ptr, const PoseMidlineIndexes& pose_midline_indexes, Frame_t frameIndex, pv::BlobPtr&& pixels);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
         int64_t thresholded_size(Frame_t frameIndex) const;

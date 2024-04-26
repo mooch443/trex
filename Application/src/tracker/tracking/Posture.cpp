@@ -394,7 +394,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
     return {};
 }
 
-    void Posture::calculate_posture(Frame_t frameIndex, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
+    void Posture::calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
         auto pts = generateOutline(pose, indexes, [](float percent) -> float {
             // scale center line by percentage
             return 10.f * (1.f - percent) + 1.f;
@@ -415,7 +415,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
                 _outline.resample(FAST_SETTING(outline_resample));
         }
         
-        std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+        //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
         auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
         float confidence = calculate_midline(debug);
         bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));

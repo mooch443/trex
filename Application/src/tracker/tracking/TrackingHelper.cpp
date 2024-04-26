@@ -474,6 +474,7 @@ double TrackingHelper::process_postures() {
     
     if(cache->do_posture && !_manager.need_postures.empty()) {
         static std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> all;
+        const auto pose_midline_indexes = SETTING(pose_midline_indexes).value<PoseMidlineIndexes>();
         
         while(!_manager.need_postures.empty()) {
             all.emplace_back(std::move(_manager.need_postures.front()));
@@ -482,7 +483,7 @@ double TrackingHelper::process_postures() {
         
         IndividualManager::Protect{};
         
-        distribute_indexes([frameIndex, &combined_posture_seconds](auto, auto start, auto end, auto){
+        distribute_indexes([frameIndex, &combined_posture_seconds, &pose_midline_indexes](auto, auto start, auto end, auto) {
             Timer t;
             double collected = 0;
             
@@ -490,7 +491,7 @@ double TrackingHelper::process_postures() {
                 t.reset();
                 
                 auto &&[fish, basic, pixels] = *it;
-                fish->save_posture(*basic, frameIndex, std::move(pixels));
+                fish->save_posture(*basic, pose_midline_indexes, frameIndex, std::move(pixels));
                 collected += t.elapsed();
             }
             
