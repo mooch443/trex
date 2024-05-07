@@ -548,6 +548,8 @@ void TrackingScene::update_run_loop() {
             SETTING(gui_run) = false;
         }
         set_frame(index);
+        if(_data && _data->_background)
+            _data->_background->set_increment(1_f);
         
     } else {
         _data->_time_since_last_frame += dt;
@@ -562,6 +564,8 @@ void TrackingScene::update_run_loop() {
                 SETTING(gui_run) = false;
             }
             set_frame(index);
+            if(_data && _data->_background)
+                _data->_background->set_increment(Frame_t(uint(advances)));
             _data->_time_since_last_frame = 0;
         }
     }
@@ -1296,8 +1300,6 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 {
                     cache = it->second.get();
                 }
-                 
-                
                 
                 pv::BlobWeakPtr blob_ptr{nullptr};
                 if(auto it = _data->_cache->fish_selected_blobs.find(fdx);

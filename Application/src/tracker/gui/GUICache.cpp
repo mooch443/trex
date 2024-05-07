@@ -322,7 +322,9 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             if(not next_frame_matches) {
                 /// the next frame does *not* match - at least should
                 /// nudge the preloader:
-                auto maybe_frame = _preloader.get_frame(frameIndex, std::chrono::milliseconds(50));
+                auto maybe_frame = _preloader.get_frame(frameIndex, _preloader.last_increment(), std::chrono::milliseconds(0));
+                //if(maybe_frame.has_value())
+                //    timer.reset();
                 
                 if(not maybe_frame.has_value()
                    && not _next_processed_frame)

@@ -10,12 +10,15 @@ namespace gui {
 AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video)
     :
     buffers("AnimatedBackgroundPV", image->dimensions()),
+    grey_buffers("GreyVideoSourcePV", image->dimensions()),
     _average(std::move(image)),
     _static_image(Image::Make(*_average)),
+    _grey_image(Image::Make(*_average)),
     preloader([this](Frame_t index) { return preload(index); })
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
+    _grey_image.set_color(_tint.alpha(0));
 
     _source_scale = -1;
 
@@ -78,6 +81,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     
     update([this](auto&) {
         advance_wrap(_static_image);
+        advance_wrap(_grey_image);
     });
     
     auto_size({});
@@ -86,6 +90,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
 AnimatedBackground::AnimatedBackground(VideoSource&& source)
     : 
     buffers("AnimatedBackgroundVideoSource", source.size()),
+    grey_buffers("GreyVideoSource", source.size()),
     _source(std::make_unique<VideoSource>(std::move(source))),
       preloader([this](Frame_t index) { return preload(index); },
       [this](Image::Ptr&& ptr) {
@@ -102,6 +107,9 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
             _source_scale = SETTING("meta_video_scale").value<float>();
         }*/
     }
+    
+    _static_image.set_color(_tint);
+    _grey_image.set_color(_tint.alpha(0));
     
     update([this](auto&) {
         advance_wrap(_static_image);
@@ -202,6 +210,7 @@ void AnimatedBackground::before_draw() {
     if(not _source or not PRELOAD_CACHE(gui_show_video_background)) {
         if(content_changed()) {
             _static_image.set_color(_tint);
+            _grey_image.set_color(_static_image.color().alpha(_grey_image.color().a));
             //set_content_changed(false);
         }
         Entangled::before_draw();
@@ -214,12 +223,15 @@ void AnimatedBackground::before_draw() {
        && _source)
     {
         Image::Ptr image;
+        print("last increment = ", preloader.last_increment(), " vs. increment = ", _increment, " frame(", frame, ") != current(",_current_frame,")");
         
         if(_strict) {
-            image = preloader.load_exactly(frame);
+            image = preloader.load_exactly(frame, _increment);
+            _target_fade = 1.0;
+            
         } else {
-            auto maybe_image = preloader.get_frame(frame);
-            if(maybe_image.has_value() 
+            auto maybe_image = preloader.get_frame(frame, _increment);
+            if(maybe_image.has_value()
                && maybe_image.value())
             {
                 image = std::move(maybe_image.value());
@@ -245,28 +257,71 @@ void AnimatedBackground::before_draw() {
             }
         }
         
+        //! in case we got an image / loading was ready,
+        //! we need to potentially convert color and display it.
         if(image) {
+            /// pre-cache a greyscale image in case we need it...
+            Image::Ptr grey = grey_buffers.get(source_location::current());
+            if(not grey
+               || grey->cols != image->cols
+               || grey->rows != image->rows
+               || grey->channels() != 1)
+            {
+                grey->create(image->rows, image->cols, 1);
+            }
+            
+            cv::cvtColor(image->get(), grey->get(), cv::COLOR_BGR2GRAY);
+            
+            /// move old grey image...
+            grey_buffers.move_back(_grey_image.exchange_with(std::move(grey)));
+            
             if(static_cast<uint32_t>(image->index()) != frame.get())
             {
-                Image::Ptr ptr = Image::Make(image->rows, image->cols, 1);
-                cv::cvtColor(image->get(), ptr->get(), cv::COLOR_BGR2GRAY);
+                auto index = image->index();
+                buffers.move_back(_static_image.exchange_with(std::move(image)));
                 
-                buffers.move_back(_static_image.exchange_with(std::move(ptr)));
-                if(abs(int64_t(image->index()) - int64_t(frame.get())) > 1)
+                if(abs(int64_t(index) - int64_t(frame.get())) > 1)
                     _static_image.set_color(_tint.alpha(_tint.a * 0.95));
                 else
                     _static_image.set_color(_tint);
+                
+                _target_fade = 0.0;
+                _fade_timer.reset();
                 
             } else {
                 buffers.move_back(_static_image.exchange_with(std::move(image)));
                 _static_image.set_color(_tint);
                 _current_frame = frame;
+                _target_fade = 1.0;
+                _fade_timer.reset();
             }
             
+            _grey_image.set_color(_static_image.color().alpha(_grey_image.color().a));
             set_content_changed(true);
         }
+        
+        if(_current_frame != frame)
+            _target_fade = 0.0;
     }
     
+    auto dt = saturate(_fade_timer.elapsed(), 0.01, 0.1);
+    _fade = saturate(_fade + (_target_fade - _fade) * 1 * dt, 0.0, 1.0);
+
+    // fade image to grayscale by _fade percent
+    if(not _static_image.empty()
+       && is_in(_static_image.source()->channels(), 3, 4)
+       && abs(_fade - _target_fade) > 0.01)
+    {
+        _static_image.set_color(_tint.alpha(255 * _fade));
+        _grey_image.set_color(_static_image.color().alpha(255 * (1.0 - _fade)));
+        set_animating(true);
+        //print("Animating... ", _fade, " with dt=",dt);
+    }
+    
+    _fade_timer.reset();
+    
+    //! call the parent method in the end, just in case
+    //! that does anything:
     Entangled::before_draw();
 }
 
@@ -288,6 +343,13 @@ void AnimatedBackground::
 {
     if(_source)
         _source->set_undistortion(std::move(cam_matrix), std::move(undistort_vector));
+}
+
+void AnimatedBackground::set_increment(Frame_t inc) {
+    if(_increment != inc) {
+        //print("Changing increment from ", _increment, " to ", inc, " in AnimatedBackground");
+        _increment = inc;
+    }
 }
 
 }

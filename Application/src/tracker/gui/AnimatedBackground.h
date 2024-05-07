@@ -26,14 +26,20 @@ class AnimatedBackground : public Entangled {
     };
     
     ImageBuffers<Image::Ptr, ImageMaker> buffers;
+    ImageBuffers<Image::Ptr, ImageMaker> grey_buffers;
     
     std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;
     std::atomic<float> _source_scale{1.f};
     
     Image::Ptr _average;
-    ExternalImage _static_image;
+    ExternalImage _static_image, _grey_image;
     Frame_t _current_frame;
+    Frame_t _increment{1_f};
+    
+    double _fade{1.0};
+    double _target_fade{1.0};
+    Timer _fade_timer;
     
     Timer _next_timer;
     std::mutex _next_mutex;
@@ -64,6 +70,8 @@ public:
     
     void set_undistortion(std::optional<std::vector<double>> &&cam_matrix,
                           std::optional<std::vector<double>> &&undistort_vector);
+    void set_increment(Frame_t inc);
+    Frame_t increment() const { return _increment; }
     
     Image::Ptr preload(Frame_t);
 };

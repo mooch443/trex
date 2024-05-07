@@ -20,6 +20,10 @@ CREATE_STRUCT(PreloadCache,
 template<typename FrameType>
 class FramePreloader {
 public:
+    Frame_t last_increment() const {
+        return _last_increment.load();
+    }
+    
     FramePreloader(
            std::function<FrameType(Frame_t)> retrieve,
            std::function<void(FrameType&&)> discard = nullptr)
@@ -56,7 +60,7 @@ public:
     }
     
     // Non-blocking call to get a frame
-    std::optional<FrameType> get_frame(Frame_t target_index, std::chrono::milliseconds delay = std::chrono::milliseconds(0));
+    std::optional<FrameType> get_frame(Frame_t target_index, Frame_t increment, std::chrono::milliseconds delay = std::chrono::milliseconds(0));
     
     // Non-blocking announcement of next frame
     void announce(Frame_t target_index) {
@@ -77,10 +81,10 @@ public:
     }
     
     /// Blocking call that will try to load exactly the requested frame.
-    FrameType load_exactly(Frame_t target_index) {
+    FrameType load_exactly(Frame_t target_index, Frame_t increment) {
         std::unique_lock g(frame_update_mutex);
         while(true) {
-            std::optional<FrameType> frame = get_frame(target_index);
+            std::optional<FrameType> frame = get_frame(target_index, increment);
             if(frame.has_value()) {
                 auto index = Frame_t(frame.value()->index());
                 //print("* While trying to load exactly ", target_index, " got ", index);
@@ -127,6 +131,7 @@ private:
     
     //! content of preload thread:
     Frame_t current_id, id_in_future;
+    std::atomic<Frame_t> _last_increment{1_f};
     FrameType image;
     std::future<std::tuple<Frame_t, FrameType>> future;
     Timer time_to_frame;
@@ -138,7 +143,7 @@ private:
 
 template<typename FrameType>
 // Non-blocking call to get a frame
-std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index, std::chrono::milliseconds delay) {
+std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index, Frame_t increment, std::chrono::milliseconds delay) {
     if (std::unique_lock guard(future_mutex);
         future.valid())
     {
@@ -164,11 +169,12 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
             auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
             if(target_index == index) {
                 //print("Adding ", Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed)))), " every frame.");
-                next_index_to_use = target_index + Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed))));
+                next_index_to_use = target_index + increment;//Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed))));
+                _last_increment = increment;
             } else {
                 if(index + 1_f < target_index) {
-                    Frame_t difference = 0_f;
-                    if(fps > 0) {
+                    Frame_t difference = increment;//0_f;
+                    /*if(fps > 0) {
                         double f = 1.0 / (double(PRELOAD_CACHE(frame_rate)) * PRELOAD_CACHE(gui_playback_speed));
                         double frames_balance = (fps + 5.0 / 1000.0 - f) / f;
                         
@@ -180,8 +186,9 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
 #endif
                         }
                         
-                    }
+                    }*/
                     next_index_to_use = target_index + difference;
+                    _last_increment = increment;
                 } else
                     next_index_to_use = target_index;
             }
