@@ -614,7 +614,7 @@ int main(int argc, char**argv) {
             CommandLine::instance().add_setting("output_dir", a.value);
         }
         else if(a.name == "dim") {
-            SETTING(detect_resolution) = Meta::fromStr<uint16_t>(a.value);
+            SETTING(detect_resolution) = Meta::fromStr<track::detect::DetectResolution>(a.value);
             CommandLine::instance().add_setting("detect_resolution", a.value);
         }
         else if(a.name == "o") {

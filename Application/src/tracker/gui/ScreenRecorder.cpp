@@ -298,7 +298,7 @@ void ScreenRecorder::update_recording(Image::Ptr&& image, Base *base, Frame_t fr
 void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     _data->start_recording(base, frame);
     
-    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([&](Image::Ptr&& image){
+    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([this, base](Image::Ptr&& image){
         update_recording(std::move(image), base, Frame_t{}, Frame_t{});
     });
 }

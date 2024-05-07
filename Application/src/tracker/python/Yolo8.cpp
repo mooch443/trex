@@ -74,7 +74,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
             ModelTaskType::detect,
             SETTING(yolo8_tracking_enabled).value<bool>(),
             path.str(),
-            SETTING(detect_resolution).value<uint16_t>()
+            SETTING(detect_resolution).value<DetectResolution>()
         );
         
     } else
@@ -85,7 +85,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
             ModelTaskType::region,
             SETTING(yolo8_region_tracking_enabled).value<bool>(), // region models dont have tracking
             SETTING(region_model).value<file::Path>().str(),
-            SETTING(region_resolution).value<uint16_t>()
+            SETTING(region_resolution).value<DetectResolution>()
         );
 
     if(_loaded_models.empty()) {
@@ -100,6 +100,9 @@ void Yolo8::reinit(ModuleProxy& proxy) {
     for(auto &config : _loaded_models) {
         if(config.task == ModelTaskType::detect) {
             SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
+            SETTING(detect_resolution) = config.trained_resolution;
+        } else if(config.task == ModelTaskType::region) {
+            SETTING(region_resolution) = config.trained_resolution;
         }
     }
 }
@@ -119,6 +122,12 @@ void Yolo8::init() {
                 Yolo8::reinit
             };
         });//.get();
+        
+        //! this will block everything + the GUI
+        //! unfortunately currently this is the lazy solution
+        //! to the model resolution not being up-to-date with
+        //! the actual .pt file.
+        init_future.wait();
     }
 }
 

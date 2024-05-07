@@ -21,6 +21,7 @@ from typing import List, Tuple
 
 import TRex
 from TRex import ModelTaskType
+from TRex import DetectResolution
 from TRex import ObjectDetectionFormat
 
 # Set up logging
@@ -199,6 +200,17 @@ class Model:
         else:
             raise Exception(f"Unknown task {self.ptr.task}")
         
+        try:
+            train_args = self.ptr.__dict__["ckpt"]["train_args"]
+            imgsz = train_args["imgsz"]
+            if isinstance(imgsz, int):
+                imgsz = [imgsz, imgsz]
+            self.config.trained_resolution = DetectResolution(imgsz[1], imgsz[0])
+            TRex.log(f"set trained_resolution = {self.config.trained_resolution}")
+        except Exception as e:
+            TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
+            pass
+
         self.ptr.to(self.device)
         self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))
@@ -509,7 +521,8 @@ class TRexYOLO8:
         """
         detect_model = next((model for model in self.models if model.task == ModelTaskType.detect), None)
         if detect_model is not None:
-            return detect_model.config.trained_resolution
+            return [detect_model.config.trained_resolution.height, 
+                    detect_model.config.trained_resolution.width]
         raise Exception("No detect or segment model found")
 
     def detection_model(self) -> Model:

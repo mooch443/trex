@@ -310,21 +310,27 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .value("poses", track::detect::ObjectDetectionFormat::poses)
         .export_values();
 
+    py::class_<DetectResolution>(m, "DetectResolution")
+        .def(py::init<int, int>(),
+            py::arg("width"),
+            py::arg("height"))
+        .def_readonly("width", &DetectResolution::width)
+        .def_readonly("height", &DetectResolution::height)
+        .def("__repr__", &DetectResolution::toStr)
+        .def("__str__", &DetectResolution::toStr)
+        .def_static("class_name", &DetectResolution::class_name);
+    
     py::class_<ModelConfig>(m, "ModelConfig")
-        .def(py::init<ModelTaskType, bool, std::string, int, int, int, ObjectDetectionFormat::data::values>(),
+        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values>(),
             py::arg("task"),
             py::arg("use_tracking"),
             py::arg("model_path"),
-            py::arg("trained_resolution") = 640,
-            py::arg("min_image_size") = -1,
-            py::arg("max_image_size") = -1,
+            py::arg("trained_resolution") = DetectResolution{},
             py::arg("output") = ObjectDetectionFormat::data::values::none)
         .def_readwrite("task", &ModelConfig::task)
         .def_readonly("use_tracking", &ModelConfig::use_tracking)
         .def_readonly("model_path", &ModelConfig::model_path)
-        .def_readonly("trained_resolution", &ModelConfig::trained_resolution)
-        .def_readonly("min_image_size", &ModelConfig::min_image_size)
-        .def_readonly("max_image_size", &ModelConfig::max_image_size)
+        .def_readwrite("trained_resolution", &ModelConfig::trained_resolution)
         .def_readwrite("output_format", &ModelConfig::output_format)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)

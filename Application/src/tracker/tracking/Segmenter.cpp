@@ -224,7 +224,9 @@ void Segmenter::open_video() {
     print("frame_rate = ", video_base.framerate());
 
     setDefaultSettings();
-    _output_size = (Size2(video_base.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+    
+    const auto meta_video_scale = SETTING(meta_video_scale).value<float>();
+    _output_size = (Size2(video_base.size()) * meta_video_scale).map(roundf);
     SETTING(meta_video_size) = Size2(video_base.size());
     //SETTING(output_size) = _output_size;
     
@@ -241,7 +243,7 @@ void Segmenter::open_video() {
         });
     }
     
-    _overlayed_video->source()->set_video_scale(SETTING(meta_video_scale).value<float>());
+    _overlayed_video->source()->set_video_scale(meta_video_scale);
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
@@ -990,7 +992,7 @@ void Segmenter::printDebugInformation() {
     print("model: ", SETTING(detect_model).value<file::Path>());
     print("region model: ", SETTING(region_model).value<file::Path>());
     print("video: ", SETTING(source).value<file::PathArray>());
-    print("model resolution: ", SETTING(detect_resolution).value<uint16_t>());
+    print("model resolution: ", SETTING(detect_resolution).value<DetectResolution>());
     print("output size: ", _output_size);
     print("output path: ", _output_file_name);
     print("color encoding: ", SETTING(meta_encoding).value<meta_encoding_t::Class>());

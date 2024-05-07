@@ -28,16 +28,12 @@ namespace track {
             ModelConfig(ModelTaskType task, 
                         bool use_tracking,
                         std::string model_path,
-                        int trained_resolution = 640, 
-                        int min_image_size = -1,
-                        int max_image_size = -1,
+                        DetectResolution trained_resolution = {},
                         ObjectDetectionFormat::data::values output = ObjectDetectionFormat::none)
                 :   task(task),
                     use_tracking(use_tracking),
                     model_path(model_path), 
                     trained_resolution(trained_resolution),
-                    min_image_size(min_image_size != -1 ? min_image_size : trained_resolution), 
-                    max_image_size(max_image_size != -1 ? max_image_size : min_image_size),
                     output_format(output)
             {
                 // check if model path exists
@@ -70,9 +66,7 @@ namespace track {
             std::string toStr() const {
                 std::ostringstream os;
                 os << "ModelConfig<task=" << static_cast<int>(task)
-                    << " model_path='" << model_path << "' trained_resolution=" << trained_resolution
-                    << " min_image_size=" << min_image_size
-                    << " max_image_size=" << max_image_size << ">";
+                    << " model_path='" << model_path << "' trained_resolution=" << Meta::toStr(trained_resolution) << ">";
                 return os.str();
             }
             static std::string class_name() {
@@ -82,9 +76,7 @@ namespace track {
             ModelTaskType task;
             bool use_tracking;
             std::string model_path;
-            int trained_resolution;
-            int min_image_size;
-            int max_image_size;
+            DetectResolution trained_resolution;
             ObjectDetectionFormat::data::values output_format;
         };
 

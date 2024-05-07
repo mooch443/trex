@@ -30,4 +30,16 @@ namespace track::detect {
         const Bone& bone(size_t index) const;
         cmn::blob::Pose toPose() const;
     };
+
+    struct DetectResolution {
+        uint16_t width{640}, height{640};
+        
+        bool operator==(const DetectResolution&) const = default;
+        bool operator!=(const DetectResolution&) const = default;
+        
+        static DetectResolution fromStr(const std::string& str);
+        nlohmann::json to_json() const;
+        std::string toStr() const;
+        static std::string class_name();
+    };
 }

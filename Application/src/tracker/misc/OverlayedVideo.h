@@ -137,8 +137,8 @@ public:
             Size2 resized_size = track::detect::get_model_image_size();
 
             Size2 new_size(resized_size);
-            if(SETTING(detect_tile_image).value<uchar>() > 1) {
-                size_t tiles = SETTING(detect_tile_image).value<uchar>();
+            size_t tiles = SETTING(detect_tile_image).value<uchar>();
+            if(tiles > 1) {
                 float ratio = current_use->rows / float(current_use->cols);
                 new_size = Size2(resized_size.width * tiles, resized_size.width * tiles * ratio).map(roundf);
                 while(current_use->cols < new_size.width
@@ -149,8 +149,6 @@ public:
                     tiles--;
                 }
             }
-            
-            
             
             // could also use image here
             if (current_use->cols != new_size.width || current_use->rows != new_size.height) {
