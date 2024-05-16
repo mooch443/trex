@@ -45,7 +45,7 @@ SegmentationData& SegmentationData::operator=(SegmentationData&& other)
     frame = std::move(other.frame);
     tiles = std::move(other.tiles);
     predictions = std::move(other.predictions);
-    outlines = std::move(other.outlines);
+    //outlines = std::move(other.outlines);
     keypoints = std::move(other.keypoints);
 
     if (image) {

@@ -620,6 +620,20 @@ Fish::~Fish() {
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
+                
+                if(_basic_stuff
+                   && _basic_stuff->blob.pred.valid()
+                   && not _basic_stuff->blob.pred.outlines.empty())
+                {
+                    auto &lines = _basic_stuff->blob.pred.outlines.lines;
+                    for(size_t i = 1; i<lines.size(); ++i) {
+                        Line::Vertices_t gline;
+                        for(auto &pt : (std::vector<Vec2>)lines.at(i)) {
+                            gline.emplace_back(pt + offset, _color.saturation(0.25));
+                        }
+                        window.add<Line>(gline, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
+                    }
+                }
 
             }
             if (active && _cached_midline && GUIOPTION(gui_show_midline)) {

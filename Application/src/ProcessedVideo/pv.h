@@ -87,8 +87,11 @@ namespace pv {
         /** Adding Prediction + Pose */
         V_10,
         
+        /** Adding Outlines to Prediction */
+        V_11,
+        
         //! current
-        current = V_10
+        current = V_11
     };
     
     class Frame {

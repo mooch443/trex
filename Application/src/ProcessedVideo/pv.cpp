@@ -37,6 +37,21 @@ template<> void Data::read(blob::Prediction& pred) {
             read<uint16_t>(pred.pose.points[i].y);
         }
         
+        if(version >= pv::Version::V_11) {
+            /// read the outline points
+            std::vector<int32_t> result;
+            read<uint8_t>(N);
+            for(size_t i=0; i<N; ++i) {
+                uint32_t M;
+                read<uint32_t>(M);
+                result.resize(M);
+                read_data(M * sizeof(int32_t), (char*)result.data());
+                pred.outlines.lines.emplace_back(blob::SegmentedOutlines::Outline{
+                    ._points = std::move(result)
+                });
+            }
+        }
+        
     } else {
         uint8_t trash;
         read<uint8_t>(trash);
@@ -56,6 +71,13 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
         write<uint16_t>(pt.x);
         write<uint16_t>(pt.y);
     }
+    
+    write<uint8_t>(val.outlines.lines.size());
+    for(auto &line : val.outlines.lines) {
+        write<uint32_t>(line._points.size());
+        write_data(line._points.size() * sizeof(int32_t), (char*)line._points.data());
+    }
+    
     return pos;
 }
 

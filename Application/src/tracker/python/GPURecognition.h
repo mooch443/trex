@@ -109,7 +109,7 @@ namespace track {
                 if (index >= num_rows()) {
                     throw SoftException("Index ", index, " out of bounds for array of size ", num_rows(), ".");
                 }
-                return reinterpret_cast<const Row*>(data.get())[index];
+                return reinterpret_cast<const Row*>(data.data())[index];
             }
 
             size_t num_rows() const {
@@ -122,8 +122,8 @@ namespace track {
             Boxes(Boxes&&) = default;
             Boxes& operator=(Boxes&&) = default;
 
-            Boxes(std::shared_ptr<float> data, size_t size)
-                : data(data), rows_count(size / 6u)
+            Boxes(std::vector<float>&& data, size_t size)
+                : data(std::move(data)), rows_count(size / 6u)
             {
                 if (size % 6u != 0u)
                     throw std::invalid_argument("Invalid size for Boxes constructor. Please use a size that is divisible by 6 and is a flat float array.");
@@ -147,32 +147,42 @@ namespace track {
 
             // begin and end functions for iterating data
             const Row* begin() const {
-				return reinterpret_cast<const Row*>(data.get());
+				return reinterpret_cast<const Row*>(data.data());
 			}
             const Row* end() const {
-                return reinterpret_cast<const Row*>(data.get()) + num_rows();
+                return reinterpret_cast<const Row*>(data.data()) + num_rows();
             }
 
         private:
-            std::shared_ptr<float> data;
+            std::vector<float> data;
             size_t rows_count;
         };
 
 
         class TREX_EXPORT MaskData {
         private:
-            std::shared_ptr<uint8_t> ptr;
-            MaskData(std::shared_ptr<uint8_t> ptr, int rows, int cols, int dims = 1) : ptr(ptr), mat(rows, cols, CV_8UC(dims), ptr.get()) { }
+            std::vector<uint8_t> ptr;
+            MaskData(std::vector<uint8_t>&& ptr, int rows, int cols, int dims = 1) : ptr(std::move(ptr)), mat(rows, cols, CV_8UC(dims), this->ptr.data()) { }
             friend class Mask;
 
         public:
             cv::Mat mat;
 
             MaskData() = default;
-            MaskData(const MaskData&) = default;
-            MaskData& operator=(const MaskData&) = default;
-            MaskData(MaskData&&) = default;
-            MaskData& operator=(MaskData&&) = default;
+            MaskData(const MaskData& other) : ptr(other.ptr), mat(other.mat.rows, other.mat.cols, CV_8UC(other.mat.channels()), this->ptr.data()) {
+                
+            }
+            MaskData& operator=(const MaskData& other) {
+                ptr = other.ptr;
+                mat = cv::Mat(other.mat.rows, other.mat.cols, CV_8UC(other.mat.channels()), this->ptr.data());
+                return *this;
+            }
+            MaskData(MaskData&& other) : MaskData(std::move(other.ptr), other.mat.rows, other.mat.cols, other.mat.channels()) {}
+            MaskData& operator=(MaskData&& other) {
+                ptr = std::move(other.ptr);
+                mat = cv::Mat(other.mat.rows, other.mat.cols, CV_8UC(other.mat.channels()), this->ptr.data());
+                return *this;
+            }
 
             std::string toStr() const {
 				return "MaskData<"+std::to_string(mat.rows)+"x"+std::to_string(mat.cols)+"x"+std::to_string(mat.channels())+">";
@@ -212,7 +222,7 @@ namespace track {
 
         class TREX_EXPORT Result {
         public:
-            Result(int index, Boxes&& boxes, std::vector<MaskData> masks, KeypointData&& keypoints)
+            Result(int index, Boxes&& boxes, std::vector<MaskData>&& masks, KeypointData&& keypoints)
                 : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks)), _keypoints(std::move(keypoints))
             {
                 if (_boxes.num_rows() != 0) {

@@ -15,8 +15,8 @@ struct TREX_EXPORT Yolo8 {
 
     static void receive(SegmentationData& data, track::detect::Result&& result);
     
-    static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector,
-        const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns);
+    //static void receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector,
+    //    const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns);
     
     static void apply(std::vector<TileImage>&& tiles);
     static bool valid_model(const file::Path&);
@@ -29,6 +29,9 @@ private:
     struct TransferData;
     static void ReceivePackage(TransferData&&, std::vector<track::detect::Result>&& results);
     static void StartPythonProcess(TransferData&&);
+    static void process_instance_segmentation(const std::vector<uint8_t>& detect_only_classes, coord_t w, coord_t h, const cv::Mat& r3, SegmentationData&, track::detect::Result&);
+    static void process_boxes_only(const std::vector<uint8_t>& detect_only_classes, coord_t w, coord_t h, const cv::Mat& r3, SegmentationData&, track::detect::Result&);
+    static std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> process_instance(coord_t w, coord_t h, const cv::Mat& r3, const track::detect::Row& row, const track::detect::MaskData& mask);
 };
 
 } // namespace track

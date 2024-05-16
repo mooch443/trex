@@ -433,6 +433,41 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
         }
     }
 
+void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::SegmentedOutlines& outlines) {
+    auto ptr = std::make_shared<std::vector<Vec2>>(outlines.lines.front());
+    const auto pos = basic.blob.calculate_bounds().pos();
+    for(auto &pt : *ptr)
+        pt -= pos;
+    
+    _outline.clear();
+    _outline.replace_points(ptr);
+    _outline.minimize_memory();
+    
+    if(FAST_SETTING(outline_resample) != 0) {
+        if(FAST_SETTING(outline_resample) >= 1)
+            _outline.resample(FAST_SETTING(outline_resample));
+        else
+            _outline.resample(FAST_SETTING(outline_resample));
+    }
+    
+    //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+    auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
+    float confidence = calculate_midline(debug);
+    bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
+    error = !_normalized_midline;
+    
+    auto norma = _normalized_midline ? _normalized_midline->normalize() : nullptr;
+    if(norma && norma->size() != FAST_SETTING(midline_resolution))
+        error = true;
+    
+    //outline_point = ptr;
+    
+    if(!error && confidence > 0.9f) {
+        // found a good configuration! escape.
+        return;
+    }
+}
+
     void Posture::calculate_posture(Frame_t frame, pv::BlobWeakPtr blob)
     {
         const int initial_threshold = FAST_SETTING(track_posture_threshold);

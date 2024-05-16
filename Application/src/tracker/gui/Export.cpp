@@ -536,9 +536,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         fish_range = FrameRange(Range<Frame_t>(fish->start_frame(), fish->end_frame()));
                     
                     
-                    std::vector<Vec2> midline_points, outline_points, midline_points_raw;
+                    std::vector<Vec2> midline_points, outline_points, midline_points_raw, hole_points;
                     std::vector<Vec2> offsets;
                     std::vector<float> midline_angles, midline_cms, areas, midline_offsets;
+                    std::vector<size_t> hole_counts;
                     midline_points.reserve((size_t)fish_range.length().get() * 2 * FAST_SETTING(midline_resolution));
                     midline_points_raw.reserve(midline_points.capacity());
                     midline_angles.reserve((size_t)fish_range.length().get());
@@ -566,6 +567,26 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             
                             auto blob = fish->blob(frame);
                             offsets.push_back(blob->bounds().pos());
+                            
+                            /// also save the hole outlines of each blob (even though
+                            /// these might be duplicates as soon as we start splitting blobs).
+                            /// we will have the *hole_counts* array that contains...
+                            ///  [ M, N_pts0, N_pts1, ..., N_ptsM, <next object> ]
+                            if(blob->prediction().valid()
+                               && not blob->prediction().outlines.empty())
+                            {
+                                auto &lines = blob->prediction().outlines.lines;
+                                hole_counts.emplace_back(lines.size() - 1);
+                                
+                                for(size_t i = 1; i < lines.size(); ++i) {
+                                    auto pts = (std::vector<Vec2>)lines.at(i);
+                                    hole_counts.emplace_back(pts.size());
+                                    std::copy(pts.begin(), pts.end(), std::back_inserter(hole_points));
+                                }
+                                
+                            } else {
+                                hole_counts.emplace_back(0);
+                            }
                             
                             midline_angles.push_back(midline->angle());
                             midline_offsets.push_back(atan2(midline->segments().back().pos - midline->segments().front().pos));
@@ -610,6 +631,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         cmn::npz_save(use_path.str(), "midline_offsets", midline_offsets, "a");
                         cmn::npz_save(use_path.str(), "midline_angle", midline_angles, "a");
                         cmn::npz_save(use_path.str(), "posture_area", areas, "a");
+                        cmn::npz_save(use_path.str(), "hole_points", (const Float2_t*)hole_points.data(), std::vector<size_t>{ hole_points.size(), 2 }, "a");
+                        cmn::npz_save(use_path.str(), "hole_counts", hole_counts, "a");
                         
                         if(same_midline_length) {
                             cmn::npz_save(use_path.str(), "midline_points", (const Float2_t*)midline_points.data(), std::vector<size_t>{ posture_frames.size(), first_midline_length, 2 }, "a");

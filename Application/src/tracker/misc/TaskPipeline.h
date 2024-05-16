@@ -95,7 +95,7 @@ struct SegmentationData {
     };
     
     std::vector<Assignment> predictions;
-    std::vector<std::vector<Vec2>> outlines;
+    //std::vector<std::vector<Vec2>> outlines;
     std::vector<track::detect::Keypoint> keypoints;
     
     operator bool() const {

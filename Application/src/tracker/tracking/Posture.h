@@ -49,6 +49,7 @@ struct BasicStuff;
         
         void calculate_posture(Frame_t frameIndex, pv::BlobWeakPtr blob);//const cv::Mat& greyscale, Vec2 previous_direction);
         void calculate_posture(Frame_t frameIndex, const BasicStuff&, const blob::Pose& pose, const PoseMidlineIndexes& indexes);
+        void calculate_posture(Frame_t frameIndex, const BasicStuff&, const blob::SegmentedOutlines&);
         
         bool outline_empty() const { return _outline.empty(); }
         static std::vector<EntryPoint> subpixel_threshold(const cv::Mat& greyscale, int threshold) 

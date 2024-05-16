@@ -209,6 +209,27 @@ namespace track::detect {
             });
     }
 
+    template<typename T>
+    std::vector<T> move_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
+        // Get buffer info and pointer
+        py::buffer_info buf_info = input.request();
+        T* ptr = static_cast<T*>(buf_info.ptr);
+
+        // Calculate the size of the array
+        std::size_t size = static_cast<std::size_t>(buf_info.size);
+        return std::vector<T>(ptr, ptr + size);
+
+        // Transfer ownership to a std::shared_ptr with a custom deleter
+        /*std::shared_ptr<std::vector<T>> result(new std::vector<T>(ptr, ptr + size), [input](std::vector<T>* vec) mutable {
+            // When the std::shared_ptr is deleted, we release the Python buffer
+            input.release();
+            delete vec;
+        });
+
+        // Return the shared pointer
+        return result;*/
+    }
+
     class Mask {
     public:
         MaskData data;
@@ -218,8 +239,9 @@ namespace track::detect {
             py::buffer_info buf_info = mask.request();
             int rows = narrow_cast<int>(buf_info.shape[0]);
             int cols = narrow_cast<int>(buf_info.shape[1]);
+            auto ptr = move_array<uint8_t>(mask);
             data = MaskData{
-                transfer_array<uint8_t>(mask),
+                std::move(ptr),
                 rows,
                 cols
             };
@@ -253,7 +275,7 @@ public:
         result.reserve(masks.size());
 
         for (py::handle h : masks) {
-            py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask = h.cast<py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
+            auto mask = h.cast<py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
             result.emplace_back(std::move(Mask(mask).data));
         }
         return result;
@@ -370,9 +392,10 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     py::class_<Boxes>(m, "Boxes")
         .def(py::init([](py::array_t<float, py::array::c_style | py::array::forcecast> boxes_and_scores) -> Boxes {
+            auto ptr = move_array<float>(boxes_and_scores);
             return Boxes{
-                transfer_array<float>(boxes_and_scores),
-                    size_t(boxes_and_scores.request().size)
+                std::move(ptr),
+                size_t(boxes_and_scores.request().size)
             };
         }))
         .def("__repr__", [](const track::detect::Boxes& boxes) -> std::string {

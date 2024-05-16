@@ -116,9 +116,19 @@ struct ConvertScene::Data {
     Frame_t last_frame;
     Timer timer;
     
-    void drawBlobs(Frame_t, const std::vector<std::string>& detect_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
+    void drawBlobs(DrawStructure&, Frame_t, const std::vector<std::string>& detect_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
     // Helper function to draw outlines
     void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
+    void paint_blob_prediction(DrawStructure& graph, const Color& tracked_color, const pv::Blob& blob) {
+        if(blob.prediction().valid()
+           && not blob.prediction().outlines.empty())
+        {
+            for(auto &line : blob.prediction().outlines.lines) {
+                std::vector<Vec2> v = line;
+                graph.line(gui::Line::Points_t{ v }, gui::LineClr{ tracked_color.alpha(150) });
+            }
+        }
+    }
     void check_video_info(bool wait, std::string*);
     
     bool fetch_new_data();
@@ -625,7 +635,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 
 // Helper function to draw outlines
 void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2) {
-    if (not _current_data.outlines.empty()) {
+    /*if (not _current_data.outlines.empty()) {
         //graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
         ColorWheel wheel;
@@ -633,7 +643,7 @@ void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, 
             auto clr = wheel.next();
             graph.line(Line::Points_t{ v }, LineClr{ clr.alpha(150) });
         }
-    }
+    }*/
 }
 
 uint64_t interleaveBits(const Vec2& pos) {
@@ -646,6 +656,7 @@ uint64_t interleaveBits(const Vec2& pos) {
 }
 
 void ConvertScene::Data::drawBlobs(
+    DrawStructure& graph,
     Frame_t frameIndex,
     const std::vector<std::string>& detect_classes, 
     const Vec2&, Vec2, 
@@ -786,6 +797,9 @@ void ConvertScene::Data::drawBlobs(
                 selected_ids.erase(std::find(selected_ids.begin(), selected_ids.end(), tracked_id));
             }
         }
+        
+        if(blob)
+            paint_blob_prediction(graph, tracked_color, *blob);
     }
 
     size_t tracked = 0;
@@ -1189,11 +1203,14 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
                     (*tmp)["size"] = Size2(bds.size());
                     (*tmp)["radius"] = bds.size().length() * 0.5;
                 }
+                
+                if(blob)
+                    paint_blob_prediction(graph, tracked_color, *blob);
             }
             return;
         }
 
-        drawBlobs(_current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
+        drawBlobs(graph, _current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
     });
     
     graph.section("menus", [&](auto&, Section*) {
