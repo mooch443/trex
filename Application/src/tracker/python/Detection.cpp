@@ -9,6 +9,7 @@
 #include <processing/CPULabeling.h>
 #include <misc/Timer.h>
 #include <misc/AbstractVideoSource.h>
+#include <python/TileBuffers.h>
 
 namespace track {
 using namespace detect;
@@ -380,6 +381,11 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
         } catch(...) {
             FormatExcept("Exception for tile ", i," in package of ", tiled.size(), " TileImages.");
         }
+        
+        for(auto &image: tile.images) {
+            buffers::TileBuffers::get().move_back(std::move(image));
+        }
+        tile.images.clear();
         
         ++i;
     }

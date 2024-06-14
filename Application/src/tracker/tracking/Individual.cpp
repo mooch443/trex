@@ -2136,7 +2136,9 @@ Probability Individual::probability(int label, const IndividualCache& cache, Fra
     assert(frameIndex >= _startFrame);
     //if (frameIndex < _startFrame)
     //    throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
-    assert(!cache.individual_empty);
+    //assert(!cache.individual_empty);
+    if(cache.individual_empty)
+        return 0;
 
     //if (//cache.consistent_categories &&
     //    cache.current_category != -1)

@@ -130,20 +130,26 @@ public:
     ImageArray(F fn)
       : BaseTask<Data>(0),
         task([this, fn = std::move(fn)]() mutable {
-            static decltype(_images) packet;
+            decltype(_images) packet;
             {
                 std::scoped_lock guard(_mutex, _task_mutex);
 #ifndef NDEBUG
                 if(_images.empty())
                     FormatError("Images empty: ", BaseTask<Data>::_weight);
 #endif
-                std::swap(_images, packet);
-                _images.clear();
+                packet.swap(_images);
                 BaseTask<Data>::_weight = 0;
             }
 
             std::lock_guard guard(_task_mutex);
             fn(std::move(packet));
+            
+            for(auto &data : packet) {
+                if(data) {
+                    print("Data not null");
+                }
+            }
+            packet.clear();
         })
     { }
 

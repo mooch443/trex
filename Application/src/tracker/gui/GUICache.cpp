@@ -469,6 +469,10 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         inactive_estimates.clear();
         blob_selected_fish.clear();
         
+        while(fish_last_bounds.size() > 1000) {
+            fish_last_bounds.erase(fish_last_bounds.begin());
+        }
+        
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
             {
@@ -553,8 +557,18 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             for(auto fish : active) {
                 Range<Frame_t> segment_range;
                 
+                auto segment = fish->segment_for(frameIndex);
+                BasicStuff* basic{nullptr};
+                PostureStuff* posture{nullptr};
+                
+                if(segment) {
+                    auto basic_index = segment->basic_stuff(frameIndex);
+                    auto posture_index = segment->posture_stuff(frameIndex);
+                    basic = basic_index != -1 ? fish->basic_stuff().at(basic_index).get() : nullptr;
+                    posture = posture_index != -1 ? fish->posture_stuff().at(posture_index).get() : nullptr;
+                }
+                
                 if(fish->identity().ID() == primary_selected_id()) {
-                    auto segment = fish->segment_for(frameIndex);
                     if(segment) {
                         auto filters = constraints::local_midline_length(fish, segment->range);
                         filter_cache[fish->identity().ID()] = std::move(filters);
@@ -562,7 +576,6 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     }
                 }
                 
-                auto [basic, posture] = fish->all_stuff(frameIndex);
                 if(basic) {
                     active_ids.insert(fish->identity().ID());
                     
@@ -581,10 +594,36 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     }
                     
                     blob_selected_fish[blob.bdx] = fish->identity().ID();
+                    fish_last_bounds[fish->identity().ID()] = basic->blob.calculate_bounds();
                     fish_selected_blobs[fish->identity().ID()] = std::move(blob);
                     
                 } else {
                     inactive_ids.insert(fish->identity().ID());
+                    
+                    /// try a slightly more efficient way of getting the basic stuff
+                    /// for the previous frame (in order to allow the gui to quickly
+                    /// switch selected individuals if necessary, even if not all
+                    /// individuals are currently visible)
+                    const BasicStuff *pstuff{nullptr};
+                    if(segment && segment->contains(frameIndex - 1_f)) {
+                        auto index = segment->basic_stuff(frameIndex - 1_f);
+                        if(index != -1)
+                            pstuff = fish->basic_stuff().at(index).get();
+                        
+                    }
+                    
+                    if(not pstuff) {
+                        pstuff = fish->find_frame(frameIndex - 1_f);
+                    }
+                    
+                    if(pstuff) {
+                        fish_last_bounds[fish->identity().ID()] = pstuff->blob.calculate_bounds();
+                        
+                    } else if(auto fit = fish_last_bounds.find(fish->identity().ID());
+                            fit != fish_last_bounds.end())
+                    {
+                        fish_last_bounds.erase(fit);
+                    }
                 }
             }
             

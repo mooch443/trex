@@ -195,6 +195,7 @@ namespace globals {
         
         std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
         std::map<Idx_t, BdxAndPred> fish_selected_blobs;
+        std::map<Idx_t, Bounds> fish_last_bounds;
         std::map<Idx_t, std::shared_ptr<constraints::FilterCache>> filter_cache;
         set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;

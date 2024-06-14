@@ -92,7 +92,7 @@ struct TrackingScene::Data {
     std::unique_ptr<GUICache> _cache;
     
     std::unique_ptr<Bowl> _bowl;
-    std::unordered_map<Idx_t, Bounds> _last_bounds;
+    //std::unordered_map<Idx_t, Bounds> _last_bounds;
     
     std::unique_ptr<AnimatedBackground> _background;
     std::unique_ptr<ExternalImage> _gui_mask;
@@ -258,10 +258,16 @@ bool TrackingScene::on_global_event(Event event) {
                 SETTING(gui_show_posture) = not SETTING(gui_show_posture).value<bool>();
                 break;
             case Keyboard::M:
-                next_poi(Idx_t());
+                if(_data) {
+                    next_poi(_data->_cache->primary_selected_id());
+                } else
+                    next_poi(Idx_t());
                 break;
             case Keyboard::N:
-                prev_poi(Idx_t());
+                if(_data) {
+                    prev_poi(_data->_cache->primary_selected_id());
+                } else
+                    prev_poi(Idx_t());
                 break;
             case Keyboard::L:
                 _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
@@ -648,7 +654,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_last_mouse = mouse;
     }
     
-    if(false) {
+    //if(false)
+    {
         uint64_t last_change = FOI::last_change();
         auto name = SETTING(gui_foi_name).value<std::string>();
 
@@ -751,7 +758,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
            && not graph.is_key_pressed(Keyboard::LShift))
         {
             for(auto fdx : _data->_cache->selected) {
-                bool found = false;
+                /*bool found = false;
                 if (auto it = _data->_cache->fish_selected_blobs.find(fdx);
                     it != _data->_cache->fish_selected_blobs.end()) 
                 {
@@ -762,36 +769,23 @@ void TrackingScene::_draw(DrawStructure& graph) {
                         targets.push_back(bds.pos() + bds.size());
                         targets.push_back(bds.pos() + bds.size().mul(0, 1));
                         targets.push_back(bds.pos() + bds.size().mul(1, 0));
-                        _data->_last_bounds[fdx] = bds;
+                        //_data->_last_bounds[fdx] = bds;
                         found = true;
                     }
-                    /*for (auto& blob : _data->_cache->raw_blobs) {
-                        if (blob->blob &&
-                            (blob->blob->blob_id() == bdx || blob->blob->parent_id() == bdx)) {
-                            auto& bds = blob->blob->bounds();
-                            targets.push_back(bds.pos());
-                            targets.push_back(bds.pos() + bds.size());
-                            targets.push_back(bds.pos() + bds.size().mul(0, 1));
-                            targets.push_back(bds.pos() + bds.size().mul(1, 0));
-                            _data->_last_bounds[fdx] = bds;
-                            found = true;
-                            break;
-                        }
-                    }*/
                 }
 
-                if (not found) {
-                    if (_data->_last_bounds.contains(fdx)) {
-                        auto& bds = _data->_last_bounds.at(fdx);
+                if (not found) {*/
+                    if(_data->_cache->fish_last_bounds.contains(fdx)) {
+                        auto& bds = _data->_cache->fish_last_bounds.at(fdx);
                         targets.push_back(bds.pos());
                         targets.push_back(bds.pos() + bds.size());
                         targets.push_back(bds.pos() + bds.size().mul(0, 1));
                         targets.push_back(bds.pos() + bds.size().mul(1, 0));
                     }
-                }
+                //}
             }
             
-            if(_data->_last_bounds.size() > 100) {
+            /*if(_data->_last_bounds.size() > 100) {
                 std::vector<Idx_t> remove;
                 for(auto &[fdx, bds] : _data->_last_bounds) {
                     if(not contains(_data->_cache->selected, fdx)
@@ -810,7 +804,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 
                 for(auto fdx: remove)
                     _data->_last_bounds.erase(fdx);
-            }
+            }*/
         }
         
         _data->_bowl->fit_to_screen(coords.screen_size());
@@ -928,7 +922,7 @@ void TrackingScene::next_poi(Idx_t _s_fdx) {
 
 void TrackingScene::prev_poi(Idx_t _s_fdx) {
     auto frame = _data->_cache->frame_idx;
-    auto next_frame = frame;
+    Frame_t next_frame;
     std::set<FOI::fdx_t> fdx;
     
     {
@@ -938,15 +932,14 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
                     continue;
             }
             
-            if(not frame.valid() || foi.frames().end < frame) {
+            if(frame.valid() && foi.frames().end < frame && (not next_frame.valid() || foi.frames().end > next_frame)) {
                 next_frame = foi.frames().end;
                 fdx = foi.fdx();
-                break;
             }
         }
     }
     
-    if(frame != next_frame && next_frame.valid()) {
+    if(next_frame.valid() && frame != next_frame) {
         set_frame(next_frame);
         
         if(!_s_fdx.valid())
