@@ -29,7 +29,7 @@
 #include <misc/SettingsInitializer.h>
 #include <misc/PythonWrapper.h>
 
-namespace gui {
+namespace cmn::gui {
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
 

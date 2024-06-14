@@ -1,6 +1,6 @@
 #include "FramePreloader.h"
 
-namespace gui {
+namespace cmn::gui {
 
 
 

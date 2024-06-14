@@ -5,11 +5,11 @@
 #include <file/DataFormat.h>
 #include <tracking/CategorizeDatastore.h>
 
-namespace gui {
+namespace cmn::gui {
 class IMGUIBase;
 }
 
-namespace gui {
+namespace cmn::gui {
     class DrawStructure;
 }
 

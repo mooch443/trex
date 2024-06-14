@@ -6,6 +6,8 @@
 #include "Camera.h"
 
 namespace fg {
+using namespace cmn;
+
     class Webcam : public Camera {
         Size2 _size;
         cv::VideoCapture _capture;

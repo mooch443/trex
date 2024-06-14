@@ -6,6 +6,8 @@
 
 namespace track {
 
+using namespace cmn;
+
 template<typename T>
 concept MultiObjectDetection = requires (std::vector<TileImage> tiles) {
     { T::apply(std::move(tiles)) };

@@ -143,6 +143,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
 
         self.uniquenesses.append(unique)
         set_uniqueness_history(self.uniquenesses)
+        print("uniquenesses: ", self.uniquenesses)
 
         if unique >= acceptable_uniqueness() and self.settings["accumulation_step"] >= -1:
             if self.settings["accumulation_step"] == -1:
@@ -219,11 +220,13 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             #               self.model.stop_training = True
 
             # check for accuracy plateau
-            long_time = int(max(5, self.epochs * 0.1))
-            long_time = min(long_time, 10)
-            TRex.log("-- worst_value "+str(self.worst_values[-2:])+" -- long time:"+str(long_time))
-            if not self.model.stop_training and len(self.worst_values) >= 2 and self.settings["accumulation_step"] >= -1:
-                acc = np.array(self.worst_values[-2:]) #logs[akey][-2:]
+            long_time = int(max(8, self.epochs * 0.1))
+            long_time = min(long_time, 13)
+
+            worst_value_backlog = 5
+            TRex.log("-- worst_value (backlog="+str(worst_value_backlog)+") "+str(self.worst_values[-worst_value_backlog:])+" -- long time:"+str(long_time))
+            if not self.model.stop_training and len(self.worst_values) >= worst_value_backlog and self.settings["accumulation_step"] >= -1:
+                acc = np.array(self.worst_values[-worst_value_backlog:]) #logs[akey][-2:]
                 if (acc > 0.97).all() or worst_acc_per_class >= 0.99:
                     TRex.log("[STOP] "+str(acc)+" in "+akey+" has been > 0.97 for consecutive epochs. terminating.")
                     set_stop_reason(akey+" good enough ("+str(acc)+")")

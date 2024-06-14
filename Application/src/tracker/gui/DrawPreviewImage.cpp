@@ -9,7 +9,7 @@
 #include <tracking/LockGuard.h>
 #include <tracking/Individual.h>
 
-namespace gui {
+namespace cmn::gui {
 namespace meta {
 
 constexpr double default_element_width = 200;
@@ -155,7 +155,7 @@ void LabeledDropDown::update() {
 }
 }
 
-namespace gui {
+namespace cmn::gui {
 namespace DrawPreviewImage {
 
 Entangled preview;
@@ -212,7 +212,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
 }
 
 void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
-    if(!SETTING(gui_show_individual_preview)) {
+    if(not SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
     

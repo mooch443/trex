@@ -7,7 +7,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/WorkProgress.h>
 
-namespace gui {
+namespace cmn::gui {
 
 IMPLEMENT(SceneManager::_switching_error);
 

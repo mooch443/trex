@@ -3,8 +3,12 @@
 #include <misc/Image.h>
 #include <processing/Background.h>
 #include <misc/PixelTree.h>
+#include <misc/TrackingSettings.h>
+#include <tracking/Posture.h>
 
 using namespace cmn;
+using namespace track;
+using namespace blob;
 
 template<DifferenceMethod method, ImageMode mode>
 inline void line_without_grid (const Background* bg, const std::vector<HorizontalLine>& input, uchar*& px, int threshold, std::vector<HorizontalLine> &lines, std::vector<uchar> &pixels) {

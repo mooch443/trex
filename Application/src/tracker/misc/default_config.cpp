@@ -38,7 +38,7 @@ const auto homedir = []() {
 
 #include <misc/default_settings.h>
 
-using namespace file;
+using namespace cmn::file;
 #define CONFIG adding.add<ParameterCategoryType::CONVERTING>
 
 namespace default_config {
@@ -467,7 +467,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_inactive_individuals", false, "Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.");
         //config["gui_show_texts"] = true;
         CONFIG("gui_show_histograms", false, "Equivalent to the checkbox visible in GUI on the bottom-left.");
-        CONFIG("gui_show_posture", true, "Show/hide the posture window on the top-right.");
+        CONFIG("gui_show_posture", false, "Show/hide the posture window on the top-right.");
         CONFIG("gui_show_export_options", false, "Show/hide the export options widget.");
         CONFIG("gui_show_visualfield_ts", false, "Show/hide the visual field time series.");
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");

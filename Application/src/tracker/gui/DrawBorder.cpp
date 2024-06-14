@@ -2,7 +2,7 @@
 #include <gui/DrawStructure.h>
 #include <gui/GuiTypes.h>
 
-namespace gui {
+namespace cmn::gui {
 
 DrawBorder::DrawBorder(const track::Border& border) {
     for(auto& convex : border.polygons()) {

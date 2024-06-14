@@ -11,7 +11,7 @@ class TrackingResults;
 namespace track {
 class Identity {
 protected:
-    GETTER_SETTER(gui::Color, color);
+    GETTER_SETTER(cmn::gui::Color, color);
     Idx_t _myID;
     std::string _name;
     GETTER_SETTER(bool, manual);
@@ -24,9 +24,9 @@ public:
 private:
     Identity(Idx_t myID);
     void set_ID(Idx_t val) {
-        _color = ColorWheel(val.get()).next();
+        _color = cmn::gui::ColorWheel(val.get()).next();
         _myID = val;
-        _name = Meta::toStr(_myID);
+        _name = cmn::Meta::toStr(_myID);
     }
     
 public:

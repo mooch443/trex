@@ -6,7 +6,7 @@
 #include <tracking/LockGuard.h>
 #include <tracking/EventAnalysis.h>
 
-using namespace file;
+using namespace cmn::file;
 using namespace Output;
 using namespace track;
 

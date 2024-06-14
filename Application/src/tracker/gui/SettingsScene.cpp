@@ -23,7 +23,7 @@
 
 #include <portable-file-dialogs.h>
 
-namespace gui {
+namespace cmn::gui {
 
 struct SettingsScene::Data {
     //BlurryVideoLoop _video_loop;

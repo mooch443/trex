@@ -12,7 +12,7 @@ namespace cmn {
 class VideoSource;
 }
 
-namespace gui {
+namespace cmn::gui {
 
 using Pose = blob::Pose;
 class Bowl;

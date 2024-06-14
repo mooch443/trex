@@ -1,7 +1,7 @@
 #include "GUIVideoAdapter.h"
 #include <gui/IMGUIBase.h>
 
-namespace gui {
+namespace cmn::gui {
 
 GUIVideoAdapter::GUIVideoAdapter(const file::PathArray& array, 
                                  IMGUIBase* queue,

@@ -2,7 +2,7 @@
 #include <gui/DrawBase.h>
 #include <gui/DrawStructure.h>
 
-namespace gui {
+namespace cmn::gui {
 
 FindCoord& FindCoord::instance() {
     static FindCoord instance;

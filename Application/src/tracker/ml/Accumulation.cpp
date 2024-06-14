@@ -752,6 +752,10 @@ std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqu
 }
 
 float Accumulation::good_uniqueness() {
+    /// just return 95% for two individuals.
+    /// it's sometimes not enough in complicated cases to only have 90%!
+    if(FAST_SETTING(track_max_individuals) < 3)
+        return 0.95;
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 

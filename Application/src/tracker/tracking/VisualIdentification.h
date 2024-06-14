@@ -61,7 +61,7 @@ public:
     static void set_skip_button(std::function<bool()>);
     
     //! A path set according to output_dir and filename "_weights.npz"
-    static file::Path network_path();
+    static cmn::file::Path network_path();
     
     //! Generated based on classes()
     static size_t number_classes();

@@ -8,7 +8,7 @@
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualCache.h>
 
-static constexpr auto lower = utils::lowercase("hiIbImS");
+static constexpr auto lower = cmn::utils::lowercase("hiIbImS");
 
 using namespace cmn;
 using namespace utils;

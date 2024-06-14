@@ -435,7 +435,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         //cv::cvtColor(tmp, tmp, cv::COLOR_GRAY2BGR);
 
         i = 0;
-        ColorWheel wheel;
+        cmn::gui::ColorWheel wheel;
         for(auto& d : output) {
             auto c = wheel.next();
             for(auto& l : *d->lines())

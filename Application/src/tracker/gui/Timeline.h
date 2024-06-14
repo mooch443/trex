@@ -8,8 +8,8 @@
 
 class GUI;
 
-namespace gui {
-    using namespace cmn;
+namespace cmn::gui {
+    
 
     class DrawStructure;
     class ExternalImage;

@@ -20,10 +20,10 @@ std::string current_version();
 std::string last_asked_version();
 const std::string& last_error();
 void cleanup();
-void init(gui::DrawStructure*);
+void init(cmn::gui::DrawStructure*);
 bool user_has_been_asked();
 bool automatically_check();
-void display_update_dialog(gui::DrawStructure*);
+void display_update_dialog(cmn::gui::DrawStructure*);
 void write_version_file();
 
 }

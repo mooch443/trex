@@ -7,7 +7,7 @@
 #include <ShObjIdl_core.h>
 #endif
 
-namespace gui {
+namespace cmn::gui {
 class IMGUIBase;
 
 struct WorkItem {

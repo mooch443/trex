@@ -6,7 +6,6 @@
 #include <video/Video.h>
 
 namespace fg {
-    using namespace cmn;
     
     class Camera {
         GETTER_SETTER(cv::Rect2f, crop);
@@ -17,9 +16,9 @@ namespace fg {
         
         [[nodiscard]] virtual bool open() const = 0;
         virtual void close() = 0;
-        virtual bool next(Image& image) = 0;
-        virtual Size2 size() const = 0;
-        virtual ImageMode colors() const = 0;
+        virtual bool next(cmn::Image& image) = 0;
+        virtual cmn::Size2 size() const = 0;
+        virtual cmn::ImageMode colors() const = 0;
         
         virtual std::string toStr() const { return "Camera"; }
         static std::string class_name() { return "Camera"; }

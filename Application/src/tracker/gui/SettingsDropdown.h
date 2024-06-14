@@ -3,7 +3,7 @@
 #include <gui/types/Textfield.h>
 #include <gui/types/Dropdown.h>
 #include <misc/GlobalSettings.h>
-namespace gui {
+namespace cmn::gui {
 class List;
 class IMGUIBase;
 

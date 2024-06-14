@@ -7,7 +7,7 @@
 #include <gui/types/ScrollableList.h>
 #include <gui/DrawStructure.h>
 
-namespace gui {
+namespace cmn::gui {
 struct DrawExportOptions::Data {
     struct Item {
         std::string _name;

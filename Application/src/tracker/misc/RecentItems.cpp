@@ -6,7 +6,7 @@
 #include <grabber/misc/default_config.h>
 #include <misc/SettingsInitializer.h>
 
-using namespace gui;
+using namespace cmn::gui;
 using namespace cmn;
 
 std::mutex _recent_select_mutex;

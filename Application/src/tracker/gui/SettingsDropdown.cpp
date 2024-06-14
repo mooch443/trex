@@ -2,7 +2,7 @@
 #include <gui/types/List.h>
 #include <gui/IMGUIBase.h>
 
-namespace gui {
+namespace cmn::gui {
 void SettingsDropdown::selected_setting(long_t index, const std::string& name, Textfield& textfield) {
     print("choosing ",name);
     if(index != -1) {

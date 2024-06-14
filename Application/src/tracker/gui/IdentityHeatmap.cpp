@@ -9,7 +9,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
 namespace heatmap {
 
 static std::map<std::string, std::vector<double>> _statistics;

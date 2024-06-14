@@ -1,6 +1,6 @@
 #include "LoadingScene.h"
 
-namespace gui {
+namespace cmn::gui {
 
 void LoadingScene::set_tabs(const std::vector<Settings>& tabs) {
     _tabs.clear();

@@ -7,7 +7,7 @@
 #include <misc/PackLambda.h>
 #include <misc/DetectionTypes.h>
 
-namespace file {
+namespace cmn::file {
     class DataLocation;
 }
 

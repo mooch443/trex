@@ -10,7 +10,7 @@
 #include <gui/DynamicGUI.h>
 #include <gui/Bowl.h>
 
-namespace gui {
+namespace cmn::gui {
 
 using namespace dyn;
 using namespace track;

@@ -4,7 +4,7 @@
 #include <gui/dyn/State.h>
 #include <misc/VideoInfo.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class IMGUIBase;
 

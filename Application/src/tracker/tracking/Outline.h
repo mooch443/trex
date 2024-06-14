@@ -20,6 +20,7 @@ namespace track {
     class Posture;
     class MinimalOutline;
     struct MovementInformation;
+    using namespace cmn;
     
     struct DebugInfo {
         Frame_t frameIndex;

@@ -2,7 +2,7 @@
 #include <commons.pc.h>
 #include <misc/ranges.h>
 
-namespace gui {
+namespace cmn::gui {
 struct ShadowSegment {
     FrameRange frames;
     uint32_t error_code;

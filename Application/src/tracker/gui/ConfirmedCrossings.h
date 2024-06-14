@@ -2,7 +2,7 @@
 #include <commons.pc.h>
 #include <misc/FOI.h>
 
-namespace gui {
+namespace cmn::gui {
 class DrawStructure;
 }
 

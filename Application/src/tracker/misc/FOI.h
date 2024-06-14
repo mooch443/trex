@@ -6,6 +6,8 @@
 #include <misc/idx_t.h>
 
 namespace track {
+    using namespace cmn;
+
     //! Frames of interest
     class FOI {
     public:
@@ -59,7 +61,7 @@ namespace track {
         static std::set<long_t> _ids;
         static foi_type _frames_of_interest;
         static std::recursive_mutex _mutex;
-        static ColorWheel _wheel;
+        static cmn::gui::ColorWheel _wheel;
         
         const Properties* _props;
         

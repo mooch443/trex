@@ -4,7 +4,7 @@
 #include <misc/Border.h>
 #include <gui/types/Entangled.h>
 
-namespace gui {
+namespace cmn::gui {
 class DrawStructure;
 class Drawable;
 

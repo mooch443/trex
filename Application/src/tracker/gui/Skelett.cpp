@@ -4,7 +4,7 @@
 #include <gui/GuiTypes.h>
 #include <gui/DrawBase.h>
 
-namespace gui {
+namespace cmn::gui {
 
     void Skelett::update() {
         auto coord = FindCoord::get();

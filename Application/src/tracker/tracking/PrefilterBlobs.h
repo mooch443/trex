@@ -16,6 +16,7 @@ struct BlobReceiver;
 class PPFrame;
 
 using FilterReason = pv::FilterReason;
+using namespace cmn;
 
 struct split_expectation {
     size_t number;

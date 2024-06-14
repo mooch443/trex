@@ -10,7 +10,8 @@
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
 
-using namespace gui;
+using namespace cmn;
+using namespace cmn::gui;
 using namespace dyn;
 
 // Unit Tests

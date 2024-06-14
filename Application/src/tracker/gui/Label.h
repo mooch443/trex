@@ -6,7 +6,7 @@
 #include <misc/Timer.h>
 #include <misc/Coordinates.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class Label : public Entangled {
     GETTER_SETTER_I(float, line_length, 60);

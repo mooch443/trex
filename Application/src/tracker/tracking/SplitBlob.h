@@ -40,7 +40,7 @@ class track::SplitBlob {
         //std::vector<std::vector<uchar>> pixels;
         
         std::string toStr() const {
-            return "t:"+Meta::toStr(threshold)+" obj:"+Meta::toStr(blobs.size())+" r:"+Meta::toStr(ratio);
+            return "t:"+cmn::Meta::toStr(threshold)+" obj:"+cmn::Meta::toStr(blobs.size())+" r:"+cmn::Meta::toStr(ratio);
         }
         static std::string class_name() {
             return "SplitBlob::ResultProp";
@@ -57,10 +57,10 @@ private:
     // parameters
     pv::BlobWeakPtr _blob;
     std::vector<uchar> _diff_px;
-    CPULabeling::ListCache_t* _cache{nullptr};
+    cmn::CPULabeling::ListCache_t* _cache{nullptr};
     
 public:
-    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobWeakPtr blob);
+    SplitBlob(cmn::CPULabeling::ListCache_t* cache, const cmn::Background& average, pv::BlobWeakPtr blob);
     
     /**
      * @param presumed_nr number of individuals to find
@@ -71,10 +71,10 @@ public:
      * a number of Blobs that seem to be two individuals. Also returns
      * every Blob paired with its grey value array
      */
-    std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<Vec2>& centers);
+    std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<cmn::Vec2>& centers);
     
 private:
-    size_t apply_threshold(CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output);
+    size_t apply_threshold(cmn::CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output);
     split::Action_t evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&);
 };
 

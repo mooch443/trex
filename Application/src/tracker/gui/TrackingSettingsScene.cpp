@@ -8,7 +8,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/dyn/VarProps.h>
 
-namespace gui {
+namespace cmn::gui {
 
 TrackingSettingsScene::TrackingSettingsScene(Base& window)
 : Scene(window, "tracking-settings-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),

@@ -16,7 +16,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
 
 VIControllerImpl::VIControllerImpl(VIControllerImpl&& other) :
     vident::VIController(std::move((vident::VIController&)other)),

@@ -9,7 +9,7 @@
 #include <gui/DrawStructure.h>
 #include <pv.h>
 
-using namespace cmn;
+
 using namespace track;
 using namespace default_config;
 

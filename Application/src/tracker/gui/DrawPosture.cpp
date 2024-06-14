@@ -6,7 +6,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
     Posture::Posture(const Bounds& size)
       : zero(size.width * 0.1, size.height * 0.5),//, _background(size.size(), Black.alpha(125),White.alpha(125)),
         _text(std::make_unique<StaticText>()),

@@ -264,7 +264,7 @@ Image::Ptr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_pe
     };
     
     
-    ColorWheel wheel;
+    cmn::gui::ColorWheel wheel;
     for(auto id : Tracker::identities()) {
         gui::Color color = wheel.next();
         colors[id] = color;

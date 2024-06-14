@@ -31,16 +31,22 @@
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
 #include <gui/InfoCard.h>
+#include <tracking/AutomaticMatches.h>
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
 
 class IndividualImage : public Entangled {
     GETTER(Idx_t, fdx);
     Image::Ptr ptr;
     GETTER(Frame_t, frame);
     ExternalImage _display;
+
+    static constexpr inline std::array<std::string_view, 3> _setting_names {
+        "individual_image_normalization", "individual_image_size", "meta_encoding"
+    };
+    std::unordered_map<std::string_view, std::string> _settings;
     
 public:
     using Entangled::set;
@@ -54,7 +60,24 @@ public:
         
         auto &&[image, pos] = DrawPreviewImage::make_image(blob, midline, filters, background);
         _display.set_source(std::move(image));
+        update_settings();
         update();
+    }
+
+    bool settings_changed() const {
+        if(_settings.empty())
+            return true;
+        for(auto&[key, value] : _settings) {
+            if(GlobalSettings::map().at(key).get().valueString() != value) {
+                return true;
+            }
+        }
+        return false;
+    }
+    void update_settings() {
+        for(auto key : _setting_names) {
+            _settings[key] = GlobalSettings::map().at(key).get().valueString();
+        }
     }
     
     void update() override {
@@ -118,6 +141,10 @@ struct TrackingScene::Data {
 
 TrackingScene::~TrackingScene() {
     
+}
+
+void TrackingScene::request_load() {
+    _load_requested = true;
 }
 
 const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map {
@@ -443,6 +470,15 @@ void TrackingScene::activate() {
     });
     
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    
+    
+    if(_load_requested) {
+        bool exchange = true;
+        if(_load_requested.compare_exchange_strong(exchange, false)) 
+        {
+            _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
+        }
+    }
 }
 
 void TrackingScene::init_undistortion() {
@@ -470,7 +506,7 @@ void TrackingScene::deactivate() {
     
     if(_data)
         _data->dynGUI.clear();
-    tracker::gui::blob_view_shutdown();
+    cmn::gui::tracker::blob_view_shutdown();
     
     if(_data && _data->_callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
@@ -595,7 +631,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_bowl->fit_to_screen(coords.screen_size());
         
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
-            tracker::gui::clicked_background(graph, *_data->_cache, pos, v, key);
+            gui::tracker::clicked_background(graph, *_data->_cache, pos, v, key);
         };
     }
     
@@ -823,14 +859,14 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl.set(FillClr{Yellow});
     
     if(GUI_SETTINGS(gui_mode) == mode_t::blobs) {
-        tracker::gui::draw_blob_view({
+        cmn::gui::tracker::draw_blob_view({
             .graph = graph,
             .cache = *_data->_cache,
             .coord = coords
         });
     }
     
-    tracker::gui::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
+    cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
     
     _data->dynGUI.update(nullptr);
     
@@ -1018,6 +1054,33 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     print("callback ");
                 }, _state->_controller.get());
             }),
+            ActionFunc("remove_automatic_matches", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                auto fdx = Meta::fromStr<Idx_t>(action.parameters.front());
+                if(not action.parameters.back().empty() 
+                   && action.parameters.back().front() == '[')
+                {
+                    auto range = FrameRange(Meta::fromStr<Range<Frame_t>>(action.parameters.back()));
+                    print("Erasing automatic matches for fish ", fdx," in range ", range.start(),"-",range.end());
+                    if(_state && _state->tracker) {
+                        LockGuard guard(w_t{}, "automatic assignments");
+                        AutoAssign::delete_automatic_assignments(fdx, range);
+                        _state->tracker->_remove_frames(range.start());
+                        _state->analysis.set_paused(false);
+                    }
+                } else {
+                    auto frame = Meta::fromStr<Frame_t>(action.parameters.back());
+                    print("Erasing automatic matches for fish ", fdx," in frame ", frame);
+                    if(_state && _state->tracker) {
+                        LockGuard guard(w_t{}, "automatic assignments");
+                        AutoAssign::delete_automatic_assignments(fdx, FrameRange(Range<Frame_t>{frame, frame}));
+                        _state->tracker->_remove_frames(frame);
+                        _state->analysis.set_paused(false);
+                    }
+                }
+                
+                print("Got ", action.name, ": ", action.parameters);
+            }),
             
             VarFunc("is_segment", [this](const VarProps& props) -> bool {
                 if(props.parameters.size() != 1)
@@ -1172,6 +1235,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     map["p"] = 0.0;
                     map["p_time"] = 0.0;
                     map["color"] = Identity::Temporary(fdx).color();
+                    map["is_automatic"] = false;
+                    map["segment"] = Range<Frame_t>{};
                     
                     auto probs = fdx.valid()
                         ? _data->_cache->probs(fdx)
@@ -1181,6 +1246,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                         for(auto &[bdx, value] : *probs) {
                             ps.emplace_back(bdx, value.p, value.p_time);
                         }
+                        std::sort(ps.begin(), ps.end(), [](const auto &A, const auto& B){
+                            return std::make_tuple(std::get<1>(A), std::get<0>(A)) < std::make_tuple(std::get<1>(B), std::get<0>(B));
+                        });
                         map["ps"] = ps;
                     }
                     
@@ -1218,7 +1286,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                                 
                                 map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
                                 map["bdx"] = it->second.bdx;
-                                
+                                map["is_automatic"] = it->second.automatic_match;
+                                map["segment"] = it->second.segment;
                                 
                                 if(probs) {
                                     if(auto pit = probs->find(it->second.bdx);
@@ -1292,7 +1361,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             }*/
             
             if(fdx != ptr->fdx()
-               || frame != ptr->frame())
+               || frame != ptr->frame()
+               || ptr->settings_changed())
             {
                 const constraints::FilterCache* cache{nullptr};
                 if(auto it = _data->_cache->filter_cache.find(fdx);

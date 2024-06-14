@@ -7,7 +7,7 @@
 #include <gui/DrawBase.h>
 #include <gui/types/SettingsTooltip.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class TrackingSettingsScene : public Scene {
     // showing preview video

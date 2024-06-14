@@ -6,7 +6,8 @@
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
 
-using namespace file;
+using namespace cmn;
+using namespace cmn::file;
 
 ENUM_CLASS(Arguments,
            h,

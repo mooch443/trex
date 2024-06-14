@@ -16,9 +16,8 @@
  * -----------------------------
  **/
 
-using namespace file;
-
 namespace cmn {
+using namespace cmn::file;
 
 template<> void Data::read(blob::Prediction& pred) {
     auto version = (pv::Version)pred.clid;

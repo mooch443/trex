@@ -10,7 +10,7 @@ namespace track {
     class VisualField;
 }
 
-namespace gui {
+namespace cmn::gui {
 class FindCoord;
 
 class VisualFieldWidget : public Entangled {

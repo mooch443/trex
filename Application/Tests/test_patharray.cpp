@@ -9,7 +9,7 @@
 #include <misc/checked_casts.h>
 #include <file/Path.h>
 
-using namespace file;
+using namespace cmn::file;
 bool matched;
 using namespace cmn;
 

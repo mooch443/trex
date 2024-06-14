@@ -3,6 +3,8 @@
 #include <misc/SpriteMap.h>
 
 namespace fg {
+    using namespace cmn;
+
     TestCamera::TestCamera(cv::Size size, size_t element_size) : _size(size) {
         _image = cv::Mat::zeros(_size.height, _size.width, CV_8UC1);
         

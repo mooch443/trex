@@ -11,7 +11,7 @@ namespace track {
 class Individual;
 }
 
-namespace gui {
+namespace cmn::gui {
 namespace heatmap {
 
 using grid_t = grid::Grid2D<std::tuple<double, long_t>, std::vector<grid::pixel<std::tuple<double, long_t>>>>;

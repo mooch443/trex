@@ -6,7 +6,7 @@
 #include <misc/frame_t.h>
 #include <misc/Coordinates.h>
 
-namespace gui {
+namespace cmn::gui {
 class DrawStructure;
 class GUICache;
 class SectionInterface;
@@ -15,24 +15,22 @@ class Base;
 class Textfield;
 }
 
-namespace tracker {
-namespace gui {
+namespace cmn::gui::tracker {
 
 struct DisplayParameters {
-    ::gui::DrawStructure& graph;
-    ::gui::GUICache& cache;
-    const ::gui::FindCoord& coord;
+    DrawStructure& graph;
+    GUICache& cache;
+    const FindCoord& coord;
 };
 
 void draw_blob_view(const DisplayParameters&);
-void draw_boundary_selection(::gui::DrawStructure& base, ::gui::Base* window, ::gui::GUICache& cache, ::gui::SectionInterface* bowl);
+void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, SectionInterface* bowl);
 
 void set_clicked_blob_id(pv::bid v);
-void set_clicked_blob_frame(::gui::Frame_t v);
+void set_clicked_blob_frame(Frame_t v);
 
-void clicked_background(::gui::DrawStructure& base, ::gui::GUICache& cache, const ::gui::Vec2& pos, bool v, std::string key);
+void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key);
 
 void blob_view_shutdown();
 
-}
 }

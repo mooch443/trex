@@ -3,6 +3,9 @@
 
 namespace track {
 
+using namespace cmn;
+using namespace cmn::gui;
+
 std::atomic<uint32_t> RUNNING_ID(0);
 
 Identity::Identity(Idx_t myID)

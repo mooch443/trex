@@ -23,7 +23,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
 
 CREATE_STRUCT(CachedGUIOptions,
     (bool, gui_show_outline),
@@ -1319,7 +1319,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
                 secondary_text += " avg" + Meta::toStr(it->first);
             }
             else
-                color = "nr";
+                color = "green";
         } else {
             if(not _pred.empty()) {
                 auto map = track::prediction2map(_pred);

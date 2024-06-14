@@ -5,7 +5,7 @@
 #include <misc/derived_ptr.h>
 #include <gui/Event.h>
 
-namespace gui {
+namespace cmn::gui {
 
 //class GUITaskQueue_t;
 class DrawStructure;

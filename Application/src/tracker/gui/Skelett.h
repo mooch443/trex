@@ -2,7 +2,7 @@
 
 #include <gui/types/Entangled.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class Skelett : public Entangled {
     using Skeleton = blob::Pose::Skeleton;

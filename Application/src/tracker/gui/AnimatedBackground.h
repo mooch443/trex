@@ -11,7 +11,7 @@
 #include <misc/Buffers.h>
 #include <gui/GuiTypes.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class AnimatedBackground : public Entangled {
     Color _tint{White};

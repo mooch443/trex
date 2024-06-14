@@ -5,7 +5,7 @@
 #include <grabber/misc/default_config.h>
 #include <file/DataLocation.h>
 
-namespace gui {
+namespace cmn::gui {
 
 AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video)
     :

@@ -5,7 +5,7 @@
 #include <gui/ParseLayoutTypes.h>
 #include <gui/GUIVideoAdapter.h>
 
-namespace gui {
+namespace cmn::gui {
 
 using namespace dyn;
 

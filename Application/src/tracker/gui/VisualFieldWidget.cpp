@@ -5,7 +5,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
 
 void VisualFieldWidget::set_parent(SectionInterface * parent) {
     if(this->parent() == parent)

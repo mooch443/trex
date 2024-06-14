@@ -11,6 +11,7 @@
 
 namespace track {
 using namespace constraints;
+using namespace cmn;
 
 class TrainingData {
 public:

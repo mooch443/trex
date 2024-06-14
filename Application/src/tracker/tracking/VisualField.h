@@ -4,7 +4,7 @@
 #include <gui/DrawStructure.h>
 #include <tracking/Individual.h>
 
-namespace gui {
+namespace cmn::gui {
     class DrawStructure;
 }
 

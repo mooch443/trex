@@ -2,7 +2,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
     void PropertiesGraph::Graph::before_draw() {
         if(content_changed()) {
             LockGuard guard(ro_t{}, "PropertiesGraph::Graph::before_draw()",100);

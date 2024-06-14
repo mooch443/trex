@@ -16,9 +16,9 @@ public:
         std::string toStr() const;
         static std::string class_name() { return "RecentItems::Item"; }
         
-        operator gui::DetailItem() const {
-            gui::DetailItem item;
-            item.set_name(std::string(file::Path(_name).filename()));
+        operator cmn::gui::DetailItem() const {
+            cmn::gui::DetailItem item;
+            item.set_name(std::string(cmn::file::Path(_name).filename()));
             item.set_detail(_name);
             return item;
         }
@@ -34,9 +34,9 @@ protected:
     static std::string class_name() { return "RecentItems"; }
 
 public:
-    static void open(const file::PathArray&, const cmn::sprite::Map& settings);
+    static void open(const cmn::file::PathArray&, const cmn::sprite::Map& settings);
     static void set_select_callback(std::function<void(Item)>);
     bool has(std::string) const;
-    void show(gui::ScrollableList<gui::DetailItem>& list);
+    void show(cmn::gui::ScrollableList<cmn::gui::DetailItem>& list);
     static RecentItems read();
 };

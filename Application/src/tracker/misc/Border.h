@@ -10,6 +10,8 @@ class File;
 }
 
 namespace track {
+    using namespace cmn;
+
     ENUM_CLASS(recognition_border_t, none, heatmap, outline, shapes, grid, circle)
     ENUM_CLASS_HAS_DOCS(recognition_border_t)
 

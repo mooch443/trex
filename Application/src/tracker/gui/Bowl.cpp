@@ -10,7 +10,7 @@
 
 using namespace track;
 
-namespace gui {
+namespace cmn::gui {
 
 struct Shape {
     std::vector<Vec2> points;

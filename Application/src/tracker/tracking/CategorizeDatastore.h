@@ -61,9 +61,9 @@ struct RangedLabel {
 
 #if COMMONS_NO_PYTHON
 struct DataStore {
-    static void write(file::DataFormat&, int version); // read from file
-    static void read(file::DataFormat&, int version); // load from file
-    static bool wants_to_read(file::DataFormat&, int version); // see if the file contains recognition data
+    static void write(cmn::DataFormat&, int version); // read from file
+    static void read(cmn::DataFormat&, int version); // load from file
+    static bool wants_to_read(cmn::DataFormat&, int version); // see if the file contains recognition data
 
     static std::mutex& mutex() {
         static std::mutex _mutex;
@@ -178,9 +178,9 @@ struct DataStore {
     static bool _ranges_empty_unsafe();
     static bool empty();
     
-    static void write(file::DataFormat&, int version); // read from file
-    static void read(file::DataFormat&, int version); // load from file
-    static bool wants_to_read(file::DataFormat&, int version); // see if the file contains recognition data
+    static void write(DataFormat&, int version); // read from file
+    static void read(DataFormat&, int version); // load from file
+    static bool wants_to_read(DataFormat&, int version); // see if the file contains recognition data
     
     static Composition composition();
     static void clear();

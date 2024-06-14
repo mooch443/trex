@@ -10,7 +10,7 @@ namespace track {
     class Individual;
 }
 
-namespace gui {
+namespace cmn::gui {
     class DrawStructure;
     class Text;
     class Button;

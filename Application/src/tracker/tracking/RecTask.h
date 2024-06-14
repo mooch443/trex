@@ -7,6 +7,8 @@
 
 namespace track {
 
+using namespace cmn;
+
 #if !COMMONS_NO_PYTHON
 struct Predictions {
     Frame_t  _segment_start;

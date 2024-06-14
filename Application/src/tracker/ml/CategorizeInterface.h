@@ -7,14 +7,14 @@
 #include <gui/types/Tooltip.h>
 #include <pv.h>
 
-namespace gui {
+namespace cmn::gui {
 class IMGUIBase;
 }
 
 namespace track {
 namespace Categorize {
 
-using namespace gui;
+using namespace cmn::gui;
 
 struct Row;
 

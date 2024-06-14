@@ -13,7 +13,7 @@ namespace cmn {
 class ConnectedTasks;
 }
 
-namespace gui {
+namespace cmn::gui {
 namespace vident {
 
 struct VIController {

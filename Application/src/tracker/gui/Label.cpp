@@ -2,7 +2,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/MouseDock.h>
 
-namespace gui {
+namespace cmn::gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
 : _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))

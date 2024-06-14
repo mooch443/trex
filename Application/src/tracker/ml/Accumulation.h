@@ -8,7 +8,7 @@
 #include <tracking/VisualIdentification.h>
 #include <pv.h>
 
-namespace gui {
+namespace cmn::gui {
 class Graph;
 class HorizontalLayout;
 class IMGUIBase;

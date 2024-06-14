@@ -11,7 +11,7 @@
 #include <tracking/ConnectedTasks.h>
 #include <misc/IdentifiedTag.h>
 
-namespace gui::vident {
+namespace cmn::gui::vident {
 namespace py = Python;
 using namespace track;
 

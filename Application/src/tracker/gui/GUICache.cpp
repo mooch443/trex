@@ -11,7 +11,7 @@
 #include <gui/DrawPosture.h>
 #include <tracking/FilterCache.h>
 
-namespace gui {
+namespace cmn::gui {
     
 std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     return std::make_unique<PPFrame>();
@@ -551,11 +551,14 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             double time = properties ? properties->time : 0;
             
             for(auto fish : active) {
+                Range<Frame_t> segment_range;
+                
                 if(fish->identity().ID() == primary_selected_id()) {
                     auto segment = fish->segment_for(frameIndex);
                     if(segment) {
                         auto filters = constraints::local_midline_length(fish, segment->range);
                         filter_cache[fish->identity().ID()] = std::move(filters);
+                        segment_range = segment->range;
                     }
                 }
                 
@@ -565,7 +568,9 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     
                     BdxAndPred blob{
                         .bdx = basic->blob.blob_id(),
-                        .basic_stuff = *basic
+                        .basic_stuff = *basic,
+                        .automatic_match = fish->is_automatic_match(frameIndex),
+                        .segment = segment_range
                     };
                     if(posture) {
                         blob.posture_stuff = *posture;

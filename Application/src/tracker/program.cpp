@@ -11,7 +11,8 @@
 #include <misc/PVBlob.h>
 
 int main() {
-    using namespace gui;
+    using namespace cmn;
+    using namespace cmn::gui;
     
     Image image(300, 300, 1);
     cv::circle(image.get(), Vec2(50, 50), 10, White, -1);

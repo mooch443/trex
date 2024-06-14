@@ -33,7 +33,8 @@ const char *homedir = pw->pw_dir;
 const char *homedir = getenv("USERPROFILE");
 #endif
 
-using namespace file;
+using namespace cmn;
+using namespace cmn::file;
 #define CONFIG adding.add<ParameterCategoryType::TRACKING>
 namespace default_config {
 

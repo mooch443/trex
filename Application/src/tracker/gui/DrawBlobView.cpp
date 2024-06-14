@@ -14,12 +14,11 @@
 #include <tracking/Tracker.h>
 #include <gui/Skelett.h>
 
-using namespace gui;
-using namespace cmn;
+using namespace cmn::gui;
+
 using namespace pv;
 
-namespace tracker {
-namespace gui {
+namespace cmn::gui::tracker {
 
 enum class SelectedSettingType {
     ARRAY_OF_BOUNDS,
@@ -732,7 +731,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
     //if (key.empty())
     //    key = chosen;
     
-    tracker::gui::set_clicked_blob_id(pv::bid::invalid);
+    cmn::gui::tracker::set_clicked_blob_id(pv::bid::invalid);
     
     bool is_bounds = GlobalSettings::get(key).is_type<std::vector<Bounds>>();
     bool is_vec_of_vec = GlobalSettings::get(key).is_type<std::vector< std::vector<Vec2> >>();
@@ -1156,4 +1155,4 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
 }
 
 }
-}
+

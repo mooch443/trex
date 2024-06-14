@@ -4,6 +4,8 @@
 #include "Camera.h"
 
 namespace fg {
+    using namespace cmn;
+    
     class InteractiveCamera : public Camera {
         Size2 _size;
         

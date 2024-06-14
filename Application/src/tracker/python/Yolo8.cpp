@@ -8,6 +8,8 @@
 
 namespace track {
 
+using namespace cmn;
+
 std::mutex running_mutex;
 std::shared_future<void> running_prediction;
 std::promise<void> running_promise;
@@ -208,7 +210,7 @@ void draw_outlines(const std::vector<std::shared_ptr<std::vector<Vec2>>>& _point
     // Display the image
     cv::Mat image(size.second, size.first, CV_8UC3, cv::Scalar(0, 0, 0));
 
-    ColorWheel wheel;
+    cmn::gui::ColorWheel wheel;
     for (const auto& outline : copy) {
         auto color = wheel.next();
         for (size_t i = 0; i < outline.size(); ++i) {
@@ -306,12 +308,14 @@ void Yolo8::process_boxes_only(
             blob::Pose pose;
             if(not result.keypoints().empty()) {
                 auto p = result.keypoints()[i];
-                //print("pose ",i, " = ", p);
-                
                 pose = p.toPose();
                 data.keypoints.push_back(std::move(p));
             }
-            data.frame.add_object(lines, pixels, 0, blob::Prediction{.clid = uint8_t(row.clid), .p = uint8_t(float(row.conf) * 255.f), .pose = std::move(pose) });
+            data.frame.add_object(lines, pixels, 0, blob::Prediction{
+                .clid = uint8_t(row.clid),
+                .p = uint8_t(float(row.conf) * 255.f),
+                .pose = std::move(pose)
+            });
         }
     }
 }
@@ -430,7 +434,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         
         //draw_outlines(points);
         //data.outlines.emplace_back(*points.front());
-        
+        points.erase(points.begin());
         for(auto& pts : points) {
             pair.pred.outlines.add(std::move(*pts));
         }

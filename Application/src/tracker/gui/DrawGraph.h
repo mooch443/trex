@@ -10,7 +10,7 @@
 #include <gui/Graph.h>
 #include <tracking/OutputLibrary.h>
 
-namespace gui {
+namespace cmn::gui {
     class PropertiesGraph {
         class Graph : public gui::Graph {
         public:

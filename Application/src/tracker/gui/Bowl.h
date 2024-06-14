@@ -4,7 +4,7 @@
 #include <misc/Coordinates.h>
 #include <misc/Timer.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class GUICache;
 

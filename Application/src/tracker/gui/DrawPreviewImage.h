@@ -14,7 +14,7 @@
  * in tracking view, if enabled.
  */
 
-namespace gui {
+namespace cmn::gui {
 namespace DrawPreviewImage {
 
 void draw(const track::Background* average, const track::PPFrame&, Frame_t, DrawStructure&);

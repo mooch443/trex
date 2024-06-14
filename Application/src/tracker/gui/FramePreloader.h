@@ -7,7 +7,7 @@
 #include <misc/Timer.h>
 #include <misc/ThreadManager.h>
 
-namespace gui {
+namespace cmn::gui {
 
 CREATE_STRUCT(PreloadCache,
     (uint32_t, frame_rate),

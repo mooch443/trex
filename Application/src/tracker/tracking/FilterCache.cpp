@@ -10,7 +10,7 @@
 #include <misc/Timer.h>
 #include <tracking/Tracker.h>
 
-using namespace cmn;
+
 using namespace default_config;
 
 namespace track {

@@ -225,7 +225,7 @@ class Model:
                 results.append(self.ptr.track(image, tracker="bytetrack.yaml", persist=True, device=self.device, **kwargs)[0])
             return results
         else:
-            return self.ptr.predict(images, device=self.device, **kwargs)
+            return self.ptr.predict(images, device=self.device, stream=True, **kwargs)
 
 class StrippedYolo8Results:
     def __init__(self, results, scale, offset, box = [0, 0, 0, 0]):
@@ -438,12 +438,12 @@ class TRexYOLO8:
         #print(f"performing region proposals at {scaled_size}x{scaled_size} on {len(images)} images on {model.device} with scaled sizes of {[im.shape for im in scaled_down]}")
         import ultralytics
         bboxes: List[ultralytics.engine.results.Results] = \
-                       model.predict(images = scaled_down, 
+                       [r for r in model.predict(images = scaled_down, 
                                      imgsz=scaled_size, 
                                      conf=0.1, 
                                      iou=0.7, 
                                      verbose=False,
-                                     **kwargs)
+                                     **kwargs)]
         padding: int = 7
         results: List[List[Tuple[BBox, Image]]] = []
         
@@ -555,7 +555,7 @@ class TRexYOLO8:
         """
         detect_model = next((model for model in self.models if model.task == ModelTaskType.detect), None)
         if detect_model is not None:
-            return detect_model.predict(**kwargs)
+            return [r for r in detect_model.predict(**kwargs)]
         raise Exception("No detect or segment model found")
 
     def load_models(self):

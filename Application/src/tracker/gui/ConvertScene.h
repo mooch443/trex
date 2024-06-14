@@ -19,7 +19,7 @@ namespace track {
 class Segmenter;
 }
 
-namespace gui {
+namespace cmn::gui {
 
 std::string window_title();
 

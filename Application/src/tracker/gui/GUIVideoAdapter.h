@@ -8,7 +8,7 @@
 #include <file/PathArray.h>
 #include <misc/Image.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class IMGUIBase;
 

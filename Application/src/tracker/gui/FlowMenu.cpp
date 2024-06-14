@@ -2,7 +2,7 @@
 
 #include <gui/DrawStructure.h>
 
-namespace gui {
+namespace cmn::gui {
     FlowMenu::Layer::Layer(const std::string& title, const std::vector<std::string>& names)
         : _index(0), _names(names), _title(title)
     { }

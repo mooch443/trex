@@ -12,7 +12,7 @@
 #include <gui/types/Tooltip.h>
 #include <gui/GuiTypes.h>
 
-namespace gui {
+namespace cmn::gui {
 struct InfoCard::ShadowIndividual {
     Idx_t fdx{};
     track::Identity identity{track::Identity::Temporary({})};

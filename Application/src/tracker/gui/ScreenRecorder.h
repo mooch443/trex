@@ -2,7 +2,7 @@
 #include <misc/ranges.h>
 #include <misc/Image.h>
 
-namespace gui {
+namespace cmn::gui {
 class Base;
 class DrawStructure;
 class WorkProgress;

@@ -2,7 +2,7 @@
 #include <tracking/Individual.h>
 
 namespace track {
-using namespace cmn;
+
 
 void SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
     UNUSED(frame);

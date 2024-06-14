@@ -7,7 +7,7 @@
 using namespace track;
 namespace py = Python;
 
-namespace gui {
+namespace cmn::gui {
     void RecognitionSummary::update(gui::DrawStructure& base) {
         auto & cache = GUICache::instance();
         

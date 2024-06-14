@@ -5,7 +5,7 @@
 #include <gui/GuiTypes.h>
 #include <misc/Coordinates.h>
 
-namespace gui {
+namespace cmn::gui {
 
 
 enum InterpolationType {

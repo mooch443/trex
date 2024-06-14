@@ -7,7 +7,7 @@
 #include <gui/DynamicGUI.h>
 #include <gui/IMGUIBase.h>
 
-namespace gui {
+namespace cmn::gui {
 using namespace dyn;
 
 class LoadingScene : public Scene {

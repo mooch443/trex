@@ -26,7 +26,7 @@
 
 #define DEBUG_ORIENTATION false
 
-namespace gui { class Fish; }
+namespace cmn::gui { class Fish; }
 namespace cmn { class Data; }
 namespace Output { class ResultsFormat; class TrackingResults; }
 namespace track { class Individual; struct TrackingHelper; }

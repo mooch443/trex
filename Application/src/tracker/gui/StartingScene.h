@@ -10,7 +10,7 @@
 #include <gui/DynamicVariable.h>
 #include <misc/RecentItems.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class StartingScene : public Scene {
     RecentItems _recents;

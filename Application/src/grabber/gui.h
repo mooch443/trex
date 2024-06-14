@@ -10,12 +10,12 @@
 #include <gui/DrawSFBase.h>
 #include <gui/ControlsAttributes.h>
 
-namespace gui {
+namespace cmn::gui {
 class ExternalImage;
 }
 
 namespace grab {
-using namespace ::gui;
+using namespace ::cmn::gui;
 
 class GUI {
 public:

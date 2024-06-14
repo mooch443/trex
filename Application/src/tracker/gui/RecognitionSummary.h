@@ -4,7 +4,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/DrawStructure.h>
 
-namespace gui {
+namespace cmn::gui {
     class RecognitionSummary {
         gui::Entangled obj;
     public:

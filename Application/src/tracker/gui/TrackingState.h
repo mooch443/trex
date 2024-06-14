@@ -15,7 +15,7 @@ namespace track {
 class Tracker;
 }
 
-namespace gui {
+namespace cmn::gui {
 
 struct TrackingState;
 

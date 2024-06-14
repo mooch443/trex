@@ -14,7 +14,7 @@
 #include <misc/Coordinates.h>
 #include <gui/GUITaskQueue.h>
 
-namespace gui {
+namespace cmn::gui {
 
 StartingScene::StartingScene(Base& window)
 : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })

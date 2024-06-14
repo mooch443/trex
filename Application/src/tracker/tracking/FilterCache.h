@@ -14,24 +14,24 @@ class Individual;
 namespace image {
 
 std::tuple<cmn::Image::Ptr, cmn::Vec2>
-calculate_normalized_image(const gui::Transform &midline_transform,
+calculate_normalized_image(const cmn::gui::Transform &midline_transform,
                            const pv::BlobWeakPtr& blob,
                            float midline_length,
-                           const Size2 &output_size,
+                           const cmn::Size2 &output_size,
                            bool use_legacy,
                            const cmn::Image* background);
 
-std::tuple<Image::Ptr, Vec2>
-calculate_normalized_diff_image(const gui::Transform &midline_transform,
+std::tuple<cmn::Image::Ptr, cmn::Vec2>
+calculate_normalized_diff_image(const cmn::gui::Transform &midline_transform,
                                 const pv::BlobWeakPtr& blob,
                                 float midline_length,
-                                const Size2 &output_size,
+                                const cmn::Size2 &output_size,
                                 bool use_legacy,
                                 const cmn::Image* background);
 
 std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_diff_image(pv::BlobWeakPtr blob,
-                     const Size2& output_size,
+                     const cmn::Size2& output_size,
                      const cmn::Image* background);
 
 }
@@ -55,20 +55,20 @@ struct FilterCache {
     static void clear();
 };
 
-std::tuple<Image::Ptr, Vec2> diff_image(const default_config::individual_image_normalization_t::Class &normalize,
+std::tuple<cmn::Image::Ptr, cmn::Vec2> diff_image(const default_config::individual_image_normalization_t::Class &normalize,
                                          pv::BlobWeakPtr blob,
-                                         const gui::Transform& midline_transform,
+                                         const cmn::gui::Transform& midline_transform,
                                          float median_midline_length_px,
-                                         const Size2& output_shape,
-                                         const Image* background);
+                                         const cmn::Size2& output_shape,
+                                         const cmn::Image* background);
 
 std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
-                                                  const Range<Frame_t>& segment,
+                                                  const cmn::Range<cmn::Frame_t>& segment,
                                                   const bool calculate_std = false);
 
 std::shared_ptr<FilterCache>
 local_midline_length(const Individual *fish,
-                     Frame_t frame,
+                     cmn::Frame_t frame,
                      const bool calculate_std = false);
 
 }

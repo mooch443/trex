@@ -2,7 +2,7 @@
 #include <misc/Timer.h>
 //#include <gui/GUICache.h>
 
-namespace gui {
+namespace cmn::gui {
 IMPLEMENT(MouseDock::instance) = std::make_unique<MouseDock>();
 
 void MouseDock::draw_background(Entangled &) {}

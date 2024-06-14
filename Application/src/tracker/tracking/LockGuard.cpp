@@ -6,7 +6,6 @@
 namespace track {
 using namespace cmn;
 
-
 auto *tracker_lock = new std::shared_timed_mutex;
 
 static auto& read_mutex() {

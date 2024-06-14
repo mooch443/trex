@@ -87,7 +87,7 @@ namespace default_config {
     using TRexTask = TRexTask_t::Class;
 }
 
-namespace gui {
+namespace cmn::gui {
 ENUM_CLASS(mode_t, blobs, tracking, optical_flow)
 
 }

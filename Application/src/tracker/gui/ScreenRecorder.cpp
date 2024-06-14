@@ -10,9 +10,9 @@
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 
-namespace gui {
+namespace cmn::gui {
 
-using namespace cmn;
+
 
 struct ScreenRecorder::Data {
     cv::VideoWriter* _recording_capture = nullptr;

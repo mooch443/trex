@@ -5,6 +5,8 @@
 namespace track {
 namespace tags {
 
+using namespace cmn;
+
 inline static std::shared_mutex grid_mutex;
 inline static std::atomic<uint64_t> added_entries{ 0 };
 

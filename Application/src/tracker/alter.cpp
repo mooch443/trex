@@ -43,6 +43,7 @@
 #include <gui/WorkProgress.h>
 #include <tracking/Segmenter.h>
 #include <tracking/OutputLibrary.h>
+#include <tracking/Output.h>
 
 #include <python/Yolo8.h>
 //#include <python/Yolo7InstanceSegmentation.h>
@@ -58,13 +59,15 @@
 #include <gui/CheckUpdates.h>
 #endif
 
-using namespace cmn;
+
 using namespace gui;
 static_assert(ObjectDetection<Yolo8>);
 static_assert(ObjectDetection<BackgroundSubtraction>);
 
 namespace ind = indicators;
 using namespace default_config;
+
+bool wants_to_load{false};
 
 void save_rst_files() {
     auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels());
@@ -203,6 +206,10 @@ void launch_gui(std::future<void>& f) {
     
     TrackingScene tracking_scene{ base };
     manager.register_scene(&tracking_scene);
+    if(wants_to_load) {
+        wants_to_load = false;
+        tracking_scene.request_load();
+    }
     
     SettingsScene settings_scene{ base };
     manager.register_scene(&settings_scene);
@@ -405,6 +412,11 @@ std::string start_tracking(std::future<void>& f) {
     
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
     
+    if(wants_to_load) {
+        wants_to_load = false;
+        state.load_state(nullptr, Output::TrackingResults::expected_filename());
+    }
+    
     //! get the python init future at this point
     if(f.valid())
         f.get();
@@ -562,7 +574,7 @@ int main(int argc, char**argv) {
      */
     //SETTING(meta_video_scale) = float(1);
     
-    using namespace cmn;
+    
     namespace py = Python;
     auto cwd = file::cwd();
     if(cwd.empty())
@@ -627,6 +639,9 @@ int main(int argc, char**argv) {
         else if(a.name == "p") {
             SETTING(output_prefix) = std::string(a.value);
             CommandLine::instance().add_setting("output_prefix", a.value);
+        }
+        else if(a.name == "load") {
+            wants_to_load = true;
         }
     }
     

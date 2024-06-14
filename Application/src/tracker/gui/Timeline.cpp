@@ -12,7 +12,7 @@
 #include <tracking/IndividualManager.h>
 #include <misc/NetworkStats.h>
 
-namespace gui {
+namespace cmn::gui {
     //! NeighborDistances drawn out
     struct ProximityBar {
         Size2 _dimensions;

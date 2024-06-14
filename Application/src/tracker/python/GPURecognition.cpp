@@ -36,6 +36,7 @@ typedef void (*sighandler_t)(int);
 
 //#define TREX_PYTHON_DEBUG true
 
+using namespace cmn;
 namespace py = pybind11;
 
 template<typename T>
@@ -456,22 +457,22 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     m.def("log", [](std::string text) {
-        using namespace cmn;
+        
         print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
         });
     m.def("log", [](std::string filename, int line, std::string text) {
-        using namespace cmn;
+        
         print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
      });
 
     m.def("warn", [](std::string text) {
-        using namespace cmn;
+        
         FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
         });
 
     m.def("video_size", []() -> pybind11::dict {
         using namespace pybind11::literals;
-        using namespace cmn;
+        
         pybind11::dict d;
         
         cmn::Size2 size = _settings->map().at("video_size").value<cmn::Size2>();
@@ -485,13 +486,13 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     m.def("setting", [](const std::string& name) -> std::string {
         using namespace pybind11::literals;
-        using namespace cmn;
+        
         return _settings->map().operator[](name).get().valueString();
         });
 
     m.def("setting", [](const std::string& name, const std::string& value) {
         using namespace pybind11::literals;
-        using namespace cmn;
+        
         try {
             constexpr auto accessLevel = default_config::AccessLevelType::PUBLIC;
             if (!_settings->has_access(name, accessLevel))
@@ -512,7 +513,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     m.def("imshow", [](std::string name, pybind11::buffer b) {
 #if CMN_WITH_IMGUI_INSTALLED
         namespace py = pybind11;
-        using namespace cmn;
+        
         /* Request a buffer descriptor from Python */
         py::buffer_info info = b.request();
 

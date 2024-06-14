@@ -3,7 +3,7 @@
 #include <gui/Scene.h>
 #include <file/PathArray.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class SettingsScene : public Scene {
     struct Data;

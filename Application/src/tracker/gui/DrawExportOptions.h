@@ -1,6 +1,6 @@
 #pragma once
 
-namespace gui {
+namespace cmn::gui {
 class DrawStructure;
 
 struct DrawExportOptions {

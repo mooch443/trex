@@ -26,7 +26,7 @@ class FFMPEGQueue {
     std::condition_variable _condition, _write_condition;
     cmn::Size2 _size;
     cv::Mat _image;
-    file::Path _output_path;
+    cmn::file::Path _output_path;
     long pts;
     
     struct Package {
@@ -74,7 +74,7 @@ class FFMPEGQueue {
     size_t initial_size = 0;
 
 public:
-    FFMPEGQueue(bool direct, const cmn::Size2& size, cmn::ImageMode mode, const file::Path& output, bool finite_source, cmn::Frame_t video_length, std::function<void(cmn::Image::Ptr&&)> move_back);
+    FFMPEGQueue(bool direct, const cmn::Size2& size, cmn::ImageMode mode, const cmn::file::Path& output, bool finite_source, cmn::Frame_t video_length, std::function<void(cmn::Image::Ptr&&)> move_back);
     ~FFMPEGQueue();
     
     void loop();

@@ -6,7 +6,7 @@
 
 namespace fg {
 constexpr bool use_dynamic = true;
-using namespace gui;
+using namespace cmn::gui;
 
 void InteractiveCamera::Fish::update(float dt, const Vec2& poi, const std::vector<Fish>& individuals) {
     std::vector<std::tuple<Vec2, float, float, float>> forces;

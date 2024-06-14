@@ -13,6 +13,8 @@
 #define OS_SEP '/'
 #endif
 
+using namespace cmn;
+
 std::string conda_environment_path(const char* argv) {
 #ifdef COMMONS_PYTHON_EXECUTABLE
     auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();

@@ -3,7 +3,7 @@
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
-using namespace cmn;
+
 using namespace track;
 
 namespace extract {

@@ -10,7 +10,7 @@
 #include <misc/PackLambda.h>
 #include <tracking/SegmentInformation.h>
 
-using namespace cmn;
+
 using namespace track;
 
 namespace extract {

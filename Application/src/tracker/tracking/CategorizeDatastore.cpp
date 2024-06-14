@@ -10,6 +10,8 @@ using namespace track::constraints;
 
 namespace track::Categorize {
 
+using namespace cmn;
+
 template<class T, class U>
 typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
     auto it = std::lower_bound(vector.begin(),
@@ -1282,7 +1284,7 @@ Sample::Ptr DataStore::sample(
     return _samples.back();
 }
 
-void DataStore::write(file::DataFormat& data, int /*version*/) {
+void DataStore::write(cmn::DataFormat& data, int /*version*/) {
     {
         std::shared_lock guard(cache_mutex());
         if (_probability_cache.empty()) {
@@ -1342,7 +1344,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
     }
 }
 
-void DataStore::read(file::DataFormat& data, int /*version*/) {
+void DataStore::read(cmn::DataFormat& data, int /*version*/) {
     //clear();
 
     const auto start_frame = tracker_start_frame();
@@ -1509,11 +1511,11 @@ void DataStore::init_frame_cache() {
 
 #else
 
-void DataStore::write(file::DataFormat& data, int /*version*/) {
+void DataStore::write(cmn::DataFormat& data, int /*version*/) {
     data.write<uchar>(0);
 }
 
-void DataStore::read(file::DataFormat& data, int /*version*/) {
+void DataStore::read(cmn::DataFormat& data, int /*version*/) {
     // assume wants_to_read has been called first
     {
         uint64_t N_labels;
@@ -1607,7 +1609,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
 #endif
 
 
-bool DataStore::wants_to_read(file::DataFormat& data, int /*version*/) {
+bool DataStore::wants_to_read(cmn::DataFormat& data, int /*version*/) {
     uchar has_categories;
     data.read(has_categories);
     return has_categories == 1;

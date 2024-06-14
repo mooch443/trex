@@ -3,7 +3,7 @@
 #include <gui/Transform.h>
 #include <gui/ControlsAttributes.h>
 
-namespace gui {
+namespace cmn::gui {
 
 class Base;
 class DrawStructure;

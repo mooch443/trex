@@ -24,7 +24,7 @@ struct FilterCache;
 }
 }
 
-namespace gui {
+namespace cmn::gui {
 class ExternalImage;
 class DrawStructure;
 class Circle;
@@ -78,7 +78,7 @@ namespace globals {
     )
 }
 
-#define GUI_SETTINGS(NAME) ::gui::globals::Cache::copy< ::gui::globals::Cache:: NAME >()
+#define GUI_SETTINGS(NAME) ::cmn::gui::globals::Cache::copy< ::cmn::gui::globals::Cache:: NAME >()
 
     struct SimpleBlob {
         pv::BlobWeakPtr blob;
@@ -189,6 +189,8 @@ namespace globals {
             std::optional<PostureStuff> posture_stuff;
             std::optional<std::vector<float>> pred;
             Midline::Ptr midline;
+            bool automatic_match;
+            Range<Frame_t> segment;
         };
         
         std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
@@ -277,5 +279,5 @@ namespace globals {
     };
 }
 
-STRUCT_META_EXTENSIONS(gui::globals::Cache)
+STRUCT_META_EXTENSIONS(cmn::gui::globals::Cache)
 

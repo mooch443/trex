@@ -9,7 +9,7 @@
 #include <gui/GUITaskQueue.h>
 #include <misc/idx_t.h>
 
-namespace gui {
+namespace cmn::gui {
 
 namespace dyn {
 struct DynamicGUI;
@@ -32,6 +32,7 @@ class TrackingScene : public Scene {
     //! scene switches:
     std::unique_ptr<Data> _data;
     Timer last_redraw, last_dirty;
+    std::atomic<bool> _load_requested{false};
     
 public:
     TrackingScene(Base& window);
@@ -41,6 +42,7 @@ public:
     void deactivate() override;
 
     void _draw(DrawStructure& graph);
+    void request_load();
     
 private:
     void init_gui(dyn::DynamicGUI&, DrawStructure& graph);

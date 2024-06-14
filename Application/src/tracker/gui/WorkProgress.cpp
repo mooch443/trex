@@ -22,7 +22,7 @@
 #include <GLFW/glfw3native.h>
 #endif
 
-namespace gui {
+namespace cmn::gui {
 
 namespace work {
 std::condition_variable _condition;
