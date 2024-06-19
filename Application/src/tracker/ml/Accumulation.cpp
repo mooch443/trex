@@ -452,7 +452,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         assert(max_index >= 0);
         
         print("\t\t",id,": ",values," (",samples,", ",max_index," = ",max_p,")");
-        max_indexes[id] = Idx_t((uint32_t)max_index);
+        max_indexes[id] = max_index >= 0 ? Idx_t((uint32_t)max_index) : Idx_t();
         max_probs[id] = max_p;
         print_out[id] = {max_index, max_p};
     }
@@ -464,7 +464,8 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     for(auto && [my_id, p] : max_probs)
         min_prob = min(min_prob, p);
     for(auto && [my_id, pred_id] : max_indexes) {
-        unique_ids.insert(pred_id);
+        if(pred_id.valid())
+            unique_ids.insert(pred_id);
     }
     
     if(unique_ids.size() + 1 == FAST_SETTING(track_max_individuals)
@@ -484,32 +485,41 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             missing_predicted_id = missing_predicted_id + Idx_t(1);
         }
         
-        // find out which one is double
-        Idx_t original_id0, original_id1;
+        /// find out which one is the duplicate
+        /// (this only works if we have one of course)
+        Idx_t duplicate0, duplicate1;
         std::map<Idx_t, Idx_t> assign;
         for(auto && [my_id, pred_id] : max_indexes) {
-            if(assign.count(pred_id)) {
-                original_id0 = my_id;
-                original_id1 = assign.at(pred_id);
+            if(not pred_id.valid())
+                continue;
+            
+            if(assign.count(pred_id))
+            {
+                duplicate0 = my_id;
+                duplicate1 = assign.at(pred_id);
                 break;
                 
             } else {
                 assign[pred_id] = my_id;
             }
         }
-        assert(original_id1.valid());
         
-        print("\tPossible choices are ",original_id0," (",max_probs.at(original_id0),") and ",original_id1," (",max_probs.at(original_id1),").");
-        
-        if(max_probs.at(original_id0) > max_probs.at(original_id1)) {
-            print("\tReplacing ", original_id1," with missing predicted id ",missing_predicted_id);
-            max_indexes[original_id1] = missing_predicted_id;
+        if( not duplicate0.valid() || not duplicate1.valid()) {
+            FormatWarning("\tCannot guess IDs. Cannot find any duplicates (meaning we have too few individuals in the segment).");
+            
         } else {
-            print("\tReplacing ", original_id0," with missing predicted id ",missing_predicted_id);
-            max_indexes[original_id0] = missing_predicted_id;
+            print("\tPossible choices are ",duplicate0," (",max_probs.at(duplicate0),") and ",duplicate1," (",max_probs.at(duplicate1),").");
+            
+            if(max_probs.at(duplicate0) > max_probs.at(duplicate1)) {
+                print("\tReplacing ", duplicate1," with missing predicted id ",missing_predicted_id);
+                max_indexes[duplicate1] = missing_predicted_id;
+            } else {
+                print("\tReplacing ", duplicate0," with missing predicted id ",missing_predicted_id);
+                max_indexes[duplicate0] = missing_predicted_id;
+            }
+            
+            unique_ids.insert(missing_predicted_id);
         }
-        
-        unique_ids.insert(missing_predicted_id);
     }
     
     if(unique_ids.size() == FAST_SETTING(track_max_individuals)
