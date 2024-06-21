@@ -1080,6 +1080,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                     filename = filename.remove_filename() / prefix / filename.filename();
                 else if(not absolute)
                     filename = prefix / filename.filename();
+                else
+                    filename = filename.remove_filename() / prefix / filename.filename();
             }
             
             /*if(!filename.empty() && filename.is_absolute()) {

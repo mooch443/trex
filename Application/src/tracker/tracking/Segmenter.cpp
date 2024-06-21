@@ -841,6 +841,9 @@ void Segmenter::tracking_thread() {
 
         if (_next_frame_data) {
             try {
+                if(_progress_data) {
+                    overlayed_video()->source()->move_back(std::move(_progress_data.image));
+                }
                 _progress_data = std::move(_next_frame_data);
                 assert(not _next_frame_data);
                 //thread_print("Got next: ", progress.frame.index());

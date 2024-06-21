@@ -16,7 +16,7 @@ struct TrackingHelper {
     const CachedSettings* cache;
     
 public:
-    inline static Frame_t _approximative_enabled_in_frame;
+    Frame_t _approximative_enabled_in_frame;
     
 public:
     bool save_tags() const;
@@ -49,7 +49,7 @@ public:
     Match::PairedProbabilities paired;
     default_config::matching_mode_t::Class match_mode{default_config::matching_mode_t::automatic};
     
-    TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames);
+    TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames, Frame_t approximative_enabled_in_frame);
     ~TrackingHelper();
     
     void apply_manual_matches();

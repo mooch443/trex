@@ -15,6 +15,149 @@ using namespace default_config;
 
 namespace cmn::settings {
 
+std::unordered_set<std::string_view>
+set_defaults_for(detect::ObjectDetectionType_t detect_type,
+                 cmn::sprite::Map& output,
+                 ExtendableVector exclude)
+{
+    std::unordered_set<std::string_view> changed_keys;
+        
+    if(detect_type == detect::ObjectDetectionType::none)
+        detect_type = detect::ObjectDetectionType::yolo8;
+    
+    output["detect_type"] = detect_type;
+    
+    if(detect_type != track::detect::ObjectDetectionType::background_subtraction)
+    {
+        static const sprite::Map values {
+            "track_threshold", 0,
+            "track_posture_threshold", 0,
+            "track_background_subtraction", false,
+            "calculate_posture", false,
+            "meta_encoding", meta_encoding_t::r3g3b2,
+            "track_do_history_split", false,
+            "individual_image_normalization", individual_image_normalization_t::moments,
+            "detect_model", file::Path("yolov8x-pose"),
+            "blob_split_algorithm", blob_split_algorithm_t::fill,
+            "track_max_reassign_time", 1.f
+        };
+        
+        for(auto &key : values.keys()) {
+            if(not contains(exclude.toVector(), key)) {
+                if(not output.has(key)
+                   || values.at(key).get() != output.at(key).get())
+                {
+                    changed_keys.insert(key);
+                    values.at(key).get().copy_to(&output);
+                }
+            }
+        }
+        
+    } else {
+        static const sprite::Map values {
+            "track_threshold", 9,
+            "track_posture_threshold", 9,
+            "track_background_subtraction", true,
+            "calculate_posture", true,
+            "segment_size_filter", BlobSizeRange({Rangef(0.1f, 1000.f)}),
+            "meta_encoding", meta_encoding_t::gray,
+            "track_do_history_split", true,
+            "detect_classes", std::vector<std::string>{},
+            "individual_image_normalization", individual_image_normalization_t::posture,
+            "blob_split_algorithm", blob_split_algorithm_t::threshold,
+            "track_max_reassign_time", 0.5f
+        };
+        
+        for(auto &key : values.keys()) {
+            if(not output.has(key)
+               || values.at(key).get() != output.at(key).get())
+            {
+                changed_keys.insert(key);
+                values.at(key).get().copy_to(&output);
+            }
+        }
+    }
+    
+    return changed_keys;
+}
+
+SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) {
+    if(not output)
+        output = &GlobalSettings::map();
+    
+    SettingsMaps combined;
+    const auto set_combined_access_level =
+        [&combined](auto& name, AccessLevel level) {
+            combined.access_levels[name] = level;
+        };
+    
+    combined.map.set_print_by_default(false);
+    
+    grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
+    ::default_config::get(combined.map, combined.docs, set_combined_access_level);
+    
+    if(not combined.map.has("detect_type")
+       || combined.map.at("detect_type").value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
+    {
+        combined.map["detect_type"] = detect::ObjectDetectionType::yolo8;
+    }
+    
+    set_defaults_for(combined.map.at("detect_type"), combined.map, {});
+    
+    for(auto &key : extra_map.keys()) {
+        try {
+            /// don't allow modification of system variables
+            if(GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM) {
+                continue;
+            }
+            
+            extra_map.at(key).get().copy_to(&combined.map);
+            
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception while copying ", key, " to combined map: ", ex.what());
+        }
+    }
+    
+    if(output != &combined.map) {
+        for(auto &key : combined.map.keys()) {
+            try {
+                if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
+                   && (not output->has(key)
+                       || output->at(key).get() != combined.map.at(key).get())
+                   )
+                {
+                    /// special case convenience function for filename
+                    /// since we dont need to set it if its just the *default*
+                    if(key == "filename"
+                       && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map)
+                           || (not combined.map.at(key).value<file::Path>().is_absolute()
+                               && combined.map.at(key).value<file::Path>() == file::find_basename(combined.map.at("source").value<file::PathArray>()))))
+                    {
+                        SETTING(filename) = file::Path();
+                        continue;
+                    }
+                    
+                    /// same goes for *output_dir*
+                    if(key == "output_dir"
+                       && combined.map.at(key).value<file::Path>() == file::find_parent( combined.map.at("source").value<file::PathArray>()))
+                    {
+                        SETTING(output_dir) = file::Path();
+                        continue;
+                    }
+                    
+                    /// copy to destination map
+                    if(not is_in(key, "gui_interface_scale"))
+                        combined.map.at(key).get().copy_to(output);
+                }
+            } catch(const std::exception& ex) {
+                FormatExcept("Cannot parse setting ", key, " and copy it to output map: ", ex.what());
+            }
+        }
+    }
+    
+    return combined;
+}
+
 /**
  * When calling "load" or "open", what we expect is:
  *  1. Settings are reset to default

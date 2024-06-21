@@ -28,8 +28,14 @@ TrackingHelper::~TrackingHelper() {
     delete cache;
 }
 
-TrackingHelper::TrackingHelper(PPFrame& f, const std::vector<FrameProperties::Ptr>& added_frames)
-      : cache(new CachedSettings), frame(f), _manager(frame)
+TrackingHelper::TrackingHelper(
+   PPFrame& f,
+   const std::vector<FrameProperties::Ptr>& added_frames,
+   Frame_t approximative_enabled_in_frame)
+    : cache(new CachedSettings),
+      _approximative_enabled_in_frame(approximative_enabled_in_frame),
+      frame(f),
+      _manager(frame)
 {
     const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
     double time(double(frame.timestamp) / double(1000*1000));

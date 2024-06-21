@@ -309,7 +309,7 @@ void AnimatedBackground::before_draw() {
 
     // fade image to grayscale by _fade percent
     if(not _static_image.empty()
-       && is_in(_static_image.source()->channels(), 3, 4)
+       && is_in(_static_image.source()->channels(), 3u, 4u)
        && abs(_fade - _target_fade) > 0.01)
     {
         _static_image.set_color(_tint.alpha(255 * _fade));

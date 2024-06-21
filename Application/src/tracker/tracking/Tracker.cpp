@@ -1631,7 +1631,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     
     //! Initialize helper structure that encapsulates the substeps
     //! of the Tracker::add method:
-    TrackingHelper s(frame, _added_frames);
+    TrackingHelper s(frame, _added_frames, _approximative_enabled_in_frame);
     const auto number_fish = FAST_SETTING(track_max_individuals);
     
     // now that the blobs array has been cleared of all the blobs for fixed matches,
@@ -2274,10 +2274,10 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         _individual_add_iterator_map.clear();
         _segment_map_known_capacity.clear();
         
-        if(TrackingHelper::_approximative_enabled_in_frame.valid()
-           && TrackingHelper::_approximative_enabled_in_frame >= frameIndex)
+        if(_approximative_enabled_in_frame.valid()
+           && _approximative_enabled_in_frame >= frameIndex)
         {
-            TrackingHelper::_approximative_enabled_in_frame.invalidate();
+            _approximative_enabled_in_frame.invalidate();
         }
         
         print("Removing frames after and including ", frameIndex);

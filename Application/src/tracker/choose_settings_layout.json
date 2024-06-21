@@ -180,6 +180,40 @@
                                     [
                                         {
                                             "type":"stext",
+                                            "text":"<b>settings</b>",
+                                            "font":{"size":0.5},
+                                            "pos":[0,6]
+                                        },
+                                        {
+                                            "type":"condition",
+                                            "var":"{selected_source_exists}",
+                                            "then": {
+                                                "type":"button",
+                                                "text":"<sym>⮞</sym> reload from this file",
+                                                "click":"reload_selected_source",
+                                                "fill":[50,90,50],
+                                                "size":[150,30],
+                                                "font":{"size":0.5}
+                                            }
+                                        },
+                                        {
+                                            "type":"button",
+                                            "text":"<sym>⮞</sym> load settings from a file",
+                                            "click":"choose-settings:{folder:{source}}",
+                                            "fill":[50,90,50],
+                                            "size":[180,30],
+                                            "font":{"size":0.5}
+                                        },
+                                        {
+                                            "type":"button",
+                                            "text":"<sym>⮞</sym> reset settings",
+                                            "click":"reset_settings",
+                                            "fill":[50,90,50],
+                                            "size":[125,30],
+                                            "font":{"size":0.5}
+                                        },
+                                        {
+                                            "type":"stext",
                                             "text":"<b>other sources:</b>",
                                             "font":{"size":0.5},
                                             "pos":[0,6]
@@ -308,7 +342,7 @@
                                 "type":"stext",
                                 "pad":[0,0,0,10],
                                 "max_size":"[{element_w},0]",
-                                "text":"<sym>➥</sym> resulting path: <cyan><c>{resulting_path}</c></cyan>"
+                                "text":"<sym>➥</sym> resulting path: <c><cyan>{resulting_path}</cyan><lightgray>.pv</lightgray></c>"
                             },
                             {
                                 "type":"condition",
@@ -317,8 +351,8 @@
                                     "type":"stext",
                                     "fill":[0,0,0,50],
                                     "pad":[20,20,20,20],
-                                    "max_size":"[{min:600:{element_w}},0]",
-                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> no settings file yet</orange>}"
+                                    "max_size":"[{min:750:{element_w}},0]",
+                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}"
                                 },
                                 "else":{
                                     "type":"stext",

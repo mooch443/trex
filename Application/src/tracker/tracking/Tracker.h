@@ -90,6 +90,7 @@ protected:
     CallbackCollection _callback;
     Image::Ptr _average;
     GETTER_SETTER(cv::Mat, mask);
+    Frame_t _approximative_enabled_in_frame;
     
     //! All the individuals that have been detected and are being maintained
     friend class Individual;

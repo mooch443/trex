@@ -678,7 +678,6 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
                     }
                 }*/
                 
-                avcodec_close(tempContext);
                 avcodec_free_context(&tempContext);
                 return _codec;
             }

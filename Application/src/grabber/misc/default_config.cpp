@@ -104,7 +104,7 @@ namespace default_config {
         CONFIG("approximate_length_minutes", uint32_t(0), "If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.");
         CONFIG("stop_after_minutes", uint32_t(0), "If set to a value above 0, the video will stop recording after X minutes of recording time.");
         
-        CONFIG("threshold", int(9), "Threshold to be applied to the input image to find blobs.");
+        CONFIG("threshold", int(15), "Threshold to be applied to the input image to find blobs.");
         CONFIG("threshold_maximum", int(255), "");
         
         CONFIG("web_quality", int(75), "Quality for images transferred over the web interface (0-100).");
@@ -243,7 +243,11 @@ namespace default_config {
             "detect_iou_threshold",
             "detect_conf_threshold",
             "video_conversion_range",
-            "detect_batch_size"
+            "detect_batch_size",
+            "threshold",
+            "output_dir",
+            "output_prefix",
+            "filename"
 
         }, "The given settings values will be written to the video file.");
 
