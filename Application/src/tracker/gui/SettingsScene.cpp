@@ -56,6 +56,51 @@ struct SettingsScene::Data {
     Size2 _video_size;
     std::unordered_map<std::string, Layout::Ptr> _video_adapters;
     
+    void check_video_source(file::PathArray source);
+    void register_callbacks() {
+        if(callback)
+            GlobalSettings::map().unregister_callbacks(std::move(callback));
+        
+        callback = GlobalSettings::map().register_callbacks({
+            "filename",
+            "source",
+            "detect_type"
+            
+        }, [this](auto name) {
+            if(name == "filename") {
+                file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
+                if(not path.empty() && not path.remove_filename().empty()) {
+                    path = path.filename();
+                    SETTING(filename) = path;
+                }
+            } else if(name == "source") {
+                //SETTING(filename) = file::Path();
+
+                file::PathArray source = GlobalSettings::map().at("source");
+                if(check_new_video_source.valid())
+                    check_new_video_source.get();
+                
+                check_new_video_source = std::async(std::launch::async, [source, this](){
+                    check_video_source(source);
+                });
+                
+            } else if(name == "detect_type") {
+                auto detect_type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
+                
+                ExtendableVector exclude;
+                if(not SETTING(detect_model).value<file::Path>().empty()
+                   && SETTING(detect_model).value<file::Path>() != file::Path(track::Yolo8::default_model()).remove_extension())
+                {
+                    exclude = {
+                        "detect_model"
+                    };
+                }
+                
+                settings::set_defaults_for(detect_type, GlobalSettings::map(), exclude);
+            }
+        });
+    }
+    
     sprite::Map get_changed_props() const {
         sprite::Map copy = GlobalSettings::map();
         const auto &defaults = GlobalSettings::defaults();
@@ -528,7 +573,7 @@ SettingsScene::~SettingsScene() {
     
 }
 
-void SettingsScene::check_video_source(file::PathArray source) {
+void SettingsScene::Data::check_video_source(file::PathArray source) {
     ExtendableVector exclude{
         "output_prefix",
         "filename",
@@ -536,10 +581,10 @@ void SettingsScene::check_video_source(file::PathArray source) {
         "output_dir"
     };
 
-    _data->_selected_source_exists = false;
+    _selected_source_exists = false;
     
     try {
-        if (source != _data->_initial_source
+        if (source != _initial_source
             && source.get_paths().size() == 1
             && source.get_paths().front().has_extension()
             && source.get_paths().front().extension() == "pv")
@@ -549,7 +594,7 @@ void SettingsScene::check_video_source(file::PathArray source) {
             pv::File video(output, pv::FileMode::READ);
             video.header();
             
-            _data->_selected_source_exists = true;
+            _selected_source_exists = true;
             
             /// escape!
             //return;
@@ -585,22 +630,21 @@ void SettingsScene::check_video_source(file::PathArray source) {
         } else if(source == file::PathArray("webcam")) {
             /// should be okay
             
-        } else if(source != _data->_initial_source) {
+        } else if(source != _initial_source) {
             VideoSource v(source);
             print("VideoSource for ",source," of size ", v.size(),".");
         }
         
         SceneManager::getInstance().enqueue([this, source](){
             try {
-                if(_data->_initial_source.empty()) {
-                    _data->load_video_settings(source);
+                if(_initial_source.empty()) {
+                    load_video_settings(source);
                     
                     // set initial source for the first time
-                    _data->_initial_source = source;
+                    _initial_source = source;
                 }
                 
-                if(_data)
-                    _data->current_path.set(std::move(source));
+                current_path.set(std::move(source));
                 
             } catch(...) {
                 /// do nothing
@@ -621,10 +665,13 @@ void SettingsScene::check_video_source(file::PathArray source) {
 void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     ExtendableVector exclude{
         //"output_prefix",
-        //"filename",
+        "filename",
         "source"
         //"output_dir"
     };
+    
+    if(callback)
+        GlobalSettings::map().unregister_callbacks(std::move(callback));
     
     if (auto source_path = source.empty() ? file::Path{} : file::DataLocation::parse("input", source.get_paths().front());
         not source.empty()
@@ -640,23 +687,30 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             FormatWarning("Ex = ", ex.what());
         }
     }
-    else if (auto output_path = settings::find_output_name(GlobalSettings::map()).add_extension("pv");
-             not source.empty()
-             && output_path.is_regular())
+    else if (not source_path.empty()
+             && source_path.is_regular()
+             //auto output_path = settings::find_output_name(GlobalSettings::map()).add_extension("pv");
+             //not source.empty()
+             //&& output_path.is_regular())
+             )
     {
         try {
-            pv::File file(output_path.remove_extension(), pv::FileMode::READ);
+            pv::File file(source_path.remove_extension(), pv::FileMode::READ);
             auto str = file.header().metadata;
             
             sprite::Map map;
             try {
-                sprite::parse_values(sprite::MapSource{ output_path }, map, str, &GlobalSettings::defaults(), exclude, default_config::deprecations());
+                sprite::parse_values(sprite::MapSource{ source_path }, map, str, &GlobalSettings::defaults(), exclude, default_config::deprecations());
             }
             catch (...) {
                 /// do nothing
             }
             
-            settings::load(SETTING(source).value<file::PathArray>(), output_path, default_config::TRexTask_t::none, track::detect::ObjectDetectionType::none, exclude, map);
+            auto filename = SETTING(filename).value<file::Path>();
+            auto csource = SETTING(source).value<file::PathArray>();
+            settings::load(source, {}, default_config::TRexTask_t::none, track::detect::ObjectDetectionType::none, exclude, map);
+            SETTING(source) = csource;
+            SETTING(filename) = filename;
             
             //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
         }
@@ -664,6 +718,8 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             FormatWarning("Ex = ", ex.what());
         }
     }
+    
+    register_callbacks();
 }
 
 void SettingsScene::activate() {
@@ -682,31 +738,7 @@ void SettingsScene::activate() {
     _data->_window = (IMGUIBase*)window();
 
     _data->_initial_source = SETTING(source).value<file::PathArray>();
-
-    _data->callback = GlobalSettings::map().register_callbacks({"filename", "source", "detect_type"}, [this](auto name) {
-        if(name == "filename") {
-            file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
-            if(not path.empty() && not path.remove_filename().empty()) {
-                path = path.filename();
-                SETTING(filename) = path;
-            }
-        } else if(name == "source") {
-            //SETTING(filename) = file::Path();
-
-            file::PathArray source = GlobalSettings::map().at("source");
-            if(_data->check_new_video_source.valid())
-                _data->check_new_video_source.get();
-            
-            _data->check_new_video_source = std::async(std::launch::async, [source, this](){
-                check_video_source(source);
-            });
-            
-        } else if(name == "detect_type") {
-            auto detect_type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
-            settings::set_defaults_for(detect_type, GlobalSettings::map());
-        }
-    });
-    
+    _data->register_callbacks();
     _data->_defaults = GlobalSettings::map();
 }
 

@@ -16,7 +16,6 @@ public:
     void deactivate() override;
     void _draw(DrawStructure& graph);
     bool on_global_event(Event) override;
-    void check_video_source(file::PathArray source);
 };
 
 }
