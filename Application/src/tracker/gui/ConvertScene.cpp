@@ -634,7 +634,7 @@ Size2 ConvertScene::calculateWindowSize(const Size2& output_size, const Size2& w
 }
 
 // Helper function to draw outlines
-void ConvertScene::Data::drawOutlines(DrawStructure& graph, const Size2& scale, Vec2) {
+void ConvertScene::Data::drawOutlines(DrawStructure&, const Size2&, Vec2) {
     /*if (not _current_data.outlines.empty()) {
         //graph.text(Str(Meta::toStr(_current_data.outlines.size()) + " lines"), attr::Loc(10, 50), attr::Font(0.35), attr::Scale(scale.mul(graph.scale()).reciprocal()));
 
@@ -1138,13 +1138,14 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
                 auto p = fish->iterator_for(_current_data.frame.index());
                 auto segment = p->get();
 
-                auto basic = fish->compressed_blob(_current_data.frame.index());
+                //auto basic = fish->compressed_blob(_current_data.frame.index());
+                auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
                 //auto bds = basic->calculate_bounds();//.mul(scale);
 
                 if (dirty) {
-                    if (basic->parent_id.valid())
-                        visible_bdx.emplace(basic->parent_id, fish->identity());
-                    visible_bdx.emplace(basic->blob_id(), fish->identity());
+                    if (basic->blob.parent_id.valid())
+                        visible_bdx.emplace(basic->blob.parent_id, fish->identity());
+                    visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
                 }
 
                 std::vector<Vertex> line;
@@ -1158,6 +1159,16 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
                     });
 
                 graph.vertices(line);
+            
+                if(posture
+                   && posture->outline)
+                {
+                    auto pts = posture->outline->uncompress();
+                    auto p = basic->blob.calculate_bounds().pos();
+                    for(auto &pt : pts)
+                        pt += p;
+                    graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
+                }
             });
         
         if(dirty)
