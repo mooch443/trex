@@ -38,9 +38,11 @@ void initialize_filename_for_tracking() {
         
     } else if(auto source = SETTING(source).value<file::PathArray>();
               source.size() == 1
-              && source.get_paths().front().is_regular()
-              && source.get_paths().front().has_extension()
-              && source.get_paths().front().extension() == "pv")
+              && ((source.get_paths().front().is_regular()
+                  && source.get_paths().front().has_extension()
+                  && source.get_paths().front().extension() == "pv")
+                || source.get_paths().front().add_extension("pv").is_regular())
+              )
     {
         SETTING(filename) = file::Path(source.get_paths().front());
         

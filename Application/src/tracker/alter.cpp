@@ -93,8 +93,8 @@ TRexTask determineTaskType() {
     } else if (not output_file.empty()
                && ((    output_file.has_extension()
                          && output_file.extension() == "pv"
-                         && output_file.exists())
-                   || output_file.add_extension("pv").exists()))
+                         && output_file.is_regular())
+                   || output_file.add_extension("pv").is_regular()))
     {
         SETTING(filename) = file::Path(output_file);
         return TRexTask_t::track;
@@ -122,11 +122,18 @@ TRexTask determineTaskType() {
         } else {
             return TRexTask_t::convert;
         }
+        
     } else if(array.size() == 1
-              && array.get_paths().front().has_extension()
-              && array.get_paths().front().extension() == "pv")
+              && (((array.get_paths().front().has_extension()
+                  && array.get_paths().front().extension() == "pv"
+                  && array.get_paths().front().is_regular()))
+              || array.get_paths().front().add_extension("pv").is_regular())
+            )
     {
-        SETTING(filename) = file::Path(array.get_paths().front());
+        auto path = file::Path(array.get_paths().front());
+        if(not path.has_extension() || path.extension() != "pv")
+            path = path.add_extension("pv");
+        SETTING(filename) = path;
         return TRexTask_t::track;
     }
     
