@@ -122,6 +122,12 @@ TRexTask determineTaskType() {
         } else {
             return TRexTask_t::convert;
         }
+    } else if(array.size() == 1
+              && array.get_paths().front().has_extension()
+              && array.get_paths().front().extension() == "pv")
+    {
+        SETTING(filename) = file::Path(array.get_paths().front());
+        return TRexTask_t::track;
     }
     
     return TRexTask_t::convert;
@@ -400,8 +406,7 @@ void init_signals() {
 }
 
 std::string start_tracking(std::future<void>& f) {
-    if(SETTING(filename).value<file::Path>().empty())
-        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+    settings::initialize_filename_for_tracking();
     
     std::atomic<bool> terminate{false};
     TrackingState state{nullptr};

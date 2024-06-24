@@ -356,8 +356,7 @@ bool TrackingScene::on_global_event(Event event) {
 void TrackingScene::activate() {
     WorkProgress::instance().start();
     
-    if(SETTING(filename).value<file::Path>().empty())
-        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+    settings::initialize_filename_for_tracking();
     
     _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue());
     

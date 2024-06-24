@@ -13,6 +13,8 @@ namespace pv {
 
 namespace cmn::settings {
 
+void initialize_filename_for_tracking();
+
 void load(file::PathArray source,
           file::Path filename,
           default_config::TRexTask task,

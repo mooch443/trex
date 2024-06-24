@@ -15,6 +15,40 @@ using namespace default_config;
 
 namespace cmn::settings {
 
+void initialize_filename_for_tracking() {
+    file::Path path;
+    
+    if(not SETTING(filename).value<file::Path>().empty()) {
+        path = SETTING(filename).value<file::Path>();
+    } else {
+        path = file::Path(settings::find_output_name(GlobalSettings::map()));
+    }
+    
+    if(not path.has_extension()
+       || path.extension() != "pv")
+    {
+        path = path.add_extension("pv");
+    }
+    
+    if(not path.is_absolute())
+        path = file::DataLocation::parse("output", path);
+    
+    if(path.is_regular()) {
+        SETTING(filename) = path;
+        
+    } else if(auto source = SETTING(source).value<file::PathArray>();
+              source.size() == 1
+              && source.get_paths().front().is_regular()
+              && source.get_paths().front().has_extension()
+              && source.get_paths().front().extension() == "pv")
+    {
+        SETTING(filename) = file::Path(source.get_paths().front());
+        
+    } else {
+        throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", SETTING(source).value<file::PathArray>()," seems to be a .pv file.");
+    }
+}
+
 std::unordered_set<std::string_view>
 set_defaults_for(detect::ObjectDetectionType_t detect_type,
                  cmn::sprite::Map& output,

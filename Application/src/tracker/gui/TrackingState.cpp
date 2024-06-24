@@ -49,7 +49,7 @@ VIControllerImpl::VIControllerImpl(std::weak_ptr<pv::File> video, TrackingState&
 static constexpr Frame_t cache_size{Frame_t::number_t(10)};
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
-  : video(std::make_shared<pv::File>(file::DataLocation::parse("output", SETTING(filename).value<file::Path>()), pv::FileMode::READ)),
+  : video(std::make_shared<pv::File>(SETTING(filename).value<file::Path>(), pv::FileMode::READ)),
     tracker(std::make_unique<track::Tracker>(Image::Make(this->video->average()), *this->video)),
     analysis(
       {
