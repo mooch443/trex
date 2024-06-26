@@ -447,7 +447,7 @@ std::string start_converting(std::future<void>& f) {
     
     std::string last_error;
     Segmenter segmenter(
-        [&f]() {
+        []() {
             //if(SETTING(auto_quit).value<bool>())
                 SETTING(terminate) = true;
             //else

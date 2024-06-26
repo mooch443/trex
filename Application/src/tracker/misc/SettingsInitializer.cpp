@@ -34,7 +34,7 @@ void initialize_filename_for_tracking() {
         path = file::DataLocation::parse("output", path);
     
     if(path.is_regular()) {
-        SETTING(filename) = path;
+        SETTING(filename) = path.remove_extension();
         
     } else if(auto source = SETTING(source).value<file::PathArray>();
               source.size() == 1
