@@ -516,10 +516,11 @@ std::string start_converting(std::future<void>& f) {
         }
     });
     
-    if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam"))
+    if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
         segmenter.open_camera();
-    else
+    } else {
         segmenter.open_video();
+    }
     
     auto finite = segmenter.is_finite();
     segmenter.start();
@@ -601,7 +602,7 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     print("CWD: ", file::cwd());
     
-    /*GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
+    GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
         if(key == "source")
             print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
@@ -760,9 +761,11 @@ int main(int argc, char**argv) {
     if(SETTING(error_terminate)) {
         if(not last_error.empty())
             FormatError(last_error.c_str());
+        print("Returning 1 since error_terminate was set: ", last_error);
         return 1;
     }
     
+    print("Returning 0.");
     return 0;
 }
 
