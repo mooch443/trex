@@ -1919,6 +1919,8 @@ void Accumulation::end_a_step(Result reason) {
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     using namespace gui;
+    auto coord = FindCoord::get();
+    auto screen_dimensions = coord.screen_size();
     
     if(!_graph) {
         _graph = std::make_shared<Graph>(Bounds(Size2(400, 180)), "");
@@ -1948,6 +1950,8 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
         _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
     }
     
+    _textarea->set(SizeLimit{max(700.f, float(screen_dimensions.width - 200.f - 500.f)), 180.f});
+    
     if(!text.empty())
         _textarea->set_txt(text);
     
@@ -1970,8 +1974,6 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     //Size2 screen_dimensions = (_base ? _base->window_dimensions().div(gui.scale()) * gui::interface_scale() : (Size2)_video->size());
     //Vec2 center = (screen_dimensions * 0.5).mul(section->scale().reciprocal());
     //screen_dimensions = screen_dimensions.mul(gui.scale());
-    auto coord = FindCoord::get();
-    auto screen_dimensions = coord.screen_size();
     //auto scale = coord.bowl_scale();
     
     if(_coverage_image && _coverage_image->source()->cols >= screen_dimensions.width - 200) {
@@ -1990,6 +1992,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     if(!_layout) {
         _layout = std::make_shared<HorizontalLayout>();
         _layout->set_policy(HorizontalLayout::Policy::TOP);
+        _layout->set_margins(Margins{-15,5,15,10});
         _layout->set_children(std::vector<Layout::Ptr>{
             _textarea,
             _graph

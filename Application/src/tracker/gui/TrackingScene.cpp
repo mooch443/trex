@@ -258,16 +258,28 @@ bool TrackingScene::on_global_event(Event event) {
                 SETTING(gui_show_posture) = not SETTING(gui_show_posture).value<bool>();
                 break;
             case Keyboard::M:
-                if(_data) {
-                    next_poi(_data->_cache->primary_selected_id());
-                } else
+                //if(_data) {
+                //    next_poi(_data->_cache->primary_selected_id());
+                //} else
                     next_poi(Idx_t());
                 break;
             case Keyboard::N:
-                if(_data) {
-                    prev_poi(_data->_cache->primary_selected_id());
-                } else
+                //if(_data) {
+                //    prev_poi(_data->_cache->primary_selected_id());
+                //} else
                     prev_poi(Idx_t());
+                break;
+            case Keyboard::C:
+                if(_data && _data->_cache && _data->_cache->has_selection())
+                    prev_poi(_data->_cache->primary_selected_id());
+                else
+                    prev_poi(Idx_t());
+                break;
+            case Keyboard::V:
+                if(_data && _data->_cache && _data->_cache->has_selection())
+                    next_poi(_data->_cache->primary_selected_id());
+                else
+                    next_poi(Idx_t());
                 break;
             case Keyboard::L:
                 _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());

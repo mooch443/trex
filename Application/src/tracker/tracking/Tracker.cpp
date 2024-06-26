@@ -2280,10 +2280,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             _approximative_enabled_in_frame.invalidate();
         }
         
-        print("Removing frames after and including ", frameIndex);
+        print("** Removing frames after and including ", frameIndex);
         
-        if (not start_frame().valid() || end_frame() < frameIndex || start_frame() > frameIndex)
+        if (not start_frame().valid() || end_frame() < frameIndex) //|| start_frame() > frameIndex)
             return;
+        
+        print("** Looking at frames from ", start_frame(), " to ", end_frame());
         
         PPFrame::CloseLogs();
         update_history_log();

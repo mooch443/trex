@@ -92,7 +92,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             result[i, 3] = (np.argmax(Y, axis=1) == i).sum() / len(Y)
         return result, predictions
     
-    def update_status(self, print_out = False, logs = {}):
+    def update_status(self, print_out = False, logs = {}, patience=5):
         description = "Epoch <c><nr>"+str(min(self.epoch+1, self.epochs))+"</nr></c>/<c><nr>"+str(self.epochs)+"</nr></c>"
         if len(self.X_test) > 0 and len(self.worst_values) > 0:
             description += " -- worst acc/class: <c><nr>{0:.3f}</nr></c>".format(self.worst_values[-1])
@@ -101,7 +101,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             description = description + " best: <nr>"+str(float(int(self.best_result["unique"] * 1000)) / 10) + "</nr><i>%</i>"
         if self.compare_acc > 0:
             description += " compare_acc: <nr>" + str(float(int(self.compare_acc * 1000)) / 10)+"</nr><i>%</i>"
-        if len(self.losses) >= 5:
+        if len(self.losses) >= patience:
             description += " <sym>△</sym>loss: <c><nr>" + str(float(int(abs(np.mean(self.loss_diffs[-5:])) / self.minimal_loss_allowed * 10000)) / 100)+"</nr></c><i>%</i> of minimum"
         
         update_work_description(description)
@@ -113,6 +113,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
     def evaluate(self, epoch, save = True, logs = {}):
         classes = self.classes
         model = self.model
+        patience = 8
         
         global update_work_percent, set_stop_reason, set_per_class_accuracy, set_uniqueness_history
         
@@ -143,7 +144,9 @@ class ValidationCallback(tf.keras.callbacks.Callback):
 
         self.uniquenesses.append(unique)
         set_uniqueness_history(self.uniquenesses)
-        print("uniquenesses: ", self.uniquenesses)
+
+        pessimism = (self.compare_acc * 0.95)**2
+        TRex.log(f"uniquenesses: {self.uniquenesses}, pessimistic previous best: {pessimism}, best: {self.best_result['unique']}")
 
         if unique >= acceptable_uniqueness() and self.settings["accumulation_step"] >= -1:
             if self.settings["accumulation_step"] == -1:
@@ -154,7 +157,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                 set_stop_reason("Uniqueness is sufficient ("+str(unique)+")")
 
         # check whether our worst value improved, but only use it if it wasnt the first epoch
-        if unique > self.best_result["unique"] and (self.compare_acc <= 0 or unique >= self.compare_acc**2):
+        if unique > self.best_result["unique"] and (self.compare_acc <= 0 or unique >= pessimism):
             self.best_result["unique"] = unique
             self.better_values.append((epoch, unique))
             TRex.log("\t(saving) new best-worst-value: "+str(unique))
@@ -179,9 +182,9 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             TRex.log("\t(not saving) old best value is "+str(self.best_result["unique"])+" / "+str(unique))
 
         # not reaching a good enough result in N epochs
-        if self.compare_acc > 0 and len(self.uniquenesses) >= 5 and self.best_result["unique"] < self.compare_acc**2:
-            set_stop_reason("uniqueness stayed below "+str(int((self.compare_acc**2) * 1000) / 100.0)+"% in the first epochs")
-            TRex.log("[STOP] best result is below "+str(self.compare_acc**2)+" even after "+str(epoch)+" epochs.")
+        if self.compare_acc > 0 and len(self.uniquenesses) >= patience and self.best_result["unique"] < pessimism:
+            set_stop_reason("uniqueness stayed below "+str(int(pessimism * 10000.0) / 100.0)+"% in the first epochs")
+            TRex.log("[STOP] best result is below "+str(pessimism)+" even after "+str(epoch)+" epochs.")
             self.model.stop_training = True
 
         if "val_loss" in logs:
@@ -199,12 +202,12 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         previous_loss = np.finfo(float).max
         
         if len(self.losses) > 0:
-            l = np.nanmean(self.losses[-5:])
+            l = np.nanmean(self.losses[-patience:])
             if not np.isnan(l):
                 previous_loss = l
         self.losses.append(current_loss)
         if len(self.losses) > 1:
-            mu = np.mean(self.losses[-5:-1])
+            mu = np.mean(self.losses[-patience:-1])
             self.loss_diffs.append((current_loss - mu))
 
         loss_diff = max(0.00000001, previous_loss - current_loss)
@@ -212,10 +215,10 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         change = np.diff(self.losses)
 
         if len(self.losses) > 1:
-            TRex.log("\tminimal_loss_allowed: "+str(self.minimal_loss_allowed)+" -> mu: "+str(mu)+" current diffs: "+str(self.loss_diffs)+" average:"+str(np.mean(self.loss_diffs[-5:])))
+            TRex.log("\tminimal_loss_allowed: "+str(self.minimal_loss_allowed)+" -> mu: "+str(mu)+" current diffs: "+str(self.loss_diffs)+" average:"+str(np.mean(self.loss_diffs[-patience:])))
 
         if not self.model.stop_training:
-            #if self.compare_acc > -1 and "val_acc" in logs and len(self.worst_values) >= 5 and logs["val_acc"] < self.compare_acc**3:
+            #if self.compare_acc > -1 and "val_acc" in logs and len(self.worst_values) >= patience and logs["val_acc"] < self.compare_acc**3:
             #    TRex.log("[STOP] val_acc is below "+str(self.compare_acc**3)+" even after "+str(len(self.worst_values))+" epochs.")
             #               self.model.stop_training = True
 
@@ -223,7 +226,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             long_time = int(max(8, self.epochs * 0.1))
             long_time = min(long_time, 13)
 
-            worst_value_backlog = 5
+            worst_value_backlog = patience
             TRex.log("-- worst_value (backlog="+str(worst_value_backlog)+") "+str(self.worst_values[-worst_value_backlog:])+" -- long time:"+str(long_time))
             if not self.model.stop_training and len(self.worst_values) >= worst_value_backlog and self.settings["accumulation_step"] >= -1:
                 acc = np.array(self.worst_values[-worst_value_backlog:]) #logs[akey][-2:]
@@ -242,14 +245,14 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                     self.model.stop_training = True
 
             if not self.model.stop_training and len(self.losses) > 1:
-                #if len(self.losses) >= 5 and np.abs(loss_diff) < minimal_loss_allowed:
+                #if len(self.losses) >= patience and np.abs(loss_diff) < minimal_loss_allowed:
                 #                   TRex.log("[STOP] Loss is very small (epoch "+str(len(self.losses))+"). stopping. loss was "+str(current_loss)+" - "+str(previous_loss)+" = "+str(loss_diff))
                 #                self.model.stop_training = True
     
                 # check for loss plateau
                 if not self.model.stop_training:
-                    if len(self.losses) >= 5 and abs(np.mean(self.loss_diffs[-5:])) < self.minimal_loss_allowed:
-                    #if len(self.losses) >= 5 and (np.array(self.loss_diffs[-2:]) < self.minimal_loss_allowed).all():
+                    if len(self.losses) >= patience and abs(np.mean(self.loss_diffs[-patience:])) < self.minimal_loss_allowed:
+                    #if len(self.losses) >= patience and (np.array(self.loss_diffs[-2:]) < self.minimal_loss_allowed).all():
                         if self.settings["accumulation_step"] > 0 or (self.last_skip_step == self.settings["accumulation_step"] and len(self.uniquenesses) >= self.epochs * 0.5):
                             self.model.stop_training = True
                             set_stop_reason("small loss in consecutive epochs")
@@ -273,10 +276,10 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                     if count >= 4 and (self.settings["accumulation_step"] != 0 or (self.settings["accumulation_step"] == 0 and len(self.losses) >= 30)):
                         # we seem to have started overfitting
                         set_stop_reason("overfitting")
-                        TRex.log("[STOP] overfitting. stopping with loss diffs: "+str(change))
+                        TRex.log("[STOP] overfitting. stopping with loss diffs: "+str(change))
                         self.model.stop_training = True
 
-        self.update_status(True, logs=logs)
+        self.update_status(True, logs=logs, patience=patience)
         self.batches = 0
         return unique
     
@@ -365,7 +368,7 @@ def predict():
     else:
         train_X = np.array(images, copy=False)
     if len(train_X.shape) != 4:
-        print("error with the shape ", train_X.shape, " < len 4")
+        TRex.warn(f"error with the shape {train_X.shape} < len 4")
     elif train_X.shape[1] != model.input.shape[1] or train_X.shape[2] != model.input.shape[2]:
         raise Exception("Wrong image dimensions for model ("+str(train_X.shape[1:3])+" vs. "+str(model.input.shape[1:3])+").")
         
@@ -498,7 +501,7 @@ def start_learning():
         # Initialize the batch counter and the numpy array
         grid_shape = (2, 10)
         image_shape = X_train.shape[1:3]  # shape of a single image
-        print(image_shape)
+        #print(image_shape)
         grid = np.zeros((grid_shape[0]*image_shape[0], grid_shape[1]*image_shape[1], channels))
 
         _input = X_train
@@ -507,7 +510,7 @@ def start_learning():
                 # Generate augmented images
                 for batch in datagen.flow(_input, batch_size=1):
                     # Add to grid
-                    print(_input.shape, batch[0].shape, grid_shape, image_shape)
+                    #print(_input.shape, batch[0].shape, grid_shape, image_shape)
                     pos = (x * image_shape[1], y * image_shape[0])
                     dim = ((x+1) * image_shape[1], (y+1) * image_shape[0])
                     grid[pos[1]:dim[1], pos[0]:dim[0]] = batch[0, ...].astype(np.uint8)
