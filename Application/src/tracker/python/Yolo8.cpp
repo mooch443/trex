@@ -33,7 +33,7 @@ std::string Yolo8::default_model() {
 
 bool Yolo8::valid_model(const file::Path& path) {
     std::string input_string = path.str();
-    if (path.has_extension() && path.extension() == "pt")
+    if (path.has_extension("pt"))
         return true;
 
     return false;
@@ -51,7 +51,7 @@ bool Yolo8::is_default_model(const file::Path& path) {
         return true;
     }
     
-    if(path.exists() && path.has_extension() && path.extension() == "pt")
+    if(path.exists() && path.has_extension("pt"))
         return true;
     
     return false;

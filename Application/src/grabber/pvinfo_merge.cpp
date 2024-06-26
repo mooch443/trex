@@ -51,13 +51,13 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     for(auto name : merge_videos) {
         name = file::DataLocation::parse("merge", name);
-        if((name.has_extension() && name.extension() == "pv" && !name.exists())
-           || !name.add_extension("pv").exists())
+        if((name.has_extension("pv") && not name.is_regular())
+           || not name.add_extension("pv").is_regular())
         { // approximation (this is not a true XOR)
             throw U_EXCEPTION("File ",name.str()," cannot be found.");
         }
         
-        if(!name.has_extension() || name.extension() != "pv")
+        if(not name.has_extension("pv"))
             name = name.add_extension("pv");
         
         auto file = std::make_shared<pv::File>(name, pv::FileMode::READ);
@@ -114,9 +114,13 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         auto raw_path = path;
         path = file::DataLocation::parse("input", path);
         
-        if((!path.has_extension() && path.add_extension("pv").exists()) || (path.has_extension() && path.extension() == "pv")) {
+        if((!path.has_extension()
+            && path.add_extension("pv").exists())
+           || path.has_extension("pv"))
+        {
             pv::File file(path, pv::FileMode::READ);
             file.average().copyTo(average);
+            
         } else {
             if(!path.exists()) {
                 auto dimensions = Meta::fromStr<Size2>(raw_path.str());

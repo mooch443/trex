@@ -1321,8 +1321,9 @@ namespace Output {
     
     Path TrackingResults::expected_filename() {        
         file::Path filename = settings::find_output_name(GlobalSettings::map());
-        filename = filename.extension() == "pv" ?
-        filename.replace_extension("results") : filename.add_extension("results");
+        filename = filename.has_extension("pv")
+                    ? filename.replace_extension("results")
+                    : filename.add_extension("results");
         return file::DataLocation::parse("output", filename);
     }
     
@@ -1440,11 +1441,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
 
         if(!filename.exists()) {
             file::Path file = SETTING(filename).value<Path>();
-            file = file.extension() == "pv" ?
-            file.replace_extension("results") : file.add_extension("results");
+            file = file.has_extension("pv")
+                    ? file.replace_extension("results")
+                    : file.add_extension("results");
             
             //file = file::DataLocation::parse("input", filename.filename());
-            if(file.exists()) {
+            if(file.is_regular()) {
                 FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;
             } else

@@ -39,12 +39,15 @@ void initialize_filename_for_tracking() {
     } else if(auto source = SETTING(source).value<file::PathArray>();
               source.size() == 1
               && ((source.get_paths().front().is_regular()
-                  && source.get_paths().front().has_extension()
-                  && source.get_paths().front().extension() == "pv")
+                   && source.get_paths().front().has_extension("pv"))
                 || source.get_paths().front().add_extension("pv").is_regular())
               )
     {
-        SETTING(filename) = file::Path(source.get_paths().front());
+        auto path = source.get_paths().front();
+        if(path.has_extension("pv"))
+            path = path.remove_extension();
+        
+        SETTING(filename) = file::Path(path);
         
     } else {
         throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", SETTING(source).value<file::PathArray>()," seems to be a .pv file.");
@@ -406,9 +409,7 @@ void load(file::PathArray source,
     /// --------------------------------------------------------
     /// 6. set the source / filename properties from parameters:
     /// --------------------------------------------------------
-    if(filename.has_extension()
-       && filename.extension() == "pv") 
-    {
+    if(filename.has_extension("pv")) {
         filename = filename.remove_extension();
     }
     
@@ -496,7 +497,7 @@ void load(file::PathArray source,
             auto name = CommandLine::instance().settings_keys().at("filename");
             if(not name.empty()) {
                 file::Path filename = file::DataLocation::parse("output", name, &combined.map);
-                if(filename.has_extension() && filename.extension() == "pv")
+                if(filename.has_extension("pv"))
                     filename = filename.remove_extension();
                 combined.map["filename"] = filename;
                 set_config_if_different("filename", combined.map);
@@ -504,7 +505,7 @@ void load(file::PathArray source,
             
         } else if(not path.empty()) {
             file::Path filename = file::DataLocation::parse("output", path, &combined.map);
-            if(filename.has_extension() && filename.extension() == "pv")
+            if(filename.has_extension("pv"))
                 filename = filename.remove_extension();
             combined.map["filename"] = filename;
             set_config_if_different("filename", combined.map);
@@ -522,7 +523,7 @@ void load(file::PathArray source,
         
         auto name = combined.map.at("filename").value<file::Path>();
         filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &combined.map);
-        if(filename.has_extension() && filename.extension() == "pv")
+        if(filename.has_extension("pv"))
             filename = filename.remove_extension();
         
         if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
@@ -550,7 +551,7 @@ void load(file::PathArray source,
                 filename = {};
             }
             
-            if(filename.has_extension() && filename.extension() == "pv")
+            if(filename.has_extension("pv"))
                 filename = filename.remove_extension();
             
             combined.map["filename"] = filename;
@@ -911,14 +912,13 @@ file::Path find_output_name(const sprite::Map& map,
     
     if(not filename.empty())
     {
-        if(filename.has_extension() && filename.extension() == "pv")
+        if(filename.has_extension("pv"))
             filename = filename.remove_extension();
         return filename;
         
     } else {
         if(_source.get_paths().size() == 1
-           && _source.get_paths().front().has_extension()
-           && _source.get_paths().front().extension() == "pv")
+           && _source.get_paths().front().has_extension("pv"))
         {
             file::Path path = _source.get_paths().front();
             if(not path.empty()) {
@@ -939,7 +939,7 @@ file::Path find_output_name(const sprite::Map& map,
             filename = {};
         }
         
-        if(filename.has_extension() && filename.extension() == "pv")
+        if(filename.has_extension("pv"))
             filename = filename.remove_extension();
         
         return filename;

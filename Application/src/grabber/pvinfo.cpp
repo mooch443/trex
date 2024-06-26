@@ -109,17 +109,15 @@ void parse_input(const cmn::CommandLine::Option& option) {
         }
     }
     
-    if(path.has_extension()) {
-        if(path.extension() == "results") {
-            SETTING(is_video) = false;
-            SETTING(filename) = path;
-            
-            if(path.exists()) {
-                SETTING(filename) = path.remove_extension();
-                return;
-            } else
-                throw U_EXCEPTION("Cannot find results file ",path,".");
-        }
+    if(path.has_extension("results")) {
+        SETTING(is_video) = false;
+        SETTING(filename) = path;
+        
+        if(path.exists()) {
+            SETTING(filename) = path.remove_extension();
+            return;
+        } else
+            throw U_EXCEPTION("Cannot find results file ",path,".");
     }
     
     if(!path.has_extension() || path.extension() != "pv")

@@ -64,9 +64,9 @@ VINetwork::Status VINetwork::status(){
 
 file::Path VINetwork::network_path() {
     file::Path filename = SETTING(filename).value<file::Path>().filename();
-    filename = filename.extension() == "pv"
-            ? filename.remove_extension()
-            : filename;
+    filename = filename.has_extension("pv")
+                    ? filename.remove_extension()
+                    : filename;
     filename = file::DataLocation::parse("output", filename.str() + "_weights");
     return filename;
 }

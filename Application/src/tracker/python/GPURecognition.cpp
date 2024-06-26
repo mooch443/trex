@@ -771,7 +771,7 @@ py::module_ import_module_from_file(pybind11::module& main, const file::Path& mo
         return main.import(module_file_path.c_str());
     
     // Remove extension to get module name
-    file::Path module_name_path = module_file_path.has_extension() && module_file_path.extension() == "py"
+    file::Path module_name_path = module_file_path.has_extension("py")
             ? module_file_path.remove_extension()
             : module_file_path;
 

@@ -207,9 +207,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     
     file::Path input = SETTING(filename).value<file::Path>().filename();
-    if(input.has_extension() && input.extension() == "pv") {
+    if(input.has_extension("pv"))
         input = input.remove_extension();
-    }
+    
     std::string filename = input.str();
     
     auto posture_path = (fishdata / (filename + "_posture_*.npz")).str();

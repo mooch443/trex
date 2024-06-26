@@ -70,6 +70,8 @@ struct SettingsScene::Data {
             if(name == "filename") {
                 file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
                 if(not path.empty() && not path.remove_filename().empty()) {
+                    if(path.has_extension("pv"))
+                        path = path.remove_extension();
                     path = path.filename();
                     SETTING(filename) = path;
                 }
@@ -207,8 +209,7 @@ struct SettingsScene::Data {
                             /// cant use the pv file and convert it to itself:
                             auto source = SETTING(source).value<file::PathArray>();
                             if (source.size() == 1
-                                && source.get_paths().front().has_extension()
-                                && source.get_paths().front().extension() == "pv")
+                                && source.get_paths().front().has_extension("pv"))
                             {
                                 auto meta_source_path = SETTING(meta_source_path).value<std::string>();
                                 if (not meta_source_path.empty()) {
@@ -586,8 +587,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
     try {
         if (source != _initial_source
             && source.get_paths().size() == 1
-            && source.get_paths().front().has_extension()
-            && source.get_paths().front().extension() == "pv")
+            && source.get_paths().front().has_extension("pv"))
         {
             //auto output = settings::find_output_name(GlobalSettings::map());
             auto output = source.get_paths().front();

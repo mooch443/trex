@@ -451,7 +451,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
 
 file::Path output_location() {
     auto filename = SETTING(filename).value<file::Path>();
-    if(filename.has_extension() && filename.extension() == "pv")
+    if(filename.has_extension("pv"))
         filename = filename.remove_extension();
     return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
 }

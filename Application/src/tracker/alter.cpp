@@ -91,11 +91,12 @@ TRexTask determineTaskType() {
         return TRexTask_t::none;
         
     } else if (not output_file.empty()
-               && ((    output_file.has_extension()
-                         && output_file.extension() == "pv"
+               && ((    output_file.has_extension("pv")
                          && output_file.is_regular())
                    || output_file.add_extension("pv").is_regular()))
     {
+        if(output_file.has_extension("pv"))
+            output_file = output_file.remove_extension();
         SETTING(filename) = file::Path(output_file);
         return TRexTask_t::track;
         
@@ -115,6 +116,8 @@ TRexTask determineTaskType() {
             {
                 SETTING(filename) = file::Path("webcam");
             } else {
+                if(output_file.has_extension("pv"))
+                    output_file = output_file.remove_extension();
                 SETTING(filename) = file::Path(output_file);
             }
             
@@ -124,15 +127,14 @@ TRexTask determineTaskType() {
         }
         
     } else if(array.size() == 1
-              && (((array.get_paths().front().has_extension()
-                  && array.get_paths().front().extension() == "pv"
-                  && array.get_paths().front().is_regular()))
+              && (((array.get_paths().front().has_extension("pv")
+                    && array.get_paths().front().is_regular()))
               || array.get_paths().front().add_extension("pv").is_regular())
             )
     {
         auto path = file::Path(array.get_paths().front());
-        if(not path.has_extension() || path.extension() != "pv")
-            path = path.add_extension("pv");
+        if(path.has_extension("pv"))
+            path = path.remove_extension();
         SETTING(filename) = path;
         return TRexTask_t::track;
     }
@@ -644,7 +646,7 @@ int main(int argc, char**argv) {
         }
         else if(a.name == "o") {
             auto path = file::Path(a.value);
-            if(path.has_extension())
+            if(path.has_extension() && path.has_extension("pv"))
                 path = path.remove_extension();
             SETTING(filename) = path;
             CommandLine::instance().add_setting("filename", path.str());
@@ -701,7 +703,7 @@ int main(int argc, char**argv) {
 
     if (not SETTING(filename).value<file::Path>().empty()) {
         auto path = SETTING(filename).value<file::Path>();
-        if (path.has_extension() && path.extension() == "pv")
+        if(path.has_extension("pv"))
             path = path.remove_extension();
         SETTING(filename) = file::DataLocation::parse("output", path);
     }

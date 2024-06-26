@@ -970,7 +970,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 path = map.at("settings_file").value<Path>();
             if(path.empty()) {
                 path = map.at("filename").value<Path>();
-                if(path.has_extension() && path.extension() == "pv")
+                if(path.has_extension("pv"))
                     path = path.remove_extension();
             }
             if(path.empty()) {
@@ -982,7 +982,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(path.empty())
                 return "";
             
-            if(!path.has_extension() || path.extension() != "settings")
+            if(not path.has_extension("settings"))
                 path = path.add_extension("settings");
             
             auto settings_file = file::DataLocation::parse("output", path, &map);
@@ -1068,7 +1068,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                         filename = map.at("cwd").value<file::Path>() / filename;
                 }
                 
-            } else if(not filename.has_extension() || filename.extension() == "pv") {
+            } else if(not filename.has_extension("pv")) {
                 if(not output_path.empty())
                     filename = output_path / filename.filename();
             }
