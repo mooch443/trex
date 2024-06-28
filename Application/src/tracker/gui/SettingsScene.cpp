@@ -666,7 +666,9 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     ExtendableVector exclude{
         //"output_prefix",
         "filename",
-        "source"
+        "source",
+        "load",
+        "task"
         //"output_dir"
     };
     

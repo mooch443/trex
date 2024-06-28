@@ -42,78 +42,90 @@ using namespace cmn::file;
 #define CONFIG adding.add<ParameterCategoryType::CONVERTING>
 
 namespace default_config {
-    const std::string& homedir() {
-        return ::homedir;
-    }
 
-    ENUM_CLASS_DOCS(individual_image_normalization_t,
-                    "No normalization. Images will only be cropped out and used as-is.",
-                    "Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.",
-                    "Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.",
-                    "Images will be aligned parallel to the x axis."
-    )
+const std::string& homedir() {
+    return ::homedir;
+}
 
-    ENUM_CLASS_DOCS(heatmap_normalization_t,
-                    "No normalization at all. Values will only be averaged per cell.",
-                    "Normalization based in value-space. The average of each cell will be divided by the maximum value encountered.",
-                    "The cell sum will be divided by the maximum cell value encountered.",
-                    "Displays the variation within each cell."
-    )
+ENUM_CLASS_DOCS(individual_image_normalization_t,
+                "No normalization. Images will only be cropped out and used as-is.",
+                "Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.",
+                "Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.",
+                "Images will be aligned parallel to the x axis."
+)
 
-    ENUM_CLASS_DOCS(gui_recording_format_t,
-        "AVI / video format (codec MJPG is used)",
-        "MP4 / video format (codec H264 is used)",
-        "individual images in JPEG format",
-        "individual images in PNG format"
-    )
-    
-    ENUM_CLASS_DOCS(peak_mode_t,
-        "The head is broader than the tail.",
-        "The tail is broader than the head."
-    )
+ENUM_CLASS_DOCS(heatmap_normalization_t,
+                "No normalization at all. Values will only be averaged per cell.",
+                "Normalization based in value-space. The average of each cell will be divided by the maximum value encountered.",
+                "The cell sum will be divided by the maximum cell value encountered.",
+                "Displays the variation within each cell."
+)
 
-    ENUM_CLASS_DOCS(matching_mode_t,
-        "Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.",
-        "Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.",
-        "The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).",
-        "Runs all algorithms and pits them against each other, outputting statistics every few frames.",
-        "Uses automatic selection based on density.",
-        "No algorithm, direct assignment."
-    )
+ENUM_CLASS_DOCS(gui_recording_format_t,
+    "AVI / video format (codec MJPG is used)",
+    "MP4 / video format (codec H264 is used)",
+    "individual images in JPEG format",
+    "individual images in PNG format"
+)
 
-    ENUM_CLASS_DOCS(output_format_t,
-        "A standard data format, comma-separated columns for each data stream. Use `output_csv_decimals` to adjust the maximum precision for exported data.",
-        "NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R)."
-    )
+ENUM_CLASS_DOCS(peak_mode_t,
+    "The head is broader than the tail.",
+    "The tail is broader than the head."
+)
 
-    ENUM_CLASS_DOCS(output_invalid_t,
-        "Infinity (e.g. np.inf)",
-        "NaN (e.g. np.nan)"
-    )
+ENUM_CLASS_DOCS(matching_mode_t,
+    "Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.",
+    "Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.",
+    "The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).",
+    "Runs all algorithms and pits them against each other, outputting statistics every few frames.",
+    "Uses automatic selection based on density.",
+    "No algorithm, direct assignment."
+)
 
-    ENUM_CLASS_DOCS(gpu_verbosity_t,
-       "No output during training.",
-       "An animated bar with detailed information about the training progress.",
-       "One line per epoch."
-    )
+ENUM_CLASS_DOCS(output_format_t,
+    "A standard data format, comma-separated columns for each data stream. Use `output_csv_decimals` to adjust the maximum precision for exported data.",
+    "NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R)."
+)
 
-    ENUM_CLASS_DOCS(app_update_check_t,
-        "No status has been set yet and the program will ask the user.",
-        "Manually check for updates, do not automatically check for them online.",
-        "Automatically check for updates periodically (once per week)."
-    )
+ENUM_CLASS_DOCS(output_invalid_t,
+    "Infinity (e.g. np.inf)",
+    "NaN (e.g. np.nan)"
+)
 
-    ENUM_CLASS_DOCS(blob_split_algorithm_t,
-        "Adaptively increase the threshold of closeby objects, until separation.",
-        "Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.",
-        "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
-    )
+ENUM_CLASS_DOCS(gpu_verbosity_t,
+    "No output during training.",
+    "An animated bar with detailed information about the training progress.",
+    "One line per epoch."
+)
 
+ENUM_CLASS_DOCS(app_update_check_t,
+    "No status has been set yet and the program will ask the user.",
+    "Manually check for updates, do not automatically check for them online.",
+    "Automatically check for updates periodically (once per week)."
+)
+
+ENUM_CLASS_DOCS(blob_split_algorithm_t,
+    "Adaptively increase the threshold of closeby objects, until separation.",
+    "Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.",
+    "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
+)
+
+// current, v118_3, v110, v100, convnextbase, vgg16, vgg19, mobilenetv3small, mobilenetv3large, xception, resnet50v2, efficientnetb0, inceptionv3, nasnetmobile
 ENUM_CLASS_DOCS(visual_identification_version_t,
     "This always points to the current version.",
     "The order of Max-Pooling layers was changed, along with some other minor changes.",
     "Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.",
-    "The original layout."
+    "The original layout.",
+    "The ConvNeXtBase architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a modernized ResNet-inspired structure with large kernel sizes, efficient attention mechanisms, and an optimized design for both computational efficiency and performance, aimed at achieving state-of-the-art results on large-scale image datasets.",
+    "The VGG16 architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a simple and straightforward structure with small kernel sizes, a large number of layers, and a focus on simplicity and ease of use, aimed at achieving strong results on small-scale image datasets.",
+    "The VGG19 architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a simple and straightforward structure with small kernel sizes, a large number of layers, and a focus on simplicity and ease of use, aimed at achieving strong results on small-scale image datasets.",
+    "The MobileNetV3Small architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a lightweight structure with small kernel sizes, efficient depthwise separable convolutions, and an emphasis on computational efficiency and performance, aimed at achieving strong results on mobile and edge devices with limited computational resources.",
+    "The MobileNetV3Large architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a lightweight structure with small kernel sizes, efficient depthwise separable convolutions, and an emphasis on computational efficiency and performance, aimed at achieving strong results on mobile and edge devices with limited computational resources.",
+    "The Xception architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a modernized Inception-inspired structure with depthwise separable convolutions, efficient residual connections, and an optimized design for both computational efficiency and performance, aimed at achieving state-of-the-art results on large-scale image datasets.",
+    "The ResNet50V2 architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a modernized ResNet-inspired structure with bottleneck blocks, efficient residual connections, and an optimized design for both computational efficiency and performance, aimed at achieving strong results on large-scale image datasets.",
+    "The EfficientNetB0 architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a modernized EfficientNet-inspired structure with compound scaling, efficient depthwise separable convolutions, and an optimized design for both computational efficiency and performance, aimed at achieving strong results on large-scale image datasets.",
+    "The InceptionV3 architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a modernized Inception-inspired structure with efficient Inception blocks, optimized factorization, and an emphasis on computational efficiency and performance, aimed at achieving strong results on large-scale image datasets.",
+    "The NASNetMobile architecture is a deep convolutional neural network (CNN) designed for image classification tasks, featuring a modernized NASNet-inspired structure with efficient normal cells, optimized reduction cells, and an emphasis on computational efficiency and performance, aimed at achieving strong results on large-scale image datasets."
 )
 
 ENUM_CLASS_DOCS(TRexTask_t,
@@ -738,7 +750,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
-        CONFIG("visual_identification_version", visual_identification_version_t::v118_3, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.");
+        CONFIG("visual_identification_version", visual_identification_version_t::v118_3, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility. It also features many public network layouts available from the Keras package. In case training results do not match expectations, please first check the quality of your trajectories before trying out different network layouts.");
         CONFIG("gpu_enable_accumulation", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
         CONFIG("gpu_accepted_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
@@ -775,7 +787,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be ignored during tracking.");
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
-        CONFIG("huge_timestamp_ends_segment", true, "");
+        CONFIG("huge_timestamp_ends_segment", true, "If enabled, a huge timestamp difference will end the current trajectory segment and will be displayed as a reason in the segment overview at the top of the selected individual info card.");
         CONFIG("track_trusted_probability", float(0.25), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
@@ -862,6 +874,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "auto_apply",
             "auto_no_results",
             "auto_no_tracking_data",
+            "load",
             //"output_dir",
             "auto_categorize",
             "tags_path",

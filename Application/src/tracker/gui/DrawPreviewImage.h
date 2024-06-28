@@ -19,6 +19,9 @@ namespace DrawPreviewImage {
 
 void draw(const track::Background* average, const track::PPFrame&, Frame_t, DrawStructure&);
 
+/// returns an image with 4 channels (RGBA) and the position
+/// of the blob in question which is based on the settings
+/// provided.
 std::tuple<Image::Ptr, Vec2>
 make_image(pv::BlobWeakPtr blob,
            const track::Midline* midline,

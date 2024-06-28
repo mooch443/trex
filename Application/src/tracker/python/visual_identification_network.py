@@ -203,8 +203,210 @@ def create_vit_classifier(num_classes,input_shape = (32, 32, 3)):
     return model
 
 class Network:
+    def add_official_models(self):
+        def input_for(model, image_width, image_height, channels):
+            inputs = layers.Input(shape=(int(image_height), int(image_width), int(channels)))
+            if int(channels) == 1:
+                adjust_channels = Lambda(lambda x: tf.repeat(x, 3, axis=-1))(inputs)
+            else:
+                adjust_channels = inputs
+            return adjust_channels
+
+        def top_for(model, classes):
+            # Freeze the pretrained weights
+            model.trainable = True
+
+            x = layers.GlobalAveragePooling2D(name="avg_pool")(model.output)
+            x = layers.BatchNormalization()(x)
+
+            top_dropout_rate = 0.2
+            x = layers.Dropout(top_dropout_rate, name="top_dropout")(x)
+            outputs = layers.Dense(len(classes), activation="softmax", name="pred")(x)
+
+            return outputs
+        
+        def convnextbase(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import ConvNeXtBase
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.convnext.preprocess_input(adjust_channels)
+            model = ConvNeXtBase(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["convnextbase"] = convnextbase
+
+        def inceptionv3(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import InceptionV3
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.inception_v3.preprocess_input(adjust_channels)
+            model = InceptionV3(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["inceptionv3"] = inceptionv3
+
+        def nasnetmobile(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import NASNetMobile
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.nasnet.preprocess_input(adjust_channels)
+            model = NASNetMobile(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["nasnetmobile"] = nasnetmobile
+        
+        def vgg16(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import VGG16
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.vgg16.preprocess_input(adjust_channels)
+            model = VGG16(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["vgg16"] = vgg16
+
+        def vgg19(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import VGG19
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.vgg19.preprocess_input(adjust_channels)
+            model = VGG19(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["vgg19"] = vgg19
+
+        def mobilenetv3small(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import MobileNetV3Small
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.mobilenet_v3.preprocess_input(adjust_channels)
+            model = MobileNetV3Small(
+                input_shape=None,
+                alpha=1.0,
+                minimalistic=True,
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                classes=len(classes),
+                pooling=None,
+                dropout_rate=0.2,
+                classifier_activation="softmax",
+                include_preprocessing=False
+            )
+            return top_for(model, classes)
+        
+        self.versions["mobilenetv3small"] = mobilenetv3small
+
+        def mobilenetv3large(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import MobileNetV3Large
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.mobilenet_v3.preprocess_input(adjust_channels)
+            model = MobileNetV3Large(
+                input_shape=None,
+                alpha=1.0,
+                minimalistic=False,
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                classes=len(classes),
+                pooling=None,
+                dropout_rate=0.2,
+                classifier_activation="softmax",
+                include_preprocessing=False
+            )
+            return top_for(model, classes)
+        
+        self.versions["mobilenetv3large"] = mobilenetv3large
+
+        def xception(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import Xception
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.xception.preprocess_input(adjust_channels)
+            model = Xception(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["xception"] = xception
+
+        def resnet50v2(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import ResNet50V2
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.resnet.preprocess_input(adjust_channels)
+            model = ResNet50V2(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["resnet50v2"] = resnet50v2
+
+        def efficientnetb0(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import EfficientNetB0
+            model = input_for(model, image_width, image_height, channels)
+            adjust_channels = keras.applications.efficientnet.preprocess_input(adjust_channels)
+            model = EfficientNetB0(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(model, classes)
+        
+        self.versions["efficientnetb0"] = efficientnetb0
+
+        self.array_of_all_official_models = ["convnextbase", "vgg16", "vgg19", "mobilenetv3small", "mobilenetv3large", "xception", "resnet50v2", "efficientnetb0"]
+
     def initialize_versions(self):
         self.versions = {}
+
+        add_official_models()
 
         def v119(model, image_width, image_height, classes, channels):
             #model = create_vit_classifier(num_classes=len(classes), input_shape=(int(image_width),int(image_height),int(channels)))

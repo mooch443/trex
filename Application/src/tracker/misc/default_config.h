@@ -75,7 +75,7 @@ namespace default_config {
     ENUM_CLASS(blob_split_algorithm_t, threshold, threshold_approximate, fill)
     ENUM_CLASS_HAS_DOCS(blob_split_algorithm_t)
 
-    ENUM_CLASS(visual_identification_version_t, current, v118_3, v110, v100)
+    ENUM_CLASS(visual_identification_version_t, current, v118_3, v110, v100, convnextbase, vgg16, vgg19, mobilenetv3small, mobilenetv3large, xception, resnet50v2, efficientnetb0, inceptionv3, nasnetmobile)
     ENUM_CLASS_HAS_DOCS(visual_identification_version_t)
 
     ENUM_CLASS(TRexTask_t, none, track, convert, annotate, rst)

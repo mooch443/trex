@@ -7,6 +7,7 @@
 #include <misc/ObjectManager.h>
 #include <gui/types/Entangled.h>
 #include <gui/dyn/VarProps.h>
+#include <misc/Timer.h>
 
 namespace cmn {
 class VideoSource;
@@ -98,6 +99,7 @@ private:
     
     blob::Pose::Skeleton _skeleton;
     Annotation _pose_in_progress;
+    Timer _timer;
 
 public:
     // Constructor

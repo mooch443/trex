@@ -175,7 +175,7 @@ void BackgroundSubtraction::Data::set(Image::Ptr&& average) {
     background = std::move(average);
     if(background) {
         background->get().copyTo(data().gpu);
-        gpu.convertTo(data().float_average, CV_32FC1, 1.0 / 255.0);
+        gpu.convertTo(data().float_average, CV_32FC(gpu.channels()), 1.0 / 255.0);
         manager().set_paused(false);
     }
 }

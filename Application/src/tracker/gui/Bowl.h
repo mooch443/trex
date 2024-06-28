@@ -21,7 +21,7 @@ public:
     void set_target_focus(const std::vector<Vec2>& target_points);
     
     using Entangled::update;
-    void update_scaling();
+    void update_scaling(double dt);
     void update(Frame_t, DrawStructure&, const FindCoord&);
     void set_max_zoom_size(const Vec2& max_zoom);
     

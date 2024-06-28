@@ -426,8 +426,8 @@ void Bowl::update_blobs(const Frame_t& frame) {
 void Bowl::set_data(Frame_t) {
 }
 
-void Bowl::update_scaling() {
-    const auto dt = saturate(_timer.elapsed(), 0.001, 0.1);
+void Bowl::update_scaling(double dt) {
+    dt = saturate(dt, 0.001, 0.1);
     
     const float lerp_speed = 3.0f;
     float lerp_factor = 1.0f - std::exp(-lerp_speed * dt);
@@ -446,7 +446,7 @@ void Bowl::update_scaling() {
         FindCoord::set_bowl_transform(global_transform());
     }
     
-    _timer.reset();
+    //_timer.reset();
 }
 
 void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {

@@ -514,7 +514,8 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     graph.wrap_object(*_current_image);
     
     graph.wrap_object(*_bowl);
-    _bowl->update_scaling();
+    _bowl->update_scaling(_timer.elapsed());
+    _timer.reset();
     
     _bowl->fit_to_screen(coord.screen_size());
     _bowl->set_target_focus({});

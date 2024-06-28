@@ -1042,6 +1042,14 @@ void ConvertScene::_draw(DrawStructure& graph) {
 void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     fetch_new_data();
     
+    if(_recorder.recording()) {
+        dt = 1.0 / double(FAST_SETTING(frame_rate));
+    } else {
+        dt = saturate(timer.elapsed(), 0.001, 1.0);
+    }
+    _time = _time + dt;
+    timer.reset();
+    
     auto coords = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
@@ -1053,7 +1061,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     const auto detect_classes = SETTING(detect_classes).value<std::vector<std::string>>();
 
     graph.wrap_object(*_bowl);
-    _bowl->update_scaling();
+    _bowl->update_scaling(dt);
     //_bowl_mouse = coord.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
 
     graph.section("video", [&](auto&, Section* section) {
@@ -1230,11 +1238,6 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         _video_info["frame"] = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
-        
-        dt = saturate(timer.elapsed(), 0.001, 1.0);
-        timer.reset();
-
-        _time = _time + dt;
     });
 
     check_gui(graph, window);

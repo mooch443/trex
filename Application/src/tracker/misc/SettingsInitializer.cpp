@@ -294,6 +294,7 @@ void load(file::PathArray source,
         "nowindow",
         "gui_interface_scale",
         //"auto_quit",
+        "load",
         "task",
         "filename",
         "source"

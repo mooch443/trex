@@ -1805,7 +1805,7 @@ bool Accumulation::start() {
 }
 
 float Accumulation::accepted_uniqueness(float base) const {
-    return (base == -1 ? best_uniqueness() : base) * 0.98f;
+    return (base == -1 ? best_uniqueness() : base) * 0.97f;
 }
 
 void Accumulation::end_a_step(Result reason) {
