@@ -142,6 +142,7 @@ function compare_csv_folder() {
   return 0
 }
 
+rm \"${WPWD}/corrected/test.settings\"
 CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -manual_matches {} -manual_splits {} -task convert -detect_type background_subtraction -match_mode automatic -history_matching_log history_matching_tgrabs.html"
 echo "Running TGrabs... ${CMD}"
 if ! { ${CMD} 2>&1; } > "${PWD}/tgrabs.log"; then
@@ -155,6 +156,7 @@ else
     if [ -z "${FILES}" ]; then
         echo "[ERROR] No files found."
         cat "${PWD}/tgrabs.log"
+        ls -la ${PWD}/*
         exit_code=1
     else
         if ! compare_csv_folder "${PWD}/data" "${PWD}/compare_data_automatic"; then
@@ -190,6 +192,7 @@ for MODE in ${MODES}; do
         if [ -z "${FILES}" ]; then
             echo "[ERROR] No files found."
             cat "${PWD}/trex.log"
+            ls -la ${PWD}/*
             exit_code=1
         else
             #f="test_fish0"
