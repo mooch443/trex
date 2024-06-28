@@ -223,7 +223,7 @@ void AnimatedBackground::before_draw() {
        && _source)
     {
         Image::Ptr image;
-        print("last increment = ", preloader.last_increment(), " vs. increment = ", _increment, " frame(", frame, ") != current(",_current_frame,")");
+        //print("last increment = ", preloader.last_increment(), " vs. increment = ", _increment, " frame(", frame, ") != current(",_current_frame,")");
         
         if(_strict) {
             image = preloader.load_exactly(frame, _increment);
