@@ -39,6 +39,18 @@ Quality quality(const Range<Frame_t> &range) {
     return it->second;
 }
 
+bool Quality::operator <(const Quality& other) const {
+    //return double(min_cells) * double(average_samples) < double(other.min_cells) * double(other.average_samples);
+    
+    //return std::make_tuple(sum_cells, min_cells, average_samples) < std::make_tuple(sum_cells, other.min_cells, other.average_samples);
+    return std::make_tuple(min_cells, average_samples) < std::make_tuple(other.min_cells, other.average_samples);
+    //return min_cells < other.min_cells || (min_cells == other.min_cells && average_samples < other.average_samples);
+}
+
+std::string Quality::toStr() const {
+    return "Quality<"+Meta::toStr(range)+" min_cells:"+Meta::toStr(min_cells)+" samples:"+Meta::toStr(average_samples)+" sum_cells:"+Meta::toStr(sum_cells)+">";
+}
+
 /*float quality(float frame) const {
     for(auto && [segment, value] : _quality) {
         if(segment.contains(frame) || segment.end == frame)
@@ -84,10 +96,11 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     float max_cells = 0, min_cells = infinity<float>();
     float average_samples = 0;
     float num_average = 0;
+    float sum_cells = 0;
     decltype(_cache)::mapped_type map;
     std::mutex thread_mutex;
     
-    auto work = [&consec, &guard, &thread_mutex, &max_cells, &min_cells, &num_average, &average_samples, &map](Individual *fish) {
+    auto work = [&consec, &guard, &thread_mutex, &max_cells, &min_cells, &num_average, &average_samples, &map, &sum_cells](Individual *fish) {
         // collect meta information for the currently selected best consecutive frames
         auto single = evaluate_single(fish->identity().ID(), fish, consec, guard);
         
@@ -100,6 +113,7 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
             max_cells = cells;
         if(cells < min_cells)
             min_cells = cells;
+        sum_cells += cells;
         
         map[fish->identity().ID()] = single;
     };
@@ -158,7 +172,7 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
         // so if the segment is average long and has only same-size
         // elements, thats gonna be better than a really long segment
         // where one fish only moves 1 cell.
-        _quality[consec] = Quality(consec, min_cells, average_samples);//(*values.begin()) * sum;
+        _quality[consec] = Quality(consec, min_cells, sum_cells, average_samples);//(*values.begin()) * sum;
         _sorted.insert(_quality[consec]);
         
     }

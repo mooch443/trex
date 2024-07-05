@@ -107,7 +107,8 @@ ENUM_CLASS_DOCS(app_update_check_t,
 ENUM_CLASS_DOCS(blob_split_algorithm_t,
     "Adaptively increase the threshold of closeby objects, until separation.",
     "Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.",
-    "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
+    "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run.",
+    "Do not actually attempt to split blobs. Just ignore blobs until they split by themselves."
 )
 
 // current, v118_3, v110, v100, convnextbase, vgg16, vgg19, mobilenetv3small, mobilenetv3large, xception, resnet50v2, efficientnetb0, inceptionv3, nasnetmobile
@@ -779,6 +780,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
         CONFIG("gpu_min_elements", uint32_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
         CONFIG("gpu_accumulation_max_segments", uint32_t(15), "If there are more than `gpu_accumulation_max_segments` global segments to be trained on, they will be filtered according to their quality until said limit is reached.");
+        CONFIG("gpu_augment_max_rotation", uint16_t(5), "Maximum degrees of image augmentation rotation.");
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets, e.g. `{232:233,5555:5560}` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.");

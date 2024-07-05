@@ -86,7 +86,7 @@ protected:
     
     //! a point for all uniqueness values in the current run (should be as long as the number of epochs)
     std::vector<float> _current_uniqueness_history;
-    
+
     gui::derived_ptr<gui::StaticText> _textarea;
     gui::derived_ptr<gui::Graph> _graph;
     gui::derived_ptr<gui::HorizontalLayout> _layout;
@@ -103,6 +103,26 @@ public:
     Accumulation(std::shared_ptr<pv::File>&& video, gui::IMGUIBase* base, TrainingMode::Class);
     ~Accumulation();
     bool start();
+
+    struct GUIObjects {
+        gui::derived_ptr<gui::StaticText> textarea;
+        gui::derived_ptr<gui::Graph> graph;
+        gui::derived_ptr<gui::HorizontalLayout> layout;
+        gui::derived_ptr<gui::VerticalLayout> layout_rows;
+        gui::derived_ptr<gui::ExternalImage> coverage_image;
+        gui::derived_ptr<gui::Entangled> dots;
+    };
+
+    GUIObjects move_gui_objects() {
+        return {
+            std::move(_textarea),
+            std::move(_graph),
+            std::move(_layout),
+            std::move(_layout_rows),
+            std::move(_coverage_image),
+            std::move(_dots)
+        };
+    }
     
     struct Status {
         bool busy{false};

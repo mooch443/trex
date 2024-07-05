@@ -296,7 +296,7 @@ int main(int argc, char**argv) {
     //    throw U_EXCEPTION("Cannot find file ",input.str(),".");
     
     if(SETTING(is_video)) {
-        pv::File video(input, pv::FileMode::READ);
+        auto video = pv::File::Read(input);
         if(video.header().version <= pv::Version::V_2) {
             SETTING(crop_offsets) = CropOffsets();
             
@@ -420,7 +420,7 @@ int main(int argc, char**argv) {
                 
                 {
                     // open a different instance and replace the average embedded in it
-                    pv::File modify(video.filename(), pv::FileMode::MODIFY);
+                    auto modify = pv::File::Write<pv::FileMode::MODIFY>((file::Path)video.filename(), 1);
                     modify.set_average(mat);
                 }
                 
@@ -436,7 +436,7 @@ int main(int argc, char**argv) {
             } else {
                 print("Starting file copy and fix (",video.filename(),")...");
 
-                File copy(video.filename().remove_extension().str()+"_fix.pv", pv::FileMode::WRITE | pv::FileMode::OVERWRITE);
+                auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE> (video.filename().remove_extension().str()+"_fix.pv", video.header().channels);
                 copy.set_resolution(video.header().resolution);
                 copy.set_offsets(video.crop_offsets());
                 copy.set_average(video.average());
@@ -477,7 +477,7 @@ int main(int argc, char**argv) {
             file::Path name = video.filename();
             
             // new instance with modify rights
-            pv::File video(name, pv::FileMode::MODIFY);
+            auto video = pv::File::Write<pv::FileMode::MODIFY>(name, 1);
             
             std::vector<std::string> keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata).keys();
             sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata);
@@ -619,7 +619,7 @@ int main(int argc, char**argv) {
         }
         
         if(path.add_extension("pv").exists()) {
-            pv::File video(path, pv::FileMode::READ);
+            pv::File video(path);
             
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
@@ -681,7 +681,7 @@ int main(int argc, char**argv) {
         printf("\n");
     
     if(!updated_settings.empty() || !remove_settings.empty()) {
-        pv::File video(input, pv::FileMode::READ);
+        pv::File video(input);
         video.print_info();
     }
     

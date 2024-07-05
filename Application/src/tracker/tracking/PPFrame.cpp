@@ -414,6 +414,9 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
     _pixel_samples++;
     _num_pixels += blob->num_pixels();
     
+    assert(size_t(blob->num_pixels()) * size_t(blob->channels()) == blob->pixels()->size());
+    //assert(blob->is_rgb() == (Background::image_mode() == ImageMode::RGB));
+    
     //! add to the ownership vector and map
     //_bdx_to_ptr[bdx] = _owner.size();
     /*_owner.emplace_back(Container{
@@ -683,6 +686,9 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
             //! update metadata
             _pixel_samples++;
             _num_pixels += blob->num_pixels();
+            
+            assert(size_t(blob->num_pixels()) * size_t(blob->channels()) == blob->pixels()->size());
+            //assert(blob->is_rgb() == (Background::image_mode() == ImageMode::RGB));
             
         #ifdef TREX_DEBUG_BLOBS
             //print(this->index(), " Added ", blob, " with regular=", blobs);

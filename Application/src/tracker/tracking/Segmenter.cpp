@@ -57,7 +57,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                                  parm);*/
                 
                 try {
-                    pv::File test(filename, pv::FileMode::READ);
+                    auto test = pv::File::Read(filename);
                     test.print_info();
                     
                 } catch(...) {
@@ -133,7 +133,7 @@ Segmenter::~Segmenter() {
                     video = _output_file.get();
                 }
                 else {
-                    _video = std::make_shared<pv::File>(_output_file_name, pv::FileMode::READ);
+                    _video = pv::File::Make(_output_file_name);
                     video = _video.get();
                 }
 
@@ -205,6 +205,9 @@ bool Segmenter::is_average_generating() const {
 void Segmenter::open_video() {
     VideoSource video_base(SETTING(source).value<file::PathArray>());
     video_base.set_colors(ImageMode::RGB);
+    
+    /// find out which number of channels we are interested in:
+    const uint8_t channels = required_channels(Background::image_mode());
 
     if(SETTING(frame_rate).value<uint32_t>() <= 0)
         SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
@@ -253,7 +256,7 @@ void Segmenter::open_video() {
 
     printDebugInformation();
 
-    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
+    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
     bg.setTo(255);
 
     bool do_generate_average { SETTING(reset_average).value<bool>() };
@@ -265,9 +268,20 @@ void Segmenter::open_video() {
         bg = cv::imread(average_name().str());
 
         auto size = video_base.size();
-        if (bg.cols == size.width && bg.rows == size.height)
-            cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
-        else {
+        if (bg.cols == size.width && bg.rows == size.height) {
+            if(bg.channels() == 3)
+            {
+                if(channels == 1)
+                    cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+            }
+            
+            if(channels != bg.channels()) {
+                FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+                bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
+                do_generate_average = true;
+            }
+            
+        } else {
             do_generate_average = true;
         }
     }
@@ -285,7 +299,7 @@ void Segmenter::open_video() {
         path.create_folder();
     }
 
-    auto callback_after_generating = [this](cv::Mat& bg){
+    auto callback_after_generating = [this, channels](cv::Mat& bg){
         {
             std::unique_lock guard(_mutex_tracker);
             if(not _tracker)
@@ -297,7 +311,7 @@ void Segmenter::open_video() {
         {
             std::unique_lock vlock(_mutex_general);
             if (not _output_file) {
-                _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+                _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
             }
             _output_file->set_average(bg);
         }
@@ -307,15 +321,15 @@ void Segmenter::open_video() {
     // otherwise the GUI stops responding...
     if(do_generate_average) {
         std::unique_lock guard(average_generator_mutex);
-        average_generator = std::async(std::launch::async, [this, callback_after_generating, size = _output_size]()
+        average_generator = std::async(std::launch::async, [this, callback_after_generating, size = _output_size, channels]()
         {
-            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC1);
+            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
             bg.setTo(255);
             float last_percent = 0;
             last_percent = 0;
             
             VideoSource tmp(SETTING(source).value<file::PathArray>());
-            tmp.set_colors(ImageMode::GRAY);
+            tmp.set_colors(channels == 1 ? ImageMode::GRAY : ImageMode::RGB);
             tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
                 if(percent > last_percent + 10
                    || percent >= 0.99)
@@ -353,7 +367,7 @@ void Segmenter::open_video() {
             }
 
             std::unique_lock vlock(_mutex_general);
-            _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
         }
         
     } else {
@@ -378,6 +392,9 @@ void Segmenter::open_camera() {
     using namespace grab;
     fg::Webcam camera;
     camera.set_color_mode(ImageMode::RGB);
+    
+    /// find out which number of channels we are interested in:
+    const uint8_t channels = required_channels(Background::image_mode());
 
     SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
                                                  ? 25
@@ -435,7 +452,7 @@ void Segmenter::open_camera() {
 
     printDebugInformation();
 
-    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC1);
+    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
     bg.setTo(255);
 
     /*VideoSource tmp(SETTING(source).value<std::string>());
@@ -465,7 +482,7 @@ void Segmenter::open_camera() {
 
     {
         std::unique_lock vlock(_mutex_general);
-        _output_file = std::make_unique<pv::File>(_output_file_name, pv::FileMode::OVERWRITE | pv::FileMode::WRITE);
+        _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
         _output_file->set_average(bg);
     }
 
@@ -565,7 +582,7 @@ void Segmenter::generator_thread() {
     //if (_should_terminate || (_next_frame_data && items.size() >= 10))
     //    return;
     if(_next_frame_data && items.size() >= 10) {
-        //thread_print("TM enough items queued up...");
+        thread_print("TM enough items queued up...");
         return;
     }
     
@@ -973,7 +990,9 @@ std::tuple<SegmentationData, std::vector<pv::BlobPtr>> Segmenter::grab() {
             std::move(_transferred_blobs)
         };
     }
-    return {SegmentationData{}, std::vector<pv::BlobPtr>{}};
+    SegmentationData data;
+    data.frame.set_channels(Background::image_mode() == ImageMode::RGB ? 3 : 1);
+    return {std::move(data), std::vector<pv::BlobPtr>{}};
 }
 
 void Segmenter::reset(Frame_t frame) {

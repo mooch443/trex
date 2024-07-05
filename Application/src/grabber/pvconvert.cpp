@@ -208,7 +208,7 @@ int main(int argc, char**argv) {
     print("Input: ",input);
     print("Output to: ",output_dir);
     
-    pv::File video(input, pv::FileMode::READ);
+    auto video = pv::File::Read(input);
 
     if(SETTING(end_frame).value<long_t>() == -1) {
         SETTING(end_frame) = long_t(video.length().get() - 1);

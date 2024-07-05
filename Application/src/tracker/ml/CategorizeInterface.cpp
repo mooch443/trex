@@ -365,7 +365,7 @@ void Cell::copy_sample_to(size_t index) {
         _image->update_with(*input);
     }
     
-    if(FAST_SETTING(track_background_subtraction)) {
+    if(Background::track_background_subtraction()) {
         auto ptr = _image->source();
         std::transform(ptr->data(), ptr->data() + ptr->size(), ptr->data(),
                        [ s = ptr->data(), pos = _sample->_positions.at(index)](uchar& v) -> uchar

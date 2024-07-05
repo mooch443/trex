@@ -59,7 +59,7 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                       && path.get_paths().front().has_extension("pv"))
             {
                 auto output = settings::find_output_name(GlobalSettings::map());
-                pv::File video(output, pv::FileMode::READ);
+                auto video = pv::File::Read(output);
                 video.header();
                 
                 tmp = std::unique_ptr<AbstractBaseVideoSource>(new PVVideoSource{ std::move(video) });

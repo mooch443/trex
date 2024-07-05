@@ -60,8 +60,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(not name.has_extension("pv"))
             name = name.add_extension("pv");
         
-        auto file = std::make_shared<pv::File>(name, pv::FileMode::READ);
-        files.push_back(file);
+        files.emplace_back(pv::File::Make(name));
+        auto &file = files.back();
         
         if(not min_length.valid() || min_length > file->length())
             min_length = file->length();
@@ -118,7 +118,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             && path.add_extension("pv").exists())
            || path.has_extension("pv"))
         {
-            pv::File file(path, pv::FileMode::READ);
+            pv::File file(path);
             file.average().copyTo(average);
             
         } else {
@@ -189,7 +189,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         SETTING(merge_output_path) = file::Path("merged");
     
     file::Path out_path = file::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
-    pv::File output(out_path, pv::FileMode::WRITE | pv::FileMode::OVERWRITE);
+    auto output = pv::File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE>(out_path, files.front()->header().channels);
     
     output.set_resolution((cv::Size)resolution);
     output.set_average(average);
@@ -353,7 +353,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 cv::Mat mat = cv::Mat::zeros(bounds.height, bounds.width, CV_8UC1);
                 
                 for(auto &b: clique) {
-                    auto [pos, image] = b->image(NULL, Bounds(bounds.pos(), Size2(mat)));
+                    /// TODO: this does not work as intended due to the number
+                    /// of color channels likely provided in the file but not
+                    /// taken into account here
+                    auto [pos, image] = b->gray_image(NULL, Bounds(bounds.pos(), Size2(mat)));
                     pos -= bounds.pos();
                     
                     // blend image into combined image
@@ -408,7 +411,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     output.close();
     
     {
-        pv::File video(output.filename(), pv::FileMode::READ);
+        pv::File video(output.filename());
         video.print_info();
     }
 }

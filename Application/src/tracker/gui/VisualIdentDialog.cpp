@@ -10,6 +10,7 @@
 #include <gui/Export.h>
 #include <tracking/ConnectedTasks.h>
 #include <misc/IdentifiedTag.h>
+#include <gui/Scene.h>
 
 namespace cmn::gui::vident {
 namespace py = Python;
@@ -49,6 +50,17 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                 controller->auto_quit(gui);
             }
 
+            auto objects = acc.move_gui_objects();
+            //assert(not acc._textarea.get());
+            //assert(objects.textarea.get() != nullptr);
+            
+            SceneManager::getInstance().enqueue([objects = std::move(objects)]() mutable{
+                assert(objects.textarea.get() != nullptr);
+                /// gets destructed here
+            });
+            
+            //assert(not objects.textarea.get());
+            
             return ret;
 
         }

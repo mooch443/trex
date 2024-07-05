@@ -479,11 +479,12 @@ double TrackingHelper::process_postures() {
     static auto _statistics_mutex = LOGGED_MUTEX("TrackingHelper::statistics_mutex");
     
     if(cache->do_posture && !_manager.need_postures.empty()) {
-        static std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> all;
         const auto pose_midline_indexes = SETTING(pose_midline_indexes).value<PoseMidlineIndexes>();
         
+        std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> posture_store;
+        posture_store.reserve(_manager.need_postures.size());
         while(!_manager.need_postures.empty()) {
-            all.emplace_back(std::move(_manager.need_postures.front()));
+            posture_store.emplace_back(std::move(_manager.need_postures.front()));
             _manager.need_postures.pop();
         }
         
@@ -504,9 +505,8 @@ double TrackingHelper::process_postures() {
             auto guard = LOGGED_LOCK(_statistics_mutex);
             combined_posture_seconds += collected;
             
-        }, Tracker::instance()->thread_pool(), all.begin(), all.end());
+        }, Tracker::instance()->thread_pool(), posture_store.begin(), posture_store.end());
         
-        all.clear();
         assert(_manager.need_postures.empty());
     }
     

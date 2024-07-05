@@ -370,7 +370,12 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
 #endif
         }
         
-        pv::Blob blob{std::move(blobs.front().lines), std::move(blobs.front().pixels), blobs.front().extra_flags, std::move(blobs.front().pred)};
+        pv::Blob blob{
+            std::move(blobs.front().lines),
+            std::move(blobs.front().pixels),
+            std::move(blobs.front().extra_flags),
+            std::move(blobs.front().pred)
+        };
         blob.add_offset(bounds.pos());
         
         auto pts = pixel::find_outer_points(pv::BlobWeakPtr{&blob}, 1);
@@ -564,7 +569,7 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
            && outline_point) {
             print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto &blob = thresholded_blob;
-            auto && [pos, image] = blob->image();
+            auto && [pos, image] = blob->color_image();
             //tf::imshow("image", image->get());
             std::this_thread::sleep_for(std::chrono::seconds(1));
             
@@ -582,7 +587,12 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
                 float scale = 20;
                 
                 cv::Mat colored;
-                cv::cvtColor(image->get(), colored, cv::COLOR_GRAY2BGR);
+                if(image->channels() == 1)
+                    cv::cvtColor(image->get(), colored, cv::COLOR_GRAY2BGR);
+                else {
+                    assert(image->dims == 3);
+                    image->get().copyTo(colored);
+                }
                 cv::resize(colored, colored, (cv::Size)(Size2(image->cols, image->rows) * scale), 0, 0, cv::INTER_NEAREST);
                 
                 for(auto &pt : custom) {

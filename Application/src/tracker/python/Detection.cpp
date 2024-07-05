@@ -206,6 +206,7 @@ double BackgroundSubtraction::fps() {
 void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
     const auto mode = Background::image_mode();
+    const uint8_t channels = required_channels(mode);
     
     RawProcessing raw(data().gpu, &data().float_average, nullptr);
     gpuMat gpu_buffer;
@@ -237,6 +238,12 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                         cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
                     else
                         throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
+                } else if(mode == ImageMode::RGB) {
+                    if(image->dims == 4)
+                        cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2BGR);
+                    else
+                        throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
+                    
                 } else
                     throw U_EXCEPTION("Invalid image mode ", mode);
                 
@@ -270,8 +277,10 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
             #endif
                         rawblobs = CPULabeling::run(r3, cache, true);
 
-                    constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
-                                            | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+                    const uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
+                            | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation)
+                            | (r3.channels() == 3 ? pv::Blob::flag(pv::Blob::Flags::is_rgb) : 0)
+                            | (mode == ImageMode::R3G3B2 ? pv::Blob::flag(pv::Blob::Flags::is_r3g3b2) : 0);
                     for (auto& blob : tag.tags) {
                         rawblobs.emplace_back(
                             std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
@@ -350,6 +359,9 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
             {
                 static Timing timing("adding frame");
                 TakeTiming take(timing);
+                
+                assert(r3.channels() == channels);
+                tile.data.frame.set_channels(channels);
                 
                 for (auto &&b: filtered) {
                     if(b.lines->size() < UINT16_MAX) {

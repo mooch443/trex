@@ -1065,7 +1065,21 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             continue;
         }
         
-        video_file.read_frame(video_frame, frame);
+        switch(Background::meta_encoding()) {
+            case cmn::meta_encoding_t::data::values::rgb8:
+                video_file.read_frame<meta_encoding_t::rgb8>(video_frame, frame);
+                break;
+            case cmn::meta_encoding_t::data::values::gray:
+                video_file.read_frame<meta_encoding_t::gray>(video_frame, frame);
+                break;
+            case cmn::meta_encoding_t::data::values::r3g3b2:
+                video_file.read_frame<meta_encoding_t::r3g3b2>(video_frame, frame);
+                break;
+                
+            default:
+                throw InvalidArgumentException("Invalid meta_encoding_t: ", Background::meta_encoding());
+        }
+        
         Tracker::instance()->preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
@@ -1131,7 +1145,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 ? fish->calculate_midline_for(*basic, *posture)
                 : nullptr;
             
-            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
+            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

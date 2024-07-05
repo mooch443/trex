@@ -18,7 +18,7 @@ namespace track {
             
             for(auto &blob : noise) {
                 cv::Mat greyscale, bin;
-                imageFromLines(blob->hor_lines(), &bin, &greyscale, NULL, blob->pixels().get(), 0);//, &average);
+                imageFromLines(blob->input_info(), blob->hor_lines(), &bin, &greyscale, NULL, blob->pixels().get(), 0);//, &average);
                 
                 noise_images.push_back({ blob->blob_id(), Image::Make(greyscale), Image::Make(bin) });
             }
@@ -41,9 +41,9 @@ namespace track {
                 }
 
                 if (parent)
-                    imageFromLines(parent->hor_lines(), &mmask, &mgrey, NULL, parent->pixels().get(), 0);//, &average);
+                    imageFromLines(blob->input_info(), parent->hor_lines(), &mmask, &mgrey, NULL, parent->pixels().get(), 0);//, &average);
                 else
-                        imageFromLines(blob->hor_lines(), &mmask, &mgrey, NULL, blob->pixels().get(), 0);//, &average);
+                    imageFromLines(blob->input_info(), blob->hor_lines(), &mmask, &mgrey, NULL, blob->pixels().get(), 0);//, &average);
 
                 Size2 normal_dimensions = SETTING(tags_image_size).value<Size2>();
                 cv::Mat padded;

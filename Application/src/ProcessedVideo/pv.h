@@ -90,8 +90,11 @@ namespace pv {
         /** Adding Outlines to Prediction */
         V_11,
         
+        /** Adding encoding **/
+        V_12,
+        
         //! current
-        current = V_11
+        current = V_12
     };
     
     class Frame {
@@ -104,6 +107,8 @@ namespace pv {
         GETTER_I(uint16_t, n, 0u);
         GETTER_SETTER_I(float, loading_time, 0.f);
         GETTER_SETTER(Frame_t, source_index);
+        GETTER_SETTER(uint8_t, channels) = 1u;
+        GETTER_SETTER(meta_encoding_t::Class, encoding) = meta_encoding_t::gray;
         
         GETTER_NCONST(std::vector<blob::line_ptr_t>, mask);
         GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels);
@@ -122,12 +127,12 @@ namespace pv {
         explicit Frame(const Frame&);
         
         //! create a new one from scratch
-        Frame(const timestamp_t& timestamp, decltype(_n) n);
+        Frame(const timestamp_t& timestamp, decltype(_n) n, uint8_t channels);
         
         //! read from a file
         Frame(File& ref, Frame_t idx);
         
-        void read_from(File& ref, Frame_t idx);
+        void read_from(File& ref, Frame_t idx, meta_encoding_t::Class mode);
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
@@ -179,6 +184,8 @@ namespace pv {
         
         //! Number of channels per pixel
         uchar channels{1u};
+        
+        meta_encoding_t::Class encoding{meta_encoding_t::gray};
         
         //! Size of a horizontal line struct
         //  in the mask images in bytes
@@ -248,8 +255,8 @@ namespace pv {
     public:
         Header() = default;
         Header(Header&&) = default;
-        Header(const std::string& n)
-            : name(n)
+        Header(const std::string& n, uint8_t channels, meta_encoding_t::Class encoding)
+            : name(n), channels(channels), encoding(encoding)
         { }
         
         ~Header() {
@@ -276,14 +283,14 @@ namespace pv {
         MODIFY    = 0b00001000
     };
 
-    inline FileMode operator|(FileMode lhs, FileMode rhs) {
+    inline constexpr FileMode operator|(FileMode lhs, FileMode rhs) {
         return static_cast<FileMode>(
             static_cast<std::underlying_type_t<FileMode>>(lhs) |
             static_cast<std::underlying_type_t<FileMode>>(rhs)
         );
     }
 
-    inline FileMode operator&(FileMode lhs, FileMode rhs) {
+    inline constexpr FileMode operator&(FileMode lhs, FileMode rhs) {
         return static_cast<FileMode>(
             static_cast<std::underlying_type_t<FileMode>>(lhs) &
             static_cast<std::underlying_type_t<FileMode>>(rhs)
@@ -325,7 +332,38 @@ namespace pv {
         //void start_reading() override;
         
     public:
-        File(const file::Path& filename, FileMode mode);
+        File(const file::Path& filename) 
+            : File(filename, FileMode::READ, 0)
+        { }
+        
+        template<FileMode Mode = FileMode::READ>
+            requires (bool((int)Mode & (int)FileMode::READ))
+        static std::unique_ptr<File> Make(const file::Path& filename) {
+            return std::unique_ptr<File>(new File(filename, Mode, 1));
+        }
+        template<FileMode Mode>
+            requires (bool((int)Mode & (int)FileMode::WRITE)
+                      || bool((int)Mode & (int)FileMode::MODIFY))
+        static std::unique_ptr<File> Make(const file::Path& filename, uint8_t channels) {
+            return std::unique_ptr<File>(new File(filename, Mode, channels));
+        }
+        
+        template<FileMode Mode = FileMode::READ>
+            requires (bool((int)Mode & (int)FileMode::READ))
+        static File Read(const file::Path& filename) {
+            return File(filename, Mode, 1);
+        }
+        template<FileMode Mode = FileMode::WRITE>
+            requires (bool((int)Mode & (int)FileMode::WRITE)
+                      || bool((int)Mode & (int)FileMode::MODIFY))
+        static File Write(const file::Path& filename, uint8_t channels) {
+            return File(filename, Mode, channels);
+        }
+        
+    private:
+        File(const file::Path& filename, FileMode mode, uint8_t channels);
+        
+    public:
         File(File&&) noexcept;
         ~File();
         
@@ -348,7 +386,18 @@ namespace pv {
         void add_individual(Frame&& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
+        template<meta_encoding_t::Class mode>
+        void read_frame(Frame& frame, Frame_t frameIndex) {
+            //static_assert(is_in(mode, ImageMode::RGB, ImageMode::GRAY), "Reading from pv is only supported in either RGB or GRAY mode.");
+            read_frame(frame, frameIndex, mode);
+        }
+        
         void read_frame(Frame& frame, Frame_t frameIndex);
+        
+    private:
+        void read_frame(Frame& frame, Frame_t frameIndex, meta_encoding_t::Class mode);
+        
+    public:
         void read_next_frame(Frame& frame, Frame_t frame_to_read);
         
     private:
@@ -408,6 +457,8 @@ namespace pv {
             return "pv::File";
         }
         std::string filesize() const;
+        
+        meta_encoding_t::Class color_mode() const;
         
     protected:
         virtual void _write_header() override;

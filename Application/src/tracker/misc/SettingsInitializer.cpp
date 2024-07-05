@@ -74,10 +74,10 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_background_subtraction", false,
             "calculate_posture", false,
             "meta_encoding", meta_encoding_t::r3g3b2,
-            "track_do_history_split", false,
+            "track_do_history_split", true,
             "individual_image_normalization", individual_image_normalization_t::moments,
             "detect_model", file::Path("yolov8x-pose"),
-            "blob_split_algorithm", blob_split_algorithm_t::fill,
+            "blob_split_algorithm", blob_split_algorithm_t::none,
             "track_max_reassign_time", 1.f
         };
         
@@ -637,7 +637,7 @@ void load(file::PathArray source,
             try {
                 G g(path.str());
                 sprite::Map tmp;
-                pv::File f(path, pv::FileMode::READ);
+                auto f = pv::File::Read(path);
                 if(f.header().version < pv::Version::V_10) {
                     /// we need to have a `detect_type` in order to set the
                     /// correct task-defaults in the next step.
@@ -706,10 +706,10 @@ void load(file::PathArray source,
             "track_background_subtraction", false,
             "calculate_posture", false,
             "meta_encoding", meta_encoding_t::r3g3b2,
-            "track_do_history_split", false,
+            "track_do_history_split", true,
             "individual_image_normalization", individual_image_normalization_t::moments,
             "detect_model", file::Path("yolov8x-pose"),
-            "blob_split_algorithm", blob_split_algorithm_t::fill,
+            "blob_split_algorithm", blob_split_algorithm_t::none,
             "track_max_reassign_time", 1.f
         };
         

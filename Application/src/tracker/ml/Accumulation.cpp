@@ -728,7 +728,7 @@ std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqu
             p = logic_regression(accum_p / float(probs.size())) * p;
             //p = (accum_p / float(probs.size()) + p) * 0.5;
         }
-        assert(p <= 1 && p >= 0);
+        assert(int(p) <= 1 && p >= 0);
         unique_percent[frame] = float(p);
         percentages += p;
         
@@ -770,7 +770,8 @@ float Accumulation::good_uniqueness() {
 }
 
 Accumulation::Accumulation(std::shared_ptr<pv::File>&& video, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base) {
-    
+    using namespace gui;
+    _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
 }
 
 Accumulation::~Accumulation() {
@@ -800,6 +801,7 @@ bool Accumulation::start() {
     //! Will acquire and automatically free after return.
     /// Used for some utility functions (static callbacks from python).
     AccumulationLock lock(this);
+    const ImageMode mode = Background::meta_encoding() == meta_encoding_t::rgb8 ? ImageMode::RGB : ImageMode::GRAY;
     
     auto ranges = track::Tracker::global_segment_order();
     if(ranges.empty()) {
@@ -865,6 +867,9 @@ bool Accumulation::start() {
         
         _generated_data->merge_with(_collected_data, true);
     }
+    
+    /// required channels for the images that are being generated
+    const auto channels = required_channels(Background::image_mode());
     
     auto && [disc, disc_images, disc_map] = generate_discrimination_data(*_video, _collected_data);
     _discrimination_data = disc;
@@ -999,7 +1004,7 @@ bool Accumulation::start() {
         }
         
         auto q = DatasetQuality::quality(_initial_range);
-        auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data);
+        auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data, " with uniqueness ", acc);
         print(str.c_str());
         
         _added_ranges.push_back(_initial_range);
@@ -1508,10 +1513,10 @@ bool Accumulation::start() {
     // save validation data
     try {
         auto data = _collected_data->join_split_data();
-        auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
+        const auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
         
         const Size2 dims = SETTING(individual_image_size);
-        FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height);
+        FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height * channels);
         std::vector<uchar> all_images;
         all_images.resize(size.bytes);
         
@@ -1525,7 +1530,7 @@ bool Accumulation::start() {
             ids.emplace_back(id.get());
         
         cmn::npz_save(ranges_path.str(), "validation_ids", ids, "w");
-        cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
+        cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, (size_t)channels }, "a");
         
         for(auto &image : data.training_images) {
             memcpy(it, image->data(), image->size());
@@ -1540,7 +1545,7 @@ bool Accumulation::start() {
         print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
         
         cmn::npz_save(ranges_path.str(), "ids", ids, "a");
-        cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
+        cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, (size_t)channels }, "a");
         
     } catch(...) {
         
@@ -1705,7 +1710,7 @@ bool Accumulation::start() {
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
                         
-                        image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
+                        image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
                     });
@@ -1731,7 +1736,7 @@ bool Accumulation::start() {
                         total_images+=img.size();
                     }
                     
-                    FileSize size(uint64_t(total_images * dims.width * dims.height));
+                    FileSize size(uint64_t(total_images * dims.width * dims.height * channels));
                     auto ss = size.to_string();
                     print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                     
@@ -1747,7 +1752,7 @@ bool Accumulation::start() {
                     }
                     
                     cmn::npz_save(ranges_path.str(), "ids", ids, "w");
-                    cmn::npz_save(ranges_path.str(), "images", all_images.data(), { total_images, (size_t)dims.height, (size_t)dims.width, 1 }, "a");
+                    cmn::npz_save(ranges_path.str(), "images", all_images.data(), { total_images, (size_t)dims.height, (size_t)dims.width, (size_t)channels }, "a");
                     
                 } catch(...) {
                     FormatExcept("Failed saving '", method.name(),"'");
@@ -1992,7 +1997,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     if(!_layout) {
         _layout = std::make_shared<HorizontalLayout>();
         _layout->set_policy(HorizontalLayout::Policy::TOP);
-        _layout->set_margins(Margins{-15,5,15,10});
+        _layout->set_margins(Margins{15,5,15,10});
         _layout->set_children(std::vector<Layout::Ptr>{
             _textarea,
             _graph
@@ -2048,6 +2053,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     if(!_layout_rows) {
         _layout_rows = std::make_shared<VerticalLayout>();
         _layout_rows->set_policy(VerticalLayout::Policy::CENTER);
+        _layout_rows->set(Margins{0,0,0,10});
     }
     _layout_rows->set_children(objects);
     

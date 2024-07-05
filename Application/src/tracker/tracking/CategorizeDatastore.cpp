@@ -1220,7 +1220,7 @@ Sample::Ptr DataStore::temporary(
                                         midline ? midline->transform(normalize) : gui::Transform(),
                                         custom_len.median_midline_length_px,
                                         dims,
-                                        &Tracker::average());
+                                        Tracker::background());
             
             if (image) {
                 images.emplace_back(std::move(image));

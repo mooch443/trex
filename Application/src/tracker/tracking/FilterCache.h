@@ -8,6 +8,10 @@
 #include <misc/frame_t.h>
 #include <misc/ranges.h>
 
+namespace cmn {
+class Background;
+}
+
 namespace track {
 class Individual;
 
@@ -19,7 +23,7 @@ calculate_normalized_image(const cmn::gui::Transform &midline_transform,
                            float midline_length,
                            const cmn::Size2 &output_size,
                            bool use_legacy,
-                           const cmn::Image* background);
+                           const cmn::Background* background);
 
 std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_normalized_diff_image(const cmn::gui::Transform &midline_transform,
@@ -27,12 +31,12 @@ calculate_normalized_diff_image(const cmn::gui::Transform &midline_transform,
                                 float midline_length,
                                 const cmn::Size2 &output_size,
                                 bool use_legacy,
-                                const cmn::Image* background);
+                                const cmn::Background* background);
 
 std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_diff_image(pv::BlobWeakPtr blob,
                      const cmn::Size2& output_size,
-                     const cmn::Image* background);
+                     const cmn::Background* background);
 
 }
 
@@ -60,7 +64,7 @@ std::tuple<cmn::Image::Ptr, cmn::Vec2> diff_image(const default_config::individu
                                          const cmn::gui::Transform& midline_transform,
                                          float median_midline_length_px,
                                          const cmn::Size2& output_shape,
-                                         const cmn::Image* background);
+                                         const cmn::Background* background);
 
 std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
                                                   const cmn::Range<cmn::Frame_t>& segment,

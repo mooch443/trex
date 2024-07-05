@@ -9,6 +9,7 @@
 #include <misc/frame_t.h>
 #include <misc/create_struct.h>
 #include <misc/BlobSizeRange.h>
+#include <processing/Background.h>
 
 namespace track {
 using namespace cmn;
@@ -136,7 +137,8 @@ CREATE_STRUCT(Settings,
   (float, track_label_confidence_threshold),
   (float, track_segment_max_length),
   (Size2, individual_image_size),
-  (uint32_t, categories_min_sample_images)
+  (uint32_t, categories_min_sample_images),
+  (cmn::meta_encoding_t::Class, meta_encoding)
 )
 
 //! Shorthand for defining slow settings cache entries:

@@ -32,6 +32,7 @@
 #include <gui/ParseLayoutTypes.h>
 #include <gui/InfoCard.h>
 #include <tracking/AutomaticMatches.h>
+#include <gui/DrawDataset.h>
 
 using namespace track;
 
@@ -90,6 +91,7 @@ public:
 
 struct TrackingScene::Data {
     std::unique_ptr<GUICache> _cache;
+    std::unique_ptr<DrawDataset> _dataset;
     
     std::unique_ptr<Bowl> _bowl;
     //std::unordered_map<Idx_t, Bounds> _last_bounds;
@@ -161,6 +163,12 @@ const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map
 
 TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 {
+    if(average->dims == 3) {
+        auto rgba = Image::Make(average->rows, average->cols, 4);
+        cv::cvtColor(average->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+        average = std::move(rgba);
+    }
+    
     _background = std::make_unique<AnimatedBackground>(std::move(average), &video);
     
     _background->add_event_handler(EventType::MBUTTON, [this](Event e){
@@ -405,8 +413,16 @@ void TrackingScene::activate() {
         "gui_show_blobs",
         "gui_show_selections",
         
+        "individual_image_normalization",
+        "individual_image_size",
+        "individual_image_scale",
+        
+        "track_background_subtraction",
+        "meta_encoding",
         "track_threshold",
-        "track_size_filter"
+        "track_posture_threshold",
+        "track_size_filter",
+        "track_include", "track_ignore"
         
     }, [this](std::string_view key) {
         if(is_in(key, 
@@ -454,15 +470,27 @@ void TrackingScene::activate() {
                  "cam_undistort_vector",
                  "analysis_range", 
                  "track_threshold", 
-                 "track_size_filter", 
+                 "track_posture_threshold",
+                 "track_size_filter",
                  "frame_rate", 
-                 "gui_focus_group"))
+                 "gui_focus_group",
+                 "track_background_subtraction",
+                 "meta_encoding",
+                 "individual_image_normalization",
+                 "individual_image_size",
+                 "individual_image_scale",
+                "track_include", "track_ignore"))
         {
-            if(_data && _data->_cache) {
-                _data->_cache->set_tracking_dirty();
-                _data->_cache->set_raw_blobs_dirty();
-                _data->_cache->set_fish_dirty(true);
-            }
+            SceneManager::getInstance().enqueue([this](){
+                if(_data && _data->_cache) {
+                    _data->_cache->set_tracking_dirty();
+                    _data->_cache->set_raw_blobs_dirty();
+                    _data->_cache->set_reload_frame(_data->_cache->frame_idx);
+                    _data->_cache->set_blobs_dirty();
+                    _data->_cache->set_fish_dirty(true);
+                    _data->_cache->frame_idx = {};
+                }
+            });
         }
     });
     
@@ -471,11 +499,12 @@ void TrackingScene::activate() {
     
     _state->tracker->register_add_callback([this](Frame_t frame){
         if(GUI_SETTINGS(gui_frame) == frame) {
-            SceneManager::getInstance().enqueue([this, frame](auto, auto&){
+            SceneManager::getInstance().enqueue([this, frame](){
                 if(_data && _data->_cache) {
                     _data->_cache->set_tracking_dirty();
                     _data->_cache->set_raw_blobs_dirty();
                     _data->_cache->set_fish_dirty(true);
+                    _data->_cache->set_reload_frame(_data->_cache->frame_idx);
                     _data->_cache->set_redraw();
                     _data->_cache->set_blobs_dirty();
                     _data->_cache->frame_idx = {};
@@ -883,6 +912,15 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_cache->draw_posture(graph, GUI_SETTINGS(gui_frame));
     }
     
+    if(GUI_SETTINGS(gui_show_dataset)) {
+        if(not _data->_dataset) {
+            _data->_dataset = std::make_unique<DrawDataset>();
+        }
+        
+        _data->_dataset->set_data(_data->_cache->frame_idx, *_data->_cache);
+        graph.wrap_object(*_data->_dataset);
+    }
+    
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
     //    std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
     //print("dirty = ", graph.root().is_dirty());
@@ -1199,7 +1237,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 static std::vector<std::shared_ptr<VarBase_t>> variables;
                 
                 ColorWheel wheel;
-                for(size_t i=0; i<3 && i < consec.size(); ++i) {
+                for(size_t i=0; i<5 && i < consec.size(); ++i) {
                     if(segments.size() <= i) {
                         segments.emplace_back();
                         variables.emplace_back(new Variable([i](const VarProps&) -> sprite::Map& {

@@ -129,9 +129,9 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
     if (active)
         ss << "<a>";
     
-    ss << real_size << (blob.split() ? " split" : "");
+    ss << real_size << (blob.split() ? " <gray>split</gray>" : "");
     if(blob.tried_to_split())
-        ss << " tried";
+        ss << " <orange>split tried</orange>";
     
     if(//d == 1 &&
        blob.prediction().valid())
@@ -140,7 +140,7 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
     }
     
     if(blob.is_instance_segmentation())
-        ss << " instance";
+        ss << " <gray>instance</gray>";
     
     if(register_label && blob.reason() != FilterReason::Unknown) {
         static const std::unordered_map<FilterReason, const char*> reasons {
@@ -163,7 +163,7 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
         else
             text = reasons.at(blob.reason());
         
-        ss << " [" << text << "]";
+        ss << " [<gray>" << text << "</gray>]";
     }
     
     if (active)

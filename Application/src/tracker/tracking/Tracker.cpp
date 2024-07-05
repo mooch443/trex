@@ -18,6 +18,7 @@
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
 #include <misc/FOI.h>
+#include <misc/PVBlob.h>
 
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
@@ -3317,8 +3318,10 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             if(average.cols == video.size().width && average.rows == video.size().height)
                 video.processImage(average, average);
             
-            Image local_average(average.rows, average.cols, 1);
-            average.copyTo(local_average.get());
+            auto a = Image::Make(average.rows, average.cols, average.channels());
+            average.copyTo(a->get());
+            
+            Background bg(std::move(a), nullptr);
             
             if(!quiet)
                 print("Determining blob size in ", video.length()," frames...");
@@ -3338,7 +3341,11 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                 std::multiset<float> frame_values;
                 
                 for (size_t k=0; k<frame.n(); k++) {
-                    auto pair = imageFromLines(*frame.mask().at(k), NULL, NULL, NULL, frame.pixels().at(k).get(), SETTING(track_threshold).value<int>(), &local_average);
+                    InputInfo info{
+                        .channels = static_cast<uint8_t>(pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_rgb) ? 3 : 1),
+                        .encoding = pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_rgb) ? meta_encoding_t::rgb8 : (pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_r3g3b2) ? meta_encoding_t::r3g3b2 : meta_encoding_t::gray)
+                    };
+                    auto pair = imageFromLines(info, *frame.mask().at(k), NULL, NULL, NULL, frame.pixels().at(k).get(), SETTING(track_threshold).value<int>(), &bg);
                     
                     float value = pair.second * SQR(SETTING(cm_per_pixel).value<float>());
                     if(value > 0) {

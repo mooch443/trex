@@ -591,7 +591,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
         {
             //auto output = settings::find_output_name(GlobalSettings::map());
             auto output = source.get_paths().front();
-            pv::File video(output, pv::FileMode::READ);
+            pv::File video(output);
             video.header();
             
             _selected_source_exists = true;
@@ -697,7 +697,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
              )
     {
         try {
-            pv::File file(source_path.remove_extension(), pv::FileMode::READ);
+            pv::File file(source_path.remove_extension());
             auto str = file.header().metadata;
             
             sprite::Map map;

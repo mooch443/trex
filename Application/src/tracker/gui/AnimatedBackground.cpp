@@ -133,6 +133,8 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
         uint8_t channels = 4;
         if (_source->colors() == ImageMode::GRAY)
             channels = 1;
+        //else if(_source->colors() != ImageMode::RGBA)
+        //    throw InvalidArgumentException("Invalid image mode: ", _source->colors());
 
         auto image = buffers.get(source_location::current());
 

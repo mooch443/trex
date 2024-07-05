@@ -37,26 +37,24 @@ struct Single {
 
 struct Quality {
     Range<Frame_t> range;
-    uint32_t min_cells;
-    float average_samples;
+    uint32_t min_cells{0}, sum_cells{0};
+    float average_samples{-1};
     
-    Quality(const Range<Frame_t>& range = Range<Frame_t>(Frame_t(), Frame_t()),
+    Quality() = default;
+    Quality(const Range<Frame_t>& range,
             uint32_t min_cells = 0,
+            uint32_t sum_cells = 0,
             float average_samples = -1)
-        : range(range), min_cells(min_cells), average_samples(average_samples)
+        : range(range), min_cells(min_cells), sum_cells(sum_cells), average_samples(average_samples)
     {}
     
-    bool operator <(const Quality& other) const {
-        return min_cells < other.min_cells || (min_cells == other.min_cells && average_samples < other.average_samples);
-    }
+    bool operator <(const Quality& other) const;
     
     bool operator >(const Quality& other) const {
-        return min_cells > other.min_cells || (min_cells == other.min_cells && average_samples > other.average_samples);
+        return other < *this;
     }
     
-    std::string toStr() const {
-        return "Quality<"+Meta::toStr(range)+" min_cells:"+Meta::toStr(min_cells)+" samples:"+Meta::toStr(average_samples)+">";
-    }
+    std::string toStr() const;
     static std::string class_name() {
         return "Quality";
     }

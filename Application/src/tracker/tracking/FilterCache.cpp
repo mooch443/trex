@@ -9,6 +9,7 @@
 #include <misc/ranges.h>
 #include <misc/Timer.h>
 #include <tracking/Tracker.h>
+#include <processing/Background.h>
 
 
 using namespace default_config;
@@ -36,7 +37,7 @@ std::tuple<Image::Ptr, Vec2> normalize_image(
     }
     
     if(!output_size.empty())
-        padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
+        padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC(image.channels()));
     else
         image.copyTo(padded);
     assert(padded.isContinuous());
@@ -118,12 +119,13 @@ calculate_normalized_image(const gui::Transform &midline_transform,
                            float midline_length,
                            const Size2 &output_size,
                            bool use_legacy,
-                           const Image* background)
+                           const Background* background)
 {
     cv::Mat mask, image;
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
+    
+    imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
     
     return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
@@ -134,15 +136,19 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
                                 float midline_length,
                                 const Size2 &output_size,
                                 bool use_legacy,
-                                const Image* background)
+                                const Background* background)
 {
     cv::Mat mask, image;
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
-    if(FAST_SETTING(track_background_subtraction) && background)
-        imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
-    else
-        imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
+    
+    if(   background
+       && Background::track_background_subtraction())
+    {
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    } else {
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, nullptr, 0);
+    }
     
     return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
@@ -150,17 +156,22 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
 std::tuple<Image::Ptr, Vec2>
 calculate_diff_image(pv::BlobWeakPtr blob,
                      const Size2& output_size,
-                     const Image* background)
+                     const Background* background)
 {
     cv::Mat mask, image;
     cv::Mat padded;
     
     if(!blob->pixels())
         throw std::invalid_argument("[calculate_diff_image] The blob has to contain pixels.");
-    if(FAST_SETTING(track_background_subtraction))
-        imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
-    else
-        imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
+    
+    if(background
+       && Background::track_background_subtraction())
+    {
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+    } else {
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, nullptr, 0);
+    }
+    
     image.copyTo(padded, mask);
     
     auto scale = FAST_SETTING(individual_image_scale);
@@ -254,7 +265,7 @@ std::tuple<Image::Ptr, Vec2> diff_image(
      const gui::Transform& midline_transform,
      float median_midline_length_px,
      const Size2& output_shape,
-     const Image* background)
+     const Background* background)
 {
     if(normalize == individual_image_normalization_t::posture)
         return calculate_normalized_diff_image(midline_transform, blob, median_midline_length_px, output_shape, false, background);

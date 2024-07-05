@@ -283,7 +283,8 @@ TEST(TestLines, Threshold) {
     //cv::imshow("bg", black->get());
     //cv::imshow("gs", gs);
     
-    auto [off,img] = blob.image(&bg, Bounds(), 0);
+    auto [off,img] = blob.color_image(&bg, Bounds(), 0);
+    ASSERT_EQ(img->channels(), 1);
     cv::Mat g;
     convert_from_r3g3b2(img->get(), g);
     //cv::imshow("img", g);
@@ -381,7 +382,7 @@ struct TrackerAndVideo {
     Tracker tracker;
     
     TrackerAndVideo()
-        : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string(), pv::FileMode::READ),
+        : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string()),
           tracker(Image::Make(video.average()), video)
     {
         video.set_project_name("Test");

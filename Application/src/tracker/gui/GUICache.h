@@ -138,6 +138,7 @@ namespace globals {
         GETTER(std::vector<Range<Frame_t>>, global_segment_order);
         GETTER_I(bool, blobs_dirty, false);
         GETTER_I(bool, raw_blobs_dirty, false);
+        GETTER(Frame_t, do_reload_frame);
         GETTER_SETTER_I(bool, fish_dirty, false);
         GETTER_I(mode_t::Class, mode, mode_t::tracking);
         GETTER_I(double, gui_time, 0);
@@ -204,6 +205,7 @@ namespace globals {
         std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
+        ska::bytell_hash_map<Idx_t, std::map<Idx_t, float>> vi_predictions;
         ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, DetailProbability>> probabilities;
         std::set<Idx_t> checked_probs;
         
@@ -247,6 +249,7 @@ namespace globals {
         void set_tracking_dirty();
         void set_blobs_dirty();
         void set_raw_blobs_dirty();
+        void set_reload_frame(Frame_t);
         void set_redraw();
         void set_dt(float dt);
         
@@ -268,6 +271,8 @@ namespace globals {
         void request_frame_change_to(Frame_t);
         
         const PPFrame& processed_frame() const {
+            if(not _current_processed_frame)
+                throw InvalidArgumentException("Cannot access processed_frame() since it is null.");
             return *_current_processed_frame;
         }
         

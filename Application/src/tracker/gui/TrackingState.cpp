@@ -13,6 +13,7 @@
 #include <misc/IdentifiedTag.h>
 #include <ml/Categorize.h>
 #include <gui/CheckUpdates.h>
+#include <tracking/DatasetQuality.h>
 
 using namespace track;
 
@@ -49,7 +50,7 @@ VIControllerImpl::VIControllerImpl(std::weak_ptr<pv::File> video, TrackingState&
 static constexpr Frame_t cache_size{Frame_t::number_t(10)};
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
-  : video(std::make_shared<pv::File>(SETTING(filename).value<file::Path>(), pv::FileMode::READ)),
+  : video(pv::File::Make(SETTING(filename).value<file::Path>())),
     tracker(std::make_unique<track::Tracker>(Image::Make(this->video->average()), *this->video)),
     analysis(
       {
@@ -373,6 +374,7 @@ void TrackingState::on_tracking_done() {
     });
     
     tracker->global_segment_order();
+    track::DatasetQuality::update();
     
     // tracking has ended
     while(not _tracking_callbacks.empty()) {

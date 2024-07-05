@@ -429,7 +429,7 @@
                     "text":"<sym>🗘</sym>",
                     "font":{"size":0.6},
                     "size":[30,30],
-                    "action":"reanalyse:{global.gui_frame}",
+                    "action":"reanalyse:0",
                     "fill":[40,40,40,220],
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                     "color":[250,250,250,200]
@@ -746,9 +746,21 @@
                             "do": {
                                 "type": "rect",
                                 "pos": "[{+:10:{*:{/:{i.start}:{length}}:{width}}},-9]",
-                                "size": "[{*:{/:{-:{i.end}:{i.start}}:{length}}:{width}},28]",
+                                "size": "[{*:{/:{-:{-:{i.end}:{i.start}}:1}:{length}}:{width}},28]",
                                 "fill": "{clrAlpha:{i.color}:100}",
                                 "line": [150,150,150,0]
+                            }
+                        },
+
+                        {
+                            "type":"condition",
+                            "var":"{&&:{hovered:timeline}:{is_segment:{smart_highlighted}}}",
+                            "then":{
+                                "type":"rect",
+                                "pos":"[{+:10:{*:{/:{at:0:{get_segment:{smart_highlighted}}}:{length}}:{width}}},-9]",
+                                "size":"[{*:{/:{-:{at:1:{get_segment:{smart_highlighted}}}:{at:0:{get_segment:{smart_highlighted}}}}:{length}}:{width}},28]",
+                                "fill":[200,200,200,100],
+                                "line":[150,150,150,150]
                             }
                         }
                     ]
@@ -819,42 +831,49 @@
             "then":
             {
                 "type":"collection",
-                "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
                 "children":[
+                    {
+                        "type":"collection",
+                        "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
+                        "children":[
+                            {
+                                "type":"vlayout",
+                                "origin":[0.5,0],
+                                "clickable":true,
+                                "align":"center",
+                                "fill": [25,25,25,200],
+                                "line":[75,75,75],
+                                "children":[
+                                    {
+                                        "type":"button",
+                                        "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
+                                        "action":"reanalyse:{smart_highlighted}",
+                                        "fill":[140,40,40,220],
+                                        "line":[100,100,100,100],
+                                        "color":[225,225,225],
+                                        "font":{"size":0.6,"align":"center"},
+                                        "size":[150,25]
+                                    },
+                                    {
+                                        "type":"stext",
+                                        "pad":[5,5,5,5],
+                                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no global segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                                        "font":{"size":0.6}
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+
                     {
                         "type":"rect",
                         "size":[1,30],
                         "fill":[255,255,255,150],
-                        "pos":[-0.5,-30]
-                    },
-                    {
-                        "type":"vlayout",
-                        "origin":[0.5,0],
-                        "clickable":true,
-                        "align":"center",
-                        "fill": [25,25,25,200],
-                        "line":[75,75,75],
-                        "children":[
-                            {
-                                "type":"button",
-                                "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
-                                "action":"reanalyse:{smart_highlighted}",
-                                "fill":[140,40,40,220],
-                                "line":[100,100,100,100],
-                                "color":[225,225,225],
-                                "font":{"size":0.6,"align":"center"},
-                                "size":[150,25]
-                            },
-                            {
-                                "type":"stext",
-                                "pad":[5,5,5,5],
-                                "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no global segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
-                                "font":{"size":0.6}
-                            }
-                        ]
+                        "pos":"[{min:{-:{window_size.x}:11}:{max:10:{mouse.x}}},39]"
                     }
                 ]
             }
+            
             
         }
     ]

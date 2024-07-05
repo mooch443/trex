@@ -50,7 +50,20 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                             return nullptr; // past the end
                         
                         pv::Frame frame;
-                        video->read_frame(frame, frameIndex);
+                        switch(Background::meta_encoding()) {
+                            case meta_encoding_t::data::values::rgb8:
+                                video->read_frame<meta_encoding_t::rgb8>(frame, frameIndex);
+                                break;
+                            case meta_encoding_t::data::values::gray:
+                                video->read_frame<meta_encoding_t::gray>(frame, frameIndex);
+                                break;
+                            case meta_encoding_t::data::values::r3g3b2:
+                                video->read_frame<meta_encoding_t::r3g3b2>(frame, frameIndex);
+                                break;
+                                
+                            default:
+                                throw InvalidArgumentException("Unknown meta_encoding: ", Background::meta_encoding());
+                        }
                         
                         ptr = buffers.get(source_location::current());
                         ptr->clear();
@@ -104,13 +117,19 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         assert(blob != nullptr);
         
         auto &percentiles = GUICache::instance().pixel_value_percentiles;
+        OutputInfo output {
+            .channels = 4u,
+            .encoding = meta_encoding_t::rgb8
+        };
+        
         if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
-            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0);
+            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
+            
         } else {
-            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source(), 0);
+            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source(), 0, output);
         }
 
-        if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+        /*if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
             if(not ptr->empty()) {
                 auto mat = ptr->unsafe_get_source().get();
                 cv::Mat output;
@@ -125,7 +144,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                 ptr->unsafe_get_source().create(output);
                 //ptr->set_source(Image::Make(output));
             }
-        }
+        }*/
         
         //ptr->set_pos(image_pos);
         //ptr->updated_source();
@@ -199,6 +218,19 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     void GUICache::set_tracking_dirty() {
         _tracking_dirty = true;
     }
+
+    void GUICache::set_reload_frame(Frame_t frameIndex) {
+        _do_reload_frame = frameIndex;
+        if(_do_reload_frame.valid() && _next_processed_frame && _do_reload_frame == _next_processed_frame->index())
+        {
+            buffers.move_back(std::move(_next_processed_frame));
+            
+            auto frame = _preloader.get_frame(frameIndex, 1_f);
+            if(frame.has_value() && frame.value()->index() == frameIndex) {
+                _next_processed_frame = std::move(frame.value());
+            }
+        }
+    }
     
     void GUICache::set_blobs_dirty() {
         _blobs_dirty = true;
@@ -246,10 +278,12 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
     const auto threshold = FAST_SETTING(track_threshold);
     //const auto posture_threshold = FAST_SETTING(track_posture_threshold);
     //auto& _tracker = *Tracker::instance();
-    auto& _gui = *_graph;
+    //auto& _gui = *_graph;
     
     return  not processed_frame().index().valid()
+            || frameIndex != frame_idx
             || frameIndex != processed_frame().index()
+            || not _current_processed_frame
             || last_threshold != threshold
             || selected != previous_active_fish
             || active_blobs != previous_active_blobs
@@ -257,7 +291,8 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             || is_tracking_dirty()
             || raw_blobs_dirty()
             //|| _blobs_dirty
-            || _frame_contained != tracked_frames.contains(frameIndex);
+            || _frame_contained != tracked_frames.contains(frameIndex)
+            || _do_reload_frame.valid();
 }
 
 
@@ -294,10 +329,13 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             }
         }
         
+        if(frameIndex != _do_reload_frame)
+            _do_reload_frame.invalidate();
+        
         bool current_frame_matches = _current_processed_frame
-             && _current_processed_frame->index() == frameIndex;
+            && _current_processed_frame->index() == frameIndex && not _do_reload_frame.valid();
         bool next_frame_matches = _next_processed_frame
-             && _next_processed_frame->index() == frameIndex;
+            && _next_processed_frame->index() == frameIndex;
         
         /*if(not current_frame_matches)
         {
@@ -305,6 +343,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         }*/
         
         bool reload_blobs = not current_frame_matches
+                            || frame_idx != frameIndex
                             || last_threshold != threshold
                             || raw_blobs_dirty();
         
@@ -699,6 +738,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         
         if(_current_processed_frame && _current_processed_frame->index() != frameIndex) {
             buffers.move_back(std::move(_current_processed_frame));
+            
             //print("current_processed_frame moved out for ", frameIndex);
         } else if(_current_processed_frame) {
             reload_blobs = false;
@@ -716,9 +756,15 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             //print("current_processed_frame moved out for ", frameIndex, " = ", _next_processed_frame->index());
             if(_current_processed_frame)
 				buffers.move_back(std::move(_current_processed_frame));
-
+            
             _current_processed_frame = std::move(_next_processed_frame);
             assert(_current_processed_frame->index() == frameIndex);
+            
+            if(_do_reload_frame.valid()
+               && _do_reload_frame == _current_processed_frame->index())
+            {
+                _do_reload_frame = {};
+            }
         }
         
         //print("reload_blobs = ", reload_blobs);

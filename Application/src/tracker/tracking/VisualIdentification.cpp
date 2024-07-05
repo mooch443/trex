@@ -129,6 +129,8 @@ void VINetwork::setup(bool force) {
             print("Error creating folder for ",filename.str());
         }
         
+        auto image_mode = Background::image_mode();
+        py::set_variable("image_channels", (long_t)required_channels(image_mode), "learn_static");
         py::set_variable("output_path", filename.str(), "learn_static");
         py::set_variable("output_prefix", SETTING(output_prefix).value<std::string>(), "learn_static");
         py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), "learn_static");

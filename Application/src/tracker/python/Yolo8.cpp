@@ -225,6 +225,12 @@ void draw_outlines(const std::vector<std::shared_ptr<std::vector<Vec2>>>& _point
 
 void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     const auto mode = Background::image_mode();
+    if(data.frame.channels() == 1
+       && mode == ImageMode::RGB)
+    {
+        data.frame.set_channels(3);
+    } else
+        data.frame.set_channels(1);
 
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2) {
@@ -233,6 +239,12 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
         else if (data.image->dims == 4)
             convert_to_r3g3b2<4>(data.image->get(), r3);
         else
+            throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
+    }
+    else if(mode == ImageMode::RGB) {
+        if(data.image->dims == 4) {
+            cv::cvtColor(data.image->get(), r3, cv::COLOR_BGRA2BGR);
+        } else
             throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
     }
     else if (mode == ImageMode::GRAY) {
@@ -302,7 +314,12 @@ void Yolo8::process_boxes_only(
         }
 
         if (not lines.empty()) {
-            pv::Blob blob(lines, 0);
+            uint8_t flags{0};
+            pv::Blob::set_flag(flags, pv::Blob::Flags::is_rgb, r3.channels() == 3);
+            /// TODO: this might be a bit unsafe?
+            pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
+            
+            pv::Blob blob(lines, flags);
             data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
             
             blob::Pose pose;
@@ -311,7 +328,8 @@ void Yolo8::process_boxes_only(
                 pose = p.toPose();
                 data.keypoints.push_back(std::move(p));
             }
-            data.frame.add_object(lines, pixels, 0, blob::Prediction{
+            
+            data.frame.add_object(lines, pixels, flags, blob::Prediction{
                 .clid = uint8_t(row.clid),
                 .p = uint8_t(float(row.conf) * 255.f),
                 .pose = std::move(pose)
@@ -412,7 +430,8 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
     pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
 
     pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
-    pair.pixels = (blob.calculate_pixels(r3));
+    auto [o, px] = blob.calculate_pixels(r3);
+    pair.pixels = std::move(px);
 
     auto points = pixel::find_outer_points(&blob, 0);
     for(auto it = points.begin(); it != points.end(); ) {
