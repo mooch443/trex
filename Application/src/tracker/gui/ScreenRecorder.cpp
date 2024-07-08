@@ -161,7 +161,8 @@ struct ScreenRecorder::Data {
         SETTING(gui_is_recording) = false;
         _last_recording_frame.invalidate();
         
-        DebugCallback("Stopped recording to ", _recording_path, ".");
+        file::Path p = _recording_path;
+        DebugCallback("Stopped recording to ", p.absolute(), ".");
     }
     
     file::Path frame_output_dir() {

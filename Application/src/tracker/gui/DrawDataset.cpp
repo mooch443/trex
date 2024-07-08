@@ -23,6 +23,8 @@ namespace cmn::gui {
         set_clickable(true);
         set_draggable();
     }
+
+DrawDataset::~DrawDataset() {}
     
     void DrawDataset::clear_cache() {
         _cache.clear();

@@ -29,7 +29,7 @@ namespace cmn::gui {
         
     public:
         DrawDataset();
-        virtual ~DrawDataset() {}
+        virtual ~DrawDataset();
         
         void set_data(Frame_t frameIndex, const GUICache& tracker);
         void update() override;

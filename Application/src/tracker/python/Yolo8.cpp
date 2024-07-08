@@ -225,13 +225,15 @@ void draw_outlines(const std::vector<std::shared_ptr<std::vector<Vec2>>>& _point
 
 void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     const auto mode = Background::image_mode();
-    if(data.frame.channels() == 1
-       && mode == ImageMode::RGB)
-    {
+    if(mode == ImageMode::RGB) {
         data.frame.set_channels(3);
-    } else
+    } else if(mode == ImageMode::GRAY) {
         data.frame.set_channels(1);
-
+    } else if(mode == ImageMode::R3G3B2) {
+        data.frame.set_channels(1);
+    } else
+        throw InvalidArgumentException("Invalid ImageMode ", mode,".");
+        
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2) {
         if (data.image->dims == 3)
@@ -242,7 +244,9 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
             throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
     }
     else if(mode == ImageMode::RGB) {
-        if(data.image->dims == 4) {
+        if(data.image->dims == 3) {
+            r3 = data.image->get();
+        } else if(data.image->dims == 4) {
             cv::cvtColor(data.image->get(), r3, cv::COLOR_BGRA2BGR);
         } else
             throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");

@@ -876,6 +876,19 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         }
     }
 
+constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t channels) {
+    switch (encoding) {
+        case cmn::meta_encoding_t::data::values::rgb8:
+        case cmn::meta_encoding_t::data::values::r3g3b2:
+            return 3 == channels;
+        case cmn::meta_encoding_t::data::values::gray:
+            return 1 == channels;
+            
+        default:
+            throw InvalidArgumentException("Unknown meta_encoding mode: ", encoding);
+    }
+}
+
     void Header::write(DataFormat& ref) {
         /**
          * [HEADER SECTION]
@@ -920,6 +933,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
          */
         
         // set offsets from global settings
+        if(average && not correct_number_channels(encoding, average->channels())) {
+            throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," for the average image provided ", *average);
+        }
         
         ref.write("PV" + std::to_string((int)Version::current + 1));
         
@@ -938,10 +954,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         ref.write<std::string>((std::string)file::Path(name).filename());
         
-        if(average)
+        if(average) {
             _average_offset = ref.write_data(average->size(), (char*)average->data());
-        else {
-            Image tmp((uint)resolution.height, (uint)resolution.width, 1);
+        } else {
+            Image tmp((uint)resolution.height, (uint)resolution.width, channels);
             _average_offset = ref.write_data(tmp.size(), (char*)tmp.data());
         }
         
@@ -1480,6 +1496,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
 void File::set_average(const cv::Mat& average) {
+    if(not correct_number_channels(_header.encoding, average.channels())) {
+        throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
+    }
+    
     if(average.type() != CV_8UC(_header.channels))
     {
         auto str = getImgType(average.type());
