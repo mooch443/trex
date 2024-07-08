@@ -10,7 +10,6 @@
 //#include <misc/AbstractVideoSource.h>
 //#include <misc/VideoVideoSource.h>
 //#include <misc/WebcamVideoSource.h>
-#include <gui/types/SettingsTooltip.h>
 #include <gui/DynamicGUI.h>
 #include <misc/SettingsInitializer.h>
 #include <misc/BlurryVideoLoop.h>
@@ -26,8 +25,6 @@
 namespace cmn::gui {
 
 struct SettingsScene::Data {
-    //BlurryVideoLoop _video_loop;
-    SettingsTooltip _settings_tooltip;
     Timer video_image_timer, animation_timer;
     double blur_target{1};
     double blur_percentage{0};

@@ -20,7 +20,6 @@
 #include <gui/types/List.h>
 #include <grabber/misc/default_config.h>
 #include <gui/DynamicGUI.h>
-#include <gui/SettingsDropdown.h>
 #include <GitSHA1.h>
 #include <grabber/misc/Webcam.h>
 #include <opencv2/core/utils/logger.hpp>
