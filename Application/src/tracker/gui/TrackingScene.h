@@ -54,5 +54,6 @@ private:
     void prev_poi(track::Idx_t _s_fdx);
     
     void init_undistortion();
+    void redraw_all();
 };
 }

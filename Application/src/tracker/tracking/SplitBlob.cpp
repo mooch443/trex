@@ -121,23 +121,24 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
     blob->set_tried_to_split(true);
 }
 
-size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output)
+size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output, const Background& background)
 {
     if(_diff_px.empty()) {
         _diff_px.resize(_blob->pixels()->size());
         auto px = _blob->pixels()->data();
         auto out = _diff_px.data();
-        auto bg = Tracker::instance()->background();
         //auto grid = Tracker::instance()->grid();
         //constexpr LuminanceGrid* grid = nullptr;
         min_pixel = 254;
         max_pixel = 0;
         
-        auto work = [&]<InputInfo input, OutputInfo output, DifferenceMethod method, ImageMode mode>() {
+        auto work = [&]<InputInfo input, OutputInfo output, DifferenceMethod method>() {
+            static_assert(output.channels == 1, "Only support single value.");
+            
             for (auto &line : _blob->hor_lines()) {
                 for (auto x=line.x0; x<=line.x1; ++x, px += input.channels, out += output.channels) {
                     auto value = diffable_pixel_value<input, output>(px);
-                    *out = (uchar)saturate(float(bg->diff<method, mode>(x, line.y, value)) / 1.f);//(grid ? float(grid->relative_threshold(x, line.y)) : 1.f));
+                    *out = (uchar)saturate(float(background.diff<output, method>(x, line.y, value)) / 1.f);//(grid ? float(grid->relative_threshold(x, line.y)) : 1.f));
                     if(*out < min_pixel)
                         min_pixel = *out;
                     if(*out > max_pixel)
@@ -154,7 +155,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
         threshold = max(threshold, (int)min_pixel);
     }
     
-    output = pixel::threshold_blob(*cache, _blob, _diff_px, threshold);
+    output = pixel::threshold_blob(*cache, _blob, _diff_px, threshold, background);
     
     for(auto &blob: output)
         blob->add_offset(-_blob->bounds().pos());
@@ -164,7 +165,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
             return std::make_tuple(a->pixels()->size(), a->blob_id()) > std::make_tuple(b->pixels()->size(), b->blob_id()); 
        });
     
-    return output.empty() ? 0 : (*output.begin())->pixels()->size();
+    return output.empty() ? 0 : (*output.begin())->pixels()->size() / (*output.begin())->channels();
 }
 
 /**
@@ -376,7 +377,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
 }
 #endif
 
-std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers)
+std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers, const Background& background)
 {
     if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::none)
         return {};
@@ -457,6 +458,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 
             output.clear();
             for(auto&& [lines, pixels, flags, pred] : detections) {
+                if(_blob->is_r3g3b2())
+                    pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, true);
                 output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags, std::move(pred)));
                 //output.back()->add_offset(-_blob->bounds().pos());
             }
@@ -506,9 +509,9 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             threshold = initial_threshold;
         
         if(is_in(SPLIT_SETTING(blob_split_algorithm), blob_split_algorithm_t::threshold, blob_split_algorithm_t::threshold_approximate))
-            max_size = apply_threshold(cache, threshold, blobs) * sqrcm;
+            max_size = apply_threshold(cache, threshold, blobs, background) * sqrcm;
         else
-            max_size = (initial ? apply_threshold(cache, threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
+            max_size = (initial ? apply_threshold(cache, threshold, blobs, background) : apply_watershed(centers, blobs)) * sqrcm;
         
         // save the maximum number of objects found
         max_objects = max(max_objects.load(), blobs.size());

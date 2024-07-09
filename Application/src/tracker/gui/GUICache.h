@@ -259,7 +259,7 @@ namespace globals {
         void updated_blobs() { _blobs_dirty = false; }
         void updated_raw_blobs() { _raw_blobs_dirty = false; }
         void on_redraw() { _dirty = false; }
-        Frame_t update_data(Frame_t frameIndex);
+        Frame_t update_data(const Frame_t frameIndex);
         
         bool is_tracking_dirty() const { return _tracking_dirty; }
         bool must_redraw() const;

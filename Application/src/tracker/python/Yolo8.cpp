@@ -432,6 +432,10 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         .p = uint8_t(float(row.conf) * 255.f)
     };
     pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+        assert(r3.channels() == 1);
+        pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_r3g3b2, true);
+    }
 
     pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     auto [o, px] = blob.calculate_pixels(r3);

@@ -2178,7 +2178,10 @@ Probability Individual::probability(int label, const IndividualCache& cache, Fra
 const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
 {
     if(empty()) {
+#ifndef NDEBUG
         throw U_EXCEPTION("Individual ", *this," is empty. Cannot retrieve frame ",frameIndex,".");
+#endif
+        return nullptr;
     }
     
     if(frameIndex <= _startFrame)

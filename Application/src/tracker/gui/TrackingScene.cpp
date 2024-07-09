@@ -44,8 +44,17 @@ class IndividualImage : public Entangled {
     GETTER(Frame_t, frame);
     ExternalImage _display;
 
-    static constexpr inline std::array<std::string_view, 3> _setting_names {
-        "individual_image_normalization", "individual_image_size", "meta_encoding"
+    static constexpr inline std::array<std::string_view, 10> _setting_names {
+        "individual_image_normalization",
+        "individual_image_size",
+        "individual_image_scale",
+        
+        "track_background_subtraction",
+        "meta_encoding",
+        "track_threshold",
+        "track_posture_threshold",
+        "track_size_filter",
+        "track_include", "track_ignore"
     };
     std::unordered_map<std::string_view, std::string> _settings;
     
@@ -53,7 +62,7 @@ public:
     using Entangled::set;
     void set_data(Idx_t fdx, Frame_t frame, pv::BlobWeakPtr blob, const Background* background, const constraints::FilterCache* filters, const Midline* midline) {
         // already set
-        if(fdx == _fdx && _frame == frame)
+        if(fdx == _fdx && _frame == frame && not settings_changed())
             return;
         
         this->_fdx = fdx;
@@ -126,6 +135,10 @@ struct TrackingScene::Data {
     std::vector<std::shared_ptr<dyn::VarBase_t>> _individuals;
     std::vector<sprite::Map> _fish_data;
     
+    /// Variables for "consec" VarFunc:
+    std::vector<sprite::Map> segments;
+    std::vector<std::shared_ptr<dyn::VarBase_t>> variables;
+    
     ScreenRecorder _recorder;
     
     /**
@@ -139,6 +152,8 @@ struct TrackingScene::Data {
      */
     Data(Image::Ptr&& average,
          pv::File& video);
+    
+    void redraw_all();
 };
 
 TrackingScene::~TrackingScene() {
@@ -481,16 +496,7 @@ void TrackingScene::activate() {
                  "individual_image_scale",
                 "track_include", "track_ignore"))
         {
-            SceneManager::getInstance().enqueue([this](){
-                if(_data && _data->_cache) {
-                    _data->_cache->set_tracking_dirty();
-                    _data->_cache->set_raw_blobs_dirty();
-                    _data->_cache->set_reload_frame(_data->_cache->frame_idx);
-                    _data->_cache->set_blobs_dirty();
-                    _data->_cache->set_fish_dirty(true);
-                    _data->_cache->frame_idx = {};
-                }
-            });
+            redraw_all();
         }
     });
     
@@ -499,19 +505,7 @@ void TrackingScene::activate() {
     
     _state->tracker->register_add_callback([this](Frame_t frame){
         if(GUI_SETTINGS(gui_frame) == frame) {
-            SceneManager::getInstance().enqueue([this, frame](){
-                if(_data && _data->_cache) {
-                    _data->_cache->set_tracking_dirty();
-                    _data->_cache->set_raw_blobs_dirty();
-                    _data->_cache->set_fish_dirty(true);
-                    _data->_cache->set_reload_frame(_data->_cache->frame_idx);
-                    _data->_cache->set_redraw();
-                    _data->_cache->set_blobs_dirty();
-                    _data->_cache->frame_idx = {};
-                    SETTING(gui_frame) = Frame_t{};
-                    set_frame(frame);
-                }
-            });
+            redraw_all();
         }
     });
     
@@ -525,6 +519,29 @@ void TrackingScene::activate() {
             _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
         }
     }
+}
+
+void TrackingScene::redraw_all() {
+    if(not _data || not _data->_cache) {
+        FormatWarning("No data set, cannot redraw all.");
+        return;
+    }
+    
+    SceneManager::getInstance().enqueue([this, frame = _data->_cache->frame_idx](){
+        if(_data && _data->_cache) {
+            _data->_primary_selection = {};
+            _data->_cache->set_tracking_dirty();
+            _data->_cache->set_raw_blobs_dirty();
+            _data->_cache->set_fish_dirty(true);
+            if(frame.valid())
+                _data->_cache->set_reload_frame(frame);
+            _data->_cache->set_redraw();
+            _data->_cache->set_blobs_dirty();
+            //_data->_cache->frame_idx = {};
+            //SETTING(gui_frame) = Frame_t{};
+            //set_frame(frame);
+        }
+    });
 }
 
 void TrackingScene::init_undistortion() {
@@ -722,6 +739,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(_data->_cache) {
         auto frameIndex = GUI_SETTINGS(gui_frame);
         //do {
+        //print("Loading ", frameIndex);
             loaded = _data->_cache->update_data(frameIndex);
             
         //} while(_data->_recorder.recording() && loaded.valid() && loaded != frameIndex);
@@ -1233,20 +1251,18 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             VarFunc("consec", [this](const VarProps&) -> auto& {
                 //auto consec = _data->tracker->global_segment_order();
                 auto &consec = _data->_cache->global_segment_order();
-                static std::vector<sprite::Map> segments;
-                static std::vector<std::shared_ptr<VarBase_t>> variables;
                 
                 ColorWheel wheel;
                 for(size_t i=0; i<5 && i < consec.size(); ++i) {
-                    if(segments.size() <= i) {
-                        segments.emplace_back();
-                        variables.emplace_back(new Variable([i](const VarProps&) -> sprite::Map& {
-                            return segments.at(i);
+                    if(_data->segments.size() <= i) {
+                        _data->segments.emplace_back();
+                        _data->variables.emplace_back(new Variable([i, this](const VarProps&) -> sprite::Map& {
+                            return _data->segments.at(i);
                         }));
-                        assert(variables.size() == segments.size());
+                        assert(_data->variables.size() == _data->segments.size());
                     }
                     
-                    auto& map = segments.at(i);
+                    auto& map = _data->segments.at(i);
                     //if(map.print_by_default())
                     //    map.set_print_by_default(false);
                     map["color"] = wheel.next();
@@ -1254,7 +1270,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     map["end"] = consec.at(i).end + 1_f;
                 }
                 
-                return variables;
+                return _data->variables;
             }),
             
             VarFunc("primary_selection", [this](const VarProps&) -> sprite::Map& {
@@ -1421,8 +1437,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                         blob_ptr = &blob;
                     });
                     
-                    if(blob_ptr)
-                        ptr->set_data(fdx, frame, blob_ptr, _data->_cache->background(), cache, it->second.midline.get());
+                    if(blob_ptr) {
+                        if(blob_ptr->encoding() == Background::meta_encoding())
+                            ptr->set_data(fdx, frame, blob_ptr, _data->_cache->background(), cache, it->second.midline.get());
+                        else
+                            FormatWarning("Not displaying image yet because of the wrong encoding: ", blob_ptr->encoding(), " vs. ", Background::meta_encoding());
+                    }
                     //else
                     //    throw InvalidArgumentException("Cannot find pixels for ", fdx, " and ", it->second.bdx);
                 } //else

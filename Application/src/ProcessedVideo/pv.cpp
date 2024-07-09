@@ -391,51 +391,62 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
                 
             } else {
                 auto v = std::make_unique<std::vector<uchar>>();
-                v->resize(target_channels * num_pixels);
                 
-                const auto start = (uchar*)ref.frame_pixels.data();
-                const auto end = start + num_pixels * ref.header().channels;
+                const auto istart = (uchar*)ref.frame_pixels.data();
+                const auto iend = istart + num_pixels * ref.header().channels;
                 
-                for(auto input = start, output = v->data(); input < end; input += ref.header().channels, output += target_channels)
-                {
-                    assert(output < v->data() + v->size());
+                call_image_mode_function(InputInfo{
+                    .channels = ref.header().channels,
+                    .encoding = ref.header().encoding
+                }, OutputInfo{
+                    .channels = static_cast<uint8_t>(target_channels),
+                    .encoding = mode
+                }, [&]<InputInfo input, OutputInfo output, DifferenceMethod>(){
+                    v->resize(output.channels * num_pixels);
                     
-                    if(ref.header().channels == 1 && target_channels == 3) {
-                        if(ref.color_mode() == meta_encoding_t::r3g3b2) {
-                            auto v = r3g3b2_to_vec(*input);
-                            *(output + 0) = v[0];
-                            *(output + 1) = v[1];
-                            *(output + 2) = v[2];
-                            
-                        } else if(ref.color_mode() == meta_encoding_t::gray) {
-                            *(output + 0) = *input;
-                            *(output + 1) = *input;
-                            *(output + 2) = *input;
-                        } else {
-                            throw InvalidArgumentException("Unknown conversion from ", ref.color_mode(), " to ", mode);
-                        }
+                    for(auto iptr = istart, optr = v->data(); iptr < iend; iptr += input.channels, optr += output.channels)
+                    {
+                        assert(optr < v->data() + v->size());
+                        auto value = diffable_pixel_value<input, output>(iptr);
+                        write_pixel_value<output>(optr, value);
                         
-                    } else if(ref.header().channels == 3 && target_channels == 1) {
-                        if(mode == meta_encoding_t::r3g3b2) {
-                            *(output + 0) = vec_to_r3g3b2(RGBArray{*(input + 0), *(input + 1), *(input + 2)});
+                        /*if(ref.header().channels == 1 && target_channels == 3) {
+                            if(ref.color_mode() == meta_encoding_t::r3g3b2) {
+                                auto v = r3g3b2_to_vec(*input);
+                                *(output + 0) = v[0];
+                                *(output + 1) = v[1];
+                                *(output + 2) = v[2];
+                                
+                            } else if(ref.color_mode() == meta_encoding_t::gray) {
+                                *(output + 0) = *input;
+                                *(output + 1) = *input;
+                                *(output + 2) = *input;
+                            } else {
+                                throw InvalidArgumentException("Unknown conversion from ", ref.color_mode(), " to ", mode);
+                            }
                             
-                        } else if(mode == meta_encoding_t::gray) {
-                            *(output + 0) = *(input + 0);
+                        } else if(ref.header().channels == 3 && target_channels == 1) {
+                            if(mode == meta_encoding_t::r3g3b2) {
+                                *(output + 0) = vec_to_r3g3b2(RGBArray{*(input + 0), *(input + 1), *(input + 2)});
+                                
+                            } else if(mode == meta_encoding_t::gray) {
+                                *(output + 0) = *(input + 0);
+                                
+                            } else {
+                                throw InvalidArgumentException("Unknown conversion from ", ref.color_mode(), " to ", mode);
+                            }
                             
-                        } else {
-                            throw InvalidArgumentException("Unknown conversion from ", ref.color_mode(), " to ", mode);
-                        }
-                        
-                    } else [[unlikely]] {
-                        throw InvalidArgumentException("Unknown combination of channels (",ref.header().channels,") v. target_channels (",target_channels,").");
+                        } else [[unlikely]] {
+                            throw InvalidArgumentException("Unknown combination of channels (",ref.header().channels,") v. target_channels (",target_channels,").");
+                        }*/
                     }
-                }
+                });
                 
                 _pixels.emplace_back(std::move(v));
             }
             
             Blob::set_flag(flags, Blob::Flags::is_rgb, target_channels == 3);
-            Blob::set_flag(flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+            Blob::set_flag(flags, Blob::Flags::is_r3g3b2, mode == meta_encoding_t::r3g3b2);
             _flags.push_back(flags);
         }
         

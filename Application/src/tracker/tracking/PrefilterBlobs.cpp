@@ -178,7 +178,7 @@ void PrefilterBlobs::split_big(
             }
             
             SplitBlob s(&cache, *Tracker::background(), b.get());
-            auto ret = s.split(ex.number, ex.centers);
+            auto ret = s.split(ex.number, ex.centers, *Tracker::background());
             
             for(auto &ptr : ret) {
                 if(b->blob_id() != ptr->blob_id())

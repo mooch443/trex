@@ -186,8 +186,8 @@ Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
                 
             } else if(image->channels() == 3) {
                 /// got a 3 channel format, so maybe we have a RGB image?
-                //cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
-                //return ptr;
+                cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
+                return ptr;
             }
             
             break;
@@ -246,7 +246,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
         return {nullptr, Vec2{}};
     
     return {
-        convert_image_to_rgba(std::move(image), Background::meta_encoding(), false),
+        convert_image_to_rgba(std::move(image), SETTING(meta_encoding), false),
         pos
     };
 }

@@ -797,6 +797,34 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             return GlobalSettings::invalid();
         });
+        _cache_func["blob_width"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob)
+                return blob->calculate_bounds().width;
+            
+            return GlobalSettings::invalid();
+        });
+        _cache_func["blob_height"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob)
+                return blob->calculate_bounds().height;
+            
+            return GlobalSettings::invalid();
+        });
+        _cache_func["blob_x"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob)
+                return blob->calculate_bounds().x;
+            
+            return GlobalSettings::invalid();
+        });
+        _cache_func["blob_y"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob)
+                return blob->calculate_bounds().y;
+            
+            return GlobalSettings::invalid();
+        });
         
         _cache_func["num_pixels"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);

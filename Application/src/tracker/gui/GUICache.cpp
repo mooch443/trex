@@ -225,7 +225,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         {
             buffers.move_back(std::move(_next_processed_frame));
             
-            auto frame = _preloader.get_frame(frameIndex, 1_f);
+            auto frame = _preloader.get_frame(frameIndex, _preloader.last_increment());
             if(frame.has_value() && frame.value()->index() == frameIndex) {
                 _next_processed_frame = std::move(frame.value());
             }
@@ -307,7 +307,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         base.wrap_object(*_posture_window);
 }
     
-    Frame_t GUICache::update_data(Frame_t frameIndex) {
+    Frame_t GUICache::update_data(const Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
         const bool output_normalize_midline_data = SETTING(output_normalize_midline_data);
         //const auto posture_threshold = FAST_SETTING(track_posture_threshold);
@@ -345,7 +345,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         bool reload_blobs = not current_frame_matches
                             || frame_idx != frameIndex
                             || last_threshold != threshold
-                            || raw_blobs_dirty();
+                            || _do_reload_frame.valid();
+                            //|| raw_blobs_dirty();
         
         if(not current_frame_matches) {
             if(_next_processed_frame
@@ -390,8 +391,16 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         
                     } else {
                         /// we have a timeout, se just use what we have:
-                        //print("Using maybe_frame anyway for ", maybe_frame.value()->index(), " != ", frameIndex, " since we waited ", _last_success.elapsed());
-                        frameIndex = maybe_frame.value()->index();
+                        //frameIndex = maybe_frame.value()->index();
+                        if(frameIndex != maybe_frame.value()->index()) {
+                            //print("Using maybe_frame anyway for ", maybe_frame.value()->index(), " != ", frameIndex, " since we waited ", _last_success.elapsed());
+                            
+                            buffers.move_back(std::move(maybe_frame.value()));
+                            return {};
+                        } else {
+                            /// got correct frameIndex
+                            //print("Got frameIndex ", maybe_frame.value()->index()," (", frameIndex, ")");
+                        }
                     }
                     
                     /// if we reached this point, use the maybe_frame value:
@@ -733,10 +742,10 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         if(contained != _frame_contained) {
             _frame_contained = contained;
             _fish_dirty = true;
-            print("frameIndex ", frameIndex, " contained=",contained);
+            //print("frameIndex ", frameIndex, " contained=",contained);
         }
         
-        if(_current_processed_frame && _current_processed_frame->index() != frameIndex) {
+        if((_current_processed_frame && _current_processed_frame->index() != frameIndex) || _do_reload_frame.valid()) {
             buffers.move_back(std::move(_current_processed_frame));
             
             //print("current_processed_frame moved out for ", frameIndex);
@@ -765,6 +774,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             {
                 _do_reload_frame = {};
             }
+        } else {
+            //print("No next frame: ", _do_reload_frame, " @ ", frameIndex);
         }
         
         //print("reload_blobs = ", reload_blobs);
@@ -1131,7 +1142,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         
         checked_probs.insert(fdx);
         
-        {
+        if (frame_idx.valid()) {
             LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame().cached(fdx);
             if(c) {
