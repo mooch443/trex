@@ -450,7 +450,7 @@ int main(int argc, char**argv) {
                     pv::Frame frame;
 
                     try {
-                        frame.read_from(video, Frame_t(idx));
+                        frame.read_from(video, Frame_t(idx), video.header().encoding);
                     } catch(const UtilsException& e) {
                         print("Breaking after ", idx," frames.");
                         break;
