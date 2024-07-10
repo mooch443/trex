@@ -21,7 +21,7 @@ using namespace cmn;
 struct split_expectation {
     size_t number;
     bool allow_less_than;
-    std::vector<Vec2> centers;
+    std::vector<std::vector<Vec2>> centers;
     
     split_expectation(size_t number = 0, bool allow_less_than = false)
         : number(number), allow_less_than(allow_less_than)

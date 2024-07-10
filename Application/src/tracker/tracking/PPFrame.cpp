@@ -237,7 +237,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
         struct FishAssignments {
             Idx_t fdx;
             std::vector<DistanceToBdx> assign;
-            Vec2 last_pos;
+            std::vector<Vec2> last_pos;
         };
         struct BlobAssignments {
             UnorderedVectorSet<Idx_t> idxs;
@@ -278,7 +278,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
             // does the current individual have the frame previous to the current frame?
             //! try to find a frame thats close in time AND space to the current position
             size_t counter = 0;
-            Vec2 last_pos(-1,-1);
+            std::vector<Vec2> last_positions;
             Frame_t last_frame = cache->previous_frame;
             long_t last_L = -1;
             
@@ -293,11 +293,31 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                     const auto index = (*sit)->basic_stuff((*sit)->end());
                     const auto pos = fish->basic_stuff().at(index)->centroid.template pos<Units::DEFAULT>();
 
+                    for(auto frame : (*sit)->iterable()) {
+                        if(not last_frame.valid() || frame > last_frame)
+                            break;
+                        if(frame.get() < time_limit)
+                            continue;
+                        
+                        auto bindex = (*sit)->basic_stuff(frame);
+                        auto pindex = (*sit)->posture_stuff(frame);
+                        if(const MotionRecord* posture{nullptr};
+                           pindex != -1 &&
+                           (posture = fish->posture_stuff().at(pindex)->head))
+                        {
+                            last_positions.emplace_back(posture->template pos<Units::DEFAULT>());
+                            //last_pos = posture->template pos<Units::DEFAULT>();
+                        } else {
+                            last_positions.emplace_back(fish->basic_stuff().at(bindex)->centroid.template pos<Units::DEFAULT>());
+                            //last_pos = fish->basic_stuff().at(bindex)->centroid.template pos<Units::DEFAULT>();
+                        }
+                    }
+
                     if ((*sit)->length().get() > frame_rate * track_max_reassign_time * 0.25)
                     {
                         //! segment is long enough, we can stop. but only actually use it if its not too far away:
-                        if (last_pos.x == -1
-                            || sqdistance(pos, last_pos) < space_limit)
+                        if (last_positions.empty()
+                            || sqdistance(pos, last_positions.back()) < space_limit)
                         {
                             last_frame = min((*sit)->end(), cache->previous_frame);
                             assert(last_frame.valid());
@@ -305,8 +325,6 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                         }
                         break;
                     }
-
-                    last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid.template pos<Units::DEFAULT>();
 
                     if (sit != fish->frame_segments().begin())
                         --sit;
@@ -325,7 +343,13 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                     auto fdx = fish->identity().ID();
                     auto& map = fish_assignments[i - start];
                     map.fdx = fdx;
-                    map.last_pos = last_pos.x == -1 ? cache->estimated_px : last_pos;
+                    if(last_positions.empty()) {
+                        map.last_pos = {cache->estimated_px};
+                        //last_pos.x == -1 ? cache->estimated_px : last_pos;
+                    } else {
+                        map.last_pos = last_positions;
+                        map.last_pos.emplace_back(cache->estimated_px);
+                    }
                     
                     for(auto && [d, bdx] : set) {
                         if(!has_bdx(bdx))

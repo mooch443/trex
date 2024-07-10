@@ -377,7 +377,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
 }
 #endif
 
-std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers, const Background& background)
+std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<std::vector<Vec2>>& centers, const Background& background)
 {
     if(SPLIT_SETTING(blob_split_algorithm) == blob_split_algorithm_t::none)
         return {};
@@ -387,7 +387,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     
     const float sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
     
-    const auto apply_watershed = [this](const std::vector<Vec2>& centers, std::vector<pv::BlobPtr>& output) {
+    const auto apply_watershed = [this](const std::vector<std::vector<Vec2>>& centers, std::vector<pv::BlobPtr>& output) {
         static const cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * 1 + 1, 2 * 1 + 1), cv::Point(1, 1));
 
         //auto [offset, img] = _blob->binary_image();
@@ -406,15 +406,17 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         }
 
         size_t i = 0;
-        for(auto c : centers) {
-            cv::circle(mask, c, 5, i + 2, cv::FILLED);
-            cv::circle(mask, c, 5, 0, 1);
+        for(auto& c : centers) {
+            for(auto &pt : c) {
+                cv::circle(mask, pt, 5, i + 2, cv::FILLED);
+                cv::circle(mask, pt, 5, 0, 1);
+            }
             ++i;
         }
 
         cv::Mat tmp;
         mask.convertTo(tmp, CV_8UC1, 255.f / float(centers.size() + 2));
-        tf::imshow("labels1", tmp);
+        //tf::imshow("labels1", tmp);
         
         if(img->channels() == 1)
             cv::cvtColor(img->get(), tmp, cv::COLOR_GRAY2BGR);
@@ -424,33 +426,35 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         }
         cv::watershed(tmp, mask);
 
-        cv::Mat ltmp;
-        mask.convertTo(ltmp, CV_8UC1, 255.f / float(centers.size() + 1));
-        tf::imshow("labels", ltmp);
-        tf::imshow("image", img->get());
+        //cv::Mat ltmp;
+        //mask.convertTo(ltmp, CV_8UC1, 255.f / float(centers.size() + 1));
+        //tf::imshow("labels", ltmp);
+        //tf::imshow("image", img->get());
 
         //cv::subtract(mask, 1, mask);
         mask.convertTo(mask, CV_8UC1);
         cv::threshold(mask, mask, 1, 255, cv::THRESH_BINARY);
-        tf::imshow("thresholded", tmp);
+        //tf::imshow("thresholded", tmp);
 
         cv::Mat mask2;
         
-        tf::imshow("mask before", mask);
+        //tf::imshow("mask before", mask);
         cv::erode(mask, mask2, element);
-        mask2.convertTo(ltmp, CV_8UC1, 255.f / float(centers.size() + 1));
-        tf::imshow("mask eroded", ltmp);
+        //mask2.convertTo(ltmp, CV_8UC1, 255.f / float(centers.size() + 1));
+        //tf::imshow("mask eroded", ltmp);
         //if(img->channels() == 1) {
         //assert(img->channels() == tmp.channels());
         cv::Mat tmp2;
-        tmp.copyTo(tmp2, mask2);
-        tf::imshow("mask copy", tmp2);
-        /*} else {
-            assert(img->channels() == 3);
+        if(img->channels() == 3) {
+            tmp.copyTo(tmp2, mask2);
+            
+        } else if(img->channels() == 1) {
             std::vector<cv::Mat> separate_channels;
-            cv::split(img->get(), separate_channels);
-            separate_channels.front().copyTo(tmp, mask);
-        }*/
+            cv::split(tmp, separate_channels);
+            separate_channels.front().copyTo(tmp2, mask2);
+        }
+        
+        //tf::imshow("mask copy", tmp2);
 
         {
             auto detections = CPULabeling::run(tmp2, *_cache);
@@ -458,8 +462,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 
             output.clear();
             for(auto&& [lines, pixels, flags, pred] : detections) {
-                if(_blob->is_r3g3b2())
-                    pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, true);
+                flags |= pv::Blob::copy_flags(*_blob);
                 output.emplace_back(pv::Blob::Make(std::move(lines), std::move(pixels), flags, std::move(pred)));
                 //output.back()->add_offset(-_blob->bounds().pos());
             }
@@ -471,7 +474,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             });
 
 
-        resize_image(tmp, 5, cv::INTER_NEAREST);
+        /*resize_image(tmp, 5, cv::INTER_NEAREST);
         if(tmp.channels() == 1)
             cv::cvtColor(tmp, tmp, cv::COLOR_GRAY2BGR);
 
@@ -484,7 +487,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             pv::Blob b{
                 *d->lines(),
                 *d->pixels(),
-                static_cast<uint8_t>(pv::Blob::get_only_flag(pv::Blob::Flags::is_rgb, img->channels() == 3) | pv::Blob::get_only_flag(pv::Blob::Flags::is_r3g3b2, _blob->is_r3g3b2())),
+                pv::Blob::copy_flags(*_blob),
                 {}
             };
             auto [p, img] = b.color_image();
@@ -492,7 +495,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             tf::imshow("blob" + Meta::toStr(i), img->get());
             ++i;
         }
-        tf::imshow("blobs", tmp);
+        tf::imshow("blobs", tmp);*/
 
         return output.empty() ? 0 : (*output.begin())->pixels()->size() / (*output.begin())->channels();
     };

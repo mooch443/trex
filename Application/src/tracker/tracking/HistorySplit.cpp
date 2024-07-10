@@ -235,14 +235,21 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
             if(ptr) {
                 if(assign_blob.count(max_id)) {
                     ++expect[max_id].number;
-                    expect[max_id].centers.push_back(frame.last_positions.at(assign_blob.at(max_id).first) - ptr->bounds().pos());
+                    auto& positions = frame.last_positions.at(assign_blob.at(max_id).first);
+                    
+                    expect[max_id].centers.emplace_back(positions);
+                    for(auto &pt : expect[max_id].centers.back())
+                        pt -= ptr->bounds().pos();
+                    
                     assign_blob.erase(max_id);
                 }
                 
-                auto last_pos = frame.last_positions.at(fdx);
-
+                auto& positions = frame.last_positions.at(fdx);
                 ++expect[max_id].number;
-                expect[max_id].centers.push_back(last_pos - ptr->bounds().pos());
+                expect[max_id].centers.emplace_back(positions);
+                for(auto &pt : expect[max_id].centers.back())
+                    pt -= ptr->bounds().pos();
+                
                 PPFrame::Log("Increasing split number in ", *ptr, " to ", expect[max_id]);
                 
                 big_blobs.insert(max_id);

@@ -156,7 +156,7 @@ else
     if [ -z "${FILES}" ]; then
         echo "[ERROR] No files found."
         cat "${PWD}/tgrabs.log"
-        ls -la ${PWD}/*
+        #ls -la ${PWD}/*
         exit_code=1
     else
         if ! compare_csv_folder "${PWD}/data" "${PWD}/compare_data_automatic"; then
@@ -192,7 +192,7 @@ for MODE in ${MODES}; do
         if [ -z "${FILES}" ]; then
             echo "[ERROR] No files found."
             cat "${PWD}/trex.log"
-            ls -la ${PWD}/*
+            #ls -la ${PWD}/*
             exit_code=1
         else
             #f="test_fish0"

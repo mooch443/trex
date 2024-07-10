@@ -1000,11 +1000,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(not path.has_extension("settings"))
                 path = path.add_extension("settings");
             
-            auto settings_file = file::DataLocation::parse("output", path, &map);
-            if(settings_file.empty())
-                throw U_EXCEPTION("settings_file is an empty string.");
-            
-            return settings_file;
+            if(not path.is_absolute()) {
+                auto settings_file = file::DataLocation::parse("output", path, &map);
+                if(settings_file.empty())
+                    throw U_EXCEPTION("settings_file is an empty string.");
+                
+                return settings_file;
+            } else {
+                return path;
+            }
         });
         
         file::DataLocation::register_path("output_settings", [](const sprite::Map& map, file::Path) -> file::Path {

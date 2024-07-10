@@ -71,7 +71,7 @@ public:
      * a number of Blobs that seem to be two individuals. Also returns
      * every Blob paired with its grey value array
      */
-    std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<cmn::Vec2>& centers, const cmn::Background& background);
+    std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<std::vector<cmn::Vec2>>& centers, const cmn::Background& background);
     
 private:
     size_t apply_threshold(cmn::CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output, const cmn::Background& background);
