@@ -172,7 +172,7 @@ void AbstractBaseVideoSource::undistort(const gpuMat &input, gpuMat &output) {
        && map2.rows == input.rows)
     {
         if(!map1.empty() && !map2.empty()) {
-            //print("Undistorting ", input.cols,"x",input.rows);
+            //Print("Undistorting ", input.cols,"x",input.rows);
             cv::remap(input, output, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
         } else {
             FormatWarning("remap maps are empty.");
@@ -192,7 +192,7 @@ void AbstractBaseVideoSource::undistort(const cv::Mat &input, cv::Mat &output) {
        && map2.rows == input.rows)
     {
         if(!map1.empty() && !map2.empty()) {
-            //print("Undistorting ", input.cols,"x",input.rows);
+            //Print("Undistorting ", input.cols,"x",input.rows);
             // upload to gpu
             input.copyTo(gpuBuffer);
             cv::remap(gpuBuffer, output, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);

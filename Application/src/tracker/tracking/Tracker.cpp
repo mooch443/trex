@@ -284,14 +284,14 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
     
     if(GlobalSettings::is_runtime_quiet())
     {
-        print("Initialized with ", _thread_pool.num_threads()," threads.");
+        Print("Initialized with ", _thread_pool.num_threads()," threads.");
     }
     
     Settings::set_callback(Settings::outline_resample, [](auto&, auto&value){
         static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
         auto v = value.template value<float>();
         if(v <= 0) {
-            print("outline_resample defaulting to 1.0 instead of ",v);
+            Print("outline_resample defaulting to 1.0 instead of ",v);
             SETTING(outline_resample) = 1.f;
         }
     });
@@ -340,7 +340,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
                     LockGuard guard(w_t{}, "Updating midlines in changed_setting("+std::string(key)+")");
                     IndividualManager::transform_parallel(Tracker::instance()->thread_pool(), [](auto fdx, auto fish)
                     {
-                        print("\t", fdx);
+                        Print("\t", fdx);
                         fish->clear_post_processing();
                         fish->update_midlines(nullptr);
                     });
@@ -384,10 +384,10 @@ Tracker::~Tracker() {
     
     const bool quiet = GlobalSettings::is_runtime_quiet();
     if(!quiet)
-        print("Waiting for recognition...");
+        Print("Waiting for recognition...");
     recognition_pool.force_stop();
     if(!quiet)
-        print("Done waiting.");
+        Print("Done waiting.");
     
     _instance = NULL;
     
@@ -507,12 +507,12 @@ void Tracker::add(PPFrame &frame) {
     initialize_slows();
     
     if (contains_sorted(_added_frames, frame.index())) {
-        print("Frame ",frame.index()," already in tracker.");
+        Print("Frame ",frame.index()," already in tracker.");
         return;
     }
     
     if(frame.timestamp > uint64_t(INT64_MAX)) {
-        print("frame timestamp is bigger than INT64_MAX! (",frame.timestamp," time)");
+        Print("frame timestamp is bigger than INT64_MAX! (",frame.timestamp," time)");
     }
     
     auto props = properties(frame.index() - 1_f);
@@ -1229,7 +1229,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 try {
                     auto path = file::DataLocation::parse("output", (std::string)SETTING(filename).value<file::Path>().filename()+"_threading_stats.npz").str();
                     npz_save(path, "values", values.data(), std::vector<size_t>{bins.size(), 3});
-                    print("Saved threading stats at ", path,".");
+                    Print("Saved threading stats at ", path,".");
                 } catch(...) {
                     FormatWarning("Error saving threading stats.");
                 }
@@ -1391,14 +1391,14 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                     
 #ifndef NDEBUG
                     if(!s.frame.has_bdx(blob)) {
-                        print("Frame ", s.frame.index(),": Cannot find blob ",blob," in map.");
+                        Print("Frame ", s.frame.index(),": Cannot find blob ",blob," in map.");
                         continue;
                     }
 #endif
                     
 #ifdef TREX_DEBUG_MATCHING
                     auto str = Meta::toStr(bedges);
-                    print("\t\tExploring blob ", cdx," (aka ", (*blob)->blob_id(),") with edges ",str);
+                    Print("\t\tExploring blob ", cdx," (aka ", (*blob)->blob_id(),") with edges ",str);
 #endif
                     for(auto fdi : bedges) {
                         if(   !contains(cliques[index].fids, fdi)
@@ -1453,7 +1453,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                 for(auto i : indexes.fids) {
                     auto edges = s.paired.edges_for_row(i);
 #ifdef TREX_DEBUG_MATCHING
-                    print("\t\tExploring row ", i," (aka fish", s.paired.row(i)->identity().ID(),") with edges=",edges);
+                    Print("\t\tExploring row ", i," (aka fish", s.paired.row(i)->identity().ID(),") with edges=",edges);
 #endif
                     for(auto &e : edges) {
                         if(!contains(cliques[index].bids, e.cdx))
@@ -1464,7 +1464,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
 #ifdef TREX_DEBUG_MATCHING
                 if(!added_individuals.empty()) {
                     auto str = Meta::toStr(added_individuals);
-                    print("Adding ", str," to clique ",index);
+                    Print("Adding ", str," to clique ",index);
                 }
 #endif
                 cliques[index].fids.insert(indexes.fids.begin(), indexes.fids.end());
@@ -1565,13 +1565,13 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
             
             auto str = Meta::toStr(fishs);
             auto str1 = Meta::toStr(blobs);
-            print("Frame ",frameIndex,": Clique ",index,", Matching fishs ",str.c_str()," and blobs ",str1.c_str()," together.");
+            Print("Frame ",frameIndex,": Clique ",index,", Matching fishs ",str.c_str()," and blobs ",str1.c_str()," together.");
             ++index;
             
             for(auto &cdx : clique.bids) {
-                print("\tBlob ", (*s.paired.col(cdx))->blob_id()," edges:");
+                Print("\tBlob ", (*s.paired.col(cdx))->blob_id()," edges:");
                 for(auto &e : s.paired.edges_for_col(cdx)) {
-                    print("\t\tFish", s.paired.row(e)->identity().raw_name().c_str());
+                    Print("\t\tFish", s.paired.row(e)->identity().raw_name().c_str());
                 }
             }
         }
@@ -1589,7 +1589,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                         continue;
 #ifndef NDEBUG
                     if(!s.frame.has_bdx(blob)) {
-                        print("Frame ", frameIndex,": Cannot find blob ",blob," in map.");
+                        Print("Frame ", frameIndex,": Cannot find blob ",blob," in map.");
                         continue;
                     }
 #endif
@@ -1686,7 +1686,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             .match_mode = default_config::matching_mode_t::none
         }, unassigned_blobs, [](pv::bid, Individual*) {
             // nothing
-            //print("Assigned inactive ", bdx, " to ", fish);
+            //Print("Assigned inactive ", bdx, " to ", fish);
         }, [frameIndex](pv::bid bdx, Individual* fish, const char* error) {
             if(!fish)
                 throw U_EXCEPTION(frameIndex, ": Cannot create individual for blob ", bdx, ". Reason: ", error);
@@ -1723,7 +1723,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
 
             if (pairs.probabilities().capacity() < IndividualManager::num_individuals() * unassigned_blobs.size()) {
 #ifndef NDEBUG
-                print("Reserving ", IndividualManager::num_individuals() * unassigned_blobs.size(), " pairs...");
+                Print("Reserving ", IndividualManager::num_individuals() * unassigned_blobs.size(), " pairs...");
 #endif
                 pairs.reserve(IndividualManager::num_individuals() * unassigned_blobs.size());
             }
@@ -1771,11 +1771,11 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                     }
                 }
                 
-                //print(fish->identity(), " -> ", for_this);
+                //Print(fish->identity(), " -> ", for_this);
                 pairs.add(fish->identity().ID(), std::move(for_this));
             });
             
-            //print("Ended up with ", pairs.probabilities().size(), "pairs.");
+            //Print("Ended up with ", pairs.probabilities().size(), "pairs.");
             PPFrame::Log("Ended up with ", pairs.probabilities().size(), "pairs.");
             PPFrame::Log(pairs);
             PairingGraph g(*s.props, s.frame.index(), std::move(pairs));
@@ -1790,9 +1790,9 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 .match_mode = default_config::matching_mode_t::none
                 
             }, std::move(optimal.pairings), [](pv::bid bdx, Idx_t fdx, Individual*) {
-                //print("Test for ", bdx, " -> ", fdx);
+                //Print("Test for ", bdx, " -> ", fdx);
                 /*if(not new_pairings.contains(fdx)) {
-                    print("\t not accepting ", bdx, " -> ", fdx);
+                    Print("\t not accepting ", bdx, " -> ", fdx);
                     return false;
                 }*/
                     
@@ -2120,7 +2120,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                     }
                     
                 } else if(!properties)
-                    print("No properties for fish ",fish->identity().ID());
+                    Print("No properties for fish ",fish->identity().ID());
             }
             
 #ifndef NDEBUG
@@ -2281,12 +2281,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             _approximative_enabled_in_frame.invalidate();
         }
         
-        print("** Removing frames after and including ", frameIndex);
+        Print("** Removing frames after and including ", frameIndex);
         
         if (not start_frame().valid() || end_frame() < frameIndex) //|| start_frame() > frameIndex)
             return;
         
-        print("** Looking at frames from ", start_frame(), " to ", end_frame());
+        Print("** Looking at frames from ", start_frame(), " to ", end_frame());
         
         PPFrame::CloseLogs();
         update_history_log();
@@ -2298,11 +2298,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                 
                 _consecutive.erase(--_consecutive.end());
             }
-            print("Last remaining ", _consecutive.size());
+            Print("Last remaining ", _consecutive.size());
             if(!_consecutive.empty()) {
                 if(_consecutive.back().end >= frameIndex)
                     _consecutive.back().end = frameIndex - 1_f;
-                print(_consecutive.back().start,"-",_consecutive.back().end);
+                Print(_consecutive.back().start,"-",_consecutive.back().end);
             }
         }
         
@@ -2371,10 +2371,10 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         
         global_segment_order_changed();
         
-        print("After removing frames: ", gui::CacheObject::memory());
-        print("posture: ", Midline::saved_midlines());
-        print("all blobs: ", pv::Blob::all_blobs());
-        print("Range: ", start_frame(),"-",end_frame());
+        Print("After removing frames: ", gui::CacheObject::memory());
+        Print("posture: ", Midline::saved_midlines());
+        Print("all blobs: ", pv::Blob::all_blobs());
+        Print("Range: ", start_frame(),"-",end_frame());
     }
 
     size_t Tracker::found_individuals_frame(Frame_t frameIndex) const {
@@ -2852,14 +2852,14 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
     
     void Tracker::check_segments_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
-        print("Waiting for lock...");
+        Print("Waiting for lock...");
         LockGuard guard(w_t{}, "check_segments_identities");
-        print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
+        Print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         if (source == IdentitySource::QRCodes)
-            print("Using physical tag information.");
+            Print("Using physical tag information.");
         else
-            print("Using machine learning data.");
+            Print("Using machine learning data.");
 
         std::atomic<size_t> count{0u};
         
@@ -2920,7 +2920,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 #ifdef TREX_DEBUG_IDENTITIES
             log(f, "fish ", fdx, ": segment ", range, " has ", N, " samples");
 #endif
-            //print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
+            //Print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
 
             std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
             sorted.insert(average.begin(), average.end());
@@ -3206,10 +3206,10 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         }
         
         //auto str = prettify_array(Meta::toStr(still_unassigned));
-        print("auto_assign is ", auto_correct ? 1 : 0);
+        Print("auto_assign is ", auto_correct ? 1 : 0);
         if(auto_correct) {
             add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges = std::move(tmp_assigned_ranges)]() mutable {
-                print("Assigning to queue from frame ", after_frame);
+                Print("Assigning to queue from frame ", after_frame);
                 
                 //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
@@ -3220,7 +3220,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                         fish->clear_recognition();
                     });
                     
-                    print("automatically_assigned_ranges ", tmp_assigned_ranges.size());
+                    Print("automatically_assigned_ranges ", tmp_assigned_ranges.size());
                     AutoAssign::set_automatic_ranges(std::move(tmp_assigned_ranges));
                     
                     if(!after_frame.valid()) {
@@ -3258,7 +3258,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                 
                 for(auto && sub : blobs) {
                     if(sub->blob_id() == bid) {
-                        //print("Found perfect match for ", bid," in blob ",b->blob_id());//blob_to_id[bid] = sub;
+                        //Print("Found perfect match for ", bid," in blob ",b->blob_id());//blob_to_id[bid] = sub;
                         //sub->calculate_moments();
                         return std::move(sub);
                         //break;
@@ -3324,7 +3324,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             Background bg(std::move(a), nullptr);
             
             if(!quiet)
-                print("Determining blob size in ", video.length()," frames...");
+                Print("Determining blob size in ", video.length()," frames...");
             
             Median<float> blob_size;
             pv::Frame frame;
@@ -3360,7 +3360,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                     /*if(*frame_values.rbegin() > 10) {
                         auto str = Meta::toStr(frame_values);
                         auto str0 = Meta::toStr(result);
-                        print(i / step,": ",*frame_values.rbegin()," ",str0.c_str());
+                        Print(i / step,": ",*frame_values.rbegin()," ",str0.c_str());
                     }*/
                     
                     values.insert(result.begin(), result.end());
@@ -3412,7 +3412,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                 
                 if(SETTING(auto_number_individuals).value<bool>()) {
                     if(!quiet)
-                        print("Setting number of individuals as ", median_number,".");
+                        Print("Setting number of individuals as ", median_number,".");
                     SETTING(track_max_individuals) = uint32_t(median_number);
                 }
             }

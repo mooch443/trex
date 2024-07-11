@@ -486,7 +486,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
            
         
         if(info.debug) {
-            print("Smoothed curvature: ", *_points);
+            Print("Smoothed curvature: ", *_points);
         }
         
         auto mode = OUTLINE_SETTING(peak_mode) == default_config::peak_mode_t::broad ? PeakMode::FIND_BROAD : PeakMode::FIND_POINTY;
@@ -537,7 +537,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         if(info.debug) {
            auto str = Meta::toStr(high_peaks);
         
-           print("\n", info.frameIndex,"(", info.fdx,"): Finding tail. ",str);
+           Print("\n", info.frameIndex,"(", info.fdx,"): Finding tail. ",str);
             std::vector<Vec2> maximums, highmax;
             for(auto peak : *maxima_ptr) {
                 maximums.push_back(peak.position);
@@ -618,7 +618,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             }
             
             if(info.debug)
-                print("peak has range ",merged.start,"-",merged.end," (",merged.length(),") - ",start,"-",end);
+                Print("peak has range ",merged.start,"-",merged.end," (",merged.length(),") - ",start,"-",end);
             idx = round(start + (end - start)*0.5);
             if(idx < 0)
                 idx += ptr->size();
@@ -738,7 +738,7 @@ void Outline::calculate_midline(Midline &midline, const DebugInfo& info) {
     midline.head_index() = _head_index;
     
     if(size() <= 1 || _confidence == 0) {
-        //print("Empty outline (",frameIndex,").");
+        //Print("Empty outline (",frameIndex,").");
         return;
     }
     
@@ -887,7 +887,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         }
         
         auto str = Meta::toStr(angles);
-        print("Array is ",str,", direction is ",atan2(direction[0]) * 180 / M_PI,";",atan2(direction[1]) * 180 / M_PI," sums are [",sums[0],",",sums[1],"] ",current_index," => ",sums[1 - current_index] < sums[current_index]);
+        Print("Array is ",str,", direction is ",atan2(direction[0]) * 180 / M_PI,";",atan2(direction[1]) * 180 / M_PI," sums are [",sums[0],",",sums[1],"] ",current_index," => ",sums[1 - current_index] < sums[current_index]);
         
         if(sums[1 - current_index] < sums[current_index]) {*/
         
@@ -909,7 +909,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
     
     if(_needs_invert) {
         if(info.debug)
-            print(info.frameIndex,"(",info.fdx,"): inverting Tail: ",tail_index(),", Head: ",head_index());
+            Print(info.frameIndex,"(",info.fdx,"): inverting Tail: ",tail_index(),", Head: ",head_index());
         
         if(!OUTLINE_SETTING(midline_start_with_head))
             std::reverse(segments().begin(), segments().end());
@@ -993,7 +993,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
             FormatWarning(p,"%%");
         if(info.debug) {
             segments() = old_copy;
-            print("Old");
+            Print("Old");
         }
         
         *for (size_t i=0; i<segments().size(); ++i) {
@@ -1141,7 +1141,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
             
         } else if(j >= resolution) {
            if(debug)
-               print("Cannot find anything for ",i,", extrapolating ",i - last_real," (",travelled_len," > ",original_len,")");
+               Print("Cannot find anything for ",i,", extrapolating ",i - last_real," (",travelled_len," > ",original_len,")");
 
            if(pts.size()>=3) {
                 auto v1 = pts.back().pos;
@@ -1170,7 +1170,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
                     seg.height *= 0.5;
 
                     if(debug)
-                        print("Added ", midline_points.size(),"/",resolution);
+                        Print("Added ", midline_points.size(),"/",resolution);
 
                     midline_points.push_back(seg);
                     i++;

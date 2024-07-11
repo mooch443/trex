@@ -53,5 +53,5 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
         }
     }
 
-    //print("Tiling image originally ", this->original->dimensions(), " to ", tile_size, " producing: ", offsets(), " (original_size=", original_size,")");
+    //Print("Tiling image originally ", this->original->dimensions(), " to ", tile_size, " producing: ", offsets(), " (original_size=", original_size,")");
 }

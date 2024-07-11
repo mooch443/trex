@@ -263,7 +263,7 @@ void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) 
     if(centers.empty())
         return;
     
-    //print("initial = ", centers);
+    //Print("initial = ", centers);
     
     int anyMerged;
     do {
@@ -278,7 +278,7 @@ void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) 
                 centers.insert(centers.begin() + next, newPoint);
                 radii.insert(radii.begin() + next, newRadius);
                 
-                //print("inserting ", newPoint, " at ", next);
+                //Print("inserting ", newPoint, " at ", next);
                 
                 anyMerged = next;
                 
@@ -567,7 +567,7 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
         std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
         if(std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish)
            && outline_point) {
-            print(frame, " ", blob->blob_id(),": threshold ", threshold);
+            Print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto &blob = thresholded_blob;
             auto && [pos, image] = blob->color_image();
             //tf::imshow("image", image->get());
@@ -579,8 +579,8 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
             auto peak_mode = SETTING(peak_mode).value<default_config::peak_mode_t::Class>() == default_config::peak_mode_t::broad ? periodic::PeakMode::FIND_BROAD : periodic::PeakMode::FIND_POINTY;
             auto && [maxima_ptr, minima_ptr] = periodic::find_peaks(curv, 0, diffs, peak_mode);
             auto str = Meta::toStr(*maxima_ptr);
-            print(frame, ", ", blob->blob_id(),": ", str.c_str());
-            print(*outline_point);
+            Print(frame, ", ", blob->blob_id(),": ", str.c_str());
+            Print(*outline_point);
             
             {
                 using namespace gui;
@@ -629,7 +629,7 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
                     
                     cv::circle(colored, OFFSET(outline().front()), 5, Yellow, -1);
                     
-                    print("tail:", midline->tail_index()," head:",midline->head_index());
+                    Print("tail:", midline->tail_index()," head:",midline->head_index());
                 }
                 
                 ColorWheel cwheel;

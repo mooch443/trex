@@ -18,7 +18,7 @@ Image::Ptr get_buffer() {
     {
         auto ptr = std::move(OverlayBuffers::buffers().back());
         OverlayBuffers::buffers().pop_back();
-        //print("Received from buffers ", ptr->bounds());
+        //Print("Received from buffers ", ptr->bounds());
         return ptr;
     }
     
@@ -29,7 +29,7 @@ void put_back(Image::Ptr&& ptr) {
     if (not ptr)
         return;
     auto guard = LOGGED_LOCK(OverlayBuffers::buffer_mutex());
-    //print("Pushed back buffer ", ptr->bounds());
+    //Print("Pushed back buffer ", ptr->bounds());
     OverlayBuffers::buffers().push_back(std::move(ptr));
 }
 }

@@ -221,7 +221,7 @@ file::Path conda_environment_path() {
     if(is_in(home, "CONDA_PREFIX", "", compiled_path)) {
 #ifndef NDEBUG
         if(!GlobalSettings::is_runtime_quiet())
-            print("Reset conda prefix ",home," / ",compiled_path);
+            Print("Reset conda prefix ",home," / ",compiled_path);
 #endif
         auto conda_prefix = getenv("CONDA_PREFIX");
         
@@ -248,7 +248,7 @@ file::Path conda_environment_path() {
         home = compiled_path;
     
     //if(!SETTING(quiet))
-    //    print("Set conda environment path = ",home);
+    //    Print("Set conda environment path = ",home);
     return home;
 }
     
@@ -282,7 +282,7 @@ file::Path conda_environment_path() {
         }
         
         if(found)
-            print("Found invalid settings in source ",source," (see above).");
+            Print("Found invalid settings in source ",source," (see above).");
     }
     
     bool is_deprecated(const std::string& key) {
@@ -947,7 +947,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(additional_exclusions, key)))
                 {
                     auto str = GlobalSettings::get(key).get().valueString();
-                    //print("adding ", key, " = ", str.c_str());
+                    //Print("adding ", key, " = ", str.c_str());
                     result[key] = &GlobalSettings::get(key).get();
                 }
             }
@@ -1039,7 +1039,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(not filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!GlobalSettings::is_runtime_quiet())
-                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
+                    Print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }
@@ -1106,7 +1106,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             /*if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!GlobalSettings::is_runtime_quiet())
-                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
+                    Print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }*/
@@ -1127,7 +1127,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         FormatWarning("[", settings_file.c_str(),"] Deprecated setting ", key," = ",val," found. Ignoring, as there is no replacement.");
                 } else {
                     if(!quiet)
-                        print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
+                        Print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
                     if(is_in(key, "whitelist_rect", "exclude_rect", "recognition_rect"))
                     {
                         auto values = Meta::fromStr<std::vector<float>>(val);

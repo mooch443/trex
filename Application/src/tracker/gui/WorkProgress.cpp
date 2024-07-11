@@ -98,12 +98,12 @@ struct WorkProgress::WorkGUIObjects {
 WorkInstance::WorkInstance(const std::string& name)
     : _name(name), _previous(WorkProgress::item())
 {
-    print("Setting work item to ",_name);
+    Print("Setting work item to ",_name);
     WorkProgress::set_item(name);
 }
 
 WorkInstance::~WorkInstance() {
-    print("Resetting work item to ",_previous);
+    Print("Resetting work item to ",_previous);
     WorkProgress::set_item(_previous);
 }
 
@@ -405,7 +405,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
         std::lock_guard<std::mutex> guard(_queue_lock);
         if(!title.empty()) {
             if(_item != title && !title.empty())
-                print("[WORK] ", title.c_str());
+                Print("[WORK] ", title.c_str());
             _item = title;
         }
         if(!desc.empty())
@@ -523,7 +523,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
                 if(custom_handler == -1) {
                     custom_handler = 1;
                     gui->custom_static_button.on_click([](auto){
-                        print("Custom item triggered");
+                        Print("Custom item triggered");
                         WorkProgress::custom_item();
                     });
                 }

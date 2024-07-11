@@ -209,7 +209,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                     }
                 }
                 
-                print("smooth ", _average, " ", _samples);
+                Print("smooth ", _average, " ", _samples);
                 return _average / _samples;
             }
             
@@ -1053,7 +1053,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                     if(_cache_func.count(fname) == 0
                        && not utils::beginsWith(fname, "pose")) 
                     {
-                        print("There is no function called ",fname,".");
+                        Print("There is no function called ",fname,".");
                         continue;
                     }
                     
@@ -1188,7 +1188,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             static std::string warning = "";
             if(warning != name) {
                 warning = name;
-                print("Cannot find output function ",name,".");
+                Print("Cannot find output function ",name,".");
             }
             return GlobalSettings::invalid();
         }
@@ -1213,7 +1213,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     
     void Library::add(const std::string& name, const FunctionType &func) {
         if (_cache_func.count(name)) {
-            print("Overwriting ",name," with new function.");
+            Print("Overwriting ",name," with new function.");
         }
         _cache_func[name] = func;
     }

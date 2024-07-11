@@ -25,10 +25,10 @@ struct GPUMatPtr {
     GPUMatPtr& operator=(GPUMatPtr&& ptr) noexcept {
 #ifndef NDEBUG
         if(this->ptr) {
-            cmn::print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
+            cmn::Print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
         }
         
-        //print("Moving buffer ",ptr.loc.file_name(),"::",ptr.loc.function_name(),":",ptr.loc.line());
+        //Print("Moving buffer ",ptr.loc.file_name(),"::",ptr.loc.function_name(),":",ptr.loc.line());
         this->loc = ptr.loc;
 #endif
         this->ptr = std::move(ptr.ptr);
@@ -36,7 +36,7 @@ struct GPUMatPtr {
     }
     
     static GPUMatPtr Make([[maybe_unused]] cmn::source_location loc) {
-        //print("Created buffer ", loc.file_name(),"::",loc.function_name(),":",loc.line());
+        //Print("Created buffer ", loc.file_name(),"::",loc.function_name(),":",loc.line());
         GPUMatPtr ptr;
         ptr.ptr = std::make_unique<useMat_t>();
 #ifndef NDEBUG
@@ -57,7 +57,7 @@ struct GPUMatPtr {
 #ifndef NDEBUG
     ~GPUMatPtr() {
         if(ptr)
-            cmn::print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
+            cmn::Print("Destroyed buffer ",loc.file_name(),"::",loc.function_name(),":",loc.line());
     }
 #endif
     

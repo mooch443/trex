@@ -127,9 +127,9 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
         if(!_wrong.empty() || !_confirmed.empty()) {
             DebugHeader("Review summary");
             double percent = double(_confirmed.size()) / double(_wrong.size() + _confirmed.size()) * 100;
-            print(_confirmed.size(), " confirmed");
-            print(_wrong.size(), " wrong");
-            print(_wrong.size() + _confirmed.size(), " instances (", dec<2>(percent),"% confirmed)");
+            Print(_confirmed.size(), " confirmed");
+            Print(_wrong.size(), " wrong");
+            Print(_wrong.size() + _confirmed.size(), " instances (", dec<2>(percent),"% confirmed)");
             DebugHeader("============== ");
             
             std::vector<Frame_t> rows;

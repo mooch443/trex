@@ -123,7 +123,7 @@ public:
             average_time += timer_.elapsed() * 1000;
             ++sample_count;
             if ((size_t)sample_count % 1000 == 0) {
-                print("Waited for source frame for ", average_time / sample_count, "ms");
+                Print("Waited for source frame for ", average_time / sample_count, "ms");
                 sample_count = 0;
                 average_time = 0;
             }

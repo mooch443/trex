@@ -32,17 +32,17 @@ void MouseDock::draw_background(Entangled &) {}
         //v /= mag;
 
 
-        //print("mag = ", mag, " (", sqrtf(mag) * dt * 40, ")");
+        //Print("mag = ", mag, " (", sqrtf(mag) * dt * 40, ")");
 
         if (mag > 5) {
             instance->pos = animate_position<InterpolationType::EASE_OUT>(instance->pos, mp, dt, 1/6.0);
             //GUICache::instance().set_animating(animator, true, &graph);
             //GUICache::instance().set_blobs_dirty();
-            //print("Set animating");
+            //Print("Set animating");
         }
         else {
             //GUICache::instance().set_animating(animator, false);
-            //print("Stop animating");
+            //Print("Stop animating");
         }
 
         //    instance->pos += v * sqrtf(mag) * dt * 40;
@@ -50,7 +50,7 @@ void MouseDock::draw_background(Entangled &) {}
         if(instance->attached.empty())
 			return;
 
-        //print("Current labels: ", instance->attached);
+        //Print("Current labels: ", instance->attached);
         //std::vector<Bounds> boundses;
         //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
         
@@ -66,7 +66,7 @@ void MouseDock::draw_background(Entangled &) {}
             
             //label->text()->set_alpha(1);
             //label->text()->set_txt(Meta::toStr(euclidean_distance(instance->pos, label->center())));
-            //print("distance = ", distance, " for ", label->text()->text());
+            //Print("distance = ", distance, " for ", label->text()->text());
             //if (mag > 5)
             //    GUICache::instance().set_animating(label->text().get(), true);
             //else
@@ -84,12 +84,12 @@ void MouseDock::draw_background(Entangled &) {}
         }
         
         if(bounds.width > 0) {
-            //print("Added: ", boundses);
+            //Print("Added: ", boundses);
             Vec2 p = animate_position<InterpolationType::EASE_OUT>(instance->_rect.pos(), bounds.pos(), dt, 1/8.0);
             Size2 s = animate_position<InterpolationType::EASE_OUT>(p + instance->_rect.size(), p + bounds.size(), dt, 1/4.0);
             instance->_rect.set_bounds(Bounds(p, s - p));
             graph.advance_wrap(instance->_rect);
-            //print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
+            //Print("MouseDock bounds: ", bounds, " vs ", instance->_rect.bounds());
         }
 
         for (auto label : instance->attached) {

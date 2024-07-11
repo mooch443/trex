@@ -189,7 +189,7 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
 }
 
 void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
-    print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex);
+    Print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex);
     
     auto matches = FAST_SETTING(manual_matches);
     auto &current = matches[frameIndex];
@@ -321,7 +321,7 @@ void draw_blob_view(const DisplayParameters& parm)
             //Transform section_transform = s->global_transform();
             auto mp = parm.coord.convert(HUDCoord(base.mouse_position())); //bowl.transformPoint(base.mouse_position());
             
-            //print("Updating frame ", parm.cache.processed_frame);
+            //Print("Updating frame ", parm.cache.processed_frame);
             parm.cache.processed_frame().transform_noise([&](pv::Blob& blob){
                 //auto id = blob.blob_id();
                 auto d = euclidean_distance(mp, blob.bounds().pos());
@@ -337,7 +337,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     auto d = euclidean_distance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
                     
-                    //print(id, ": ", d);
+                    //Print(id, ": ", d);
                     
                     if(_blob_labels.count(&blob))
                         std::get<0>(_blob_labels.at(&blob)) = true;
@@ -510,7 +510,7 @@ void draw_blob_view(const DisplayParameters& parm)
                         //if(real_size > 0 && od <= max(25, blob->bounds().size().max() * 0.75)
                         //    && parm.cache.frame_idx == label->frame())
                     {
-                        //print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center(), " with distance ", od);
+                        //Print("Registering label. ", parm.cache.frame_idx, " ", label->frame(), " ", blob->center(), " with distance ", od);
                         MouseDock::register_label(label.get(), blob->center());
                     }
                     else {
@@ -603,12 +603,12 @@ void draw_blob_view(const DisplayParameters& parm)
                             }
                         }
                         
-                        print("Assigning blob ", clicked_blob_id," to ",Identity::Temporary(id));
+                        Print("Assigning blob ", clicked_blob_id," to ",Identity::Temporary(id));
                         //TODO: fix this
                         add_manual_match(cache.frame_idx, id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
                     } else
-                        print("Cannot find individual with ID ",item.ID()-1,".");
+                        Print("Cannot find individual with ID ",item.ID()-1,".");
                 }
                 
                 _clicked_blob_id = pv::bid::invalid;
@@ -766,7 +766,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                 if(r == Dialog::OKAY) {
                     try {
                         auto value = Meta::fromStr<float>(text.text());
-                        print("Value is: ", value);
+                        Print("Value is: ", value);
                         
                         if(value > 0) {
                             SETTING(cm_per_pixel) = float(value / D);
@@ -832,7 +832,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                 } catch(...) {}
                 
             } else {
-                print("Cannot create a convex polygon from ",_current_boundary.back().size()," points.");
+                Print("Cannot create a convex polygon from ",_current_boundary.back().size()," points.");
             }
         } else if(is_vectors) {
             try {
@@ -860,9 +860,9 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
             }
         }
         
-        print("Selected boundary:");
+        Print("Selected boundary:");
         for(auto & boundary : _current_boundary) {
-            print("\t", boundary);
+            Print("\t", boundary);
         }
         
         _current_boundary.clear();

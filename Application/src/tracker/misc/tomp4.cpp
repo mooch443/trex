@@ -264,13 +264,13 @@ FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, ImageMode mode, const f
     ffmpeg::Settings::init();
 
     // print out information about the ffmpeg library used:
-    print("FFMPEG version: ", av_version_info());
-    print("Macro: ", LIBAVCODEC_VERSION_MAJOR, ".", LIBAVCODEC_VERSION_MINOR);
-    print("FFMPEG configuration: ", avcodec_configuration());
+    Print("FFMPEG version: ", av_version_info());
+    Print("Macro: ", LIBAVCODEC_VERSION_MAJOR, ".", LIBAVCODEC_VERSION_MINOR);
+    Print("FFMPEG configuration: ", avcodec_configuration());
 #if defined(__aarch64__)
-    print("Architecture: arm64");
+    Print("Architecture: arm64");
 #else
-    print("Architecture: x86_64");
+    Print("Architecture: x86_64");
 #endif
 
     frame_ms = 1000.0 / FFMPEG_SETTING(frame_rate); // ms / frame
@@ -349,7 +349,7 @@ void FFMPEGQueue::prints(bool force){
                 compressed_size = 0;
         }
         
-        print("[FFMPEG] so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
+        Print("[FFMPEG] so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
         last_printout.reset();
     }
 }
@@ -374,7 +374,7 @@ void FFMPEGQueue::loop() {
     if(_direct)
         close_video();
     
-    print("Closed conversion loop.");
+    Print("Closed conversion loop.");
 }
 
 void FFMPEGQueue::loop_once(std::unique_lock<std::mutex>& guard) {
@@ -389,7 +389,7 @@ void FFMPEGQueue::loop_once(std::unique_lock<std::mutex>& guard) {
             }
             
             if(_queue.size()%size_t(max(1, initial_size * 0.1)) == 0)
-                print("Processing remaining queue (", _queue.size()," images)");
+                Print("Processing remaining queue (", _queue.size()," images)");
             
         } else {
             double samples, ms, compressed_size;
@@ -481,7 +481,7 @@ void FFMPEGQueue::process_one_image(timestamp_t stamp, const std::unique_ptr<cmn
             _write_condition.notify_one();
             
         } else {
-            print("Compression of ",pack->in_len," bytes failed.");
+            Print("Compression of ",pack->in_len," bytes failed.");
         }
     }
     
@@ -531,7 +531,7 @@ void FFMPEGQueue::write_loop() {
                 }
                 
                 if(packages.size()%size_t(initial_size * 0.1) == 0)
-                    print("Processing remaining packages (", packages.size()," packages)");
+                    Print("Processing remaining packages (", packages.size()," packages)");
             }
             
             update_statistics(frame_write_timer.elapsed(), pack->out_len + sizeof(Package));
@@ -542,7 +542,7 @@ void FFMPEGQueue::write_loop() {
     }
     
     close_video();
-    print("Quit write_loop");
+    Print("Quit write_loop");
 }
 
 void FFMPEGQueue::update_statistics(double ms, double image_size) {
@@ -658,22 +658,22 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
 
             int ret = avcodec_open2(tempContext, _codec, NULL);
             if (ret >= 0) {
-                print("[FFMPEG::Output] Using codec ", codecInfo.name, " for ", _size.width, "x", _size.height, " video.");
+                Print("[FFMPEG::Output] Using codec ", codecInfo.name, " for ", _size.width, "x", _size.height, " video.");
 
                 /*if (_codec->id == AV_CODEC_ID_H264) {
-                    print("\tLevel: ", tempContext->level);
+                    Print("\tLevel: ", tempContext->level);
                     
                     uint8_t *realtimeOption{nullptr};
                     if(av_opt_get((void*)&_codec->priv_class, "realtime", 0, &realtimeOption) == 0)
                     {
-                        print("\tRealtime option: ", (const char*)realtimeOption);
+                        Print("\tRealtime option: ", (const char*)realtimeOption);
                         av_free(realtimeOption);
                     }
 
                     uint8_t *profileOption{nullptr};
                     if(av_opt_get((void*)&_codec->priv_class, "profile", 0, &profileOption) == 0)
                     {
-                        print("\tProfile: ", (const char*)profileOption);
+                        Print("\tProfile: ", (const char*)profileOption);
                         av_free(profileOption);
                     }
                 }*/
@@ -845,8 +845,8 @@ void FFMPEGQueue::open_video() {
                          (AVPixelFormat)input_frame->format, c->width, c->height,
                          c->pix_fmt, 0, 0, 0, 0);
     
-    print("linesizes: ", frame->linesize[0], " ", frame->linesize[1], " ", frame->linesize[2], " ", frame->linesize[3]);
-    print("frame: ", c->width, "x", c->height, " (", frame->width, "x", frame->height, ")");
+    Print("linesizes: ", frame->linesize[0], " ", frame->linesize[1], " ", frame->linesize[2], " ", frame->linesize[3]);
+    Print("frame: ", c->width, "x", c->height, " (", frame->width, "x", frame->height, ")");
     
     memset(input_frame->data[0], 0, input_frame->linesize[0]);
     sws_scale(ctx, input_frame->data, input_frame->linesize, 0, frame->height, frame->data, frame->linesize);
@@ -876,13 +876,13 @@ void FFMPEGQueue::close_video() {
     cnpy::npy_save(_output_path.replace_extension("npy").str(), timestamps);
     cnpy::npy_save(_output_path.remove_extension().str()+"_indexes.npy", mp4_indexes);
 
-    print("Closed video.");
+    Print("Closed video.");
     
     //file::Path ffmpeg = SETTING(ffmpeg_path);
     //if(!ffmpeg.empty())
     //{
        // file::Path save_path = _output_path.replace_extension("mp4");
-       // print("Remuxing ",_output_path.str()," to ",save_path.str(),"...");
+       // Print("Remuxing ",_output_path.str()," to ",save_path.str(),"...");
         //remux(_output_path.str(), save_path.str());
         
         /*std::string cmd = ffmpeg.str()+" -fflags +genpts -i "+_output_path.str()+" -vcodec copy -y "+save_path.str();
@@ -939,7 +939,7 @@ void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image)
 
     //frame->pts = pts * (c->time_base.den / c->time_base.num);
     frame->pts = pts;
-    //print("frame ", pts, "->pts = ", frame->pts);
+    //Print("frame ", pts, "->pts = ", frame->pts);
     pts++;
 
     // Encode the frame
@@ -987,7 +987,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                     
                 } else {
                     // we can keep all frames
-                    print("Cool, we dont need to skip any frames, we can keep it all in memory (", needed_ms,"ms / frame, ",compressed," compressed).");
+                    Print("Cool, we dont need to skip any frames, we can keep it all in memory (", needed_ms,"ms / frame, ",compressed," compressed).");
                 }
                 
                 last_call.reset();

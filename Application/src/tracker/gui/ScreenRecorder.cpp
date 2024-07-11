@@ -117,7 +117,7 @@ struct ScreenRecorder::Data {
                 duration.timestamp = timestamp_t(double(duration.timestamp) / double(playback_speed));
                 str += " (real: "+Meta::toStr(duration)+")";
             }
-            print("[rec] ", str.c_str());
+            Print("[rec] ", str.c_str());
             last_print.reset();
         }
     }
@@ -141,9 +141,9 @@ struct ScreenRecorder::Data {
                 graph->dialog([save_path, cmd](Dialog::Result result){
                     if(result == Dialog::OKAY) {
                         WorkProgress::add_queue("converting video...", [cmd=cmd, save_path=save_path](){
-                            print("Running ",cmd,"..");
+                            Print("Running ",cmd,"..");
                             if(system(cmd.c_str()) == 0)
-                                print("Saved video at ", save_path.str(),".");
+                                Print("Saved video at ", save_path.str(),".");
                             else
                                 FormatError("Cannot save video at ",save_path.str(),".");
                         });
@@ -212,10 +212,10 @@ struct ScreenRecorder::Data {
             ++max_number;
             
         } catch(const UtilsException& ex) {
-            print("Cannot iterate on folder ",frames.str(),". Defaulting to index 0.");
+            Print("Cannot iterate on folder ",frames.str(),". Defaulting to index 0.");
         }
         
-        print("Clip index is ", max_number,". Starting at frame ",frame,".");
+        Print("Clip index is ", max_number,". Starting at frame ",frame,".");
         
         frames = frames / (clip_prefix + Meta::toStr(max_number));
         cv::Size size(base
@@ -233,7 +233,7 @@ struct ScreenRecorder::Data {
                 size.width -= size.width % 2;
             if(size.height % 2 > 0)
                 size.height -= size.height % 2;
-            print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",SETTING(frame_rate).value<uint32_t>());
+            Print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",SETTING(frame_rate).value<uint32_t>());
             
             frames = frames.add_extension(format.toStr()).str();
             _recording_capture = new cv::VideoWriter{
@@ -267,12 +267,12 @@ struct ScreenRecorder::Data {
                     _recording = false;
                     return;
                 } else
-                    print("Created folder ", frames.str(),".");
+                    Print("Created folder ", frames.str(),".");
             }
         }
         
         base->set_frame_recording(true);
-        print("Recording to ", frames,"... (",format.name(),")");
+        Print("Recording to ", frames,"... (",format.name(),")");
         
         _recording_size = size;
         _recording_path = frames;

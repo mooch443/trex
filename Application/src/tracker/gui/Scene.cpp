@@ -24,10 +24,10 @@ Scene::~Scene() {
 }
 
 void Scene::activate() {
-    print("Activating scene ", _name);
+    Print("Activating scene ", _name);
 }
 void Scene::deactivate() {
-    print("Deactivating scene ", _name);
+    Print("Deactivating scene ", _name);
 }
 
 void Scene::draw(DrawStructure& base) {
@@ -53,7 +53,7 @@ void SceneManager::set_active(Scene* scene) {
             if(active_scene == scene) return;
 
             if (active_scene && active_scene != scene) {
-                print("[SceneManager] Deactivating ", active_scene->name());
+                Print("[SceneManager] Deactivating ", active_scene->name());
                 active_scene->deactivate();
                 
                 {
@@ -65,10 +65,10 @@ void SceneManager::set_active(Scene* scene) {
             last_active_scene = active_scene;
             active_scene = scene;
             if (scene) {
-                print("[SceneManager] Switching to ", scene->name());
+                Print("[SceneManager] Switching to ", scene->name());
                 scene->activate();
             } else
-                print("[SceneManager] Deactivating.");
+                Print("[SceneManager] Deactivating.");
             
         } catch(const std::exception& e) {
             SceneManager::set_switching_error(e.what());
@@ -77,7 +77,7 @@ void SceneManager::set_active(Scene* scene) {
 				SceneManager::getInstance().set_active(SceneManager::getInstance().fallback_scene);
 			}
             else {
-				print("[SceneManager] No fallback scene for error: ", e.what());
+                Print("[SceneManager] No fallback scene for error: ", e.what());
 			}
         }
     };
@@ -206,7 +206,7 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         if (msg != e.what()) {
 			msg = e.what();
             graph.dialog(settings::htmlify(e.what()), "Error");
-			//print("[SceneManager] Error: ", msg);
+            //Print("[SceneManager] Error: ", msg);
 		}
 	}
     

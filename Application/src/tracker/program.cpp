@@ -74,7 +74,7 @@ int main() {
     
     base.loop();
     
-    print("Terminating");
+    Print("Terminating");
     
     return 0;
 }

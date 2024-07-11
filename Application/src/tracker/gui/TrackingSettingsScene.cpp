@@ -15,7 +15,7 @@ TrackingSettingsScene::TrackingSettingsScene(Base& window)
 _preview_image(std::make_shared<ExternalImage>())
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
-    print(window.window_dimensions().mul(dpi), " and logo ", _preview_image->size());
+    Print(window.window_dimensions().mul(dpi), " and logo ", _preview_image->size());
     
     _button_layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{});
     //_button_layout->set_pos(Vec2(1024 - 10, 550));
@@ -78,25 +78,25 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
                     auto prev = SceneManager::getInstance().last_active();
                     if(prev)
                         SceneManager::getInstance().set_active(prev);
-                    print("Going back");
+                    Print("Going back");
                 }),
                 ActionFunc("convert", [](auto){
                     SceneManager::getInstance().set_active("convert-scene");
                 }),
                 ActionFunc("choose-source", [](auto){
-                    print("choose-source");
+                    Print("choose-source");
                 }),
                 ActionFunc("choose-target", [](auto){
-                    print("choose-target");
+                    Print("choose-target");
                 }),
                 ActionFunc("choose-model", [](auto){
-                    print("choose-detection");
+                    Print("choose-detection");
                 }),
                 ActionFunc("choose-region", [](auto){
-                    print("choose-region");
+                    Print("choose-region");
                 }),
                 ActionFunc("choose-settings", [](auto){
-                    print("choose-settings");
+                    Print("choose-settings");
                 }),
                 ActionFunc("toggle-background-subtraction", [](auto){
                     SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();

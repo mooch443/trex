@@ -191,7 +191,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
             if(_clicked_background)
                 _clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
             else
-                print("Clicked, but nobody is around.");
+                Print("Clicked, but nobody is around.");
         }
     });
     
@@ -209,7 +209,7 @@ TrackingScene::TrackingScene(Base& window)
 : Scene(window, "tracking-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
-    print("window dimensions", window.window_dimensions().mul(dpi));
+    Print("window dimensions", window.window_dimensions().mul(dpi));
 }
 
 // Utility function to find the appropriate Idx_t based on a given comparator
@@ -579,20 +579,20 @@ void TrackingScene::deactivate() {
     
     auto config = default_config::generate_delta_config();
     for(auto &[key, value] : config.map) {
-        print(" * ", *value);
+        Print(" * ", *value);
     }
-    print();
+    Print();
     for(auto &key : GlobalSettings::current_defaults_with_config().keys()) {
         auto value = GlobalSettings::map().at(key);
         if(/*contains(config.excluded.toVector(), key)
            && GlobalSettings::access_level(key) < AccessLevelType::LOAD*/
            is_in(key, "filename", "source", "output_dir", "output_prefix"))
         {
-            print(" . ", value.get());
+            Print(" . ", value.get());
             value.get().copy_to(&GlobalSettings::current_defaults_with_config());
             continue;
         }
-        //print(" - ", value.get());
+        //Print(" - ", value.get());
         GlobalSettings::current_defaults_with_config().erase(key);
     }
     
@@ -739,13 +739,13 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(_data->_cache) {
         auto frameIndex = GUI_SETTINGS(gui_frame);
         //do {
-        //print("Loading ", frameIndex);
+        //Print("Loading ", frameIndex);
             loaded = _data->_cache->update_data(frameIndex);
             
         //} while(_data->_recorder.recording() && loaded.valid() && loaded != frameIndex);
         
         if(loaded.valid() || _data->_cache->fish_dirty()) {
-            //print("Update all... ", loaded, "(",frameIndex,")");
+            //Print("Update all... ", loaded, "(",frameIndex,")");
             
             if(loaded.valid())
                 SETTING(gui_displayed_frame) = loaded;
@@ -852,13 +852,13 @@ void TrackingScene::_draw(DrawStructure& graph) {
                     {
                         remove.push_back(fdx);
 #ifndef NDEBUG
-                        print("* removing individual ", fdx);
+                        Print("* removing individual ", fdx);
 #endif
                     }
                 }
                 
-                //print("active = ", _data->_cache->active_ids);
-                //print("inactive = ", _data->_cache->inactive_ids);
+                //Print("active = ", _data->_cache->active_ids);
+                //Print("inactive = ", _data->_cache->inactive_ids);
                 
                 for(auto fdx: remove)
                     _data->_last_bounds.erase(fdx);
@@ -941,7 +941,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
     //    std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
-    //print("dirty = ", graph.root().is_dirty());
+    //Print("dirty = ", graph.root().is_dirty());
     if(graph.root().is_dirty())
         last_dirty.reset();
     else if(last_dirty.elapsed() > 0.25)
@@ -1100,7 +1100,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                             _state->_controller->_busy = false;
                             return;
                         }
-                        print(text.c_str());
+                        Print(text.c_str());
                         _state->_controller->_current_percent = percent;
                         //GUI::instance()->set_status(text);
                     }
@@ -1111,7 +1111,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             }),
             ActionFunc("visual_identification", [this](Action) {
                 vident::training_data_dialog(SceneManager::getInstance().gui_task_queue(), false, [](){
-                    print("callback ");
+                    Print("callback ");
                 }, _state->_controller.get());
             }),
             ActionFunc("remove_automatic_matches", [this](const Action& action) {
@@ -1121,7 +1121,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                    && action.parameters.back().front() == '[')
                 {
                     auto range = FrameRange(Meta::fromStr<Range<Frame_t>>(action.parameters.back()));
-                    print("Erasing automatic matches for fish ", fdx," in range ", range.start(),"-",range.end());
+                    Print("Erasing automatic matches for fish ", fdx," in range ", range.start(),"-",range.end());
                     if(_state && _state->tracker) {
                         LockGuard guard(w_t{}, "automatic assignments");
                         AutoAssign::delete_automatic_assignments(fdx, range);
@@ -1130,7 +1130,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     }
                 } else {
                     auto frame = Meta::fromStr<Frame_t>(action.parameters.back());
-                    print("Erasing automatic matches for fish ", fdx," in frame ", frame);
+                    Print("Erasing automatic matches for fish ", fdx," in frame ", frame);
                     if(_state && _state->tracker) {
                         LockGuard guard(w_t{}, "automatic assignments");
                         AutoAssign::delete_automatic_assignments(fdx, FrameRange(Range<Frame_t>{frame, frame}));
@@ -1139,7 +1139,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     }
                 }
                 
-                print("Got ", action.name, ": ", action.parameters);
+                Print("Got ", action.name, ": ", action.parameters);
             }),
             
             VarFunc("is_segment", [this](const VarProps& props) -> bool {

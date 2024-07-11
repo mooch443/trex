@@ -180,7 +180,7 @@ void IndividualManager::clear() noexcept {
     Identity::Reset();
     
 #ifndef NDEBUG
-    print("[IManager] Cleared all individuals.");
+    Print("[IManager] Cleared all individuals.");
 #endif
 }
 
@@ -213,7 +213,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
                 delete_callback(it->second.get());
             
             auto fish = it->second.get();
-            print("Deleting individual ", fish, " aka ", fish->identity());
+            Print("Deleting individual ", fish, " aka ", fish->identity());
             //assert(not track::last_active or not track::last_active->contains(it->second.get()));
             
             for(auto &[frame, fishes] : all_frames) {
@@ -271,10 +271,10 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
         Identity::Reset(largest_valid + Idx_t(1));
     
 #ifndef NDEBUG
-    print("[IManager] Removed frames from ", from, ".");
-    print("[IManager] Inactive individuals: ", track::inactive_individuals);
-    print("[IManager] Active individuals: ", track::last_active ? Meta::toStr(*track::last_active) : "null");
-    print("[IManager] All individuals: ", individuals());
+    Print("[IManager] Removed frames from ", from, ".");
+    Print("[IManager] Inactive individuals: ", track::inactive_individuals);
+    Print("[IManager] Active individuals: ", track::last_active ? Meta::toStr(*track::last_active) : "null");
+    Print("[IManager] All individuals: ", individuals());
 #endif
 }
 
@@ -471,7 +471,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             // if last assignment was too long ago, throw individuals
             // out of the active set and put them into the inactive:
             assert(not contains(track::inactive_individuals, fish->identity().ID()));
-            //print("Current(",frame.index(),"): Putting ", fish, " in inactive.");
+            //Print("Current(",frame.index(),"): Putting ", fish, " in inactive.");
             track::inactive_individuals[fish->identity().ID()] = (fish);
         }
     }

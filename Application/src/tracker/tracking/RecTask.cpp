@@ -35,7 +35,7 @@ bool RecTask::can_take_more() {
     std::unique_lock guard(mutex());
     if(last_print_timer.elapsed() > 5)
     {
-        print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
+        Print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
         last_print_timer.reset();
     }
     bool result = _queue.size() < 100
@@ -43,7 +43,7 @@ bool RecTask::can_take_more() {
                 || (_queue.size() < 50 && _time_last_added.elapsed() > _average_time_per_task * 2));
 #ifndef NDEBUG
     if(result)
-        print("\tAllowing a task to be added (",_time_last_added.elapsed(), ") size=[",_queue.size(),"].");
+        Print("\tAllowing a task to be added (",_time_last_added.elapsed(), ") size=[",_queue.size(),"].");
 #endif
     return result;
 }
@@ -54,7 +54,7 @@ void RecTask::thread() {
     double time_per_task_samples = 0;
 
     set_thread_name("RecTask::update_thread");
-    print("RecTask::update_thread begun");
+    Print("RecTask::update_thread begun");
 
     try {
         RecTask::init();
@@ -70,24 +70,24 @@ void RecTask::thread() {
                 //if(!_queue.empty())
                 
                 if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
-                    print("waiting for task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                    Print("waiting for task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
                     
                     /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
                     std::map<Idx_t, std::vector<Frame_t>> histo;
                     for(auto &t : _queue) {
                         histo[t._fdx].push_back(t._segment_start);
                         if(segments.contains({t._fdx, t._segment_start})) {
-                            //print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
+                            //Print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
                         } else
                             segments.insert({t._fdx, t._segment_start});
                     }
                     
-                    print("\t-> ",histo);*/
+                    Print("\t-> ",histo);*/
                 }
                 
                 _current_fdx = task._fdx;
                 
-                //print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
+                //Print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
 
                 guard.unlock();
                 try {
@@ -107,7 +107,7 @@ void RecTask::thread() {
                     time_per_task_samples = 1;
                     _average_time_per_task = time_per_task;
                     
-                    print("RecTask::time_per_task(",DurationUS{ uint64_t(_average_time_per_task * 1000 * 1000) },")");
+                    Print("RecTask::time_per_task(",DurationUS{ uint64_t(_average_time_per_task * 1000 * 1000) },")");
                 }
                 
                 ++counted;
@@ -123,7 +123,7 @@ void RecTask::thread() {
         SETTING(terminate) = true;
     }
 
-    print("RecTask::update_thread ended");
+    Print("RecTask::update_thread ended");
 }
 
 bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, const std::function<void()>& callback) {
@@ -151,7 +151,7 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
         //if(task._images.size() < 5)
         //    return false;
         
-        //print("[fill] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
+        //Print("[fill] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
         _queue.emplace_back(std::move(task));
         
         return true;
@@ -162,7 +162,7 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
     if(task._images.size() < 5)
         return false;
     
-    //print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
+    //Print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
     
     _queue.emplace_back(std::move(task));
     _variable.notify_one();
@@ -209,7 +209,7 @@ void RecTask::update(RecTask&& task) {
 
             result.best_id = max_key;
             result.p = float(maximum) / float(N);
-            //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
+            //Print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
             static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
             if (tags_save_predictions) {
@@ -240,7 +240,7 @@ void RecTask::update(RecTask&& task) {
 
                     output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
 
-                    print("\t\t-> exporting ", images.size(), " guesses to ", output);
+                    Print("\t\t-> exporting ", images.size(), " guesses to ", output);
 
                     for (size_t i = 0; i < images.size(); ++i) {
                         cv::imwrite(output.str() + Meta::toStr(i) + ".png", images[i]->get());
@@ -250,7 +250,7 @@ void RecTask::update(RecTask&& task) {
                 ++saved_index;
             }
 
-            //print("Calling callback on ", result.individual, " and frame ", result._segment_start);
+            //Print("Calling callback on ", result.individual, " and frame ", result._segment_start);
             callback(std::move(result));
         };
 
@@ -315,7 +315,7 @@ void RecTask::init() {
             py::set_variable("width", 32, tagwork);
             py::set_variable("height", 32, tagwork);
             py::run(tagwork, "init");
-            print("Initialized tagging successfully.");
+            Print("Initialized tagging successfully.");
             _initialized = true;
             
         } catch(...) {

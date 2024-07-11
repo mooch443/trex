@@ -25,12 +25,12 @@ void TrainingData::print_pointer_stats() {
     });*/
 #ifndef NDEBUG
     std::lock_guard<std::mutex> guard(_data_pointer_mutex);
-    print("----");
-    print("Currently ", _data_pointers.size()," trainingdata are allocated.");
+    Print("----");
+    Print("Currently ", _data_pointers.size()," trainingdata are allocated.");
     for(auto &ptr : _data_pointers) {
-        print("\t", *ptr);
+        Print("\t", *ptr);
     }
-    print("----");
+    Print("----");
 #endif
 }
 
@@ -54,7 +54,7 @@ void remove_pointer(TrainingData* data) {
         auto str = Meta::toStr(*data);
         if(_data_pointers.count(data) == 0)
             throw U_EXCEPTION("Cannot find pointer to ",str);
-        print("Removing ", str.c_str());
+        Print("Removing ", str.c_str());
         _data_pointers.erase(data);
     }
     
@@ -200,7 +200,7 @@ void TrainingData::apply_mapping(const std::map<Idx_t, Idx_t>& mapping) {
         
         if(!data->salty) {
             auto str = Meta::toStr(mapping);
-            print("Changed mapping with ", str," for ", data->frames.start,"-",data->frames.end);
+            Print("Changed mapping with ", str," for ", data->frames.start,"-",data->frames.end);
         }
         
         std::map<Idx_t, DataRange::PerIndividual> map;
@@ -222,7 +222,7 @@ void TrainingData::apply_mapping(const std::map<Idx_t, Idx_t>& mapping) {
         
         for(auto & id : data->ids) {
             if(!data->applied_mapping.count(id)) {
-                print("\tCannot find what id ",id," maps to in applied mapping. Defaulting to same->same.");
+                Print("\tCannot find what id ",id," maps to in applied mapping. Defaulting to same->same.");
                 
                 for(auto && [from, to] : data->applied_mapping) {
                     if(to == id) {
@@ -419,7 +419,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         return;
     }
     
-    print("[TrainingData] Merging ",*this," with ",*other,".");
+    Print("[TrainingData] Merging ",*this," with ",*other,".");
     
     // merge all_classes for both trainingdata and also merge filters
     for(auto id : other->all_classes()) {
@@ -519,7 +519,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         }
     }
     
-    print("[TrainingData] Finished merging: ",*this," (added images: ",added_images,")");
+    Print("[TrainingData] Finished merging: ",*this," (added images: ",added_images,")");
     
     //if(unmap_everything) {
      //   auto image = draw_coverage();
@@ -550,7 +550,7 @@ std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>> TrainingData::join_arra
     std::map<fdx_t, std::set<frame_t>> added_data;
     
     if(_data.size() > 1)
-        print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");
+        Print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");
     
     for(auto & d : _data) {
         // ignore salt
@@ -583,7 +583,7 @@ TrainingData::TrainingAndValidation TrainingData::join_split_data() const {
     std::map<fdx_t, std::set<frame_t>> added_data;
     
     if(_data.size() > 1)
-        print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");
+        Print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");
     
     for(auto &d : _data) {
         for(size_t i=0; i<d->images.size(); ++i) {
@@ -615,7 +615,7 @@ Idx_t TrainingData::DataRange::unmap(Idx_t id) const {
     if(applied_mapping.empty()) return id;
     for (auto && [original, mapped] : applied_mapping) {
         if(mapped == id) {
-            print("\treversing applied mapping ", mapped," -> ",original);
+            Print("\treversing applied mapping ", mapped," -> ",original);
             return original;
         }
     }
@@ -630,7 +630,7 @@ void TrainingData::DataRange::reverse_mapping() {
         return;
     
     auto str = Meta::toStr(applied_mapping);
-    print("Reversing mapping with ", str," for ", frames.start,"-",frames.end);
+    Print("Reversing mapping with ", str," for ", frames.start,"-",frames.end);
     
     std::map<Idx_t, DataRange::PerIndividual> map;
     for(auto && [to, from] : applied_mapping) {
@@ -722,7 +722,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
             N += range.length();
         }
         
-        print("\t(salt) ", id,": new salt N=",N);
+        Print("\t(salt) ", id,": new salt N=",N);
     }
     
     size_t maximum_samples_per_individual = 0;
@@ -739,7 +739,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     for(auto &d : data()) {
         if(!d->applied_mapping.empty()) {
             add_range->applied_mapping = d->applied_mapping;
-            print("add_range->applied_mappig = ", add_range->applied_mapping);
+            Print("add_range->applied_mappig = ", add_range->applied_mapping);
             break;
         }
     }
@@ -835,14 +835,14 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
             }
         }
         
-        print("\t(salt) Individual ",id," (N=", N,"): added a total of ", actually_added," / ", int64_t(max_images_per_class)," frames (", std::get<0>(individual_added_salt[id])," training, ", std::get<1>(individual_added_salt[id])," validation)");
+        Print("\t(salt) Individual ",id," (N=", N,"): added a total of ", actually_added," / ", int64_t(max_images_per_class)," frames (", std::get<0>(individual_added_salt[id])," training, ", std::get<1>(individual_added_salt[id])," validation)");
         
         std::get<1>(individual_samples_before_after[id]) = std::get<0>(individual_samples_before_after[id]) + std::get<0>(individual_added_salt[id]) + std::get<1>(individual_added_salt[id]);
     }
     
     auto str = Meta::toStr(individual_added_salt);
     auto after = Meta::toStr(individual_samples_before_after);
-    print("Added salt (maximum_samples_per_individual = ",maximum_samples_per_individual,", Nmax = ",Nmax,"): ",str.c_str()," -> ",after.c_str());
+    Print("Added salt (maximum_samples_per_individual = ",maximum_samples_per_individual,", Nmax = ",Nmax,"): ",str.c_str()," -> ",after.c_str());
     
     return add_range;
 }
@@ -900,11 +900,11 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     double percentile = ceil((most_samples - fewest_samples) * 0.65 + fewest_samples); // 0.65 percentile of #images/class
     const double current_filesize_per_class = percentile * (double)output_size.width * (double)output_size.height * 4;
     
-    print("Fewest samples for an individual is ", int64_t(fewest_samples)," samples, most are ", int64_t(most_samples),". 65% percentile is ", percentile);
+    Print("Fewest samples for an individual is ", int64_t(fewest_samples)," samples, most are ", int64_t(most_samples),". 65% percentile is ", percentile);
     if(current_filesize_per_class * number_classes / 1000.0 / 1000.0 / 1000.0 >= gpu_max_sample_gb)
     {
         percentile = ceil(gpu_max_sample_gb * 1000 * 1000 * 1000 / (double)output_size.width / (double)output_size.height / 4.0 / double(number_classes));
-        print("\tsample size resource limit reached (with ", FileSize{uint64_t(current_filesize_per_class)}," / class in the 65 percentile, limit is ", dec<1>(gpu_max_sample_gb), "GB overall), limiting to ", int64_t(percentile)," images / class...");
+        Print("\tsample size resource limit reached (with ", FileSize{uint64_t(current_filesize_per_class)}," / class in the 65 percentile, limit is ", dec<1>(gpu_max_sample_gb), "GB overall), limiting to ", int64_t(percentile)," images / class...");
     }
     
     // sub-sample any classes that need sub-sampling
@@ -914,7 +914,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             //if(step_size == 1)
             //    continue;
             
-            print("\tsub-sampling class ",id," from ",L," to ",percentile," with step_size = ",step_size," (resulting in ",double(L) * step_size,")");
+            Print("\tsub-sampling class ",id," from ",L," to ",percentile," with step_size = ",step_size," (resulting in ",double(L) * step_size,")");
             
             // collect all frames where this individual is present
             
@@ -949,7 +949,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             ++lengths[id];
     }
     
-    print("L: ", lengths);
+    Print("L: ", lengths);
     
     auto data = std::make_shared<TrainingData::DataRange>();
     
@@ -993,7 +993,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     }
     
     for(auto && [id, sub] : available_images) {
-        print("\t",id,": ",sub.size()," available images between ",sub.empty() ? Frame_t() : sub.begin()->first," and ",sub.empty() ? Frame_t() : sub.rbegin()->first);
+        Print("\t",id,": ",sub.size()," available images between ",sub.empty() ? Frame_t() : sub.begin()->first," and ",sub.empty() ? Frame_t() : sub.rbegin()->first);
     }
     
     size_t N_validation_images = 0, N_training_images = 0;
@@ -1172,7 +1172,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         callback(++i / float(frames.size()));
     }
     
-    print("Failed blobs: ", failed_blobs," Found blobs: ",found_blobs);
+    Print("Failed blobs: ", failed_blobs," Found blobs: ",found_blobs);
     
     if(failed) {
         auto prefix = SETTING(individual_prefix).value<std::string>();
@@ -1189,7 +1189,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
     }
     
-    print("[TrainingData] We collected ", N_training_images," training images and ", N_validation_images," validation images (",N_reused_images," reused). Checking individuals...");
+    Print("[TrainingData] We collected ", N_training_images," training images and ", N_validation_images," validation images (",N_reused_images," reused). Checking individuals...");
     for(auto && [id, L] : lengths) {
         const size_t expected_number_validation = floor(0.25 * L);
         auto N_validation_images = individual_image_types[id][ImageClass::VALIDATION];
@@ -1199,7 +1199,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             if(available < expected_number_validation - N_validation_images) {
                FormatError("\tCan only find ", available," of the ",expected_number_validation - N_validation_images," needed images.");
             } else {
-                print("\tFinding more (", expected_number_validation - N_validation_images,") validation images to reach ", expected_number_validation," samples from ",available," available images.");
+                Print("\tFinding more (", expected_number_validation - N_validation_images,") validation images to reach ", expected_number_validation," samples from ",available," available images.");
                 size_t step_size = max(1u, available / (expected_number_validation - N_validation_images));
                 size_t N_selected = 0;
                 for(size_t i=0; i<trainings.size(); i += step_size) {
@@ -1207,7 +1207,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                     set_image_class(std::get<1>(trainings[i]), ImageClass::VALIDATION);
                     ++N_selected;
                 }
-                print("\tSelected ", N_selected," new images (", N_selected + N_validation_images," / ",expected_number_validation,")");
+                Print("\tSelected ", N_selected," new images (", N_selected + N_validation_images," / ",expected_number_validation,")");
             }
         }
     }
@@ -1231,7 +1231,7 @@ std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>, std::vector<Frame_t>, s
     std::map<Frame_t, std::tuple<std::vector<fdx_t>, std::vector<Image::SPtr>>> collector;
     
     if(_data.size() > 1)
-        print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");
+        Print("Joining TrainingData, expecting ", L," images from ",_data.size()," arrays.");
     
     for(auto & d : _data) {
         for(auto && [id, per] : d->mappings) {

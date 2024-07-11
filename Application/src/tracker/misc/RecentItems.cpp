@@ -72,7 +72,7 @@ RecentItems RecentItems::read() {
     auto path = file::DataLocation::parse("app", ".trex_recent_files");
     RecentItems items;
 
-    print("Searching for ", path, ": ", path.exists());
+    Print("Searching for ", path, ": ", path.exists());
     if (path.exists())
     {
         try {
@@ -86,7 +86,7 @@ RecentItems RecentItems::read() {
                         ._name = name,
                         ._created = 0u
                     };
-                    //print("RecentItem<", name,">");
+                    //Print("RecentItem<", name,">");
 
                     try {
                         if(key.contains("created")) {
@@ -211,7 +211,7 @@ void RecentItems::write() {
         auto dump = obj.dump();
         fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
 
-        //print("Updated recent files: ", dump.c_str());
+        //Print("Updated recent files: ", dump.c_str());
 
     }
     catch (...) {

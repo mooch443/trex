@@ -74,7 +74,7 @@ public:
         } /*else if(next_index_to_use == target_index
                   && target_index != last_returned_index)
         {
-            print("Announcement for index ", target_index, " but was also not the last returned index ", last_returned_index,". Nudge.");
+            Print("Announcement for index ", target_index, " but was also not the last returned index ", last_returned_index,". Nudge.");
             current_id.invalidate(); // maybe illegal
         }*/
         ThreadManager::getInstance().notify(group_id);
@@ -87,11 +87,11 @@ public:
             std::optional<FrameType> frame = get_frame(target_index, increment);
             if(frame.has_value()) {
                 auto index = Frame_t(frame.value()->index());
-                //print("* While trying to load exactly ", target_index, " got ", index);
+                //Print("* While trying to load exactly ", target_index, " got ", index);
                 
                 if(index != target_index) {
                     if(discard) {
-                        print("* While trying to load exactly ", target_index, " discarding ", index);
+                        Print("* While trying to load exactly ", target_index, " discarding ", index);
                         discard(std::move(frame.value()));
                     }
                     frame.reset();
@@ -104,12 +104,12 @@ public:
             } else if(std::unique_lock guard(future_mutex);
                       future.valid())
             {
-                //print("* While trying to load exactly ", target_index, " got nullptr.");
+                //Print("* While trying to load exactly ", target_index, " got nullptr.");
                 guard.unlock();
                 updated_frame.wait(g);
                 
             } else {
-                //print("* While trying to load exactly ", target_index, " but no future, so we're not waiting.");
+                //Print("* While trying to load exactly ", target_index, " but no future, so we're not waiting.");
             }
         }
     }
@@ -168,7 +168,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
             
             auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
             if(target_index == index) {
-                //print("Adding ", Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed)))), " every frame.");
+                //Print("Adding ", Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed)))), " every frame.");
                 next_index_to_use = target_index + increment;//Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed))));
                 _last_increment = increment;
             } else {
@@ -182,7 +182,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
                             // this is not good, we are lagging behind...
                             difference = Frame_t(uint32_t(frames_balance + 0.5));
 #ifndef NDEBUG
-                            print("Increased step fps=", fps, " f=", f, " => ", frames_balance, " = ", difference, " (diff=",target_index - index,")");
+                            Print("Increased step fps=", fps, " f=", f, " => ", frames_balance, " = ", difference, " (diff=",target_index - index,")");
 #endif
                         }
                         
@@ -196,7 +196,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
             ThreadManager::getInstance().notify(group_id);
             if(image)
                 last_returned_index = Frame_t(image->index());
-            //print("next index = ", next_index_to_use);
+            //Print("next index = ", next_index_to_use);
             return std::optional<FrameType>(std::move(image));
             
         } else {
@@ -207,14 +207,14 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
               not next_index_to_use.valid()
               || next_index_to_use != target_index)
     {
-        //print("Reset next index ", next_index_to_use, " => ", target_index);
+        //Print("Reset next index ", next_index_to_use, " => ", target_index);
         next_index_to_use = target_index;
         ThreadManager::getInstance().notify(group_id);
         
     } else if(next_index_to_use == target_index
               && target_index != last_returned_index)
     {
-        //print("No future for index ", target_index, " but was also not the last returned index ", last_returned_index,". Nudge.");
+        //Print("No future for index ", target_index, " but was also not the last returned index ", last_returned_index,". Nudge.");
         current_id.invalidate();
         ThreadManager::getInstance().notify(group_id);
     }

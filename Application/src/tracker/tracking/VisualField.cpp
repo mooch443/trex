@@ -191,7 +191,7 @@ RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeH
         accum.frame = 1_f;
         accum /= Float2_t(samples);
 #ifndef NDEBUG
-        print(samples, " samples for ", fdx, " in frame ", frame);
+        Print(samples, " samples for ", fdx, " in frame ", frame);
 #endif
     }
     

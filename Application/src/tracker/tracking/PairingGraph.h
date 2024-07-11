@@ -297,7 +297,7 @@ namespace Match {
         
        // void add(Individual* o);
         //void add(pv::Blob* o);
-        void print();
+        void Print();
         void print_summary();
         
         //cv::Point2f pos(const Individual*) const;

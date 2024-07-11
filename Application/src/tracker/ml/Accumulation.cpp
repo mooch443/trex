@@ -137,13 +137,13 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
             }
             
 #ifndef NDEBUG
-            print("ImageExtractor has ", images.size(), " images and ", results.size(), " results, ids ", ids.size(), ".");
+            Print("ImageExtractor has ", images.size(), " images and ", results.size(), " results, ids ", ids.size(), ".");
 #endif
             
             try {
                 auto probabilities = py::VINetwork::instance()->probabilities(std::move(images));
 #ifndef NDEBUG
-                print("\tGot ", probabilities.size(), " probabilities.");
+                Print("\tGot ", probabilities.size(), " probabilities.");
 #endif
                 const size_t N = py::VINetwork::number_classes();
                 
@@ -157,7 +157,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                 }
                 
 #ifndef NDEBUG
-                print("Got averages for ", results.size(), " extracted images: ", probabilities.size());
+                Print("Got averages for ", results.size(), " extracted images: ", probabilities.size());
 #endif
                 
             } catch(...) {
@@ -172,7 +172,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
             std::unique_lock guard(write_mutex);
             
             if(finished) {
-                print("[Apply] All done extracting. Overall pushed ", extractor->pushed_items());
+                Print("[Apply] All done extracting. Overall pushed ", extractor->pushed_items());
                 
                 std::unique_lock guard(callback_mutex);
                 Accumulation::status().percent = 1.0;
@@ -188,7 +188,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                 _apply_percent_callbacks.clear();
                 
             } else {
-                print("[Apply] Percent: ", percent * 100, "%");
+                Print("[Apply] Percent: ", percent * 100, "%");
                 
                 std::unique_lock guard(callback_mutex);
                 Accumulation::status().percent = percent;
@@ -313,7 +313,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
     
     IndividualManager::transform_all([&](auto id, auto fish) {
         if(!Tracker::identities().count(id)) {
-            print("Individual ",id," not part of the training dataset.");
+            Print("Individual ",id," not part of the training dataset.");
             return;
         }
         
@@ -413,7 +413,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *_video, coverage, [](float percent) { gui::WorkProgress::set_progress("", percent); }, _generated_data.get());
     } /*else {
         auto str = Meta::toStr(data);
-        print("Dont need to generate images for ",str,".");
+        Print("Dont need to generate images for ",str,".");
     }*/
     
     auto && [images, ids] = data.join_arrays();
@@ -426,7 +426,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     std::set<Idx_t> all_ids = Tracker::identities();
     std::set_difference(all_ids.begin(), all_ids.end(), added_ids.begin(), added_ids.end(), std::inserter(not_added_ids, not_added_ids.end()));
     
-    print("\tCalculated assignments for range ",range.start,"-",range.end," based on previous training (ids ",added_ids," / missing ",not_added_ids,"):");
+    Print("\tCalculated assignments for range ",range.start,"-",range.end," based on previous training (ids ",added_ids," / missing ",not_added_ids,"):");
     
     std::map<Idx_t, Idx_t> max_indexes;
     std::map<Idx_t, float> max_probs;
@@ -451,13 +451,13 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         
         assert(max_index >= 0);
         
-        print("\t\t",id,": ",values," (",samples,", ",max_index," = ",max_p,")");
+        Print("\t\t",id,": ",values," (",samples,", ",max_index," = ",max_p,")");
         max_indexes[id] = max_index >= 0 ? Idx_t((uint32_t)max_index) : Idx_t();
         max_probs[id] = max_p;
         print_out[id] = {max_index, max_p};
     }
     
-    print(print_out);
+    Print(print_out);
     
     std::set<Idx_t> unique_ids;
     float min_prob = infinity<float>();
@@ -471,14 +471,14 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     if(unique_ids.size() + 1 == FAST_SETTING(track_max_individuals)
        && min_prob > pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
-        print("\tOnly one missing id in predicted ids. Guessing solution...");
+        Print("\tOnly one missing id in predicted ids. Guessing solution...");
         
         //! Searching for consecutive numbers, finding the gap
         Idx_t missing_predicted_id(0);
         for(auto id : unique_ids) {
             if(id != missing_predicted_id) {
                 // missing id i
-                print("\tMissing only id ", missing_predicted_id," in predicted ids.");
+                Print("\tMissing only id ", missing_predicted_id," in predicted ids.");
                 break;
             }
             
@@ -508,13 +508,13 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             FormatWarning("\tCannot guess IDs. Cannot find any duplicates (meaning we have too few individuals in the segment).");
             
         } else {
-            print("\tPossible choices are ",duplicate0," (",max_probs.at(duplicate0),") and ",duplicate1," (",max_probs.at(duplicate1),").");
+            Print("\tPossible choices are ",duplicate0," (",max_probs.at(duplicate0),") and ",duplicate1," (",max_probs.at(duplicate1),").");
             
             if(max_probs.at(duplicate0) > max_probs.at(duplicate1)) {
-                print("\tReplacing ", duplicate1," with missing predicted id ",missing_predicted_id);
+                Print("\tReplacing ", duplicate1," with missing predicted id ",missing_predicted_id);
                 max_indexes[duplicate1] = missing_predicted_id;
             } else {
-                print("\tReplacing ", duplicate0," with missing predicted id ",missing_predicted_id);
+                Print("\tReplacing ", duplicate0," with missing predicted id ",missing_predicted_id);
                 max_indexes[duplicate0] = missing_predicted_id;
             }
             
@@ -525,19 +525,19 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     if(unique_ids.size() == FAST_SETTING(track_max_individuals)
        && min_prob > pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
-        print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes);
+        Print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes);
         
     } else if(unique_ids.size() != FAST_SETTING(track_max_individuals)) {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ",quality,") does not predict unique ids.");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs, str));
-        print(str.c_str());
+        Print(str.c_str());
         return {true, {}};
         
     } else if(min_prob <= pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTING(recognition_segment_add_factor),".");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow, str));
-        print(str.c_str());
+        Print(str.c_str());
         return {true, {}};
     }
     
@@ -545,13 +545,13 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
 }
 
 void Accumulation::confirm_weights() {
-    print("Confirming weights.");
+    Print("Confirming weights.");
     auto path = py::VINetwork::network_path();
     auto progress_path = file::Path(path.str() + "_progress.npz");
     path = path.add_extension("npz");
     
     if(progress_path.exists()) {
-        print("Moving weights from ",progress_path.str()," to ",path.str(),".");
+        Print("Moving weights from ",progress_path.str()," to ",path.str(),".");
         if(!progress_path.move_to(path))
             FormatExcept("Cannot move ",progress_path," to ",path,". Are your file permissions in order?");
         
@@ -585,7 +585,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         _coverage_paths.push_back(image_path);
         cv::imwrite(image_path.str(), copy);
         //tf::imshow("coverage", copy);
-        print("Coverage written to ", image_path.str(),".");
+        Print("Coverage written to ", image_path.str(),".");
     }
     
     {
@@ -611,7 +611,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
         gui::WorkInstance generating_images("generating images");
         gui::WorkProgress::set_progress("generating images", 0);
         
-        print("Generating discrimination data.");
+        Print("Generating discrimination data.");
         
         auto analysis_range = Tracker::analysis_range();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
@@ -754,7 +754,7 @@ std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqu
         }
     }
     
-    print("Good: ", good_frames," Bad: ", bad_frames," ratio: ", float(good_frames) / float(good_frames + bad_frames),
+    Print("Good: ", good_frames," Bad: ", bad_frames," ratio: ", float(good_frames) / float(good_frames + bad_frames),
         " (", percentages / double(unique_percent.size()), " / ", rpercentages / double(unique_percent_raw.size()), "). "
         "Hoping for at least ", SETTING(gpu_accepted_uniqueness).value<float>(), ". In ", good_timer.elapsed(),"s");
     
@@ -826,7 +826,7 @@ bool Accumulation::start() {
             return false;
         }
         
-        print("[CONTINUE] Initializing network and loading available weights from previous run.");
+        Print("[CONTINUE] Initializing network and loading available weights from previous run.");
         _network->load_weights();
         
     } else if(_mode == TrainingMode::Apply) {
@@ -876,7 +876,7 @@ bool Accumulation::start() {
     _disc_images = disc_images;
     _disc_frame_map = disc_map;
     
-    print("Discrimination data is at ", _disc_images.front().get(),".");
+    Print("Discrimination data is at ", _disc_images.front().get(),".");
     
     if(!_discrimination_data) {
         if(SETTING(auto_train_on_startup)) {
@@ -896,7 +896,7 @@ bool Accumulation::start() {
             py::exec("import keras.backend as K\nimport numpy as np\nuniqueness_data = K.variable(np.array(uniqueness_data, copy=False))", py::globals(), *locals);
             py::exec("print(type(uniqueness_data))", py::globals(), *locals);
         } catch (py::error_already_set &e) {
-            print("Runtime error: '", e.what(),"'");
+            Print("Runtime error: '", e.what(),"'");
             e.restore();
         }
         
@@ -964,7 +964,7 @@ bool Accumulation::start() {
                     ids.emplace_back(id.get());
                 
                 auto ss = size.to_string();
-                print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
+                Print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                 
                 cmn::npz_save(ranges_path.str(), "ids", ids, "a");
                 cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -1005,7 +1005,7 @@ bool Accumulation::start() {
         
         auto q = DatasetQuality::quality(_initial_range);
         auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data, " with uniqueness ", acc);
-        print(str.c_str());
+        Print(str.c_str());
         
         _added_ranges.push_back(_initial_range);
         end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
@@ -1100,7 +1100,7 @@ bool Accumulation::start() {
             
             sorted.clear();
             
-            print("\t\tmin_d = ", min_distance,", max_d = ",max_distance);
+            Print("\t\tmin_d = ", min_distance,", max_d = ",max_distance);
             for(auto && [d, rd, q, cached, range, extended_range, samples] : copied_sorted) {
                 double distance = 100 - (max_distance > min_distance ? (((d - min_distance) / (max_distance - min_distance)) * 100) : 0);
                 distance = roundf(roundf(distance) * 2.0 / 10.0) / 2.0 * 10.0;
@@ -1108,12 +1108,12 @@ bool Accumulation::start() {
                 if(distance >= 0)
                     assigned_unique_averages[range] = {distance, extended_range};
                 
-                print("\t\t(", range," / ", extended_range,") : ",distance,"(", d,"), ", rd," with ", samples," samples");
+                Print("\t\t(", range," / ", extended_range,") : ",distance,"(", d,"), ", rd," with ", samples," samples");
                 
                 sorted.insert({ distance, rd, q, cached, range });
             }
             
-            print("\t\tall_distances: ",  all_distances);
+            Print("\t\tall_distances: ",  all_distances);
         };
         
         float maximum_average_samples = 0;
@@ -1140,7 +1140,7 @@ bool Accumulation::start() {
             sorted_by_quality[L * 3] = {};
             sorted_by_quality[std::numeric_limits<Frame_t::number_t>::max()] = {};
             
-            print("! Sorted segments into quadrants: ", sorted_by_quality);
+            Print("! Sorted segments into quadrants: ", sorted_by_quality);
             
             size_t inserted_elements = 0;
             
@@ -1156,7 +1156,7 @@ bool Accumulation::start() {
                 }
                 
                 if(!inserted) {
-                    print("Did not find a point to insert ",range,"!");
+                    Print("Did not find a point to insert ",range,"!");
                 }
             }
             
@@ -1165,7 +1165,7 @@ bool Accumulation::start() {
             size_t retained = inserted_elements;
             
             if(inserted_elements > gpu_accumulation_max_segments) {
-                print("Reducing global segments array by ", inserted_elements - gpu_accumulation_max_segments," elements (to reach gpu_accumulation_max_segments limit = ",gpu_accumulation_max_segments,").");
+                Print("Reducing global segments array by ", inserted_elements - gpu_accumulation_max_segments," elements (to reach gpu_accumulation_max_segments limit = ",gpu_accumulation_max_segments,").");
                 
                 retained = 0;
                 for(auto && [end, queue] : sorted_by_quality) {
@@ -1189,10 +1189,10 @@ bool Accumulation::start() {
                         sorted.insert({-1, Frame_t(), q, nullptr, range});
                 }
                 
-                print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",std::get<0>(*sorted_by_quality.begin())," (",filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
+                Print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",std::get<0>(*sorted_by_quality.begin())," (",filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
                 
             } else {
-                print("Did not reduce global segments array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
+                Print("Did not reduce global segments array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
             }
         }
         
@@ -1249,10 +1249,10 @@ bool Accumulation::start() {
                         if(uniquenesses.empty())
                             acceptance = uniqueness;
                         else if(!uniquenesses.empty() && uniqueness >= accepted_uniqueness(best_uniqueness)) {
-                            print("\tAccepting worst class accuracy of ", acc," because uniqueness is ", uniqueness," > ",best_uniqueness);
+                            Print("\tAccepting worst class accuracy of ", acc," because uniqueness is ", uniqueness," > ",best_uniqueness);
                             acceptance = uniqueness;
                         } /*else if(!uniquenesses.empty() && uniqueness >= best_uniqueness * 0.8 && acc >= SQR(best_accuracy_worst_class)*best_accuracy_worst_class) {
-                            print("\tAccepting worst class accuracy of ",acc," because uniqueness is ",uniqueness," (vs. ",best_uniqueness * 0.8,") and accuracy is better than ",SQR(best_accuracy_worst_class)*best_accuracy_worst_class);
+                            Print("\tAccepting worst class accuracy of ",acc," because uniqueness is ",uniqueness," (vs. ",best_uniqueness * 0.8,") and accuracy is better than ",SQR(best_accuracy_worst_class)*best_accuracy_worst_class);
                             acceptance = uniqueness;
                         }*/
                         //}
@@ -1263,7 +1263,7 @@ bool Accumulation::start() {
                         
                         auto str = format<FormatterType::NONE>("Successfully added range ", *second_data," (previous acc: ", best_uniqueness,", current: ", acc,"). ", 
                             uniqueness >= best_uniqueness ? "Confirming due to better uniqueness." : "Not replacing weights due to worse uniqueness.");
-                        print(str.c_str());
+                        Print(str.c_str());
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
                         
                         if(uniqueness == -1) {
@@ -1279,7 +1279,7 @@ bool Accumulation::start() {
                             str = Meta::toStr(_uniquenesses);
                         }
                         
-                        print("\tUniquenesses after adding: ", str.c_str());
+                        Print("\tUniquenesses after adding: ", str.c_str());
                         
                         //! only confirm the weights if uniqueness is actually better/equal
                         /// but still use / merge the data if it isnt
@@ -1299,7 +1299,7 @@ bool Accumulation::start() {
                         }
                         
                         auto str = format<FormatterType::NONE>("Adding range ", range, " failed after checking acc+uniqueness (uniqueness would have been ", uniqueness, " vs. ", best_uniqueness, ").");
-                        print(str.c_str());
+                        Print(str.c_str());
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
                         
                         _network->load_weights();
@@ -1317,7 +1317,7 @@ bool Accumulation::start() {
                         str = format<FormatterType::NONE>("Adding range ", range, " failed.");
                     }
                     
-                    print(str.c_str());
+                    Print(str.c_str());
                     
                     if(gui::WorkProgress::item_custom_triggered()) {
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::Skipped, str));
@@ -1339,8 +1339,8 @@ bool Accumulation::start() {
         };
         
         auto update_meta_start_acc = [&](std::string prefix, Range<Frame_t> next_range, DatasetQuality::Quality quality, double average_unique) {
-            print("");
-            print("[Accumulation ", steps, prefix.c_str(), "] ", sorted.size(), " ranges remaining for accumulation(", tried_ranges.size(), 
+            Print("");
+            Print("[Accumulation ", steps, prefix.c_str(), "] ", sorted.size(), " ranges remaining for accumulation(", tried_ranges.size(),
                 " cached that did not predict unique ids yet), range ", next_range, " (", quality, " ", average_unique, " unique weight).");
             
             _next_ranges.clear();
@@ -1354,7 +1354,7 @@ bool Accumulation::start() {
             
             if(gui::WorkProgress::item_aborted() || gui::WorkProgress::item_custom_triggered())
             {
-                print("Work item has been aborted - skipping accumulation.");
+                Print("Work item has been aborted - skipping accumulation.");
                 return gui::WorkProgress::item_custom_triggered(); // otherwise, stop iterating
             }
             
@@ -1401,7 +1401,7 @@ bool Accumulation::start() {
                 }
             }
             
-            print("\tIndividuals frame gaps: ", frame_gaps);
+            Print("\tIndividuals frame gaps: ", frame_gaps);
             Frame_t maximal_gaps(0u);
             for(auto && [id, L] : frame_gaps) {
                 if(L > maximal_gaps)
@@ -1425,16 +1425,16 @@ bool Accumulation::start() {
             }
             
             if(!unqiuenesses.empty() && best_uniqueness() > good_uniqueness) {
-                print("---");
-                print("Uniqueness is ", unqiuenesses.back(),". This should be enough.");
+                Print("---");
+                Print("Uniqueness is ", unqiuenesses.back(),". This should be enough.");
                 reason_to_stop = "Uniqueness is "+Meta::toStr(unqiuenesses.back())+".";
                 tried_ranges.clear(); // dont retry stuff
                 return false;
             }
             
             if(maximal_gaps < analysis_range.length() / 4_f) {
-                print("---");
-                print("Added enough frames for all individuals - stopping accumulation.");
+                Print("---");
+                Print("Added enough frames for all individuals - stopping accumulation.");
                 reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps.get() / float(analysis_range.length().get()) * 100)+"%).";
                 tried_ranges.clear(); // dont retry stuff
                 
@@ -1454,7 +1454,7 @@ bool Accumulation::start() {
             // if sorted is not empty, but we have successfully trained on something, prioritize new ranges. If there are fewer new ranges available than old ranges that didnt predict unique ids yet, try those again.
             if(retry_ranges && !tried_ranges.empty() && sorted.size() <= tried_ranges.size())
             {
-                print("\tRetrying from ", tried_ranges.size()," ranges...");
+                Print("\tRetrying from ", tried_ranges.size()," ranges...");
                 
                 for(auto && [q, range, ptr] : tried_ranges) {
                     sorted.insert({-1, Frame_t(), q, ptr, range});
@@ -1464,7 +1464,7 @@ bool Accumulation::start() {
                 retry_ranges = false;
                 
             } else if(!sorted.empty()) {
-                print("sorted (",sorted,"): ",overall_ranges);
+                Print("sorted (",sorted,"): ",overall_ranges);
                 
                 auto [overlaps, rd, q, cached, range] = *sorted.begin();
                 auto keep_iterating = update_meta_start_acc(cached ? "(retry)" : "", range, q, overlaps);
@@ -1502,7 +1502,7 @@ bool Accumulation::start() {
             update_coverage(*_collected_data);
         
     } else {
-        print("Ranges remaining: ", ranges);
+        Print("Ranges remaining: ", ranges);
     }
     
     if(!reason_to_stop.empty())
@@ -1542,7 +1542,7 @@ bool Accumulation::start() {
             ids.emplace_back(id.get());
         
         auto ss = size.to_string();
-        print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
+        Print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
         
         cmn::npz_save(ranges_path.str(), "ids", ids, "a");
         cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, (size_t)channels }, "a");
@@ -1569,7 +1569,7 @@ bool Accumulation::start() {
             }
         }
         
-        print("[Accumulation FINAL] Adding ", overall_images," validation images to the training as well.");
+        Print("[Accumulation FINAL] Adding ", overall_images," validation images to the training as well.");
         
         const double number_classes = images_per_class.size();
         const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
@@ -1582,7 +1582,7 @@ bool Accumulation::start() {
         }
         
         if(mbytes > gpu_max_sample_mb) {
-            print("\t! ", FileSize{ uint64_t(mbytes * 1000) * 1000u },
+            Print("\t! ", FileSize{ uint64_t(mbytes * 1000) * 1000u },
                 " exceeds the maximum allowed cache size of ", FileSize{ uint64_t(gpu_max_sample_mb * 1000) * 1000u }," (", images_per_class,"). "
                 "Reducing to ", dec<1>(max_images_per_class), " images/class...");
             
@@ -1633,10 +1633,10 @@ bool Accumulation::start() {
                 mbytes += double(n * output_size.width * output_size.height * 4) / 1000.0 / 1000.0; // double
             }
             
-            print("\tNow cache size of: ", FileSize{ uint64_t(mbytes * 1000) * 1000u }, " (", images_per_class,")");
+            Print("\tNow cache size of: ", FileSize{ uint64_t(mbytes * 1000) * 1000u }, " (", images_per_class,")");
             
         } else {
-            print("\tCache sizes are ",FileSize{ uint64_t(mbytes * 1000 * 1000) }," / ",FileSize{ uint64_t(gpu_max_sample_mb * 1000 * 1000) }," (",images_per_class,").");
+            Print("\tCache sizes are ",FileSize{ uint64_t(mbytes * 1000 * 1000) }," / ",FileSize{ uint64_t(gpu_max_sample_mb * 1000 * 1000) }," (",images_per_class,").");
         }
         
         if(SETTING(debug_recognition_output_all_methods)) {
@@ -1718,7 +1718,7 @@ bool Accumulation::start() {
                 
                 DebugHeader("Generated images for '%s'", method.name());
                 for(auto &&[id, img] : images) {
-                    print("\t", id,": ",img.size());
+                    Print("\t", id,": ",img.size());
                 }
                 
                 
@@ -1738,7 +1738,7 @@ bool Accumulation::start() {
                     
                     FileSize size(uint64_t(total_images * dims.width * dims.height * channels));
                     auto ss = size.to_string();
-                    print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
+                    Print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                     
                     std::vector<uchar> all_images;
                     all_images.resize(size.bytes);
@@ -1775,12 +1775,12 @@ bool Accumulation::start() {
             }
             
             auto str = format<FormatterType::NONE>("Successfully finished overfitting with uniqueness of ", dec<2>(acc), ". Confirming.");
-            print(str.c_str());
+            Print(str.c_str());
             end_a_step(Result(FrameRange(), acc, AccumulationStatus::Added, AccumulationReason::None, str));
             confirm_weights();
         } else {
             auto str = format<FormatterType::NONE>("Overfitting with uniqueness of ", dec<2>(acc), " did not improve score. Ignoring.");
-            print(str.c_str());
+            Print(str.c_str());
             end_a_step(Result(FrameRange(), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
             _network->load_weights();
         }
@@ -1788,14 +1788,14 @@ bool Accumulation::start() {
     
     {
         std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
-        print("Uniquenesses: ", _uniquenesses);
-        print("All paths: ", _coverage_paths);
+        Print("Uniquenesses: ", _uniquenesses);
+        Print("All paths: ", _coverage_paths);
     }
     
     try {
         auto path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_range_history.npz"));
         npz_save(path.str(), "tried_ranges", _checked_ranges_output.data(), {_checked_ranges_output.size() / 2, 2});
-        print("[Accumulation STOP] Saved range history to ", path.str(),".");
+        Print("[Accumulation STOP] Saved range history to ", path.str(),".");
         
     } catch(...) {
         
@@ -1894,7 +1894,7 @@ void Accumulation::end_a_step(Result reason) {
     auto ranges = gui::StaticText::to_tranges(last);
     
     std::string cleaned;
-    //print("Cleaning text ", last, " using ");
+    //Print("Cleaning text ", last, " using ");
     
     auto add_trange = [&](const gui::TRange& k) {
         if(k.name == "key")
@@ -1907,7 +1907,7 @@ void Accumulation::end_a_step(Result reason) {
             cleaned += k.text;//fmt::clr<FormatColor::CYAN>(range.text);
     };
     for(auto &range : ranges) {
-        //print("range: ", range.name, "  -- ", range.text);
+        //Print("range: ", range.name, "  -- ", range.text);
         if(range.subranges.empty()) {
             add_trange(range);
         } else {
@@ -1919,7 +1919,7 @@ void Accumulation::end_a_step(Result reason) {
     }
     
     if(!cleaned.empty())
-        print("[STEP] ", cleaned.c_str());
+        Print("[STEP] ", cleaned.c_str());
 }
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {

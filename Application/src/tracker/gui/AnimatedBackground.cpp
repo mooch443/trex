@@ -129,7 +129,7 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
         return nullptr; // past end
     
     try {
-        //print("Loading ", index);
+        //Print("Loading ", index);
         uint8_t channels = 4;
         if (_source->colors() == ImageMode::GRAY)
             channels = 1;
@@ -225,7 +225,7 @@ void AnimatedBackground::before_draw() {
        && _source)
     {
         Image::Ptr image;
-        //print("last increment = ", preloader.last_increment(), " vs. increment = ", _increment, " frame(", frame, ") != current(",_current_frame,")");
+        //Print("last increment = ", preloader.last_increment(), " vs. increment = ", _increment, " frame(", frame, ") != current(",_current_frame,")");
         
         if(_strict) {
             image = preloader.load_exactly(frame, _increment);
@@ -317,7 +317,7 @@ void AnimatedBackground::before_draw() {
         _static_image.set_color(_tint.alpha(255 * _fade));
         _grey_image.set_color(_static_image.color().alpha(255 * (1.0 - _fade)));
         set_animating(true);
-        //print("Animating... ", _fade, " with dt=",dt);
+        //Print("Animating... ", _fade, " with dt=",dt);
     }
     
     _fade_timer.reset();
@@ -349,7 +349,7 @@ void AnimatedBackground::
 
 void AnimatedBackground::set_increment(Frame_t inc) {
     if(_increment != inc) {
-        //print("Changing increment from ", _increment, " to ", inc, " in AnimatedBackground");
+        //Print("Changing increment from ", _increment, " to ", inc, " in AnimatedBackground");
         _increment = inc;
     }
 }

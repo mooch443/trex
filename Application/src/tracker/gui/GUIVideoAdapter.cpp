@@ -50,7 +50,7 @@ GUIVideoAdapter::~GUIVideoAdapter() {
 }
 
 void GUIVideoAdapter::update() {
-    //print("*** UPDATE");
+    //Print("*** UPDATE");
     
     if(not _latest_image
        || _fade_percent >= 10)
@@ -95,7 +95,7 @@ void GUIVideoAdapter::update() {
             set_animating(false);
         }
         //if(_fade_percent > 1)
-        //    print("fade percent ", _fade_percent, " ", _array);
+        //    Print("fade percent ", _fade_percent, " ", _array);
         
         if(not _buffer)
             _buffer = Image::Make();

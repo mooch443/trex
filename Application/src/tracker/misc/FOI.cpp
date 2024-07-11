@@ -140,7 +140,7 @@ namespace track {
             auto name = _id_to_string.at(type);
             while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                 set.erase(--set.end());
-            print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
+            Print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
         }
         changed();
     }
@@ -159,7 +159,7 @@ namespace track {
                 {
                     set.erase(--set.end());
                 }
-                print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
+                Print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
             }
         }
         changed();

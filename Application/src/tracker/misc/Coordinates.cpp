@@ -41,7 +41,7 @@ Size2 FindCoord::set_screen_size(const DrawStructure& graph, const Base &window,
     
     auto lock = LOGGED_LOCK(mutex());
     if(update != instance().window_size) {
-        //print("Updating screen from ", instance().window_size, " to ", update, " with ", window.window_dimensions(), " scale=",graph.scale(), " and=",scale," interface=",gui::interface_scale());
+        //Print("Updating screen from ", instance().window_size, " to ", update, " with ", window.window_dimensions(), " scale=",graph.scale(), " and=",scale," interface=",gui::interface_scale());
         instance().window_size = update;
     }
     
@@ -58,10 +58,10 @@ void FindCoord::set_bowl_transform(const Transform& t) {
         // HUD coordinates to bowl coordinates:
         instance().hud_to_bowl = t.getInverse();
         
-        //print("Coord::video_size = ", instance().video_size());
-        //print("Coord::screen_size = ", instance().screen_size());
-        //print("Coord::bowl_scale = ", instance().bowl_scale());
-        //print("Coord::viewport = ", instance().viewport());
+        //Print("Coord::video_size = ", instance().video_size());
+        //Print("Coord::screen_size = ", instance().screen_size());
+        //Print("Coord::bowl_scale = ", instance().bowl_scale());
+        //Print("Coord::viewport = ", instance().viewport());
     }
 }
 

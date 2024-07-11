@@ -26,7 +26,7 @@ TEST(TestValidModels, Valid) {
 }
 
 static auto _ = [](){
-    print("Initializing global maps.");
+    Print("Initializing global maps.");
     
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     Settings::init();
@@ -228,7 +228,7 @@ TEST_P(TestPairing, TestOrder) {
         auto& pairing = table_->graph->get_optimal_pairing(false, table_->match_mode);
         ASSERT_EQ(pairing.pairings.size(), 3u) << _format(pairing.pairings, " in mode ", table_->match_mode, " with ", switch_order);
         
-        print(table_->match_mode, "=>", pairing.pairings, " with ", switch_order);
+        Print(table_->match_mode, "=>", pairing.pairings, " with ", switch_order);
         std::map<pv::bid, size_t> indexes;
         for(size_t i=0; i<table_->blobs.size(); ++i) {
             indexes[table_->blobs.at(i)->blob_id()] = i;
@@ -244,7 +244,7 @@ TEST_P(TestPairing, TestOrder) {
             expected[Idx_t(i++)] = bdx;
         }
         
-        print("expecting: ", expected, " based on ", indexes);
+        Print("expecting: ", expected, " based on ", indexes);
         
         ASSERT_EQ(expected.size(), pairing.pairings.size());
         for(auto& [bdx, fish] : pairing.pairings) {
@@ -278,7 +278,7 @@ TEST(TestLines, Threshold) {
     auto blob = pv::Blob(std::move(blobs.front().lines), std::move(blobs.front().pixels), blobs.front().extra_flags, blob::Prediction());
     
     auto bds = blob.bounds();
-    print(blob.hor_lines());
+    Print(blob.hor_lines());
     
     //cv::imshow("bg", black->get());
     //cv::imshow("gs", gs);
@@ -295,7 +295,7 @@ TEST(TestLines, Threshold) {
     ASSERT_EQ(b.size(), 1u);
     //ASSERT_EQ(b.front()->hor_lines().size(), blob.hor_lines().size());
     ASSERT_EQ(b.front()->hor_lines(), blob.hor_lines()) << _format(b.front()->hor_lines());
-    //line_without_grid<DifferenceMethod::none>(&bg, blobs.front()->hor_lines(), px, threshold, lines, pixels);
+    //line_without_grid<DifferenceMethod_t::none>(&bg, blobs.front()->hor_lines(), px, threshold, lines, pixels);
     
     auto next = CPULabeling::run(img->get());
     ASSERT_EQ(next.size(), 1u) << _format(next.size());
@@ -357,7 +357,7 @@ TEST_P(TestPairing, TestInit) {
     auto& pairing = table_->graph->get_optimal_pairing(false, table_->match_mode);
     ASSERT_EQ(pairing.pairings.size(), 2u) << _format(pairing.pairings);
     
-    print(table_->match_mode, "=>", pairing.pairings);
+    Print(table_->match_mode, "=>", pairing.pairings);
     for(auto &[bdx, fish] : pairing.pairings) {
         if(fish == table_->individuals[0]->identity().ID()) {
             ASSERT_EQ(bdx, table_->blobs[0]);

@@ -242,7 +242,7 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
         };
         
         {
-            print("Calculating border...");
+            Print("Calculating border...");
             
             std::lock_guard<std::mutex> guard(blob_thread_pool_mutex());
             try {

@@ -73,9 +73,9 @@ void delete_automatic_assignments(Idx_t fish_id, const FrameRange& search_range)
             if(search_range.end() < range.end) {
                 /// need to remove the start of this range
                 auto difference = range.start - search_range.start();
-                print("Removing the first ", difference, " items from ", rit->bids.size(), "(",search_range," vs. ",range,")");
+                Print("Removing the first ", difference, " items from ", rit->bids.size(), "(",search_range," vs. ",range,")");
                 rit->bids.erase(rit->bids.begin(), rit->bids.begin() + difference.get());
-                print("\t=> ", rit->bids.size());
+                Print("\t=> ", rit->bids.size());
                 range = Range<Frame_t>{search_range.end() + 1_f, range.end};
                 
             } else {
@@ -91,11 +91,11 @@ void delete_automatic_assignments(Idx_t fish_id, const FrameRange& search_range)
             if(search_range.end() < range.end) {
                 /// the range is completely contained
                 /// => we need to split our range?
-                print("Splitting ", rit->bids.size(), "(",search_range," vs. ",range,")");
+                Print("Splitting ", rit->bids.size(), "(",search_range," vs. ",range,")");
                 auto difference = search_range.start() - range.start;
                 auto difference_end = range.end - search_range.end();
-                print("Keeping the first ", difference, " items and the last ", difference_end, " items");
-                print("Middle: ", std::vector<pv::bid>(rit->bids.begin() + difference.get(), rit->bids.end() - difference_end.get()));
+                Print("Keeping the first ", difference, " items and the last ", difference_end, " items");
+                Print("Middle: ", std::vector<pv::bid>(rit->bids.begin() + difference.get(), rit->bids.end() - difference_end.get()));
                 auto new_range = Range<Frame_t>{
                     range.end - difference_end + 1_f,
                     range.end
@@ -104,9 +104,9 @@ void delete_automatic_assignments(Idx_t fish_id, const FrameRange& search_range)
 
                 rit->bids.erase(rit->bids.begin() + difference.get(), rit->bids.end());
                 range = Range<Frame_t>{range.start, search_range.start() - 1_f};
-                print("\t=> ", rit->bids.size(), " ",range);
+                Print("\t=> ", rit->bids.size(), " ",range);
 
-                print("Adding ", new_bids.size(), " ",new_range,".");
+                Print("Adding ", new_bids.size(), " ",new_range,".");
                 it->ranges.insert(rit, RangesForID::AutomaticRange{new_range, std::move(new_bids)});
 
             } else {
@@ -114,10 +114,10 @@ void delete_automatic_assignments(Idx_t fish_id, const FrameRange& search_range)
                 /// after the range
                 /// => we need to shorten this range
                 auto difference = range.end - search_range.start() + 1_f;
-                print("Removing the last ", difference, " items from ", rit->bids.size(), "(",search_range," vs. ",range,")");
+                Print("Removing the last ", difference, " items from ", rit->bids.size(), "(",search_range," vs. ",range,")");
                 rit->bids.erase(rit->bids.end() - difference.get(), rit->bids.end());
                 range = Range<Frame_t>{range.start, search_range.start() - 1_f};
-                print("\t=> ", rit->bids.size(), " ", range);
+                Print("\t=> ", rit->bids.size(), " ", range);
             }
         }
         /*std::erase_if(it->ranges, [&](auto &assign){

@@ -113,7 +113,7 @@ public:
         _on_select_callback(on_select_callback)
     {
         auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
-        print(window.window_dimensions().mul(dpi));
+        Print(window.window_dimensions().mul(dpi));
         _default_tab.extension = extension;
         
     }

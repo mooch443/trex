@@ -160,7 +160,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
             const float rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
             
-            print("Reading video...");
+            Print("Reading video...");
             pv::Frame frame;
             Frame_t step_size = Frame_t(max(Frame_t::number_t(1), Frame_t::number_t(video.length().get() * 0.0002)));
             const auto count_steps = video.length() / step_size;
@@ -192,10 +192,10 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 }
                 
                 if((i / step_size).get() % size_t(count_steps.get() * 0.1) == 0)
-                    print("[border] ", i/step_size," / ",count_steps);
+                    Print("[border] ", i/step_size," / ",count_steps);
             }
             
-            print("Done.");
+            Print("Done.");
         }
         
         std::multiset<uint32_t> counts;
@@ -245,7 +245,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
         
         if(_vertices.empty()) {
             Timer timer;
-            print("Generating outline...");
+            Print("Generating outline...");
             
             if((size_t)video.size().height > (size_t)USHRT_MAX)
                 throw U_EXCEPTION("Video is too big (max: ",USHRT_MAX,"x",USHRT_MAX,")");
@@ -278,7 +278,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     }
                 }
                 
-                print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(track_size_filter)," with scale 0.5");
+                Print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(track_size_filter)," with scale 0.5");
                 
                 std::vector<std::multiset<ushort>> xs;
                 std::vector<std::multiset<ushort>> ys;
@@ -371,7 +371,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     std::advance(rit, max_y.size() * 0.02);
                     assert(*it < y_valid.size());
                     
-                    print("Invalidate y from ", *it," to ",*rit);
+                    Print("Invalidate y from ", *it," to ",*rit);
                     
                     for(ushort y=0; y<min(*it, *rit, y_valid.size()); ++y) {
                         y_valid[y] = false;
@@ -390,7 +390,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     std::advance(rit, max_x.size() * 0.02);
                     assert(*rit < x_valid.size());
                     
-                    print("Invalidate x from ", *it," to ",*rit);
+                    Print("Invalidate x from ", *it," to ",*rit);
                     
                     for(ushort x=0; x<min(*it, *rit, x_valid.size()); ++x) {
                         x_valid[x] = false;
@@ -469,7 +469,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 } else
                     _vertices.clear();
                 
-                print("Generating mask...");
+                Print("Generating mask...");
                 Timer timer;
                 _mask = Image::Make(video.size().height, video.size().width);
                 if(!_vertices.empty()) {
@@ -486,13 +486,13 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 
                 auto sec = timer.elapsed() / _mask->size() * 1000 * 1000;
                 auto str = Meta::toStr(DurationUS{uint64_t(sec)});
-                print("Mask took ",str,"/pixel");
+                Print("Mask took ",str,"/pixel");
                 poly_set = true;
                 
             } else
                 poly_set = false;
             
-            print("This took ", DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)}," (",_vertices.size()," points)");
+            Print("This took ", DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)}," (",_vertices.size()," points)");
         }
     }
     
@@ -559,7 +559,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 break;
                 
             default:
-                print("Unknown border type ",_type);
+                Print("Unknown border type ",_type);
         }
         
         update_polygons();

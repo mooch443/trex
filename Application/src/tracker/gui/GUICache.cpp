@@ -134,7 +134,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                 auto mat = ptr->unsafe_get_source().get();
                 cv::Mat output;
                 convert_from_r3g3b2<4,2>(mat, output);
-                //print("converted ", mat.channels(), " to ", output.channels());
+                //Print("converted ", mat.channels(), " to ", output.channels());
                 //tf::imshow("output", output);
                 //ptr->unsafe_get_source().create(output);
                 
@@ -393,13 +393,13 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         /// we have a timeout, se just use what we have:
                         //frameIndex = maybe_frame.value()->index();
                         if(frameIndex != maybe_frame.value()->index()) {
-                            //print("Using maybe_frame anyway for ", maybe_frame.value()->index(), " != ", frameIndex, " since we waited ", _last_success.elapsed());
+                            //Print("Using maybe_frame anyway for ", maybe_frame.value()->index(), " != ", frameIndex, " since we waited ", _last_success.elapsed());
                             
                             buffers.move_back(std::move(maybe_frame.value()));
                             return {};
                         } else {
                             /// got correct frameIndex
-                            //print("Got frameIndex ", maybe_frame.value()->index()," (", frameIndex, ")");
+                            //Print("Got frameIndex ", maybe_frame.value()->index()," (", frameIndex, ")");
                         }
                     }
                     
@@ -434,7 +434,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         } else 
             return {};
         
-        //print("reload_blobs = ", reload_blobs, " current_frame_matches=", current_frame_matches, " next_frame_matches=", next_frame_matches, " last_threshold=", last_threshold, " threshold=", threshold, " raw_blobs_dirty=", raw_blobs_dirty(), " frameIndex=", frameIndex, " current=", _current_processed_frame ? _current_processed_frame->index() : Frame_t{}, " next=", _next_processed_frame ? _next_processed_frame->index() : Frame_t{}, " selected=", selected, " previous_active_fish=", previous_active_fish, " active_blobs=", active_blobs, " previous_active_blobs=", previous_active_blobs, " mouse_position=", _gui.mouse_position(), " previous_mouse_position=", previous_mouse_position, " is_tracking_dirty=", is_tracking_dirty(), " _blobs_dirty=", _blobs_dirty, " _dirty=",_dirty);
+        //Print("reload_blobs = ", reload_blobs, " current_frame_matches=", current_frame_matches, " next_frame_matches=", next_frame_matches, " last_threshold=", last_threshold, " threshold=", threshold, " raw_blobs_dirty=", raw_blobs_dirty(), " frameIndex=", frameIndex, " current=", _current_processed_frame ? _current_processed_frame->index() : Frame_t{}, " next=", _next_processed_frame ? _next_processed_frame->index() : Frame_t{}, " selected=", selected, " previous_active_fish=", previous_active_fish, " active_blobs=", active_blobs, " previous_active_blobs=", previous_active_blobs, " mouse_position=", _gui.mouse_position(), " previous_mouse_position=", previous_mouse_position, " is_tracking_dirty=", is_tracking_dirty(), " _blobs_dirty=", _blobs_dirty, " _dirty=",_dirty);
         
         LockGuard guard(ro_t{}, "update_cache", 10);
         if(not guard.locked())
@@ -458,7 +458,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     if(not video)
                         return; // abort! video does not exist
                     
-                    print("open for writing: ", video->is_write_mode());
+                    Print("open for writing: ", video->is_write_mode());
                     if(video->is_read_mode()) {
                         auto percentiles = video->calculate_percentiles({0.05f, 0.95f});
                         
@@ -742,17 +742,17 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         if(contained != _frame_contained) {
             _frame_contained = contained;
             _fish_dirty = true;
-            //print("frameIndex ", frameIndex, " contained=",contained);
+            //Print("frameIndex ", frameIndex, " contained=",contained);
         }
         
         if((_current_processed_frame && _current_processed_frame->index() != frameIndex) || _do_reload_frame.valid()) {
             buffers.move_back(std::move(_current_processed_frame));
             
-            //print("current_processed_frame moved out for ", frameIndex);
+            //Print("current_processed_frame moved out for ", frameIndex);
         } else if(_current_processed_frame) {
             reload_blobs = false;
             //reasons.emplace_back("-");
-            //print("current_processed_frame is fine for ", frameIndex, " = ", _current_processed_frame->index());
+            //Print("current_processed_frame is fine for ", frameIndex, " = ", _current_processed_frame->index());
             if(_next_processed_frame)
                 buffers.move_back(std::move(_next_processed_frame));
         }
@@ -762,7 +762,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 reload_blobs = true;
                 //reasons.emplace_back("next_processed_frame was != nullptr");
             }
-            //print("current_processed_frame moved out for ", frameIndex, " = ", _next_processed_frame->index());
+            //Print("current_processed_frame moved out for ", frameIndex, " = ", _next_processed_frame->index());
             if(_current_processed_frame)
 				buffers.move_back(std::move(_current_processed_frame));
             
@@ -775,10 +775,10 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 _do_reload_frame = {};
             }
         } else {
-            //print("No next frame: ", _do_reload_frame, " @ ", frameIndex);
+            //Print("No next frame: ", _do_reload_frame, " @ ", frameIndex);
         }
         
-        //print("reload_blobs = ", reload_blobs);
+        //Print("reload_blobs = ", reload_blobs);
         
         if(reload_blobs
            || selected != previous_active_fish
@@ -814,7 +814,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             checked_probs.clear();
             display_blobs.clear();
             
-            //print("Reloading blobs ", frameIndex);
+            //Print("Reloading blobs ", frameIndex);
             if(L < raw_blobs.size()) {
                 std::move(raw_blobs.begin() + L, raw_blobs.end(), std::back_inserter(available_blobs_list));
                 raw_blobs.erase(raw_blobs.begin() + L, raw_blobs.end());
@@ -823,7 +823,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 raw_blobs.reserve(L);
             }
         } //else
-            //print("Not reloading blobs ", frameIndex);
+            //Print("Not reloading blobs ", frameIndex);
         
         //! count the actual number of objects
         size_t i = 0;
@@ -1045,7 +1045,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             } else {
                 for (auto fish : active) {
                     source.insert(fish);
-                    //print("active: ", fish->identity().ID());
+                    //Print("active: ", fish->identity().ID());
                 }
             }
 
@@ -1101,7 +1101,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                 std::unique_lock guard(_fish_map_mutex);
                 for (auto it = _fish_map.begin(); it != _fish_map.end();) {
                     if (not ids.contains(it->first)) {
-                        //print("erasing from map ", it->first);
+                        //Print("erasing from map ", it->first);
                         it = _fish_map.erase(it);
                     }
                     else {
@@ -1120,7 +1120,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         _dirty = false;
         
         //if(reload_blobs)
-        //    print("reloading: ", reasons);
+        //    Print("reloading: ", reasons);
         return reload_blobs ? processed_frame().index() : Frame_t{};
     }
     

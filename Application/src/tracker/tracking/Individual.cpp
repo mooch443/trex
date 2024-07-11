@@ -70,7 +70,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
     auto my_bounds = basic->blob.calculate_bounds();
 
     if (my_bounds.contains(pos)) {
-        //print("adding tag at ", tag->bounds(), " to individual ", _identity, " at ", my_bounds, " for segment ",*seg);
+        //Print("adding tag at ", tag->bounds(), " to individual ", _identity, " at ", my_bounds, " for segment ",*seg);
         auto &&[pos, image] = tag->gray_image(nullptr, Bounds(-1, -1, -1, -1), 0);
         if (image->cols != 32 || image->rows != 32)
             FormatWarning("Image dimensions are wrong ", image->bounds());
@@ -84,7 +84,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
             
             const bool segment_ended = segment && segment->start() != _last_requested_segment;
             if(segment_ended) {
-                //print("individual:",identity().ID(), " segment:",segment->start()," ended before ", frame);
+                //Print("individual:",identity().ID(), " segment:",segment->start()," ended before ", frame);
                 _last_requested_qrcode.invalidate();
                 _last_requested_segment = segment->start();
             }
@@ -102,7 +102,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                 {
                     auto it = _qrcodes.find(segment->start());
                     if(it != _qrcodes.end()) {
-                        //print("[update] at ", frame," ", segment ? segment->range : Range<Frame_t>(), " individual:", identity().ID(), " with ended:", segment_ended, " lastqrcodepred:", _last_predicted_id, " lastqrframe:",_last_requested_qrcode, " images:", it->second.size());
+                        //Print("[update] at ", frame," ", segment ? segment->range : Range<Frame_t>(), " individual:", identity().ID(), " with ended:", segment_ended, " lastqrcodepred:", _last_predicted_id, " lastqrframe:",_last_requested_qrcode, " images:", it->second.size());
                         
                         if(it->second.size() > 2 || segment_ended) {
                             RecTask task;
@@ -114,9 +114,9 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                             }
 
                             task._callback = [this, range = segment->range, N = it->second.size(), segment = segment](Predictions&& prediction) {
-                                //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
+                                //Print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
                                 
-                                //print("\t",range, " individual ", identity().ID(), " has ", N, " images. ended=", segment_ended, " got callback with pred=", prediction.best_id);
+                                //Print("\t",range, " individual ", identity().ID(), " has ", N, " images. ended=", segment_ended, " got callback with pred=", prediction.best_id);
 
                                 std::unique_lock guard(_qrcode_mutex);
                                 _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
@@ -150,7 +150,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                 }
 
                                 //if(it->second.size() > 1)
-                                //  print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
+                                //  Print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
                             };
                             
                             auto callback = [&]() {
@@ -178,26 +178,26 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                 // delete files that already existed for this individual AND segment
                                 for(auto &f : files) {
                                     f.delete_file();
-                                    //print("\tdeleting file ", f);
+                                    //Print("\tdeleting file ", f);
                                 }
                             };
                             
                             // if we can add this code, update the last requested
                             if(RecTask::add(std::move(task), fill, callback)) {
-                                //cmn::print("Have ", it->second.size(), " QRCodes for segment ", *segment, " in individual:", identity().ID(), " ", segment_ended);
+                                //cmn::Print("Have ", it->second.size(), " QRCodes for segment ", *segment, " in individual:", identity().ID(), " ", segment_ended);
 
                                 std::unique_lock guard(_qrcode_mutex);
                                 _last_requested_qrcode = frame;
                                 
                             } //else
-                                //print("\t",segment->range, " individual:", identity().ID(), " rejected ",it->second.size()," images.");
+                                //Print("\t",segment->range, " individual:", identity().ID(), " rejected ",it->second.size()," images.");
                                 
                         } //else {
-                            //print("\t",segment->range, " individual:", identity().ID(), " not enough images ",it->second.size(),".");
+                            //Print("\t",segment->range, " individual:", identity().ID(), " not enough images ",it->second.size(),".");
                         //}
                         
                     } //else if(segment_ended && segment->length() > 2) {
-                    //    print("\t",segment->range, " individual:", identity().ID(), " does not have QRCodes.");
+                    //    Print("\t",segment->range, " individual:", identity().ID(), " does not have QRCodes.");
                     //}
                 }
             }
@@ -535,7 +535,7 @@ Individual::~Individual() {
     //if(Tracker::recognition())
     //    Tracker::recognition()->remove_individual(this);
 #ifndef NDEBUG
-    print("Deleting individual ", identity().ID());
+    Print("Deleting individual ", identity().ID());
 #endif
 }
 
@@ -663,7 +663,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             ++it;
         else if((*it)->range.start < frameIndex) {
 #ifndef NDEBUG
-            print("(",identity().ID(),") need to shorten segment ",(*it)->range.start,"-",(*it)->range.end," to fit frame ",frameIndex);
+            Print("(",identity().ID(),") need to shorten segment ",(*it)->range.start,"-",(*it)->range.end," to fit frame ",frameIndex);
 #endif
             (*it)->range.end = frameIndex - 1_f;
             assert((*it)->range.start <= (*it)->range.end);
@@ -681,7 +681,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                     assert(*kit < (long long)_posture_stuff.size());
                     _posture_stuff.resize(*kit);
 #ifndef NDEBUG
-                    print("(", identity().ID(),")\tposture_stuff.back == ", _posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame," (kit = ",ff,")");
+                    Print("(", identity().ID(),")\tposture_stuff.back == ", _posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame," (kit = ",ff,")");
 #endif
                     
                     (*it)->posture_index.erase(kit, (*it)->posture_index.end());
@@ -704,13 +704,13 @@ void Individual::remove_frame(Frame_t frameIndex) {
             
 #ifndef NDEBUG
             if(!shortened_posture_index && it == _frame_segments.end())
-                print("Individual ", identity().ID()," did not have any postures after ",frameIndex);
+                Print("Individual ", identity().ID()," did not have any postures after ",frameIndex);
 #endif
         }
         
         if(it != _frame_segments.end()) {
 #ifndef NDEBUG
-            print("(", identity().ID(),") found that we need to delete everything after and including ", (*it)->range.start,"-",(*it)->range.end);
+            Print("(", identity().ID(),") found that we need to delete everything after and including ", (*it)->range.start,"-",(*it)->range.end);
 #endif
             
             if(!shortened_basic_index && !(*it)->basic_index.empty()) {
@@ -726,7 +726,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                             assert(*kit < (long long)_posture_stuff.size());
                             _posture_stuff.resize(*kit);
 #ifndef NDEBUG
-                            print("(", identity().ID(),")\tposture_stuff.back == ",_posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame);
+                            Print("(", identity().ID(),")\tposture_stuff.back == ",_posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame);
 #endif
                             shortened_posture_index = true;
                             break;
@@ -740,7 +740,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                 
 #ifndef NDEBUG
                 if(!shortened_posture_index)
-                    print("Individual ", identity().ID()," did not have any postures after ",frameIndex);
+                    Print("Individual ", identity().ID()," did not have any postures after ",frameIndex);
 #endif
             }
             
@@ -748,7 +748,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             
         } else if(!shortened_posture_index) {
 #ifndef NDEBUG
-            print("Individual ", identity().ID()," does not delete any frames.");
+            Print("Individual ", identity().ID()," does not delete any frames.");
 #endif
         }
 //#ifndef NDEBUG
@@ -869,7 +869,7 @@ Vec2 Individual::LocalCache::add(Frame_t /*frameIndex*/, const track::MotionReco
     const auto frame_rate = track::slow::frame_rate;
     const size_t maximum_samples = max(3.f, frame_rate * 0.1f);
     
-    //print("frame_rate: ", frame_rate, "slow::", slow::frame_rate, " at ", (int*)&slow::frame_rate);
+    //Print("frame_rate: ", frame_rate, "slow::", slow::frame_rate, " at ", (int*)&slow::frame_rate);
     
     auto raw_velocity = current->v<Units::CM_AND_SECONDS>();
 
@@ -1640,7 +1640,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
                 bdx = (*_frame_segments.rbegin())->basic_stuff(_endFrame);
                 pdx = (*_frame_segments.rbegin())->posture_stuff(_endFrame);
             } else
-                print("Nothing to be found for ",frameIndex - 1_f);
+                Print("Nothing to be found for ",frameIndex - 1_f);
         }
     }
     
@@ -1649,7 +1649,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     
     /*auto _pp = find_frame(frameIndex-1);
     if(pp != _pp) {
-        print("Frame ",frameIndex,", individual ",identity().ID(),": ",_pp ? _pp->frame : -1," != ",pp ? pp->frame : -1);
+        Print("Frame ",frameIndex,", individual ",identity().ID(),": ",_pp ? _pp->frame : -1," != ",pp ? pp->frame : -1);
     }*/
     
     //auto pp = find_frame(frameIndex-1);
@@ -1704,29 +1704,29 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
                 bdx = (*it)->basic_stuff(frameIndex - 1_f);
                 pdx = (*it)->posture_stuff(frameIndex - 1_f);
                 
-                print("#1 ", bdx, " ", pdx, " ", (*it)->range, " contains ", frameIndex - 1_f);
+                Print("#1 ", bdx, " ", pdx, " ", (*it)->range, " contains ", frameIndex - 1_f);
                 
             } else {
                 if(it != _frame_segments.end() && (*it)->end() <= frameIndex - 1_f) {
                     bdx = (*it)->basic_stuff((*it)->end());
                     pdx = (*it)->posture_stuff((*it)->end());
                     
-                    print("#2 ", bdx, " ", pdx, " ", (*it)->end(), " <= ", frameIndex - 1_f);
+                    Print("#2 ", bdx, " ", pdx, " ", (*it)->end(), " <= ", frameIndex - 1_f);
                 }
                 else if(frameIndex <= _startFrame && _startFrame.valid()) {
                     bdx = (*_frame_segments.begin())->basic_stuff(_startFrame);
                     pdx = (*_frame_segments.begin())->posture_stuff(_startFrame);
                     
-                    print("#3 ", bdx, " ", pdx, " ", frameIndex, " <= ", _startFrame);
+                    Print("#3 ", bdx, " ", pdx, " ", frameIndex, " <= ", _startFrame);
                     
                 } else if(frameIndex >= _endFrame && _endFrame >= _startFrame && _endFrame.valid()) {
                     bdx = (*_frame_segments.rbegin())->basic_stuff(_endFrame);
                     pdx = (*_frame_segments.rbegin())->posture_stuff(_endFrame);
                     
-                    print("#4 ", bdx, " ", pdx, " ", frameIndex, " >= ", _endFrame, "  && ", _endFrame, " >= ", _startFrame);
+                    Print("#4 ", bdx, " ", pdx, " ", frameIndex, " >= ", _endFrame, "  && ", _endFrame, " >= ", _startFrame);
                     
                 } else
-                    print("Nothing to be found for ",frameIndex - 1_f);
+                    Print("Nothing to be found for ",frameIndex - 1_f);
             }
         }
         
@@ -2435,7 +2435,7 @@ void Individual::save_posture(const BasicStuff& basic,
         auto && [pos, greyscale] = blob->difference_image(*Tracker::instance()->background(), 0);
         auto mat = greyscale->get();
         
-        print("Frame ", frameIndex);
+        Print("Frame ", frameIndex);
         
         DebugDrawing draw(Vec2(), Vec2(), "draw_debug", int(max(1.f, 500.f/greyscale->cols)), greyscale->cols,greyscale->rows);
         draw.paint(ptr, mat);
@@ -2834,7 +2834,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(s > 0.001)
                 average_processed_segment[segment_start] = {overall, average};
             else {
-                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s);
+                Print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s);
                 return {0, {}};
             }
         } else
@@ -2895,7 +2895,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(s > 0.001)
                 average_recognition_segment[segment_start] = {overall, average};
             else {
-                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s);
+                Print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s);
                 return {0, {}};
             }
         } else
@@ -2969,7 +2969,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         return true;
     });
 
-    print("Saving to ",path," (",len," frames in range ",range.start,"-",range.end,")");
+    Print("Saving to ",path," (",len," frames in range ",range.start,"-",range.end,")");
 
     size_t vres = VisualField::field_resolution * VisualField::layers;
     size_t eye_len = len * vres;
@@ -3026,13 +3026,13 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         
         if(frame.get() % 1000 == 0) {
             update((frame - range.start).get() / (float)(range.end - range.start).get() * 0.5, "");
-            print(frame," / ",range.end);
+            Print(frame," / ",range.end);
         }
         
         return true;
     });
     
-    print("Saving depth...");
+    Print("Saving depth...");
     FileSize fileSize(depth.size() * sizeof(decltype(depth)::value_type)
                       + ids.size() * sizeof(decltype(ids)::value_type)
                       + body_part.size() * sizeof(decltype(body_part)::value_type));
@@ -3050,7 +3050,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";
-        print("saved depth @ ", str.c_str());
+        Print("saved depth @ ", str.c_str());
 
         update(1 / 3. * 0.5 + 0.5, "writing files (" + Meta::toStr(fileSize) + ") @ ~" + str);
 
@@ -3080,7 +3080,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";
-        print("saved depth @ ", str.c_str());
+        Print("saved depth @ ", str.c_str());
 
         update(1 / 3. * 0.5 + 0.5, "writing files (" + Meta::toStr(fileSize) + ") @ ~" + str);
 
@@ -3135,9 +3135,9 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         cmn::npz_save(meta_path.str(), "frames", frames.data(), { len }, "a");
         
         if(!use_npz)
-            print("Saved visual field metadata to ",meta_path.str()," and image data to ",path.str()+"_*.npy",".");
+            Print("Saved visual field metadata to ",meta_path.str()," and image data to ",path.str()+"_*.npy",".");
         else
-            print("Saved to ",path.str()+".npz",".");
+            Print("Saved to ",path.str()+".npz",".");
 
     } catch(...) {
         // there will be a utils exception, so its printed out already

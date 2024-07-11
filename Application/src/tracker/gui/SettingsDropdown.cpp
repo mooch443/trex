@@ -4,7 +4,7 @@
 
 namespace cmn::gui {
 void SettingsDropdown::selected_setting(long_t index, const std::string& name, Textfield& textfield) {
-    print("choosing ",name);
+    Print("choosing ",name);
     if(index != -1) {
         //auto name = settings_dropdown.items().at(index);
         auto val = GlobalSettings::get(name);
@@ -20,10 +20,10 @@ void SettingsDropdown::selected_setting(long_t index, const std::string& name, T
                 items.back()->set_selected(i == index);
             }
             
-            print("options: ", selected_option);
+            Print("options: ", selected_option);
             
             _settings_choice = std::make_shared<List>(Bounds(0, 0, 150, textfield.height()), "", items, [&textfield, this](List*, const gui::Item& item){
-                print("Clicked on item ", item.ID());
+                Print("Clicked on item ", item.ID());
                 textfield.set_text(item);
                 textfield.enter();
                 _settings_choice->set_folded(true);

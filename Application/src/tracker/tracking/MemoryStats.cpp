@@ -378,7 +378,7 @@ void MemoryStats::print() const {
     auto str = prettify_array(Meta::toStr(vec));
     auto id_str = id == Idx_t(std::numeric_limits<uint32_t>::max()-1) ? std::string("overall") : (!id.valid() ? "<empty>" : Meta::toStr(id));
     
-    cmn::print(id_str.c_str(), ": ", FileSize{size_t(bytes)},"\n", str.c_str());
+    cmn::Print(id_str.c_str(), ": ", FileSize{size_t(bytes)},"\n", str.c_str());
 }
 
 }

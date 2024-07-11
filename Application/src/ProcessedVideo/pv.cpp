@@ -29,7 +29,7 @@ template<> void Data::read(blob::Prediction& pred) {
         uint8_t N{0u};
         read<uint8_t>(N);
         assert(N % 2u == 0);
-        //print("pose::N = ", N / 2u);
+        //Print("pose::N = ", N / 2u);
         pred.pose.points.resize(N / 2u);
         for(size_t i=0; i<N / 2u; i++) {
             read<uint16_t>(pred.pose.points[i].x);
@@ -702,7 +702,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 
             }
             else {
-                print("Compression of ",pack.size()," bytes failed.");
+                Print("Compression of ",pack.size()," bytes failed.");
             }
         }
     }
@@ -875,7 +875,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 map["meta_real_width"] = float();
                 sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map());
                 /*for(auto key : map.keys()) {
-                 print("Key: ", key, " Value: ", map[key].get().valueString());
+                 Print("Key: ", key, " Value: ", map[key].get().valueString());
                  }*/
                 if(map.has("meta_real_width"))
                     meta_real_width = map["meta_real_width"].value<float>();
@@ -975,7 +975,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            print("Written mask with ", mask->cols,"x",mask->rows);
+            Print("Written mask with ", mask->cols,"x",mask->rows);
         }
         else {
             ref.write(uint64_t(0));
@@ -985,7 +985,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
-        print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
+        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
         
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -1002,7 +1002,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
-        print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
     }
     
     std::string Header::generate_metadata() const {
@@ -1019,10 +1019,10 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         
         std::string ret = ss.str();
         if(ret.empty()) {
-            print("Metadata empty.");
+            Print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            print("Metadata: ",ret.c_str());
+            Print("Metadata: ",ret.c_str());
         }
         
         return ret;
@@ -1305,7 +1305,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
     }
 
     void fix_file(File& file) {
-        print("Starting file copy and fix (",file.filename(),")...");
+        Print("Starting file copy and fix (",file.filename(),")...");
         
         auto copy = File::Write<FileMode::WRITE | FileMode::OVERWRITE>(
             (std::string)file.filename()+"_fix",
@@ -1353,13 +1353,13 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
             copy.add_individual(std::move(frame));
             
             if (idx.get() % 1000 == 0) {
-                print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
             }
         }
         
         copy.close();
         
-        print("Written fixed file.");
+        Print("Written fixed file.");
     }
     
     void File::try_compress() {
@@ -1391,13 +1391,13 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
             copy.add_individual(std::move(frame));
             
             if (i.get() % 1000 == 0) {
-                print("Frame ", i," / ",length(),"...");
+                Print("Frame ", i," / ",length(),"...");
             }
         }
         
         copy.stop_writing();
         
-        print("Written");
+        Print("Written");
         
         {
             print_info();
@@ -1416,7 +1416,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
            || not is_open())
             throw U_EXCEPTION("Must be open for writing.");
     
-        print("Updating metadata...");
+        Print("Updating metadata...");
         auto metadata = _header.generate_metadata();
         write(metadata, _header.meta_offset());
     }
@@ -1501,7 +1501,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         
         std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
-        print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
+        Print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
         //auto str = Meta::toStr(samples);
         return p;
     }

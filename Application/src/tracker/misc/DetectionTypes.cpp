@@ -66,7 +66,7 @@ Size2 get_model_image_size() {
         else
             size = Size2(detect_resolution.width, ratio * detect_resolution.height);
 
-        //print("Using a resolution of meta_video_size = ", meta_video_size, " and detect_resolution = ", detect_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
+        //Print("Using a resolution of meta_video_size = ", meta_video_size, " and detect_resolution = ", detect_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
         //return meta_video_size.div(2);
         return size;
     }

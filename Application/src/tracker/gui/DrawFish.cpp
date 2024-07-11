@@ -389,7 +389,7 @@ Fish::~Fish() {
                     } while (sum > 0 || _probability_radius < 10);*/
                     
                     distribute_indexes([&](auto, auto it, auto nex, auto){
-                        //print("y ", it, " - ", nex);
+                        //Print("y ", it, " - ", nex);
                         for(auto y = it; y < nex; ++y) {
                             int x = 0;
                             auto ptr = mat.ptr(y, 0);
@@ -462,16 +462,16 @@ Fish::~Fish() {
 
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE && false
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE //&& false
         if (GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
         {
             if (!is_selected) _view.tag(Effects::blur);
             else _view.untag(Effects::blur);
 
-            if (is_selected && GUI::instance() && GUI::instance()->base()) {
+            /*if (is_selected && GUI::instance() && GUI::instance()->base()) {
                 ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = _view.global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * graph.scale().x;
                 ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = _view.global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * graph.scale().y;
-            }
+            }*/
         }
 #endif
 #endif
@@ -485,12 +485,12 @@ Fish::~Fish() {
                 points = _cached_outline->uncompress();
             }
 
-            /*if(GUIOPTION(gui_show_shadows) && _polygon) {
+            if(GUIOPTION(gui_show_shadows) && _polygon) {
                 _polygon->set_vertices(points);
-                float size = Tracker::average().bounds().size().length() * 0.0025f;
-                Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
-                             SQR(offset.y / float(Tracker::average().rows)));
-                _polygon->set_pos(scaling * size + this->size() * 0.5);
+                float size = coord.video_size().length() * 0.0025f;
+                Vec2 scaling(SQR(offset.x / coord.video_size().width),
+                             SQR(offset.y / coord.video_size().height));
+                _polygon->set_pos(scaling * size + _view.size() * 0.5);
                 _polygon->set_scale(scaling * 0.25 + 1);
 
     #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
@@ -502,7 +502,7 @@ Fish::~Fish() {
                 }
     #endif
     #endif
-            }*/
+            }
         }
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
@@ -1382,7 +1382,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     else
         _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), pos);
 
-    //print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
+    //Print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
     
     e.advance_wrap(*_label);
     

@@ -458,11 +458,11 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     m.def("log", [](std::string text) {
         
-        print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
+        Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
         });
     m.def("log", [](std::string filename, int line, std::string text) {
         
-        print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
+        Print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
      });
 
     m.def("warn", [](std::string text) {
@@ -608,7 +608,7 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
         if (!SETTING(terminate)) {
             SETTING(terminate) = true;
-            print("Waiting for video to close.");
+            Print("Waiting for video to close.");
             return TRUE;
         }
         else
@@ -650,11 +650,11 @@ void PythonIntegration::init() {
         const DWORD buffSize = 65535;
         char path[buffSize] = { 0 };
         GetEnvironmentVariable("PYTHONHOME", path, buffSize);
-        print("Inherited pythonhome: ", std::string(path));
+        Print("Inherited pythonhome: ", std::string(path));
         GetEnvironmentVariable("PYTHONPATH", path, buffSize);
-        print("Inherited pythonpath: ", std::string(path));
+        Print("Inherited pythonpath: ", std::string(path));
         GetEnvironmentVariable("PATH", path, buffSize);
-        print("Inherited path: ", std::string(path));
+        Print("Inherited path: ", std::string(path));
 #endif
       
 #if !defined(WIN32)
@@ -671,7 +671,7 @@ void PythonIntegration::init() {
         _main = py::module::import("__main__");
         _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
-            print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
+            Print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
 #endif
             auto array = utils::split(x, ' ');
             if(array.size() > 0) {
@@ -688,7 +688,7 @@ void PythonIntegration::init() {
         
         TRex = _main.import("TRex");
         _locals = new pybind11::dict();
-        print("# imported TRex module");
+        Print("# imported TRex module");
         
         PythonIntegration::execute("import sys\nset_version(sys.version, False, '')", false);
         
@@ -709,7 +709,7 @@ void PythonIntegration::init() {
             initializing() = false;
             
         } catch(const UtilsException& ex) {
-            print("Error while executing ", trex_init,". Content: ",ex.what());
+            Print("Error while executing ", trex_init,". Content: ",ex.what());
             python_init_error() = ex.what();
             fail(ex);
             //return false;
@@ -757,7 +757,7 @@ void PythonIntegration::deinit() {
     
     try {
         _interpreter = nullptr;
-        print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "ended.");
+        Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "ended.");
         
     } catch(py::error_already_set &e) {
         throw SoftException("Python runtime error during clean-up: ", e.what());
@@ -804,7 +804,7 @@ bool PythonIntegration::check_module(const std::string& name,
     //auto cwd = file::cwd().absolute();
     //auto app = file::DataLocation::parse("app", name + ".py");
     /*if(cwd != app) {
-        print("check_module:CWD: ", cwd);
+        Print("check_module:CWD: ", cwd);
         file::cd(app);
     }*/
     
@@ -823,7 +823,7 @@ bool PythonIntegration::check_module(const std::string& name,
                 
                 mod.reload();
             }
-            print("Reloaded ",name+".py",".");
+            Print("Reloaded ",name+".py",".");
             result = true;
         }
         catch (pybind11::error_already_set & e) {
@@ -845,7 +845,7 @@ bool PythonIntegration::check_module(const std::string& name,
 void PythonIntegration::run(const std::string& module_name, const std::string& function) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
-    print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
+    Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
 #endif
     
     std::unique_lock<std::mutex> guard(module_mutex);
@@ -938,7 +938,7 @@ template<typename T>
 void set_function_internal(const char* name_, T&& f, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
-    print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "defining function ",m.c_str(),"::",name_);
+    Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "defining function ",m.c_str(),"::",name_);
 #endif
     
     if(m.empty()) {
@@ -1196,7 +1196,7 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 void PythonIntegration::unset_function(const char *name_, const std::string &m) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
-    print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Undefining function ",m.c_str(),"::",name_);
+    Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Undefining function ",m.c_str(),"::",name_);
 #endif
     if(m.empty()) {
         if(!CHECK_NONE(_main.attr(name_))) {

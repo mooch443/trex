@@ -70,7 +70,7 @@ struct DrawExportOptions::Data {
         export_options.on_select([&](auto idx, const std::string&) {
             auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
             auto& item = export_options.items().at(idx);
-            print("Removing ",item.value()._name);
+            Print("Removing ",item.value()._name);
 
             for (auto it = graphs.begin(); it != graphs.end(); ++it) {
                 if (it->first == item.value()._name) {
@@ -162,7 +162,7 @@ struct DrawExportOptions::Data {
             }
 
             export_options.set_items(items);
-            //print("Filtering for: ",search.text());
+            //Print("Filtering for: ",search.text());
         }
     }
 };

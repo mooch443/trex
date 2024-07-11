@@ -182,7 +182,7 @@ public:
             ptrs = info.frame->extract_from_blobs_unsafe(blob_map);
         
         /*if(ptrs.size() != individuals.size()) {
-            print("Got pointers: ", ptrs, " for map: ", blob_map, " with individuals: ", individuals, " and blobs: ", blobs);
+            Print("Got pointers: ", ptrs, " for map: ", blob_map, " with individuals: ", individuals, " and blobs: ", blobs);
         }
         
         assert(ptrs.size() == individuals.size());*/

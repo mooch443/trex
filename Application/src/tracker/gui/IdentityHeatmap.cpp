@@ -56,7 +56,7 @@ inline std::string get_stats() {
 
 void Grid::print_stats(const std::string& title) {
     auto str = get_stats();
-    print(title.c_str(),"\n",str.c_str());
+    Print(title.c_str(),"\n",str.c_str());
 }
 
 /**
@@ -133,14 +133,14 @@ void HeatmapController::save() {
     const bool be_quiet = GlobalSettings::is_runtime_quiet();
     //if (!be_quiet) 
     {
-        print("Likely memory size: ", FileSize{ expected * sizeof(double) });
+        Print("Likely memory size: ", FileSize{ expected * sizeof(double) });
     }
 
     const uint64_t value_size = sizeof(decltype(per_frame)::value_type);
     const uint64_t maximum_package_size = uint64_t(4.0 * 1024.0 * 1024.0 * 1024.0 / double(value_size));
     bool enable_packages = expected >= maximum_package_size;
 
-    print("ValueSize=", value_size," MaximumPackageSize=",maximum_package_size);
+    Print("ValueSize=", value_size," MaximumPackageSize=",maximum_package_size);
 
     if (enable_packages) {
         per_frame.reserve(maximum_package_size);
@@ -162,7 +162,7 @@ void HeatmapController::save() {
         };
 
         auto str = Meta::toStr(shape);
-        print("Done (", expected," / ", per_frame.size(),", shape ",str,").");
+        Print("Done (", expected," / ", per_frame.size(),", shape ",str,").");
         auto source = _source;
         if(source.find('#') != std::string::npos)
             source = source.substr(0, source.find('#'));
@@ -188,7 +188,7 @@ void HeatmapController::save() {
             }, "a");
         });
 
-        print("Saved to ", path.str(),".");
+        Print("Saved to ", path.str(),".");
 
         per_frame.clear();
         frames.clear();
@@ -205,7 +205,7 @@ void HeatmapController::save() {
         frames.push_back(frame.get());
         
         if(!be_quiet && count_frames % print_step == 0) {
-            print("Saving heatmap ",dec<2>(double(count_frames) / double(max_frames) * 100),"% ... (frame ",frame," / ",Tracker::end_frame(),")");
+            Print("Saving heatmap ",dec<2>(double(count_frames) / double(max_frames) * 100),"% ... (frame ",frame," / ",Tracker::end_frame(),")");
         }
 
         ++count_frames;
@@ -214,7 +214,7 @@ void HeatmapController::save() {
         if (enable_packages && per_frame.size() >= maximum_package_size) {
             auto size0 = FileSize{ per_frame.size() * sizeof(decltype(per_frame)::value_type) }.to_string(), 
                  size1 = FileSize{ maximum_package_size * sizeof(decltype(per_frame)::value_type) }.to_string();
-            print("Splitting package at ",size0," / ",size1,".");
+            Print("Splitting package at ",size0," / ",size1,".");
 
             save_package();
         }
@@ -601,9 +601,9 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             
             if(_frame_context > 0) {
                 if(pt.frame < current_frame - _frame_context) {
-                    print("Encountered a wild ", pt.frame," < ",current_frame - _frame_context);
+                    Print("Encountered a wild ", pt.frame," < ",current_frame - _frame_context);
                 } else if(pt.frame > current_frame + _frame_context)
-                    print("Encountered a wild ", pt.frame," > ",current_frame + _frame_context);
+                    Print("Encountered a wild ", pt.frame," > ",current_frame + _frame_context);
             }
             
             if(range.start == -1 || range.start > pt.frame) range.start = pt.frame;
@@ -613,7 +613,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
         assert(_grid.root()->frame_range() == range);
         
         //if(_frame % 50 == 0)
-        print("Frame ",current_frame,": ",data.size()," elements (added ",updated.added,", (removed)",updated.removed," + (replaced)",0,", range ",range.start,"-",range.end,", reported ",_grid.root()->frame_range().start,"-",_grid.root()->frame_range().end,")");*/
+        Print("Frame ",current_frame,": ",data.size()," elements (added ",updated.added,", (removed)",updated.removed," + (replaced)",0,", range ",range.start,"-",range.end,", reported ",_grid.root()->frame_range().start,"-",_grid.root()->frame_range().end,")");*/
     }
     
     //auto str = Meta::toStr(data);
@@ -755,9 +755,9 @@ void HeatmapController::set_frame(Frame_t current_frame) {
         if(_frame.valid()
            && _frame.get() % 50 == 0)
         {
-            print("-------------------");
+            Print("-------------------");
             Grid::print_stats("STATS (frame "+Meta::toStr(_frame)+", "+Meta::toStr(_grid.root()->IDs())+")");
-            print("");
+            Print("");
         }
     }
     
@@ -859,9 +859,9 @@ void Leaf::clear() {
 
 void Grid::create(const Size2 &image_dimensions) {
     auto dim = sign_cast<uint32_t>(image_dimensions.max());
-    print(image_dimensions, " -> ", next_pow2<uint32_t>(dim), " and ", dim, " vs ", next_pow2<uint32_t>(1280), " ", Size2(1280,720).max());
+    Print(image_dimensions, " -> ", next_pow2<uint32_t>(dim), " and ", dim, " vs ", next_pow2<uint32_t>(1280), " ", Size2(1280,720).max());
     dim = next_pow2<uint32_t>(dim); // ensure that it is always divisible by two
-    print("Creating a grid of size ",dim,"x",dim," (for image of size ",image_dimensions.width,"x",image_dimensions.height,")");
+    Print("Creating a grid of size ",dim,"x",dim," (for image of size ",image_dimensions.width,"x",image_dimensions.height,")");
     
     if(_root) {
         _root->clear();

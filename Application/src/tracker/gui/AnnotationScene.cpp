@@ -115,7 +115,7 @@ void exportAnnotationsToYolo(const std::vector<Annotation>& annotations, const S
 
     for (const auto& anno : annotations) {
         if (anno.type != typeToExport) {
-            print("Skipping annotation of type ", static_cast<int>(anno.type), ", not matching export type ", static_cast<int>(typeToExport), "\n");
+            Print("Skipping annotation of type ", static_cast<int>(anno.type), ", not matching export type ", static_cast<int>(typeToExport), "\n");
             continue;
         }
 
@@ -231,7 +231,7 @@ void AnnotationScene::activate() {
     Scene::activate();
     // Logic to activate the scene, e.g., initializing framePreloader
     auto source = SETTING(source).value<file::PathArray>();
-    print("Loading source = ", source);
+    Print("Loading source = ", source);
     
     std::unique_lock guard(_video_mutex);
     _video = std::make_unique<VideoSource>(source);
@@ -427,7 +427,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 //ptr->set(LineClr{ line });
                 ptr->set_color(line);
                 
-                //print("Creating new skelett with points ", points);
+                //Print("Creating new skelett with points ", points);
                 
                 auto coords = FindCoord::get();
                 for(auto &pt : points)
@@ -437,13 +437,13 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                     .points = std::move(points)
                 };
                 ptr->set_pose(pose);
-                //print("Create new label with text = ", text);
+                //Print("Create new label with text = ", text);
                 
                 return Layout::Ptr(ptr);
             },
             .update = [](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool {
-                //print("Updating label with patterns: ", patterns);
-                //print("o = ", o.get());
+                //Print("Updating label with patterns: ", patterns);
+                //Print("o = ", o.get());
 
                 /*Idx_t id;
                 if (patterns.contains("id"))
@@ -499,7 +499,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                     for(auto &pt : points)
                         pt = coords.convert(BowlCoord(pt));
                     
-                    print("Setting skelett to ", points);
+                    Print("Setting skelett to ", points);
                     Pose pose{
                         .points = std::move(points)
                     };
@@ -593,7 +593,7 @@ std::future<std::unordered_set<Frame_t>> AnnotationScene::select_unique_frames()
         
         // select N frames uniformly samples
         auto step = max(1u, L.get() / min(100u, max(1u, uint32_t(L.get() * 0.1))));
-        print("Moving through the video at ", step, " images step size (",L.get() / step," images).");
+        Print("Moving through the video at ", step, " images step size (",L.get() / step," images).");
         
         struct ImageMaker {
             Image::Ptr operator()() {
@@ -665,22 +665,22 @@ std::future<std::unordered_set<Frame_t>> AnnotationScene::select_unique_frames()
                     if(not indexes.contains(Frame_t(frameIndex))) {
                         auto image = std::move(savedImages[index]);
                         if(not image)
-                            print("Image not present: ", i);
+                            Print("Image not present: ", i);
                         else {
                             if(frameIndex != image->index())
-                                print("Not the same: ", frameIndex, " != ", image->index());
+                                Print("Not the same: ", frameIndex, " != ", image->index());
                             indexes.insert(Frame_t(image->index()));
                             _loaded_frames[Frame_t(image->index())] = std::move(image);
                             //selectedFrames.emplace_back(std::move(image));
                             count++;
                         }
                     } else
-                        print("Frame ", frameIndex, " is already in ", indexes);
+                        Print("Frame ", frameIndex, " is already in ", indexes);
                 }
             }
         }
         
-        print("selected indexes = ", indexes);
+        Print("selected indexes = ", indexes);
         return indexes;
     });
 }
@@ -700,7 +700,7 @@ bool AnnotationScene::on_global_event(Event event) {
             _drag_box = std::make_unique<Rect>(Loc{coords.convert(HUDCoord{p})});
         
         auto pos = _drag_box->pos();
-        print(pos, " => ", coords.convert(HUDCoord(p)) - pos);
+        Print(pos, " => ", coords.convert(HUDCoord(p)) - pos);
         _drag_box->create(Size{coords.convert(HUDCoord(p)) - pos + Vec2(1)}, FillClr{Red.alpha(50)});
     }
 
@@ -710,7 +710,7 @@ bool AnnotationScene::on_global_event(Event event) {
     {
         auto p = Vec2(event.mbutton.x, event.mbutton.y);
         auto coord = FindCoord::get();
-        print("adding point at ", p, " => ", coord.convert(HUDCoord(p)));
+        Print("adding point at ", p, " => ", coord.convert(HUDCoord(p)));
         p = coord.convert(HUDCoord(p));
         
         if(_drag_box
@@ -767,7 +767,7 @@ bool AnnotationScene::on_global_event(Event event) {
                     }
 
                     if (closestFrame.valid()) {
-                        print("Navigating to frame ", closestFrame);
+                        Print("Navigating to frame ", closestFrame);
                         navigateToFrame(closestFrame);
                     }
                 }
@@ -786,7 +786,7 @@ bool AnnotationScene::on_global_event(Event event) {
                     }
 
                     if (closestFrame.valid()) {
-                        print("Navigating to frame ", closestFrame);
+                        Print("Navigating to frame ", closestFrame);
                         navigateToFrame(closestFrame);
                     }
                 }
@@ -850,13 +850,13 @@ std::future<Image::Ptr> AnnotationScene::retrieve_next_frame() {
     auto it = _selected_frames.begin();
     index = *it;
     _selected_frames.erase(it);
-    print("Preloading frame ", index);
+    Print("Preloading frame ", index);
     
     return std::async(std::launch::async, [this](Frame_t index){
         std::unique_lock guard(_video_mutex);
         auto image = std::make_unique<Image>();
         _video->frame(index, *image);
-        print("Frame ", index," loaded.");
+        Print("Frame ", index," loaded.");
         return image;
     }, index);
 }

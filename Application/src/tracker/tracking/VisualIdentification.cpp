@@ -106,7 +106,7 @@ void VINetwork::setup(bool force) {
             batch_size = 128;
         
         auto version = SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>();
-        print("network version: ", version);
+        Print("network version: ", version);
         //py::unset_function("model", "learn_static");
         py::set_variable("network_version", version.toStr(), "learn_static");
         py::set_variable("classes", ids, "learn_static");
@@ -121,12 +121,12 @@ void VINetwork::setup(bool force) {
         try {
             if(!filename.remove_filename().exists()) {
                 if(filename.remove_filename().create_folder())
-                    print("Created folder ",filename.remove_filename().str());
+                    Print("Created folder ",filename.remove_filename().str());
                 else
-                    print("Error creating folder for ",filename.str());
+                    Print("Error creating folder for ",filename.str());
             }
         } catch(...) {
-            print("Error creating folder for ",filename.str());
+            Print("Error creating folder for ",filename.str());
         }
         
         auto image_mode = Background::image_mode();
@@ -245,7 +245,7 @@ void VINetwork::load_weights_internal() {
     
     try {
         py::run("learn_static", "load_weights");
-        print("\tReloaded weights.");
+        Print("\tReloaded weights.");
         
     } catch(...) {
         throw;
@@ -276,7 +276,7 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
     
     try {
         if(images.size() == 0) {
-            print("Empty images array.");
+            Print("Empty images array.");
             callback(std::vector<std::vector<float>>{},std::vector<float>{});
             return;
         }
@@ -324,13 +324,13 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
     
     // try doing everything in-memory without saving it
     if(load_results == TrainingMode::Restart)
-        print("Beginning training for ", data->size()," images.");
+        Print("Beginning training for ", data->size()," images.");
     else if(load_results == TrainingMode::Continue)
-        print("Continuing training (", data->size()," images)");
+        Print("Continuing training (", data->size()," images)");
     else if(load_results == TrainingMode::Apply)
-        print("Just loading weights (", data->size()," images)");
+        Print("Just loading weights (", data->size()," images)");
     else if(load_results == TrainingMode::Accumulate)
-        print("Accumulating and training on more segments (", data->size()," images)");
+        Print("Accumulating and training on more segments (", data->size()," images)");
     else
         throw U_EXCEPTION("Unknown training mode ",load_results," in train_internally");
     
@@ -352,11 +352,11 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 
                 // TODO: only merge those that dont overlap with anything else
                 // they dont overlap -> join
-                print("Last training data (",strold,") does not overlap with new training data (",strme,"). Attempting to join them.");
+                Print("Last training data (",strold,") does not overlap with new training data (",strme,"). Attempting to join them.");
                 
                 // check the accuracy of the given segment
                 {
-                    print("Seems alright. Gonna merge now...");
+                    Print("Seems alright. Gonna merge now...");
                     data->merge_with(_last_training_data);
                 }
             }
@@ -367,7 +367,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
     }
     
     if(!dont_save) {
-        print("Saving last training data ptr...");
+        Print("Saving last training data ptr...");
         _last_training_data = data;
     }
     
@@ -428,7 +428,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 py::set_variable("classes", classes, "learn_static");
                 py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");
                 
-                print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
+                Print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 
                 uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
                 py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), "learn_static");
@@ -439,12 +439,12 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 try {
                     if(!filename.remove_filename().exists()) {
                         if(filename.remove_filename().create_folder())
-                            print("Created folder ",filename.remove_filename().str());
+                            Print("Created folder ",filename.remove_filename().str());
                         else
-                            print("Error creating folder for ",filename.str());
+                            Print("Error creating folder for ",filename.str());
                     }
                 } catch(...) {
-                    print("Error creating folder for ",filename.str());
+                    Print("Error creating folder for ",filename.str());
                 }
                 
                 py::set_variable("run_training",
@@ -468,7 +468,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");
                     if(worst_accuracy_per_class)
                         *worst_accuracy_per_class = best_accuracy_worst_class;
-                    print("best_accuracy_worst_class = ", best_accuracy_worst_class);
+                    Print("best_accuracy_worst_class = ", best_accuracy_worst_class);
                     
                     //if(!dont_save)
                     _status.weights_valid = true;
@@ -537,7 +537,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     {
                         FileSize size(images.size());
                         auto ss = size.to_string();
-                        print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
+                        Print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                         
                         cmn::npz_save(ranges_path.str(), "ranges", all_ranges.data(), { all_ranges.size() / 2u, 2u }, "w");
                         cmn::npz_save(ranges_path.str(), "positions", positions.data(), {positions.size() / 2u, 2u}, "a");
@@ -547,7 +547,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     }
                     
                 } catch(const SoftExceptionImpl& e) {
-                    print("Runtime error: ", e.what());
+                    Print("Runtime error: ", e.what());
                     throw;
                 }
             
@@ -576,10 +576,10 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 DebugCallback("Success (train) with unspecified accuracy (will only be displayed directly after training).");
             success = true;
         } else
-            print("Training the network failed (",best_accuracy_worst_class,").");
+            Print("Training the network failed (",best_accuracy_worst_class,").");
         
     } catch(const SoftExceptionImpl& e) {
-        print("Runtime error: ", e.what());
+        Print("Runtime error: ", e.what());
         throw;
     }
     
@@ -626,7 +626,7 @@ size_t VINetwork::number_classes() {
 //auto str = Meta::toStr(values);
 
 auto time = timer.elapsed();
-print("[GPU] ",dec<2>(values.size() / float(FAST_SETTING(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
+Print("[GPU] ",dec<2>(values.size() / float(FAST_SETTING(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
 
 this->stop_running();
 
@@ -673,7 +673,7 @@ this->stop_running();
             auto array = x.unchecked<2>();
             auto idxes = idx.unchecked<1>();
             
-            print("Copying ", array.size()," data");
+            Print("Copying ", array.size()," data");
             auto ptr = array.data(0,0);
             auto end = ptr + array.size();
             temporary.insert(temporary.end(), ptr, end);

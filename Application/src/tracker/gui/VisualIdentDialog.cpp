@@ -131,10 +131,10 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                             
                         if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
                         {
-                            print("Registering auto correct callback.");
+                            Print("Registering auto correct callback.");
                             
                             Accumulation::register_apply_callback([controller, gui](){
-                                print("Finished. Auto correcting...");
+                                Print("Finished. Auto correcting...");
                                 controller->on_apply_done();
                                 controller->auto_correct(gui, true);
                             });
@@ -165,10 +165,10 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         
         if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
         {
-            print("Registering auto correct callback.");
+            Print("Registering auto correct callback.");
             
             Accumulation::register_apply_callback([controller, gui](){
-                print("Finished. Auto correcting...");
+                Print("Finished. Auto correcting...");
                 controller->on_apply_done();
                 controller->auto_correct(gui, true);
             });
@@ -222,7 +222,7 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
             cmn::set_thread_name("async::ensure_started");
             try {
                 //py::init().get();
-                print("Initialization success.");
+                Print("Initialization success.");
                 
             } catch(...) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -272,7 +272,7 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
             } else
-                print("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
+                Print("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
         }
         
         if(!before)
@@ -363,7 +363,7 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
         file::Path path = Output::TrackingResults::expected_filename();
         path = path.add_extension("meta");
         
-        print("Writing ",path.str()," meta file instead of .results");
+        Print("Writing ",path.str()," meta file instead of .results");
         
         auto f = fopen(path.str().c_str(), "wb");
         if(f) {
@@ -371,7 +371,7 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
             fwrite(str.data(), sizeof(uchar), str.length(), f);
             fclose(f);
         } else
-            print("Cannot write ",path.str()," meta file.");
+            Print("Cannot write ",path.str()," meta file.");
     }
     
     try {

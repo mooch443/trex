@@ -16,7 +16,7 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
 
 Label::~Label() {
     MouseDock::unregister_label(this);
-    //print("Label destroyed ", this);
+    //Print("Label destroyed ", this);
     set_animating(false);
 }
 
@@ -89,13 +89,13 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
         Vec2 alternative = coord.convert(center_screen);
         auto global = global_transform().getInverse();
         alternative = global.transformPoint(center_screen);
-        //print("viewport = ", coord.viewport(), " hud_viewport = ", coord.hud_viewport(), " => ", coord.convert(HUDRect(Vec2(), coord.hud_viewport().size())), " ",coord.screen_size(), " other=",other, " alternative=",alternative, " screen_center=",center_screen);
+        //Print("viewport = ", coord.viewport(), " hud_viewport = ", coord.hud_viewport(), " => ", coord.convert(HUDRect(Vec2(), coord.hud_viewport().size())), " ",coord.screen_size(), " other=",other, " alternative=",alternative, " screen_center=",center_screen);
 
         //screen = BowlRect(Bounds(Vec2(), coord.screen_size()));
         //auto screen = Bounds(Vec2(), coord.video_size());
         //auto screen = coord.convert(HUDRect(Vec2(), coord.screen_size()));
 
-        //print("screen = ", screen, " scale = ", scale, " gscale = ", gscale, " video = ", coord.video_size());
+        //Print("screen = ", screen, " scale = ", scale, " gscale = ", gscale, " video = ", coord.video_size());
             //auto inverse = e.global_transform().getInverse();
             //scale = inverse.transformPoint(Vec2(1)) - inverse.transformPoint(Vec2(0));
             //screen = inverse.transformRect(Bounds(Vec2(), screen_size));
@@ -121,13 +121,13 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
         float percent = screen_size.empty()
             ? 1
             : vec.length() / sqrtf(SQR(screen_size.width) + SQR(screen_size.height));
-        //print("percent = ", percent, " center=", _center, " alternative=",alternative, " screen=", screen.size());
+        //Print("percent = ", percent, " center=", _center, " alternative=",alternative, " screen=", screen.size());
 
         // maybe something about max_zoom_limit and current scale vs. video size?
         distance = /*_text->local_bounds().height +*/ (_line_length * (percent) + 10);
         //auto text_pos = _center - offset * distance + 10 * scale.y;
         text_pos = _center - vec.normalize() * distance;
-        //print("offset = ", offset, " distance=", distance, " len=", vec.length(), " norm=",vec.length() / sqrtf(screen.width * screen.height));
+        //Print("offset = ", offset, " distance=", distance, " len=", vec.length(), " norm=",vec.length() / sqrtf(screen.width * screen.height));
 
 
 
@@ -178,7 +178,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     //auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
     auto dis = euclidean_distance(screen_target, screen_source) / (2 * sqrtf(SQR(screen_rect.width) + SQR(screen_rect.height)));
     //if (dis > 0.25)
-        //print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
+        //Print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
 
     _color = (disabled ? (is_in_mouse_dock ? White : Gray) : _line_color).alpha(255 * alpha);
 
@@ -196,7 +196,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
         _line.create(Line::Point_t{ _center }, Line::Point_t{ _text->pos() }, LineClr{ _color }, Line::Thickness_t{ 2 });
         //e.add<Line>(_center, _text->pos(), _color, 1);
         if(_registered) {
-            //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
+            //Print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
             _registered = false;
             set_animating(false);
         }
@@ -219,7 +219,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
         _text->set_pos(next);
     } else {
         if(_registered) {
-            //print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
+            //Print("animator is off ", next, " == ", _text->pos(), " for animator ", animator);
             _registered = false; 
             set_animating(false);
         }
@@ -233,7 +233,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
 
 void Label::set(attr::Loc loc)
 {
-    print("Label::set ", loc);
+    Print("Label::set ", loc);
     //Entangled::set(loc);
     //update(FindCoord::get(), )
 }

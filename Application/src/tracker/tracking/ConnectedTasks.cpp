@@ -104,7 +104,7 @@ namespace cmn {
                             
                             ss << "(total: "<<total_time * 1000<<"ms)";
                             auto str = ss.str();
-                            print(str.c_str());
+                            Print(str.c_str());
                             
                             timer.reset();
                             
@@ -124,7 +124,7 @@ namespace cmn {
         
         std::lock_guard<std::mutex> lock(_finish_mutex);
         _finish_condition.notify_one();
-        print("Initialized ", _stages.size()," stages");
+        Print("Initialized ", _stages.size()," stages");
     }
 
     ConnectedTasks::~ConnectedTasks() {

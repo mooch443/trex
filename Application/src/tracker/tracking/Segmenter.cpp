@@ -99,7 +99,7 @@ Segmenter::~Segmenter() {
         else if(not _next_frame_data) {
             try {
                 auto data = std::get<1>(items.front()).get();
-                print("Feeding the tracker ", data.original_index(), "...");
+                Print("Feeding the tracker ", data.original_index(), "...");
                 _next_frame_data = std::move(data);
                 ThreadManager::getInstance().notify(_tracker_group_id);
             }
@@ -139,7 +139,7 @@ Segmenter::~Segmenter() {
 
                 track::export_data(*video, *_tracker, {}, {}, [](float, std::string_view) {
                     //if (int(p * 100) % 10 == 0) {
-                    //    print("Exporting ", int(p * 100), "%...");
+                    //    Print("Exporting ", int(p * 100), "%...");
                     //}
                 });
             }
@@ -220,11 +220,11 @@ void Segmenter::open_video() {
     _output_file_name = SETTING(filename).value<file::Path>();*/
     _output_file_name = settings::find_output_name(GlobalSettings::map());
     
-    print("source = ", SETTING(source).value<file::PathArray>());
-    print("output = ", _output_file_name);
-    print("video_base = ", video_base.base());
-    print("length = ", video_base.length());
-    print("frame_rate = ", video_base.framerate());
+    Print("source = ", SETTING(source).value<file::PathArray>());
+    Print("output = ", _output_file_name);
+    Print("video_base = ", video_base.base());
+    Print("length = ", video_base.length());
+    Print("frame_rate = ", video_base.framerate());
 
     setDefaultSettings();
     
@@ -264,7 +264,7 @@ void Segmenter::open_video() {
         do_generate_average = true;
     }
     else {
-        print("Loading from file...");
+        Print("Loading from file...");
         bg = cv::imread(average_name().str());
 
         auto size = video_base.size();
@@ -334,7 +334,7 @@ void Segmenter::open_video() {
                 if(percent > last_percent + 10
                    || percent >= 0.99)
                 {
-                    print("[average] Generating average ", int(percent * 100), "%");
+                    Print("[average] Generating average ", int(percent * 100), "%");
                     last_percent = percent;
                 }
                 _average_percent = percent;
@@ -344,9 +344,9 @@ void Segmenter::open_video() {
             
             if(not _average_terminate_requested) {
                 cv::imwrite(average_name().str(), bg);
-                print("** generated average ", bg.channels());
+                Print("** generated average ", bg.channels());
             } else {
-                print("Aborted average image.");
+                Print("Aborted average image.");
             }
             
             if(detection_type() == ObjectDetectionType::background_subtraction)
@@ -460,7 +460,7 @@ void Segmenter::open_camera() {
         tmp.generate_average(bg, 0);
         cv::imwrite(average_name().str(), bg);
     } else {
-        print("Loading from file...");
+        Print("Loading from file...");
         bg = cv::imread(average_name().str());
         cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
     }*/
@@ -559,7 +559,7 @@ void Segmenter::start_recording_ffmpeg() {
                 [](Image::Ptr&& image) {
                     image = nullptr; // move image back to buffer
                 });
-            print("Encoding mp4 into ",path.str(),"... (size = ", _overlayed_video->source()->size(),")");
+            Print("Encoding mp4 into ",path.str(),"... (size = ", _overlayed_video->source()->size(),")");
             
             _ffmpeg_group = ThreadManager::getInstance().registerGroup("RawMovie");
             ThreadManager::getInstance().addThread(_ffmpeg_group, "FFMPEGQueue", ManagedThread{
@@ -739,7 +739,7 @@ void Segmenter::perform_tracking() {
         
         _tracker->add(pp);
         /*if (pp.index().get() % 100 == 0) {
-            print(track::IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
+            Print(track::IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
         }*/
         
         /*for(auto &b : _progress_blobs) {
@@ -798,13 +798,13 @@ void Segmenter::perform_tracking() {
             AbstractBaseVideoSource::_samples = 1;
             frame_counter.reset();
             //if(FPS >= 1)
-            //    print("FPS: ", int(FPS));
+            //    Print("FPS: ", int(FPS));
         }
 
     }
 
     if (samples > 10000) {
-        print("Average time since last frame: ", average / samples * 1000.0, "ms (", c * 1000, "ms)");
+        Print("Average time since last frame: ", average / samples * 1000.0, "ms (", c * 1000, "ms)");
 
         average /= samples;
         samples = 1;
@@ -881,7 +881,7 @@ void Segmenter::tracking_thread() {
                     size_t percent = L.get() > 0
                                         ? float(C.get()) / float(L.get()) * 100
                                         : 0;
-                    //print(C, " / ", L, " => ", percent);
+                    //Print(C, " / ", L, " => ", percent);
                     static size_t last_progress = 0;
                     if (abs(float(percent) - float(last_progress)) >= 1)
                     {
@@ -929,7 +929,7 @@ void Segmenter::tracking_thread() {
             )
         {
 #ifndef NDEBUG
-            print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
+            Print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
 #endif
             guard.unlock();
             graceful_end();
@@ -1009,15 +1009,15 @@ void Segmenter::setDefaultSettings() {
 
 void Segmenter::printDebugInformation() {
     DebugHeader("Starting tracking of");
-    print("average at: ", average_name());
+    Print("average at: ", average_name());
     using namespace track::detect;
-    print("model: ", SETTING(detect_model).value<file::Path>());
-    print("region model: ", SETTING(region_model).value<file::Path>());
-    print("video: ", SETTING(source).value<file::PathArray>());
-    print("model resolution: ", SETTING(detect_resolution).value<DetectResolution>());
-    print("output size: ", _output_size);
-    print("output path: ", _output_file_name);
-    print("color encoding: ", SETTING(meta_encoding).value<meta_encoding_t::Class>());
+    Print("model: ", SETTING(detect_model).value<file::Path>());
+    Print("region model: ", SETTING(region_model).value<file::Path>());
+    Print("video: ", SETTING(source).value<file::PathArray>());
+    Print("model resolution: ", SETTING(detect_resolution).value<DetectResolution>());
+    Print("output size: ", _output_size);
+    Print("output path: ", _output_file_name);
+    Print("color encoding: ", SETTING(meta_encoding).value<meta_encoding_t::Class>());
 }
 
 std::future<std::optional<std::string_view>> Segmenter::video_recovered_error() const {

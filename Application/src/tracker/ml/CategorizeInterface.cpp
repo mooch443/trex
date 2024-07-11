@@ -223,7 +223,7 @@ void receive_prediction_results(const LearningTask& task) {
     
 #ifndef NDEBUG
     auto str1 = Meta::toStr(task.sample->_probabilities);
-    print(task.result.size(),": ",str0.c_str()," -> ",str1.c_str());
+    Print(task.result.size(),": ",str0.c_str()," -> ",str1.c_str());
 #endif
 }
 
@@ -324,7 +324,7 @@ void Cell::update_scale() {
 
     if (base && _image->width() > 0) {
         Size2 bsize(base->width(), base->height());
-        //print("DPI = ", ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale(), " bsize = ", bsize);
+        //Print("DPI = ", ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale(), " bsize = ", bsize);
         if(Interface::get()._window)
             bsize = bsize / Interface::get()._window->dpi_scale();
         bsize = bsize.div(base->scale());

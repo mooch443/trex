@@ -27,7 +27,7 @@ private:
 public:
     struct Guard {
         Guard() {
-            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "init()");
+            Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "init()");
 
             std::unique_lock guard(_data_mutex);
             _data->_initialized = false;
@@ -50,9 +50,9 @@ public:
 
         ~Guard() {
             std::unique_lock guard(_data_mutex);
-            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "...");
+            Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "...");
             py::deinit();
-            print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "deinit()");
+            Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "deinit()");
 
             _data->_initialized = false;
             _data->_initializing = false;
@@ -64,19 +64,19 @@ public:
         {
             std::unique_lock guard(_data_mutex);
             if (_data == ptr) {
-                print("Data and ptr are the same");
+                Print("Data and ptr are the same");
                 return; // these are the same, exit quickly
             }
 
-            print("Setting data to ", ptr, " from ", _data, ".");
+            Print("Setting data to ", ptr, " from ", _data, ".");
 
             if (_data && _data->_thread) {
                 data = _data;
-                print("Data and thread.");
+                Print("Data and thread.");
             }
             else if (_data && not _data->_initialized) {
 #ifndef NDEBUG
-                print("Data and not initialized.");
+                Print("Data and not initialized.");
 #endif
                 if (_data->_initializing) {
                     if (_data->_init_future.valid()) {
@@ -89,14 +89,14 @@ public:
                 }
                 else {
 #ifndef NDEBUG
-                    print("Not initializing.");
+                    Print("Not initializing.");
 #endif
                     delete _data;
                     _data = nullptr;
                 }
             }
             else if (_data) {
-                print("Should be safe to delete _data.");
+                Print("Should be safe to delete _data.");
                 delete _data;
                 _data = nullptr;
             }
@@ -105,7 +105,7 @@ public:
         if (data) {
             // deinitialize last instance
             deinit().get();
-            print("Deinitialized last instance.");
+            Print("Deinitialized last instance.");
         }
 
         std::scoped_lock guard(_data_mutex, _termination_mutex);
@@ -412,7 +412,7 @@ std::shared_future<void> init() {
                 throw SoftException("Not successfully initialized Python.");
             }
             
-            print("Initialized.");
+            Print("Initialized.");
         }),
         ._network = nullptr,
         ._can_run_before_init = false
@@ -480,14 +480,14 @@ std::future<void> deinit() {
             FormatExcept("Python runtime exception: ", e.what());
             //e.restore();
         } catch( ... ) {
-            print("Caught one exception.");
+            Print("Caught one exception.");
         }
         lock.lock();
     }
     
     if(!python_init_error().empty()) {
         // there has been an error, so deinit!
-        print("Breaking out of loop due to error in initialization.");
+        Print("Breaking out of loop due to error in initialization.");
         break;
     }
     
@@ -551,7 +551,7 @@ bool can_initialize_python() {
 #endif
     if ((SETTING(wd).value<file::Path>() / exec).exists()) {
         exec = (SETTING(wd).value<file::Path>() / exec).str();
-        print("Exists in working dir: ", exec);
+        Print("Exists in working dir: ", exec);
 #ifndef WIN32
         exec += " 2> /dev/null";
 #endif
@@ -562,12 +562,12 @@ bool can_initialize_python() {
         p = p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME;
         
         if(p.exists()) {
-            print(p," exists.");
+            Print(p," exists.");
             exec = p.str()+" 2> /dev/null";
         } else {
             p = SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME;
             if(p.exists()) {
-                //print("Pure ",p," exists.");
+                //Print("Pure ",p," exists.");
                 exec = p.str()+" 2> /dev/null";
             } else {
                 // search conda
@@ -575,13 +575,13 @@ bool can_initialize_python() {
                 if(conda_prefix) {
                     const bool quiet = GlobalSettings::is_runtime_quiet();
                     if(!quiet)
-                        print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
+                        Print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
                     p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
                     if(!quiet)
-                        print("Full path: ", p);
+                        Print("Full path: ", p);
                     if(p.exists()) {
                         if(!quiet)
-                            print("Found in conda environment ",std::string(conda_prefix)," at ",p);
+                            Print("Found in conda environment ",std::string(conda_prefix)," at ",p);
                         exec = p.str()+" 2> /dev/null";
                     } else {
                         FormatWarning("Not found in conda environment ",std::string(conda_prefix)," at ",p,".");
@@ -643,7 +643,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
         if (file::Path(home).exists() && file::Path(home).is_regular())
             home = file::Path(home).remove_filename().str();
 
-        //print("Checking python at ", home);
+        //Print("Checking python at ", home);
 
         if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
             const bool quiet = GlobalSettings::is_runtime_quiet();
@@ -681,13 +681,13 @@ void fix_paths(bool force_init, cmn::source_location loc) {
             setenv("PYTHONHOME", home.c_str(), 1);
 #endif
             if (!quiet) {
-                print("Set PATH=",set);
-                print("Set PYTHONHOME=",home);
+                Print("Set PATH=",set);
+                Print("Set PYTHONHOME=",home);
 
                 if (!can_initialize_python())
                     FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
                 else
-                    print("Can initialize.");
+                    Print("Can initialize.");
             }
         }
 #endif

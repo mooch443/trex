@@ -103,7 +103,7 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
 }
 
 TrackingState::~TrackingState() {
-    print("Preparing for shutdown...");
+    Print("Preparing for shutdown...");
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();
     Categorize::terminate();
@@ -142,7 +142,7 @@ bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
         ptr->set_loading_time(timer.elapsed());
     }
     catch (const std::exception& e) {
-        print("Error while preprocessing frame ", idx, ": ", e.what());
+        Print("Error while preprocessing frame ", idx, ": ", e.what());
         return false;
     }
 
@@ -193,7 +193,7 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
             last_added.reset();
         }
         
-        //print(_data->tracker->active_individuals(idx));
+        //Print(_data->tracker->active_individuals(idx));
         _stats.update(idx, range, video->length(), tracker->statistics().at(idx).number_fish, idx == range.end());
     }
 
@@ -215,7 +215,7 @@ void TrackingState::init_video() {
     default_config::get(combined.map, combined.docs, nullptr);
     
     std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.at("meta_write_these").value<std::vector<std::string>>() : std::vector<std::string>{};
-    print("Have these keys:", combined.map.keys());
+    Print("Have these keys:", combined.map.keys());
     std::set<std::string> deleted_keys;
     for(auto key : combined.map.keys()) {
         if(not contains(save, key)) {
@@ -223,8 +223,8 @@ void TrackingState::init_video() {
             combined.map.erase(key);
         }
     }
-    print("Deleted keys:", deleted_keys);
-    print("Remaining:", combined.map.keys());
+    Print("Deleted keys:", deleted_keys);
+    Print("Remaining:", combined.map.keys());
 
     thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
     GlobalSettings::map().set_print_by_default(true);
@@ -265,9 +265,9 @@ void TrackingState::init_video() {
     }
     
     /*
-    print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
-    print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
-    print("exclude_parameters = ", exclude_parameters);
+    Print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
+    Print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
+    Print("exclude_parameters = ", exclude_parameters);
 
     try {
         if (!video->header().metadata.empty()) {
@@ -308,7 +308,7 @@ void TrackingState::init_video() {
     //cmd.load_settings(&combined);
     
     //SETTING(gui_interface_scale) = float(1);
-    print("cm_per_pixel = ", SETTING(cm_per_pixel).value<float>());
+    Print("cm_per_pixel = ", SETTING(cm_per_pixel).value<float>());
     
     for (auto i=0_f; i<cache_size; ++i)
         unused.emplace(std::make_unique<PPFrame>(tracker->average().bounds().size()));
@@ -417,10 +417,10 @@ void TrackingState::Statistics::printProgress(float percent, const std::string& 
 
 void TrackingState::Statistics::logProgress(float percent, const std::string& status) {
     if (print_timer.elapsed() > 30) {
-        // Here we use print(...) as if it's a member function similar to printf, but with
+        // Here we use Print(...) as if it's a member function similar to printf, but with
         // the behavior as specified (e.g., taking arbitrary arguments and producing reasonable
         // textual representations of objects, ending on a newline automatically).
-        print("[Statistics] Progress: ", dec<2>(percent), "% ", status.c_str());
+        Print("[Statistics] Progress: ", dec<2>(percent), "% ", status.c_str());
         print_timer.reset(); // Reset the timer to log again after the specified interval
     }
 }
@@ -604,10 +604,10 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                     
                     if(found * 2 > N) {
                         // blobs are probably fine!
-                        print("blobs are probably fine ",found,"/",N,".");
+                        Print("blobs are probably fine ",found,"/",N,".");
                         return false;
                     } else if(N > 0) {
-                        print("blobs are probably not fine.");
+                        Print("blobs are probably not fine.");
                         return false;
                     }
                     
@@ -615,7 +615,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                 });
                 
                 if(found * 2 <= N && N > 0) {
-                    print("fixing...");
+                    Print("fixing...");
                     WorkProgress::set_item("Fixing old blob_ids...");
                     WorkProgress::set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
                     /*auto old_id_from_position = [](Vec2 center) {
@@ -680,7 +680,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                                     FormatError("Cannot find actual blob for ", obj);
                                 } else {
                                     //auto unpack = ptr->second->unpack();
-                                    //print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
+                                    //Print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
                                 }*/
                                     tmp[obj] = ps;
                                     ++all_found;
@@ -691,12 +691,12 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                                 for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {
-                                        //print("Found blob close to ", center, " at ", c, ": ", *b);
+                                        //Print("Found blob close to ", center, " at ", c, ": ", *b);
                                         for(auto &fish : active) {
                                             auto b = fish->compressed_blob(k);
                                             if(b && (b->blob_id() == bid || b->parent_id == bid))
                                             {
-                                                //print("Equal IDS1 ", b->blob_id(), " and ", id);
+                                                //Print("Equal IDS1 ", b->blob_id(), " and ", id);
                                                 tmp[b->blob_id()] = ps;
                                                 found = b;
                                                 break;
@@ -707,7 +707,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                                                 auto center = bounds.pos() + bounds.size() * 0.5;
                                                 
                                                 auto distance = sqdistance(c, center);
-                                                //print("\t", fish->identity(), ": ", b->blob_id(), "(",b->parent_id,") at ", center, " (", distance, ")", (distance < 5 ? "*" : ""));
+                                                //Print("\t", fish->identity(), ": ", b->blob_id(), "(",b->parent_id,") at ", center, " (", distance, ")", (distance < 5 ? "*" : ""));
                                                 
                                                 if(distance < 2) {
                                                     tmp[b->blob_id()] = ps;
@@ -723,7 +723,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                                 }
                                 
                                 if(found == nullptr) {
-                                    //print("Not found for ", center, " size=", r.size(), " with id ", bid);
+                                    //Print("Not found for ", center, " size=", r.size(), " with id ", bid);
                                     ++not_found;
                                 } else {
                                     ++all_found;
@@ -736,12 +736,12 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                         
                         ++i;
                         if(i % uint64_t(N * 0.1) == 0) {
-                            print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
+                            Print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
                             WorkProgress::set_percent(double(i) / double(N));
                         }
                     });
                     
-                    print("Found:", all_found, " not found:", not_found);
+                    Print("Found:", all_found, " not found:", not_found);
                     if(all_found > 0)
                         Tracker::instance()->set_vi_data(next_recognition);
                 }
@@ -755,7 +755,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                     default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, {}, true);
                     
                 } catch(const cmn::illegal_syntax& e) {
-                    print("Illegal syntax in .results settings (",e.what(),").");
+                    Print("Illegal syntax in .results settings (",e.what(),").");
                 }
                 
                 std::vector<Idx_t> focus_group;

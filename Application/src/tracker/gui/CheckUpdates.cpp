@@ -124,7 +124,7 @@ void init(gui::DrawStructure* gui) {
     try {
         if (!file::Path("update_check").exists()) {
             if (GlobalSettings::is_runtime_quiet())
-                print("Initial start, no update_check file exists.");
+                Print("Initial start, no update_check file exists.");
             return;
         }
         contents = utils::read_file("update_check");
@@ -142,7 +142,7 @@ void init(gui::DrawStructure* gui) {
     } catch(const std::exception& ex) {
         FormatExcept("Exception: '", ex.what(),"'");
     } catch(...) {
-        print("Illegal content, or parsing failed for app_last_update_check: ",contents);
+        Print("Illegal content, or parsing failed for app_last_update_check: ",contents);
     }
     
     Thread::instance()._graph = gui;
@@ -172,7 +172,7 @@ bool automatically_check() {
 
 void display_update_dialog(gui::DrawStructure* graph) {
     if(not graph /*&& not GUI_SETTINGS(nowindow)*/) {
-        print("Newer version (",CheckUpdates::newest_version(),") available for download. Visit https://trex.run/docs/update.html for instructions on how to update.");
+        Print("Newer version (",CheckUpdates::newest_version(),") available for download. Visit https://trex.run/docs/update.html for instructions on how to update.");
         return;
     }
     
@@ -239,9 +239,9 @@ void update_loop(gui::DrawStructure* graph) {
            || (!_last_check_success && dt >= short_update_time))
         {
             if(_last_check_success)
-                print("[CHECK_UPDATES] It has been a week. Let us check for updates...");
+                Print("[CHECK_UPDATES] It has been a week. Let us check for updates...");
             else
-                print("[CHECK_UPDATES] Trying again after ",DurationUS{(uint64_t)dt.count()},"...");
+                Print("[CHECK_UPDATES] Trying again after ",DurationUS{(uint64_t)dt.count()},"...");
             
             SETTING(app_last_update_check) = (uint64_t)duration_cast<microseconds>( now.time_since_epoch() ).count();
             
@@ -253,9 +253,9 @@ void update_loop(gui::DrawStructure* graph) {
                     _last_check_success = true;
                     
                     if(status == VersionStatus::NEWEST) {
-                        print("[CHECK_UPDATES] Already have the newest version (",newest_version(),").");
+                        Print("[CHECK_UPDATES] Already have the newest version (",newest_version(),").");
                     } else if(status == VersionStatus::ALREADY_ASKED) {
-                        print("[CHECK_UPDATES] There is a new version available (",newest_version(),"), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
+                        Print("[CHECK_UPDATES] There is a new version available (",newest_version(),"), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
                         
                     } else {
                         display_update_dialog(graph);
@@ -266,7 +266,7 @@ void update_loop(gui::DrawStructure* graph) {
                 }
                 
             } catch(...) {
-                print("There was an error checking for the newest version:\n\n",last_error().c_str(),"\n\nPlease check your internet connection and try again. This also happens if you are checking for versions too often, or if GitHub changed their API (in which case you should probably update).");
+                Print("There was an error checking for the newest version:\n\n",last_error().c_str(),"\n\nPlease check your internet connection and try again. This also happens if you are checking for versions too often, or if GitHub changed their API (in which case you should probably update).");
             }
         }
     }

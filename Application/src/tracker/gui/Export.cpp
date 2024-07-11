@@ -216,19 +216,19 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     auto recognition_path = (fishdata / (filename + "_recognition_*.npz")).str();
     
     if(!range.empty())
-        print("[exporting] Exporting range [", range.start,"-",range.end,"]");
+        Print("[exporting] Exporting range [", range.start,"-",range.end,"]");
     else
-        print("[exporting] Exporting all frames (", tracker.number_frames(),")");
+        Print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTING(individual_prefix);
-    print("[exporting] Writing data from `output_graphs` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
+    Print("[exporting] Writing data from `output_graphs` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
     if(output_posture_data)
-        print("[exporting] Writing posture data to ",posture_path);
-    print("[exporting] Writing recognition data to ",recognition_path);
+        Print("[exporting] Writing posture data to ",posture_path);
+    Print("[exporting] Writing recognition data to ",recognition_path);
     
-    print("[exporting] functions: ", Output::Library::functions());
+    Print("[exporting] functions: ", Output::Library::functions());
     
     Output::Library::Init();
-    print("[exporting] functions: ", Output::Library::functions());
+    Print("[exporting] functions: ", Output::Library::functions());
     DebugHeader("...");
     
     try {
@@ -372,7 +372,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         std::vector<uchar> image_data;
                         Size2 shape;
                         
-                        print("tags for ", fish->identity().ID(),":");
+                        Print("tags for ", fish->identity().ID(),":");
                         for(auto && [var, bid, ptr, frame] : *set) {
                             shape = Size2(ptr->cols, ptr->rows);
                             // had previous frame, lost in this frame (finalize segment)
@@ -380,12 +380,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             auto before = arrays.size();
                             arrays.resize(arrays.size() + ptr->size());
                             
-                            print(frame);
+                            Print(frame);
                             frame_indices.push_back(frame.get());
                             blob_ids.push_back(bid);
                             std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
                         }
-                        print();
+                        Print();
                         
                         if(arrays.size() > 0) {
                             auto range = fish->get_segment(seg->end());
@@ -400,7 +400,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                     throw U_EXCEPTION("Cannot create folder ",path.remove_filename().str()," please check permissions.");
                             }
                             
-                            print("Writing ", set->size()," images ",path.str());
+                            Print("Writing ", set->size()," images ",path.str());
                             cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
                             
                             //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
@@ -417,7 +417,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                  * TODO: need to check for size issues (>=4GB?) - shouldnt happen too often though
                  */
                 if(output_image_per_tracklet) {
-                    print("Generating tracklet images for fish ",fish->identity().raw_name(),"...");
+                    Print("Generating tracklet images for fish ",fish->identity().raw_name(),"...");
                     const bool calculate_posture = FAST_SETTING(calculate_posture);
                     const auto individual_image_normalization = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
                     
@@ -692,7 +692,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             mem::OutputLibraryMemoryStats stats(library_cache.at(index));
                             auto str = Meta::toStr(FileSize{stats.bytes});
                             std::lock_guard guard(lock);
-                            print("-- thread ", index," finished fish ", fish->identity().ID()," with ",str," of cache");
+                            Print("-- thread ", index," finished fish ", fish->identity().ID()," with ",str," of cache");
                         }*/
                         
                         auto it = library_cache.at(index)->_cache.find(fish);
@@ -741,12 +741,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 temporary_save(fishdata / path, [&](file::Path use_path) {
                     cmn::npz_save(use_path.str(), "stats", statistics.data(), { frame_numbers.size(), sizeof(track::Statistics) / sizeof(float) }, "w");
                     cmn::npz_save(use_path.str(), "frames", frame_numbers, "a");
-                    print("Saved statistics at ", fishdata.str(),".");
+                    Print("Saved statistics at ", fishdata.str(),".");
                 });
                 
                 if(!auto_no_memory_stats) {
                     temporary_save(fishdata / (filename + "_memory.npz"), [&](file::Path path) {
-                        print("Generating memory stats...");
+                        Print("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
                         std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
                         IndividualManager::transform_all([&](auto fdx, auto fish) {
@@ -779,7 +779,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         }
                         
                         auto f = fishdata / (std::string)path.filename();
-                        print("Saved memory stats at ",f.str());
+                        Print("Saved memory stats at ",f.str());
                     });
                     
                     temporary_save(fishdata / (filename + "_global_memory.npz"), [&](file::Path path) {
@@ -857,7 +857,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     
                     /*if(full.blob == nullptr) {
                         FormatExcept("Cannot find ", data.blob->blob_id());
-                        print("reduced: ", reduced.blob ? reduced.blob->blob_id() : pv::bid()," full: ",full.blob ? full.blob->blob_id() : pv::bid());
+                        Print("reduced: ", reduced.blob ? reduced.blob->blob_id() : pv::bid()," full: ",full.blob ? full.blob->blob_id() : pv::bid());
                     }*/
                     
                     if(!reduced.blob && full.blob)
@@ -1047,7 +1047,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
-                    print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTING(track_max_individuals) == 0 ? float(vec.size()) : float(vec.size()) / float((float)FAST_SETTING(track_max_individuals) + 0.0001) * 100),"% identities / frame)");
+                    Print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTING(track_max_individuals) == 0 ? float(vec.size()) : float(vec.size()) / float((float)FAST_SETTING(track_max_individuals) + 0.0001) * 100),"% identities / frame)");
                     progress_callback(index / float(waiting_pixels.size()), "");
                 }
             }
@@ -1061,7 +1061,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     path = file::Path(path.str() + "_part"+Meta::toStr(part_counter)+".npz");
                     
                     size_t samples = single_frames.size();
-                    print("Saving single tracklet images to ", path,"... (",samples," images)");
+                    Print("Saving single tracklet images to ", path,"... (",samples," images)");
                     
                     if(path.exists())
                         path.delete_file();
@@ -1095,12 +1095,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             
             if(!split_masks.empty()) {
                 auto path = single_path.str() + "_splits_part";
-                print("Saving split tracklet masks to ", path,"... (",split_frames.size()," images)");
+                Print("Saving split tracklet masks to ", path,"... (",split_frames.size()," images)");
                 
                 int64_t bytes_per_image = (int64_t)output_size.height * (int64_t)output_size.width;
                 int64_t n_images = int64_t(1.5 *1000 * 1000 * 1000) / bytes_per_image;
                 
-                print(n_images,"/",split_frames.size()," images fit in 1.5GB");
+                Print(n_images,"/",split_frames.size()," images fit in 1.5GB");
                 
                 int64_t offset = 0;
                 size_t part = 0;
@@ -1112,7 +1112,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     auto sub_path = path + Meta::toStr(part) + ".npz";
                     ++part;
                     
-                    print("Saving to '",sub_path.c_str(),"' from ",offset,"-",offset+L," (",split_frames.size(),")");
+                    Print("Saving to '",sub_path.c_str(),"' from ",offset,"-",offset+L," (",split_frames.size(),")");
                     
                     temporary_save(sub_path, [&](file::Path path) {
                         cmn::npz_save(path.str(), "images",
@@ -1176,11 +1176,11 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 }
                 
                 if(id.get() % max(1, int(ceil(queues.size() * 0.01))) == 0)
-                    print("[tracklet_images] Fish ", id,"...");
+                    Print("[tracklet_images] Fish ", id,"...");
             }
             
             size_t samples = all_images.size() / (size_t)output_size.height / (size_t)output_size.width;
-            print("Saving tracklet images to ", path,"... (",samples," samples)");
+            Print("Saving tracklet images to ", path,"... (",samples," samples)");
             
             temporary_save(path, [&](file::Path path){
                 cmn::npz_save(path.str(), "images", all_images.data(), { samples, (size_t)output_size.height, (size_t)output_size.width }, "w");

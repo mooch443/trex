@@ -81,7 +81,7 @@ namespace cmn::gui {
         
         if(_layers.at(_current)._names.size() > idx) {
             auto &name = _layers.at(_current)._names.at(idx);
-            print("Clicked item ", name," in layer ",_current,".");
+            Print("Clicked item ", name," in layer ",_current,".");
             auto it = _layers.at(_current)._links.find(name);
             if(it == _layers.at(_current)._links.end()) {
                 _clicked_leaf(_current, name);

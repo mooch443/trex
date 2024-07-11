@@ -77,12 +77,12 @@ void save_rst_files() {
     fwrite(rst.data(), sizeof(char), rst.length(), f.get());
     
     //printf("%s\n", rst.c_str());
-    print("Saved at ",path,".");
+    Print("Saved at ",path,".");
 }
 
 TRexTask determineTaskType() {
     auto output_file = settings::find_output_name(GlobalSettings::map());
-    print("output_name = ", output_file);
+    Print("output_name = ", output_file);
     
     if (auto array = SETTING(source).value<file::PathArray>();
         array.empty())
@@ -158,7 +158,7 @@ void launch_gui(std::future<void>& f) {
                 auto scale = 1920.f / work_area.width;
                 if(scale != 1.f)
                     scale = 1.f + (scale - 1.f) * 0.35;
-                //print("scale = ", 1920.f / work_area.width, " (",scale,") dpi = ", ptr->dpi_scale());
+                //Print("scale = ", 1920.f / work_area.width, " (",scale,") dpi = ", ptr->dpi_scale());
                 SETTING(gui_interface_scale) = float(scale);
             }
         }
@@ -364,7 +364,7 @@ static void signal_handler(int sig) {
             SETTING(terminate_error) = true;
         if(!SETTING(terminate)) {
             SETTING(terminate) = true;
-            print("Waiting for video to close.");
+            Print("Waiting for video to close.");
         }
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -374,7 +374,7 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
         if (!SETTING(terminate)) {
             SETTING(terminate) = true;
-            print("Waiting for video to close.");
+            Print("Waiting for video to close.");
             return TRUE;
         }
         else
@@ -458,7 +458,7 @@ std::string start_converting(std::future<void>& f) {
             SETTING(terminate) = true;
             last_error = error;
         });
-    print("Loading source = ", SETTING(source).value<file::PathArray>());
+    Print("Loading source = ", SETTING(source).value<file::PathArray>());
     
     ind::ProgressBar bar{
         ind::option::BarWidth{50},
@@ -594,28 +594,28 @@ int main(int argc, char**argv) {
     if(cwd.empty())
         cwd = file::Path(default_config::homedir());
     
-    print("CWD: ", cwd);
+    Print("CWD: ", cwd);
     DebugHeader("LOADING COMMANDLINE");
     GlobalSettings::map()["cwd"].get().set_do_print(true);
     CommandLine::init(argc, argv, true);
     CommandLine::instance().add_setting("cwd", cwd.str());
     SETTING(cwd) = cwd;
     file::cd(file::DataLocation::parse("app").absolute());
-    print("CWD: ", file::cwd());
+    Print("CWD: ", file::cwd());
     
     /*GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
         if(key == "source")
-            print("Changed source to ", SETTING(source).value<file::PathArray>());
+            Print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
-            print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
+            Print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
         else if(key == "filename")
-            print("Changed filename to ", SETTING(filename).value<file::Path>());
+            Print("Changed filename to ", SETTING(filename).value<file::Path>());
         else if(key == "detect_type")
-            print("Changed detection type to ", SETTING(detect_type));
+            Print("Changed detection type to ", SETTING(detect_type));
         else if(key == "cm_per_pixel")
-            print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
+            Print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
         else if(key == "track_background_subtraction")
-            print("Changed track_background_subtraction to ", SETTING(track_background_subtraction));
+            Print("Changed track_background_subtraction to ", SETTING(track_background_subtraction));
     });*/
     
     for(auto a : CommandLine::instance()) {
@@ -663,7 +663,7 @@ int main(int argc, char**argv) {
     try {
         py::init();
         f = py::schedule([](){
-            print("Python = ", py::get_instance());
+            Print("Python = ", py::get_instance());
             track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
             track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         });
@@ -728,7 +728,7 @@ int main(int argc, char**argv) {
         /// also, on windows we might get in trouble here
         /// if GlobalSettings isnt assigned the right instance
         /// yet in python_dll:
-        print("Waiting for python...");
+        Print("Waiting for python...");
         if(f.valid())
             f.get();
 
@@ -762,11 +762,11 @@ int main(int argc, char**argv) {
     if(SETTING(error_terminate)) {
         if(not last_error.empty())
             FormatError(last_error.c_str());
-        print("Returning 1 since error_terminate was set: ", last_error);
+        Print("Returning 1 since error_terminate was set: ", last_error);
         return 1;
     }
     
-    print("Returning 0.");
+    Print("Returning 0.");
     return 0;
 }
 

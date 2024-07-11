@@ -53,7 +53,7 @@ namespace default_config {
         for(auto &key : map.keys()) {
             if(deprecated.find(utils::lowercase(key)) != deprecated.end()) {
                 if(deprecated.at(utils::lowercase(key)).empty()) {
-                    print("Setting ",key," has been removed from the tracker and will be ignored.");
+                    Print("Setting ",key," has been removed from the tracker and will be ignored.");
                 } else
                     throw U_EXCEPTION("Setting '",key,"' is deprecated. Please use '",deprecated.at(utils::lowercase(key)),"' instead.");
             }

@@ -265,8 +265,8 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 }*/
                 
                 //apply_filters(*input);
-                //print("CHannels = ", r3.channels(), " input=", input->channels());
-                //print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
+                //Print("CHannels = ", r3.channels(), " input=", input->channels());
+                //Print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
                 assert(Size2(r3) == Size2(data().gpu.cols, data().gpu.rows));
                 raw.generate_binary(r3, *input, r3, &tag);
                 
@@ -371,7 +371,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                             FormatWarning("Lots of lines!");
                     }
                     else
-                        print("Probably a lot of noise with ",b.lines->size()," lines!");
+                        Print("Probably a lot of noise with ",b.lines->size()," lines!");
                 }
                 
                 filtered.clear();

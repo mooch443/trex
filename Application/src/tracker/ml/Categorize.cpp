@@ -243,7 +243,7 @@ Sample::Ptr Work::front_sample() {
                )
             {
                 sample = Sample::Invalid();
-                print("Invalidated sample for wrong dimensions.");
+                Print("Invalidated sample for wrong dimensions.");
             }
         }
     }
@@ -277,7 +277,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
     
     DataStore::init_labels(true);
     
-    print("[Categorize] Applying with settings ", settings);
+    Print("[Categorize] Applying with settings ", settings);
     if(_set_status_fn)
         _set_status_fn("Applying...", 0);
     Timer apply_timer;
@@ -325,7 +325,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                     py::set_variable("height", (int)dims.height, module);
                     py::set_variable("output_file", output_location().str(), module);
                     py::set_function("set_best_accuracy", [&](float v) {
-                        print("Work::set_best_accuracy(",v,");");
+                        Print("Work::set_best_accuracy(",v,");");
                         Work::set_best_accuracy(v);
                     }, module);
                     
@@ -374,13 +374,13 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
         static Timer print_timer;
         if(print_timer.elapsed() > 1) {
             print_timer.reset();
-            print("[Categorize] ",text.c_str());
+            Print("[Categorize] ",text.c_str());
         }
         
         if(finished) {
             if(_set_status_fn)
                 _set_status_fn("", -1);
-            print("[Categorize] Finished applying after ", DurationUS{uint64_t(apply_timer.elapsed() * 1000 * 1000)},".");
+            Print("[Categorize] Finished applying after ", DurationUS{uint64_t(apply_timer.elapsed() * 1000 * 1000)},".");
             
             {
                 DataStore::clear_ranged_labels();
@@ -409,7 +409,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                         }
                         
                         if(samples == 0) {
-                            //print("No data for ", ranged._range);
+                            //Print("No data for ", ranged._range);
                             continue;
                         }
                         
@@ -465,7 +465,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
     namespace py = Python;
     
     py::schedule(py::PackagedTask{._task = py::PromisedTask([video_source]() -> void {
-        print("[Categorize] APPLY Initializing...");
+        Print("[Categorize] APPLY Initializing...");
         Work::status() = "Initializing...";
         Work::initialized() = false;
         
@@ -476,7 +476,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         py::check_module(module);
         
         auto reset_variables = [](){
-            print("Reset python functions and variables...");
+            Print("Reset python functions and variables...");
             const auto dims = FAST_SETTING(individual_image_size);
             std::map<std::string, size_t> keys;
             auto cat = FAST_SETTING(categories_ordered);
@@ -488,13 +488,13 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
             py::set_variable("height", (int)dims.height, module);
             py::set_variable("output_file", output_location().str(), module);
             py::set_function("set_best_accuracy", [&](float v) {
-                print("Work::set_best_accuracy(",v,");");
+                Print("Work::set_best_accuracy(",v,");");
                 Work::set_best_accuracy(v);
             }, module);
             
             //! TODO: is this actually used?
             /*py::set_function("recv_samples", [](std::vector<uchar> images, std::vector<std::string> labels) {
-                print("Received ", images.size()," images and ",labels.size()," labels");
+                Print("Received ", images.size()," images and ",labels.size()," labels");
                 
                 for (size_t i=0; i<labels.size(); ++i) {
                     size_t index = i * size_t(dims.width) * size_t(dims.height);
@@ -561,7 +561,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                 if(py::check_module(module)) {
                     reset_variables();
                     if(best_accuracy() > 0) {
-                        print("[Categorize] The python file has been updated. Best accuracy was already ", best_accuracy().load(),", so will attempt to reload the weights.");
+                        Print("[Categorize] The python file has been updated. Best accuracy was already ", best_accuracy().load(),", so will attempt to reload the weights.");
                         
                         try {
                             py::run(module, "load");
@@ -601,7 +601,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                             prediction_tasks.emplace_back(std::move(item), idx);
                             if(item.segment)
-                                print("Emplacing Fish", item.idx,": ", item.segment->start(),"-",item.segment->end());
+                                Print("Emplacing Fish", item.idx,": ", item.segment->start(),"-",item.segment->end());
                             last_insert.reset();
                             break;
                         }
@@ -658,7 +658,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
 
                     /*auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
                     auto of = FileSize(gpu_max_sample_byte).to_string();
-                    print("Starting predictions / training (",str,"/",of,").");
+                    Print("Starting predictions / training (",str,"/",of,").");
                     for (auto& [item, offset] : prediction_tasks) {
                         if (item.type == LearningTask::Type::Prediction) {
                             item.result.clear();
@@ -698,7 +698,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             }
                             
 #ifndef NDEBUG
-                            print("Receive: ",receive_timer.elapsed(),"s Callbacks: ",by_callbacks,"s (",prediction_tasks.size()," tasks, ",prediction_images.size()," images)");
+                            Print("Receive: ",receive_timer.elapsed(),"s Callbacks: ",by_callbacks,"s (",prediction_tasks.size()," tasks, ",prediction_images.size()," images)");
 #endif
 
                         }, module);
@@ -716,7 +716,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                 }
 
                 if (!training_images.empty() || force_training) {
-                    print("Training on ", training_images.size()," additional samples");
+                    Print("Training on ", training_images.size()," additional samples");
                     try {
                         // train for a couple epochs
                         py::set_variable("epochs", int(10));
@@ -745,7 +745,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                 
                 if(clear_probs) {
                     clear_probs = false;
-                    print("# Clearing calculated probabilities...");
+                    Print("# Clearing calculated probabilities...");
                     guard.unlock();
                     try {
                         Interface::get().clear_probabilities();
@@ -775,8 +775,8 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         guard.unlock();
         
         WorkProgress::add_queue("", [](){
-            print("## Ending python blockade.");
-            print("Clearing DataStore.");
+            Print("## Ending python blockade.");
+            Print("Clearing DataStore.");
             DataStore::clear_cache();
             Categorize::terminate();
             Interface::get().reset();
@@ -856,7 +856,7 @@ Work::Task Work::_pick_front_thread() {
                     _values.push_back({std::get<0>(*it), item.real_range});
             }
             
-            cmn::print("... end of task queue: ", _values);
+            cmn::Print("... end of task queue: ", _values);
             print.reset();
         }
 #endif
@@ -873,7 +873,7 @@ Work::Task Work::_pick_front_thread() {
     Work::task_queue().erase(it);
     
 #ifndef NDEBUG
-    print("Picking task for (",task.range.start,") ",task.real_range.start,"-",task.real_range.end," (cached:",task.is_cached,", center is ",center,"d)");
+    Print("Picking task for (",task.range.start,") ",task.real_range.start,"-",task.real_range.end," (cached:",task.is_cached,", center is ",center,"d)");
 #endif
     return task;
 }

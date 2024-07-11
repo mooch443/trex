@@ -104,10 +104,10 @@ struct SettingsScene::Data {
         sprite::Map copy = GlobalSettings::map();
         const auto &defaults = GlobalSettings::defaults();
         const auto &_defaults = GlobalSettings::current_defaults_with_config();
-        /*print("current output_dir = ", _defaults.at("calculate_posture"));
-        print("current output_dir = ", copy.at("calculate_posture"));
-        print("keys = ", copy.keys());
-        print("_defaults keys = ", _defaults.keys());*/
+        /*Print("current output_dir = ", _defaults.at("calculate_posture"));
+        Print("current output_dir = ", copy.at("calculate_posture"));
+        Print("keys = ", copy.keys());
+        Print("_defaults keys = ", _defaults.keys());*/
         
         for(auto &key : copy.keys()) {
             
@@ -121,16 +121,16 @@ struct SettingsScene::Data {
                    || is_in(key, "output_dir", "output_prefix", "settings_file")))
             {
                 /*if(_defaults.has(key))
-                    print("Keeping ", key, ": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
+                    Print("Keeping ", key, ": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
                 else
-                    print("Keeping ", key, ": ", copy.at(key).get());*/
+                    Print("Keeping ", key, ": ", copy.at(key).get());*/
                 
                 continue;
             }
             
             copy.erase(key);
         }
-        //print("Maintaining: ", copy.keys());
+        //Print("Maintaining: ", copy.keys());
         return copy;
     }
     
@@ -196,7 +196,7 @@ struct SettingsScene::Data {
                         DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
                         
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
-                            print("changed props = ", copy.keys());
+                            Print("changed props = ", copy.keys());
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
                             sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
@@ -310,7 +310,7 @@ struct SettingsScene::Data {
                         DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
                         
                         WorkProgress::add_queue("loading...", [copy = get_changed_props()](){
-                            print("changed props = ", copy.keys());
+                            Print("changed props = ", copy.keys());
                             auto array = SETTING(source).value<file::PathArray>();
                             auto front = file::Path(file::find_basename(array));
                             /*output_file = !front.has_extension() ?
@@ -332,7 +332,7 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("choose-source", [](auto){
-                        print("choose-source");
+                        Print("choose-source");
                     }),
                     
                     ActionFunc("change_scene", [](Action action) {
@@ -344,16 +344,16 @@ struct SettingsScene::Data {
                         return true;
                     }),
                     ActionFunc("choose-target", [](auto){
-                        print("choose-target");
+                        Print("choose-target");
                     }),
                     ActionFunc("choose-model", [](auto){
-                        print("choose-detection");
+                        Print("choose-detection");
                     }),
                     ActionFunc("choose-region", [](auto){
-                        print("choose-region");
+                        Print("choose-region");
                     }),
                     ActionFunc("choose-settings", [](auto){
-                        print("choose-settings");
+                        Print("choose-settings");
                     }),
                     ActionFunc("choose-folder", [](const Action& action) {
                         REQUIRE_AT_LEAST(1, action);
@@ -629,7 +629,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
             
         } else if(source != _initial_source) {
             VideoSource v(source);
-            print("VideoSource for ",source," of size ", v.size(),".");
+            Print("VideoSource for ",source," of size ", v.size(),".");
         }
         
         SceneManager::getInstance().enqueue([this, source](){

@@ -205,8 +205,8 @@ int main(int argc, char**argv) {
     if(input.remove_filename().empty())
         input = output_dir/input;
     
-    print("Input: ",input);
-    print("Output to: ",output_dir);
+    Print("Input: ",input);
+    Print("Output to: ",output_dir);
     
     auto video = pv::File::Read(input);
 
@@ -239,9 +239,9 @@ int main(int argc, char**argv) {
     
     const bool as_gif = SETTING(as_gif);
     if(as_gif)
-        print("Will export as gif from ", start_frame," to ", end_frame," (step ",step,").");
+        Print("Will export as gif from ", start_frame," to ", end_frame," (step ",step,").");
     
-    print("Press ENTER to continue...");
+    Print("Press ENTER to continue...");
     getc(stdin);
     
     CropOffsets tmp = SETTING(crop);
@@ -286,7 +286,7 @@ int main(int argc, char**argv) {
             
             if(!output_dir.exists()) {
                 if(output_dir.create_folder())
-                    print("Created folder ", output_dir.str(),".");
+                    Print("Created folder ", output_dir.str(),".");
                 else
                     throw U_EXCEPTION("Cannot create folder ",output_dir.str(),". No write permissions?");
             }
@@ -300,7 +300,7 @@ int main(int argc, char**argv) {
         if(frame_index%50 == 0) {
             //cv::imshow("preview", image);
             //cv::waitKey(1);
-            print("Frame ", frame_index,"/",end_frame);
+            Print("Frame ", frame_index,"/",end_frame);
         }
         
         prev_time = current_frame.timestamp();
@@ -315,7 +315,7 @@ int main(int argc, char**argv) {
         ss << output_dir << "frame";
         std::string file = ss.str();
         
-        print("For conversion using ffmpeg try this command:");
+        Print("For conversion using ffmpeg try this command:");
         printf("\tffmpeg -framerate %d -start_number %d -i %s/frame%%07d.jpg -vcodec h264 -vf \"fps=60,format=yuv420p\" output.mp4\n", (int)framerate, start_frame, output_dir.str().c_str());
     }
 }

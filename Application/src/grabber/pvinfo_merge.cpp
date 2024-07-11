@@ -37,7 +37,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(GlobalSettings::is_runtime_quiet())
-                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
+                Print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -74,7 +74,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         SETTING(filename) = name.remove_extension();
         auto settings_file = file::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
-            print("settings for ",name.str()," found");
+            Print("settings for ",name.str()," found");
             auto config = std::make_shared<sprite::Map>();
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(*config, docs, NULL);
@@ -197,7 +197,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     output.set_start_time(std::chrono::system_clock::now());
     
     //auto start_time = output.header().timestamp;
-    print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
+    Print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
     GlobalSettings::map()["cm_per_pixel"].get().set_do_print(false);
     const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
@@ -346,7 +346,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 test << Size2(test.size() - test.pos());
                 
                 if(bounds != test)
-                    print("why");
+                    Print("why");
                 
                 assert(!clique.empty());
                 
@@ -404,7 +404,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         output.add_individual(std::move(o));
         
         if(frame.get() % size_t(min_length.get() * 0.1) == 0) {
-            print("merging ", frame,"/",min_length);
+            Print("merging ", frame,"/",min_length);
         }
     }
     

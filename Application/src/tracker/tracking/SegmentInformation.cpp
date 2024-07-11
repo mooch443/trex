@@ -33,7 +33,7 @@ void SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, I
     if(fish->added_postures.find(stuff->frame) == fish->added_postures.end()) {
         fish->added_postures.insert(stuff->frame);
     } else {
-        print(fish->added_postures);
+        Print(fish->added_postures);
         throw SoftException("(", fish->identity(),") Posture for frame ",stuff->frame," already added.");
     }
     

@@ -89,7 +89,7 @@ void PPFrame::CloseLogs() {
 #if TREX_ENABLE_HISTORY_LOGS
     auto guard = LOGGED_LOCK(log_mutex());
     if(history_log() != nullptr && history_log()->is_open()) {
-        print("Closing history log.");
+        Print("Closing history log.");
         *history_log() << "</body></html>";
         history_log()->flush();
         history_log()->close();
@@ -422,9 +422,9 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
 #ifdef TREX_DEBUG_BLOBS
         auto blob1 = bdx_to_ptr(blob->blob_id());
         
-        print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
+        Print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
+        Print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
         auto bid0 = pv::bid::from_blob(*blob);
         auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
@@ -448,7 +448,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         .blob = std::move(blob)
     });*/
 #ifdef TREX_DEBUG_BLOBS
-    print(this->index(), " Added ", blob, " with regular=", regular);
+    Print(this->index(), " Added ", blob, " with regular=", regular);
 #endif
     
     if(regular) {
@@ -556,7 +556,7 @@ pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx
             _pixel_samples--;
             
         #ifdef TREX_DEBUG_BLOBS
-            print(this->index(), " Removing ", own->blob_id());
+            Print(this->index(), " Removing ", own->blob_id());
         #endif
             
             // move object out and delete
@@ -577,7 +577,7 @@ pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx
     
     [[unlikely]];
 #ifdef TREX_DEBUG_BLOBS
-    print("Cannot find ", bdx, " in _bdx_to_ptr");
+    Print("Cannot find ", bdx, " in _bdx_to_ptr");
 #endif
     return nullptr;
 }
@@ -695,9 +695,9 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
         #ifdef TREX_DEBUG_BLOBS
                 auto blob1 = bdx_to_ptr(blob->blob_id());
                 
-                print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
+                Print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
                 
-                print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
+                Print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
                 
                 auto bid0 = pv::bid::from_blob(blob);
                 auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
@@ -715,7 +715,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
             //assert(blob->is_rgb() == (Background::image_mode() == ImageMode::RGB));
             
         #ifdef TREX_DEBUG_BLOBS
-            //print(this->index(), " Added ", blob, " with regular=", blobs);
+            //Print(this->index(), " Added ", blob, " with regular=", blobs);
         #endif
         };
         

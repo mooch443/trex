@@ -61,7 +61,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
     if(SETTING(detect_model).value<file::Path>().empty()) {
-        print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
+        Print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
         SETTING(detect_model) = file::Path("yolov8n-pose");
     }
 
@@ -152,9 +152,9 @@ void Yolo8::deinit() {
         _pool = nullptr;
         
         if(running_prediction.valid()) {
-            print("Still have an active prediction running, waiting...");
+            Print("Still have an active prediction running, waiting...");
             running_prediction.wait();
-            print("Got it.");
+            Print("Got it.");
         }
         
         if(not Python::python_initialized())
@@ -457,7 +457,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
     if (not points.empty()) {
         // here we should likely make sure that we collect all possible lines
         // not just the outer lines?
-        //print("We have detected ", points.size(), " outlines here but only use the first one.");
+        //Print("We have detected ", points.size(), " outlines here but only use the first one.");
         
         //draw_outlines(points);
         //data.outlines.emplace_back(*points.front());
@@ -552,7 +552,7 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
         };
 
         //auto results = py::predict(std::move(input), bbx.m);
-        //print("C++ results = ", results);
+        //Print("C++ results = ", results);
         auto results = py::predict(std::move(input), bbx.m);
         double elapsed = timer.elapsed();
         timer.reset();
@@ -568,8 +568,8 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
         }
         _network_fps = fps + (double(_N) / elapsed);
         _network_samples = samples + 1;
-        //print("[py] network: ", elapsed);
-        //print("[cpp] network: ", cpp_elapsed);
+        //Print("[py] network: ", elapsed);
+        //Print("[cpp] network: ", cpp_elapsed);
     }
     catch (const std::exception& ex) {
         FormatError("Exception: ", ex.what());
@@ -674,7 +674,7 @@ void Yolo8::apply(std::vector<TileImage>&& tiles) {
         transfer.promises.emplace_back(std::move(*tiled.promise));
         tiled.promise = nullptr;
         
-        //print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        //Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
         
         for(auto p : tiled.offsets()) {
             transfer.orig_id.push_back(i);

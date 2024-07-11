@@ -100,7 +100,7 @@ public:
         
         void set(Idx_t ID, const FilterCache& filter) {
             if(has(ID))
-                print("[TrainingFilter] ",ID," is already present. Replacing.");
+                Print("[TrainingFilter] ",ID," is already present. Replacing.");
             
             if(!filters[ID].empty())
                 throw U_EXCEPTION("[TrainingFilter] Cannot add both full-range filters, and range-specific filters at the same time.");

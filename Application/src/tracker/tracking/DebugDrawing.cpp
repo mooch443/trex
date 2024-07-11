@@ -37,7 +37,7 @@ void DebugDrawing::reset_image() {
 void DebugDrawing::paint(const Outline &outline, bool erase) {
     //LockGuard guard(*Tracker::instance());
     
-    print("First: ", outline.points().front().x,",",outline.points().front().y);
+    Print("First: ", outline.points().front().x,",",outline.points().front().y);
     
     if(erase)
         reset_image();
@@ -99,7 +99,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             }
             printf("\n");*/
             
-            print("Maxmimum curvature: ", max_curvature);
+            Print("Maxmimum curvature: ", max_curvature);
             
             auto derivative = curves::derive(corrected);
             auto derivative2 = curves::derive(io);
@@ -128,11 +128,11 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             auto &maxima = e.maxima;
             
             for(auto &a : areas) {
-                print("Area[", a.idx,"]: ",a.area);
+                Print("Area[", a.idx,"]: ",a.area);
             }
             
             if(minima.empty())
-                print("minima empty.");
+                Print("minima empty.");
             
             Graph graph(Bounds(Size2(800, 600)), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
             graph.set_zero(0);
@@ -342,7 +342,7 @@ void DebugDrawing::paint(const track::Posture &posture, const cv::Mat& greyscale
 }
 
 void DebugDrawing::paint(const Midline *midline) {
-    print("Midline curvature:");
+    Print("Midline curvature:");
     auto &segments = midline->segments();
     long L = segments.size();
     long offset = 1;

@@ -269,7 +269,7 @@ bool _callback_registered;
             if(timer.elapsed() > 10) {
                 analysis_status = "processing ("+left_over.toStr()+" frames left)";
                 auto str = FileSize(mapCapacity(individual_maps) + mapCapacity(states)).to_string();
-                print("Time: ",timer.elapsed() * 1000,"ms (", str.c_str(), ")");
+                Print("Time: ",timer.elapsed() * 1000,"ms (", str.c_str(), ")");
                 timer.reset();
             }
             
@@ -307,7 +307,7 @@ bool _callback_registered;
             }
             
             for(auto &map : individual_maps) {
-                print("Erasing... ",map.first->identity().ID(),"(",map.first->start_frame(),"-",map.first->end_frame(),"): ",map.second.start_frame," - ",map.second.end_frame);
+                Print("Erasing... ",map.first->identity().ID(),"(",map.first->start_frame(),"-",map.first->end_frame(),"): ",map.second.start_frame," - ",map.second.end_frame);
                 if(map.second.start_frame.valid() && map.second.end_frame >= after_frame) {
                     Frame_t count{0};
                     if(map.second.start_frame >= after_frame) {
@@ -339,7 +339,7 @@ bool _callback_registered;
                         map.second.end_frame = map.first->end_frame();
                     state.offsets.clear();
                     
-                    print("Erasing from frame ", state.frame," (start_frame: ", map.first->start_frame(),") for fish ",map.first->identity().ID(),".");
+                    Print("Erasing from frame ", state.frame," (start_frame: ", map.first->start_frame(),") for fish ",map.first->identity().ID(),".");
                     
                     if(map.first->start_frame() < after_frame) {
                         for(; state.frame < min(map.first->end_frame() + 1_f, after_frame);)
@@ -349,7 +349,7 @@ bool _callback_registered;
                         map.second.start_frame.invalidate();
                     }
                     
-                    print("Erased ", count," events for fish ", map.first->identity()," (", map.second,").");
+                    Print("Erased ", count," events for fish ", map.first->identity()," (", map.second,").");
                 }
             }
         }

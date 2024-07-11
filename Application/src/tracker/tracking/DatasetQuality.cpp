@@ -25,7 +25,7 @@ std::string Single::toStr() const {
 }
 
 void print_info() {
-    print("DatasetQuality: ", _sorted);
+    Print("DatasetQuality: ", _sorted);
 }
 
 Quality quality(const Range<Frame_t> &range) {
@@ -214,7 +214,7 @@ void update() {
     // remove all the ones that have been deleted in the manually_approved segments
     for(auto & segment : _previous_selected) {
         if(has(segment)) {
-            print("Removed previous manual segment ", segment.start,"-",segment.end);
+            Print("Removed previous manual segment ", segment.start,"-",segment.end);
             remove_segment(segment);
             changed = true;
         }
@@ -225,20 +225,20 @@ void update() {
         auto range = Range<Frame_t>(Frame_t(start), Frame_t(end));
         if(!has(range) && end_frame >= Frame_t(end) && range.length().get() >= 5) {
             if(calculate_segment(range, video_length, guard)) {
-                print("Calculating manual segment ", start,"-",end);
+                Print("Calculating manual segment ", start,"-",end);
                 for(auto && [id, single] : _cache.at(range)) {
-                    print("\t", id,": ",single.number_frames);
+                    Print("\t", id,": ",single.number_frames);
                 }
                 changed = true;
                 
             } else
-                print("Failed calculating ", start,"-",end);
+                Print("Failed calculating ", start,"-",end);
         }
         _previous_selected.insert(range);
     }
     
     //std::vector<Range<Frame_t>> segments(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
-    //print("Consecutives: ", segments);
+    //Print("Consecutives: ", segments);
     
     for(auto &consec : Tracker::instance()->consecutive()) {
         if(consec.end.get() != video_length && consec == Tracker::instance()->consecutive().back())
@@ -248,7 +248,7 @@ void update() {
             if(calculate_segment(consec, video_length, guard)) {
                 //break; // if this fails, dont set last seen and try again next time
 #ifndef NDEBUG
-                print("Calculated segment ", consec.start,"-",consec.end);
+                Print("Calculated segment ", consec.start,"-",consec.end);
 #endif
                 changed = true;
             }
@@ -320,9 +320,9 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
         return ptr->start() < frame;
     });
     /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end);
+        Print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end);
     else
-        print("\t... ", fish->identity().ID()," not found before first step");*/
+        Print("\t... ", fish->identity().ID()," not found before first step");*/
     
     if(it != fish->frame_segments().end()
        && it != fish->frame_segments().begin()
@@ -335,9 +335,9 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     }
     
     /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end);
+        Print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end);
     else
-        print("\t... ", fish->identity().ID()," not found in first step");*/
+        Print("\t... ", fish->identity().ID()," not found in first step");*/
     
     if(it == fish->frame_segments().end() && !fish->frame_segments().empty()
        && (*fish->frame_segments().rbegin())->overlaps(_consec))
@@ -362,7 +362,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     }
     
     /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end);*/
+        Print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end);*/
     
     // we found the segment where the start-frame is not smaller than _consec.start
     while(it != fish->frame_segments().end()
@@ -398,7 +398,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
         }
         str = ss.str();
         
-        print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",str.c_str(),")");
+        Print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",str.c_str(),")");
     }*/
         
     //! TODO: Use local_midline_length function instead

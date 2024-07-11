@@ -29,16 +29,16 @@ ENUM_CLASS(parameter_format_t, settings, minimal)
 int handle_opencv_ffmpeg_support() {
     std::string build_info = cv::getBuildInformation();
     std::string line = "";
-    print(build_info.c_str());
+    Print(build_info.c_str());
 
     for (size_t i = 0; i < build_info.length(); ++i) {
         if (build_info[i] == '\n') {
             if (utils::contains(line, "FFMPEG:")) {
                 if (utils::contains(line, "YES")) {
-                    print("Has FFMPEG support.");
+                    Print("Has FFMPEG support.");
                     return 0;
                 } else {
-                    print("Does not have FFMPEG support.");
+                    Print("Does not have FFMPEG support.");
                 }
             }
 
@@ -55,16 +55,16 @@ int handle_opencv_ffmpeg_support() {
 int handle_opencv_opencl_support() {
     std::string build_info = cv::getBuildInformation();
     std::string line = "";
-    print(build_info.c_str());
+    Print(build_info.c_str());
 
     for (size_t i = 0; i < build_info.length(); ++i) {
         if (build_info[i] == '\n') {
             if (utils::contains(line, "OpenCL:")) {
                 if (utils::contains(line, "YES")) {
-                    print("Has OpenCL support.");
+                    Print("Has OpenCL support.");
                     return 0;
                 } else {
-                    print("Does not have OpenCL support.");
+                    Print("Does not have OpenCL support.");
                 }
             }
 
@@ -85,7 +85,7 @@ void parse_input(const cmn::CommandLine::Option& option) {
 
         std::regex pattern(utils::find_replace(option.value, "*", ".*"));
         file::Path folder = file::DataLocation::parse("input", file::Path(option.value).remove_filename());
-        print("Scanning pattern ", option.value, " in folder ", folder.str(), "...");
+        Print("Scanning pattern ", option.value, " in folder ", folder.str(), "...");
 
         for (auto &file : folder.find_files("pv")) {
             if (!file.is_regular()) {
@@ -103,9 +103,9 @@ void parse_input(const cmn::CommandLine::Option& option) {
             path = file::DataLocation::parse("input", *found.begin());
 
         } else if (found.size() > 1) {
-            print("Found too many files matching the pattern ", option.value, ": ", found, ".");
+            Print("Found too many files matching the pattern ", option.value, ": ", found, ".");
         } else {
-            print("No files found that match the pattern ", option.value, ".");
+            Print("No files found that match the pattern ", option.value, ".");
         }
     }
     
@@ -141,7 +141,7 @@ int main(int argc, char**argv) {
 #ifndef NDEBUG
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
     if(OS_ACTIVITY_DT_MODE) {
-        print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
+        Print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
     }
 #endif
     //SETTING(quiet) = true;
@@ -362,7 +362,7 @@ int main(int argc, char**argv) {
             results.load([be_quiet](const std::string& title, float percent, const std::string& text){
                 if(!text.empty() && (int)round(percent * 100) % 10 == 0) {
                     if(!be_quiet)
-                        print("[",title,"] ",text);
+                        Print("[",title,"] ",text);
                 }
             });
             
@@ -374,7 +374,7 @@ int main(int argc, char**argv) {
             auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
             
             if(filename.exists() && !be_quiet)
-                print("Overwriting file ",filename.str(),".");
+                Print("Overwriting file ",filename.str(),".");
             
             FILE *f = fopen(filename.str().c_str(), "wb");
             if(f) {
@@ -382,7 +382,7 @@ int main(int argc, char**argv) {
                 fclose(f);
                 
                 if(!be_quiet)
-                    print("Written settings file ", filename.str(),".");
+                    Print("Written settings file ", filename.str(),".");
             } else {
                 if(!be_quiet)
                     FormatExcept("Dont have write permissions for file ",filename.str(),".");
@@ -396,7 +396,7 @@ int main(int argc, char**argv) {
         if(save_background) {
             file::Path file = input.remove_filename() / "background.png";
             cv::imwrite(file.str(), video.average());
-            print("Saved average image to ",file);
+            Print("Saved average image to ",file);
         }
         
         if(!SETTING(replace_background).value<file::Path>().empty()) {
@@ -424,7 +424,7 @@ int main(int argc, char**argv) {
                     modify.set_average(mat);
                 }
                 
-                print("Written new average image.");
+                Print("Written new average image.");
             }
         }
         
@@ -434,7 +434,7 @@ int main(int argc, char**argv) {
             if(not video.length().valid()) {
                 FormatError("The videos index cannot be repaired because it doesnt seem to be broken.");
             } else {
-                print("Starting file copy and fix (",video.filename(),")...");
+                Print("Starting file copy and fix (",video.filename(),")...");
 
                 auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE> (video.filename().remove_extension().str()+"_fix.pv", video.header().channels);
                 copy.set_resolution(video.header().resolution);
@@ -452,18 +452,18 @@ int main(int argc, char**argv) {
                     try {
                         frame.read_from(video, Frame_t(idx), video.header().encoding);
                     } catch(const UtilsException& e) {
-                        print("Breaking after ", idx," frames.");
+                        Print("Breaking after ", idx," frames.");
                         break;
                     }
 
                     copy.add_individual(std::move(frame));
 
                     if (idx % 1000 == 0) {
-                        print("Frame ",idx," / ",video.length()," (",dec<2>(copy.compression_ratio()*100),"% compression ratio)...");
+                        Print("Frame ",idx," / ",video.length()," (",dec<2>(copy.compression_ratio()*100),"% compression ratio)...");
                     }
                 }
 
-                print("Written fixed video.");
+                Print("Written fixed video.");
             }
         }
         
@@ -511,7 +511,7 @@ int main(int argc, char**argv) {
             //    video.processImage(average, average);
         
 #if !defined(__EMSCRIPTEN__)
-            print("Displaying average image...");
+            Print("Displaying average image...");
             cv::imshow("average", average);
             cv::waitKey();
 #endif
@@ -539,13 +539,13 @@ int main(int argc, char**argv) {
                 prev_timestamp = frame.timestamp();
                 
                 if(i.get()%1000 == 0) {
-                    print("Frame ", i,"/",video.length());
+                    Print("Frame ", i,"/",video.length());
                 }
             }
             
             fclose(f);
             
-            print("Elapsed: ", timer.elapsed(),"s");
+            Print("Elapsed: ", timer.elapsed(),"s");
         }
         
         if(SETTING(blob_detail)) {
@@ -574,11 +574,11 @@ int main(int argc, char**argv) {
                 overall += bytes;
                 
                 if(i.get()%size_t(video.length().get()*0.1) == 0) {
-                    print("Frame ", i,"/",video.length());
+                    Print("Frame ", i,"/",video.length());
                 }
             }
             
-            print("Finding blobs...");
+            Print("Finding blobs...");
             Median<size_t> blobs_per_frame;
             size_t pixels_median_value = pixels_median.getValue();
             for (Frame_t i=0_f; i<video.length(); ++i) {
@@ -591,16 +591,25 @@ int main(int argc, char**argv) {
                     }
                 }
                 
+                for(auto &line : frame.mask()) {
+                    if(not line->empty())
+                        Print(line->front());
+                }
+                
+                for(auto & blob: frame.get_blobs()) {
+                    Print(blob->blob_id(), ": ", blob->bounds());
+                }
+                
                 blobs_per_frame.addNumber(this_frame);
                 
                 if(i.get()%size_t(video.length().get()*0.1) == 0) {
-                    print("Frame ", i,"/",video.length());
+                    Print("Frame ", i,"/",video.length());
                 }
             }
             
-            print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
-            print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
-            print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
+            Print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
+            Print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
+            Print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
         }
         
     } else {

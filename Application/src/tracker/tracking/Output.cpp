@@ -41,7 +41,7 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
     }*/
 
     if (timer.elapsed() > 1)
-        print("Blobs took ", timer.elapsed(),"s");
+        Print("Blobs took ", timer.elapsed(),"s");
 
     timer.reset();
         auto name = get_thread_name();
@@ -81,7 +81,7 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
     if (timer.elapsed() >= 1) {
         auto us = timer.elapsed() * 1000 * 1000;
         if (!GlobalSettings::is_runtime_quiet())
-            print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
+            Print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
     }
         
         set_thread_name(name);
@@ -592,7 +592,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ++index;
         
         if(i%100000 == 0 && i)
-            print("Blob ", i,"/",N);
+            Print("Blob ", i,"/",N);
     }
     
     stop = true;
@@ -849,7 +849,7 @@ template<> void Data::read(Individual*& out_ptr) {
             auto N = results->_expected_individuals.load();
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N) * 100),"%)...");
+                Print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N) * 100),"%)...");
                 results->_update_progress("", N_written / double(N), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
@@ -1060,7 +1060,7 @@ uint64_t Data::write(const Individual& val) {
             auto before = Meta::toStr(FileSize(in_len));
             auto after = Meta::toStr(FileSize(size));
             
-            print("Saved ", dec<2>(double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100),"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
+            Print("Saved ", dec<2>(double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100),"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
         }
     
     } else {
@@ -1184,8 +1184,8 @@ namespace Output {
         
         if(!GlobalSettings::is_runtime_quiet()) {
             DebugHeader("READING PROGRAM STATE");
-            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time.to_date_string()," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
-            print("Generated with command-line: ",_header.cmd_line);
+            Print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time.to_date_string()," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
+            Print("Generated with command-line: ",_header.cmd_line);
         }
     }
     
@@ -1193,8 +1193,8 @@ namespace Output {
         std::string version_string = "TRACK"+std::to_string((int)Versions::current);
         write<std::string>(version_string);
         if(!GlobalSettings::is_runtime_quiet()) {
-            print("Writing version string ",version_string);
-            print("Writing frame ", _header.gui_frame);
+            Print("Writing version string ",version_string);
+            Print("Writing frame ", _header.gui_frame);
         }
         write<uint64_t>(_header.gui_frame);
         auto consecutive = Tracker::instance()->consecutive();
@@ -1286,7 +1286,7 @@ namespace Output {
         
         const bool quiet = GlobalSettings::is_runtime_quiet();
         if(!quiet) {
-            print("Estimating ", FileSize(estimated_size)," for the whole file.");
+            Print("Estimating ", FileSize(estimated_size)," for the whole file.");
         }
         
         start_writing(true);
@@ -1294,7 +1294,7 @@ namespace Output {
         // write frame properties
         write<uint64_t>(frames.size());
         if(!quiet)
-            print("Writing ", frames.size()," frames");
+            Print("Writing ", frames.size()," frames");
         for (auto &p : frames)
             write<track::FrameProperties>(*p);
         
@@ -1375,7 +1375,7 @@ namespace Output {
         bytes_per_second = samples = percent_read = 0;
         
         if(!GlobalSettings::is_runtime_quiet())
-            print("Trying to open results ",filename.str()," (retrieve header only)");
+            Print("Trying to open results ",filename.str()," (retrieve header only)");
         ResultsFormat file(filename.str(), [](const auto&, auto, const auto&){});
         file.start_reading();
         return file.header();
@@ -1421,7 +1421,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if(props->frame.get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
             update_progress("FOIs...", props->frame.get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame)+" / "+Meta::toStr(_tracker.end_frame()));
             if(!GlobalSettings::is_runtime_quiet())
-                print("\tupdate_fois ", props->frame," / ",_tracker.end_frame(),"\r");
+                Print("\tupdate_fois ", props->frame," / ",_tracker.end_frame(),"\r");
         }
     }
     
@@ -1450,13 +1450,13 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;
             } else
-                print("Searched at ",file,", but also couldnt be found.");
+                Print("Searched at ",file,", but also couldnt be found.");
         }
         
         bytes_per_second = samples = percent_read = 0;
         
         if(!GlobalSettings::is_runtime_quiet())
-            print("Trying to open results ",filename.str());
+            Print("Trying to open results ",filename.str());
         ResultsFormat file(filename.str(), update_progress);
         
         clean_up();
@@ -1635,7 +1635,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         
         
         if(!GlobalSettings::is_runtime_quiet()) {
-            print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
+            Print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
         
             DurationUS duration{uint64_t(loading_timer.elapsed() * 1000 * 1000)};
             DebugHeader("FINISHED READING PROGRAM STATE IN ", duration);

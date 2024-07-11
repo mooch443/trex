@@ -258,7 +258,7 @@ Label::Ptr DataStore::label(const char* name) {
         }
     }
     
-    print("Label for ",name," not found.");
+    Print("Label for ",name," not found.");
     return nullptr;
 }
 
@@ -271,7 +271,7 @@ Label::Ptr DataStore::label(int ID) {
         return label(names[ID].c_str());
     }
     
-    print("ID ",ID," not found");
+    Print("ID ",ID," not found");
     return nullptr;
 }
 
@@ -467,7 +467,7 @@ void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
             N += values.size();
         }
 
-        print("[CAT] ",_probability_cache.size()," frames in cache, with ",N," labels (", dec<1>(double(N) / double(_probability_cache.size()))," labels / frame)");
+        Print("[CAT] ",_probability_cache.size()," frames in cache, with ",N," labels (", dec<1>(double(N) / double(_probability_cache.size()))," labels / frame)");
         timer.reset();
     }
 }
@@ -487,7 +487,7 @@ Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
         return label_averaged(fish, frame);
         
     }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
-        //print("Individual ",fish._identity," not found: ", error);
+        //Print("Individual ",fish._identity," not found: ", error);
         return nullptr;
         
     }).value();
@@ -576,7 +576,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
         return nullptr;
     }
     
-    //print("Individual ",fish->identity().ID()," not found. Other reason?");
+    //Print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
@@ -636,7 +636,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
         return nullptr;
     }
     
-    //print("Individual ",fish->identity().ID()," not found. Other reason?");
+    //Print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
@@ -645,7 +645,7 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
         return label_interpolated(fish, frame);
         
     }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
-        //print("Individual ",fish._identity," not found: ", error);
+        //Print("Individual ",fish._identity," not found: ", error);
         return nullptr;
         
     }).value();
@@ -734,7 +734,7 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
         return nullptr;
     }
     
-    //print("Individual ",fish->identity().ID()," not found. Other reason?");
+    //Print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
@@ -806,7 +806,7 @@ void DataStore::clear() {
 void DataStore::clear_cache() {
     {
         std::unique_lock guard(DataStore::cache_mutex());
-        print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
+        Print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
         _frame_cache.clear();
 #ifndef NDEBUG
         _current_cached_frames.clear();
@@ -921,7 +921,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if(fit != _current_cached_frames.end())
-            print("Cannot find frame ",frame," in _frame_cache, but can find it in _current_cached_frames!");
+            Print("Cannot find frame ",frame," in _frame_cache, but can find it in _current_cached_frames!");
 #endif
 
         constexpr size_t maximum_cache_size = 1500u;
@@ -980,7 +980,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
             }
 
 #ifndef NDEBUG
-            print("Deleting ",std::distance(start, end)," items from frame cache, which are farther away than ",end != frames_in_cache.end() ? int64_t(std::get<0>(*end)) : -1," from the mean of ",(minimum_range + (maximum_range - minimum_range) / 2.0)," (",_frame_cache.size()," size) ");
+            Print("Deleting ",std::distance(start, end)," items from frame cache, which are farther away than ",end != frames_in_cache.end() ? int64_t(std::get<0>(*end)) : -1," from the mean of ",(minimum_range + (maximum_range - minimum_range) / 2.0)," (",_frame_cache.size()," size) ");
 #endif
             _frame_cache = erase_indices(_frame_cache, indices);
             _delete += indices.size();
@@ -1005,7 +1005,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
                 _pp_frame_cache->_currently_processed.erase(kit);
             }
             else
-                print("Cannot find currently processed ",frame,"!");
+                Print("Cannot find currently processed ",frame,"!");
             
             _pp_frame_cache->_variable.notify_all();
         }
@@ -1014,7 +1014,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if (fit == _current_cached_frames.end())
-            print("Cannot find frame ",frame," in _current_cached_frames, but can find it in _frame_cache!");
+            Print("Cannot find frame ",frame," in _current_cached_frames, but can find it in _frame_cache!");
 #endif
         ptr = std::get<1>(*it);
         ++_reuse;
@@ -1103,14 +1103,14 @@ Sample::Ptr DataStore::temporary(
     #ifndef NDEBUG
                     auto fit = _current_cached_frames.find(Frame_t(f));
                     if (fit == _current_cached_frames.end())
-                        print("Cannot find frame ",f," in _current_cached_frames, but can find it in _frame_cache!");
+                        Print("Cannot find frame ",f," in _current_cached_frames, but can find it in _frame_cache!");
     #endif
                 }
     #ifndef NDEBUG
                 else {
                     auto fit = _current_cached_frames.find(Frame_t(f));
                     if (fit != _current_cached_frames.end())
-                        print("Cannot find frame ",f," in _frame_cache, but can find it in _current_cached_frames!");
+                        Print("Cannot find frame ",f," in _frame_cache, but can find it in _current_cached_frames!");
                 }
     #endif
             }
@@ -1182,7 +1182,7 @@ Sample::Ptr DataStore::temporary(
         {
             std::lock_guard g(debug_mutex);
             if (debug_timer.elapsed() >= 10) {
-                print("RatioRegenerate: ",double(_create.load()) / double(_reuse.load())," - Create:",_create.load(),"u Reuse:",_reuse.load()," Delete:",_delete.load());
+                Print("RatioRegenerate: ",double(_create.load()) / double(_reuse.load())," - Create:",_create.load(),"u Reuse:",_reuse.load()," Delete:",_delete.load());
                 debug_timer.reset();
             }
         }
@@ -1240,7 +1240,7 @@ Sample::Ptr DataStore::temporary(
     }
     
 #ifndef NDEBUG
-    print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, were found (replaced %lu, min_samples=",min_samples,").");
+    Print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, were found (replaced %lu, min_samples=",min_samples,").");
 #endif
     if(images.size() >= min_samples
        && not images.empty())
@@ -1421,7 +1421,7 @@ void DataStore::read(cmn::DataFormat& data, int /*version*/) {
 
             data.read<int>(ranged._label);
             if (ranged._label == -1) {
-                print("Ranged.label is nullptr for id ", ranged._label);
+                Print("Ranged.label is nullptr for id ", ranged._label);
             }
 
             // should probably check this always and fault gracefully on error since this is user input
@@ -1573,7 +1573,7 @@ void DataStore::read(cmn::DataFormat& data, int /*version*/) {
 
             data.read<int>(ranged._label);
             if (ranged._label == -1) {
-                print("Ranged.label is nullptr for id ", ranged._label);
+                Print("Ranged.label is nullptr for id ", ranged._label);
             }
 
             // should probably check this always and fault gracefully on error since this is user input

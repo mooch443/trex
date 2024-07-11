@@ -308,7 +308,7 @@ void load(file::PathArray source,
     }
     
     auto exclude = exclude_parameters + default_excludes + system_variables;
-    print("Excluding from command-line and default.settings: ", exclude);
+    Print("Excluding from command-line and default.settings: ", exclude);
     
     /// -----------------------------------------
     /// 3. load default.settings from app folder:
@@ -340,14 +340,14 @@ void load(file::PathArray source,
                || GlobalSettings::defaults().at(key) != from.at(key))
             {
                 //if(do_print)
-                //    print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
+                //    Print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
                 from.at(key).get().copy_to(&combined.map);
                 
                 if(key == "detect_type")
                     type = from.at(key).value<decltype(type)>();
             }
             else {
-                //print("// ", key, " is already set to ", combined.map.at(key).get().valueString());
+                //Print("// ", key, " is already set to ", combined.map.at(key).get().valueString());
             }
         }
         
@@ -355,30 +355,30 @@ void load(file::PathArray source,
            || current_defaults.at(key) != from.at(key))
         {
             //if(do_print)
-            //    print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
+            //    Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
             if (not GlobalSettings::defaults().has(key)
                 || GlobalSettings::defaults().at(key) != from.at(key)) 
             {
                 from.at(key).get().copy_to(&current_defaults);
-                //print("// [current_defaults] ", current_defaults.at(key).get());
+                //Print("// [current_defaults] ", current_defaults.at(key).get());
             }
             else if (current_defaults.has(key)) 
             {
-                //print("// [current_defaults] REMOVE ", current_defaults.at(key).get());
+                //Print("// [current_defaults] REMOVE ", current_defaults.at(key).get());
                 current_defaults.erase(key);
             }
             else {
                 /// we dont have it, but it is default
-                //print("// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+                //Print("// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
             }
             
         } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
         else if(current_defaults.has(key)) {
-            //print("// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+            //Print("// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
             //current_defaults.erase(key);
         }
         else {
-			print("// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+            Print("// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
 		}
     };
     
@@ -533,7 +533,7 @@ void load(file::PathArray source,
             set_config_if_different("filename", combined.map);
         } else {
             file::Path path = file::find_basename(_source);
-            print("found basename = ", path);
+            Print("found basename = ", path);
             if(task == TRexTask_t::track) {
                 if(not path.empty()) {
                     filename = file::DataLocation::parse("input", path, &combined.map);
@@ -656,7 +656,7 @@ void load(file::PathArray source,
                                      default_config::deprecations());
                 
                 exclude_from_default += tmp.keys();
-                //print("// pv file keys = ", tmp.keys());
+                //Print("// pv file keys = ", tmp.keys());
                 
                 for(auto &key : tmp.keys())
                     set_config_if_different(key, tmp, true);
@@ -718,7 +718,7 @@ void load(file::PathArray source,
                 values.at(key).get().copy_to(&GlobalSettings::current_defaults());
             
             if(contains(exclude_from_default.toVector(), key)) {
-                print("// Not setting default value ", key);
+                Print("// Not setting default value ", key);
                 continue;
             }
             set_config_if_different(key, values);
@@ -744,7 +744,7 @@ void load(file::PathArray source,
                 values.at(key).get().copy_to(&GlobalSettings::current_defaults());
             
             if(contains(exclude_from_default.toVector(), key)) {
-                print("// Not setting default value ", key);
+                Print("// Not setting default value ", key);
                 continue;
             }
             set_config_if_different(key, values);
@@ -796,7 +796,7 @@ void load(file::PathArray source,
     /// -------------------------------------
     if(not source_map.empty()) {
         G g("GUI settings");
-        //print("gui settings contains: ", source_map.keys());
+        //Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -808,7 +808,7 @@ void load(file::PathArray source,
                     /// not change anything
                     continue;
                 }
-                print("// Not allowed to copy ", key, " from source map.");
+                Print("// Not allowed to copy ", key, " from source map.");
                 continue;
             }
             
@@ -856,7 +856,7 @@ void load(file::PathArray source,
             {
                 //if(not contains(copy.toVector(), key))
                 {
-                    //print("Updating ",combined.map.at(key));
+                    //Print("Updating ",combined.map.at(key));
                     if(key == "filename"
                        && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map)
                            || (not combined.map.at(key).value<file::Path>().is_absolute()
@@ -877,7 +877,7 @@ void load(file::PathArray source,
                         combined.map.at(key).get().copy_to(&GlobalSettings::map());
                 }
                 /*else {
-                 print("Would be updating ",combined.map.at(key), " but is forbidden.");
+                 Print("Would be updating ",combined.map.at(key), " but is forbidden.");
                  }*/
             }
         } catch(const std::exception& ex) {
@@ -885,7 +885,7 @@ void load(file::PathArray source,
         }
     }
     
-    print("current defaults = ", current_defaults.keys());
+    Print("current defaults = ", current_defaults.keys());
     GlobalSettings::current_defaults_with_config() = current_defaults;
     
     CommandLine::instance().reset_settings({
@@ -961,7 +961,7 @@ void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string&
                         
                         FILE *f = fopen(filename.str().c_str(), "wb");
                         if(f) {
-                            print("Overwriting file ",filename.str(),".");
+                            Print("Overwriting file ",filename.str(),".");
                             fwrite(str.data(), 1, str.length(), f);
                             fclose(f);
                         } else {
@@ -976,7 +976,7 @@ void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string&
             });
             
         } else
-            print("Settings file ",filename.str()," already exists. To overwrite, please add the keyword 'force'.");
+            Print("Settings file ",filename.str()," already exists. To overwrite, please add the keyword 'force'.");
         
     } else {
         if(!filename.remove_filename().exists())

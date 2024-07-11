@@ -29,7 +29,7 @@ void Yolo7InstanceSegmentation::init() {
 }
 
 void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationData& data, Vec2 scale_factor, std::vector<float>& masks, const std::vector<float>& vector, const std::vector<int>& meta) {
-    //print(vector);
+    //Print(vector);
     size_t N = vector.size() / 6u;
     
     cv::Mat full_image;
@@ -57,9 +57,9 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
         pos = pos.mul(scale_factor);
         dim = dim.mul(scale_factor);
         
-        print(i, vector.at(i*6 + 0), " ", vector.at(i*6 + 1), " ",vector.at(i*6 + 2), " ", vector.at(i*6 + 3));
-        print("\t->", conf, " ", cls, " ",pos, " ", dim);
-        print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
+        Print(i, vector.at(i*6 + 0), " ", vector.at(i*6 + 1), " ",vector.at(i*6 + 2), " ", vector.at(i*6 + 3));
+        Print("\t->", conf, " ", cls, " ",pos, " ", dim);
+        Print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
         cls = meta.at(i);
         
         if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
@@ -84,9 +84,9 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
         
         cv::threshold(tmp, tmp, 0.6, 1.0, cv::THRESH_BINARY);
         //cv::threshold(tmp, t, 150, 255, cv::THRESH_BINARY);
-        //print(Bounds(pos, dim), " and image ", Size2(full_image), " and t ", Size2(t));
-        //print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
-        //print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
+        //Print(Bounds(pos, dim), " and image ", Size2(full_image), " and t ", Size2(t));
+        //Print("using bounds: ", Size2(full_image(Bounds(pos, dim))), " and ", Size2(t));
+        //Print("channels: ", full_image.channels(), " and ", t.channels(), " and types ", getImgType(full_image.type()), " ", getImgType(t.type()));
         cv::Mat d;// = full_image(Bounds(pos, dim));
         auto restricted = Bounds(pos, dim);
         restricted.restrict_to(Bounds(full_image));
@@ -145,7 +145,7 @@ tl::expected<SegmentationData, const char*> Yolo7InstanceSegmentation::apply(Til
     namespace py = Python;
     
     Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
-    print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", tiled.data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+    Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", tiled.data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
     
     for(auto p : tiled.offsets()) {
         tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));

@@ -26,7 +26,7 @@ bool Results::save_events(const Path &filename, std::function<void(float)> set_p
             continue;
         
         std::string f = filename.str() + pair.first->identity().raw_name() + ".csv";
-        print("Exporting fish ", pair.first->identity()," (",pair.first->identity(),") events (",f,")...");
+        Print("Exporting fish ", pair.first->identity()," (",pair.first->identity(),") events (",f,")...");
         
         Table table(header);
         

@@ -20,7 +20,7 @@ TEST(CacheSizeTest, Basic) {
     using namespace track;
     //static_assert(std::is_trivial_v<TrivialOptional<uint32_t>>);
     static_assert(std::is_trivially_copyable_v<TrivialOptional<uint32_t>>);
-    print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
+    Print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
     //static_assert(std::is_trivial_v<Frame_t>);
 }
 
@@ -1065,20 +1065,20 @@ TEST(ToStrFromStrRoundTripTest, EscapingTest) {
     
     for (const auto& original : testStrings) {
         std::string intermediate = Meta::toStr<std::string>(original);
-        print("original ", original.c_str());
-        print("intermed ", intermediate.c_str());
+        Print("original ", original.c_str());
+        Print("intermed ", intermediate.c_str());
         
         // Assuming your fromStr function trims spaces beyond the enclosing quotes
         std::string trimmed_intermediate = intermediate;
         
         std::string result = Meta::toStr<std::string>(Meta::fromStr<std::string>(trimmed_intermediate));
         
-        print("result   ", result.c_str());
+        Print("result   ", result.c_str());
         
         EXPECT_EQ(result, intermediate) << "Failed round-trip test for string: " << original;
         
         std::string fully_reversed = Meta::fromStr<std::string>(result);
-        print("fully r  ", fully_reversed.c_str());
+        Print("fully r  ", fully_reversed.c_str());
         EXPECT_EQ(fully_reversed, original) << "Failed round-trip test for string: " << original;
     }
 }
@@ -1097,8 +1097,8 @@ TEST(PathSerializationTest, CrossOSPath) {
     std::string serialized = Meta::toStr(path);
     
     // Debug output
-    print("Debug Info: Path = ", path.str());
-    print("Serialized: ", serialized);
+    Print("Debug Info: Path = ", path.str());
+    Print("Serialized: ", serialized);
     
     if (isWindowsOS()) {
         EXPECT_EQ(serialized, "\"\\\\unix\\\\style\\\\path\"");
@@ -1113,8 +1113,8 @@ TEST(PathSerializationTest, WindowsPath) {
     std::string serialized = Meta::toStr(path);
     
     // Debug output
-    print("Debug Info: Path = ", path.str());
-    print("Serialized: ", serialized);
+    Print("Debug Info: Path = ", path.str());
+    Print("Serialized: ", serialized);
     
     if (isWindowsOS()) {
         EXPECT_EQ(serialized, "\"C:\\\\windows\\\\style\\\\path\"");
@@ -1130,9 +1130,9 @@ TEST(PathSerializationTest, RoundTripCrossOS) {
     file::Path deserialized_path = Meta::fromStr<file::Path>(serialized);
     
     // Debug output
-    print("Debug Info: Original Path = ", original_path.str());
-    print("Serialized: ", serialized);
-    print("Debug Info: Deserialized Path = ", deserialized_path.str());
+    Print("Debug Info: Original Path = ", original_path.str());
+    Print("Serialized: ", serialized);
+    Print("Debug Info: Deserialized Path = ", deserialized_path.str());
     
     if (isWindowsOS()) {
         EXPECT_EQ(deserialized_path.str(), "\\unix\\or\\windows\\path");

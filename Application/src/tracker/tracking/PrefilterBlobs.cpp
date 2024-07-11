@@ -257,9 +257,9 @@ void PrefilterBlobs::split_big(
     
     /*for(auto & b : big_blobs) {
         if(b == nullptr)
-            print("Found");
+            Print("Found");
         else
-            print(b);
+            Print(b);
     }*/
     
     big_blobs.erase(std::remove(big_blobs.begin(), big_blobs.end(), nullptr), big_blobs.end());
@@ -284,7 +284,7 @@ bool PrefilterBlobs::blob_matches_shapes(const pv::Blob & b, const std::vector<s
         else {
             static bool warned = false;
             if(!warned) {
-                print("Array of numbers ",rect," is not a polygon (or rectangle).");
+                Print("Array of numbers ",rect," is not a polygon (or rectangle).");
                 warned = true;
             }
         }
@@ -314,7 +314,7 @@ bool PrefilterBlobs::rect_overlaps_shapes(const Bounds & b, const std::vector<st
         else {
             static bool warned = false;
             if(!warned) {
-                print("Array of numbers ",rect," is not a polygon (or rectangle).");
+                Print("Array of numbers ",rect," is not a polygon (or rectangle).");
                 warned = true;
             }
         }

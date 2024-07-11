@@ -344,7 +344,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
         if(next.best != -1 && naive.best != -1) {
             //if(std::abs(next.best - naive.best) > 2)
             {
-                print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Naive count: ", naive.count, " (t=",(int)naive.best,") vs ", next.count, " (t=",(int)next.best,") and map ", next.tried, " vs ", naive.tried);
+                Print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Naive count: ", naive.count, " (t=",(int)naive.best,") vs ", next.count, " (t=",(int)next.best,") and map ", next.tried, " vs ", naive.tried);
             }
                 auto offset = std::abs(next.best - naive.best);
                 offsets += offset;
@@ -359,7 +359,7 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
             //}
             
         } else if(next.best == -1) {
-            print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Not found count: ", naive.count, " (t=",(int)naive.best,") vs ", next.count, " (t=",(int)next.best,") and map ", naive.tried, " vs ", next.tried);
+            Print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Not found count: ", naive.count, " (t=",(int)naive.best,") vs ", next.count, " (t=",(int)next.best,") and map ", naive.tried, " vs ", next.tried);
             ++not_found;
             ++mismatches;
         }
@@ -370,9 +370,9 @@ void commit_run(pv::bid bdx, const Run<false>& naive, const Run<thread_safe>& ne
     if(samples.load() % 100 == 0) {
         auto m0 = matches.load(), m1 = mismatches.load();
         auto off = offsets.load();
-        print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Samples: ", float(thresholds) / float(samples), " (vs. ", float(samples_naive.load()) / float(samples.load()),") ", float(m1) / float(m0 + m1) * 100, "% mismatches (avg. ", float(off) / float(m1), " offset for ", m1," elements) ", float(not_found.load()) / float(m1) * 100, "% not found, ", float(would_find.load()) / float(not_found.load()) * 100, "% could have been found, ", float(second_try.load()) / float(samples.load()) * 100, "% found in second try, ", float(preproc.load()) / float(samples.load()) * 100, "% found in preprocess ", float(third.load()) / float(samples.load()) * 100, "% found in third try, ", float(count_from_not_found.load()) / float(thresholds.load()) * 100, "% from not found objects");
+        Print(thread_safe ? "(ts)" : "(single)", " ", bdx, " Samples: ", float(thresholds) / float(samples), " (vs. ", float(samples_naive.load()) / float(samples.load()),") ", float(m1) / float(m0 + m1) * 100, "% mismatches (avg. ", float(off) / float(m1), " offset for ", m1," elements) ", float(not_found.load()) / float(m1) * 100, "% not found, ", float(would_find.load()) / float(not_found.load()) * 100, "% could have been found, ", float(second_try.load()) / float(samples.load()) * 100, "% found in second try, ", float(preproc.load()) / float(samples.load()) * 100, "% found in preprocess ", float(third.load()) / float(samples.load()) * 100, "% found in third try, ", float(count_from_not_found.load()) / float(thresholds.load()) * 100, "% from not found objects");
         std::unique_lock guard(m);
-        print(often);
+        Print(often);
     }
 }
 #endif
@@ -458,7 +458,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 
         {
             auto detections = CPULabeling::run(tmp2, *_cache);
-            //print("Detections: ", detections.size());
+            //Print("Detections: ", detections.size());
 
             output.clear();
             for(auto&& [lines, pixels, flags, pred] : detections) {
@@ -541,7 +541,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     best_match = std::move(result);
                 }
             }
-            //print(" inserting ", threshold);
+            //Print(" inserting ", threshold);
         }
 
         //blobs.clear();

@@ -29,7 +29,7 @@ LockGuard::~LockGuard() {
             auto name = get_thread_name();
             if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
                 auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
-                print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
+                Print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
                 _last_printed_purpose[_purpose].reset();
             }
         }
@@ -45,7 +45,7 @@ LockGuard::~LockGuard() {
     if(tm >= 1) {
         auto name = get_thread_name();
         auto str = Meta::toStr(DurationUS{uint64_t(tm * 1000 * 1000)});
-        print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
+        Print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
     }
 #endif
     
@@ -59,7 +59,7 @@ LockGuard::~LockGuard() {
                 ss << _writing_thread_id;
                 ss1 << std::this_thread::get_id();
                 
-                //print("[TG] ",_purpose, " resets _writing_thread_id(old=", ss.str()," vs. mine=", ss1.str(),") write=", _write, " regain=", _regain_read, " owned=", _owns_write);
+                //Print("[TG] ",_purpose, " resets _writing_thread_id(old=", ss.str()," vs. mine=", ss1.str(),") write=", _write, " regain=", _regain_read, " owned=", _owns_write);
                 _writing_thread_id = std::thread::id();
             }
             
@@ -68,7 +68,7 @@ LockGuard::~LockGuard() {
             if(_regain_read) {
                 //std::stringstream ss;
                 //ss << std::this_thread::get_id();
-                //print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
+                //Print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
                 
                 tracker_lock->lock_shared();
                 
@@ -80,7 +80,7 @@ LockGuard::~LockGuard() {
     } else if(_owns_write) {
         //std::stringstream ss;
         //ss << std::this_thread::get_id();
-        //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str());
+        //Print("[TG] ", _purpose, " released shared_lock in thread ", ss.str());
         
         {
             std::unique_lock rm(read_mutex());
@@ -142,7 +142,7 @@ bool LockGuard::init(uint32_t timeout_ms)
             _locked = true;
             //std::stringstream ss;
             //ss << _writing_thread_id;
-            //print("[TG] ",_purpose, " already has writing lock at ", ss.str());
+            //Print("[TG] ",_purpose, " already has writing lock at ", ss.str());
             return true;
         }
     }
@@ -164,7 +164,7 @@ bool LockGuard::init(uint32_t timeout_ms)
             
             //std::stringstream ss;
             //ss << std::this_thread::get_id();
-            //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str(), " temporarily for write lock");
+            //Print("[TG] ", _purpose, " released shared_lock in thread ", ss.str(), " temporarily for write lock");
             
             _regain_read = true;
         }
@@ -178,7 +178,7 @@ bool LockGuard::init(uint32_t timeout_ms)
                 _regain_read = false;
                 //std::stringstream ss;
                 //ss << std::this_thread::get_id();
-                //print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
+                //Print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
                 
                 tracker_lock->lock_shared();
                 
@@ -226,13 +226,13 @@ bool LockGuard::init(uint32_t timeout_ms)
         //std::stringstream ss, ss1;
         //ss << my_id;
         //ss1 << _writing_thread_id;
-        //print("[TG] ",_purpose," sets writing thread id ", ss.str(), " from ", ss1.str());
+        //Print("[TG] ",_purpose," sets writing thread id ", ss.str(), " from ", ss1.str());
         
         _writing_thread_id = my_id;
     } else {
         //std::stringstream ss;
         //ss << my_id;
-        //print("[TG] ",_purpose," acquire read lock in thread ", ss.str());
+        //Print("[TG] ",_purpose," acquire read lock in thread ", ss.str());
         
         std::unique_lock rm(read_mutex());
         read_locks.insert(my_id);

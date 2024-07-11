@@ -187,14 +187,14 @@ struct ConvertScene::Data {
                     ptr->text()->set(color);
                     ptr->text()->set(FillClr{ fill });
                     ptr->set_line_color(line);
-                    //print("Create new label with text = ", text);
+                    //Print("Create new label with text = ", text);
 
                     return Layout::Ptr(ptr);
                 },
                 .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool
                 {
-                    //print("Updating label with patterns: ", patterns);
-                    //print("o = ", o.get());
+                    //Print("Updating label with patterns: ", patterns);
+                    //Print("o = ", o.get());
 
                     Idx_t id;
                     if (patterns.contains("id"))
@@ -469,7 +469,7 @@ void ConvertScene::activate()  {
         SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
     }
     
-    print("Loading source = ", source);
+    Print("Loading source = ", source);
     SETTING(meta_source_path) = source.source();
     try {
 
@@ -531,7 +531,7 @@ void ConvertScene::activate()  {
         if(not path.is_regular())
             throw U_EXCEPTION("Cannot find module ", path, " as is specified in `closed_loop_path`.");
         
-        print("Loading closed_loop module at ", path.absolute().add_extension("py"));
+        Print("Loading closed_loop module at ", path.absolute().add_extension("py"));
         
         Python::schedule([this](){
             ModuleProxy proxy(_data->closed_loop_path.str(), [this](ModuleProxy& m) {
@@ -726,7 +726,7 @@ void ConvertScene::Data::drawBlobs(
                 }
             }
             //else
-            //    print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
+            //    Print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
         }
         
         auto cname = detect_classes.size() > assign.clid
@@ -752,7 +752,7 @@ void ConvertScene::Data::drawBlobs(
 
             if (untracked >= _untracked_gui.size())
                 _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> sprite::Map& {
-                    //print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
+                    //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                     return _untracked_properties.at(i);
                 }));
 
@@ -811,7 +811,7 @@ void ConvertScene::Data::drawBlobs(
 
         if (tracked >= _tracked_gui.size())
             _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> sprite::Map& {
-                //print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
+                //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                 return *_tracked_properties.at(i);
             }));
 
@@ -1093,7 +1093,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         for (auto &box : _current_data.tiles)
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
         //auto coord = FindCoord::get();
-        //print(coord.bowl_scale());
+        //Print(coord.bowl_scale());
         
         ColorWheel wheel;
         size_t pose_index{ 0 };

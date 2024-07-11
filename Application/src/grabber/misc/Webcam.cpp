@@ -35,7 +35,7 @@ namespace fg {
         if(!_capture.isOpened())
             throw U_EXCEPTION("Cannot open webcam. Please check your system privacy settings to allow camera access for ", no_quotes(SETTING(app_name).value<std::string>()), ".");
             
-        print("Current mode = ", _capture.get(cv::CAP_PROP_FOURCC), " (", _capture.get(cv::CAP_PROP_FPS), " fps)");
+        Print("Current mode = ", _capture.get(cv::CAP_PROP_FOURCC), " (", _capture.get(cv::CAP_PROP_FPS), " fps)");
 
         cv::Mat test;
         _capture >> test;
@@ -49,7 +49,7 @@ namespace fg {
             for(size_t i=0; i<samples; ++i)
                 _capture >> test;
             auto e = timer.elapsed();
-            print("Measured framerate = ", samples / e);
+            Print("Measured framerate = ", samples / e);
             _frame_rate = int(round(double(samples) / e));
         }
     }

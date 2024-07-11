@@ -20,7 +20,7 @@ StartingScene::StartingScene(Base& window)
 : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
     auto path = file::DataLocation::parse("app", "gfx/welcome/ComfyUI_00032_717534771402803_wind_").str() + "%1.15.4d.jpg";
-    print("loading ", path);
+    Print("loading ", path);
     //_video_adapter = std::make_unique<GUIVideoAdapter>(file::PathArray(path));
     //_video_adapter->set(GUIVideoAdapter::Blur{0.5});
     //_video_adapter->set(GUIVideoAdapter::FrameTime{0.25});
@@ -139,7 +139,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                 dyn::Context context;
                 context.actions = {
                     ActionFunc("open_recent", [this](dyn::Action str) {
-                        print("open_recent got ", str);
+                        Print("open_recent got ", str);
                         assert(str.parameters.size() == 1u);
                         auto index = Meta::fromStr<size_t>(str.first());
                         if(_recents.items().size() <= index)

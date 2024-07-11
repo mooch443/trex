@@ -114,12 +114,12 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                 if(_next_frame != 0_f) {
                     _next_frame = 0_f;
                     //_source->set_frame(0_f);
-                    //print("set index = ", _next_frame);
+                    //Print("set index = ", _next_frame);
                 }
             }
             
             if(not _next_frame.valid() || index == _next_frame) {
-                //print("index = ", index);
+                //Print("index = ", index);
                 _last_blur = -1;
                 _last_resolution = {};
                 
@@ -131,7 +131,7 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                 if(_next_frame.valid())
                     _next_frame ++;
             } else {
-                //print("index = ", index, " waiting for ", _next_frame);
+                //Print("index = ", index, " waiting for ", _next_frame);
                 ThreadManager::getInstance().notify(gid);
             }
         }
@@ -216,7 +216,7 @@ void BlurryVideoLoop::
                            target_res.height / size.height));
         
         size = Size2(size.width * ratio, size.height * ratio);
-        //print("Scaling to size ", size, " with ratio ", ratio, " ", size.div(Size2(intermediate)));
+        //Print("Scaling to size ", size, " with ratio ", ratio, " ", size.div(Size2(intermediate)));
     }
     scale = size.div(Size2(intermediate)).min();
     
