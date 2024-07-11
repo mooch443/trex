@@ -386,6 +386,8 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
+    GlobalSettings::map()["heatmap_ids"].get().set_do_print(false);
+    GlobalSettings::map()["gui_run"].get().set_do_print(false);
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
     if(cmd.settings_keys().contains("cwd")) {

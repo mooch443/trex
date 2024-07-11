@@ -616,7 +616,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                     posture = posture_index != -1 ? fish->posture_stuff().at(posture_index).get() : nullptr;
                 }
                 
-                if(fish->identity().ID() == primary_selected_id()) {
+                //if(fish->identity().ID() == primary_selected_id())
+                {
                     if(segment) {
                         auto filters = constraints::local_midline_length(fish, segment->range);
                         filter_cache[fish->identity().ID()] = std::move(filters);
