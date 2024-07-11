@@ -797,7 +797,7 @@ void Segmenter::perform_tracking() {
         auto g = LOGGED_LOCK(mFPS);
         num_frames++;
 
-        if (frame_counter.elapsed() > 30) {
+        if (frame_counter.elapsed() > 5) {
             FPS = num_frames / frame_counter.elapsed();
             num_frames = 0;
             AbstractBaseVideoSource::_fps = FPS;
