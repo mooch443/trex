@@ -582,7 +582,9 @@ void Segmenter::generator_thread() {
     //if (_should_terminate || (_next_frame_data && items.size() >= 10))
     //    return;
     if(_next_frame_data && items.size() >= 10) {
+#ifndef NDEBUG
         thread_print("TM enough items queued up...");
+#endif
         return;
     }
     
@@ -606,7 +608,9 @@ void Segmenter::generator_thread() {
 
                 }
                 else {
+#ifndef NDEBUG
                     thread_print("TM Invalid future ", std::get<0>(items.front()));
+#endif
                     items.erase(items.begin());
                     
                     /*auto status = std::get<1>(items.front()).wait_for(std::chrono::seconds(0));
@@ -655,7 +659,9 @@ void Segmenter::generator_thread() {
 					return;
 				}
                 //_overlayed_video->reset(0_f);
+#ifndef NDEBUG
                 thread_print("TM Invalid item #", items.size(),": ", result.error());
+#endif
                 if(error_callback)
                     error_callback("Cannot generate results: "+std::string(result.error()));
             }
