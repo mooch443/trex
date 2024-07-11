@@ -228,15 +228,12 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
         .channels = 1u,
         .encoding = meta_encoding_t::gray
     };
-    auto fn = [&]<DifferenceMethod method>(auto value) {
-        return bg->diff<output, method>(0, 0, value);
-    };
 
-    ASSERT_EQ(fn.operator()<DifferenceMethod_t::absolute>(200), 50);
-    ASSERT_EQ(fn.operator()<DifferenceMethod_t::none>(200), 200);
-    ASSERT_EQ(fn.operator()<DifferenceMethod_t::none>(55), 55);
-    ASSERT_EQ(fn.operator()<DifferenceMethod_t::sign>(100), 50);
-    ASSERT_EQ(fn.operator()<DifferenceMethod_t::sign>(200), 0);
+    { auto v = bg->diff<output, DifferenceMethod_t::absolute>(0, 0, 200);  ASSERT_EQ(v, 50); }
+    { auto v = bg->diff<output, DifferenceMethod_t::none>(0, 0, 200);  ASSERT_EQ(v, 200); }
+    { auto v = bg->diff<output, DifferenceMethod_t::none>(0, 0, 55);  ASSERT_EQ(v, 55); }
+    { auto v = bg->diff<output, DifferenceMethod_t::sign>(0, 0, 100);  ASSERT_EQ(v, 50); }
+    { auto v = bg->diff<output, DifferenceMethod_t::sign>(0, 0, 200);  ASSERT_EQ(v, 0); }
     
     uchar* px = input_pixels.data();
     line_without_grid<iinput, output, DifferenceMethod_t::absolute>(bg.get(), input, px, threshold, lines, pixels);
