@@ -102,9 +102,9 @@ struct SegmentationData {
         return image != nullptr;
     }
 
-    SegmentationData() = default;
+    SegmentationData();
     SegmentationData(SegmentationData&& other) = default;
-    SegmentationData(Image::Ptr&& original) : image(std::move(original)) {}
+    SegmentationData(Image::Ptr&& original);
     SegmentationData& operator=(SegmentationData&&);
     ~SegmentationData();
     

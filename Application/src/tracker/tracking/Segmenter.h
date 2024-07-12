@@ -82,7 +82,7 @@ public:
     bool is_finite() const;
     file::Path output_file_name() const;
     void force_stop();
-    void error_stop();
+    void error_stop(std::string_view);
     std::future<std::optional<std::string_view>> video_recovered_error() const;
     float average_percent() const { return min(_average_percent.load(), 1.f); }
     double fps() const;
@@ -98,6 +98,11 @@ private:
     void start_recording_ffmpeg();
     void graceful_end();
     void stop_average_generator(bool blocking);
+    
+    Image::Ptr finalize_bg_image(ImageMode colors, const cv::Mat&);
+    std::tuple<bool, cv::Mat> get_preliminary_background(Size2 size);
+    void trigger_average_generator(bool regenerate, cv::Mat& bg);
+    void callback_after_generating(cv::Mat& bg);
     
     void init_undistort_from_settings();
 };

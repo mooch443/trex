@@ -170,6 +170,13 @@ SceneManager::~SceneManager() {
 
 void SceneManager::clear() {
     set_active(nullptr);
+    
+    { /// clear scene registry so the remaining queue items
+      /// cant activate a new scene:
+        std::unique_lock guard{_mutex};
+        _scene_registry.clear();
+    }
+    
     update_queue();
     _gui_queue = nullptr;
     

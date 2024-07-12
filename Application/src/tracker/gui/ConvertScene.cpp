@@ -482,7 +482,7 @@ void ConvertScene::activate()  {
         FormatExcept(ex.what());
 		_scene_promise.set_exception(std::current_exception());
         _scene_promise = {};
-        segmenter().error_stop();
+        segmenter().error_stop(ex.what());
         throw;
     }
 

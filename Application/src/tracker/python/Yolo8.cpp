@@ -289,6 +289,14 @@ void Yolo8::process_boxes_only(
     size_t N_rows = result.boxes().num_rows();
     auto& boxes = result.boxes();
     
+    if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+        cv::Mat tmp;
+        convert_from_r3g3b2(r3, tmp);
+        //tf::imshow("r3", tmp);
+    } else {
+        //tf::imshow("r3", r3);
+    }
+    
     for (size_t i = 0; i < N_rows; ++i) {
         auto& row = boxes[i];
         if (not detect_only_classes.empty()
@@ -436,6 +444,8 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         assert(r3.channels() == 1);
         pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_r3g3b2, true);
     }
+    assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (Background::meta_encoding() == meta_encoding_t::rgb8));
+    //pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_rgb, Background::meta_encoding() == meta_encoding_t::rgb8);
 
     pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     auto [o, px] = blob.calculate_pixels(r3);
@@ -591,8 +601,10 @@ void Yolo8::ReceivePackage(TransferData&& transfer, std::vector<track::detect::R
     //    TileImage::buffers.move_back(std::move(t));
 
     if (results.empty()) {
+#ifndef NDEBUG
         if (not transfer.images.empty())
             tf::imshow("ma", transfer.images.front()->get());
+#endif
         for (size_t i = 0; i < transfer.datas.size(); ++i) {
             try {
                 transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));

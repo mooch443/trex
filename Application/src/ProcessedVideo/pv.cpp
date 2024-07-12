@@ -890,8 +890,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t channels) {
     switch (encoding) {
         case cmn::meta_encoding_t::data::values::rgb8:
-        case cmn::meta_encoding_t::data::values::r3g3b2:
             return 3 == channels;
+        case cmn::meta_encoding_t::data::values::r3g3b2:
         case cmn::meta_encoding_t::data::values::gray:
             return 1 == channels;
             
@@ -944,6 +944,8 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
          */
         
         // set offsets from global settings
+        //if(average)
+        //    tf::imshow("average", average->get());
         if(average && not correct_number_channels(encoding, average->channels())) {
             throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," for the average image provided ", *average);
         }
@@ -1152,6 +1154,11 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         
         assert(_open_for_writing);
         assert(_header.timestamp != 0); // start time has to be set
+        
+        auto channels = (frame.encoding() == meta_encoding_t::rgb8) ? 3u : 1u;
+        for(size_t i = 0; i < frame.n(); ++i) {
+            assert(frame.pixels().size() % channels == 0);
+        }
 
         std::unique_lock<std::mutex> lock(_lock);
 
@@ -1507,6 +1514,8 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
     }
 
 void File::set_average(const cv::Mat& average) {
+    //tf::imshow("average", average);
+    
     if(not correct_number_channels(_header.encoding, average.channels())) {
         throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
     }

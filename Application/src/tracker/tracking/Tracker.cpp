@@ -237,11 +237,11 @@ void Tracker::analysis_state(AnalysisState pause) {
     tmp.detach();
 }
 
-Tracker::Tracker(Image::Ptr&& average, const pv::File& video)
-    : Tracker(std::move(average), settings::infer_meta_real_width_from(video))
+Tracker::Tracker(const pv::File& video)
+    : Tracker(Image::Make(video.average()), video.header().encoding, settings::infer_meta_real_width_from(video))
 { }
 
-Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
+Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float meta_real_width)
       : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
         _max_individuals(0),
         _background(NULL),
@@ -267,7 +267,7 @@ Tracker::Tracker(Image::Ptr&& average, float meta_real_width)
     PPFrame::CloseLogs();
     update_history_log();
     
-    set_average(std::move(average));
+    set_average(std::move(average), encoding);
     
     if(not GlobalSettings::has("meta_real_width")
        || SETTING(meta_real_width).value<float>() == 0)
@@ -3321,7 +3321,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             auto a = Image::Make(average.rows, average.cols, average.channels());
             average.copyTo(a->get());
             
-            Background bg(std::move(a), nullptr);
+            Background bg(std::move(a), average.channels() == 3 ? meta_encoding_t::rgb8 : meta_encoding_t::gray);
             
             if(!quiet)
                 Print("Determining blob size in ", video.length()," frames...");

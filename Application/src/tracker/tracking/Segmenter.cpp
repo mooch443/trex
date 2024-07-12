@@ -202,12 +202,172 @@ bool Segmenter::is_average_generating() const {
     return false;
 }
 
+Image::Ptr Segmenter::finalize_bg_image(ImageMode colors, const cv::Mat& bg) {
+    assert(bg.type() == CV_8UC3);
+    
+    /// in case its r3g3b2 we just save the full color
+    /// image, to account for all cases in the future:
+    Image::Ptr ptr;
+    if(colors == ImageMode::R3G3B2) {
+        ptr = Image::Make(bg.rows, bg.cols, 1);
+        cv::Mat output = ptr->get();
+        convert_to_r3g3b2<3>(bg, output);
+    } else if(colors == ImageMode::RGB) {
+        ptr = Image::Make(bg);
+    } else if(colors == ImageMode::GRAY) {
+        ptr = Image::Make(bg.rows, bg.cols, 1);
+        cv::cvtColor(bg, ptr->get(), cv::COLOR_BGR2GRAY);
+    } else
+        throw InvalidArgumentException("Invalid color mode: ", colors);
+    return ptr;
+}
+
+std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
+    const uint8_t channels = required_channels(Background::image_mode());
+    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
+    bg.setTo(255);
+
+    bool do_generate_average { SETTING(reset_average).value<bool>() };
+    if (not average_name().exists()) {
+        do_generate_average = true;
+    }
+    else {
+        Print("Loading from file...");
+        bg = cv::imread(average_name().str());
+
+        if (bg.cols == size.width && bg.rows == size.height) {
+            if(bg.channels() == 3)
+            {
+                if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+                    assert(channels == 1);
+                    cv::Mat output;
+                    convert_to_r3g3b2<3>(bg, output);
+                    bg = std::move(output);
+                    
+                } else if(channels == 1) {
+                    assert(Background::meta_encoding() == meta_encoding_t::gray);
+                    cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
+                }
+            }
+            
+            if(channels != bg.channels()) {
+                FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+                bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
+                do_generate_average = true;
+            }
+            
+        } else {
+            do_generate_average = true;
+        }
+    }
+    
+    return std::make_tuple(do_generate_average, bg);
+}
+
+void Segmenter::callback_after_generating(cv::Mat &bg) {
+    const auto channels = required_channels(Background::image_mode());
+    
+    {
+        std::unique_lock guard(_mutex_tracker);
+        if(not _tracker)
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<float>());
+        //else
+        //    _tracker->set_average(Image::Make(bg));
+    }
+    
+    {
+        std::unique_lock vlock(_mutex_general);
+        if (not _output_file) {
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+        }
+        try {
+            _output_file->set_average(bg);
+            
+        } catch(const std::exception& ex) {
+            FormatWarning("Error setting the background image for ", *_output_file, ": ", ex.what());
+            if(auto detect_type = SETTING(detect_type).value<ObjectDetectionType_t>();
+               detect_type == ObjectDetectionType::background_subtraction)
+            {
+                throw U_EXCEPTION("Cannot continue in mode ", detect_type," without a background image. Error: ", ex.what(), "");
+            } else {
+                _output_file->set_average(cv::Mat::zeros(_output_file->size().height, _output_file->size().width, CV_8UC(channels)));
+            }
+        }
+    }
+}
+
+void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
+    const auto channels = required_channels(Background::image_mode());
+    
+    // procrastinate on generating the average async because
+    // otherwise the GUI stops responding...
+    if(do_generate_average) {
+        std::unique_lock guard(average_generator_mutex);
+        average_generator = std::async(std::launch::async, [this, size = _output_size, channels]()
+        {
+            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
+            bg.setTo(255);
+            float last_percent = 0;
+            last_percent = 0;
+            
+            VideoSource tmp(SETTING(source).value<file::PathArray>());
+            auto colors = Background::image_mode();
+            /// for future purposes everything in rgb, so if the
+            /// user switches to gray later on it still works:
+            tmp.set_colors(ImageMode::RGB);
+            tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
+                if(percent > last_percent + 10
+                   || percent >= 0.99)
+                {
+                    Print("[average] Generating average ", int(percent * 100), "%");
+                    last_percent = percent;
+                }
+                _average_percent = percent;
+                
+                return not _average_terminate_requested.load();
+            });
+            
+            if(not _average_terminate_requested) {
+                cv::imwrite(average_name().str(), bg);
+                Print("** generated average ", bg.channels());
+            } else {
+                Print("Aborted average image.");
+            }
+            
+            auto ptr = finalize_bg_image(colors, bg);
+            auto mat = ptr->get();
+            if(detection_type() == ObjectDetectionType::background_subtraction)
+                BackgroundSubtraction::set_background(std::move(ptr));
+            callback_after_generating(mat);
+            
+            // in case somebody is waiting on us:
+            average_variable.notify_all();
+        });
+        
+        /// if background subtraction is disabled for tracking, we don't need to
+        /// wait for the average image to generate first:
+        if(not SETTING(track_background_subtraction).value<bool>()) {
+            {
+                std::unique_lock guard(_mutex_tracker);
+                auto image_size = _output_size;
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), SETTING(meta_real_width).value<float>());
+            }
+
+            std::unique_lock vlock(_mutex_general);
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+        }
+        
+    } else {
+        auto ptr = finalize_bg_image(Background::image_mode(), bg);
+        auto mat = ptr->get();
+        BackgroundSubtraction::set_background(std::move(ptr));
+        callback_after_generating(mat);
+    }
+}
+
 void Segmenter::open_video() {
     VideoSource video_base(SETTING(source).value<file::PathArray>());
     video_base.set_colors(ImageMode::RGB);
-    
-    /// find out which number of channels we are interested in:
-    const uint8_t channels = required_channels(Background::image_mode());
 
     if(SETTING(frame_rate).value<uint32_t>() <= 0)
         SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
@@ -256,36 +416,7 @@ void Segmenter::open_video() {
 
     printDebugInformation();
 
-    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
-    bg.setTo(255);
-
-    bool do_generate_average { SETTING(reset_average).value<bool>() };
-    if (not average_name().exists()) {
-        do_generate_average = true;
-    }
-    else {
-        Print("Loading from file...");
-        bg = cv::imread(average_name().str());
-
-        auto size = video_base.size();
-        if (bg.cols == size.width && bg.rows == size.height) {
-            if(bg.channels() == 3)
-            {
-                if(channels == 1)
-                    cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
-            }
-            
-            if(channels != bg.channels()) {
-                FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
-                bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
-                do_generate_average = true;
-            }
-            
-        } else {
-            do_generate_average = true;
-        }
-    }
-    
+    auto [do_generate_average, bg] = get_preliminary_background(video_base.size());
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
@@ -299,81 +430,7 @@ void Segmenter::open_video() {
         path.create_folder();
     }
 
-    auto callback_after_generating = [this, channels](cv::Mat& bg){
-        {
-            std::unique_lock guard(_mutex_tracker);
-            if(not _tracker)
-                _tracker = std::make_unique<Tracker>(Image::Make(bg), SETTING(meta_real_width).value<float>());
-            //else
-            //    _tracker->set_average(Image::Make(bg));
-        }
-        
-        {
-            std::unique_lock vlock(_mutex_general);
-            if (not _output_file) {
-                _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
-            }
-            _output_file->set_average(bg);
-        }
-    };
-    
-    // procrastinate on generating the average async because
-    // otherwise the GUI stops responding...
-    if(do_generate_average) {
-        std::unique_lock guard(average_generator_mutex);
-        average_generator = std::async(std::launch::async, [this, callback_after_generating, size = _output_size, channels]()
-        {
-            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
-            bg.setTo(255);
-            float last_percent = 0;
-            last_percent = 0;
-            
-            VideoSource tmp(SETTING(source).value<file::PathArray>());
-            tmp.set_colors(channels == 1 ? ImageMode::GRAY : ImageMode::RGB);
-            tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
-                if(percent > last_percent + 10
-                   || percent >= 0.99)
-                {
-                    Print("[average] Generating average ", int(percent * 100), "%");
-                    last_percent = percent;
-                }
-                _average_percent = percent;
-                
-                return not _average_terminate_requested.load();
-            });
-            
-            if(not _average_terminate_requested) {
-                cv::imwrite(average_name().str(), bg);
-                Print("** generated average ", bg.channels());
-            } else {
-                Print("Aborted average image.");
-            }
-            
-            if(detection_type() == ObjectDetectionType::background_subtraction)
-                BackgroundSubtraction::set_background(Image::Make(bg));
-            callback_after_generating(bg);
-            
-            // in case somebody is waiting on us:
-            average_variable.notify_all();
-        });
-        
-        /// if background subtraction is disabled for tracking, we don't need to
-        /// wait for the average image to generate first:
-        if(not SETTING(track_background_subtraction).value<bool>()) {
-            {
-                std::unique_lock guard(_mutex_tracker);
-                auto image_size = _output_size;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, 1), SETTING(meta_real_width).value<float>());
-            }
-
-            std::unique_lock vlock(_mutex_general);
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
-        }
-        
-    } else {
-        BackgroundSubtraction::set_background(Image::Make(bg));
-        callback_after_generating(bg);
-    }
+    trigger_average_generator(do_generate_average, bg);
 
     auto range = SETTING(video_conversion_range).value<Range<long_t>>();
     _video_conversion_range = Range<Frame_t>{
@@ -455,19 +512,9 @@ void Segmenter::open_camera() {
     cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
     bg.setTo(255);
 
-    /*VideoSource tmp(SETTING(source).value<std::string>());
-    if(not average_name().exists()) {
-        tmp.generate_average(bg, 0);
-        cv::imwrite(average_name().str(), bg);
-    } else {
-        Print("Loading from file...");
-        bg = cv::imread(average_name().str());
-        cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
-    }*/
-
     {
         std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), SETTING(meta_real_width).value<float>());
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<float>());
     }
     static_assert(ObjectDetection<Detection>);
 
@@ -849,7 +896,17 @@ void Segmenter::stop_average_generator(bool blocking) {
 }
 
 void Segmenter::tracking_thread() {
-    stop_average_generator(FAST_SETTING(track_background_subtraction));
+    try {
+        stop_average_generator(FAST_SETTING(track_background_subtraction));
+    } catch(const std::exception& ex) {
+        FormatExcept("Generating the average failed: ", ex.what());
+        //if(FAST_SETTING(track_background_subtraction))
+        {
+            //FormatExcept("Cannot continue since a background image is required in this mode.");
+            error_stop("Cannot continue since a background image is required in this mode.");
+            return;
+        }
+    }
     
     //set_thread_name("Tracking thread");
     std::unique_lock guard(_mutex_general);
@@ -913,7 +970,7 @@ void Segmenter::tracking_thread() {
             catch (const std::exception& e) {
 				FormatExcept("Exception while tracking: ", e.what());
                 guard.unlock();
-                error_stop();
+                error_stop(e.what());
                 return;
 			}
             //guard.lock();
@@ -938,7 +995,11 @@ void Segmenter::tracking_thread() {
             Print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
 #endif
             guard.unlock();
-            graceful_end();
+            try {
+                graceful_end();
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception while trying to gracefully end: ", ex.what());
+            }
             guard.lock();
         }
 
@@ -958,9 +1019,9 @@ void Segmenter::force_stop() {
     graceful_end();
 }
 
-void Segmenter::error_stop() {
+void Segmenter::error_stop(std::string_view error) {
     if(error_callback)
-		error_callback("Error stop requested.");
+		error_callback((std::string)error);
     error_callback = nullptr;
     eof_callback = nullptr;
     graceful_end();
@@ -972,7 +1033,11 @@ void Segmenter::graceful_end() {
         _average_terminate_requested = true;
     }
     
-    stop_average_generator(true);
+    try {
+        stop_average_generator(true);
+    } catch(const std::exception& ex) {
+        FormatExcept("Generating the average failed with error: ", ex.what());
+    }
     
     std::unique_lock guard(_mutex_general);
     _average_terminate_requested = false;

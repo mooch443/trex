@@ -14,6 +14,171 @@ using namespace pixel;
 using ::testing::TestWithParam;
 using ::testing::Values;
 
+// Test vec_to_r3g3b2 function
+TEST(VecToR3G3B2Test, BasicAssertions) {
+    std::array<unsigned char, 3> color = {255, 128, 64};
+    uint8_t result = vec_to_r3g3b2(color);
+    EXPECT_EQ(result, 0b11100010); // Manually calculated expected result
+}
+
+// Test r3g3b2_to_vec function for 3 channels
+TEST(R3G3B2ToVecTest, BasicAssertions3Channels) {
+    uint8_t r3g3b2 = 0b11100010;
+    auto result = r3g3b2_to_vec<3>(r3g3b2);
+    EXPECT_EQ(result[0], 192);
+    EXPECT_EQ(result[1], 128);
+    EXPECT_EQ(result[2], 64);
+}
+
+// Test r3g3b2_to_vec function for 4 channels
+TEST(R3G3B2ToVecTest, BasicAssertions4Channels) {
+    uint8_t r3g3b2 = 0b11100010;
+    auto result = r3g3b2_to_vec<4>(r3g3b2, 255);
+    EXPECT_EQ(result[0], 192);
+    EXPECT_EQ(result[1], 128);
+    EXPECT_EQ(result[2], 64);
+    EXPECT_EQ(result[3], 255);
+}
+
+// Test convert_to_r3g3b2 function
+TEST(ConvertToR3G3B2Test, BasicAssertions) {
+    cv::Mat input(2, 2, CV_8UC3, cv::Scalar(255, 128, 64));
+    cv::Mat output;
+    convert_to_r3g3b2<3>(input, output);
+    for (int y = 0; y < output.rows; ++y) {
+        for (int x = 0; x < output.cols; ++x) {
+            EXPECT_EQ(output.at<uchar>(y, x), 0b11100010);
+        }
+    }
+}
+
+// Test convert_from_r3g3b2 function for 3 channels
+TEST(ConvertFromR3G3B2Test, BasicAssertions3Channels) {
+    cv::Mat input(2, 2, CV_8UC1, cv::Scalar(0b11100010));
+    cv::Mat output;
+    convert_from_r3g3b2<3>(input, output);
+    for (int y = 0; y < output.rows; ++y) {
+        for (int x = 0; x < output.cols; ++x) {
+            auto pixel = output.at<cv::Vec3b>(y, x);
+            EXPECT_EQ(pixel[0], 192);
+            EXPECT_EQ(pixel[1], 128);
+            EXPECT_EQ(pixel[2], 64);
+        }
+    }
+}
+
+// Test convert_from_r3g3b2 function for 4 channels
+TEST(ConvertFromR3G3B2Test, BasicAssertions4Channels) {
+    cv::Mat input(2, 2, CV_8UC1, cv::Scalar(0b11100010));
+    cv::Mat output;
+    convert_from_r3g3b2<4>(input, output);
+    for (int y = 0; y < output.rows; ++y) {
+        for (int x = 0; x < output.cols; ++x) {
+            auto pixel = output.at<cv::Vec4b>(y, x);
+            EXPECT_EQ(pixel[0], 192);
+            EXPECT_EQ(pixel[1], 128);
+            EXPECT_EQ(pixel[2], 64);
+            EXPECT_EQ(pixel[3], 255);
+        }
+    }
+}
+
+// Test convert_to_r3g3b2 function for 4 channels
+TEST(ConvertToR3G3B2Test, BasicAssertions4Channels) {
+    cv::Mat input(2, 2, CV_8UC4, cv::Scalar(255, 128, 64, 255));
+    cv::Mat output;
+    convert_to_r3g3b2<4>(input, output);
+    for (int y = 0; y < output.rows; ++y) {
+        for (int x = 0; x < output.cols; ++x) {
+            EXPECT_EQ(output.at<uchar>(y, x), 0b11100010);
+        }
+    }
+}
+
+TEST(ConvertToR3G3B2Test, BasicConversion) {
+    // Create a 3x1 BGR image
+    cv::Mat input = (cv::Mat_<cv::Vec3b>(1, 3) << cv::Vec3b(255, 0, 0), cv::Vec3b(0, 255, 0), cv::Vec3b(0, 0, 255));
+    cv::Mat output;
+
+    convert_to_r3g3b2<3>(input, output);
+
+    // Check the output values
+    EXPECT_EQ(output.at<uchar>(0, 0), 0b11000000); // Red
+    EXPECT_EQ(output.at<uchar>(0, 1), 0b00111000); // Green
+    EXPECT_EQ(output.at<uchar>(0, 2), 0b00000111); // Blue
+}
+
+TEST(VecToR3G3B2Test, BasicConversion) {
+    // Define some RGB colors
+    std::array<uchar, 3> red   = {255, 0, 0};
+    std::array<uchar, 3> green = {0, 255, 0};
+    std::array<uchar, 3> blue  = {0, 0, 255};
+    std::array<uchar, 3> white = {255, 255, 255};
+    std::array<uchar, 3> black = {0, 0, 0};
+
+    // Convert to R3G3B2
+    uint8_t red_r3g3b2   = vec_to_r3g3b2(red);
+    uint8_t green_r3g3b2 = vec_to_r3g3b2(green);
+    uint8_t blue_r3g3b2  = vec_to_r3g3b2(blue);
+    uint8_t white_r3g3b2 = vec_to_r3g3b2(white);
+    uint8_t black_r3g3b2 = vec_to_r3g3b2(black);
+
+    // Check the R3G3B2 values
+    EXPECT_EQ(red_r3g3b2,   0b11000000); // Red
+    EXPECT_EQ(green_r3g3b2, 0b00111000); // Green
+    EXPECT_EQ(blue_r3g3b2,  0b00000111); // Blue
+    EXPECT_EQ(white_r3g3b2, 0b11111111); // White
+    EXPECT_EQ(black_r3g3b2, 0b00000000); // Black
+}
+
+TEST(ImageConversionTest, ConvertToAndFromR3G3B2) {
+    // Create a 2x2 BGR image
+    cv::Mat input = (cv::Mat_<cv::Vec3b>(2, 2) << cv::Vec3b(255, 0, 0), cv::Vec3b(0, 255, 0),
+                                                  cv::Vec3b(0, 0, 255), cv::Vec3b(255, 255, 255));
+    cv::Mat r3g3b2_image;
+    cv::Mat output;
+
+    // Convert to R3G3B2
+    convert_to_r3g3b2<3>(input, r3g3b2_image);
+
+    // Convert back from R3G3B2
+    convert_from_r3g3b2<3, 1>(r3g3b2_image, output);
+
+    // Check the output dimensions
+    EXPECT_EQ(output.rows, input.rows);
+    EXPECT_EQ(output.cols, input.cols);
+
+    // Check the output values
+    EXPECT_EQ(output.at<cv::Vec3b>(0, 0), cv::Vec3b(192, 0, 0));    // Red
+    EXPECT_EQ(output.at<cv::Vec3b>(0, 1), cv::Vec3b(0, 224, 0));    // Green
+    EXPECT_EQ(output.at<cv::Vec3b>(1, 0), cv::Vec3b(0, 0, 224));    // Blue
+    EXPECT_EQ(output.at<cv::Vec3b>(1, 1), cv::Vec3b(192, 224, 224)); // White
+}
+
+TEST(ConvertFromR3G3B2Test, BasicConversion) {
+    // Create a 1x3 R3G3B2 image
+    cv::Mat input = (cv::Mat_<uchar>(1, 3) << 0b11000000, 0b00111000, 0b00000111);
+    cv::Mat output;
+
+    convert_from_r3g3b2<3>(input, output);
+
+    // Check the output values
+    EXPECT_EQ(output.at<cv::Vec3b>(0, 0), cv::Vec3b(192, 0, 0)); // Red
+    EXPECT_EQ(output.at<cv::Vec3b>(0, 1), cv::Vec3b(0, 224, 0)); // Green
+    EXPECT_EQ(output.at<cv::Vec3b>(0, 2), cv::Vec3b(0, 0, 224)); // Blue
+}
+
+TEST(ConvertFromR3G3B2Test, AlphaChannel) {
+    // Create a 1x1 R3G3B2 image with alpha
+    cv::Mat input = (cv::Mat_<uchar>(1, 1) << 0b11000000);
+    cv::Mat output;
+
+    convert_from_r3g3b2<4, 1, true>(input, output);
+
+    // Check the output values
+    EXPECT_EQ(output.at<cv::Vec4b>(0, 0), cv::Vec4b(192, 0, 0, 192)); // Red with alpha
+}
+
 template<cmn::meta_encoding_t::Class InputEncoding, cmn::meta_encoding_t::Class OutputEncoding, DifferenceMethod DiffMethod>
 struct LineWithoutGridParams {
     static constexpr InputInfo input_info = {

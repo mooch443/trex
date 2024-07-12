@@ -34,6 +34,18 @@ void put_back(Image::Ptr&& ptr) {
 }
 }
 
+SegmentationData::SegmentationData() {
+    frame.set_channels(required_channels(Background::image_mode()));
+    frame.set_encoding(Background::meta_encoding());
+}
+
+SegmentationData::SegmentationData(Image::Ptr&& original)
+    : image(std::move(original))
+{
+    frame.set_channels(required_channels(Background::image_mode()));
+    frame.set_encoding(Background::meta_encoding());
+}
+
 SegmentationData::~SegmentationData() {
     if (image) {
         OverlayBuffers::put_back(std::move(image));

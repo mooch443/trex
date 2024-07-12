@@ -144,8 +144,8 @@ public:
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
 public:
-    Tracker(Image::Ptr&& average, float meta_real_width);
-    Tracker(Image::Ptr&& average, const pv::File& file);
+    Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float meta_real_width);
+    Tracker(const pv::File& file);
     ~Tracker();
     
     /**
@@ -190,9 +190,9 @@ public:
         _add_frame_callbacks.unregisterCallback(id);
     }
     
-    void set_average(Image::Ptr&& average) {
-        _average = std::move(average);
-        _background = new Background(Image::Make(*_average), nullptr);
+    void set_average(Image::Ptr&& average, meta_encoding_t::Class encoding) {
+        _background = new Background(std::move(average), encoding);
+        _average = Image::Make(_background->image());
         _border = Border(_background);
     }
     static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
