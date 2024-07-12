@@ -94,8 +94,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
         
     } else {
         static const sprite::Map values {
-            "track_threshold", 9,
-            "track_posture_threshold", 9,
+            "track_threshold", 15,
+            "track_posture_threshold", 15,
             "track_background_subtraction", true,
             "calculate_posture", true,
             "segment_size_filter", BlobSizeRange({Rangef(0.1f, 1000.f)}),
@@ -699,49 +699,21 @@ void load(file::PathArray source,
     /// ---------------------------
     /// 11. defaults based on task
     /// ---------------------------
-    if(G g(type.toStr() + "-defaults");
-       type != track::detect::ObjectDetectionType::background_subtraction)
     {
+        G g(type.toStr() + "-defaults");
         static const sprite::Map values {
-            "track_threshold", 0,
-            "track_posture_threshold", 0,
-            "track_background_subtraction", false,
-            "calculate_posture", false,
-            "meta_encoding", meta_encoding_t::r3g3b2,
-            "track_do_history_split", true,
-            "individual_image_normalization", individual_image_normalization_t::moments,
-            "detect_model", file::Path("yolov8x-pose"),
-            "blob_split_algorithm", blob_split_algorithm_t::none,
-            "track_max_reassign_time", 1.f
+            [type](){
+                sprite::Map values;
+                set_defaults_for(type, values);
+                return values;
+            }()
         };
         
         for(auto &key : values.keys()) {
-            if(not contains(exclude.toVector(), key))
-                values.at(key).get().copy_to(&GlobalSettings::current_defaults());
-            
-            if(contains(exclude_from_default.toVector(), key)) {
-                Print("// Not setting default value ", key);
+            /// we don't need detect type right now
+            if(key == "detect_type")
                 continue;
-            }
-            set_config_if_different(key, values);
-            //all.emplace_back(key); // < not technically "custom"
-        }
-    } else {
-        static const sprite::Map values {
-            "track_threshold", 9,
-            "track_posture_threshold", 9,
-            "track_background_subtraction", true,
-            "calculate_posture", true,
-            "segment_size_filter", BlobSizeRange({Rangef(0.1f, 1000.f)}),
-            "meta_encoding", meta_encoding_t::gray,
-            "track_do_history_split", true,
-            "detect_classes", std::vector<std::string>{},
-            "individual_image_normalization", individual_image_normalization_t::posture,
-            "blob_split_algorithm", blob_split_algorithm_t::threshold,
-            "track_max_reassign_time", 0.5f
-        };
-        
-        for(auto &key : values.keys()) {
+            
             if(not contains(exclude.toVector(), key))
                 values.at(key).get().copy_to(&GlobalSettings::current_defaults());
             
