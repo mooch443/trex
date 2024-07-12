@@ -14,12 +14,13 @@ import numpy as np
 categorize = None
 
 class Categorize:
-    def __init__(self, width, height, categories, output_file):
+    def __init__(self, width, height, channels, categories, output_file):
         self.categories_map = eval(categories)
         self.categories = [c for c in self.categories_map]
 
         self.width = width
         self.height = height
+        self.channels = channels
 
         self.update_required = False
         self.last_size = 0
@@ -37,7 +38,7 @@ class Categorize:
     def reload_model(self):
         self.model = Sequential()
 
-        self.model.add(Input(shape=(int(self.height),int(self.width),1), dtype=float))
+        self.model.add(Input(shape=(int(self.height),int(self.width),int(self.channels)), dtype=float))
         self.model.add(Lambda(lambda x: (x / 127.5 - 1.0)))
         
         self.model.add(Convolution2D(16, kernel_size=(3,3), activation='relu'))
@@ -67,7 +68,7 @@ class Categorize:
         self.model.add(Dense(len(self.categories), activation='softmax'))
 
         self.model.compile(loss='categorical_crossentropy',
-            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+            optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=0.001),
             metrics=['accuracy'])
 
         self.model.summary(print_fn=TRex.log)
@@ -126,14 +127,17 @@ class Categorize:
 
         #try:
         with np.load(self.output_file, allow_pickle=True) as npz:
+            if len(npz["x"].shape) == 3:
+                shape = npz["x"].shape
+                npz["x"] = npz["x"].reshape((shape[0], shape[1], shape[2], 1))
             shape = npz["x"].shape
 
-            if shape[1] != self.height or shape[2] != self.width:
-                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+" != "+str(shape[2])+"x"+str(shape[1])+". Change individual_image_size accordingly, or restart the process.")
+            if shape[1] != self.height or shape[2] != self.width or shape[3] != self.channels:
+                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+"x"+str(self.channels)+" != "+str(shape[2])+"x"+str(shape[1])+"x"+str(shape[3])+". Change individual_image_size accordingly, or restart the process.")
                 return
 
-            assert shape[1] == self.height and shape[2] == self.width
-            TRex.log("# loading model with data of shape "+str(shape)+" and current shape "+str(self.height)+","+str(self.width))
+            assert shape[1] == self.height and shape[2] == self.width and shape[3] == self.channels
+            TRex.log("# loading model with data of shape "+str(shape)+" and current shape "+str(self.height)+","+str(self.width)+","+str(self.channels))
 
             categories_map = npz["categories_map"].item()
             TRex.log("# categories_map:"+str(categories_map))
@@ -272,18 +276,18 @@ class Categorize:
         return  y
 
 def start():
-    global categorize, categories, width, height, output_file
+    global categorize, categories, width, height, channels, output_file
 
     if type(categorize) == type(None) or categorize.categories != categories:
-        categorize = Categorize(width, height, categories, output_file)
+        categorize = Categorize(width, height, channels, categories, output_file)
 
     TRex.log("# initialized with categories"+str(categories)+".")
 
 def load():
-    global categorize, width, height, categories
+    global categorize, width, height, channels, categories
     assert type(categorize) != type(None)
 
-    if type(categorize) == type(None) and width == categorize.width and height == categorize.height and eval(categories) == categorize.categories_map:
+    if type(categorize) == type(None) and width == categorize.width and height == categorize.height and channels == categorize.channels and eval(categories) == categorize.categories_map:
         start()
     else:
         TRex.log("# model already exists. reloading model")

@@ -624,11 +624,11 @@ class Network:
             model.compile(loss= #'categorical_crossentropy',
                 #SigmoidFocalCrossEntropy(),
                 categorical_focal_loss(gamma=2., alpha=.25),
-                optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=learning_rate),
                 metrics=['accuracy'])
         else:
             model.compile(loss='categorical_crossentropy',
-                optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=learning_rate),
                 metrics=['accuracy'])
 
 

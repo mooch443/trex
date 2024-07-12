@@ -315,9 +315,12 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                     for(size_t i=0; i<cat.size(); ++i)
                         keys[cat[i]] = i;
                     
+                    const int channels = Background::meta_encoding() == meta_encoding_t::gray ? 1 : 3;
+                    
                     py::set_variable("categories", Meta::toStr(keys), module);
                     py::set_variable("width", (int)dims.width, module);
                     py::set_variable("height", (int)dims.height, module);
+                    py::set_variable("channels", channels, module);
                     py::set_variable("output_file", output_location().str(), module);
                     py::set_function("set_best_accuracy", [&](float v) {
                         Print("Work::set_best_accuracy(",v,");");
@@ -478,9 +481,11 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
             for(size_t i=0; i<cat.size(); ++i)
                 keys[cat[i]] = i;
             
+            const int channels = Background::meta_encoding() == meta_encoding_t::gray ? 1 : 3;
             py::set_variable("categories", Meta::toStr(keys), module);
             py::set_variable("width", (int)dims.width, module);
             py::set_variable("height", (int)dims.height, module);
+            py::set_variable("channels", (int)channels, module);
             py::set_variable("output_file", output_location().str(), module);
             py::set_function("set_best_accuracy", [&](float v) {
                 Print("Work::set_best_accuracy(",v,");");
@@ -586,9 +591,16 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                         }
                             
                         case LearningTask::Type::Restart:
+                            reset_variables();
                             py::run(module, "clear_images");
+                            clear_probs = true;
+                            DataStore::clear_frame_cache();
+                            DataStore::clear_cache();
+                            DataStore::init_frame_cache();
                             if (item.callback)
                                 item.callback(item);
+                            Work::learning_variable().notify_one();
+                            Work::variable().notify_one();
                             break;
                             
                         case LearningTask::Type::Prediction: {

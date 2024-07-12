@@ -820,6 +820,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             PPFrame obj;
             
             size_t index = 0;
+            const auto encoding = Background::meta_encoding();
+            pv::Frame vframe;
+            
             for(auto && [frame, vec] : waiting_pixels) {
                 //if(SETTING(terminate))
                 //    break;
@@ -827,24 +830,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 {
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
-                    
-                    pv::Frame vframe;
-                    switch(Background::meta_encoding()) {
-                        case meta_encoding_t::data::values::rgb8:
-                            video.read_frame<meta_encoding_t::rgb8>(vframe, frame);
-                            break;
-                        case meta_encoding_t::data::values::gray:
-                            video.read_frame<meta_encoding_t::gray>(vframe, frame);
-                            break;
-                        case meta_encoding_t::data::values::r3g3b2:
-                            video.read_frame<meta_encoding_t::r3g3b2>(vframe, frame);
-                            break;
-                            
-                        default:
-                            throw InvalidArgumentException("Unknown meta_encoding: ", Background::meta_encoding());
-                    }
-                    
-                    //video.read_frame(vframe, frame);
+                    video.read_with_encoding(vframe, frame, encoding);
                     Tracker::instance()->preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video.header().resolution);
                 }
                 

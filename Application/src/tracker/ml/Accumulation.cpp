@@ -1656,6 +1656,8 @@ bool Accumulation::start() {
                 }
             }
             
+            auto encoding = Background::meta_encoding();
+            
             for(auto method : default_config::individual_image_normalization_t::values)
             {
                 std::map<Idx_t, std::vector<Image::SPtr>> images;
@@ -1666,7 +1668,7 @@ bool Accumulation::start() {
                 size_t failed_blobs = 0, found_blobs = 0;
                 
                 for(auto && [frame, ids] : frames_collected) {
-                    video_file.read_frame(video_frame, frame);
+                    video_file.read_with_encoding(video_frame, frame, encoding);
                     Tracker::instance()->preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
                     
                     IndividualManager::transform_ids(ids, [&, frame=frame](auto id, auto fish) {

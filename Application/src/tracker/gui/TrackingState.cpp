@@ -136,7 +136,8 @@ bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
     Timer timer;
     try {
         pv::Frame frame;
-        video->read_frame(frame, idx);
+        video->read_with_encoding(frame, idx, FAST_SETTING(meta_encoding));
+        //video->read_frame(frame, idx);
         Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, video->header().resolution, false);
 
         ptr->set_loading_time(timer.elapsed());
@@ -687,7 +688,8 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                                 
                             } else {
                                 const pv::CompressedBlob* found = nullptr;
-                                video->read_frame(f, k);
+                                video->read_with_encoding(f, k, FAST_SETTING(meta_encoding));
+                                //video->read_frame(f, k);
                                 for(auto &b : f.get_blobs()) {
                                     auto c = b->bounds().pos() + b->bounds().size() * 0.5;
                                     if(sqdistance(c, center) < 2) {

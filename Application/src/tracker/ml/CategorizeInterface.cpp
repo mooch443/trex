@@ -343,29 +343,46 @@ void Cell::copy_sample_to(size_t index) {
     
     auto &input = _sample->_images.at(index);
     
-    if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
-        if(not _image->source()
-           || _image->source()->cols != input->cols
-           || _image->source()->rows != input->rows
-           || _image->source()->dims != 4)
-        {
-            _image->set_source(Image::Make(input->rows,
-                                           input->cols,
-                                           4));
-        }
-        
+    if(not _image->source()
+       || _image->source()->cols != input->cols
+       || _image->source()->rows != input->rows
+       || _image->source()->dims != 4)
+    {
+        _image->set_source(Image::Make(input->rows,
+                                       input->cols,
+                                       4));
+    }
+    
+    if(auto encoding = Background::meta_encoding();
+       encoding == meta_encoding_t::r3g3b2
+       && input->channels() == 1)
+    {
         auto mat = _image->source()->get();
         if(input->dims == 1) {
             convert_from_r3g3b2<4, 1, false>(input->get(), mat);
             _image->updated_source();
-        } else
-            FormatWarning("Illegal format (", input->dims," channels) for r3g3b2 image.");
+        } //else
+           // FormatWarning("Illegal format (", input->dims," channels) for r3g3b2 image.");
         
     } else {
-        _image->update_with(*input);
+        if(input->channels() == 3) {
+            /// need to produce an RGBA image:
+            cv::cvtColor(input->get(), _image->source()->get(), cv::COLOR_BGR2BGRA);
+            _image->updated_source();
+            
+        } else if(input->channels() == 4) {
+            _image->update_with(*input);
+        } else if(input->channels() == 1
+                  && encoding == meta_encoding_t::gray)
+        {
+            cv::cvtColor(input->get(), _image->source()->get(), cv::COLOR_GRAY2BGRA);
+            _image->updated_source();
+        } else {
+            FormatWarning("Image has wrong dimensions: ", *input);
+        }
     }
     
-    if(Background::track_background_subtraction()) {
+    /*if(Background::track_background_subtraction()) {
         auto ptr = _image->source();
         std::transform(ptr->data(), ptr->data() + ptr->size(), ptr->data(),
                        [ s = ptr->data(), pos = _sample->_positions.at(index)](uchar& v) -> uchar
@@ -374,7 +391,7 @@ void Cell::copy_sample_to(size_t index) {
         });
         
         _image->updated_source();
-    }
+    }*/
 }
 
 void Cell::set_sample(const Sample::Ptr &sample) {

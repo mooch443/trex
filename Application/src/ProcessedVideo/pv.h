@@ -392,6 +392,23 @@ namespace pv {
             read_frame(frame, frameIndex, mode);
         }
         
+        void read_with_encoding(Frame& frame, Frame_t frameIndex, meta_encoding_t::Class mode) {
+            switch(mode) {
+                case meta_encoding_t::data::values::rgb8:
+                    read_frame<meta_encoding_t::rgb8>(frame, frameIndex);
+                    break;
+                case meta_encoding_t::data::values::gray:
+                    read_frame<meta_encoding_t::gray>(frame, frameIndex);
+                    break;
+                case meta_encoding_t::data::values::r3g3b2:
+                    read_frame<meta_encoding_t::r3g3b2>(frame, frameIndex);
+                    break;
+                    
+                default:
+                    throw InvalidArgumentException("Unknown meta_encoding: ", mode);
+            }
+        }
+        
         void read_frame(Frame& frame, Frame_t frameIndex);
         
     private:

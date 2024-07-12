@@ -199,11 +199,13 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             callback(this, double(pushed_items) / double(total_items), false);
         };
         
+        auto encoding = Background::meta_encoding();
+        
         for(auto it = start; it != end; ++it) {
             auto &[index, samples] = *it;
             pp.set_index(index);
             try {
-                _video->read_frame(frame, index);
+                _video->read_with_encoding(frame, index, encoding);
                 Tracker::preprocess_frame(std::move(frame), pp, NULL, PPFrame::NeedGrid::NoNeed, _video->header().resolution);
             } catch(const UtilsException& e) {
                 FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());

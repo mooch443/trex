@@ -842,6 +842,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
         }
 
         std::lock_guard guard2(_pp_frame_cache_mutex);
+        if(not _pp_frame_cache || _pp_frame_cache->_terminate)
+            return nullptr;
+        
         if (!contains(_pp_frame_cache->_currently_processed, frame)) {
 #ifndef NDEBUG
             if (_pp_frame_cache->_ever_created.count(frame)) {
@@ -864,7 +867,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
         if(video_source) {
             pv::Frame video_frame;
             auto& video_file = *video_source;
-            video_file.read_frame(video_frame, frame);
+            video_file.read_with_encoding(video_frame, frame, Background::meta_encoding());
 
             Tracker::instance()->preprocess_frame(std::move(video_frame), *ptr, NULL, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
             ptr->transform_blobs([](pv::Blob& b){
