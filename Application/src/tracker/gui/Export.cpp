@@ -814,8 +814,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             const bool tracklet_export_difference_images = SETTING(tracklet_export_difference_images).value<bool>();
             
-            const uint8_t exp_channels = tracklet_export_difference_images
-                            ? 1 : required_channels(Background::image_mode());
+            const uint8_t exp_channels = required_channels(Background::image_mode());
             
             std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, Idx_t, Image::Ptr>>>> queues;
             PPFrame obj;
@@ -830,7 +829,22 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     TakeTiming take(timing);
                     
                     pv::Frame vframe;
-                    video.read_frame(vframe, frame);
+                    switch(Background::meta_encoding()) {
+                        case meta_encoding_t::data::values::rgb8:
+                            video.read_frame<meta_encoding_t::rgb8>(vframe, frame);
+                            break;
+                        case meta_encoding_t::data::values::gray:
+                            video.read_frame<meta_encoding_t::gray>(vframe, frame);
+                            break;
+                        case meta_encoding_t::data::values::r3g3b2:
+                            video.read_frame<meta_encoding_t::r3g3b2>(vframe, frame);
+                            break;
+                            
+                        default:
+                            throw InvalidArgumentException("Unknown meta_encoding: ", Background::meta_encoding());
+                    }
+                    
+                    //video.read_frame(vframe, frame);
                     Tracker::instance()->preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video.header().resolution);
                 }
                 
@@ -897,12 +911,31 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         cv::Mat image;
                         reduced.image->get().copyTo(image);
                         
-                        legacy_pad_image(image, output_size);
-                        assert(   image.cols == output_size.width
-                               && image.rows == output_size.height
-                               && image.channels() == exp_channels);
+                        Image::Ptr ptr;
+                        if(image.channels() == 3
+                           && Background::meta_encoding() == meta_encoding_t::r3g3b2)
+                        {
+                            ptr = Image::Make(image.rows, image.cols, 1);
+                            cv::Mat output = ptr->get();
+                            convert_to_r3g3b2<3>(image, output);
+                        }
                         
-                        queues[data.fdx][data.range].push({ frame, data.fdx, Image::Make(image) });
+                        if(ptr) {
+                            //cv::Mat padded = ptr->get();
+                            //legacy_pad_image(padded, output_size);
+                            assert(ptr->cols == output_size.width
+                                   && ptr->rows == output_size.height
+                                   && ptr->channels() == exp_channels);
+                            
+                            
+                        } else {
+                            //legacy_pad_image(image, output_size);
+                            assert(   image.cols == output_size.width
+                                   && image.rows == output_size.height
+                                   && image.channels() == exp_channels);
+                        }
+                        
+                        queues[data.fdx][data.range].push({ frame, data.fdx, ptr ? std::move(ptr) : Image::Make(image) });
                         
                         /*cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
                         
