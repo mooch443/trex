@@ -19,10 +19,101 @@ from functools import lru_cache
 
 from typing import List, Tuple
 
+import ultralytics.utils
+
 import TRex
 from TRex import ModelTaskType
 from TRex import DetectResolution
 from TRex import ObjectDetectionFormat
+
+##############
+##### since this isnt patched in the ultralytics package yet,
+##### we need to patch the following functions in the ultralytics.utils.ops module
+##### see https://github.com/ultralytics/ultralytics/issues/8555
+##############
+
+import ultralytics
+from ultralytics.utils.ops import clip_boxes, crop_mask
+
+def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding=True, xywh=False):
+    """
+    Rescales bounding boxes (in the format of xyxy by default) from the shape of the image they were originally
+    specified in (img1_shape) to the shape of a different image (img0_shape).
+
+    Args:
+        img1_shape (tuple): The shape of the image that the bounding boxes are for, in the format of (height, width).
+        boxes (torch.Tensor): the bounding boxes of the objects in the image, in the format of (x1, y1, x2, y2)
+        img0_shape (tuple): the shape of the target image, in the format of (height, width).
+        ratio_pad (tuple): a tuple of (ratio, pad) for scaling the boxes. If not provided, the ratio and pad will be
+            calculated based on the size difference between the two images.
+        padding (bool): If True, assuming the boxes is based on image augmented by yolo style. If False then do regular
+            rescaling.
+        xywh (bool): The box format is xywh or not, default=False.
+
+    Returns:
+        boxes (torch.Tensor): The scaled bounding boxes, in the format of (x1, y1, x2, y2)
+    """
+    if ratio_pad is None:  # calculate from img0_shape
+        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
+        pad = (
+            round((img1_shape[1] - img0_shape[1] * gain) / 2 - 0.1),
+            round((img1_shape[0] - img0_shape[0] * gain) / 2 - 0.1),
+        )  # wh padding
+    else:
+        gain = ratio_pad[0][0]
+        pad = ratio_pad[1]
+
+    # Apply padding (if padding is needed) and adjust scaling uniformly
+    if padding:
+        if not xywh:
+            # Adjust all x, y, x2, and y2 by padding, then scale
+            pads = torch.tensor([pad[0], pad[1], pad[0], pad[1]], device=boxes.device)
+            boxes -= pads
+        else:
+            # Adjust only x and y for bounding boxes in xywh format
+            pads = torch.tensor([pad[0], pad[1], 0, 0], device=boxes.device)
+            boxes[:, :2] -= pads[:2]
+
+    # Scale the boxes down
+    boxes /= gain
+
+    return clip_boxes(boxes, img0_shape)
+
+def process_mask(protos, masks_in, bboxes, shape, upsample=False):
+    """
+    Apply masks to bounding boxes using the output of the mask head.
+
+    Args:
+        protos (torch.Tensor): A tensor of shape [mask_dim, mask_h, mask_w].
+        masks_in (torch.Tensor): A tensor of shape [n, mask_dim], where n is the number of masks after NMS.
+        bboxes (torch.Tensor): A tensor of shape [n, 4], where n is the number of masks after NMS.
+        shape (tuple): A tuple of integers representing the size of the input image in the format (h, w).
+        upsample (bool): A flag to indicate whether to upsample the mask to the original image size. Default is False.
+
+    Returns:
+        (torch.Tensor): A binary mask tensor of shape [n, h, w], where n is the number of masks after NMS, and h and w
+            are the height and width of the input image. The mask is applied to the bounding boxes.
+    """
+
+    c, mh, mw = protos.shape  # CHW
+    ih, iw = shape
+    masks = (masks_in @ protos.float().view(c, -1)).sigmoid().view(-1, mh, mw)  # CHW
+    width_ratio = mw / iw
+    height_ratio = mh / ih
+
+    downsampled_bboxes = bboxes.clone()
+    scale_factors = torch.tensor([width_ratio, height_ratio, width_ratio, height_ratio], device=bboxes.device)
+    downsampled_bboxes = downsampled_bboxes * scale_factors
+
+    masks = crop_mask(masks, downsampled_bboxes)  # CHW
+    if upsample:
+        masks = F.interpolate(masks[None], shape, mode="bilinear", align_corners=False)[0]  # CHW
+    return masks.gt_(0.5)
+
+ultralytics.utils.ops.process_mask = process_mask
+ultralytics.utils.ops.scale_boxes = scale_boxes
+
+TRex.log("*** patched functions ***")
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

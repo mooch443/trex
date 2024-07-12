@@ -372,7 +372,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
-        CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
+        CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
         static const auto detect_classes = std::vector<std::string>{
             "person", "bicycle", "car", "motorcycle", "airplane",
             "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
