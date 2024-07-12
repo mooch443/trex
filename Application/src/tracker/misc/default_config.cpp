@@ -761,7 +761,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
-        CONFIG("gpu_torch_no_fixes", false, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
+        CONFIG("gpu_torch_no_fixes", true, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
         CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.");
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation");
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
@@ -909,7 +909,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "merge_dir",
             "merge_overlapping_blobs",
             "merge_mode",
-            "exec"
+            "exec",
+            
+            "gpu_torch_no_fixes"
         };
         
         /**
