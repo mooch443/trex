@@ -339,7 +339,7 @@ int main(int argc, char**argv) {
         
         set_runtime_quiet(true);
         
-        track::Tracker _tracker(Image::Make(average), video);
+        track::Tracker _tracker(video);
         
         if(auto_param || SETTING(auto_minmax_size) || SETTING(auto_number_individuals)) {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
@@ -656,7 +656,7 @@ int main(int argc, char**argv) {
         GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
-        track::Tracker tracker(Image::Make(average), SETTING(meta_real_width).value<float>());
+        track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<float>());
         
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             Output::TrackingResults results(tracker);

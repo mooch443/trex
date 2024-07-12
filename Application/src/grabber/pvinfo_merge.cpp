@@ -67,7 +67,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             min_length = file->length();
         
         resolution += Size2(file->header().resolution);
-        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), nullptr));
+        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), file->header().encoding));
         //cv::imshow(name.str(), backgrounds.back()->image().get());
         //cv::waitKey(1);
         
@@ -141,7 +141,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution = Size2(average);
     }
     
-    Background new_background(Image::Make(average), nullptr);
+    Background new_background(Image::Make(average), meta_encoding_t::gray);
     
     if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(!files.front()->header().metadata.empty())

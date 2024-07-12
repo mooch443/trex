@@ -256,7 +256,7 @@ TYPED_TEST(LineWithoutGridTest2, LineWithoutGridTest2) {
         this->image = Image::Make(10, 10, 1);
         this->image->set_to(100);
     }
-    this->bg = std::make_unique<Background>(std::move(this->image), nullptr);
+    this->bg = std::make_unique<Background>(std::move(this->image), params.input_info.encoding == meta_encoding_t::rgb8 ? meta_encoding_t::rgb8 : meta_encoding_t::gray);
 
     /// HorizontalLine{ x0, x1, y }
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
@@ -353,7 +353,7 @@ protected:
         grid = nullptr;
 
         // Initialize a Background object
-        bg = std::make_unique<Background>(std::move(image), grid);
+        bg = std::make_unique<Background>(std::move(image), meta_encoding_t::gray);
         //cv::imshow("bg", bg->image().get());
         //cv::waitKey(0);
     }
