@@ -236,7 +236,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
                                         const track::constraints::FilterCache* filters,
                                         const track::Background* background)
 {
-    const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
+    const auto normalize = default_config::valid_individual_image_normalization();
     auto output_shape = FAST_SETTING(individual_image_size);
     auto transform = midline ? midline->transform(normalize) : gui::Transform();
     

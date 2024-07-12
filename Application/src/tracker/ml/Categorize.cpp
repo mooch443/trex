@@ -254,12 +254,7 @@ Sample::Ptr Work::front_sample() {
 
 void start_applying(std::weak_ptr<pv::File> video_source) {
     using namespace extract;
-    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if(normalize == default_config::individual_image_normalization_t::posture
-       && !FAST_SETTING(calculate_posture))
-    {
-        normalize = default_config::individual_image_normalization_t::moments;
-    }
+    const auto normalize = default_config::valid_individual_image_normalization();
     
     uint8_t max_threads = 5u;
     extract::Settings settings{

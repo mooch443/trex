@@ -197,6 +197,12 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_heatmap_source", "heatmap_source"},
     };
 
+individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class base) {
+    const auto n = base != individual_image_normalization_t::none ? base : SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
+    const auto normalize = n == individual_image_normalization_t::posture && not SETTING(calculate_posture).value<bool>() ? individual_image_normalization_t::moments :  n;
+    return normalize;
+}
+
 file::Path conda_environment_path() {
 #ifdef COMMONS_PYTHON_EXECUTABLE
     auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();

@@ -1156,10 +1156,7 @@ Sample::Ptr DataStore::temporary(
 
     // actually generate frame data + load pixels from PV file, if the cache for a certain frame has not yet been generated.
     //size_t non = 0, cont = 0;
-
-    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if (normalize == default_config::individual_image_normalization_t::posture && !FAST_SETTING(calculate_posture))
-        normalize = default_config::individual_image_normalization_t::moments;
+    const auto normalize = default_config::valid_individual_image_normalization();
     const auto dims = FAST_SETTING(individual_image_size);
 
     for(auto &[index, frame, ptr] : stuff_indexes) {

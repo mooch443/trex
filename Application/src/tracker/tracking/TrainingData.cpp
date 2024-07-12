@@ -69,10 +69,7 @@ TrainingData::TrainingData(const MidlineFilters& filters)
 {
     add_pointer(this);
     
-    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if(!FAST_SETTING(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
-        normalize = default_config::individual_image_normalization_t::moments;
-    
+    const auto normalize = default_config::valid_individual_image_normalization();
     set_normalized(normalize);
 }
 

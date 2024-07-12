@@ -104,7 +104,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
         .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
         .image_size = SETTING(individual_image_size).value<Size2>(),
         .num_threads = max_threads,
-        .normalization = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>()
+        .normalization = default_config::valid_individual_image_normalization()
     };
     
     std::mutex write_mutex;

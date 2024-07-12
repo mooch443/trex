@@ -2470,7 +2470,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         void add_frame(Frame_t frame, long_t id, Image::SPtr image);
     };
     
-    SplitData::SplitData() : _normalized(SETTING(recognition_normalize_direction).value<default_config::individual_image_normalization_t::Class>()) {
+    SplitData::SplitData() : _normalized(default_config::valid_individual_image_normalization(SETTING(recognition_normalize_direction).value<default_config::individual_image_normalization_t::Class>())) {
         
     }
     

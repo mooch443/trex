@@ -112,6 +112,13 @@ void Yolo8::reinit(ModuleProxy& proxy) {
             SETTING(region_resolution) = config.trained_resolution;
         }
     }
+    
+    if(SETTING(detect_format).value<ObjectDetectionFormat_t>() == ObjectDetectionFormat::boxes) {
+        if(SETTING(calculate_posture).value<bool>()) {
+            FormatWarning("Disabling posture for now, since pure detection models cannot produce useful posture (everything will be rectangles).");
+            SETTING(calculate_posture) = false;
+        }
+    }
 }
 
 void Yolo8::init() {

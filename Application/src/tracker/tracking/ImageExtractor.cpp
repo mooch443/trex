@@ -144,7 +144,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
     
     std::mutex mutex;
     uint64_t pushed_items{0u}, total_items{0u};
-    const auto individual_image_normalization = _settings.normalization;
+    const auto individual_image_normalization = default_config::valid_individual_image_normalization(_settings.normalization);
     const Size2 image_size = _settings.image_size;
     const uint64_t image_bytes = image_size.width * image_size.height * 1 * sizeof(uchar);
     const uint64_t max_images_per_step = max(1u, _settings.max_size_bytes / image_bytes);

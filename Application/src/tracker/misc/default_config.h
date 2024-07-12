@@ -51,6 +51,8 @@ namespace default_config {
     ENUM_CLASS(individual_image_normalization_t, none, moments, posture, legacy)
     ENUM_CLASS_HAS_DOCS(individual_image_normalization_t)
 
+    individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class = individual_image_normalization_t::none);
+
     ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)
     ENUM_CLASS_HAS_DOCS(gpu_verbosity_t)
     

@@ -72,10 +72,11 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_threshold", 0,
             "track_posture_threshold", 0,
             "track_background_subtraction", false,
-            "calculate_posture", false,
+            "calculate_posture", true,
+            "outline_resample", 1.f,
             //"meta_encoding", meta_encoding_t::rgb8,
             "track_do_history_split", true,
-            "individual_image_normalization", individual_image_normalization_t::moments,
+            "individual_image_normalization", individual_image_normalization_t::posture,
             "detect_model", file::Path("yolov8x-pose"),
             "blob_split_algorithm", blob_split_algorithm_t::none,
             "track_max_reassign_time", 1.f
@@ -388,6 +389,8 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
     GlobalSettings::map()["heatmap_ids"].get().set_do_print(false);
     GlobalSettings::map()["gui_run"].get().set_do_print(false);
+    GlobalSettings::map()["track_pause"].get().set_do_print(false);
+    GlobalSettings::map()["terminate"].get().set_do_print(false);
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
     if(cmd.settings_keys().contains("cwd")) {

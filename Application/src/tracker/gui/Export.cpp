@@ -186,9 +186,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     auto no_tracking_data = SETTING(auto_no_tracking_data).value<bool>();
     auto auto_no_memory_stats = SETTING(auto_no_memory_stats).value<bool>();
     
-    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if(!FAST_SETTING(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
-        normalize = default_config::individual_image_normalization_t::moments;
+    const auto normalize = default_config::valid_individual_image_normalization();
     
     if(no_tracking_data) {
         FormatWarning("Not saving tracking data because of 'auto_no_tracking_data' flag being set.");
@@ -419,7 +417,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 if(output_image_per_tracklet) {
                     Print("Generating tracklet images for fish ",fish->identity().raw_name(),"...");
                     const bool calculate_posture = FAST_SETTING(calculate_posture);
-                    const auto individual_image_normalization = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
+                    const auto individual_image_normalization = default_config::valid_individual_image_normalization();
                     
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
