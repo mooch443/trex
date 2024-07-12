@@ -109,6 +109,11 @@ void StartingScene::activate() {
     
     RecentItems::set_select_callback([](RecentItems::Item item){
         item._options.set_print_by_default(true);
+        
+        SETTING(output_dir) = item._output_dir;
+        SETTING(output_prefix) = item._output_prefix;
+        SETTING(filename) = item._filename;
+        
         for (auto& key : item._options.keys())
             item._options[key].get().copy_to(&GlobalSettings::map());
         
@@ -159,6 +164,15 @@ void StartingScene::_draw(DrawStructure& graph) {
                         file::Path filename;
                         if(item._options.has("filename"))
                             filename = item._options.at("filename").value<file::Path>();
+                        else
+                            filename = item._filename;
+                        
+                        file::Path output_dir = item._output_dir;
+                        std::string output_prefix = item._output_prefix;
+                        
+                        sprite::Map copy = item._options;
+                        copy["output_prefix"] = output_prefix;
+                        copy["output_dir"] = output_dir;
                         
                         SettingsMaps tmp;
                         default_config::get(tmp.map, tmp.docs, [](auto,auto){});
@@ -167,13 +181,13 @@ void StartingScene::_draw(DrawStructure& graph) {
                                         ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()
                                         : GlobalSettings::defaults().at("detect_type");
                         
-                        auto f = WorkProgress::add_queue("", [array, filename, type, item](){
+                        auto f = WorkProgress::add_queue("", [array, filename, type, item, copy = std::move(copy)](){
                             settings::load(array,
                                  filename,
                                  default_config::TRexTask_t::convert,
                                  type,
                                  {},
-                                 item._options);
+                                 copy);
                             SceneManager::getInstance().enqueue([](auto, auto&) {
                                 SceneManager::getInstance().set_active("settings-scene");
                             });

@@ -121,8 +121,9 @@ namespace Output {
 
             V_34, // adding tag information + time of creation
             V_35, // adding tags::information so it can be preserved across saves
+            V_36, // writing blob::Prediction objects to results files
             
-            current = V_35
+            current = V_36
         };
         
     private:

@@ -187,6 +187,7 @@ void launch_gui(std::future<void>& f) {
                 thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
                 if(SETTING(gui_frame).value<Frame_t>().valid())
                     SETTING(gui_frame) = Frame_t(SETTING(gui_frame)).try_sub(10_f);
+                TrackingScene::request_load();
 				manager.set_active("tracking-scene");
 			}
         },

@@ -32,7 +32,7 @@ class TrackingScene : public Scene {
     //! scene switches:
     std::unique_ptr<Data> _data;
     Timer last_redraw, last_dirty;
-    std::atomic<bool> _load_requested{false};
+    //std::atomic<bool> _load_requested{false};
     
 public:
     TrackingScene(Base& window);
@@ -42,7 +42,7 @@ public:
     void deactivate() override;
 
     void _draw(DrawStructure& graph);
-    void request_load();
+    static void request_load();
     
 private:
     void init_gui(dyn::DynamicGUI&, DrawStructure& graph);

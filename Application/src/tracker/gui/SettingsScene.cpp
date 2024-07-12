@@ -19,6 +19,9 @@
 #include <gui/WorkProgress.h>
 #include <misc/Coordinates.h>
 #include <python/Yolo8.h>
+#include <tracking/Output.h>
+
+#include <gui/TrackingScene.h>
 
 #include <portable-file-dialogs.h>
 
@@ -52,6 +55,20 @@ struct SettingsScene::Data {
     std::atomic<Size2> _next_video_size;
     Size2 _video_size;
     std::unordered_map<std::string, Layout::Ptr> _video_adapters;
+    
+    file::Path target_file(std::string_view ext = "pv") {
+        if(ext == "results") {
+            auto filename = Output::TrackingResults::expected_filename();
+            return filename;
+        }
+        
+        auto filename = SETTING(filename).value<file::Path>();
+        if(filename.empty())
+            filename = settings::find_output_name(GlobalSettings::map());
+        if(not filename.has_extension() || filename.extension() != ext)
+            filename = filename.add_extension(ext);
+        return filename;
+    }
     
     void check_video_source(file::PathArray source);
     void register_callbacks() {
@@ -309,26 +326,54 @@ struct SettingsScene::Data {
                     ActionFunc("track", [this](auto){
                         DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [copy = get_changed_props()](){
+                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]()
+                        {
+                            sprite::Map before = GlobalSettings::map();
+                            sprite::Map defaults = GlobalSettings::current_defaults();
+                            sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
+                            
                             Print("changed props = ", copy.keys());
                             auto array = SETTING(source).value<file::PathArray>();
                             auto front = file::Path(file::find_basename(array));
-                            /*output_file = !front.has_extension() ?
-                                          file::DataLocation::parse("input", front.add_extension("pv")) :
-                                          file::DataLocation::parse("input", front.replace_extension("pv"));*/
-
+                            
                             auto output_file = (not front.has_extension() || front.extension() != "pv") ?
-                                          file::DataLocation::parse("output", front.add_extension("pv")) :
-                                          file::DataLocation::parse("output", front.replace_extension("pv"));
+                            file::DataLocation::parse("output", front.add_extension("pv")) :
+                            file::DataLocation::parse("output", front.replace_extension("pv"));
                             if (output_file.exists()) {
                                 SETTING(filename) = file::Path(output_file);
                             }
                             
                             settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy);
                             
-                            SceneManager::getInstance().enqueue([](){
-                                SceneManager::getInstance().set_active("tracking-scene");
-                            });
+                            auto open_file = [](){
+                                SceneManager::getInstance().enqueue([](){
+                                    SceneManager::getInstance().set_active("tracking-scene");
+                                });
+                            };
+                            
+                            auto fname = target_file("results");
+                            if(fname.exists()) {
+                                SceneManager::getInstance().enqueue([open_file, fname, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](auto,DrawStructure& graph)
+                                                                    {
+                                    graph.dialog([open_file, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](Dialog::Result result) mutable {
+                                        if(result == Dialog::Result::OKAY) {
+                                            /// load results
+                                            TrackingScene::request_load();
+                                            open_file();
+                                        } else if(result == Dialog::Result::SECOND) {
+                                            open_file();
+                                        } else {
+                                            GlobalSettings::map() = before;
+                                            GlobalSettings::set_current_defaults(std::move(defaults));
+                                            GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
+                                        }
+                                        
+                                    }, "Would you like to load <cyan><c>"+fname.str()+"</c></cyan>, which already exists?", "Results exist", "Load Results", "Cancel", "Track Again");
+                                });
+                                
+                            } else {
+                                open_file();
+                            }
                         });
                     }),
                     ActionFunc("choose-source", [](auto){

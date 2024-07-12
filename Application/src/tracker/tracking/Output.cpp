@@ -104,6 +104,69 @@ Output::ResultsFormat::~ResultsFormat() {
     _post_pool.wait();
 }
 
+void read_prediction(Data& ref, blob::Prediction& pred) {
+    ref.read<uint8_t>(pred.clid);
+    if(pred.clid == 255u) {
+        /// invalid
+        assert(not pred.valid());
+        return;
+    }
+    
+    ref.read<uint8_t>(pred.p);
+    
+    uint8_t N;
+    
+    /// read pose
+    pred.pose = {};
+    ref.read<uint8_t>(N);
+    for(uint8_t i = 0; i<N; ++i) {
+        uint16_t x, y;
+        ref.read<uint16_t>(x);
+        ref.read<uint16_t>(y);
+        pred.pose.points.emplace_back(x, y);
+    }
+    
+    /// read outlines
+    pred.outlines = {};
+    ref.read<uint8_t>(N);
+    for(uint8_t i = 0; i<N; ++i) {
+        uint16_t Npoints;
+        ref.read<uint16_t>(Npoints);
+        
+        blob::SegmentedOutlines::Outline outline;
+        for(uint16_t j=0; j<Npoints; ++j) {
+            int32_t pt;
+            ref.read<int32_t>(pt);
+            outline._points.emplace_back(pt);
+        }
+        pred.outlines.add(std::move(outline));
+    }
+}
+
+uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
+    if(not pred.valid()) {
+        return ref.write<uint8_t>(255u);
+    }
+    
+    auto position = ref.write<uint8_t>(pred.clid);
+    ref.write<uint8_t>(pred.p);
+    
+    ref.write<uint8_t>(narrow_cast<uint8_t>(pred.pose.points.size(), tag::fail_on_error{}));
+    for(auto &pt : pred.pose.points) {
+        ref.write<uint16_t>(pt.x);
+        ref.write<uint16_t>(pt.y);
+    }
+    
+    ref.write<uint8_t>(narrow_cast<uint8_t>(pred.outlines.lines.size(), tag::fail_on_error{}));
+    for(const blob::SegmentedOutlines::Outline &line : pred.outlines.lines) {
+        ref.write<uint16_t>(narrow_cast<uint16_t>(line.size(), tag::fail_on_error{}));
+        for(auto &pt : line._points)
+            ref.write<int32_t>(pt);
+    }
+    
+    return position;
+}
+
 template<> void Data::read(track::FrameProperties& p) {
     uint64_t ts;
     read<uint64_t>(ts);
@@ -251,6 +314,10 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
         blob.parent_id = pv::bid::invalid;
     else
         blob.parent_id = pv::bid(uint32_t(parent_id));
+    
+    if(_header.version >= Output::ResultsFormat::Versions::V_36) {
+        read_prediction(ref, blob.pred);
+    }
 }
 
 template<>
@@ -261,11 +328,12 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     const uint64_t elem_size = sizeof(pv::ShortHorizontalLine);
     
     // this will turn
-    uint8_t byte =   uint8_t(val->split()                    ? (1 << 0) : 0)
+    uint8_t byte = val->flags();  /* uint8_t(val->split()                    ? (1 << 0) : 0)
                    | uint8_t(val->parent_id().valid()        ? (1 << 1) : 0)
                    | uint8_t(val->tried_to_split()           ? (1 << 2) : 0)
                    | uint8_t(val->is_tag()                   ? (1 << 3) : 0)
-                   | uint8_t(val->is_instance_segmentation() ? (1 << 4) : 0);
+                   | uint8_t(val->is_instance_segmentation() ? (1 << 4) : 0)
+                   | pv::Blob::get_only_flag(pv::Blob::Flags::is_rgb, val->is_rgb());*/
     uint64_t p = write<uint8_t>(byte);
     if((byte & uint8_t(1 << 1)) != 0) {
         assert(val->parent_id().valid());
@@ -276,6 +344,8 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     uint16_t L = narrow_cast<uint16_t>(compressed.size(), tag::fail_on_error{});
     write<uint16_t>(L);
     write_data(L * elem_size, (char*)compressed.data());
+    
+    write_prediction(*this, val->prediction());
     
     return p;
 }

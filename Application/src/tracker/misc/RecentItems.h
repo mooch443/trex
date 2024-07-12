@@ -4,13 +4,20 @@
 #include <misc/SpriteMap.h>
 #include <gui/types/ListItemTypes.h>
 #include <file/PathArray.h>
+#include <file/Path.h>
 
 class RecentItems {
 public:
     struct Item {
         std::string _name;
-        cmn::timestamp_t _created;
+        cmn::timestamp_t _created { cmn::timestamp_t::now() };
+        cmn::timestamp_t _modified { _created };
         cmn::sprite::Map _options;
+        
+        /// extra settings
+        cmn::file::Path _filename;
+        std::string _output_prefix;
+        cmn::file::Path _output_dir;
 
         nlohmann::json to_json() const;
         std::string toStr() const;

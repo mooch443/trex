@@ -68,6 +68,17 @@ void RecentItems::show(ScrollableList<DetailItem>& list) {
     }
 }
 
+template<typename T>
+void load_key_if_avail(auto& key, file::Path path, std::string_view name, const std::function<void(T)> & fn) {
+    try {
+        if(key.contains(name)) {
+            fn(key.at(name).template get<T>());
+        }
+    } catch(const std::exception& ex) {
+        FormatWarning("Trying to retrieve ", name, " from ", path, ": ", ex.what());
+    }
+};
+
 RecentItems RecentItems::read() {
     auto path = file::DataLocation::parse("app", ".trex_recent_files");
     RecentItems items;
@@ -84,18 +95,29 @@ RecentItems RecentItems::read() {
                 if (key.is_object()) {
                     RecentItems::Item item{
                         ._name = name,
-                        ._created = 0u
+                        ._created = cmn::timestamp_t::now()
                     };
-                    //Print("RecentItem<", name,">");
-
-                    try {
-                        if(key.contains("created")) {
-                            timestamp_t created{key.at("created").get<uint64_t>()};
-                            item._created = created;
-                        }
-                    } catch(const std::exception& ex) {
-                        FormatWarning(ex.what());
-                    }
+                    
+                    load_key_if_avail<uint64_t>(key, path, "created", [&](auto v){
+                        if(v != 0)
+                            item._created = timestamp_t(v);
+                    });
+                    load_key_if_avail<uint64_t>(key, path, "modified", [&](auto v){
+                        if(v != 0)
+                            item._modified = timestamp_t(v);
+                    });
+                    
+                    load_key_if_avail<std::string>(key, path, "output_dir", [&](auto v){
+                        item._output_dir = v;
+                    });
+                    
+                    load_key_if_avail<std::string>(key, path, "filename", [&](auto v){
+                        item._filename = v;
+                    });
+                    
+                    load_key_if_avail<std::string>(key, path, "output_prefix", [&](auto v){
+                        item._output_prefix = v;
+                    });
                     
                     auto settings = key.at("settings");
                     for (auto& i : settings.items()) {
@@ -140,8 +162,8 @@ RecentItems RecentItems::read() {
         }
     }
     
-    std::sort(items._items.begin(), items._items.end(), [](Item& A, Item& B) {
-        return A._created > B._created;
+    std::sort(items._items.begin(), items._items.end(), [](const Item& A, const Item& B) {
+        return std::make_tuple(A._modified, A._created) > std::make_tuple(B._modified, B._created);
     });
     return items;
 }
@@ -160,6 +182,10 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         for (auto& item : _items) {
             if (item._name == name) {
                 item._options = options;
+                item._filename = SETTING(filename).value<file::Path>();
+                item._output_prefix = SETTING(output_prefix).value<std::string>();
+                item._output_dir = SETTING(output_dir).value<file::Path>();
+                item._modified = timestamp_t::now();
                 //for(auto &key : config.keys())
                 //    config.at(key).get().copy_to(&item._options);
                 //config.write_to(item._options);
@@ -169,7 +195,10 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     }
 
     Item item{
-        ._name = name
+        ._name = name,
+        ._filename = SETTING(filename).value<file::Path>(),
+        ._output_prefix = SETTING(output_prefix).value<std::string>(),
+        ._output_dir = SETTING(output_dir).value<file::Path>()
     };
     
     for(auto &key : config.keys())
@@ -190,7 +219,13 @@ nlohmann::json RecentItems::Item::to_json() const {
         settings[key] = json;
     }
     obj["settings"] = settings;
-    obj["created"] = _created.valid() ? _created.get() : uint64_t(0);
+    
+    obj["output_prefix"] = _output_prefix;
+    obj["output_dir"] = _output_dir.str();
+    obj["filename"] = _filename.str();
+    
+    obj["modified"] = _modified.valid() ? _modified.get() : uint64_t(0);
+    obj["created"] = _created.valid() ? _created.get() : timestamp_t::now().get();
 
     //std::cout << "Output:" << obj.dump() << std::endl;
     return obj;
@@ -205,7 +240,7 @@ void RecentItems::write() {
         }
         auto obj = nlohmann::json::object();
         obj["entries"] = array;
-        obj["modified"] = std::time(nullptr);
+        obj["modified"] = timestamp_t::now().get(); //std::time(nullptr);
 
         auto f = path.fopen("wb");
         auto dump = obj.dump();

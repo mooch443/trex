@@ -856,7 +856,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                     state_visible = false;
                 }
                 
-            }, "Are you sure you want to load results?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
+            }, "Are you sure you want to load results from <c><cyan>"+Output::TrackingResults::expected_filename().str()+"</cyan></c>?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
         });
     else
         WorkProgress::add_queue("Loading results...", fn);

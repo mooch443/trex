@@ -38,6 +38,8 @@ using namespace track;
 
 namespace cmn::gui {
 
+std::atomic<bool> _load_requested{false};
+
 class IndividualImage : public Entangled {
     GETTER(Idx_t, fdx);
     Image::Ptr ptr;
@@ -516,7 +518,7 @@ void TrackingScene::activate() {
         bool exchange = true;
         if(_load_requested.compare_exchange_strong(exchange, false)) 
         {
-            _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
+            _state->load_state(nullptr, Output::TrackingResults::expected_filename());
         }
     }
 }
