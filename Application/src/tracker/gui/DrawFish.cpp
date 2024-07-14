@@ -482,26 +482,35 @@ Fish::~Fish() {
 
         if (active && _cached_outline) {
             if (GUIOPTION(gui_show_shadows) || GUIOPTION(gui_show_outline)) {
-                points = _cached_outline->uncompress();
+                if(points.empty())
+                    points = _cached_outline->uncompress();
             }
-
-            if(GUIOPTION(gui_show_shadows) && _polygon) {
+            
+            if (GUIOPTION(gui_show_shadows)) {
+                if (!_polygon) {
+                    _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
+                    _polygon->set_fill_clr(Black.alpha(25));
+                    _polygon->set_origin(Vec2(0.5));
+                }
                 _polygon->set_vertices(points);
-                float size = coord.video_size().length() * 0.0025f;
-                Vec2 scaling(SQR(offset.x / coord.video_size().width),
-                             SQR(offset.y / coord.video_size().height));
-                _polygon->set_pos(scaling * size + _view.size() * 0.5);
+                
+                auto video_size = FindCoord::get().video_size();
+                float size = video_size.length() * 0.0025f;
+                Vec2 scaling(SQR(offset.x / video_size.width),
+                             SQR(offset.y / video_size.height));
+                _polygon->set_pos(-offset + scaling * size + _view.size() * 0.5);
                 _polygon->set_scale(scaling * 0.25 + 1);
+                _polygon->set_fill_clr(Black.alpha(25));
 
-    #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-    #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                 if(GUI_SETTINGS(gui_macos_blur) && std::is_same<MetalImpl, default_impl_t>::value)
                 {
                     if(is_selected)_polygon->tag(Effects::blur);
                     else _polygon->untag(Effects::blur);
                 }
-    #endif
-    #endif
+#endif
+#endif
             }
         }
 
@@ -577,26 +586,8 @@ Fish::~Fish() {
 
             if (active && _cached_outline && GUIOPTION(gui_show_outline)) {
                 Line::Vertices_t oline;
-                points = _cached_outline->uncompress();
-
-                if (GUIOPTION(gui_show_shadows)) {
-                    if (!_polygon) {
-                        _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
-                        _polygon->set_fill_clr(Black.alpha(25));
-                        _polygon->set_origin(Vec2(0.5));
-                    }
-                    _polygon->set_vertices(points);
-                    
-                    auto video_size = FindCoord::get().video_size();
-                    float size = video_size.length() * 0.0025f;
-                    Vec2 scaling(SQR(offset.x / video_size.width),
-                                 SQR(offset.y / video_size.height));
-                    _polygon->set_pos(-offset + scaling * size + _view.size() * 0.5);
-                    _polygon->set_scale(scaling * 0.25 + 1);
-                    _polygon->set_fill_clr(Black.alpha(25));
-
-                    //window.advance_wrap(*_polygon);
-                }
+                if(points.empty())
+                    points = _cached_outline->uncompress();
 
                 // check if we actually have a tail index
                 if (GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)

@@ -529,7 +529,9 @@ void TrackingScene::activate() {
 
 void TrackingScene::redraw_all() {
     if(not _data || not _data->_cache) {
+#ifndef NDEBUG
         FormatWarning("No data set, cannot redraw all.");
+#endif
         return;
     }
     
