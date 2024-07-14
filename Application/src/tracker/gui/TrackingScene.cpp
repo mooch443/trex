@@ -429,6 +429,7 @@ void TrackingScene::activate() {
         "gui_show_heatmap",
         "gui_show_blobs",
         "gui_show_selections",
+        "gui_zoom_polygon",
         
         "individual_image_normalization",
         "individual_image_size",
@@ -453,7 +454,10 @@ void TrackingScene::activate() {
                 init_undistortion();
             }
             
-        } else if(key == "gui_focus_group" && _data->_bowl) {
+        } else if((key == "gui_zoom_polygon"
+                   || key == "gui_focus_group")
+                  && _data->_bowl)
+        {
             _data->_bowl->_screen_size = Vec2();
             _data->_zoom_dirty = true;
             _data->_cache->set_fish_dirty(true);
@@ -1083,9 +1087,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             ActionFunc("export_data", [this](Action){
                 WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
             }),
-            ActionFunc("write_config", [](Action){
-                WorkProgress::add_queue("", []() {
-                    settings::write_config(false, SceneManager::getInstance().gui_task_queue());
+            ActionFunc("write_config", [video = _state->video](Action){
+                WorkProgress::add_queue("", [video]() {
+                    settings::write_config(video.get(), false, SceneManager::getInstance().gui_task_queue());
                 });
             }),
             ActionFunc("categorize", [this](Action){

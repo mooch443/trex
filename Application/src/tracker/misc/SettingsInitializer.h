@@ -29,7 +29,7 @@ set_defaults_for( track::detect::ObjectDetectionType_t detect_type,
 
 SettingsMaps reset(const cmn::sprite::Map& extra_map = {}, cmn::sprite::Map* output = nullptr);
 
-void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix = "");
+void write_config(const pv::File*, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix = "");
 float infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);
 float infer_meta_real_width_from(const pv::File &file, const sprite::Map* map = nullptr);
 

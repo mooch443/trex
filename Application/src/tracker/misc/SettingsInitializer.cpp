@@ -750,6 +750,13 @@ void load(file::PathArray source,
             
             warn_deprecated(settings_file, rejected);
             
+            if(rejected.contains("meta_source_path")) {
+                sprite::Map tmp;
+                tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
+                set_config_if_different("meta_source_path", tmp);
+                tmp.at("meta_source_path").get().copy_to(&GlobalSettings::current_defaults_with_config());
+            }
+            
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
 
@@ -924,7 +931,7 @@ file::Path find_output_name(const sprite::Map& map,
     }
 }
 
-void write_config(bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {
+void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {
     auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
     auto text = default_config::generate_delta_config().to_settings();
     

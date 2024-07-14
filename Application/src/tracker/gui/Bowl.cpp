@@ -34,15 +34,28 @@ struct Bowl::Data {
     std::atomic<bool> _shapes_updated{true};
     CallbackCollection _callback;
     
+    bool _was_shift_pressed{false};
+    std::vector<Vec2> _gui_zoom_polygon;
+    std::vector<Layout::Ptr> _zoom_polygon_indicators;
+    derived_ptr<gui::Polygon> _reduced_zoom_polygon;
+    
     bool update_shapes();
     
     Data() {
         _callback = GlobalSettings::map().register_callbacks({
             "track_ignore",
             "track_include",
-            "visual_field_shapes"
+            "visual_field_shapes",
+            "gui_zoom_polygon"
             
-        }, [this](auto) {
+        }, [this](auto name) {
+            if(name == "gui_zoom_polygon") {
+                auto gui_zoom_polygon = SETTING(gui_zoom_polygon).value<std::vector<Vec2>>();
+                if(_gui_zoom_polygon != gui_zoom_polygon) {
+                    _gui_zoom_polygon = gui_zoom_polygon;
+                }
+            }
+            
             _shapes_updated = true;
             _vf_widget.set_content_changed(true);
         });
@@ -182,6 +195,47 @@ bool Bowl::Data::update_shapes() {
         _ignore_shapes.clear();
     }
     
+    if(not _gui_zoom_polygon.empty())
+    {
+        Shape shape{_gui_zoom_polygon};
+        auto r = poly_convex_hull(&_gui_zoom_polygon); // force convex polygon
+        _reduced_zoom_polygon = Layout::Make<gui::Polygon>(r);
+        _reduced_zoom_polygon->set_border_clr(White.alpha(25));
+        
+        _zoom_polygon_indicators.clear();
+        for(auto &pt : _gui_zoom_polygon) {
+            const float scale = 2;
+            
+            Vec2 tl(pt.x - scale, pt.y - scale);
+            Vec2 tr(pt.x + scale, pt.y - scale);
+            Vec2 bl(pt.x - scale, pt.y + scale);
+            Vec2 br(pt.x + scale, pt.y + scale);
+            
+            constexpr auto clrA = White.alpha(150);
+            auto ptr = Layout::Make<Vertices>(std::vector<Vertex>{
+                {tl, clrA}, {pt, clrA},
+                {br, clrA}, {pt, clrA},
+                {bl, clrA}, {pt, clrA},
+                {tr, clrA}
+            }, PrimitiveType::LineStrip);
+            _zoom_polygon_indicators.emplace_back(ptr);
+            
+            constexpr auto clrB = Black.alpha(150);
+            constexpr auto offset = Vec2(0.25);
+            ptr = Layout::Make<Vertices>(std::vector<Vertex>{
+                {tl + offset, clrB}, {pt + offset, clrB},
+                {br + offset, clrB}, {pt + offset, clrB},
+                {bl + offset, clrB}, {pt + offset, clrB},
+                {tr + offset, clrB}
+            }, PrimitiveType::LineStrip);
+            _zoom_polygon_indicators.emplace_back(ptr);
+        }
+        //ptr->set_clickable(true);
+        
+    } else {
+        _reduced_zoom_polygon = nullptr;
+    }
+    
     auto visual_field_shapes = SETTING(visual_field_shapes).value<std::vector<std::vector<Vec2>>>();
     if(!visual_field_shapes.empty())
     {
@@ -261,6 +315,15 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
         PD(cache).set_raw_blobs_dirty();
         PD(cache).set_redraw();
     }*/
+    
+    const bool key_down = _cache && _cache->key_down(Codes::LShift);
+    if(_data && _data->_was_shift_pressed != key_down)
+    {
+        if(key_down)
+            update_goals();
+        _data->_was_shift_pressed = key_down;
+    }
+    
     if(not GUI_SETTINGS(gui_show_timeline))
         return;
     
@@ -296,10 +359,21 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
             add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
         }
     }
+    
+    if(_data->_reduced_zoom_polygon) {
+        advance_wrap(*_data->_reduced_zoom_polygon);
+        for(auto &ptr : _data->_zoom_polygon_indicators)
+            advance_wrap(*ptr);
+    }
 }
 
 void Bowl::update_goals() {
-    if (_target_points.empty()) {
+    std::vector<Vec2>* target_points{nullptr};
+    const bool key_down = _cache && _cache->key_down(Codes::LShift);
+    
+    if (_target_points.empty()
+        && (key_down || not _data || _data->_gui_zoom_polygon.empty()))
+    {
         float width_scale = _screen_size.x / _aspect_ratio.x;
         float height_scale = _screen_size.y / _aspect_ratio.y;
         float scale_factor = std::min(width_scale, height_scale);
@@ -315,8 +389,14 @@ void Bowl::update_goals() {
     float min_y = std::numeric_limits<float>::max();
     float max_y = std::numeric_limits<float>::min();
     
+    if(_data && not _data->_gui_zoom_polygon.empty())
+    {
+        target_points = &_data->_gui_zoom_polygon;
+    } else
+        target_points = &_target_points;
+    
     Vec2 sum_of_points(0.0f, 0.0f);
-    for (const auto& point : _target_points) {
+    for (const auto& point : *target_points) {
         min_x = std::min(min_x, point.x);
         max_x = std::max(max_x, point.x);
         min_y = std::min(min_y, point.y);

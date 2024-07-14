@@ -873,9 +873,13 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
 #else
         if(!base.is_key_pressed(Codes::LControl)) {
 #endif
-            if(_current_boundary.empty())
-                _current_boundary = {{pos}};
-            else
+            if(_current_boundary.empty()) {
+                if(not GUI_SETTINGS(gui_zoom_polygon).empty()) {
+                    SETTING(gui_zoom_polygon) = std::vector<Vec2>();
+                } else {
+                    _current_boundary = {{pos}};
+                }
+            } else
                 _current_boundary.clear();
             
         } else {
@@ -1030,6 +1034,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 if(!dropdown) {
                     dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6},
                     std::vector<std::string>{
+                        "gui_zoom_polygon",
                         "track_ignore",
                         "track_include",
                         "recognition_shapes",
@@ -1038,7 +1043,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
-                    dropdown->textfield()->set_placeholder("or add to...");
+                    dropdown->textfield()->set_placeholder("select below...");
                     
                 } else
                     dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));

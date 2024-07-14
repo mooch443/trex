@@ -353,7 +353,8 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
     FormatWarning("Saving and quitting...");
     LockGuard guard(w_t{}, "saving and quitting");
     //PD(cache).deselect_all();
-    settings::write_config(true, gui);
+    auto video = _video.lock();
+    settings::write_config(video.get(), true, gui);
     //instance()->write_config(true);
     
     if(!SETTING(auto_no_results)) {

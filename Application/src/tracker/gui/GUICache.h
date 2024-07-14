@@ -13,6 +13,7 @@
 #include <processing/Background.h>
 #include <misc/Border.h>
 #include <tracking/Stuffs.h>
+#include <gui/Event.h>
 #include <gui/ShadowSegment.h>
 
 class Timer;
@@ -74,7 +75,8 @@ namespace globals {
         (bool, auto_categorize),
         (bool, gui_macos_blur),
         (Size2, gui_zoom_limit),
-        (blob::Pose::Skeleton, detect_skeleton)
+        (blob::Pose::Skeleton, detect_skeleton),
+        (std::vector<Vec2>, gui_zoom_polygon)
     )
 }
 
@@ -255,6 +257,7 @@ namespace globals {
         
         void set_mode(const gui::mode_t::Class&);
         
+        bool key_down(cmn::gui::Codes code) const;
         void updated_tracking() { _tracking_dirty = false; }
         void updated_blobs() { _blobs_dirty = false; }
         void updated_raw_blobs() { _raw_blobs_dirty = false; }

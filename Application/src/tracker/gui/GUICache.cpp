@@ -1181,4 +1181,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
             : Tracker::average().dimensions();
         return window_dimensions;
     }
+
+    bool GUICache::key_down(Codes code) const {
+        return _graph && _graph->is_key_pressed(code);
+    }
 }

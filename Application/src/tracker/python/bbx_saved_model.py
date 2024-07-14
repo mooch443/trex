@@ -506,7 +506,7 @@ class TRexYOLO8:
         model = next((model for model in self.models if model.task == ModelTaskType.region), None)
         assert model is not None
 
-        scaled_size: int = model.config.trained_resolution
+        scaled_size: int = [model.config.trained_resolution.width, model.config.trained_resolution.height]
         #scaled_down_scales: np.ndarray = np.array([(scaled_size / im.shape[1], int(im.shape[0] / im.shape[1] * scaled_size) / im.shape[0]) for im in images])
         #scaled_down: List[Image] = [cv2.resize(im,  (scaled_size, int(im.shape[0] / im.shape[1] * scaled_size))) for im in images]
 

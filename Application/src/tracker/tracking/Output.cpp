@@ -1286,7 +1286,7 @@ namespace Output {
         
         write<uint64_t>(_header.creation_time.get());
 
-        std::string text = default_config::generate_delta_config(true, _header.exclude_settings).to_settings();
+        std::string text = default_config::generate_delta_config(nullptr, true, _header.exclude_settings).to_settings();
         write<std::string>(text);
         write<std::string>(SETTING(cmd_line).value<std::string>());
 

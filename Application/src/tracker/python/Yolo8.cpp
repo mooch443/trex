@@ -451,10 +451,11 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         assert(r3.channels() == 1);
         pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_r3g3b2, true);
     }
+    pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_rgb, Background::meta_encoding() == meta_encoding_t::rgb8);
     assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (Background::meta_encoding() == meta_encoding_t::rgb8));
-    //pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_rgb, Background::meta_encoding() == meta_encoding_t::rgb8);
 
-    pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+    pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
+    //pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     auto [o, px] = blob.calculate_pixels(r3);
     pair.pixels = std::move(px);
 

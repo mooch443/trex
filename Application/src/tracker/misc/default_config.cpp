@@ -9,6 +9,7 @@
 #include <misc/DetectionTypes.h>
 #include <misc/Border.h>
 #include <misc/TrackingSettings.h>
+#include <pv.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -515,6 +516,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
+        CONFIG("gui_zoom_polygon", std::vector<Vec2>{}, "If this is non-empty, the view will be zoomed in on the center of the polygon with approximately the dimensions of the polygon.");
 
 #ifdef __APPLE__
         auto default_recording_t = gui_recording_format_t::mp4;
@@ -834,7 +836,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 		return map[key];
     }
     
-    Config generate_delta_config(bool include_build_number, std::vector<std::string> additional_exclusions) {
+    Config generate_delta_config(const pv::File* video, bool include_build_number, std::vector<std::string> additional_exclusions) {
         auto keys = GlobalSettings::map().keys();
         
         sprite::Map config;
@@ -937,11 +939,30 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          */
         Config result;
         result.excluded += exclude_fields;
+        
+        std::set<std::string_view> explicitly_include;
+        if(video) {
+            sprite::Map tmp;
+            try {
+                auto metadata = video->header().metadata;
+                sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata, & GlobalSettings::map(), {}, default_config::deprecations());
+                if(tmp.has("meta_source_path")
+                   && tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>())
+                {
+                    explicitly_include.insert("meta_source_path");
+                }
+                
+            } catch(...) {
+                FormatExcept("Error while trying to inspect the metadata of ", video, ".");
+            }
+        }
 
         for(auto &key : keys) {
             // dont write meta variables. this could be confusing if those
             // are loaded from the video file as well
-            if(utils::beginsWith(key, "meta_")) {
+            if(utils::beginsWith(key, "meta_")
+               && not explicitly_include.contains(key))
+            {
                 result.excluded.push_back(key);
                 continue;
             }
