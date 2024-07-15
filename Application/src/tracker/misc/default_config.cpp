@@ -969,8 +969,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             // UPDATE: write only keys with values that have changed compared
             // to the default options
-            if(!config.has(key) || config[key] != GlobalSettings::get(key)) {
+            if(not config.has(key)
+               || config.at(key) != GlobalSettings::map().at(key))
+            {
                 if((include_build_number && utils::beginsWith(key, "build"))
+                   || explicitly_include.contains(key)
                    || (GlobalSettings::access_level(key) < AccessLevelType::LOAD
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))

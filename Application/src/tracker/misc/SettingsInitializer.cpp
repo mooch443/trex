@@ -334,6 +334,8 @@ void load(file::PathArray source,
     combined.map.set_print_by_default(true);
     sprite::Map current_defaults;
     auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, [[maybe_unused]] bool do_print = false) {
+        bool was_different{false};
+        
         if(&combined.map != &from) {
             if((combined.map.has(key)
                 && combined.map.at(key) != from.at(key))
@@ -341,8 +343,15 @@ void load(file::PathArray source,
                || GlobalSettings::defaults().at(key) != from.at(key))
             {
                 //if(do_print)
-                //    Print("setting current_defaults ", from.at(key), " != ", combined.map.at(key));
-                from.at(key).get().copy_to(&combined.map);
+                /*if(not GlobalSettings::defaults().has(key) || GlobalSettings::defaults().at(key) != from.at(key))
+                {
+                    Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
+                }*/
+                if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
+                    //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
+                    from.at(key).get().copy_to(&combined.map);
+                    was_different = true;
+                }
                 
                 if(key == "detect_type")
                     type = from.at(key).value<decltype(type)>();
@@ -381,6 +390,8 @@ void load(file::PathArray source,
         else {
             Print("// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
 		}
+        
+        return was_different;
     };
     
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
@@ -750,22 +761,34 @@ void load(file::PathArray source,
             
             warn_deprecated(settings_file, rejected);
             
-            if(rejected.contains("meta_source_path")) {
+            /*if(rejected.contains("meta_source_path")) {
                 sprite::Map tmp;
                 tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
-                set_config_if_different("meta_source_path", tmp);
-                tmp.at("meta_source_path").get().copy_to(&GlobalSettings::current_defaults_with_config());
-            }
+                if(not set_config_if_different("meta_source_path", tmp)) {
+                    print("// meta_source_path = ",tmp.at("meta_source_path").get().valueString()," not set");
+                }
+                //tmp.at("meta_source_path").get().copy_to(&GlobalSettings::current_defaults_with_config());
+            }*/
             
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
 
             for(auto &key : map.keys()) {
-                set_config_if_different(key, map);
+                if(not set_config_if_different(key, map)) {
+                    Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
+                }
+                
                 map.at(key).get().copy_to(&GlobalSettings::current_defaults_with_config());
             }
             //combined.map.set_print_by_default(before);
             //exclude_from_pv = exclude_from_pv + map.keys();
+            
+            for(auto &[key, value] : rejected) {
+                if(not map.has(key) || not combined.map.has(key) || map.at(key) != combined.map.at(key)) {
+                    // has been ignored
+                    Print("// not setting ", key);
+                }
+            }
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
@@ -933,7 +956,7 @@ file::Path find_output_name(const sprite::Map& map,
 
 void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {
     auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
-    auto text = default_config::generate_delta_config().to_settings();
+    auto text = default_config::generate_delta_config(video).to_settings();
     
     if(filename.exists() && !overwrite) {
         if(queue) {
