@@ -33,6 +33,7 @@
 #include <gui/InfoCard.h>
 #include <tracking/AutomaticMatches.h>
 #include <gui/DrawDataset.h>
+#include <gui/DrawExportOptions.h>
 
 using namespace track;
 
@@ -103,6 +104,7 @@ public:
 struct TrackingScene::Data {
     std::unique_ptr<GUICache> _cache;
     std::unique_ptr<DrawDataset> _dataset;
+    std::unique_ptr<DrawExportOptions> _export_options;
     
     std::unique_ptr<Bowl> _bowl;
     //std::unordered_map<Idx_t, Bounds> _last_bounds;
@@ -321,7 +323,12 @@ bool TrackingScene::on_global_event(Event event) {
                 });
                 break;
             case Keyboard::S:
-                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
+                if(GUI_SETTINGS(gui_show_export_options)) {
+                    WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
+                    SETTING(gui_show_export_options) = false;
+                } else {
+                    SETTING(gui_show_export_options) = true;
+                }
                 break;
             case Keyboard::Left:
                 set_frame(GUI_SETTINGS(gui_frame).try_sub(1_f));
@@ -948,6 +955,14 @@ void TrackingScene::_draw(DrawStructure& graph) {
         graph.wrap_object(*_data->_dataset);
     }
     
+    if(GUI_SETTINGS(gui_show_export_options)) {
+        if(not _data->_export_options) {
+            _data->_export_options = std::make_unique<DrawExportOptions>();
+        }
+        
+        _data->_export_options->draw(graph, _state.get());
+    }
+    
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
     //    std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
     //Print("dirty = ", graph.root().is_dirty());
@@ -1088,7 +1103,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
             }),
             ActionFunc("export_data", [this](Action){
-                WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
+                SETTING(gui_show_export_options) = true;
             }),
             ActionFunc("write_config", [video = _state->video](Action){
                 WorkProgress::add_queue("", [video]() {

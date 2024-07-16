@@ -1,0 +1,411 @@
+{
+"defaults":{
+    "vars":{
+        "column_width":"{-:{/:{-:{window_size.x}:20}:2}:20}",
+        "column_height":"{-:{window_size.y}:55}"
+    }
+},
+"objects":[
+
+{
+"type":"vlayout",
+"align":"right",
+"children":[
+    { "type":"hlayout",
+        "pad":[5,5,5,5],
+        "align":"top",
+        "children":[{
+            "type":"vlayout",
+            "pad":[5,5,5,0],
+            "children":[
+                {
+                    "type":"stext",
+                    "text":"Export tracking data",
+                    "color":[255,255,255],
+                    "pad":[0,5,0,10],
+                    "font":{
+                        "size":0.75,
+                        "style":"bold"
+                    }
+                },
+                {
+                    "type":"option_search",
+                    "fill":[50,50,50,125],
+                    "size":"[{column_width},35]",
+                    "placeholder":" Type to filter... ",
+                    "color":[200,200,200],
+                    "font":{
+                        "size":0.5
+                    }
+                },
+        
+                {
+                    "type":"list",
+                    "var":"options",
+                    "fill":[40,40,40,220],
+                    "color":[225,225,225],
+                    "item_line":[100,100,100,150],
+                    "placeholder":"No items.",
+                    "list":{
+                        "size":"[{column_width},{-:{column_height}:155}]",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "fill":[25,25,25,220]
+                    },
+                    "item_font":{
+                        "size":0.5,
+                        "align":"center"
+                    },
+                    "detail_font":{
+                        "size":0.35,
+                        "align":"center"
+                    },
+                    "template": {
+                        "text":"{if:{>:{i.count}:0}:<b>{i.name}</b> ({i.count}):{i.name}}",
+                        "detail":"{i.sources}",
+                        "action":"add_option"
+                    }
+                },
+
+                {
+                    "type":"stext",
+                    "text":"Resulting <c>output_graphs</c>:",
+                    "color":[255,255,255],
+                    "font":{
+                        "size":0.5
+                    },
+                    "pad":[5,5,5,0]
+                },
+                {
+                    "type":"settings",
+                    "var":"output_graphs",
+                    "size":"[{column_width},35]",
+                    "desc":"",
+                    "label":{
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                        "font":{"size":0.5}
+                    },
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":"[{column_width},200]",
+                        "font":{"size":0.5}
+                    },
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}"
+                }
+            ]
+        },
+        {
+            "type":"gridlayout",
+            "pad":[5,5,5,0],
+            "vertical_clr":[0,0,0,0],
+            "horizontal_clr":[10,50,80,40],
+            "clickable":false,
+            "children":[
+                [
+                    {
+                        "type":"rect",
+                        "size":"[{column_width},25]"
+                    }
+                ],
+
+                [{
+                    "type":"vlayout",
+                    "pad":[0,0,0,5],
+                    "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,0,0,0],
+                        "text":"<c>output_format</c>",
+                        "font":{
+                            "size":0.5
+                        },
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_format",
+                        "desc":"",
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                            "font":{"size":0.5}
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{column_width},200]",
+                            "font":{"size":0.5}
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                        "size":"[{-:{-:{column_width}:93}:50},30]"
+                    }
+                    ]
+                }],
+
+                [{
+                    "type":"vlayout",
+                    "pad":[0,0,0,5],
+                    "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,0,0,0],
+                        "text":"<c>Destination folder</c>",
+                        "font":{
+                            "size":0.5
+                        },
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"hlayout",
+                        "pad":[5,0,0,0],
+                        "children":[
+                            {
+                                "type":"settings",
+                                "var":"output_dir",
+                                "desc":"",
+                                "label":{
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                    "font":{"size":0.5}
+                                },
+                                "list":{
+                                    "line":[220,220,220,200],
+                                    "fill":[25,25,25,220],
+                                    "size":"[{column_width},200]",
+                                    "font":{"size":0.5}
+                                },
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                "size":"[{-:{column_width}:50},30]"
+                            },
+                            {
+                                "type":"button",
+                                "text":"<sym>🗁</sym>",
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                "size":[30,30],
+                                "pad":[1,0,0,0],
+                                "font":{
+                                    "align":"center",
+                                    "size":0.7,
+                                    "style":"bold"
+                                },
+                                "action": "choose-folder:output_dir:{output_dir}"
+                            }
+                        ]
+                    }
+                    
+                    ]
+                }],
+
+                [{
+                    "type":"vlayout",
+                    "pad":[0,0,0,5],
+                    "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,0,0,0],
+                        "text":"<c>Destination prefix</c>",
+                        "font":{
+                            "size":0.5
+                        },
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_prefix",
+                        "desc":"",
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                            "font":{"size":0.5}
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{column_width},200]",
+                            "font":{"size":0.5}
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                        "size":"[{column_width},30]"
+                    }
+                    ]
+                }],
+
+                [{
+                    "type":"vlayout",
+                    "pad":[10,0,15,5],
+                    "line":[100,100,100,50],
+                    "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,10,0,0],
+                        "text":"<c>Save tracklet images</c>",
+                        "font":{
+                            "size":0.5
+                        },
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_image_per_tracklet",
+                        "desc":"",
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                            "font":{"size":0.5}
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{column_width},200]",
+                            "font":{"size":0.5}
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                        "size":"[{-:{-:{column_width}:93}:50},30]"
+                    },
+
+                    {
+                        "type":"condition",
+                        "var":"{global.output_image_per_tracklet}",
+                        "then":{
+                            "type":"vlayout",
+                            "pad":[0,0,0,5],
+                            "children":[
+                                {
+                                    "type":"stext",
+                                    "pad":[5,10,0,0],
+                                    "text":"<c>tracklet_max_images</c>",
+                                    "font":{
+                                        "size":0.5
+                                    },
+                                    "color":[255,255,255]
+                                },
+                                {
+                                    "type":"settings",
+                                    "var":"tracklet_max_images",
+                                    "desc":"",
+                                    "label":{
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "list":{
+                                        "line":[220,220,220,200],
+                                        "fill":[25,25,25,220],
+                                        "size":"[{column_width},200]",
+                                        "font":{"size":0.5}
+                                    },
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                    "size":"[{-:{-:{column_width}:13}:50},30]"
+                                },
+
+                                {
+                                    "type":"stext",
+                                    "pad":[5,10,0,0],
+                                    "text":"<c>tracklet_normalize</c>",
+                                    "font":{
+                                        "size":0.5
+                                    },
+                                    "color":[255,255,255]
+                                },
+                                {
+                                    "type":"settings",
+                                    "var":"tracklet_normalize",
+                                    "desc":"",
+                                    "label":{
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "list":{
+                                        "line":[220,220,220,200],
+                                        "fill":[25,25,25,220],
+                                        "size":"[{column_width},200]",
+                                        "font":{"size":0.5}
+                                    },
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                    "size":"[{-:{-:{column_width}:13}:50},30]"
+                                },
+
+                                {
+                                    "type":"stext",
+                                    "pad":[5,10,0,0],
+                                    "text":"<c>tracklet_force_normal_color</c>",
+                                    "font":{
+                                        "size":0.5
+                                    },
+                                    "color":[255,255,255]
+                                },
+                                {
+                                    "type":"settings",
+                                    "var":"tracklet_force_normal_color",
+                                    "desc":"",
+                                    "label":{
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "list":{
+                                        "line":[220,220,220,200],
+                                        "fill":[25,25,25,220],
+                                        "size":"[{column_width},200]",
+                                        "font":{"size":0.5}
+                                    },
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                    "size":"[{-:{-:{column_width}:13}:50},30]"
+                                }
+                            ]
+                        }
+                    }]
+                }]
+            ]
+        }
+    ]
+},
+
+{
+    "type":"hlayout",
+    "pad":[5,5,5,5],
+    "children":[
+        {
+            "type":"button",
+            "text":"<sym>🛇</sym> Cancel",
+            "action":"set:gui_show_export_options:false",
+            "font":{
+                "size":0.6,
+                "style":"bold"
+            },
+            "fill":"{if:{||:{selected}:{hovered}}:[60,40,40,200]:[50,30,30,200]}",
+            "line":"{if:{||:{selected}:{hovered}}:[160,175,250,200]:[160,100,100,50]}",
+            "size":"[{column_width},30]"
+        },
+        {
+            "type":"button",
+            "text":"<sym>🖫</sym> Export",
+            "action":"export",
+            "font":{
+                "size":0.6,
+                "style":"bold"
+            },
+            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+            "size":"[{column_width},30]"
+        }
+    ]
+}
+]
+}
+
+
+]
+
+}

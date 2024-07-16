@@ -196,6 +196,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_heatmap_resolution", "heatmap_resolution"},
         {"gui_heatmap_normalization", "heatmap_normalization"},
         {"gui_heatmap_source", "heatmap_source"},
+        {"tracklet_normalize_orientation", "tracklet_normalize"},
+        {"tracklet_export_difference_images", "tracklet_force_normal_color"}
     };
 
 individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class base) {
@@ -716,12 +718,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
-        CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
+        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you.");
         CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
-        CONFIG("tracklet_export_difference_images", true, "If set to true, then all exported tracklet images are difference images. If set to false, all exported tracklet images are normal-color images.");
-        CONFIG("tracklet_max_images", uint16_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
-        CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
-        CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
+        CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");
+        CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_image_per_tracklet` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
+        CONFIG("tracklet_normalize", true, "If enabled, all exported tracklet images are normalized according to the `individual_image_normalization` and padded / shrunk to `individual_image_size` (they appear as they do in the image preview when selecting an individual in the GUI).");
+        CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files (inside `<filename>_tracklet_images.npz`). It will also output (if `tracklet_max_images` is 0) all images of each tracklet in a separate npz files named `<filename>_tracklet_images_single_*.npz`.");
         CONFIG("output_csv_decimals", uint8_t(2), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
         CONFIG("output_invalid_value", output_invalid_t::inf, "Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. `midline_length`) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
@@ -1194,6 +1196,9 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                     } else if(key == "recognition_normalize_direction") {
                         bool value = utils::lowercase(val) != "false";
                         GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
+                    } else if(key == "tracklet_export_difference_images") {
+                        bool value = utils::lowercase(val) != "true";
+                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value)+"\n", accessLevel);
                         
                     } else GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+val+"\n", accessLevel);
                 }
