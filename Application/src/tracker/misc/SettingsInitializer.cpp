@@ -678,7 +678,8 @@ void load(file::PathArray source,
                     set_config_if_different(key, tmp, true);
                 
                 if((not tmp.has("detect_type") || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
-                    && (not tmp.has("detect_model") || tmp.at("detect_model").value<file::Path>().empty()))
+                    && (not tmp.has("detect_model") || tmp.at("detect_model").value<file::Path>().empty())
+                   && not contains(exclude.toVector(), "detect_type"))
                 {
                     /// if we dont know, but there is no setting
                     /// its probably older versions and we use
