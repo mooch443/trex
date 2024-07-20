@@ -197,7 +197,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_heatmap_normalization", "heatmap_normalization"},
         {"gui_heatmap_source", "heatmap_source"},
         {"tracklet_normalize_orientation", "tracklet_normalize"},
-        {"tracklet_export_difference_images", "tracklet_force_normal_color"}
+        {"tracklet_export_difference_images", "tracklet_force_normal_color"},
+        {"track_label_confidence_threshold", "track_conf_threshold"}
     };
 
 individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class base) {
@@ -590,7 +591,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
         CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
-        CONFIG("track_label_confidence_threshold", float(0.1), "Do not accept confidence levels below the given fraction (0-1) for labels assigned by an ML network during video conversion. Simply ignore objects with a below-threshold confidence level.");
+        CONFIG("track_conf_threshold", float(0.1), "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
@@ -784,7 +785,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).");
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).");
         CONFIG("detect_iou_threshold", float(0.7), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
-        CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold for object detection / segmentation networks. Confidence (0-1) will be higher if the network is more sure about the object. Higher (<1) indicates that more objects are filtered out, while lower values (>=0) will filter out fewer of the objects.");
+        CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
@@ -800,7 +801,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
         CONFIG("huge_timestamp_ends_segment", true, "If enabled, a huge timestamp difference will end the current trajectory segment and will be displayed as a reason in the segment overview at the top of the selected individual info card.");
-        CONFIG("track_trusted_probability", float(0.25), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");
+        CONFIG("track_trusted_probability", float(0.25), "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current consecutive segment ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
         CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", LOAD);

@@ -522,6 +522,11 @@
                             "text":"Zoom on Selection",
                             "detail":"{if:{global.gui_auto_scale_focus_one}:'disable':'enable'}",
                             "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
+                        },
+                        {
+                            "text":"Dataset information",
+                            "detail":"{if:{global.gui_show_dataset}:'hide':'show'}",
+                            "action":"set:gui_show_dataset:{not:{global.gui_show_dataset}}"
                         }
                     ]
 
