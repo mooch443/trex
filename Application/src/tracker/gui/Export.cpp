@@ -917,7 +917,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             if(image.cols != output_size.width
                                || image.rows != output_size.height)
                             {
-                                throw InvalidArgumentException("Invalid dimensions for output_size ", output_size, ": ", *reduced.image, " of ", reduced.blob);
+                                throw InvalidArgumentException("Invalid dimensions for output_size ", output_size, ": ", *reduced.image, " of ", reduced.blob.get());
                             }
                             //
                             assert(   image.cols == output_size.width
