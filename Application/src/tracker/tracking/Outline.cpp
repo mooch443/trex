@@ -148,7 +148,7 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
         
         
         if(x >= float(CHAR_MAX) || y >= float(CHAR_MAX) || x <= float(CHAR_MIN) || y <= float(CHAR_MIN))
-            throw U_EXCEPTION("Cannot compress ",x,",",y," to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).");
+            throw U_EXCEPTION("Cannot compress ",x,",",y," to char (",arange(CHAR_MIN, CHAR_MAX),"). This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).");
         
         ux = x;
         uy = y;
@@ -691,6 +691,9 @@ void Outline::resample(const float resampling_distance) {
     assert(!_concluded);
     assert(_curvature.empty());
     
+    if(resampling_distance <= 0)
+        return;
+    
     std::vector<Vec2> resampled;
     float walked_distance = 0.0;
     const auto L = size();
@@ -705,9 +708,9 @@ void Outline::resample(const float resampling_distance) {
         
         auto line = pt1 - pt0;
         
-        walked_distance += length(line);
-        
         const float len = length(line);
+        walked_distance += len;
+        
         const float percent = len / resampling_distance;
         float walked_percent = walked_distance / resampling_distance;
         

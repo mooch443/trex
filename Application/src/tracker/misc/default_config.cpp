@@ -542,7 +542,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("posture_head_percentage", float(0.1), "The percentage of the midline-length that the head is moved away from the front of the body.");
         CONFIG("posture_closing_steps", uint8_t(0), "When enabled (> 0), posture will be processed using a combination of erode / dilate in order to close holes in the shape and get rid of extremities. An increased number of steps will shrink the shape, but will also be more time intensive.");
         CONFIG("posture_closing_size", uint8_t(2), "The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  `posture_closing_steps` > 0.");
-        CONFIG("outline_resample", float(0.5), "Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).");
+        CONFIG("outline_resample", float(1), "Spacing between outline points in pixels (`0<value<255`), after resampling the outline. A lower value here can drastically increase the number of outline points being generated (and decrease analysis speed), while a higher value is going to do the opposite. By default this value is 1-pixel, meaning that there is no artificial interpolation or down-sampling.");
         CONFIG("outline_use_dft", true, "If enabled, the program tries to reduce outline noise by convolution of the curvature array with a low pass filter.");
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");

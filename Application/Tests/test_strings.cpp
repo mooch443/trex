@@ -1373,41 +1373,141 @@ namespace cmn::util {
     }
 }
 
+// Test suite for ConstexprString
+TEST(ConstexprStringTest, ConstructorFromArray) {
+    constexpr char testStr[] = "Test";
+    constexpr ConstString_t myStr(testStr);
+    static_assert(myStr == "Test", "Constructor from array failed");
+    EXPECT_STREQ(myStr.data(), testStr);
+}
+
+TEST(ConstexprStringTest, ConstructorFromStdArray) {
+    constexpr std::array<char, 5> testArray = {'T', 'e', 's', 't', '\0'};
+    constexpr ConstString_t myStr(testArray);
+    static_assert(myStr == "Test", "Constructor from std::array failed");
+    EXPECT_EQ(myStr[0], 'T');
+    EXPECT_EQ(myStr[3], 't');
+}
+
+TEST(ConstexprStringTest, ViewMethod) {
+    constexpr ConstString_t myStr("Hello");
+    static_assert(myStr.view() == "Hello", "View method failed");
+    EXPECT_EQ(myStr.view(), "Hello");
+}
+
+TEST(ConstexprStringTest, SizeMethod) {
+    constexpr ConstString_t myStr("Hello");
+    static_assert(myStr.size() == 5, "Size method failed");
+    EXPECT_EQ(myStr.size(), 5);
+}
+
+TEST(ConstexprStringTest, SquareBracketsOperator) {
+    constexpr ConstString_t myStr("Hello");
+    static_assert(myStr[1] == 'e', "Square brackets operator failed");
+    EXPECT_EQ(myStr[1], 'e');
+}
+
+TEST(ConstexprStringTest, EqualityOperator) {
+    constexpr ConstString_t myStr("Hello");
+    constexpr ConstString_t myStr2("Hello");
+    static_assert(myStr == myStr2.view(), "Equality operator failed");
+    EXPECT_TRUE(myStr == myStr2.view());
+}
+
+TEST(ConstexprStringTest, ToStringConversion) {
+    constexpr ConstString_t myStr("Hello");
+    std::string stdStr = static_cast<std::string>(myStr);
+    static_assert(myStr == "Hello", "ToString conversion failed");
+    EXPECT_EQ(stdStr, "Hello");
+}
+
+TEST(ConstexprStringTest, AppendMethod) {
+    constexpr ConstString_t str1("Hello");
+    constexpr ConstString_t str2(", World");
+    constexpr auto str3 = str1.append(str2);
+    static_assert(str3 == "Hello, World", "Append method failed");
+    EXPECT_EQ(str3, "Hello, World");
+}
+
+TEST(ConstexprStringTest, FillMethod) {
+    constexpr ConstString_t str("Hello");
+    constexpr auto filled = str.fill<'*'>();
+    static_assert(filled == "*****", "Fill method failed");
+    EXPECT_EQ(filled, "*****");
+}
+
+TEST(ConstexprStringTest, ApplyMethod) {
+    constexpr ConstString_t str("Hello");
+    constexpr auto uppercased = str.apply([](char c) {
+        return c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c;
+    });
+    static_assert(uppercased == "HELLO", "Apply method (char) failed");
+    EXPECT_EQ(uppercased, "HELLO");
+
+    constexpr auto indexed = str.apply([](size_t index, char c) {
+        return (index % 2 == 0) ? c : '*';
+    });
+    static_assert(indexed == "H*l*o", "Apply method (index, char) failed");
+    EXPECT_EQ(indexed, "H*l*o");
+}
+
+TEST(ConstexprStringTest, ApplyToCapacityMethod) {
+    constexpr ConstString_t str("Hello");
+    constexpr auto capacity_applied = str.apply_to_capacity([](char c) {
+        return c == 0 ? '#' : c;
+    });
+    // Check the first few characters and the null terminator space
+    static_assert(capacity_applied[0] == 'H', "Apply to capacity (char) failed");
+    static_assert(capacity_applied[5] == '#', "Apply to capacity (char) failed");
+
+    constexpr auto capacity_indexed = str.apply_to_capacity([](size_t index, char c) {
+        return (index % 2 == 0) ? c : '#';
+    });
+    // Check the first few characters and the null terminator space
+    static_assert(capacity_indexed[0] == 'H', "Apply to capacity (index, char) failed");
+    static_assert(capacity_indexed[1] == '#', "Apply to capacity (index, char) failed");
+}
+
 TEST(ToStringTest, ConstExprFloat) {
     // Simple whole number
     constexpr auto number = 1.0f;
     static constexpr auto sv = to_string(number);
+    static_assert(sv == "1", "Simple whole number conversion failed");
     EXPECT_EQ(sv, "1");
     
     // Zero
     static constexpr auto sv0 = to_string(0.f);
-    static_assert(sv0 == "0");
+    static_assert(sv0 == "0", "Zero conversion failed");
 
     // Fractional number, no trailing zeros
     static constexpr auto sv1 = to_string(123.456);
+    static_assert(sv1 == "123.456", "Fractional number conversion failed");
     EXPECT_EQ(sv1, "123.456");
 
     // Fractional number with trailing zeros
     static constexpr auto sv2 = to_string(45.600);
+    static_assert(sv2 == "45.6", "Fractional number with trailing zeros conversion failed");
     EXPECT_EQ(sv2, "45.6");
 
     // Negative number
     static constexpr auto sv3 = to_string(-3.21f);
+    static_assert(sv3 == "-3.21", "Negative number conversion failed");
     EXPECT_EQ(sv3, "-3.21");
 
     // NaN
     static constexpr auto nan_float = std::numeric_limits<float>::quiet_NaN();
     static constexpr auto sv4 = to_string(nan_float);
-    static_assert(sv4 == "nan");
+    static_assert(sv4 == "nan", "NaN conversion failed");
 
     // Infinity
     static constexpr auto inf_float = std::numeric_limits<float>::infinity();
     static constexpr auto sv5 = to_string(inf_float);
-    static_assert(sv5 == "inf");
+    static_assert(sv5 == "inf", "Infinity conversion failed");
 
     // Negative infinity
     static constexpr auto neg_inf_float = -std::numeric_limits<float>::infinity();
     static constexpr auto sv6 = to_string(neg_inf_float);
+    static_assert(sv6 == "-inf", "Negative infinity conversion failed");
     EXPECT_EQ(sv6, "-inf");
 }
 
@@ -1647,47 +1747,6 @@ TYPED_TEST(ContainsTest, NeedleLongerThanStr) {
     } else {
         // Do nothing, not applicable for char type
     }
-}
-
-// Test suite for ConstexprString
-TEST(ConstexprStringTest, ConstructorFromArray) {
-    const char testStr[] = "Test";
-    ConstString_t myStr(testStr);
-    EXPECT_STREQ(myStr.data(), testStr);
-}
-
-TEST(ConstexprStringTest, ConstructorFromStdArray) {
-    std::array<char, 4> testArray = {'T', 'e', 's', 't'};
-    ConstString_t myStr(testArray);
-    EXPECT_EQ(myStr[0], 'T');
-    EXPECT_EQ(myStr[3], 't');
-}
-
-TEST(ConstexprStringTest, ViewMethod) {
-    ConstString_t myStr("Hello");
-    EXPECT_EQ(myStr.view(), "Hello");
-}
-
-TEST(ConstexprStringTest, SizeMethod) {
-    ConstString_t myStr("Hello");
-    EXPECT_EQ(myStr.size(), 5);
-}
-
-TEST(ConstexprStringTest, SquareBracketsOperator) {
-    ConstString_t myStr("Hello");
-    EXPECT_EQ(myStr[1], 'e');
-}
-
-TEST(ConstexprStringTest, EqualityOperator) {
-    ConstString_t myStr("Hello");
-    ConstString_t myStr2("Hello");
-    EXPECT_TRUE(myStr == myStr2);
-}
-
-TEST(ConstexprStringTest, ToStringConversion) {
-    ConstString_t myStr("Hello");
-    std::string stdStr = static_cast<std::string>(myStr);
-    EXPECT_EQ(stdStr, "Hello");
 }
 
 // Test suite for to_string function template

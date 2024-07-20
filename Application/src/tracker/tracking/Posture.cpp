@@ -412,13 +412,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
         _outline.clear();
         _outline.replace_points(ptr);
         _outline.minimize_memory();
-        
-        if(FAST_SETTING(outline_resample) != 0) {
-            if(FAST_SETTING(outline_resample) >= 1)
-                _outline.resample(FAST_SETTING(outline_resample));
-            else
-                _outline.resample(FAST_SETTING(outline_resample));
-        }
+        _outline.resample(FAST_SETTING(outline_resample));
         
         //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
         auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
@@ -447,13 +441,7 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
     _outline.clear();
     _outline.replace_points(ptr);
     _outline.minimize_memory();
-    
-    if(FAST_SETTING(outline_resample) != 0) {
-        if(FAST_SETTING(outline_resample) >= 1)
-            _outline.resample(FAST_SETTING(outline_resample));
-        else
-            _outline.resample(FAST_SETTING(outline_resample));
-    }
+    _outline.resample(FAST_SETTING(outline_resample));
     
     //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
     auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
@@ -521,12 +509,7 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
             //}
             
             //if(calculate_outline(raw_outline) > 0.9f) {
-                if(FAST_SETTING(outline_resample) != 0) {
-                    if(FAST_SETTING(outline_resample) >= 1)
-                        _outline.resample(FAST_SETTING(outline_resample));
-                    else
-                        _outline.resample(FAST_SETTING(outline_resample));
-                }
+                _outline.resample(FAST_SETTING(outline_resample));
                 
                 std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
                 auto debug = std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
@@ -654,101 +637,123 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
     }
     
     float Posture::calculate_outline(std::vector<Posture::EntryPoint>& entry_points) {
+        // Number of entry points
         const size_t N = entry_points.size();
-        std::deque<long_t> unassigned;
-        for(size_t i=0; i<N; ++i)
-            unassigned.push_back((long_t)i);
         
-        //size_t assigned = 0;
-        
-#define pdist(A, b) sqdistance(A, entry_points[b].interp.front())
-#define rpdist(A, b) sqdistance(A, entry_points[b].interp.back())
-        
-        float prev_angle;
-        Vec2 prev_point(FLT_MAX, FLT_MAX);
-        Vec2 direction(FLT_MAX, FLT_MAX);
-        //float current_min_rawd = 0;
-        
-        const float factor = FAST_SETTING(outline_resample) ? FAST_SETTING(outline_resample) : 1;//0.25;
-        
-        const auto rdist_points = [&](const Vec2& A, const Vec2& B, float d) -> float {
-            if(B == A)
-                return 0;
+        // Threshold to determine if an outline is large enough to stop processing
+        const float BACKFRONT_THRESHOLD = 0.05 * N;
+        // Threshold for determining a valid outline confidence
+        const float OUTLINE_CONFIDENCE_THRESHOLD = 0.9;
+        // Maximum floating-point value used for initialization
+        const float MAX_FLOAT = FLT_MAX;
+        // Safe range for outline resample rate
+        const float OUTLINE_RESAMPLE_MIN = 0.01f;
+        const float OUTLINE_RESAMPLE_MAX = 255.0f;
 
-            if(prev_point.x != FLT_MAX && prev_angle != FLT_MAX) {
+        // Deque to keep track of unassigned entry points
+        std::deque<long_t> unassigned;
+        for (size_t i = 0; i < N; ++i) {
+            unassigned.push_back(static_cast<long_t>(i));
+        }
+
+        // Inline function to calculate squared distance from the front of an entry point's interpolation
+        auto pdist = [&](const Vec2& A, long_t b) {
+            return sqdistance(A, entry_points[b].interp.front());
+        };
+
+        // Inline function to calculate squared distance from the back of an entry point's interpolation
+        auto rpdist = [&](const Vec2& A, long_t b) {
+            return sqdistance(A, entry_points[b].interp.back());
+        };
+
+        // Initialize variables for tracking the outline calculation
+        double prev_angle = MAX_FLOAT;
+        Vec2 prev_point(MAX_FLOAT, MAX_FLOAT); // Previous point in the outline
+        Vec2 direction(MAX_FLOAT, MAX_FLOAT);  // Direction vector for outline
+
+        // Clamp the resampling rate for the outline within a safe range
+        const float outline_resample = saturate(FAST_SETTING(outline_resample), OUTLINE_RESAMPLE_MIN, OUTLINE_RESAMPLE_MAX);
+
+        // Lambda function to calculate distance with angle considerations
+        const auto rdist_points = [&](const Vec2& A, const Vec2& B, double d) -> double {
+            if (B == A) return 0;
+
+            if (prev_point.x != MAX_FLOAT && prev_angle != MAX_FLOAT) {
                 assert(!std::isnan(prev_angle));
 
-                float angle = atan2(B.y - A.y, B.x - A.x) - prev_angle;
-                if(angle < -M_PI) angle += 2*M_PI;
-                if(angle > M_PI) angle -= 2*M_PI;
+                // Calculate angle difference
+                auto angle = atan2(B.y - A.y, B.x - A.x) - prev_angle;
+                if (angle < -M_PI) angle += 2 * M_PI;
+                if (angle > M_PI) angle -= 2 * M_PI;
                 assert(cmn::abs(angle) <= M_PI);
 
-                return (d) + cmn::abs(angle) / M_PI * (factor);
+                // Ensure the result is non-negative
+                return std::max(0.0, d + std::abs(angle) / M_PI * outline_resample);
             }
 
-            return (d) + (factor);
+            // Ensure the result is non-negative
+            return std::max(0.0, d + outline_resample);
         };
-        
-        const auto rdist = [&](const Vec2& A, long_t b) -> float {
-            const float d0 = pdist(A, b);
-            const float d1 = entry_points[b].interp.size() == 1 ? d0 : rpdist(A, b);
-            
-            float d;
-            if(d0 > d1) {
-                d = d1;
+
+        // Lambda function to calculate the minimum distance considering the outline direction
+        const auto rdist = [&](const Vec2& A, long_t b) -> double {
+            const auto d0 = pdist(A, b);
+            const auto d1 = (entry_points[b].interp.size() == 1) ? d0 : rpdist(A, b);
+
+            auto d = (d0 > d1) ? d1 : d0;
+            if (d0 > d1) {
                 std::reverse(entry_points[b].interp.begin(), entry_points[b].interp.end());
-            } else
-                d = d0;
-            
-            if(d > SQR(factor * 10))
-                return FLT_MAX;
-            
+            }
+
+            if (d > SQR(outline_resample * 10)) return MAX_FLOAT;
+
             const Vec2& B = entry_points[b].interp.front();
             return rdist_points(A, B, d);
         };
-        
+
+        // Comparator for sorting outlines based on their sizes
         auto compare = [](const std::vector<Vec2>& A, const std::vector<Vec2>& B) -> bool {
             return A.size() > B.size();
         };
-        
+
+        // Set to store outlines, sorted by size
         std::set<std::vector<Vec2>, decltype(compare)> outlines(compare);
-        
-        /**
-         
-             GO IN THE OTHER DIRECTION AS WELL, IF ONE OF THE LINES REMAINING
-             HAS A VALID CONNECTION TO THE OUTLINE START
-         
-         */
-        // repeat until we found the biggest object
-        while (unassigned.size() > N * 0.05) {//unassigned.size() > assigned) {
-            _outline.clear();
-            //assigned = 0;
-            //current_min_rawd = FLT_MAX;
-            direction = Vec2(FLT_MAX, FLT_MAX);
-            prev_angle = FLT_MAX;
-            prev_point = Vec2(FLT_MAX, FLT_MAX);
-            float back_front = FLT_MAX;
+
+        // Main loop to find the biggest outline
+        while (unassigned.size() > BACKFRONT_THRESHOLD) {
+            _outline.clear(); // Clear the current outline
+            direction = Vec2(MAX_FLOAT, MAX_FLOAT); // Reset direction
+            prev_angle = MAX_FLOAT; // Reset previous angle
+            prev_point = Vec2(MAX_FLOAT, MAX_FLOAT); // Reset previous point
+            float back_front = MAX_FLOAT;
 
             long_t pt = -1;
             while (!unassigned.empty()) {
+                // Get the next unassigned entry point
                 pt = unassigned.front();
                 unassigned.pop_front();
 
-                if(!_outline.empty())
-                    prev_point = _outline.back();
+                // Update the previous point if outline is not empty
+                if (!_outline.empty()) prev_point = _outline.back();
+
+                // Add the current entry point's interpolation points to the outline
                 _outline.insert(_outline.size(), entry_points[pt].interp.begin(), entry_points[pt].interp.end());
-                //assigned++;
-                
-                back_front = _outline.size() > 3 ? rdist_points(_outline.back(), _outline.front(), sqdistance(_outline.back(), _outline.front())) : FLT_MAX;
-                
-                if(unassigned.size() > 1) {
+
+                // Calculate the back-front distance if the outline has more than 3 points
+                back_front = (_outline.size() > 3)
+                    ? rdist_points(_outline.back(), _outline.front(), sqdistance(_outline.back(), _outline.front()))
+                    : MAX_FLOAT;
+
+                // Check if there are more than one unassigned points
+                if (unassigned.size() > 1) {
                     Vec2 A = entry_points[pt].interp.back();
-                    
-                    if(prev_point.x != FLT_MAX) {
+
+                    // Update direction and angle if previous point is valid
+                    if (prev_point.x != MAX_FLOAT) {
                         Vec2 vec0 = A - prev_point;
 
-                        if(vec0.length() > 0) {
-                            if(direction.x == FLT_MAX)
+                        if (vec0.length() > 0) {
+                            if (direction.x == MAX_FLOAT)
                                 direction = vec0.normalize();
                             else
                                 direction = direction * 0.6 + vec0.normalize() * 0.4;
@@ -757,76 +762,65 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
                             prev_angle = atan2(direction.y, direction.x);
                         }
                     }
-                    
-                    float min_d = FLT_MAX;
+
+                    // Find the nearest unassigned entry point to the current end of the outline
+                    float min_d = MAX_FLOAT;
                     auto min_idx = unassigned.end();
-                    
-                    float d = 0;
-                    for(auto it = unassigned.begin(); it != unassigned.end(); ++it) {
-                        d = rdist(A, *it);
-                        if(d < min_d) {
+
+                    for (auto it = unassigned.begin(); it != unassigned.end(); ++it) {
+                        float d = rdist(A, *it);
+                        if (d < min_d) {
                             min_d = d;
                             min_idx = it;
                         }
                     }
-                    
-                    if(min_idx != unassigned.end() && min_d < back_front) {
-                        if(pt != 0 && min_d > rdist(A, 0))
-                            break;
+
+                    // If a valid nearest point is found, swap it to the front of the deque
+                    if (min_idx != unassigned.end() && min_d < back_front) {
+                        if (pt != 0 && min_d > rdist(A, 0)) break;
                         std::swap(*unassigned.begin(), *min_idx);
-                    }
-                    else {
-                        // if the end of the line is reached, the possibility exists
-                        // that it can be extended from the first point instead of the
-                        // last point of the outline.
-                        // so if thats the case - reverse the outline and try again
-                        // (most of the time this will yield nothing)
-                        
-                        // MIGHT STILL HAPPEN IF THE FISH IS WEIRD AND THERE ARE
-                        // GAPS ON BOTH SIDES
-                        min_d = FLT_MAX;
+                    } else {
+                        // If no valid nearest point is found, try connecting from the front of the outline
+                        min_d = MAX_FLOAT;
                         min_idx = unassigned.end();
-                        
-                        d = 0;
-                        for(auto it = unassigned.begin(); it != unassigned.end(); ++it) {
-                            d = rdist(_outline.points().front(), *it);
-                            if(d < min_d) {
+
+                        for (auto it = unassigned.begin(); it != unassigned.end(); ++it) {
+                            float d = rdist(_outline.points().front(), *it);
+                            if (d < min_d) {
                                 min_d = d;
                                 min_idx = it;
                             }
                         }
-                        
-                        if(min_idx != unassigned.end() && min_d < back_front) {
-                            direction = Vec2(FLT_MAX, FLT_MAX);
+
+                        // If a valid nearest point is found, reverse the outline and try again
+                        if (min_idx != unassigned.end() && min_d < back_front) {
+                            direction = Vec2(MAX_FLOAT, MAX_FLOAT);
                             std::reverse(_outline.points().begin(), _outline.points().end());
                             _outline.minimize_memory();
-                            
+
                             std::swap(*unassigned.begin(), *min_idx);
-                        } else
-                            break;
+                        } else break;
                     }
-                } else
-                    break;
+                } else break;
             }
-            
-            if(_outline.confidence() > 0.9)
+
+            // Insert the completed outline into the set if it has high confidence
+            if (_outline.confidence() > OUTLINE_CONFIDENCE_THRESHOLD) {
                 outlines.insert(_outline.points());
-            
-            /**
-             * TEMPORARILY terminating upon biggest-outline-found.
-             * need to stitch together outlines potentially.
-             */
-            if(outlines.begin()->size() > unassigned.size()) {
-                break;
             }
+
+            // Terminate the loop if the largest outline is found
+            if (outlines.begin()->size() > unassigned.size()) break;
         }
-        
-        if(!outlines.empty()) {
+
+        // If outlines were found, set the current outline to the largest one and return success
+        if (!outlines.empty()) {
             _outline.points() = *outlines.begin();
             _outline.minimize_memory();
             return 1;
         }
-        
+
+        // Clear the outline and return failure if no valid outlines were found
         _outline.clear();
         return 0;
     }
