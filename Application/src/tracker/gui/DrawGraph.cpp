@@ -1,4 +1,7 @@
 #include "DrawGraph.h"
+#include <tracking/Tracker.h>
+#include <tracking/Individual.h>
+#include <gui/DrawStructure.h>
 
 using namespace track;
 

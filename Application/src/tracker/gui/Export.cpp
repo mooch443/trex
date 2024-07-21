@@ -835,7 +835,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
                     video.read_with_encoding(vframe, frame, encoding);
-                    Tracker::instance()->preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video.header().resolution);
+                    Tracker::preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video.header().resolution);
                 }
                 
                 for(auto && [id, data] : vec) {
@@ -889,11 +889,11 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         
                     } else {
                         if(not tracklet_force_normal_color) {
-                            auto && [pos, img] = reduced.blob->difference_image(*Tracker::instance()->background(), 0);
+                            auto && [pos, img] = reduced.blob->difference_image(*Tracker::background(), 0);
                             reduced.image = std::move(img);
                             reduced.pos = pos;
                         } else {
-                            auto && [pos, img] = reduced.blob->color_image(Tracker::instance()->background());
+                            auto && [pos, img] = reduced.blob->color_image(Tracker::background());
                             reduced.image = std::move(img);
                             reduced.pos = pos;
                         }
@@ -957,12 +957,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             
                         } else {
                             if(not tracklet_force_normal_color) {
-                                auto && [pos, img] = full.blob->difference_image(*Tracker::instance()->background(), 0);
+                                auto && [pos, img] = full.blob->difference_image(*Tracker::background(), 0);
                                 full.image = std::move(img);
                                 full.pos = pos;
                                 
                             } else {
-                                auto && [pos, img] = full.blob->color_image(Tracker::instance()->background());
+                                auto && [pos, img] = full.blob->color_image(Tracker::background());
                                 full.image = std::move(img);
                                 full.pos = pos;
                             }

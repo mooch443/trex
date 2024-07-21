@@ -137,6 +137,9 @@ Segmenter::~Segmenter() {
                     video = _video.get();
                 }
 
+                /// ensure its opened:
+                video->header();
+                
                 track::export_data(*video, *_tracker, {}, {}, [](float, std::string_view) {
                     //if (int(p * 100) % 10 == 0) {
                     //    Print("Exporting ", int(p * 100), "%...");

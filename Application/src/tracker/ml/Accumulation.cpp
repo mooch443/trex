@@ -769,7 +769,7 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(std::shared_ptr<pv::File>&& video, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base) {
+Accumulation::Accumulation(std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_segment_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_segment_order(global_segment_order) {
     using namespace gui;
     _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
 }
@@ -803,7 +803,7 @@ bool Accumulation::start() {
     AccumulationLock lock(this);
     const ImageMode mode = Background::meta_encoding() == meta_encoding_t::rgb8 ? ImageMode::RGB : ImageMode::GRAY;
     
-    auto ranges = track::Tracker::global_segment_order();
+    auto ranges = _global_segment_order;
     if(ranges.empty()) {
         throw SoftException("No global segments could be found.");
     }
@@ -1669,7 +1669,7 @@ bool Accumulation::start() {
                 
                 for(auto && [frame, ids] : frames_collected) {
                     video_file.read_with_encoding(video_frame, frame, encoding);
-                    Tracker::instance()->preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
+                    Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
                     
                     IndividualManager::transform_ids(ids, [&, frame=frame](auto id, auto fish) {
                         auto filters = _collected_data->filters().has(id)

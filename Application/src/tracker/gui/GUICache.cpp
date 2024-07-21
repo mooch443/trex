@@ -68,7 +68,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                         ptr = buffers.get(source_location::current());
                         ptr->clear();
                         
-                        Tracker::instance()->preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, video->header().resolution);
+                        Tracker::preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, video->header().resolution);
                     }
                     
                 } catch(...) {
@@ -123,10 +123,10 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         };
         
         if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
-            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
+            image_pos = blob->equalized_luminance_alpha_image(*Tracker::background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
             
         } else {
-            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source(), 0, output);
+            image_pos = blob->luminance_alpha_image(*Tracker::background(), threshold, ptr->unsafe_get_source(), 0, output);
         }
 
         /*if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
@@ -323,8 +323,8 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
         _fish_dirty = false;
         //if(not _background)
         if (Tracker::instance()) {
-            if (Tracker::instance()->background() != _background) {
-                _background = Tracker::instance()->background();
+            if (Tracker::background() != _background) {
+                _background = Tracker::background();
                 _border = Tracker::instance()->border();
             }
         }

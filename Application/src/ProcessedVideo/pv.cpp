@@ -1242,8 +1242,9 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
     }
 
     void File::read_frame(Frame& frame, Frame_t frameIndex, meta_encoding_t::Class mode) {
-        std::unique_lock<std::mutex> guard(_lock);
         _check_opened();
+        
+        std::unique_lock<std::mutex> guard(_lock);
         
         assert(!_open_for_writing);
         assert(frameIndex.valid());

@@ -224,17 +224,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<Frame_t, std::vector<QRCode>> _qrcodes;
         mutable std::mutex _qrcode_mutex;
-    public:
-        struct IDaverage {
-            int64_t best_id;
-            float p;
-            uint32_t samples;
-
-            std::string toStr() const {
-                return "Pred<" + std::to_string(best_id) + ","+std::to_string(p) + ">";
-            }
-            static std::string class_name() { return "IDaverage"; }
-        };
     protected:
         ska::bytell_hash_map<Frame_t, IDaverage> _qrcode_identities;
         Frame_t _last_requested_qrcode, _last_requested_segment;

@@ -84,21 +84,21 @@ public:
     
     auto &percentiles = PD(cache).pixel_value_percentiles;
     if(PD(cache)._equalize_histograms && !percentiles.empty()) {
-        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold), percentiles.front(), percentiles.back());
+        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::background(), FAST_SETTING(track_threshold), percentiles.front(), percentiles.back());
         image_pos = pos;
         greyscale = std::move(img);
     } else {
-        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
+        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::background(), FAST_SETTING(track_threshold));
         image_pos = pos;
         greyscale = std::move(img);
     }
     
     if(PD(cache)._equalize_histograms && !percentiles.empty()) {
-        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), 0, percentiles.front(), percentiles.front());
+        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::background(), 0, percentiles.front(), percentiles.front());
         offset = pos;
         image = std::move(img);
     } else {
-        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), 0);
+        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::background(), 0);
         offset = pos;
         image = std::move(img);
     }

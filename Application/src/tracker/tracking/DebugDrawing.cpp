@@ -35,8 +35,6 @@ void DebugDrawing::reset_image() {
 }
 
 void DebugDrawing::paint(const Outline &outline, bool erase) {
-    //LockGuard guard(*Tracker::instance());
-    
     Print("First: ", outline.points().front().x,",",outline.points().front().y);
     
     if(erase)

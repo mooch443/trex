@@ -145,12 +145,12 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     
     try {
         for(auto fish : found)
-            Tracker::instance()->thread_pool().enqueue(work, fish);
+            Tracker::thread_pool().enqueue(work, fish);
     } catch(const UtilsException& e) {
         FormatExcept("Exception when starting worker threads: ", e.what());
     }
     
-    Tracker::instance()->thread_pool().wait();
+    Tracker::thread_pool().wait();
     
     if(num_average != 0)
         average_samples /= num_average;
@@ -256,7 +256,7 @@ void update() {
     }
     
     if(changed)
-        Tracker::global_segment_order_changed();
+        Tracker::instance()->global_segment_order_changed();
 }
 
 Range<Frame_t> best_range() {

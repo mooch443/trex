@@ -218,6 +218,17 @@ struct Statistics {
     }
 };
 
+struct IDaverage {
+    int64_t best_id;
+    float p;
+    uint32_t samples;
+
+    std::string toStr() const {
+        return "Pred<" + std::to_string(best_id) + ","+std::to_string(p) + ">";
+    }
+    static std::string class_name() { return "IDaverage"; }
+};
+
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
 
 }

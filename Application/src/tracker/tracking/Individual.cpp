@@ -39,7 +39,7 @@ void Individual::shutdown() {
 }
 
 #if !COMMONS_NO_PYTHON
-Individual::IDaverage Individual::qrcode_at(Frame_t segment_start) const {
+IDaverage Individual::qrcode_at(Frame_t segment_start) const {
     std::unique_lock guard(_qrcode_mutex);
     auto it = _qrcode_identities.find(segment_start);
     if(it != _qrcode_identities.end()) {
@@ -49,7 +49,7 @@ Individual::IDaverage Individual::qrcode_at(Frame_t segment_start) const {
     return { -1, -1, 0 };
 }
 
-ska::bytell_hash_map<Frame_t, Individual::IDaverage> Individual::qrcodes() const {
+ska::bytell_hash_map<Frame_t, IDaverage> Individual::qrcodes() const {
     std::unique_lock guard(_qrcode_mutex);
     return _qrcode_identities;
 }
@@ -1015,7 +1015,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     stuff->blob = blob;
     
     //const auto ft = FAST_SETTING(track_threshold);
-    //assert(blob->last_recount_threshold() == ft); *Tracker::instance()->background());
+    //assert(blob->last_recount_threshold() == ft); *Tracker::background());
     
     //!TODO: can use previous segment here
     //if(prev_props)
@@ -1355,7 +1355,9 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         }
 
         auto prop = Tracker::properties(posture.frame, hints);
-        assert(prop);
+        if(not prop)
+            throw InvalidArgumentException("Cannot find info on frame ", posture.frame);
+        
         posture.head = new MotionRecord;
         posture.head->init(previous ? previous->head : nullptr, prop->time, pt, midline->angle());
         
@@ -1836,7 +1838,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
         if(iterator != end && ++iterator != end && (*iterator)->frame == frame) {
             c_props = (*iterator).get();
         } else {
-            iterator = Tracker::properties_iterator(frame/*, hints*/);
+            iterator = Tracker::instance()->properties_iterator(frame/*, hints*/);
             if(iterator != end)
                 c_props = (*iterator).get();
         }
@@ -2432,7 +2434,7 @@ void Individual::save_posture(const BasicStuff& basic,
     /*std::pair<int64_t, long_t> gui_show_fish = SETTING(gui_show_fish);
     if(gui_show_fish.first == identity().ID() && frameIndex == gui_show_fish.second)
     {
-        auto && [pos, greyscale] = blob->difference_image(*Tracker::instance()->background(), 0);
+        auto && [pos, greyscale] = blob->difference_image(*Tracker::background(), 0);
         auto mat = greyscale->get();
         
         Print("Frame ", frameIndex);
@@ -2798,7 +2800,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         
         const auto &[ segment, usable] = sit->second;
         
-        if(segment.end >= _endFrame && Tracker::instance()->end_frame() != Tracker::analysis_range().end()) {
+        if(segment.end >= _endFrame && Tracker::end_frame() != Tracker::analysis_range().end()) {
             return {0, {}};
         }
         
@@ -2859,7 +2861,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         
         const auto && [segment, usable] = (FrameRange)*sit->get();
         
-        if(segment.end >= _endFrame && Tracker::instance()->end_frame() + 1_f != Frame_t(narrow_cast<Frame_t::number_t>(SETTING(video_length).value<uint64_t>()))) {
+        if(segment.end >= _endFrame && Tracker::end_frame() + 1_f != Frame_t(narrow_cast<Frame_t::number_t>(SETTING(video_length).value<uint64_t>()))) {
             return {0, {}};
         }
         

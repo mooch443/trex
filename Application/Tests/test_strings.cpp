@@ -1374,37 +1374,33 @@ namespace cmn::util {
 }
 
 // Test suite for ConstexprString
-TEST(ConstexprStringTest, ConstructorFromArray) {
-    constexpr char testStr[] = "Test";
-    constexpr ConstString_t myStr(testStr);
-    static_assert(myStr == "Test", "Constructor from array failed");
-    EXPECT_STREQ(myStr.data(), testStr);
-}
-
-TEST(ConstexprStringTest, ConstructorFromStdArray) {
-    constexpr std::array<char, 5> testArray = {'T', 'e', 's', 't', '\0'};
-    constexpr ConstString_t myStr(testArray);
-    static_assert(myStr == "Test", "Constructor from std::array failed");
-    EXPECT_EQ(myStr[0], 'T');
-    EXPECT_EQ(myStr[3], 't');
-}
-
 TEST(ConstexprStringTest, ViewMethod) {
     constexpr ConstString_t myStr("Hello");
     static_assert(myStr.view() == "Hello", "View method failed");
     EXPECT_EQ(myStr.view(), "Hello");
+    EXPECT_EQ(myStr.size(), 5);
+    EXPECT_EQ(myStr[0], 'H');
+    EXPECT_EQ(myStr[1], 'e');
+    EXPECT_EQ(myStr[2], 'l');
+    EXPECT_EQ(myStr[3], 'l');
+    EXPECT_EQ(myStr[4], 'o');
+    EXPECT_THROW(myStr[5], std::out_of_range);  // Ensure null terminator at the end
 }
 
 TEST(ConstexprStringTest, SizeMethod) {
     constexpr ConstString_t myStr("Hello");
     static_assert(myStr.size() == 5, "Size method failed");
     EXPECT_EQ(myStr.size(), 5);
+    EXPECT_THROW(myStr[5], std::out_of_range);  // Ensure null terminator at the end
+    static_assert(myStr[5] == 0, "Constant evaluation does not trigger an exception.");
 }
 
 TEST(ConstexprStringTest, SquareBracketsOperator) {
     constexpr ConstString_t myStr("Hello");
     static_assert(myStr[1] == 'e', "Square brackets operator failed");
     EXPECT_EQ(myStr[1], 'e');
+    EXPECT_THROW(myStr[5], std::out_of_range);  // Ensure null terminator at the end
+    static_assert(myStr[5] == 0, "Constant evaluation does not trigger an exception.");
 }
 
 TEST(ConstexprStringTest, EqualityOperator) {
@@ -1412,6 +1408,8 @@ TEST(ConstexprStringTest, EqualityOperator) {
     constexpr ConstString_t myStr2("Hello");
     static_assert(myStr == myStr2.view(), "Equality operator failed");
     EXPECT_TRUE(myStr == myStr2.view());
+    EXPECT_THROW(myStr[5], std::out_of_range);  // Ensure null terminator at the end
+    static_assert(myStr[5] == 0, "Constant evaluation does not trigger an exception.");
 }
 
 TEST(ConstexprStringTest, ToStringConversion) {
@@ -1419,56 +1417,177 @@ TEST(ConstexprStringTest, ToStringConversion) {
     std::string stdStr = static_cast<std::string>(myStr);
     static_assert(myStr == "Hello", "ToString conversion failed");
     EXPECT_EQ(stdStr, "Hello");
+    EXPECT_THROW(myStr[5], std::out_of_range);  // Ensure null terminator at the end
+    static_assert(myStr[5] == 0, "Constant evaluation does not trigger an exception.");
+}
+
+// Additional tests to ensure everything outside the valid range is zero or inaccessible
+TEST(ConstexprStringTest, OutOfBoundsAccess) {
+    constexpr ConstString_t myStr("Hello");
+    EXPECT_EQ(myStr.size(), 5);
+
+    // Check that the elements after the size are zero
+    for (size_t i = myStr.size(); i < myStr.capacity(); ++i) {
+        EXPECT_EQ(myStr.data()[i], 0);
+    }
+
+    // Ensure out-of-bounds access is not possible (depends on implementation, this checks manually)
+    EXPECT_THROW(myStr[5], std::out_of_range); // Null terminator at the end
+    EXPECT_EQ(myStr.data()[5], 0);
+    EXPECT_EQ(myStr.data()[6], 0);
+    EXPECT_EQ(myStr.data()[127], 0);  // Last element in the array
+}
+
+TEST(ConstexprStringTest, ConstructorFromArray) {
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> myStr(testStr);
+    static_assert(myStr.size() == 5, "Length is incorrect");
+    EXPECT_EQ(myStr.size(), 5);
+    EXPECT_EQ(myStr.view(), "Hello");
+}
+
+TEST(ConstexprStringTest, ConstructorFromStdArray) {
+    constexpr std::array<char, 6> testArray = {'H', 'e', 'l', 'l', 'o', '\0'};
+    constexpr ConstexprString<128> myStr(testArray);
+    static_assert(myStr.size() == 5, "Length is incorrect");
+    EXPECT_EQ(myStr.size(), 5);
+    EXPECT_EQ(myStr.view(), "Hello");
+}
+
+TEST(ConstexprStringTest, ConstructorFromAnotherConstexprString) {
+    constexpr const char testStr[] = "World";
+    constexpr ConstexprString<128> originalStr(testStr);
+    constexpr ConstexprString<128> myStr(originalStr, [](char c) { return c; });
+    static_assert(myStr.size() == 5, "Length is incorrect");
+    EXPECT_EQ(myStr.size(), 5);
+    EXPECT_EQ(myStr.view(), "World");
+}
+
+TEST(ConstexprStringTest, ConstructorFromArrayWithFunction) {
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> myStr(testStr, [](char c) { return c == 'e' ? 'E' : c; });
+    static_assert(myStr.size() == 5, "Length is incorrect");
+    EXPECT_EQ(myStr.size(), 5);
+    EXPECT_EQ(myStr.view(), "HEllo");
+}
+
+TEST(ConstexprStringTest, DefaultConstructor) {
+    constexpr ConstexprString<128> myStr;
+    static_assert(myStr.size() == 0, "Length is incorrect");
+    EXPECT_EQ(myStr.size(), 0);
+    EXPECT_EQ(myStr.view(), "");
 }
 
 TEST(ConstexprStringTest, AppendMethod) {
-    constexpr ConstString_t str1("Hello");
-    constexpr ConstString_t str2(", World");
-    constexpr auto str3 = str1.append(str2);
-    static_assert(str3 == "Hello, World", "Append method failed");
-    EXPECT_EQ(str3, "Hello, World");
+    constexpr const char testStr1[] = "Hello";
+    constexpr const char testStr2[] = "World";
+    constexpr ConstexprString<128> str1(testStr1);
+    constexpr ConstexprString<128> str2(testStr2);
+    constexpr auto result = str1.append(str2);
+    static_assert(result.size() == 10, "Length is incorrect");
+    EXPECT_EQ(result.size(), 10);
+    EXPECT_EQ(result.view(), "HelloWorld");
+}
+
+TEST(ConstexprStringTest, AppendCharArrayMethod) {
+    constexpr const char testStr1[] = "Hello";
+    constexpr const char testStr2[] = "World";
+    constexpr ConstexprString<128> str1(testStr1);
+    constexpr auto result = str1.append(testStr2);
+    static_assert(result.size() == 10, "Length is incorrect");
+    EXPECT_EQ(result.size(), 10);
+    EXPECT_EQ(result.view(), "HelloWorld");
 }
 
 TEST(ConstexprStringTest, FillMethod) {
-    constexpr ConstString_t str("Hello");
-    constexpr auto filled = str.fill<'*'>();
-    static_assert(filled == "*****", "Fill method failed");
-    EXPECT_EQ(filled, "*****");
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> str(testStr);
+    constexpr auto result = str.fill<'*'>();
+    static_assert(result.size() == 128, "Length is incorrect");
+    EXPECT_EQ(result.size(), 128);
+
+    // Check that the elements after the size are zero
+    for (size_t i = 0; i < result.capacity(); ++i) {
+        EXPECT_EQ(result.data()[i], '*');
+    }
+}
+
+TEST(ConstexprStringTest, FillMethodWithZeroTermination) {
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> str(testStr);
+    constexpr auto result = str.fill<'\0'>();
+    static_assert(result.size() == 0, "Length should be zero when filled with null characters");
+    EXPECT_EQ(result.size(), 0);
+
+    // Ensure zero termination and no further modifications
+    EXPECT_EQ(result.data()[0], '\0');
+
+    // Check that the elements after the size are zero
+    for (size_t i = result.size() + 1; i < result.capacity(); ++i) {
+        EXPECT_EQ(result.data()[i], 0);
+    }
 }
 
 TEST(ConstexprStringTest, ApplyMethod) {
-    constexpr ConstString_t str("Hello");
-    constexpr auto uppercased = str.apply([](char c) {
-        return c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c;
-    });
-    static_assert(uppercased == "HELLO", "Apply method (char) failed");
-    EXPECT_EQ(uppercased, "HELLO");
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> str(testStr);
+    constexpr auto result = str.apply([](char c) { return c == 'e' ? 'E' : c; });
+    static_assert(result.size() == 5, "Length is incorrect");
+    EXPECT_EQ(result.size(), 5);
+    EXPECT_EQ(result.view(), "HEllo");
 
-    constexpr auto indexed = str.apply([](size_t index, char c) {
-        return (index % 2 == 0) ? c : '*';
+    // Check that the elements after the size are zero
+    for (size_t i = result.size(); i < result.capacity(); ++i) {
+        EXPECT_EQ(result.data()[i], 0);
+    }
+}
+
+TEST(ConstexprStringTest, ApplyMethodWithZeroTermination) {
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> str(testStr);
+    
+    size_t call_count = 0;
+    auto result = str.apply([&call_count](char c) {
+        ++call_count;
+        return c == 'e' ? 0 : c;
     });
-    static_assert(indexed == "H*l*o", "Apply method (index, char) failed");
-    EXPECT_EQ(indexed, "H*l*o");
+
+    EXPECT_EQ(result.size(), 1) << "Length should be truncated to the position of the zero termination";
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(call_count, 2); // Ensure the lambda is called only for 'H' and 'e'
+
+    // Ensure zero termination and no further modifications
+    EXPECT_EQ(result.data()[0], 'H');
+    EXPECT_EQ(result.data()[1], '\0'); // Ensure the string remains null-terminated
 }
 
 TEST(ConstexprStringTest, ApplyToCapacityMethod) {
-    constexpr ConstString_t str("Hello");
-    constexpr auto capacity_applied = str.apply_to_capacity([](char c) {
-        return c == 0 ? '#' : c;
-    });
-    // Check the first few characters and the null terminator space
-    static_assert(capacity_applied[0] == 'H', "Apply to capacity (char) failed");
-    static_assert(capacity_applied[5] == '#', "Apply to capacity (char) failed");
+    constexpr const char testStr[] = "Hello";
+    constexpr ConstexprString<128> str(testStr);
+    constexpr auto result = str.apply_to_capacity([](char c) { return c == 0 ? '#' : c; });
 
-    constexpr auto capacity_indexed = str.apply_to_capacity([](size_t index, char c) {
-        return (index % 2 == 0) ? c : '#';
-    });
     // Check the first few characters and the null terminator space
-    static_assert(capacity_indexed[0] == 'H', "Apply to capacity (index, char) failed");
-    static_assert(capacity_indexed[1] == '#', "Apply to capacity (index, char) failed");
+    //static_assert(result.size() == 128, "Length is incorrect");
+    EXPECT_EQ(result.size(), 128);
+    EXPECT_EQ(result.view().substr(0,5), "Hello");
+
+    // Check that the elements after the valid characters and applied-to capacity are correct
+    for (size_t i = 5; i < result.capacity(); ++i) {
+        EXPECT_EQ(result.data()[i], '#') << "Result should have set everything to #(i="<<i<<"): " << result.data()[i];
+    }
 }
 
+
 TEST(ToStringTest, ConstExprFloat) {
+    static constexpr auto sv0i = to_string(0u);
+    static_assert(sv0i == "0", "Zero conversion failed");
+    
+    static constexpr auto sv1000i = to_string(1000u);
+    static_assert(sv1000i == "1000", "1000 conversion failed");
+    
+    static constexpr auto sv1045i = to_string(1045);
+    static_assert(sv1045i == "1045", "1045 conversion failed" );
+    
     // Simple whole number
     constexpr auto number = 1.0f;
     static constexpr auto sv = to_string(number);

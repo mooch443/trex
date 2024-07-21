@@ -697,6 +697,8 @@ void Outline::resample(const float resampling_distance) {
     std::vector<Vec2> resampled;
     float walked_distance = 0.0;
     const auto L = size();
+    if(L <= 1)
+        return;
     
     for (uint32_t i=0; i<L; i++) {
         uint32_t idx1 = i + 1, idx0 = i;

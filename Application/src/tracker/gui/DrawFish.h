@@ -10,6 +10,10 @@
 #include <misc/Coordinates.h>
 #include <tracking/Outline.h>
 #include <gui/Graph.h>
+#include <tracking/IndividualCache.h>
+#include <tracking/SegmentInformation.h>
+#include <misc/Identity.h>
+#include <misc/idx_t.h>
 
 namespace pv {
 struct CompressedBlob;
@@ -77,9 +81,9 @@ namespace cmn::gui {
         Range<Frame_t> _range;
         
         std::tuple<bool, FrameRange> _has_processed_segment;
-        decltype(track::Individual::average_recognition_segment)::mapped_type processed_segment;
+        std::tuple<size_t, std::map<track::Idx_t, float>> processed_segment;
         std::shared_ptr<track::SegmentInformation> _segment;
-        track::Individual::IDaverage _qr_code;
+        track::IDaverage _qr_code;
         std::vector<float> _pred;
         
         Color _previous_color;

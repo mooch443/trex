@@ -9,6 +9,7 @@
 #include <tracking/CategorizeDatastore.h>
 #include <misc/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/Individual.h>
 
 namespace Output {
     using namespace gui;
@@ -96,6 +97,31 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     
     return {ptr0, ptr1};
 }
+
+const track::MotionRecord* Library::retrieve_props(const std::string&,
+    const Individual* fish,
+    Frame_t frame,
+    const Options_t& modifiers)
+{
+    auto c = fish->centroid(frame);
+    if(!c)
+        return NULL;
+    
+    if (modifiers.is(Modifiers::CENTROID)) {
+        return c;
+
+    } else if(modifiers.is(Modifiers::POSTURE_CENTROID)) {
+        return fish->centroid_posture(frame);
+
+    } else if(modifiers.is(Modifiers::WEIGHTED_CENTROID)) {
+        return fish->centroid_weighted(frame);
+
+    } else if(fish->head(frame)) {
+        return fish->head(frame);
+    }
+    
+    return NULL;
+};
     
     std::vector<std::string> Library::functions() {
         std::vector<std::string> ret;
@@ -519,7 +545,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func["L_V"] = LIBFNC({
             const Vec2 v((Float2_t)get(Functions::VX.name(), info, frame),
                          (Float2_t)get(Functions::VY.name(), info, frame));
-            const auto individuals = Tracker::instance()->active_individuals(frame);
+            const auto individuals = Tracker::active_individuals(frame);
 
             float d = 0.0;
             float samples = 0;
@@ -541,7 +567,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func["DOT_V"] = LIBFNC({
             Vec2 v((Float2_t)get(Functions::VX.name(), info, frame),
                    (Float2_t)get(Functions::VY.name(), info, frame));
-            const auto individuals = Tracker::instance()->active_individuals(frame);
+            const auto individuals = Tracker::active_individuals(frame);
 
             for (auto other: individuals) {
               if (other != fish && other->centroid(frame)) {
@@ -872,7 +898,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             Vec2 average(0);
             float samples = 0;
             
-            for(auto fish : Tracker::instance()->active_individuals(frame)) {
+            for(auto fish : Tracker::active_individuals(frame)) {
                 if(fish->has(frame)) {
                     MotionRecord *p = NULL;
                     
@@ -904,7 +930,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             std::vector<Vec2> positions;
             
-            for(auto fish : Tracker::instance()->active_individuals(frame)) {
+            for(auto fish : Tracker::active_individuals(frame)) {
                 if(fish->has(frame)) {
                     MotionRecord *p = NULL;
                     

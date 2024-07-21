@@ -6,9 +6,12 @@
 #include <tracking/OutputLibrary.h>
 #include <misc/ThreadPool.h>
 #include <misc/idx_t.h>
+#include <misc/default_config.h>
+#include <misc/Grid.h>
 
 namespace track {
 class Individual;
+struct SegmentInformation;
 }
 
 namespace cmn::gui {
@@ -323,7 +326,7 @@ protected:
     std::vector<double> _array_grid, _array_sqsum, _array_samples;
     
     gpuMat _viridis, _gpuGrid;
-    std::map<track::Individual*, track::Individual::segment_map::const_iterator> _iterators;
+    std::map<track::Individual*, std::vector<std::shared_ptr<track::SegmentInformation>>::const_iterator> _iterators;
     std::map<track::Individual*, size_t> _capacities;
     
 public:

@@ -364,7 +364,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     if(blocking)
         guard = std::make_shared<LockGuard>(ro_t{}, "visual field");
     
-    auto tracker = Tracker::instance();
+    //auto tracker = Tracker::instance();
     //if(!tracker->properties(_frame))
     if(!posture)
         throw U_EXCEPTION("Does not have frame ",_frame,"");
@@ -375,7 +375,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     IndividualManager::transform_if_exists(_fish_id, [&](auto fish) {
         midline = fish->calculate_midline_for(basic, *posture);
     });
-    auto &active = tracker->active_individuals(_frame);
+    auto &active = Tracker::active_individuals(_frame);
     
     assert(posture);
     
@@ -511,168 +511,5 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         }
     }
 }
-/*
-void VisualField::show(gui::DrawStructure &base) {
-    LockGuard guard(ro_t{}, "VisualField::show");
-    
-    auto tracker = Tracker::instance();
-    if(!tracker->properties(_frame))
-        throw U_EXCEPTION("Does not have frame ",_frame,"");
-    
-    //auto fish = tracker->individuals().at(_fish_id);
-    auto active = tracker->active_individuals(_frame);
-    
-    //assert(fish->head(_frame));
-    
-    using namespace gui;
-    
-    std::vector<Vertex> crosses;
-    
-    for(auto &eye : _eyes) {
-        crosses.emplace_back(eye.pos, eye.clr);
-        
-        for (size_t i=6; i<VisualField::field_resolution-6; i++) {
-            if(eye._depth[i] < VisualField::invalid_value) {
-                //auto w = (1 - sqrt(eye._depth[i]) / (sqrt(max_d) * 0.5));
-                crosses.emplace_back(eye._visible_points[i], eye.clr);
-                
-                //if(eye._visible_ids[i] != fish->identity().ID())
-                //    base.line(eye.pos, eye._visible_points.at(i), eye.clr.alpha(100 * w * w + 10));
-            } else {
-                static const Rangef fov_range(-VisualField::symmetric_fov, VisualField::symmetric_fov);
-                static const double len = fov_range.end - fov_range.start;
-                double percent = double(i) / double(VisualField::field_resolution) * len + fov_range.start + eye.angle;
-                crosses.emplace_back(eye.pos + Vec2(Float2_t(cos(percent)), Float2_t( sin(percent))) * sqrtf(max_d) * 0.5f, eye.clr);
-                
-                //if(&eye == &_eyes[0])
-                //    base.line(eye.pos, eye.pos + Vec2(cos(percent), sin(percent)) * max_d, Red.alpha(100));
-            }
-            
-            if(eye._depth[i + VisualField::field_resolution] < VisualField::invalid_value && eye._visible_ids[i + VisualField::field_resolution] != (long_t)_fish_id.get())
-            {
-                auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
-                //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
-                base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye._visible_points[i + VisualField::field_resolution] }, LineClr{ Black.alpha((uint8_t)saturate(50 * w * w + 10)) });
-            }
-        }
-        
-        crosses.emplace_back(eye.pos, eye.clr);
-        base.circle(Loc(eye.pos), Radius{3}, LineClr{White.alpha(125)});
-        //if(&eye == &_eyes[0])
-        auto poly = new gui::Polygon(crosses);
-        //poly->set_fill_clr(Transparent);
-            base.add_object(poly);
-        crosses.clear();
-    }
-    
-    for(auto &eye : _eyes) {
-        Vec2 straight(cos(eye.angle), sin(eye.angle));
-        
-        base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + straight * 11 }, LineClr{ Black });
-        
-        auto left = Vec2((Float2_t)cos(eye.angle - symmetric_fov),
-                         (Float2_t)sin(eye.angle - symmetric_fov));
-        auto right = Vec2((Float2_t)cos(eye.angle + symmetric_fov),
-                          (Float2_t)sin(eye.angle + symmetric_fov));
-        
-        
-        base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + left * 100 }, LineClr{ eye.clr.exposure(0.65f) });
-        base.line(Line::Point_t{ eye.pos }, Line::Point_t{ eye.pos + right * 100 }, LineClr{ eye.clr.exposure(0.65f) });
-    }
-    
-}
 
-void VisualField::show_ts(gui::DrawStructure &base, Frame_t frameNr, Individual* selected) {
-    using namespace gui;
-    
-    int range = 50;
-    ExternalImage::Ptr ids[2];
-    ExternalImage::Ptr distances[2];
-    
-    for(int i=0; i<2; i++) {
-        ids[i] = Image::Make(range + 1, VisualField::field_resolution, 4);
-        distances[i] = Image::Make(range + 1, VisualField::field_resolution, 4);
-        
-        std::fill(ids[i]->data(), ids[i]->data() + ids[i]->size(), 0);
-        std::fill(distances[i]->data(), distances[i]->data() + distances[i]->size(), 0);
-    }
-    
-    assert(range <= INT32_MAX);
-    for(auto i = frameNr - Frame_t(range); i <= frameNr; ++i) {
-        auto ptr = (VisualField*)selected->custom_data(i, VisualField::custom_id);
-        if(!ptr && selected->head(i)) {
-            ptr = new VisualField(selected->identity().ID(), i, *selected->basic_stuff(i), selected->posture_stuff(i), true);
-            selected->add_custom_data(i, VisualField::custom_id, ptr, [](void* ptr) {
-                //if(GUI::instance()) {
-                //    std::lock_guard<std::recursive_mutex> lock(base.lock());
-                //    delete (VisualField*)ptr;
-                //} else {
-                    delete (VisualField*)ptr;
-                //}
-            });
-        }
-        
-        if(ptr) {
-            assert(ptr->eyes().size() == 2);
-            for(uint j=0; j<2; j++) {
-                auto &e = ptr->eyes()[j];
-                //Image mat(e._colored);
-                
-                //window.image(p, mat, Vec2(1,1), White.alpha(100));
-                
-                auto cids = ids[j]->get().row(( i + Frame_t(range) - frameNr).get());
-                auto cd = distances[j]->get().row((i + Frame_t(range) - frameNr).get());
-                
-                for(int i=0; i<(int)ids[j]->cols; i++) {
-                    auto id = e._visible_ids[i] != -1 ? Idx_t(e._visible_ids[i]) : Idx_t();
-                    auto d = 255 - min(255, e._visible_head_distance[i]);
-                    
-                    Color clr(Black);
-                    if(id.valid()) {
-                        if(id == selected->identity().ID())
-                            clr = White;
-                        else {
-                            IndividualManager::transform_if_exists(id, [&](auto fish){
-                                clr = fish->identity().color().alpha(e._fov.data()[i]);
-                            });
-                        }
-                    }
-                    
-                    clr = clr.alpha(clr.a);
-                    cids.at<cv::Vec4b>(0, i) = cv::Scalar(clr);
-                    
-                    clr = Black;
-                    if(d != -1) {
-                        clr = Color(d, d, d, 255);
-                    }
-                    clr = clr.alpha(clr.a);
-                    
-                    cd.at<cv::Vec4b>(0, i) = cv::Scalar(clr);
-                }
-            }
-        }
-    }
-    
-    auto s = base.active_section();
-    assert(s);
-    
-    float y = 0;
-    float scale_x = 2;
-    float scale_y = float(Tracker::average().rows * s->scale().reciprocal().y - 125 * 2) * 0.25f / (range + 1);
-    int height_per_row = scale_y * (range + 1);
-    Vec2 offset((Tracker::average().cols * s->scale().reciprocal().x - VisualField::field_resolution * scale_x) * 0.5f - 10,
-                125);
-    
-    for(int i=0; i<2; i++) {
-        auto p = offset + Vec2(0, y);
-        base.image(p, std::move(ids[i]), Vec2(scale_x, scale_y), White.alpha(150));//, Vec2(1, height_per_row));
-        base.image(p + Vec2(0, height_per_row ),
-                   std::move(distances[i]), Vec2(scale_x, scale_y), White.alpha(150));
-        //Vec2(1, height_per_row));
-        
-        
-        y += height_per_row * 2 + 10;
-    }
-}
- */
 }

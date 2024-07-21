@@ -2,13 +2,19 @@
 #define _OUTPUT_LIBRARY_H
 
 #include <commons.pc.h>
-#include <tracking/Individual.h>
+#include <file/Path.h>
 #include <misc/GlobalSettings.h>
 #include <gui/Graph.h>
 #include <misc/ranges.h>
 #include <misc/OptionsList.h>
 
+namespace track {
+class Individual;
+class MotionRecord;
+}
+
 namespace Output {
+using namespace cmn;
     using namespace track;
     
     ENUM_CLASS(Functions,
@@ -140,27 +146,7 @@ namespace Output {
         static const track::MotionRecord* retrieve_props(const std::string&, 
             const Individual* fish, 
             Frame_t frame,
-            const Options_t& modifiers)
-        {
-            auto c = fish->centroid(frame);
-            if(!c)
-                return NULL;
-            
-            if (modifiers.is(Modifiers::CENTROID)) {
-                return c;
-
-            } else if(modifiers.is(Modifiers::POSTURE_CENTROID)) {
-                return fish->centroid_posture(frame);
-
-            } else if(modifiers.is(Modifiers::WEIGHTED_CENTROID)) {
-                return fish->centroid_weighted(frame);
-
-            } else if(fish->head(frame)) {
-                return fish->head(frame);
-            }
-            
-            return NULL;
-        };
+            const Options_t& modifiers);
         
     public:
         static const Calculation parse_calculation(const std::string& calculation);

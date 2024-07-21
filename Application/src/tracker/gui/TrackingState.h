@@ -81,9 +81,9 @@ struct TrackingState {
         
         Timer timer, print_timer;
         
-        void update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force);
+        void update(const track::Tracker&, Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force);
         void calculateRates(double elapsed);
-        void updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool end);
+        void updateProgress(const track::Tracker&, Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool end);
         void printProgress(float percent, const std::string& status);
         void logProgress(float percent, const std::string& status);
         

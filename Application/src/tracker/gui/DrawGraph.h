@@ -2,15 +2,17 @@
 #define _DRAWGRAPH_H
 
 #include <gui/types/Drawable.h>
-#include <gui/types/Basic.h>
-#include <gui/GuiTypes.h>
-#include <gui/DrawStructure.h>
-#include <tracking/Individual.h>
-#include <tracking/Tracker.h>
 #include <gui/Graph.h>
 #include <tracking/OutputLibrary.h>
 
+namespace track {
+class Tracker;
+class Individual;
+}
+
 namespace cmn::gui {
+    class DrawStructure;
+
     class PropertiesGraph {
         class Graph : public gui::Graph {
         public:

@@ -238,8 +238,6 @@ bool _callback_registered;
         for (auto& fish : individuals) {
             if(individual_maps.find(fish) == individual_maps.end())
                 fish->register_delete_callback(&mutex, [](Individual* fish){
-                    //if(!Tracker::instance())
-                    //    return;
                     fish_deleted(fish);
                 });
             

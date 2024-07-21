@@ -92,6 +92,13 @@ protected:
     GETTER_SETTER(cv::Mat, mask);
     Frame_t _approximative_enabled_in_frame;
     
+    CacheHints _properties_cache;
+    CacheHints& properties_cache() { return _properties_cache; }
+    
+    std::vector<Range<Frame_t>> _global_segment_order;
+    
+    mutable std::mutex _statistics_mutex;
+    
     //! All the individuals that have been detected and are being maintained
     friend class Individual;
     
@@ -138,7 +145,7 @@ private:
     GenericThreadPool recognition_pool;
     
 public:
-    static double average_seconds_per_individual();
+    double average_seconds_per_individual() const;
     
     GETTER(std::deque<Range<Frame_t>>, consecutive);
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
@@ -204,7 +211,7 @@ public:
     }
     
     
-    static decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
+    decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
     static const FrameProperties* properties(Frame_t frameIndex, const CacheHints* cache = nullptr);
     static double time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache = nullptr);
     static const FrameProperties* add_next_frame(const FrameProperties&);
@@ -233,9 +240,9 @@ public:
     
     Frame_t update_with_manual_matches(const Settings::manual_matches_t& manual_matches);
 
-    static std::vector<Range<Frame_t>> global_segment_order();
-    static void global_segment_order_changed();
-    static std::vector<Range<Frame_t>> unsafe_global_segment_order();
+    std::vector<Range<Frame_t>> global_segment_order();
+    void global_segment_order_changed();
+    std::vector<Range<Frame_t>> unsafe_global_segment_order() const;
 
     void check_segments_identities(bool auto_correct, IdentitySource, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
     void clear_segments_identities();

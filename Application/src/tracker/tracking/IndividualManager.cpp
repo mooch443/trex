@@ -458,8 +458,11 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             }
             
             auto basic = fish->find_frame(_frame);
-            if(props == nullptr || props->frame != basic->frame)
+            if(props == nullptr || props->frame != basic->frame) {
                 props = Tracker::properties(basic->frame);
+                if(props == nullptr)
+                    throw InvalidArgumentException("Cannot retrieve information about frame ", basic->frame);
+            }
             assert(props != nullptr);
             if(std::abs(frame.time - props->time) < track_max_reassign_time) {
                 ++it;

@@ -505,7 +505,7 @@ double TrackingHelper::process_postures() {
             auto guard = LOGGED_LOCK(_statistics_mutex);
             combined_posture_seconds += collected;
             
-        }, Tracker::instance()->thread_pool(), posture_store.begin(), posture_store.end());
+        }, Tracker::thread_pool(), posture_store.begin(), posture_store.end());
         
         assert(_manager.need_postures.empty());
     }

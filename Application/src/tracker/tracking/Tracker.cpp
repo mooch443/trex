@@ -40,8 +40,6 @@ namespace py = Python;
 
 namespace track {
 
-std::mutex _statistics_mutex;
-
 FrameRange _analysis_range;
 
 void initialize_slows() {
@@ -114,8 +112,6 @@ const FrameRange& Tracker::analysis_range() {
 }
 
 Tracker* _instance = NULL;
-std::vector<Range<Frame_t>> _global_segment_order;
-
 std::mutex _identities_mutex;
 std::set<Idx_t> _fixed_identities;
 
@@ -158,12 +154,6 @@ const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) c
     return &kit->second;
 }
 
-auto& properties_cache() {
-    static CacheHints _properties_cache;
-    return _properties_cache;
-}
-
-
 auto& properties_mutex() {
     static std::shared_mutex _properties_mutex;
     return _properties_mutex;
@@ -189,13 +179,13 @@ const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints*
         
     } else {
         std::shared_lock guard(properties_mutex());
-        auto ptr = properties_cache().properties(frameIndex);
+        auto ptr = instance()->properties_cache().properties(frameIndex);
         if(ptr)
             return ptr;
     }
     
     auto &frames = instance()->frames();
-    auto it = properties_iterator(frameIndex);
+    auto it = instance()->properties_iterator(frameIndex);
     if(it == frames.end())
         return nullptr;
     return (*it).get();
@@ -287,6 +277,7 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float me
         Print("Initialized with ", _thread_pool.num_threads()," threads.");
     }
     
+    Settings::clear_callbacks();
     Settings::set_callback(Settings::outline_resample, [](auto&, auto&value){
         static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
         auto v = value.template value<float>();
@@ -327,7 +318,7 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float me
     Settings::set_callback(Settings::track_include, track_list_update);
     Settings::set_callback(Settings::frame_rate, [](auto&, auto&){
         std::unique_lock guard(properties_mutex());
-        properties_cache().clear(); //! TODO: need to refill as well
+        instance()->properties_cache().clear(); //! TODO: need to refill as well
     });
     Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
         static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
@@ -338,7 +329,7 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float me
             auto worker = [key](){
                 {
                     LockGuard guard(w_t{}, "Updating midlines in changed_setting("+std::string(key)+")");
-                    IndividualManager::transform_parallel(Tracker::instance()->thread_pool(), [](auto fdx, auto fish)
+                    IndividualManager::transform_parallel(Tracker::thread_pool(), [](auto fdx, auto fish)
                     {
                         Print("\t", fdx);
                         fish->clear_post_processing();
@@ -527,7 +518,7 @@ void Tracker::add(PPFrame &frame) {
     add(frame.index(), frame);
 }
 
-double Tracker::average_seconds_per_individual() {
+double Tracker::average_seconds_per_individual() const {
     std::lock_guard<std::mutex> lguard(_statistics_mutex);
     if(_time_samples._frames_sampled == 0)
         return 0;
@@ -926,7 +917,7 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         std::move(global).to(frame);
         
     } else {
-        PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
+        PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::background());
         prefilter(pref, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
         
         frame.clear_blobs();
@@ -941,19 +932,19 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     
     if(frames.capacity() != capacity) {
         std::unique_lock guard(properties_mutex());
-        properties_cache().clear();
+        instance()->properties_cache().clear();
         
         auto it = frames.rbegin();
-        while(it != frames.rend() && !properties_cache().full())
+        while(it != frames.rend() && !instance()->properties_cache().full())
         {
-            properties_cache().push((*it)->frame, (*it).get());
+            instance()->properties_cache().push((*it)->frame, (*it).get());
             ++it;
         }
         assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*frames.rbegin())->frame == end_frame()));
         
     } else {
         std::unique_lock guard(properties_mutex());
-        properties_cache().push(props.frame, frames.back().get());
+        instance()->properties_cache().push(props.frame, frames.back().get());
     }
     
     return frames.back().get();
@@ -989,7 +980,7 @@ const std::set<Idx_t> Tracker::identities() {
 
 void Tracker::clear_properties() {
     std::unique_lock guard(properties_mutex());
-    properties_cache().clear();
+    instance()->properties_cache().clear();
 }
 
 Match::PairedProbabilities Tracker::calculate_paired_probabilities
@@ -2394,7 +2385,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         _segment_order_changed = true;
     }
 
-    std::vector<Range<Frame_t>> Tracker::unsafe_global_segment_order() {
+    std::vector<Range<Frame_t>> Tracker::unsafe_global_segment_order() const {
         LockGuard guard(ro_t{}, "Tracker::max_range()");
         return _global_segment_order;
     }
@@ -3254,7 +3245,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
         /*if(pid.valid()) {
             blob = pp.bdx_to_ptr(pid);
             if(blob) {
-                auto blobs = pixel::threshold_blob(blob, FAST_SETTING(track_threshold), Tracker::instance()->background());
+                auto blobs = pixel::threshold_blob(blob, FAST_SETTING(track_threshold), Tracker::background());
                 
                 for(auto && sub : blobs) {
                     if(sub->blob_id() == bid) {

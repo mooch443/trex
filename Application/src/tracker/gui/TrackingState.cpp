@@ -195,7 +195,7 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
         }
         
         //Print(_data->tracker->active_individuals(idx));
-        _stats.update(idx, range, video->length(), tracker->statistics().at(idx).number_fish, idx == range.end());
+        _stats.update(*tracker, idx, range, video->length(), tracker->statistics().at(idx).number_fish, idx == range.end());
     }
 
     static Timing procpush("Analysis::process::unused.push", 10);
@@ -434,7 +434,7 @@ constexpr const char* time_unit() {
 #endif
 }
 
-void TrackingState::Statistics::updateProgress(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool) {
+void TrackingState::Statistics::updateProgress(const Tracker& tracker, Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, bool) {
     float percent = min(1.f, (frame - analysis_range.start()).get() / float(analysis_range.length().try_sub(1_f).get())) * 100.f;
     DurationUS us{ uint64_t(max(0, (double)(analysis_range.end() - frame).get() / double( acc_frames / sample_frames ) * 1000 * 1000)) };
 
@@ -444,7 +444,7 @@ void TrackingState::Statistics::updateProgress(Frame_t frame, const FrameRange& 
     if(frame == analysis_range.end()) {
         status = format<FormatterType::NONE>("Done (",
             dec<2>(frames_per_second.load()), "fps ",
-            dec<2>(individuals_per_second.load()),"ind/s ",dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str(),").") + "\n";
+                                             dec<2>(individuals_per_second.load()),"ind/s ",dec<2>(tracker.average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str(),").") + "\n";
         printf("\r\n");
 
     } else if(FAST_SETTING(analysis_range).start != -1
@@ -452,11 +452,11 @@ void TrackingState::Statistics::updateProgress(Frame_t frame, const FrameRange& 
     {
         status = format<FormatterType::NONE>("frame ", frame, "/", analysis_range.end(), "(", video_length, ") @ ",
              dec<2>(frames_per_second.load()), "fps ", dec<2>(individuals_per_second.load()),"ind/s, eta ", us, ") ",
-             dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str()
+             dec<2>(tracker.average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str()
         );
     } else {
         status = format<FormatterType::NONE>("frame ", frame, "/", analysis_range.end(), " (", dec<2>(frames_per_second.load()), "fps ",
-             dec<2>(individuals_per_second.load()),"ind/s, eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str()
+             dec<2>(individuals_per_second.load()),"ind/s, eta ", us, ") ", dec<2>(tracker.average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str()
         );
     }
 
@@ -468,7 +468,7 @@ void TrackingState::Statistics::updateProgress(Frame_t frame, const FrameRange& 
 }
 
 
-void TrackingState::Statistics::update(Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force)
+void TrackingState::Statistics::update(const track::Tracker& tracker, Frame_t frame, const FrameRange& analysis_range, Frame_t video_length, uint32_t num_individuals, bool force)
 {
     frames_count++;
     acc_individuals += num_individuals;
@@ -479,7 +479,7 @@ void TrackingState::Statistics::update(Frame_t frame, const FrameRange& analysis
         timer.reset();
         
         calculateRates(elapsed);
-        updateProgress(frame, analysis_range, video_length, force);
+        updateProgress(tracker, frame, analysis_range, video_length, force);
     }
 }
 
@@ -786,12 +786,14 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
                 };
             }
             
-            WorkProgress::add_queue("", [](){
+            WorkProgress::add_queue("", [this](){
                 Tracker::instance()->check_segments_identities(false, IdentitySource::VisualIdent, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
                     WorkProgress::add_queue(t, fn, b);
                 });
+                
+                on_tracking_done();
             });
             
         } catch(const UtilsException& e) {

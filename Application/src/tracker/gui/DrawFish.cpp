@@ -144,7 +144,7 @@ Fish::~Fish() {
 
             /*for (auto& b : GUI::instance()->cache().processed_frame().blobs()) {
                 if (b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
-                    auto&& [image_pos, image] = b->difference_image(*Tracker::instance()->background(), 0);
+                    auto&& [image_pos, image] = b->difference_image(*Tracker::background(), 0);
                     tf::imshow("blob", image->get());
 
                 }

@@ -5,6 +5,7 @@
 #include <tracking/IndividualManager.h>
 #include <tracking/LockGuard.h>
 #include <tracking/EventAnalysis.h>
+#include <tracking/Individual.h>
 
 using namespace cmn::file;
 using namespace Output;

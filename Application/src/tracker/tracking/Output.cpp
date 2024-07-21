@@ -845,7 +845,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         uint64_t N;
         ref.read<uint64_t>(N);
 
-        ska::bytell_hash_map<Frame_t, Individual::IDaverage> qrcode_identities;
+        ska::bytell_hash_map<Frame_t, IDaverage> qrcode_identities;
         ska::bytell_hash_map<Frame_t, std::vector<tags::Detection>> identifiers;
 
         for (uint64_t i = 0; i < N; ++i) {

@@ -43,7 +43,7 @@ struct BasicStuff;
         GETTER_PTR(Midline::Ptr, normalized_midline);
         
     public:
-        Posture(Frame_t frameIndex, Idx_t fishID);
+        Posture(Frame_t frameIndex = {}, Idx_t fishID = {});
         ~Posture() {
         }
         
@@ -52,18 +52,6 @@ struct BasicStuff;
         void calculate_posture(Frame_t frameIndex, const BasicStuff&, const blob::SegmentedOutlines&);
         
         bool outline_empty() const { return _outline.empty(); }
-        static std::vector<EntryPoint> subpixel_threshold(const cv::Mat& greyscale, int threshold) 
-#ifndef WIN32
-            __attribute__((deprecated("use new method please")))
-#endif
-            ;
-        
-        float calculate_outline(std::vector<EntryPoint>&) 
-#ifndef WIN32
-            __attribute__((deprecated("use new method please")))
-#endif
-            ;
-        float calculate_outline(const std::vector<Vec2>&);
     private:
         float calculate_midline(bool debug);
         

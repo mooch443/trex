@@ -1077,7 +1077,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 throw InvalidArgumentException("Invalid meta_encoding_t: ", Background::meta_encoding());
         }
         
-        Tracker::instance()->preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
+        Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
             /**
