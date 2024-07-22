@@ -316,6 +316,7 @@ void VIController::correct_identities(GUITaskQueue_t* gui, bool force_correct, I
         _tracker->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&) 
         {
             if(force_correct) {
+                _analysis->set_paused(false).get();
                 on_tracking_ended([this, source, gui](){
                     correct_identities(gui, false, source);
                 });

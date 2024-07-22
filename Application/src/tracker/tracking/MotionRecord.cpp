@@ -19,4 +19,8 @@ float MotionRecord::cm_per_pixel() {
     return SLOW_SETTING(cm_per_pixel);
 }
 
+std::string FrameProperties::toStr() const {
+    return "FP<"+Meta::toStr(frame) + " "+Meta::toStr(time)+" active:"+ Meta::toStr(active_individuals)+">";
+}
+
 };

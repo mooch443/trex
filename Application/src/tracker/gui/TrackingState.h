@@ -97,7 +97,20 @@ struct TrackingState {
     std::mutex _task_mutex;
     std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
     
-    std::queue<std::function<void()>> _tracking_callbacks;
+private:
+    std::mutex _tracking_mutex;
+    std::queue<std::function<void()>> _tracking_callbacks, _apply_callbacks;
+    
+public:
+    void add_tracking_callback(auto&& fn) {
+        std::unique_lock guard(_tracking_mutex);
+        _tracking_callbacks.push(std::move(fn));
+    }
+    void add_apply_callback(auto&& fn) {
+        std::unique_lock guard(_tracking_mutex);
+        _apply_callbacks.push(std::move(fn));
+    }
+    
     std::unique_ptr<VIControllerImpl> _controller;
     
     bool stage_0(ConnectedTasks::Type&&);
@@ -106,9 +119,10 @@ struct TrackingState {
     void init_video();
     
     void on_tracking_done();
+    void on_apply_done();
     
     void save_state(GUITaskQueue_t*, bool);
-    void load_state(GUITaskQueue_t*, file::Path);
+    std::future<void> load_state(GUITaskQueue_t*, file::Path);
 };
 
 }

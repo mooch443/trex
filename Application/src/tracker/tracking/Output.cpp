@@ -614,7 +614,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 else
                     ref.read_convert<float>(time);
             } else {
-                auto p = Tracker::properties(Frame_t(frameIndex));
+                auto p = Tracker::properties(Frame_t(frameIndex), cache);
                 if(p) time = p->time;
                 else {
                     FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
@@ -1602,6 +1602,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             file.read<Individual*>(fishes[i]);
             
             if(SETTING(terminate)) {
+                file._generic_pool.wait();
+                file._post_pool.wait();
                 clean_up();
                 return {};
             }

@@ -107,9 +107,16 @@ WorkInstance::~WorkInstance() {
     WorkProgress::set_item(_previous);
 }
 
-WorkProgress& WorkProgress::instance() {
-    static WorkProgress _instance;
+std::unique_ptr<WorkProgress>& WorkProgress::raw_instance() {
+    static std::unique_ptr<WorkProgress> _instance;
     return _instance;
+}
+
+WorkProgress& WorkProgress::instance() {
+    if(not raw_instance()) {
+        raw_instance() = std::unique_ptr<WorkProgress>(new WorkProgress);
+    }
+    return *raw_instance();
 }
 
 WorkProgress::WorkProgress() {
@@ -134,10 +141,10 @@ void WorkProgress::start() {
         set_thread_name("GUI::_work_thread");
         _work_thread_id = std::this_thread::get_id();
         
-        while (!_terminate_threads) {
+        while (!_terminate_threads || not _queue.empty()) {
             _condition.wait_for(lock, std::chrono::seconds(1));
             
-            while(!_queue.empty() && !_terminate_threads) {
+            while(!_queue.empty()) {
                 auto item =  std::move(_queue.front());
 #if defined(__APPLE__)
                 MacProgressBar::set_visible(true);
@@ -183,20 +190,28 @@ void WorkProgress::start() {
 
 void WorkProgress::stop() {
     // strong exchange, since we want to make sure that the thread is not running anymore
-    if(!_terminate_threads.exchange(true)) {
-        _condition.notify_all();
-        
-        if(std::unique_lock guard(instance().start_mutex);
-           _thread)
+    if(not _terminate_threads.exchange(true)) {
         {
-            _thread->join();
-            delete _thread;
-            _thread = nullptr;
+            std::unique_lock lock(_queue_lock);
+            _condition.notify_all();
+        }
+        
+        if(raw_instance()) {
+            if(std::unique_lock guard(instance().start_mutex);
+               _thread)
+            {
+                _thread->join();
+                delete _thread;
+                _thread = nullptr;
+            }
         }
     }
     
-    std::unique_lock guard(instance().gui_mutex);
-    instance().gui = nullptr;
+    if(raw_instance()) {
+        std::unique_lock guard(instance().gui_mutex);
+        instance().gui = nullptr;
+        raw_instance() = nullptr;
+    }
 }
 
 void WorkProgress::set_item(const std::string &item) {

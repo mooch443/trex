@@ -178,7 +178,7 @@ void launch_gui(std::future<void>& f) {
     ConvertScene converting(base, [&](ConvertScene& scene){
         segmenter = std::make_unique<Segmenter>(
         [&manager]() {
-            if (SETTING(auto_quit)) {
+            if (SETTING(auto_quit) && not SETTING(auto_train)) {
                 if (not SETTING(terminate))
                     SETTING(terminate) = true;
             }
@@ -422,16 +422,26 @@ std::string start_tracking(std::future<void>& f) {
     
     std::atomic<bool> terminate{false};
     TrackingState state{nullptr};
-    state._tracking_callbacks.push([&](){
+    std::function<void()> fn = [&](){
         terminate = true;
-    });
+    };
+    
+    if(SETTING(auto_train)) {
+        state.add_apply_callback([&](){
+            state.add_tracking_callback(fn);
+            state.analysis.set_paused(false).get();
+        });
+    } else {
+        state.add_tracking_callback(fn);
+    }
+    
     state.init_video();
     
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
     
     if(wants_to_load) {
         wants_to_load = false;
-        state.load_state(nullptr, Output::TrackingResults::expected_filename());
+        state.load_state(nullptr, Output::TrackingResults::expected_filename()).get();
     }
     
     //! get the python init future at this point
@@ -440,6 +450,11 @@ std::string start_tracking(std::future<void>& f) {
     
     while(not terminate)
         std::this_thread::sleep_for(std::chrono::seconds(1));
+    
+    while(SETTING(auto_quit))
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    
+    WorkProgress::stop();
     return {};
 }
 
@@ -448,22 +463,8 @@ std::string start_converting(std::future<void>& f) {
         SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
     }
     
-    std::string last_error;
-    Segmenter segmenter(
-        []() {
-            //if(SETTING(auto_quit).value<bool>())
-                SETTING(terminate) = true;
-            //else
-            //    start_tracking(f);
-            //    throw InvalidArgumentException("What should I do now?");
-        },
-        [&last_error](std::string error) {
-            SETTING(error_terminate) = true;
-            SETTING(terminate) = true;
-            last_error = error;
-        });
-    Print("Loading source = ", SETTING(source).value<file::PathArray>());
-    
+    /// this needs to go first so it gets destroyed last
+    /// since we have callbacks in segmenter
     ind::ProgressBar bar{
         ind::option::BarWidth{50},
         ind::option::Start{"["},
@@ -482,6 +483,18 @@ std::string start_converting(std::future<void>& f) {
         ind::option::ForegroundColor{ind::Color::white},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
+    
+    std::string last_error;
+    Segmenter segmenter(
+        [&]() {
+            SETTING(terminate) = true;
+        },
+        [&last_error](std::string error) {
+            SETTING(error_terminate) = true;
+            SETTING(terminate) = true;
+            last_error = error;
+        });
+    Print("Loading source = ", SETTING(source).value<file::PathArray>());
     
     bar.set_progress(0);
     
@@ -738,6 +751,28 @@ int main(int argc, char**argv) {
 
         if(task == TRexTask_t::convert) {
             last_error = start_converting(f);
+            
+            if(last_error.empty() && SETTING(auto_train)) {
+                
+                try {
+                    if (f.valid())
+                        f.get();
+
+                    Detection::manager().clean_up();
+                    Detection::deinit();
+                    WorkProgress::stop();
+                    
+                } catch(const std::exception& e) {
+                    FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                }
+                
+                wants_to_load = true;
+                SETTING(terminate) = false;
+                SETTING(auto_quit) = true;
+                start_tracking(f);
+            } else {
+                WorkProgress::stop();
+            }
             
         } else if(task == TRexTask_t::track) {
             last_error = start_tracking(f);

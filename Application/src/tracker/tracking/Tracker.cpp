@@ -42,12 +42,17 @@ namespace track {
 
 FrameRange _analysis_range;
 
-void initialize_slows() {
+
+auto& properties_mutex() {
+    static std::shared_mutex _properties_mutex;
+    return _properties_mutex;
+}
+
+void Tracker::initialize_slows() {
 #define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); })
     
-    static std::once_flag flag;
-    std::call_once(flag, [](){
-        Settings::init();
+    std::call_once(slow_flag, [](){
+        Settings::clear_callbacks();
         
         DEF_CALLBACK(frame_rate);
         DEF_CALLBACK(track_enforce_frame_rate);
@@ -93,9 +98,94 @@ void initialize_slows() {
             update_range();
         });
         
-        for(auto &n : Settings :: names())
-            Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
+        Settings::set_callback(Settings::outline_resample, [](auto&, auto&value){
+            static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
+            auto v = value.template value<float>();
+            if(v <= 0) {
+                Print("outline_resample defaulting to 1.0 instead of ",v);
+                SETTING(outline_resample) = 1.f;
+            }
+        });
+        Settings::set_callback(Settings::manually_approved, [](auto&, auto&){
+            DatasetQuality::update();
+        });
+        
+        auto track_list_update = [](std::string_view key, auto&value)
+        {
+            auto update = [key = std::string(key), tmp = value.template value<Settings::track_ignore_t>()]() mutable
+            {
+                bool changed = false;
+                for(auto &vec : tmp) {
+                    if(vec.size() > 2) {
+                        auto ptr = poly_convex_hull(&vec);
+                        if(ptr) {
+                            if(vec != *ptr) {
+                                vec = *ptr;
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+                
+                if(changed) {
+                    GlobalSettings::get(key) = tmp;
+                }
+            };
+            
+            update();
+        };
+        Settings::set_callback(Settings::track_ignore, track_list_update);
+        Settings::set_callback(Settings::track_include, track_list_update);
+        Settings::set_callback(Settings::frame_rate, [](auto&, auto&){
+            std::unique_lock guard{properties_mutex()};
+            instance()->properties_cache().clear(); //! TODO: need to refill as well
+        });
+        Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
+            static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
+            size_t v = value.template value<uint16_t>();
+            
+            if(v != FAST_SETTING(posture_direction_smoothing))
+            {
+                auto worker = [key](){
+                    {
+                        LockGuard guard(w_t{}, "Updating midlines in changed_setting("+std::string(key)+")");
+                        IndividualManager::transform_parallel(Tracker::thread_pool(), [](auto fdx, auto fish)
+                        {
+                            Print("\t", fdx);
+                            fish->clear_post_processing();
+                            fish->update_midlines(nullptr);
+                        });
+                    }
+                    DatasetQuality::update();
+                };
+                
+                /*if(GUI::instance()) {
+                    GUI::work().add_queue("updating midlines / head positions...", worker);
+                } else*/
+                    worker();
+            }
+        });
+        
+        
+        
+        Settings::init();
+        //for(auto &n : Settings :: names())
+        //    Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
     });
+    
+    if (not _callback) {
+        /*auto callback = [](std::string_view name){
+            //LockGuard guard(ro_t{}, "changed_settings");
+            Settings :: variable_changed(sprite::Map::Signal::NONE, GlobalSettings::map(), name, cmn::GlobalSettings::map().at(name).get());
+        };
+        _callback = cmn::GlobalSettings::map().register_callbacks(Settings::names(), callback);
+        GlobalSettings::map().register_shutdown_callback([this](auto) {
+            _callback.reset();
+        });
+        
+        for(auto n : Settings::names())
+            callback(n);*/
+    }
 }
 
 const set_of_individuals_t& Tracker::active_individuals(Frame_t frame) {
@@ -154,11 +244,6 @@ const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) c
     return &kit->second;
 }
 
-auto& properties_mutex() {
-    static std::shared_mutex _properties_mutex;
-    return _properties_mutex;
-}
-
 double Tracker::time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache) {
     auto props_1 = properties(frame_1, cache);
     auto props_2 = properties(frame_2, cache);
@@ -192,8 +277,7 @@ const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints*
 }
 
 decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Frame_t frameIndex) {
-    auto &frames = instance()->frames();
-    
+    auto& frames = this->frames();
     auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](Frame_t frame, const auto& prop) -> bool {
         return frame < prop->frame;
     });
@@ -219,12 +303,15 @@ void Tracker::analysis_state(AnalysisState pause) {
     if(!instance())
         throw U_EXCEPTION("No tracker instance can be used to pause.");
 
-    std::packaged_task<void(bool)> task([](bool value) {
-        SETTING(track_pause) = value;
-    });
-    
-    std::thread tmp(std::move(task), pause == AnalysisState::PAUSED);
-    tmp.detach();
+    const bool do_pause = pause == AnalysisState::PAUSED;
+    if(SETTING(track_pause).value<bool>() == do_pause) {
+        return;
+    } else {
+        std::thread tmp([do_pause]() {
+            SETTING(track_pause) = do_pause;
+        });
+        tmp.detach();
+    }
 }
 
 Tracker::Tracker(const pv::File& video)
@@ -249,10 +336,9 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float me
             return a->end_frame() > b->end_frame() || (a->end_frame() == b->end_frame() && A > B);
         })*/
 {
+    _instance = this;
     Identity::Reset(); // reset Identities if the tracker is created
     initialize_slows();
-    
-    _instance = this;
     
     PPFrame::CloseLogs();
     update_history_log();
@@ -277,93 +363,11 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float me
         Print("Initialized with ", _thread_pool.num_threads()," threads.");
     }
     
-    Settings::clear_callbacks();
-    Settings::set_callback(Settings::outline_resample, [](auto&, auto&value){
-        static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
-        auto v = value.template value<float>();
-        if(v <= 0) {
-            Print("outline_resample defaulting to 1.0 instead of ",v);
-            SETTING(outline_resample) = 1.f;
-        }
-    });
-    Settings::set_callback(Settings::manually_approved, [](auto&, auto&){
-        DatasetQuality::update();
-    });
-    
-    auto track_list_update = [](std::string_view key, auto&value)
-    {
-        auto update = [key = std::string(key), tmp = value.template value<Settings::track_ignore_t>()]() mutable
-        {
-            bool changed = false;
-            for(auto &vec : tmp) {
-                if(vec.size() > 2) {
-                    auto ptr = poly_convex_hull(&vec);
-                    if(ptr) {
-                        if(vec != *ptr) {
-                            vec = *ptr;
-                            changed = true;
-                        }
-                    }
-                }
-            }
-            
-            if(changed) {
-                GlobalSettings::get(key) = tmp;
-            }
-        };
-        
-        update();
-    };
-    Settings::set_callback(Settings::track_ignore, track_list_update);
-    Settings::set_callback(Settings::track_include, track_list_update);
-    Settings::set_callback(Settings::frame_rate, [](auto&, auto&){
-        std::unique_lock guard(properties_mutex());
-        instance()->properties_cache().clear(); //! TODO: need to refill as well
-    });
-    Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
-        static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
-        size_t v = value.template value<uint16_t>();
-        
-        if(v != FAST_SETTING(posture_direction_smoothing))
-        {
-            auto worker = [key](){
-                {
-                    LockGuard guard(w_t{}, "Updating midlines in changed_setting("+std::string(key)+")");
-                    IndividualManager::transform_parallel(Tracker::thread_pool(), [](auto fdx, auto fish)
-                    {
-                        Print("\t", fdx);
-                        fish->clear_post_processing();
-                        fish->update_midlines(nullptr);
-                    });
-                }
-                DatasetQuality::update();
-            };
-            
-            /*if(GUI::instance()) {
-                GUI::work().add_queue("updating midlines / head positions...", worker);
-            } else*/
-                worker();
-        }
-    });
-    
-    if (not _callback) {
-        auto callback = [](std::string_view name){
-            //LockGuard guard(ro_t{}, "changed_settings");
-            Settings :: variable_changed(sprite::Map::Signal::NONE, GlobalSettings::map(), name, cmn::GlobalSettings::map().at(name).get());
-        };
-        _callback = cmn::GlobalSettings::map().register_callbacks(Settings::names(), callback);
-        GlobalSettings::map().register_shutdown_callback([this](auto) {
-            _callback.reset();
-        });
-        
-        for(auto n : Settings::names())
-            callback(n);
-    }
 }
 
 Tracker::~Tracker() {
     assert(_instance);
-    //Settings::clear_callbacks();
+    Settings::clear_callbacks();
     
 #if !COMMONS_NO_PYTHON
     Accumulation::on_terminate();
@@ -486,6 +490,28 @@ inline bool contains_sorted(const Q& v, T obj) {
     }
     
     return false;
+}
+
+//! Assumes a sorted array.
+template<typename T, typename Q>
+inline auto find_sorted(const Q& v, T obj) {
+    auto it = std::lower_bound(v.begin(), v.end(), obj, [](const auto& v, T number) -> bool {
+        return *v < number;
+    });
+    
+    if(it != v.end()) {
+        auto end = std::upper_bound(it, v.end(), obj, [](T number, const auto& v) -> bool {
+            return number < *v;
+        });
+        
+        if(end == v.end()) {
+            return it;
+        } else if(!(*(*end) < obj)) {
+            return end;
+        }
+    }
+    
+    return it;
 }
 
 void Tracker::add(PPFrame &frame) {
@@ -2265,6 +2291,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         
         _individual_add_iterator_map.clear();
         _segment_map_known_capacity.clear();
+        
+        auto added_it = find_sorted(_added_frames, frameIndex);
+        if(added_it != _added_frames.end()) {
+            Print("added: ", *added_it);
+            _added_frames.erase(added_it, _added_frames.end());
+        }
         
         if(_approximative_enabled_in_frame.valid()
            && _approximative_enabled_in_frame >= frameIndex)

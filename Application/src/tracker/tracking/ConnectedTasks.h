@@ -48,17 +48,11 @@ namespace cmn {
         
         void start(const std::function<void()>& main);
         
-        void add(Type&& obj) {
-            {
-                std::unique_lock<std::mutex> lock(_stages[0].mutex);
-                _stages[0].queue.emplace(std::move(obj));
-            }
-            
-            _stages[0].condition.notify_one();
-        }
+        void add(Type&& obj);
         
         void bump() {
-            _stages[0].condition.notify_all();
+            if(not _stages.empty())
+                _stages[0].condition.notify_all();
             _finish_condition.notify_all();
         }
         void terminate();

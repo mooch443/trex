@@ -174,8 +174,6 @@ struct slow {
 //! Slow updated, but faster access:
 #define SLOW_SETTING(NAME) (track::slow:: NAME)
 
-void initialize_slows();
-
 struct Clique {
     UnorderedVectorSet<pv::bid> bids;  // index of blob, not blob id
     UnorderedVectorSet<Idx_t> fishs; // index of fish

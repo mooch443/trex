@@ -377,7 +377,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     if(data.empty()) {
         LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
-        gui::WorkProgress::set_progress("generating images", 0);
+        gui::WorkInstance generating_images("generating images");
         
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
         auto coverage = generate_individuals_per_frame(range, &data, &segments);
@@ -609,7 +609,6 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
     {
         LockGuard guard(ro_t{}, "Accumulation::discriminate");
         gui::WorkInstance generating_images("generating images");
-        gui::WorkProgress::set_progress("generating images", 0);
         
         Print("Generating discrimination data.");
         
@@ -838,6 +837,8 @@ bool Accumulation::start() {
         return true;
     }
     
+    const gui::WorkInstance training_begin("training ("+Meta::toStr(SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>())+")");
+    
     _collected_data = std::make_shared<TrainingData>();
     _generated_data = std::make_shared<TrainingData>();
     
@@ -845,7 +846,7 @@ bool Accumulation::start() {
     
     {
         LockGuard guard(ro_t{}, "GUI::generate_training_data");
-        gui::WorkProgress::set_progress("generating images", 0);
+        gui::WorkInstance generating_images("generating images");
         
         DebugCallback("Generating initial training dataset ", _initial_range," (",_initial_range.length(),") in memory.");
         

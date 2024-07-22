@@ -27,7 +27,7 @@ VIControllerImpl::VIControllerImpl(VIControllerImpl&& other) :
 {}
 
 void VIControllerImpl::on_tracking_ended(std::function<void()> fn) {
-    _scene->_tracking_callbacks.push(fn);
+    _scene->add_tracking_callback(fn);
 }
 
 void VIControllerImpl::on_apply_update(double percent) {
@@ -37,6 +37,7 @@ void VIControllerImpl::on_apply_update(double percent) {
 void VIControllerImpl::on_apply_done() {
     _current_percent = 1;
     _busy = false;
+    _scene->on_apply_done();
 }
 
 VIControllerImpl::VIControllerImpl(std::weak_ptr<pv::File> video, TrackingState& scene)
@@ -48,6 +49,18 @@ VIControllerImpl::VIControllerImpl(std::weak_ptr<pv::File> video, TrackingState&
 }
 
 static constexpr Frame_t cache_size{Frame_t::number_t(10)};
+
+void TrackingState::on_apply_done() {
+    std::unique_lock guard(_tracking_mutex);
+    while(not _apply_callbacks.empty()) {
+        auto fn = std::move(_apply_callbacks.front());
+        _apply_callbacks.pop();
+        
+        guard.unlock();
+        fn();
+        guard.lock();
+    }
+}
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
   : video(pv::File::Make(SETTING(filename).value<file::Path>())),
@@ -370,22 +383,30 @@ void TrackingState::init_video() {
 void TrackingState::on_tracking_done() {
     please_stop_analysis = true;
     
-    pool.enqueue([this](){
+    WorkProgress::add_queue("", [this](){
         analysis.set_paused(true).get();
+        
+        tracker->global_segment_order();
+        track::DatasetQuality::update();
+        
+        // tracking has ended
+        {
+            std::unique_lock guard(_tracking_mutex);
+            while(not _tracking_callbacks.empty()) {
+                auto fn = std::move(_tracking_callbacks.front());
+                _tracking_callbacks.pop();
+                
+                guard.unlock();
+                fn();
+                guard.lock();
+            }
+        }
+        
+        if(_end_task.valid())
+            _end_task.get();
+        _end_task = WorkProgress::add_queue("", _end_task_check_auto_quit);
+        //_end_task = std::async(std::launch::async, _end_task_check_auto_quit);
     });
-    
-    tracker->global_segment_order();
-    track::DatasetQuality::update();
-    
-    // tracking has ended
-    while(not _tracking_callbacks.empty()) {
-        _tracking_callbacks.front()();
-        _tracking_callbacks.pop();
-    }
-    
-    if(_end_task.valid())
-        _end_task.get();
-    _end_task = std::async(std::launch::async, _end_task_check_auto_quit);
 }
 
 void TrackingState::Statistics::calculateRates(double elapsed) {
@@ -550,10 +571,10 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
         WorkProgress::add_queue("Saving results...", fn);
 }
 
-void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
+std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
     static bool state_visible = false;
-    if(state_visible)
-        return;
+    //if(state_visible)
+//        return {};
     
     state_visible = true;
 
@@ -852,7 +873,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
     };
     
     if(gui)
-        gui->enqueue([fn = std::move(fn)](auto, DrawStructure& graph){
+        return gui->enqueue([fn = std::move(fn)](auto, DrawStructure& graph){
             graph.dialog([fn](Dialog::Result result) {
                 if(result == Dialog::Result::OKAY) {
                     WorkProgress::add_queue("Loading results...", fn);
@@ -863,7 +884,7 @@ void TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
             }, "Are you sure you want to load results from <c><cyan>"+Output::TrackingResults::expected_filename().str()+"</cyan></c>?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
         });
     else
-        WorkProgress::add_queue("Loading results...", fn);
+        return WorkProgress::add_queue("Loading results...", fn);
 }
 
 }

@@ -59,6 +59,9 @@ public:
     bool operator<(Frame_t frame) const {
         return this->frame < frame;
     }
+    
+    std::string toStr() const;
+    static std::string class_name() { return "FrameProperties"; }
 };
 
 struct CacheHints {

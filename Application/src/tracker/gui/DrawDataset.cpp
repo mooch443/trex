@@ -187,7 +187,7 @@ DrawDataset::~DrawDataset() {}
             auto && [samples, max_id, max_p] = max_identity.at(id);
             
             Color color = White.alpha(200);
-            if(double_identities.find(max_id) != double_identities.end())
+            if(max_id.valid() && double_identities.find(max_id) != double_identities.end())
                 color = Red.exposureHSL(1.5).alpha(200);
             else if(samples == 1)
                 color = Yellow.alpha(200);

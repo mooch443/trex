@@ -38,6 +38,8 @@ private:
     std::unique_ptr<WorkGUIObjects> gui;
     std::mutex start_mutex;
 
+protected:
+    static std::unique_ptr<WorkProgress>& raw_instance();
 public:
     static WorkProgress& instance();
     static void stop();

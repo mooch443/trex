@@ -102,6 +102,11 @@ protected:
     //! All the individuals that have been detected and are being maintained
     friend class Individual;
     
+    std::once_flag slow_flag;
+    
+public:
+    void initialize_slows();
+    
 public:
     ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
     

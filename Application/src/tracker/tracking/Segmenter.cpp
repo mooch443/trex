@@ -140,11 +140,14 @@ Segmenter::~Segmenter() {
                 /// ensure its opened:
                 video->header();
                 
-                track::export_data(*video, *_tracker, {}, {}, [](float, std::string_view) {
-                    //if (int(p * 100) % 10 == 0) {
-                    //    Print("Exporting ", int(p * 100), "%...");
-                    //}
-                });
+                /// do not export this already if we are going to go on to the next step!
+                if(not SETTING(auto_train)) {
+                    track::export_data(*video, *_tracker, {}, {}, [](float, std::string_view) {
+                        //if (int(p * 100) % 10 == 0) {
+                        //    Print("Exporting ", int(p * 100), "%...");
+                        //}
+                    });
+                }
             }
         }
 
@@ -569,7 +572,6 @@ std::string date_time() {
 }
 
 void Segmenter::start() {
-    initialize_slows();
     SETTING(meta_conversion_time) = std::string(date_time());
     
     start_recording_ffmpeg();

@@ -180,6 +180,19 @@ namespace cmn {
         }
         return paused;
     }
+
+    void ConnectedTasks::add(Type&& obj) {
+        if(_stages.empty()) {
+            throw InvalidArgumentException("Stages are empty, cannot push ", obj,".");
+        }
+        
+        {
+            std::unique_lock<std::mutex> lock(_stages[0].mutex);
+            _stages[0].queue.emplace(std::move(obj));
+        }
+        
+        _stages[0].condition.notify_one();
+    }
     
     std::future<void> ConnectedTasks::set_paused(bool pause) {
         bool expected = !pause;

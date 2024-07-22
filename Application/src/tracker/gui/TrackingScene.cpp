@@ -471,13 +471,13 @@ void TrackingScene::activate() {
         } else if(key == "gui_run") {
             
         } else if(key == "track_pause") {
-            gui::WorkProgress::add_queue("pausing...", [this](){
+            /*gui::WorkProgress::add_queue("pausing...", [this](){
                 _state->analysis.bump();
                 bool pause = SETTING(track_pause).value<bool>();
                 if(_state->analysis.paused() != pause) {
                     _state->analysis.set_paused(pause).get();
                 }
-            });
+            });*/
         } else if(key == "analysis_range") {
             _data->_analysis_range = Tracker::analysis_range();
             
