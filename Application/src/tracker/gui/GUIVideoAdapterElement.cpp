@@ -26,7 +26,7 @@ GUIVideoAdapterElement::GUIVideoAdapterElement(
     update = [this](Layout::Ptr& o,
                     const Context& context,
                     State& state,
-                    const robin_hood::unordered_map<std::string, Pattern>& patterns)
+                    const auto& patterns)
     {
         return _update(o, context, state, patterns);
     };
@@ -44,7 +44,7 @@ GUIVideoAdapterElement::GUIVideoAdapterElement(const GUIVideoAdapterElement& oth
     update = [this](Layout::Ptr& o,
                     const Context& context,
                     State& state,
-                    const robin_hood::unordered_map<std::string, Pattern>& patterns)
+                    const auto& patterns)
     {
         return _update(o, context, state, patterns);
     };

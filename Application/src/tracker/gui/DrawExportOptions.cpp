@@ -191,7 +191,7 @@ struct DrawExportOptions::Data {
                     });
                     return Layout::Ptr(search);
                 },
-                .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool {
+                .update = [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool {
                     return false;
                 }
             });

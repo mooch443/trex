@@ -1429,7 +1429,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             auto ptr = Layout::Make<IndividualImage>();
             return ptr;
         },
-        .update = [this](Layout::Ptr&o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+        .update = [this](Layout::Ptr&o, const Context& context, State& state, const auto& patterns) {
             auto ptr = o.to<IndividualImage>();
             
             Idx_t fdx;
@@ -1490,7 +1490,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             ptr.to<DrawSegments>()->set(attr::SizeLimit{limit});
             return ptr;
         },
-        .update = [this](Layout::Ptr&o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) {
+        .update = [this](Layout::Ptr&o, const Context& context, State& state, const auto& patterns) {
             auto ptr = o.to<DrawSegments>();
             
             Idx_t fdx;

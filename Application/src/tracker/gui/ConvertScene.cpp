@@ -191,7 +191,7 @@ struct ConvertScene::Data {
 
                     return Layout::Ptr(ptr);
                 },
-                .update = [this](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool
+                .update = [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool
                 {
                     //Print("Updating label with patterns: ", patterns);
                     //Print("o = ", o.get());

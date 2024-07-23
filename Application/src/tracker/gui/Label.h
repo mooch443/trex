@@ -24,6 +24,8 @@ class Label : public Entangled {
     GETTER_I(bool, position_override, false);
     GETTER_SETTER(Vec2, override_position);
     
+    bool _initialized{false};
+    
 public:
     Label(const std::string& txt = "", const Bounds& source = {}, const Vec2& center = {});
     ~Label();

@@ -573,8 +573,8 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
 
 std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
     static bool state_visible = false;
-    //if(state_visible)
-//        return {};
+    if(state_visible)
+        return {};
     
     state_visible = true;
 

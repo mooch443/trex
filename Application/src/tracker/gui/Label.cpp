@@ -44,6 +44,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
         }*/
         _text->set_txt(text);
         //+"-"+_text->text();
+        //_initialized = false;
     }
     _source = source;
     _center = center;
@@ -187,10 +188,12 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     else
         _text->set_text_color(White);
 
-    return update_positions(text_pos, dis <= 1, dt);
+    return update_positions(text_pos, _initialized && dis <= 1, dt);
 }
 
 float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
+    _initialized = true;
+    
     if (not do_animate) {
         _text->set_pos(text_pos);
         _line.create(Line::Point_t{ _center }, Line::Point_t{ _text->pos() }, LineClr{ _color }, Line::Thickness_t{ 2 });

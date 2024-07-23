@@ -441,7 +441,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 
                 return Layout::Ptr(ptr);
             },
-            .update = [](Layout::Ptr& o, const Context& context, State& state, const robin_hood::unordered_map<std::string, Pattern>& patterns) -> bool {
+            .update = [](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool {
                 //Print("Updating label with patterns: ", patterns);
                 //Print("o = ", o.get());
 
