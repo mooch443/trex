@@ -9,6 +9,7 @@
 #include <gui/DynamicVariable.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
+#include <gui/types/StaticText.h>
 
 using namespace cmn;
 using namespace cmn::gui;
@@ -258,6 +259,137 @@ TEST(ParseText, InvalidNestedString) {
 
     auto str = parse_text("This is a string: {*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", context, state);
     EXPECT_EQ(str, "This is a string: null");
+}
+
+class StaticTextTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Initialize any required resources
+    }
+
+    void TearDown() override {
+        // Clean up any resources
+    }
+
+    // Utility function to check line breaks
+    void checkLineBreaks(const std::vector<std::unique_ptr<cmn::gui::StaticText::RichString>>& strings, float max_width, cmn::gui::Drawable* reference) {
+        for (const auto& str : strings) {
+            Bounds bounds = cmn::utils::calculate_bounds(str->parsed, reference, str->font);
+            float width = cmn::utils::calculate_width(bounds);
+            
+            //Print("** ", utils::ShortenText(str->parsed, 15)," w=", width, " max=",max_width, " font=",str->font);
+            
+            EXPECT_LE(width, max_width) << "Line exceeds max width: " << str->str;
+        }
+    }
+
+    // Utility function to check that all characters from input are found in the correct order
+    void checkCharactersInOrder(const std::string& input, const std::vector<std::unique_ptr<cmn::gui::StaticText::RichString>>& strings) {
+        Vec2 prev(FLT_MAX);
+        size_t index = 0;
+        for (const auto& str : strings) {
+            bool new_line = str->pos.y != prev.y;
+            prev = str->pos;
+            
+            for(size_t i = 0; i < str->str.size(); ++i, ++index) {
+                EXPECT_FALSE(index >= input.size());
+                if(new_line && i == 0 && std::isspace(input[index]) && input[index] != str->str[i])
+                    ++index;
+                
+                EXPECT_FALSE(index >= input.size());
+                EXPECT_EQ(str->str[i], input[index]);
+            }
+        }
+    }
+};
+
+TEST_F(StaticTextTest, NoMaxWidth) {
+    StaticText::Settings settings;
+    settings.default_font = Font(0.5);
+    settings.max_size.x = 0;  // No max width
+    
+    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    cmn::Vec2 offset(0, 0);
+
+    std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
+    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+    
+    StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
+    
+    // Verify that no lines are longer than the default width
+    EXPECT_EQ(strings.size(), 1);
+
+    // Verify that all characters are in the correct order
+    checkCharactersInOrder(input, strings);
+}
+
+TEST_F(StaticTextTest, SmallMaxWidth) {
+    StaticText::Settings settings;
+    settings.default_font = Font(0.5);
+    settings.max_size.x = 50;
+
+    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    cmn::Vec2 offset(0, 0);
+
+    std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
+    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+
+    StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
+
+    // Verify that lines do not exceed the specified max width
+    checkLineBreaks(strings, settings.max_size.x, nullptr);
+
+    // Additional verification to ensure multiple lines are created
+    EXPECT_GT(strings.size(), 1);
+
+    // Verify that all characters are in the correct order
+    checkCharactersInOrder(input, strings);
+}
+
+TEST_F(StaticTextTest, MediumMaxWidth) {
+    StaticText::Settings settings;
+    settings.default_font = Font(0.5);
+    settings.max_size.x = 100;  // Medium max width (arbitrary unit)
+
+    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    cmn::Vec2 offset(0, 0);
+
+    std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
+    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+
+    StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
+
+    // Verify that lines do not exceed the specified max width
+    checkLineBreaks(strings, settings.max_size.x, nullptr);
+
+    // Additional verification to ensure multiple lines are created
+    EXPECT_GT(strings.size(), 1);
+
+    // Verify that all characters are in the correct order
+    checkCharactersInOrder(input, strings);
+}
+
+TEST_F(StaticTextTest, LargeMaxWidth) {
+    StaticText::Settings settings;
+    settings.default_font = Font(0.5);
+    settings.max_size.x = 150;  // Large max width (arbitrary unit)
+
+    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    cmn::Vec2 offset(0, 0);
+
+    std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
+    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+
+    StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
+
+    // Verify that lines do not exceed the specified max width
+    checkLineBreaks(strings, settings.max_size.x, nullptr);
+
+    // Additional verification to ensure multiple lines are created
+    EXPECT_GT(strings.size(), 1);
+
+    // Verify that all characters are in the correct order
+    checkCharactersInOrder(input, strings);
 }
 
 int main(int argc, char **argv) {

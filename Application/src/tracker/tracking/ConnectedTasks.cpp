@@ -183,7 +183,7 @@ namespace cmn {
 
     void ConnectedTasks::add(Type&& obj) {
         if(_stages.empty()) {
-            throw InvalidArgumentException("Stages are empty, cannot push ", obj,".");
+            throw InvalidArgumentException("Stages are empty, cannot push ", obj.get(),".");
         }
         
         {

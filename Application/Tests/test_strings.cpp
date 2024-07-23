@@ -1887,8 +1887,97 @@ TEST(ToStringTest, HandleInfinity) {
 }
 
 TEST(ToStringTest, PrecisionTest) {
-    auto str = to_string(0.0001f);
+    auto str = to_string(0.0001);
     EXPECT_EQ(str, "0.0001");
+    
+    str = to_string(0.00001);
+    EXPECT_EQ(str, "0.00001");
+    
+    str = to_string(0.0001f);
+    EXPECT_EQ(str, "0.0001");
+    
+    str = to_string(9.999999f);
+    EXPECT_EQ(str, "9.99999");
+    
+    str = to_string(9.9999);
+    EXPECT_EQ(str, "9.9999");
+    
+    str = to_string(9.9999f);
+    EXPECT_EQ(str, "9.99989"); /// float cant handle this
+    
+    str = to_string(99.99999);
+    EXPECT_EQ(str, "99.99999");
+    
+    str = to_string(99.99999f);
+    EXPECT_EQ(str, "99.99999");
+    
+    str = to_string(9999.99999999);
+    EXPECT_EQ(str, "10000"); /// too many decimals
+    
+    str = to_string(9999.99999999f);
+    EXPECT_EQ(str, "10000"); /// same here
+    
+    str = to_string(0.99999);
+    EXPECT_EQ(str, "0.99999");
+    
+    str = to_string(1.23456789);
+    EXPECT_EQ(str, "1.23456"); /// precision limited to 6 decimal places
+    
+    str = to_string(-1.23456789);
+    EXPECT_EQ(str, "-1.23456"); /// precision limited to 6 decimal places
+
+    str = to_string(1.23456789f);
+    EXPECT_EQ(str, "1.23456"); /// same as above but for float
+
+    str = to_string(123456789.0);
+    EXPECT_EQ(str, "123456789"); /// scientific notation for large numbers
+
+    str = to_string(1234567.0f);
+    EXPECT_EQ(str, "1234567"); /// same as above but for float
+
+    str = to_string(0.000000123456789);
+    EXPECT_EQ(str, "0"); /// small number is too small
+
+    str = to_string(0.000000123456789f);
+    EXPECT_EQ(str, "0"); /// same as above but for float
+
+    str = to_string(1.0 / 3.0);
+    EXPECT_EQ(str, "0.33333"); /// repeating decimal limited to precision
+
+    str = to_string(static_cast<float>(1.0 / 3.0));
+    EXPECT_EQ(str, "0.33333"); /// same as above but for float
+
+    str = to_string(2.0 / 3.0);
+    EXPECT_EQ(str, "0.66666"); /// another repeating decimal
+
+    str = to_string(static_cast<float>(2.0 / 3.0));
+    EXPECT_EQ(str, "0.66666"); /// same as above but for float
+
+    str = to_string(1.7976931348623157e+308); // Max double
+    EXPECT_EQ(str, "inf");
+
+    str = to_string(3.4028235e+38f); // Max float
+    EXPECT_EQ(str, "inf");
+    str = to_string(-3.4028235e+38f); // Max float
+    EXPECT_EQ(str, "-inf");
+
+    str = to_string(5e-324); // Min positive double
+    EXPECT_EQ(str, "0");
+
+    str = to_string(1.4e-45f); // Min positive float
+    EXPECT_EQ(str, "0");
+
+    str = to_string(0.1 + 0.2);
+    EXPECT_EQ(str, "0.3"); // Precision test for floating point addition
+
+    str = to_string(0.1f + 0.2f);
+    EXPECT_EQ(str, "0.3"); // Same as above for float
+
+    str = to_string(-0.0000001);
+    EXPECT_EQ(str, "-0"); // Negative small number
+
+    str = to_string(-0.0000001f);
+    EXPECT_EQ(str, "-0"); // Same as above for float
 }
 
 TEST(StaticParseTest, invalid_label) {
