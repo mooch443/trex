@@ -28,6 +28,7 @@
 #include <gui/DynamicGUI.h>
 #include <misc/SettingsInitializer.h>
 #include <misc/PythonWrapper.h>
+#include <gui/WorkProgress.h>
 
 namespace cmn::gui {
 using namespace dyn;
@@ -394,6 +395,8 @@ void ConvertScene::deactivate() {
         FormatExcept(e.what());
         _scene_promise.set_exception(std::current_exception());
     }
+    
+    WorkProgress::stop();
 }
 
 void ConvertScene::Data::check_video_info(bool wait, std::string* result) {
@@ -550,6 +553,10 @@ bool ConvertScene::on_global_event(Event e) {
         && e.key.pressed) 
     {
         switch(e.key.code) {
+            case Keyboard::T:
+                SETTING(gui_show_texts) = not SETTING(gui_show_texts);
+                break;
+                
             case Keyboard::R:
                 if(not _data)
                     return true;

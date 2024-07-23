@@ -92,7 +92,7 @@
 		"var":"untracked",
 		"do": {
 			"type":"condition",
-			"var":"{i.visible}",
+			"var":"{&&:{>:{i.px}:0}:{i.visible}}",
 			"then":{
 				"type":"collection",
 				"children":[

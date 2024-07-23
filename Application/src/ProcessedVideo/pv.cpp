@@ -1024,7 +1024,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
             Print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            Print("Metadata: ",ret.c_str());
+            Print("Metadata: ", no_quotes(ret));
         }
         
         return ret;
@@ -1132,8 +1132,9 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         if(full) {
             if(header().metadata.empty())
                 ss << ("<b>Metadata empty.</b>");
-            else
-                ss << "<b>Metadata:</b> " << header().metadata ;
+            else {
+                return ss.str() + "<b>Metadata:</b> " + header().metadata;
+            }
         }
         
         return ss.str();

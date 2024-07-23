@@ -174,10 +174,16 @@ void launch_gui(std::future<void>& f) {
     auto& manager = SceneManager::getInstance();
     WorkProgress::instance().start();
     
-    static std::unique_ptr<Segmenter> segmenter;
+    std::unique_ptr<Segmenter> segmenter;
+    bool errored_out{false};
+    
     ConvertScene converting(base, [&](ConvertScene& scene){
         segmenter = std::make_unique<Segmenter>(
-        [&manager]() {
+        [&manager, &errored_out, &segmenter]() {
+            if(errored_out) {
+                return;
+            }
+            
             if (SETTING(auto_quit) && not SETTING(auto_train)) {
                 if (not SETTING(terminate))
                     SETTING(terminate) = true;
@@ -194,14 +200,16 @@ void launch_gui(std::future<void>& f) {
                 }
 			}
         },
-        [&manager](std::string error) {
+        [&manager, &errored_out, &segmenter](std::string error) {
             if(SETTING(nowindow))
                 throw U_EXCEPTION("Error converting: ", error);
             
+            errored_out = true;
+            
             manager.set_switching_error(error);
-            if(manager.last_active())
+            /*if(manager.last_active())
                 manager.set_active(manager.last_active());
-            else manager.set_active("starting-scene");
+            else*/ manager.set_active("starting-scene");
         });
 
         if(f.valid())
@@ -212,7 +220,7 @@ void launch_gui(std::future<void>& f) {
         if(not segmenter->output_size().empty())
             base.graph()->set_size(Size2(1024, segmenter->output_size().height / segmenter->output_size().width * 1024));
         
-    }, [](auto&){
+    }, [&](auto&){
         // on deactivate
         segmenter = nullptr;
     });

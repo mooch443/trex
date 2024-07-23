@@ -24,10 +24,14 @@ Scene::~Scene() {
 }
 
 void Scene::activate() {
+#ifndef NDEBUG
     Print("Activating scene ", _name);
+#endif
 }
 void Scene::deactivate() {
+#ifndef NDEBUG
     Print("Deactivating scene ", _name);
+#endif
 }
 
 void Scene::draw(DrawStructure& base) {

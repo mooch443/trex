@@ -8,6 +8,16 @@ void TileImage::move_back(Image::Ptr&& ptr) {
     buffers::TileBuffers::get().move_back(std::move(ptr));
 }
 
+TileImage::~TileImage() {
+    if(promise) {
+        try {
+            throw U_EXCEPTION("TileImage had a promise left open.");
+        } catch(...) {
+            promise->set_exception(std::current_exception());
+        }
+    }
+}
+
 TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size)
     : tile_size(tile_size),
     source_size(source.cols, source.rows),

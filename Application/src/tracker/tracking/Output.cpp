@@ -557,8 +557,10 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 auto frame = data.index;
                 try {
                     process_frame(fish, std::move(data));
+                } catch(const std::exception& ex) {
+                    FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
                 } catch(...) {
-                    FormatExcept("Exception when processing frame ",frame," for fish ", fish);
+                    FormatExcept("Unknown exception when processing frame ",frame," for fish ", fish);
                 }
                 guard.lock();
             }

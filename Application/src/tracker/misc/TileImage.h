@@ -28,6 +28,8 @@ struct TileImage {
     
     TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size);
     
+    ~TileImage();
+    
     operator bool() const {
         return not images.empty();
     }

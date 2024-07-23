@@ -140,7 +140,9 @@ namespace track {
             auto name = _id_to_string.at(type);
             while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                 set.erase(--set.end());
+#ifndef NDEBUG
             Print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
+#endif
         }
         changed();
     }
@@ -159,7 +161,9 @@ namespace track {
                 {
                     set.erase(--set.end());
                 }
+#ifndef NDEBUG
                 Print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
+#endif
             }
         }
         changed();

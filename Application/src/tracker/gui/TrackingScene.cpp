@@ -589,7 +589,7 @@ void TrackingScene::deactivate() {
     if(_data && _data->_callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
     
-    auto config = default_config::generate_delta_config(_state->video.get());
+    auto config = default_config::generate_delta_config(_state ? _state->video.get() : nullptr);
     for(auto &[key, value] : config.map) {
         Print(" * ", *value);
     }

@@ -175,6 +175,19 @@ Segmenter::~Segmenter() {
         _queue = nullptr;
     }
 #endif
+    
+    try {
+        Detection::deinit();
+        
+    } catch(const std::exception& ex) {
+        FormatExcept("Exception during deinit: ", ex.what());
+    }
+    
+    _overlayed_video = nullptr;
+    _output_file = nullptr;
+    for(auto &item : items) {
+        std::get<1>(item).get();
+    }
 }
 
 Size2 Segmenter::size() const {
@@ -706,7 +719,7 @@ void Segmenter::generator_thread() {
                     
                     if(_output_file && _output_file->length() == 0_f && not _next_frame_data && not items.empty()) {
                         if(error_callback)
-                            error_callback("Cannot generate results: EOF before anything was written.");
+                            error_callback("Cannot generate segmentation: EOF before anything was written.");
                     }
 					return;
 				}
@@ -715,7 +728,7 @@ void Segmenter::generator_thread() {
                 thread_print("TM Invalid item #", items.size(),": ", result.error());
 #endif
                 if(error_callback)
-                    error_callback("Cannot generate results: "+std::string(result.error()));
+                    error_callback("Cannot generate segmentation: "+std::string(result.error()));
             }
             else {
                 assert(std::get<1>(result.value()).valid());
