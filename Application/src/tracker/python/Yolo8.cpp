@@ -5,10 +5,30 @@
 #include <video/Video.h>
 #include <misc/Timer.h>
 #include <misc/ThreadPool.h>
+#include <misc/TrackingSettings.h>
 
 namespace track {
 
 using namespace cmn;
+
+struct AcceptanceSettings {
+    float sqcm;
+    BlobSizeRange min_max;
+    
+    bool is_acceptable(const pv::Blob& blob) const {
+        if(min_max.empty())
+            return true;
+        return min_max.in_range_of_one(blob.num_pixels() * sqcm);
+    }
+    
+    static AcceptanceSettings Make() {
+        const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
+        return AcceptanceSettings{
+            .sqcm = SQR(cm_per_pixel),
+            .min_max = SETTING(segment_size_filter).value<BlobSizeRange>()
+        };
+    }
+};
 
 std::mutex running_mutex;
 std::shared_future<void> running_prediction;
@@ -271,6 +291,8 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     const auto detect_only_classes = SETTING(detect_only_classes).value<std::vector<uint8_t>>();
     const coord_t w = max(0, r3.cols - 1);
     const coord_t h = max(0, r3.rows - 1);
+    
+    const auto settings = AcceptanceSettings::Make();
 
     //! decide on whether to use masks (if available), or bounding boxes
     //! if masks are not available. for the boxes we simply copy over all
@@ -278,10 +300,10 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     //! the pixels that are inside the mask.
     if (not result.masks().empty()) {
         /// yes we have masks!
-        process_instance_segmentation(detect_only_classes, w, h, r3, data, result);
+        process_instance_segmentation(detect_only_classes, w, h, r3, data, result, settings);
     } else {
         /// we had no instance segmentation...
-        process_boxes_only(detect_only_classes, w, h, r3, data, result);
+        process_boxes_only(detect_only_classes, w, h, r3, data, result, settings);
     }
 }
 
@@ -291,18 +313,11 @@ void Yolo8::process_boxes_only(
        coord_t h,
        const cv::Mat& r3,
        SegmentationData &data,
-       track::detect::Result &result)
+       track::detect::Result &result,
+       const AcceptanceSettings &settings)
 {
     size_t N_rows = result.boxes().num_rows();
     auto& boxes = result.boxes();
-    
-    if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
-        cv::Mat tmp;
-        convert_from_r3g3b2(r3, tmp);
-        //tf::imshow("r3", tmp);
-    } else {
-        //tf::imshow("r3", r3);
-    }
     
     for (size_t i = 0; i < N_rows; ++i) {
         auto& row = boxes[i];
@@ -339,7 +354,16 @@ void Yolo8::process_boxes_only(
             pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
             
             pv::Blob blob(lines, flags);
-            data.predictions.push_back({ .clid = size_t(row.clid), .p = float(row.conf) });
+            
+            /// we are not allowed to save this blob to file:
+            if(not settings.is_acceptable(blob)) {
+                continue;
+            }
+            
+            data.predictions.push_back({
+                .clid = size_t(row.clid),
+                .p = float(row.conf)
+            });
             
             blob::Pose pose;
             if(not result.keypoints().empty()) {
@@ -363,7 +387,8 @@ void Yolo8::process_instance_segmentation(
       coord_t h,
       const cv::Mat& r3,
       SegmentationData &data,
-      track::detect::Result &result)
+      track::detect::Result &result,
+      const AcceptanceSettings &settings)
 {
     size_t N_rows = result.boxes().num_rows();
     auto& boxes = result.boxes();
@@ -387,7 +412,7 @@ void Yolo8::process_instance_segmentation(
             
             auto& mask = result.masks()[i];
             
-            auto r = process_instance(w, h, r3, row, mask);
+            auto r = process_instance(w, h, r3, row, mask, settings);
             if(r) {
                 auto &&[assign, pair] = r.value();
                 
@@ -412,7 +437,8 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
      coord_t h,
      const cv::Mat &r3,
      const track::detect::Row &row,
-     const track::detect::MaskData &mask)
+     const track::detect::MaskData &mask,
+     const AcceptanceSettings& settings)
 {
     Bounds bounds = row.box;
 
@@ -455,6 +481,13 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
     assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (Background::meta_encoding() == meta_encoding_t::rgb8));
 
     pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
+    
+    /// Check whether the given object is acceptable regarding the current
+    /// segmentation settings or not:
+    if(not settings.is_acceptable(blob)) {
+        return std::nullopt;
+    }
+    
     //pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     auto [o, px] = blob.calculate_pixels(r3);
     pair.pixels = std::move(px);

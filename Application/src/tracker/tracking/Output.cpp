@@ -159,7 +159,7 @@ uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
     
     ref.write<uint8_t>(narrow_cast<uint8_t>(pred.outlines.lines.size(), tag::fail_on_error{}));
     for(const blob::SegmentedOutlines::Outline &line : pred.outlines.lines) {
-        ref.write<uint16_t>(narrow_cast<uint16_t>(line.size(), tag::fail_on_error{}));
+        ref.write<uint16_t>(narrow_cast<uint16_t>(line._points.size(), tag::fail_on_error{}));
         for(auto &pt : line._points)
             ref.write<int32_t>(pt);
     }
@@ -544,30 +544,36 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         auto thread_name = get_thread_name();
         set_thread_name("read_individual_"+fish->identity().name()+"_worker");
         
-        std::unique_lock<std::mutex> guard(mutex);
-        
-        while(!stop || !stuffs.empty()) {
-            variable.wait_for(guard, std::chrono::milliseconds(1));
+        try {
+            std::unique_lock<std::mutex> guard(mutex);
             
-            while(!stuffs.empty()) {
-                auto data = std::move(stuffs.front());
-                stuffs.pop_front();
+            while(!stop || !stuffs.empty()) {
+                variable.wait_for(guard, std::chrono::milliseconds(1));
                 
-                guard.unlock();
-                auto frame = data.index;
-                try {
-                    process_frame(fish, std::move(data));
-                } catch(const std::exception& ex) {
-                    FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
-                } catch(...) {
-                    FormatExcept("Unknown exception when processing frame ",frame," for fish ", fish);
+                while(!stuffs.empty()) {
+                    auto data = std::move(stuffs.front());
+                    stuffs.pop_front();
+                    
+                    guard.unlock();
+                    auto frame = data.index;
+                    try {
+                        process_frame(fish, std::move(data));
+                    } catch(const std::exception& ex) {
+                        FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
+                    } catch(...) {
+                        FormatExcept("Unknown exception when processing frame ",frame," for fish ", fish);
+                    }
+                    guard.lock();
                 }
-                guard.lock();
             }
+            
+            promise.set_value();
+            
+        } catch(...) {
+            promise.set_exception(std::current_exception());
         }
         
         set_thread_name(thread_name);
-        promise.set_value();
         finished.notify_all();
     };
     
@@ -596,75 +602,84 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         throw;
     }
     
-    //! read the actual frame data, pushing to worker thread each time
-    for (uint64_t i=0; i<N; i++) {
-        ref.read<data_long_t>(frameIndex);
-        assert(frameIndex <= analysis_range.end().get()
-               && frameIndex >= analysis_range.start().get());
-        //if(!prev_frame.valid()
-        //   && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
-        //    prev_frame = frameIndex;
-
-        TemporaryData data;
-        {
-            ref.read<Vec2>(data.pos);
-            ref.read<float>(data.angle);
+    try {
+        //! read the actual frame data, pushing to worker thread each time
+        for (uint64_t i=0; i<N; i++) {
+            ref.read<data_long_t>(frameIndex);
+            assert(frameIndex <= analysis_range.end().get()
+                   && frameIndex >= analysis_range.start().get());
+            //if(!prev_frame.valid()
+            //   && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
+            //    prev_frame = frameIndex;
+            
+            TemporaryData data;
+            {
+                ref.read<Vec2>(data.pos);
+                ref.read<float>(data.angle);
                 
-            if(_header.version < Output::ResultsFormat::Versions::V_27) {
-                if(_header.version >= Output::ResultsFormat::Versions::V_8)
-                    ref.read<double>(time);
-                else
-                    ref.read_convert<float>(time);
-            } else {
-                auto p = Tracker::properties(Frame_t(frameIndex), cache);
-                if(p) time = p->time;
-                else {
-                    FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
-                    time = -1;
+                if(_header.version < Output::ResultsFormat::Versions::V_27) {
+                    if(_header.version >= Output::ResultsFormat::Versions::V_8)
+                        ref.read<double>(time);
+                    else
+                        ref.read_convert<float>(time);
+                } else {
+                    auto p = Tracker::properties(Frame_t(frameIndex), cache);
+                    if(p) time = p->time;
+                    else {
+                        FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
+                        time = -1;
+                    }
                 }
             }
+            
+            //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();
+            if (_header.version < Output::ResultsFormat::Versions::V_7) {
+                // blob index no longer used
+                uint32_t bdx;
+                ref.read<uint32_t>(bdx);
+            }
+            
+            data.time = time;
+            data.index = index;
+            data.stuff = std::make_unique<BasicStuff>();
+            data.stuff->frame = Frame_t(frameIndex);
+            
+            read_blob(ref, data.stuff->blob);
+            
+            if(_header.version >= Output::ResultsFormat::Versions::V_7 && _header.version < Output::ResultsFormat::Versions::V_29)
+            {
+                static Vec2 tmp;
+                ref.read<Vec2>(tmp);
+            }
+            
+            if(check_analysis_range && not analysis_range.contains(Frame_t(frameIndex))) {
+                continue;
+            }
+            
+            data.prev_frame = prev_frame;
+            prev_frame = Frame_t(frameIndex);
+            
+            data.stuff->centroid.init(prev, time, data.pos, data.angle);
+            prev = &data.stuff->centroid;
+            
+            {
+                std::unique_lock guard(mutex);
+                stuffs.push_back(std::move(data));
+            }
+            variable.notify_one();
+            
+            ++index;
+            
+            if(i%100000 == 0 && i)
+                Print("Blob ", i,"/",N);
         }
         
-        //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();
-        if (_header.version < Output::ResultsFormat::Versions::V_7) {
-            // blob index no longer used
-            uint32_t bdx;
-            ref.read<uint32_t>(bdx);
-        }
-        
-        data.time = time;
-        data.index = index;
-        data.stuff = std::make_unique<BasicStuff>();
-        data.stuff->frame = Frame_t(frameIndex);
-        
-        read_blob(ref, data.stuff->blob);
-        
-        if(_header.version >= Output::ResultsFormat::Versions::V_7 && _header.version < Output::ResultsFormat::Versions::V_29)
-        {
-            static Vec2 tmp;
-            ref.read<Vec2>(tmp);
-        }
-        
-        if(check_analysis_range && not analysis_range.contains(Frame_t(frameIndex))) {
-            continue;
-        }
-        
-        data.prev_frame = prev_frame;
-        prev_frame = Frame_t(frameIndex);
-        
-        data.stuff->centroid.init(prev, time, data.pos, data.angle);
-        prev = &data.stuff->centroid;
-        
-        {
-            std::unique_lock guard(mutex);
-            stuffs.push_back(std::move(data));
-        }
-        variable.notify_one();
-        
-        ++index;
-        
-        if(i%100000 == 0 && i)
-            Print("Blob ", i,"/",N);
+    } catch(...) {
+        FormatExcept("Exception reading ", N, " blobs from ", filename(),".");
+        stop = true;
+        variable.notify_all();
+        ended.get();
+        throw;
     }
     
     stop = true;

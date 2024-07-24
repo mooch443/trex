@@ -23,6 +23,8 @@ public:
         return _ranges != other._ranges;
     }
     
+    bool empty() const { return _ranges.empty(); }
+    
     std::string toStr() const { return Meta::toStr(_ranges); }
     nlohmann::json to_json() const {
         return cvt2json(_ranges);
