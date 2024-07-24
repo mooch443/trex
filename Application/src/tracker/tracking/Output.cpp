@@ -104,7 +104,7 @@ Output::ResultsFormat::~ResultsFormat() {
     _post_pool.wait();
 }
 
-void read_prediction(Data& ref, blob::Prediction& pred) {
+void Output::ResultsFormat::read_prediction(Data& ref, blob::Prediction& pred) const {
     ref.read<uint8_t>(pred.clid);
     if(pred.clid == 255u) {
         /// invalid
@@ -141,6 +141,18 @@ void read_prediction(Data& ref, blob::Prediction& pred) {
         }
         pred.outlines.add(std::move(outline));
     }
+    
+    /// read the original outline
+    if(_header.version >= ResultsFormat::Versions::V_37) {
+        uint32_t M;
+        ref.read<uint32_t>(M);
+        if(M > 0) {
+            blob::SegmentedOutlines::Outline outline;
+            outline._points.resize(M);
+            ref.read_data(M * sizeof(int32_t), (char*)outline._points.data());
+            pred.outlines.original_outline = std::move(outline);
+        }
+    }
 }
 
 uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
@@ -162,6 +174,14 @@ uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
         ref.write<uint16_t>(narrow_cast<uint16_t>(line._points.size(), tag::fail_on_error{}));
         for(auto &pt : line._points)
             ref.write<int32_t>(pt);
+    }
+    
+    if(pred.outlines.has_original_outline()) {
+        auto &line = *pred.outlines.original_outline;
+        ref.write<uint32_t>(narrow_cast<uint32_t>(line._points.size(), tag::fail_on_error{}));
+        ref.write_data(sizeof(int32_t) * line._points.size(), (char*)line._points.data());
+    } else {
+        ref.write<uint32_t>(0);
     }
     
     return position;

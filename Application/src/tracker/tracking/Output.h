@@ -122,8 +122,9 @@ namespace Output {
             V_34, // adding tag information + time of creation
             V_35, // adding tags::information so it can be preserved across saves
             V_36, // writing blob::Prediction objects to results files
+            V_37, // writing main outline for blob::Prediction objects
             
-            current = V_36
+            current = V_37
         };
         
     private:
@@ -182,6 +183,8 @@ namespace Output {
     protected:
         //virtual void _read_file() override;
         //virtual void _write_file() override;
+        
+        void read_prediction(Data& ref, blob::Prediction& pred) const;
         
         virtual void _read_header() override;
         virtual void _write_header() override;

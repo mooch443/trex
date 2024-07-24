@@ -51,6 +51,19 @@ template<> void Data::read(blob::Prediction& pred) {
             }
         }
         
+        if(version >= pv::Version::V_13) {
+            uint32_t N;
+            read<uint32_t>(N);
+            if(N > 0) {
+                std::vector<int32_t> result{N, NoInitializeAllocator<int32_t>()};
+                read_data(N * sizeof(int32_t), (char*)result.data());
+                
+                pred.outlines.original_outline = blob::SegmentedOutlines::Outline{
+                    ._points = std::move(result)
+                };
+            }
+        }
+        
     } else {
         uint8_t trash;
         read<uint8_t>(trash);
@@ -65,7 +78,7 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
     //write<uint8_t>(val._reserved0);
     //write<uint8_t>(val._reserved1);
     
-    write<uint8_t>(val.pose.size() * 2);
+    write<uint8_t>(narrow_cast<uint8_t>(val.pose.size() * 2, tag::fail_on_error{}));
     for(auto &pt : val.pose.points) {
         write<uint16_t>(pt.x);
         write<uint16_t>(pt.y);
@@ -73,8 +86,17 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
     
     write<uint8_t>(val.outlines.lines.size());
     for(auto &line : val.outlines.lines) {
-        write<uint32_t>(line._points.size());
+        write<uint32_t>(narrow_cast<uint32_t>(line._points.size(), tag::fail_on_error{}));
         write_data(line._points.size() * sizeof(int32_t), (char*)line._points.data());
+    }
+    
+    if(val.outlines.original_outline.has_value()) {
+        auto& line = *val.outlines.original_outline;
+        write<uint32_t>(narrow_cast<uint32_t>(line._points.size(), tag::fail_on_error{}));
+        write_data(line._points.size() * sizeof(int32_t), (char*)line._points.data());
+        
+    } else {
+        write<uint32_t>(0);
     }
     
     return pos;

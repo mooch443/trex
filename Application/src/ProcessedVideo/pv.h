@@ -93,8 +93,11 @@ namespace pv {
         /** Adding encoding **/
         V_12,
         
+        /** Adding main outline if available (blob::Prediction) */
+        V_13,
+        
         //! current
-        current = V_12
+        current = V_13
     };
     
     class Frame {

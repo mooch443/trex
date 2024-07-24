@@ -2420,7 +2420,7 @@ void Individual::save_posture(const BasicStuff& basic,
     Posture ptr(frameIndex, identity().ID());
     if(not pixels->prediction().pose.empty()) {
         ptr.calculate_posture(frameIndex, basic, pixels->prediction().pose, pose_midline_indexes);
-    } else if(not pixels->prediction().outlines.empty()) {
+    } else if(pixels->prediction().outlines.has_original_outline()) {
         ptr.calculate_posture(frameIndex, basic, pixels->prediction().outlines);
         
     } else

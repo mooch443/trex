@@ -614,10 +614,10 @@ Fish::~Fish() {
                 
                 if(_basic_stuff
                    && _basic_stuff->blob.pred.valid()
-                   && not _basic_stuff->blob.pred.outlines.empty())
+                   && _basic_stuff->blob.pred.outlines.has_holes())
                 {
                     auto &lines = _basic_stuff->blob.pred.outlines.lines;
-                    for(size_t i = 1; i<lines.size(); ++i) {
+                    for(size_t i = 0; i<lines.size(); ++i) {
                         Line::Vertices_t gline;
                         for(auto &pt : (std::vector<Vec2>)lines.at(i)) {
                             gline.emplace_back(pt + offset, _color.saturation(0.25));

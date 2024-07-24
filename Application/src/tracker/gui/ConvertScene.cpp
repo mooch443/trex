@@ -122,7 +122,7 @@ struct ConvertScene::Data {
     void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
     void paint_blob_prediction(DrawStructure& graph, const Color& tracked_color, const pv::Blob& blob) {
         if(blob.prediction().valid()
-           && not blob.prediction().outlines.empty())
+           && blob.prediction().outlines.has_holes())
         {
             for(auto &line : blob.prediction().outlines.lines) {
                 std::vector<Vec2> v = line;

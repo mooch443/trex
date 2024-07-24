@@ -595,8 +595,8 @@ void TrackingScene::deactivate() {
     }
     Print();
     
-    _state = nullptr;
     _data = nullptr;
+    _state = nullptr;
     
     for(auto &key : GlobalSettings::current_defaults_with_config().keys()) {
         auto value = GlobalSettings::map().at(key);

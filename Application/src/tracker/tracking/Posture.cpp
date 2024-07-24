@@ -237,7 +237,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
     }
 
 void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::SegmentedOutlines& outlines) {
-    auto ptr = std::make_shared<std::vector<Vec2>>(outlines.lines.front());
+    auto ptr = std::make_shared<std::vector<Vec2>>(outlines.original_outline.value());
     const auto pos = basic.blob.calculate_bounds().pos();
     for(auto &pt : *ptr)
         pt -= pos;

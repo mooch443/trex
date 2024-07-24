@@ -200,7 +200,7 @@ void launch_gui(std::future<void>& f) {
                 }
 			}
         },
-        [&manager, &errored_out, &segmenter](std::string error) {
+        [&manager, &errored_out](std::string error) {
             if(SETTING(nowindow))
                 throw U_EXCEPTION("Error converting: ", error);
             

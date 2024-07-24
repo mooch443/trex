@@ -571,12 +571,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             /// we will have the *hole_counts* array that contains...
                             ///  [ M, N_pts0, N_pts1, ..., N_ptsM, <next object> ]
                             if(blob->prediction().valid()
-                               && not blob->prediction().outlines.empty())
+                               && blob->prediction().outlines.has_holes())
                             {
                                 auto &lines = blob->prediction().outlines.lines;
-                                hole_counts.emplace_back(lines.size() - 1);
+                                hole_counts.emplace_back(lines.size());
                                 
-                                for(size_t i = 1; i < lines.size(); ++i) {
+                                for(size_t i = 0; i < lines.size(); ++i) {
                                     auto pts = (std::vector<Vec2>)lines.at(i);
                                     hole_counts.emplace_back(pts.size());
                                     std::copy(pts.begin(), pts.end(), std::back_inserter(hole_points));

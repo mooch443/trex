@@ -512,6 +512,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         
         //draw_outlines(points);
         //data.outlines.emplace_back(*points.front());
+        pair.pred.outlines.set_original(std::move(*points.front()));
         points.erase(points.begin());
         for(auto& pts : points) {
             pair.pred.outlines.add(std::move(*pts));
