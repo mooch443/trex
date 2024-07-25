@@ -99,7 +99,7 @@ private:
     void graceful_end();
     void stop_average_generator(bool blocking);
     
-    Image::Ptr finalize_bg_image(ImageMode colors, const cv::Mat&);
+    Image::Ptr finalize_bg_image(const cv::Mat&);
     std::tuple<bool, cv::Mat> get_preliminary_background(Size2 size);
     void trigger_average_generator(bool regenerate, cv::Mat& bg);
     void callback_after_generating(cv::Mat& bg);

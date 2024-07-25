@@ -41,7 +41,7 @@ class SceneManager {
     Scene* active_scene{ nullptr };
     Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
-    std::queue<std::function<void()>> _queue;
+    std::queue<std::tuple<const Scene*, std::function<void()>>> _queue;
     std::unique_ptr<GUITaskQueue_t> _gui_queue;
     Size2 last_resolution;
     double last_dpi{0};
@@ -91,15 +91,28 @@ public:
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
     void enqueue(F&& task) {
         std::unique_lock guard(_mutex);
-        _queue.push(std::move(task));
+        _queue.emplace(active_scene, std::move(task));
     }
     
     template<typename F>
         requires (std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
     void enqueue(F&& task) {
         std::unique_lock guard(_mutex);
-        if(_gui_queue)
-            _gui_queue->enqueue(std::forward<F>(task));
+        if(_gui_queue) {
+            _gui_queue->enqueue([this, scene = active_scene, task = std::move(task)](IMGUIBase* gui, DrawStructure& base) {
+                if(scene && scene != active_scene) {
+#ifndef NDEBUG
+                    if(scene)
+                        FormatWarning("Scene changed from ",scene->name()," during GUI task execution to ", active_scene ? active_scene->name() : "nullptr");
+                    else
+                        FormatWarning("Scene changed during GUI task execution to ", active_scene ? active_scene->name() : "nullptr");
+#endif
+                    return;
+                }
+
+                task(gui, base);
+            });
+        }
     }
     
     GUITaskQueue_t* gui_task_queue() const;
