@@ -41,7 +41,7 @@ class SceneManager {
     Scene* active_scene{ nullptr };
     Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
-    std::queue<std::tuple<const Scene*, std::tuple<const Scene*, std::function<void()>>>> _queue;
+    std::queue<std::tuple<const Scene*, std::function<void()>>> _queue;
     std::unique_ptr<GUITaskQueue_t> _gui_queue;
     Size2 last_resolution;
     double last_dpi{0};
