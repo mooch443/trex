@@ -24,7 +24,6 @@ namespace cmn {
     template<> uint64_t Data::write(const track::Midline& val);
     template<> uint64_t Data::write(const track::MinimalOutline& val);
 
-    template<> void Data::read(track::Individual*&);
     template<> uint64_t Data::write(const track::Individual& val);
 }
 
@@ -185,6 +184,24 @@ namespace Output {
         //virtual void _write_file() override;
         
         void read_prediction(Data& ref, blob::Prediction& pred) const;
+        
+        /// This is what is being transmitted to a separate thread
+        /// in order for it to have enough context for processing
+        /// BasicStuff instances in the _load_pool
+        struct TemporaryData {
+            std::unique_ptr<BasicStuff> stuff;
+            Frame_t prev_frame;
+            Vec2 pos;
+            float angle;
+            size_t index;
+            double time;
+        };
+        
+        static void process_frame(const CacheHints* cache_ptr,
+                           Individual* fish,
+                           TemporaryData&& data);
+        
+        void read_single_individual(Individual** out_ptr);
         
         virtual void _read_header() override;
         virtual void _write_header() override;

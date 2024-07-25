@@ -387,6 +387,51 @@ uint64_t Data::write(const Midline& val) {
     return p;
 }
 
+void Output::ResultsFormat::process_frame(
+          const CacheHints* cache_ptr,
+          Individual* fish,
+          TemporaryData&& data)
+{
+    const auto& frameIndex = data.stuff->frame;
+    
+    const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
+    
+#if !COMMONS_NO_PYTHON
+    auto label =
+        FAST_SETTING(track_consistent_categories)
+            ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
+            : nullptr;
+#else
+    Categorize::Label::Ptr label = nullptr;
+#endif
+    Match::prob_t p = p_threshold;
+    if(!fish->empty()) {
+        auto cache = fish->cache_for_frame(Tracker::properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
+        if(cache) {
+            assert(frameIndex > fish->start_frame());
+            p = fish->probability(label ? label->id : -1, cache.value(), frameIndex, data.stuff->blob);//.p;
+        } else {
+            throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", cache.error());
+        }
+    }
+    
+    if(fish->empty())
+        fish->_startFrame = frameIndex;
+    assert(not fish->_endFrame.valid() || fish->_endFrame < frameIndex);
+    fish->_endFrame = frameIndex;
+    
+    auto segment = fish->update_add_segment(
+        frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
+        data.stuff->centroid,
+        data.prev_frame,
+        &data.stuff->blob,
+        p
+    );
+    
+    segment->add_basic_at(frameIndex, (long_t)data.index);
+    fish->_basic_stuff[data.index] = std::move(data.stuff);
+}
+
 Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHints* cache) {
     Timer timer;
     
@@ -455,108 +500,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     auto analysis_range = Tracker::analysis_range();
     bool check_analysis_range = SETTING(analysis_range).value<Range<long_t>>().start != -1 || SETTING(analysis_range).value<Range<long_t>>().end != -1;
     
-    struct TemporaryData {
-        std::unique_ptr<BasicStuff> stuff;
-        Frame_t prev_frame;
-        Vec2 pos;
-        float angle;
-        size_t index;
-        double time;
-    };
-    
     std::mutex mutex;
     std::condition_variable variable;
     std::deque<TemporaryData> stuffs;
     std::atomic_bool stop{false};
     
-    //! processes a single data point
-    auto process_frame = [cache_ptr = cache](
-             Individual* fish,
-             TemporaryData&& data)
-    {
-        const auto& frameIndex = data.stuff->frame;
-        
-        const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
-        
-#if !COMMONS_NO_PYTHON
-        auto label =
-            FAST_SETTING(track_consistent_categories)
-                ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
-                : nullptr;
-#else
-        Categorize::Label::Ptr label = nullptr;
-#endif
-        Match::prob_t p = p_threshold;
-        if(!fish->empty()) {
-            auto cache = fish->cache_for_frame(Tracker::properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
-            if(cache) {
-                assert(frameIndex > fish->start_frame());
-                p = fish->probability(label ? label->id : -1, cache.value(), frameIndex, data.stuff->blob);//.p;
-            } else {
-                throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", cache.error());
-            }
-        }
-        
-        if(fish->empty())
-            fish->_startFrame = frameIndex;
-        assert(not fish->_endFrame.valid() || fish->_endFrame < frameIndex);
-        fish->_endFrame = frameIndex;
-        
-        auto segment = fish->update_add_segment(
-            frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
-            data.stuff->centroid,
-            data.prev_frame,
-            &data.stuff->blob,
-            p
-        );
-        
-        segment->add_basic_at(frameIndex, (long_t)data.index);
-        fish->_basic_stuff[data.index] = std::move(data.stuff);
-    };
-    
-    //! determine when the worker thread has ended
-    std::condition_variable finished;
-    std::promise<void> promise;
-    auto ended = promise.get_future();
-    
     //! looping through all data points
-    auto worker = [&, promise = std::move(promise)]() mutable {
-        auto thread_name = get_thread_name();
-        set_thread_name("read_individual_"+fish->identity().name()+"_worker");
-        
-        try {
-            std::unique_lock<std::mutex> guard(mutex);
-            
-            while(!stop || !stuffs.empty()) {
-                //variable.wait_for(guard, std::chrono::milliseconds(1));
-                
-                while(!stuffs.empty()) {
-                    auto data = std::move(stuffs.front());
-                    stuffs.pop_front();
-                    
-                    guard.unlock();
-                    auto frame = data.index;
-                    try {
-                        process_frame(fish, std::move(data));
-                    } catch(const std::exception& ex) {
-                        FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
-                    } catch(...) {
-                        FormatExcept("Unknown exception when processing frame ",frame," for fish ", fish);
-                    }
-                    guard.lock();
-                }
-            }
-            
-            promise.set_value();
-            
-        } catch(...) {
-            promise.set_exception(std::current_exception());
-        }
-        
-        set_thread_name(thread_name);
-        finished.notify_all();
-    };
-    
+
     size_t index = 0;// start with basic_stuff == zero
     
     double time;
@@ -570,8 +520,45 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     std::fill(fish->_matched_using.begin(), fish->_matched_using.end(), default_config::matching_mode_t::benchmark);
     
     const MotionRecord* prev = nullptr;
-    
-    
+    std::future<void> ended;
+
+    try {
+        //! start worker that iterates the frames / fills in
+        //! additional info that was not read directly from the file
+        //! per frame.
+        ended = _load_pool.enqueue([&stop, &stuffs, cache, fish, &mutex]() mutable {
+            auto thread_name = get_thread_name();
+            set_thread_name("read_individual_"+fish->identity().name()+"_worker");
+            
+            std::unique_lock<std::mutex> guard(mutex);
+            while(!stop || !stuffs.empty()) {
+                //variable.wait_for(guard, std::chrono::milliseconds(1));
+                
+                while(!stuffs.empty()) {
+                    auto data = std::move(stuffs.front());
+                    stuffs.pop_front();
+                    
+                    guard.unlock();
+                    auto frame = data.index;
+                    try {
+                        process_frame(cache, fish, std::move(data));
+                    } catch(const std::exception& ex) {
+                        FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
+                    } catch(...) {
+                        FormatExcept("Unknown exception when processing frame ",frame," for fish ", fish);
+                    }
+                    guard.lock();
+                }
+            }
+                
+            set_thread_name(thread_name);
+        });
+        
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads on _load_pool: ", e.what());
+        throw;
+    }
+
     try {
         //! read the actual frame data, pushing to worker thread each time
         for (uint64_t i=0; i<N; i++) {
@@ -654,19 +641,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     stop = true;
     variable.notify_all();
-
-    try {
-        //! start worker that iterates the frames / fills in
-        //! additional info that was not read directly from the file
-        //! per frame.
-        //_load_pool.enqueue(std::move(worker));
-        worker();
-        
-    } catch(const UtilsException& e) {
-        FormatExcept("Exception when starting worker threads on _load_pool: ", e.what());
-        throw;
-    }
-
     ended.get();
     
     //!TODO: resize back to intended size
@@ -708,10 +682,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
     
-    //uint64_t delta = this->tell() - pos_before;
-    //pos_before = this->tell();
-    
-    // number of head positions
+    /// Read the outlines / midlines as well as
+    /// the typical PostureStuff:
     if(_header.version <= Versions::V_24) {
         ref.read<uint64_t>(N);
         Frame_t frame;
@@ -847,6 +819,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
 
+    /// Deal with QRCode tags
     if (_header.version >= Versions::V_34) {
         uint64_t N;
         ref.read<uint64_t>(N);
@@ -904,7 +877,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     return fish;
 }
 
-template<> void Data::read(Individual*& out_ptr) {
+void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
     struct Callback {
         std::function<void()> _fn;
         Callback(std::function<void()> fn) : _fn(fn) {}
@@ -918,7 +891,7 @@ template<> void Data::read(Individual*& out_ptr) {
     };
     
     auto results = dynamic_cast<Output::ResultsFormat*>(this);
-    auto callback = new Callback([results, quiet = GlobalSettings::is_runtime_quiet()](){
+    auto callback = std::make_unique<Callback>([results, quiet = GlobalSettings::is_runtime_quiet()](){
         ++results->_N_written;
         
         if(!quiet) {
@@ -939,12 +912,11 @@ template<> void Data::read(Individual*& out_ptr) {
         auto in = Meta::toStr(FileSize(size));
         auto out = Meta::toStr(FileSize(uncompressed_size));
         
-        
-        std::vector<char>* cache = nullptr;
         auto ptr = read_data_fast(size);
         
-        results->_generic_pool.enqueue([ptr, uncompressed_size, out_ptr = &out_ptr, results, size, callback, cache]()
+        results->_generic_pool.enqueue([ptr, uncompressed_size, out_ptr, results, size, callback = std::move(callback)]()
         {
+            std::vector<char> cache;
             DataPackage /*compressed_block, */uncompressed_block;
             uncompressed_block.resize(uncompressed_size, false);
             
@@ -959,10 +931,6 @@ template<> void Data::read(Individual*& out_ptr) {
             } else {
                 throw U_EXCEPTION("Failed to decode individual from file ",results->filename());
             }
-            
-            if(cache)
-                delete cache;
-            delete callback;
         });
         
         return;
@@ -971,8 +939,7 @@ template<> void Data::read(Individual*& out_ptr) {
     if(!results)
         throw U_EXCEPTION("This is not ResultsFormat.");
     
-    out_ptr = results->read_individual(*this, results->_property_cache.get());
-    delete callback;
+    *out_ptr = results->read_individual(*this, results->_property_cache.get());
 }
 
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
@@ -1605,7 +1572,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         for (uint64_t i=0; i<L; i++) {
             fishes[i] = nullptr;
             
-            file.read<Individual*>(fishes[i]);
+            file.read_single_individual(&fishes[i]);
             
             if(SETTING(terminate)) {
                 file._generic_pool.wait();
