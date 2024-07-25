@@ -814,6 +814,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             const bool tracklet_force_normal_color = SETTING(tracklet_force_normal_color).value<bool>();
             
+            const auto encoding = Background::meta_encoding();
             const uint8_t exp_channels = required_channels(Background::image_mode());
             
             std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Vec2, Frame_t, Idx_t, Image::Ptr>>>> queues;
@@ -824,7 +825,6 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             std::vector<uint32_t> image_coords;
             
             size_t index = 0;
-            const auto encoding = Background::meta_encoding();
             pv::Frame vframe;
             
             for(auto && [frame, vec] : waiting_pixels) {
@@ -901,31 +901,29 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     
                     // normalize image size and write to normal queue
                     if(reduced.image) {
-                        cv::Mat image;
-                        reduced.image->get().copyTo(image);
+                        const Image* chosen = reduced.image.get();
+                        assert(chosen != nullptr);
                         
                         Image::Ptr ptr;
-                        if(image.channels() == 3
+                        if(chosen->channels() == 3
                            && Background::meta_encoding() == meta_encoding_t::r3g3b2)
                         {
-                            ptr = Image::Make(image.rows, image.cols, 1);
+                            ptr = Image::Make(chosen->rows, chosen->cols, 1);
                             cv::Mat output = ptr->get();
-                            convert_to_r3g3b2<3>(image, output);
+                            convert_to_r3g3b2<3>(chosen->get(), output);
+                            chosen = ptr.get();
                         }
                         
                         if(can_we_expect_fix_dimensions) {
-                            if(image.cols != output_size.width
-                               || image.rows != output_size.height)
+                            if(chosen->cols != output_size.width
+                               || chosen->rows != output_size.height
+                               || chosen->channels() != exp_channels)
                             {
-                                throw InvalidArgumentException("Invalid dimensions for output_size ", output_size, ": ", *reduced.image, " of ", reduced.blob.get());
+                                throw InvalidArgumentException("Invalid dimensions for output_size ", output_size, "x",exp_channels,": ", chosen->dimensions(), "x", chosen->channels(), " of ", reduced.blob.get());
                             }
-                            //
-                            assert(   image.cols == output_size.width
-                                   && image.rows == output_size.height
-                                   && image.channels() == exp_channels);
                         }
                         
-                        queues[data.fdx][data.range].push({ reduced.pos, frame, data.fdx, ptr ? std::move(ptr) : Image::Make(image) });
+                        queues[data.fdx][data.range].push({ reduced.pos, frame, data.fdx, ptr ? std::move(ptr) : std::move(reduced.image) });
                         
                         /*cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
                         
@@ -1096,16 +1094,21 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 (size_t)output_size.width,
                                 (size_t)exp_channels
                             }, "w");
+                            
                         } else {
                             cmn::npz_save(path.str(), "images", single_images.data(), {
                                 single_images.size()
                             }, "w");
+                        }
+                        
+                        if(not image_dimensions.empty()) {
+                            assert(image_dimensions.size() % 3 == 0);
                             cmn::npz_save(path.str(), "dimensions", image_dimensions.data(), {
-                                single_frames.size(),
+                                image_dimensions.size() / 3,
                                 3u
                             }, "a");
-                            
                         }
+                        
                         cmn::npz_save(path.str(), "positions", image_coords.data(), {
                             single_frames.size(),
                             2u
@@ -1113,6 +1116,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         
                         cmn::npz_save(path.str(), "frames", single_frames, "a");
                         cmn::npz_save(path.str(), "ids", single_ids, "a");
+                        
+                        // export the current meta_encoding as a string to the npz file:
+                        const std::string meta_encoding = Meta::toStr(Background::meta_encoding());
+                        cmn::npz_save(path.str(), "encoding", meta_encoding, "a");
                     });
                     
                     single_frames.clear();
@@ -1180,14 +1187,15 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         image_coords.push_back(pos.x);
                         image_coords.push_back(pos.y);
                         
+                        image_dimensions.push_back(image->rows);
+                        image_dimensions.push_back(image->cols);
+                        image_dimensions.push_back(image->channels());
+                        
+                        single_frames.push_back(frame.get());
+                        single_ids.push_back(fid.get());
+                        
                         if(not can_we_expect_fix_dimensions) {
-                            image_dimensions.push_back(image->rows);
-                            image_dimensions.push_back(image->cols);
-                            image_dimensions.push_back(image->channels());
-                            
                             single_images.insert(single_images.end(), image->data(), image->data() + image->size());
-                            single_frames.push_back(frame.get());
-                            single_ids.push_back(fid.get());
                             byte_counter += image->size();
                             
                         } else {
@@ -1203,19 +1211,18 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 throw InvalidArgumentException("Invalid number of channels: ", *image);
                             
                             assert(image->cols == output_size.width
-                                   && image->rows == output_size.height);
+                                   && image->rows == output_size.height
+                                   && image->channels() == exp_channels);
                             //mat.convertTo(tmp, CV_8UC(image->dims));
                             hist_utils::addImage(tmp, M, med);
                             
-                            if(tracklet_max_images == 0) {
+                            //if(tracklet_max_images == 0)
+                            {
                                 single_images.insert(single_images.end(), image->data(), image->data() + image->size());
-                                single_frames.push_back(frame.get());
-                                single_ids.push_back(fid.get());
                                 byte_counter += image->size();
                             }
-                            
-                            ++image_count;
                         }
+                        ++image_count;
                         
                         if(byte_counter >= 1.5 * 1000 * 1000 * 1000) {
                             // finish up this range
