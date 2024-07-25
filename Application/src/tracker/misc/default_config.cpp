@@ -399,24 +399,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "scissors", "teddy bear", "hair drier", "toothbrush"
         };
         CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
-        CONFIG("detect_skeleton", blob::Pose::Skeleton("human", {
-                {0, 1, "Nose to Left Eye"},
-                {0, 2, "Nose to Right Eye"},
-                {1, 3, "Left Eye to Ear"},
-                {2, 4, "Right Eye to Ear"},
-                {5, 6, "Left to Right Shoulder"},
-                {5, 7, "Left Upper Arm"},
-                {7, 9, "Left Forearm"},
-                {6, 8, "Right Upper Arm"},
-                {8, 10, "Right Forearm"},
-                {5, 11, "Left Shoulder to Hip"},
-                {6, 12, "Right Shoulder to Hip"},
-                {11, 12, "Left to Right Hip"},
-                {11, 13, "Left Thigh"},
-                {13, 15, "Left Shin"},
-                {12, 14, "Right Thigh"},
-                {14, 16, "Right Shin"}
-            }), "Skeleton to be used when displaying pose data.");
+        CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", LOAD);
         CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
@@ -556,7 +539,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
-        CONFIG("segment_size_filter", BlobSizeRange({Rangef(1.f, 10000.f)}), "During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.");
+        CONFIG("segment_size_filter", BlobSizeRange({Rangef(0.1f, 10000.f)}), "During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.");
         CONFIG("track_size_filter", BlobSizeRange({Rangef(0.01f, 100.f)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `track_size_filter`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
@@ -862,7 +845,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "video_length",
             "terminate",
             "cam_limit_exposure",
-            "cam_undistort_vector",
             "gpu_accepted_uniqueness",
             //"output_graphs",
             "auto_minmax_size",
@@ -981,8 +963,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
-                    auto str = GlobalSettings::get(key).get().valueString();
-                    //Print("adding ", key, " = ", str.c_str());
                     result[key] = &GlobalSettings::get(key).get();
                 }
             }

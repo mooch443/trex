@@ -70,13 +70,9 @@ namespace default_config {
         Adding adding(config, docs, fn);
         
         std::vector<double> buffer {
-            -0.2576632 , -0.19233586,  0.00245493,  0.00398822,  0.35924019
         };
         
         std::vector<double> matrix = {
-            2.94508959e+03,   0.00000000e+00,   6.17255441e+02,
-            0.00000000e+00,   2.94282514e+03,   6.82473623e+02,
-            0.00000000e+00,   0.00000000e+00,   1.00000000e+00
         };
         
         CONFIG("cam_undistort_vector", buffer, "");

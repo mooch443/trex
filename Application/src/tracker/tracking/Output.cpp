@@ -32,50 +32,10 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
 {
     // post processing for individuals
     Timer timer;
-    //pv::Frame frame;
-    //PPFrame output;
+    auto name = get_thread_name();
+    set_thread_name(obj->identity().name()+"_post");
 
-    /*for(auto &stuff : obj->_basic_stuff) {
-        stuff->blob->calculate_properties();
-        stuff->blob->calculate_moments();
-    }*/
-
-    if (timer.elapsed() > 1)
-        Print("Blobs took ", timer.elapsed(),"s");
-
-    timer.reset();
-        auto name = get_thread_name();
-        set_thread_name(obj->identity().name()+"_post");
-
-        obj->update_midlines(_property_cache.get());
-
-    //data_long_t previous = obj->start_frame();
-    //for(auto && [i, c] : obj->_centroid) {
-        /*auto outline = obj->outline(i);
-        auto midline = obj->midline(i);
-
-        if(outline && midline) {
-
-            // calculate midline centroid
-            Vec2 centroid_point(0, 0);
-            auto points = outline->uncompress();
-
-            for (auto &p : points) {
-                centroid_point += p;
-            }
-            centroid_point /= float(points.size());
-            centroid_point += obj->_blobs.at(i)->bounds().pos();
-
-            auto enhanced = new MotionRecord(prev_enhanced, c->time(), centroid_point, midline->angle());
-            obj->_centroid_posture[i] = enhanced;
-            prev_enhanced = enhanced;
-        }*/
-
-        // save frame segments
-        /*obj->push_to_segments(i, previous);
-        previous = i;
-    }*/
-
+    obj->update_midlines(_property_cache.get());
     obj->_local_cache.regenerate(obj);
 
     if (timer.elapsed() >= 1) {
@@ -84,7 +44,7 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
             Print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
     }
         
-        set_thread_name(name);
+    set_thread_name(name);
         
 }, "Output::post_pool"),
 _generic_pool(cmn::hardware_concurrency(), "Output::GenericPool", [this](std::exception_ptr e) {
@@ -568,7 +528,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             std::unique_lock<std::mutex> guard(mutex);
             
             while(!stop || !stuffs.empty()) {
-                variable.wait_for(guard, std::chrono::milliseconds(1));
+                //variable.wait_for(guard, std::chrono::milliseconds(1));
                 
                 while(!stuffs.empty()) {
                     auto data = std::move(stuffs.front());
@@ -611,16 +571,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     const MotionRecord* prev = nullptr;
     
-    try {
-        //! start worker that iterates the frames / fills in
-        //! additional info that was not read directly from the file
-        //! per frame.
-        _load_pool.enqueue(std::move(worker));
-        
-    } catch(const UtilsException& e) {
-        FormatExcept("Exception when starting worker threads on _load_pool: ", e.what());
-        throw;
-    }
     
     try {
         //! read the actual frame data, pushing to worker thread each time
@@ -704,6 +654,19 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     stop = true;
     variable.notify_all();
+
+    try {
+        //! start worker that iterates the frames / fills in
+        //! additional info that was not read directly from the file
+        //! per frame.
+        //_load_pool.enqueue(std::move(worker));
+        worker();
+        
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads on _load_pool: ", e.what());
+        throw;
+    }
+
     ended.get();
     
     //!TODO: resize back to intended size
@@ -712,11 +675,17 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         fish->_matched_using.resize(index);
     }
     
-    assert(!fish->empty());
+    if(fish->empty()) {
+        FormatWarning("Individual ", fish->identity(), " is empty (index=", index, " basic_stuff=", fish->_basic_stuff.size()," N=",N,")");
+    }
+    //assert(!fish->empty());
     
     // read pixel information
     if(_header.version >= Versions::V_19) {
         ref.read<uint64_t>(N);
+        if(fish->_basic_stuff.empty()) {
+            assert(N == 0);
+        }
         
         data_long_t frameIndex;
         uint64_t value;
@@ -1647,6 +1616,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         }
         
         file._generic_pool.wait();
+        file._post_pool.wait();
+
         if(file._exception_ptr) //! an exception happened inside the generic pool
             std::rethrow_exception(file._exception_ptr);
         

@@ -791,12 +791,27 @@ void SettingsScene::deactivate() {
     //RecentItems::set_select_callback(nullptr);
     //_data->dynGUI.clear();
     WorkProgress::stop();
-    if(_data && _data->callback)
-        GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
-    _data->dynGUI.clear();
-    if(_data && _data->check_new_video_source.valid())
-        _data->check_new_video_source.get();
-    _data = nullptr;
+
+    if(_data) {
+        Print("Clearing _data->dynGUI");
+        _data->dynGUI.clear();
+
+        Print("_data is set, need to unregister callbacks...");
+        if(_data->callback)
+            GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
+
+        Print("_checking new video source: ", _data->check_new_video_source.valid());
+        if(_data->check_new_video_source.valid())
+            _data->check_new_video_source.get();
+
+        /// need to clear queue in case we got something pushed in the check_new_video_source
+        SceneManager::getInstance().update_queue();
+        
+        Print("Deleting _data...");
+        _data = nullptr;
+
+        Print("Done.");
+    }
     dyn::Modules::remove("follow");
 }
 

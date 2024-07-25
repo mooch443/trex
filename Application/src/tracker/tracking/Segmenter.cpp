@@ -221,23 +221,36 @@ bool Segmenter::is_average_generating() const {
     return false;
 }
 
-Image::Ptr Segmenter::finalize_bg_image(ImageMode colors, const cv::Mat& bg) {
-    assert(bg.type() == CV_8UC3);
-    
-    /// in case its r3g3b2 we just save the full color
-    /// image, to account for all cases in the future:
-    Image::Ptr ptr;
-    if(colors == ImageMode::R3G3B2) {
-        ptr = Image::Make(bg.rows, bg.cols, 1);
-        cv::Mat output = ptr->get();
-        convert_to_r3g3b2<3>(bg, output);
-    } else if(colors == ImageMode::RGB) {
-        ptr = Image::Make(bg);
-    } else if(colors == ImageMode::GRAY) {
-        ptr = Image::Make(bg.rows, bg.cols, 1);
-        cv::cvtColor(bg, ptr->get(), cv::COLOR_BGR2GRAY);
-    } else
-        throw InvalidArgumentException("Invalid color mode: ", colors);
+Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
+    const auto meta_encoding = Background::meta_encoding();
+    const uint8_t channels = required_channels(Background::image_mode());
+
+    Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, channels);
+    if(bg.channels() == 3
+        && bg.cols == _output_size.width
+        && bg.rows == _output_size.height
+    ) {
+        if(meta_encoding == meta_encoding_t::r3g3b2) {
+            assert(channels == 1);
+            auto tmp = ptr->get();
+            convert_to_r3g3b2<3>(bg, tmp);
+            
+        } else if(channels == 1) {
+            assert(meta_encoding == meta_encoding_t::gray);
+            cv::cvtColor(bg, ptr->get(), cv::COLOR_BGR2GRAY);
+
+        } else if(meta_encoding == meta_encoding_t::rgb8) {
+            assert(channels == 3);
+            bg.copyTo(ptr->get());
+
+        } else {
+            throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
+        }
+
+    } else {
+        FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+    }
+
     return ptr;
 }
 
@@ -251,31 +264,16 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
         do_generate_average = true;
     }
     else {
-        Print("Loading from file...");
+        Print("Loading average from file ",average_name(),"...");
         bg = cv::imread(average_name().str());
 
-        if (bg.cols == size.width && bg.rows == size.height) {
-            if(bg.channels() == 3)
-            {
-                if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
-                    assert(channels == 1);
-                    cv::Mat output;
-                    convert_to_r3g3b2<3>(bg, output);
-                    bg = std::move(output);
-                    
-                } else if(channels == 1) {
-                    assert(Background::meta_encoding() == meta_encoding_t::gray);
-                    cv::cvtColor(bg, bg, cv::COLOR_BGR2GRAY);
-                }
-            }
-            
-            if(channels != bg.channels()) {
-                FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
-                bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
-                do_generate_average = true;
-            }
+        /// we expect an RGB image here so we can convert to any format
+        if (bg.cols == size.width && bg.rows == size.height && bg.channels() == 3) {
+            Print("Background image is valid ", size, " with RGB channels.");
             
         } else {
+            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+            bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
             do_generate_average = true;
         }
     }
@@ -330,7 +328,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             last_percent = 0;
             
             VideoSource tmp(SETTING(source).value<file::PathArray>());
-            auto colors = Background::image_mode();
+            
             /// for future purposes everything in rgb, so if the
             /// user switches to gray later on it still works:
             tmp.set_colors(ImageMode::RGB);
@@ -353,7 +351,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 Print("Aborted average image.");
             }
             
-            auto ptr = finalize_bg_image(colors, bg);
+            auto ptr = finalize_bg_image(bg);
             auto mat = ptr->get();
             if(detection_type() == ObjectDetectionType::background_subtraction)
                 BackgroundSubtraction::set_background(std::move(ptr));
@@ -377,7 +375,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         }
         
     } else {
-        auto ptr = finalize_bg_image(Background::image_mode(), bg);
+        auto ptr = finalize_bg_image(bg);
         auto mat = ptr->get();
         BackgroundSubtraction::set_background(std::move(ptr));
         callback_after_generating(mat);

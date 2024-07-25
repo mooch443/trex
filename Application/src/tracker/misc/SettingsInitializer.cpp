@@ -105,7 +105,25 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "detect_classes", std::vector<std::string>{},
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
-            "track_max_reassign_time", 0.5f
+            "track_max_reassign_time", 0.5f,
+            "detect_skeleton", blob::Pose::Skeleton("human", {
+                {0, 1, "Nose to Left Eye"},
+                {0, 2, "Nose to Right Eye"},
+                {1, 3, "Left Eye to Ear"},
+                {2, 4, "Right Eye to Ear"},
+                {5, 6, "Left to Right Shoulder"},
+                {5, 7, "Left Upper Arm"},
+                {7, 9, "Left Forearm"},
+                {6, 8, "Right Upper Arm"},
+                {8, 10, "Right Forearm"},
+                {5, 11, "Left Shoulder to Hip"},
+                {6, 12, "Right Shoulder to Hip"},
+                {11, 12, "Left to Right Hip"},
+                {11, 13, "Left Thigh"},
+                {13, 15, "Left Shin"},
+                {12, 14, "Right Thigh"},
+                {14, 16, "Right Shin"}
+            })
         };
         
         for(auto &key : values.keys()) {
