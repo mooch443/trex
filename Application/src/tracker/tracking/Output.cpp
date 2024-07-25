@@ -526,13 +526,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         //! start worker that iterates the frames / fills in
         //! additional info that was not read directly from the file
         //! per frame.
-        ended = _load_pool.enqueue([&stop, &stuffs, cache, fish, &mutex]() mutable {
+        ended = _load_pool.enqueue([&stop, &stuffs, &variable, cache, fish, &mutex]() mutable {
             auto thread_name = get_thread_name();
             set_thread_name("read_individual_"+fish->identity().name()+"_worker");
             
             std::unique_lock<std::mutex> guard(mutex);
             while(!stop || !stuffs.empty()) {
-                //variable.wait_for(guard, std::chrono::milliseconds(1));
+                variable.wait_for(guard, std::chrono::milliseconds(1));
                 
                 while(!stuffs.empty()) {
                     auto data = std::move(stuffs.front());
