@@ -41,7 +41,7 @@ class SceneManager {
     Scene* active_scene{ nullptr };
     Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
-    std::queue<std::tuple<const Scene*, std::function<void()>>> _queue;
+    std::queue<std::tuple<const Scene*, std::tuple<const Scene*, std::function<void()>>>> _queue;
     std::unique_ptr<GUITaskQueue_t> _gui_queue;
     Size2 last_resolution;
     double last_dpi{0};
@@ -99,13 +99,10 @@ public:
     void enqueue(F&& task) {
         std::unique_lock guard(_mutex);
         if(_gui_queue) {
-            _gui_queue->enqueue([this, scene = active_scene, task = std::move(task)](IMGUIBase* gui, DrawStructure& base) {
-                if(scene && scene != active_scene) {
+            _gui_queue->enqueue([this, scene = active_scene, task = std::forward<F>(task)](IMGUIBase* gui, DrawStructure& base) {
+                if(scene && active_scene != scene) {
 #ifndef NDEBUG
-                    if(scene)
-                        FormatWarning("Scene changed from ",scene->name()," during GUI task execution to ", active_scene ? active_scene->name() : "nullptr");
-                    else
-                        FormatWarning("Scene changed during GUI task execution to ", active_scene ? active_scene->name() : "nullptr");
+                    FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
 #endif
                     return;
                 }

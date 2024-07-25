@@ -107,12 +107,22 @@ WorkInstance::~WorkInstance() {
     WorkProgress::set_item(_previous);
 }
 
+std::mutex& instance_mutex()  {
+    static std::mutex mutex;
+    return mutex;
+}
+
 std::unique_ptr<WorkProgress>& WorkProgress::raw_instance() {
     static std::unique_ptr<WorkProgress> _instance;
     return _instance;
 }
 
 WorkProgress& WorkProgress::instance() {
+    std::unique_lock guard{instance_mutex()};
+    return init_instance();
+}
+
+WorkProgress& WorkProgress::init_instance() {
     if(not raw_instance()) {
         raw_instance() = std::unique_ptr<WorkProgress>(new WorkProgress);
     }
@@ -163,15 +173,11 @@ void WorkProgress::start() {
                 
                 lock.unlock();
                 
-                if(std::unique_lock guard(instance().gui_mutex);
-                   instance().gui)
+                auto &self = instance();
+                if(std::unique_lock guard(self.gui_mutex);
+                   self.gui)
                 {
-                    //auto stage = instance().gui->_additional.stage();
-                    //if(stage)
-                    //{
-                        //auto guard = GUI_LOCK(stage->lock());
-                        instance().gui->_additional.update([](auto&){});
-                    //}
+                    self.gui->_additional.update([](auto&){});
                 }
                 item.fn();
                 //std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -196,8 +202,10 @@ void WorkProgress::stop() {
             _condition.notify_all();
         }
         
-        if(raw_instance()) {
-            if(std::unique_lock guard(instance().start_mutex);
+        if(std::unique_lock guard{instance_mutex()};
+           raw_instance()) 
+        {
+            if(std::unique_lock guard(raw_instance()->start_mutex);
                _thread)
             {
                 _thread->join();
@@ -207,11 +215,22 @@ void WorkProgress::stop() {
         }
     }
     
-    if(raw_instance()) {
-        std::unique_lock guard(instance().gui_mutex);
-        instance().gui = nullptr;
+    /// we have to move it out so it doesnt get locked up in itself...
+    std::unique_ptr<WorkProgress> obj;
+
+    if(std::unique_lock guard{instance_mutex()};
+       raw_instance())
+    {
+        {
+            std::unique_lock guard(raw_instance()->gui_mutex);
+            raw_instance()->gui = nullptr;
+        }
+
+        obj = std::move(raw_instance());
         raw_instance() = nullptr;
     }
+
+    obj = nullptr;
 }
 
 void WorkProgress::set_item(const std::string &item) {

@@ -237,12 +237,11 @@ void SceneManager::update_queue() {
         auto [scene, f] = std::move(_queue.front());
         _queue.pop();
 
-        if(scene && scene != active_scene) {
+        if(scene
+            && active_scene != scene) 
+        {
 #ifndef NDEBUG
-            if(scene)
-                FormatWarning("Scene changed from ",scene->name()," during GUI task execution to ", active_scene ? active_scene->name() : "nullptr");
-            else
-                FormatWarning("Scene changed during GUI task execution to ", active_scene ? active_scene->name() : "nullptr");
+            FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
 #endif
             continue;
         }

@@ -35,11 +35,12 @@ private:
     
     struct WorkGUIObjects;
     mutable std::mutex gui_mutex;
-    std::unique_ptr<WorkGUIObjects> gui;
     std::mutex start_mutex;
+    std::unique_ptr<WorkGUIObjects> gui;
 
 protected:
     static std::unique_ptr<WorkProgress>& raw_instance();
+    static WorkProgress& init_instance();
 public:
     static WorkProgress& instance();
     static void stop();

@@ -58,6 +58,7 @@ target_link_libraries(test_outlines PUBLIC gtest gmock gtest_main)
 target_link_libraries(test_matching PUBLIC
     tracker_tracking
     tracker_ml
+    tracker_python
     tracker_gui
     tracker_misc
     framegrabber_misc
@@ -69,13 +70,6 @@ target_link_libraries(test_matching PUBLIC tracker_python)
 
 if(WIN32)
     set_target_properties(test_matching PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
-endif()
-
-if(NOT WIN32)
-    target_link_libraries(test_matching PUBLIC pthread m)
-    if(NOT APPLE)
-        target_link_libraries(test_matching PUBLIC atomic)
-    endif()
 endif()
 
 target_link_libraries(test_outlines PUBLIC
@@ -94,13 +88,6 @@ if(WIN32)
     set_target_properties(test_outlines PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
 
-if(NOT WIN32)
-    target_link_libraries(test_outlines PUBLIC pthread m)
-    if(NOT APPLE)
-        target_link_libraries(test_outlines PUBLIC atomic)
-    endif()
-endif()
-        
 # Extra linking for the project.
 target_link_libraries(test_strings PUBLIC
         commons
