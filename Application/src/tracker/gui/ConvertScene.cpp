@@ -910,7 +910,6 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             REQUIRE_EXACTLY(1, action);
             
             Python::schedule(Python::PackagedTask{
-                ._can_run_before_init = false,
                 ._network = nullptr,
                 ._task = Python::PromisedTask(
                     [action](){
@@ -918,7 +917,8 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                         Print("Executing: ", action.first());
                         py::execute(action.first());
                     }
-                )
+                ),
+                ._can_run_before_init = false
             });
         })
     };

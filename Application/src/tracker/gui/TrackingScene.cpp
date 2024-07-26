@@ -1111,7 +1111,6 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                 REQUIRE_EXACTLY(1, action);
                 
                 Python::schedule(Python::PackagedTask{
-                    ._can_run_before_init = false,
                     ._network = nullptr,
                     ._task = Python::PromisedTask(
                         [action](){
@@ -1119,7 +1118,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                             Print("Executing: ", action.first());
                             py::execute(action.first());
                         }
-                    )
+                    ),
+                    ._can_run_before_init = false
                 });
             }),
             ActionFunc("write_config", [video = _state->video](Action){
