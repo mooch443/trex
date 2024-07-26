@@ -1104,7 +1104,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             ActionFunc("save_results", [this](Action) {
                 _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
             }),
-            ActionFunc("export_data", [this](Action){
+            ActionFunc("export_data", [](Action){
                 SETTING(gui_show_export_options) = true;
             }),
             ActionFunc("python", [](Action action){
