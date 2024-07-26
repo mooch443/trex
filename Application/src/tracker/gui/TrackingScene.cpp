@@ -1107,19 +1107,19 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
             ActionFunc("export_data", [this](Action){
                 SETTING(gui_show_export_options) = true;
             }),
-            ActionFunc("python", [this](Action action){
+            ActionFunc("python", [](Action action){
                 REQUIRE_EXACTLY(1, action);
                 
                 Python::schedule(Python::PackagedTask{
                     ._can_run_before_init = false,
                     ._network = nullptr,
-                    ._task = Python::PromisedTask{
+                    ._task = Python::PromisedTask(
                         [action](){
                             using py = PythonIntegration;
                             Print("Executing: ", action.first());
                             py::execute(action.first());
                         }
-                    }
+                    )
                 });
             }),
             ActionFunc("write_config", [video = _state->video](Action){

@@ -912,13 +912,13 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             Python::schedule(Python::PackagedTask{
                 ._can_run_before_init = false,
                 ._network = nullptr,
-                ._task = Python::PromisedTask{
+                ._task = Python::PromisedTask(
                     [action](){
                         using py = PythonIntegration;
                         Print("Executing: ", action.first());
                         py::execute(action.first());
                     }
-                }
+                )
             });
         })
     };
