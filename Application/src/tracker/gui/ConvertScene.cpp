@@ -904,6 +904,22 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             SceneManager::getInstance().enqueue([text](auto, DrawStructure& graph) {
                 graph.dialog("Copied to clipboard:\n<c><str>"+text+"</str></c>");
             });
+        }),
+        
+        ActionFunc("python", [this](Action action){
+            REQUIRE_EXACTLY(1, action);
+            
+            Python::schedule(Python::PackagedTask{
+                ._can_run_before_init = false,
+                ._network = nullptr,
+                ._task = Python::PromisedTask{
+                    [action](){
+                        using py = PythonIntegration;
+                        Print("Executing: ", action.first());
+                        py::execute(action.first());
+                    }
+                }
+            });
         })
     };
     context.variables = {
