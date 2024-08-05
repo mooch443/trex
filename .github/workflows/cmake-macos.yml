@@ -60,6 +60,7 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
+        conda update --all --override-channels -c defaults -y
         conda build . --override-channels -c pytorch -c defaults
         echo "::endgroup::"
         echo $CONDA_PREFIX

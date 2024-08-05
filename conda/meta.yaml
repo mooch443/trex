@@ -131,7 +131,7 @@ requirements:
     - "pytorch::torchvision=*=py3*" # [osx and arm64]
     - "pytorch::torchvision=*=py3*_cu118" # [win]
     - "pytorch::torchvision=*=py3*_cu118" # [linux]
-    - "pytorch::torchmetrics"
+    - "torchmetrics"
     - "cuda-version=11.8" # [linux]
     - "cuda-version=11.8" # [win]
     - "cuda-cccl=11.8" # [win or linux]

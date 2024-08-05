@@ -56,7 +56,8 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build . --override-channels -c pytorch -c nvidia -c conda-forge
+        conda update --all --override-channels -c defaults -y
+        conda build . --override-channels -c pytorch -c nvidia -c defaults
         echo "::endgroup::"
         echo $CONDA_PREFIX
     - name: Test
