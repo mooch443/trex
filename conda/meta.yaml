@@ -106,7 +106,7 @@ requirements:
     - openh264 # [osx] 
     - numpy ==1.26.2 # [osx and not arm64]
     - numpy ==1.26.2 # [arm64]
-    - numpy >=1.19,<=1.24 # [linux]
+    - numpy ==1.26.4 # [linux]
     - numpy ==1.26.2 # [win]
 
   run:
@@ -129,6 +129,7 @@ requirements:
     - "pytorch::torchvision=*=py3*" # [osx and not arm64]
     - "pytorch::torchvision=*=py3*" # [osx and arm64]
     - "pytorch::torchvision=*=py3*_cu117" # [linux or win]
+    - "cuda-version=11.7" # [linux or win]
     # disable this for install builds
     #- cudatoolkit =10.1 # [linux]
     #- cudatoolkit =11 # [win]
