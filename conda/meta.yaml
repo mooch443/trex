@@ -143,7 +143,6 @@ requirements:
     #- cudnn =7.6 # [linux]
     - mkl =2024.0 # [linux]
     - scikit-learn
-    - seaborn
     - pip
     - requests
 
