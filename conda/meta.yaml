@@ -97,7 +97,7 @@ requirements:
     - python =3.11 # [osx and arm64]
     - python =3.11 # [osx and not arm64]
     - python =3.11 # [win]
-    - python =3.10 # [linux]
+    - python =3.11 # [linux]
     - openblas # [arm64]
     - ffmpeg =6 # [osx and arm64]
     - ffmpeg >=4.3,<=6 # [win]
@@ -124,15 +124,15 @@ requirements:
     - "pytorch::pytorch=2.*=py3*" # [osx and not arm64]
     - "pytorch::pytorch<2.4=py3*" # [osx and arm64]
     - "pytorch::pytorch=2.*=py3*_cuda11.8_cudnn*" # [win]
-    - "pytorch::pytorch=2.*=py3*_cuda11.7_cudnn*" # [linux]
-    - "pytorch::pytorch-cuda=11.7" # [linux]
+    - "pytorch::pytorch=2.*=py3*_cuda11.8_cudnn*" # [linux]
+    - "pytorch::pytorch-cuda=11.8" # [linux]
     - "pytorch::pytorch-cuda=11.8" # [win]
     - "pytorch::torchvision=*=py3*" # [osx and not arm64]
     - "pytorch::torchvision=*=py3*" # [osx and arm64]
     - "pytorch::torchvision=*=py3*_cu118" # [win]
-    - "pytorch::torchvision=*=py3*_cu117" # [linux]
+    - "pytorch::torchvision=*=py3*_cu118" # [linux]
     - "pytorch::torchmetrics"
-    - "cuda-version=11.7" # [linux]
+    - "cuda-version=11.8" # [linux]
     - "cuda-version=11.8" # [win]
     - "cuda-cccl=11.8" # [win]
     # disable this for install builds
@@ -141,7 +141,7 @@ requirements:
     #- cudnn # [win]
     # disable this for install builds
     #- cudnn =7.6 # [linux]
-    - mkl =2024.0 # [linux]
+    - mkl # [linux]
     - scikit-learn
     - pip
     - requests
