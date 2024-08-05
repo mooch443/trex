@@ -773,7 +773,7 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_segment_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_segment_order(global_segment_order) {
+Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_segment_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_segment_order(global_segment_order), _gui(gui) {
     using namespace gui;
     _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
 }
@@ -871,10 +871,19 @@ bool Accumulation::start() {
         individuals_per_frame = generate_individuals_per_frame(_initial_range, _collected_data.get(), nullptr);
         
         if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *_video, individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
+            
+            const char* text = "Couldnt generate proper training data (see previous warning messages).";
             if(SETTING(auto_train_on_startup)) {
-                throw U_EXCEPTION("Couldnt generate proper training data (see previous warning messages).");
-            } else
-                FormatWarning("Couldnt generate proper training data (see previous warning messages).");
+                throw U_EXCEPTION(text);
+            } else {
+                if(_gui)
+                    _gui->enqueue([text](auto, gui::DrawStructure& graph) {
+                        using namespace gui;
+                        graph.dialog(text, "Training Error");
+                    });
+                
+                FormatWarning(text);
+            }
             return false;
         }
         
@@ -1016,8 +1025,15 @@ bool Accumulation::start() {
             
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text.c_str());
-            } else
+            } else {
+                if(_gui)
+                    _gui->enqueue([text](auto, gui::DrawStructure& graph) {
+                        using namespace gui;
+                        graph.dialog(text, "Training Error");
+                    });
+                
                 FormatExcept(text.c_str());
+            }
             return false;
         }
         
@@ -1508,8 +1524,15 @@ bool Accumulation::start() {
             const char* text = "Did not find enough consecutive segments to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `track_size_filter` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
-            } else
+            } else {
+                if(_gui)
+                    _gui->enqueue([text](auto, gui::DrawStructure& graph) {
+                        using namespace gui;
+                        graph.dialog(text, "Training Error");
+                    });
+                
                 FormatExcept(text);
+            }
         } else
             update_coverage(*_collected_data);
         

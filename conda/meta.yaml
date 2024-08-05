@@ -129,6 +129,7 @@ requirements:
     - "pytorch::torchvision=*=py3*" # [osx and not arm64]
     - "pytorch::torchvision=*=py3*" # [osx and arm64]
     - "pytorch::torchvision=*=py3*_cu117" # [linux or win]
+    - "pytorch::torchmetrics"
     - "cuda-version=11.7" # [linux or win]
     # disable this for install builds
     #- cudatoolkit =10.1 # [linux]

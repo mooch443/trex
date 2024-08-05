@@ -41,7 +41,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
             if(not video)
                 throw SoftException("There was no video open.");
             
-            Accumulation acc(std::move(video), controller->_tracker->global_segment_order(), window, load);
+            Accumulation acc(gui, std::move(video), controller->_tracker->global_segment_order(), window, load);
             //if(current.valid())
             //    current.get();
 
