@@ -119,6 +119,7 @@ void VINetwork::setup(bool force) {
         else
             py::set_variable("device", device, module_name);
         
+        py::set_variable("accumulation_step", (long_t)-1, module_name);
         py::set_variable("network_version", version.toStr(), module_name);
         py::set_variable("classes", ids, module_name);
         py::set_variable("image_width", int(PSetting(individual_image_size).width), module_name);

@@ -38,7 +38,9 @@ struct RepeatedDeferral {
     RepeatedDeferral(size_t threads, size_t minimal_fill, std::string name, F fn,
                      cmn::source_location loc = cmn::source_location::current()) : _threads(threads), _minimal_fill(minimal_fill), _index ( thread_index().fetch_add(1) ), _fn(std::forward<F>(fn)), name(name)
     {
+#ifndef NDEBUG
         thread_print("Instance of RepeatedDeferral(", name,") with ID ", _index, " with ", &thread_index());
+#endif
         _group_id = ThreadManager::getInstance().registerGroup(name, loc);
         ThreadManager::getInstance().addThread(_group_id, name, ManagedThread{
             [this](auto&){ updater(); }

@@ -588,7 +588,9 @@ void TrackingScene::init_undistortion() {
 }
 
 void TrackingScene::deactivate() {
+#ifndef NDEBUG
     ThreadManager::getInstance().printThreadTree();
+#endif
     if(_data && _data->_recorder.recording()) {
         _data->_recorder.stop_recording(nullptr, nullptr);
         if(_data->_background)
