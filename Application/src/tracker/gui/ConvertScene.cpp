@@ -34,8 +34,99 @@ namespace cmn::gui {
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
 
+// Policy classes
+struct ThreadSafePolicy {
+    using mutex_type = std::mutex;
+    using lock_type = std::unique_lock<mutex_type>;
+};
+
+struct NonThreadSafePolicy {
+    struct dummy_mutex {
+        void lock() {}
+        void unlock() {}
+    };
+    struct dummy_lock {
+        dummy_lock(dummy_mutex&) {}
+    };
+    using mutex_type = dummy_mutex;
+    using lock_type = dummy_lock;
+};
+
+// Single class managing the object cache
+template <typename T,
+          size_t maxCacheSize = 0,
+          template <typename...> class PtrType = std::unique_ptr,
+          typename ThreadPolicy = NonThreadSafePolicy>
+class ObjectCache {
+    using Ptr = PtrType<T>;
+public:
+    // Destructor that clears the cache
+    ~ObjectCache() {
+        clearCache();
+    }
+
+    // Method to get an object from the cache
+    Ptr getObject() {
+        typename ThreadPolicy::lock_type lock{cacheMutex};
+        if (not cache.empty()) {
+            auto obj = std::move(cache.back());
+            cache.pop_back();
+            return obj;
+        }
+        
+        return std::make_unique<T>();
+    }
+
+    // Method to return an object to the cache
+    void returnObject(Ptr&& obj) {
+        typename ThreadPolicy::lock_type lock{cacheMutex};
+        if (maxCacheSize > 0 && cache.size() >= maxCacheSize) {
+            return;
+        }
+        
+        cache.push_back(std::move(obj));
+    }
+
+    // Method to clear the cache
+    void clearCache() {
+        typename ThreadPolicy::lock_type lock{cacheMutex};
+        cache.clear();
+    }
+
+private:
+    std::vector<Ptr> cache;
+    typename ThreadPolicy::mutex_type cacheMutex;
+};
+
+class LabelWrapper;
+using LabelCache_t = ObjectCache<Label, 100, std::shared_ptr>;
+
+class LabelWrapper : public Layout {
+    std::shared_ptr<Label> _label;
+    LabelCache_t* _cache;
+    
+public:
+    LabelWrapper(LabelCache_t& cache, std::shared_ptr<Label>&& label)
+        : _label(std::move(label)), _cache(&cache)
+    {
+        set_children({Layout::Ptr(_label)});
+    }
+    
+    LabelWrapper(LabelWrapper&) = delete;
+    LabelWrapper(LabelWrapper&&) = default;
+    LabelWrapper& operator=(LabelWrapper&) = delete;
+    LabelWrapper& operator=(LabelWrapper&&) = default;
+    
+    Label* label() const { return _label.get(); }
+    
+    ~LabelWrapper() {
+        _cache->returnObject(std::move(_label));
+    }
+};
+
 struct ConvertScene::Data {
     Segmenter* _segmenter{nullptr};
+    LabelCache_t _unassigned_labels;
 
     // External images for background and overlay
     std::shared_ptr<ExternalImage> _background_image = std::make_shared<ExternalImage>(),
@@ -54,6 +145,7 @@ struct ConvertScene::Data {
     nlohmann::json _current_json;
 
     // Individual properties for each object
+    sprite::Map _primary_selection;
     std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui, _joint;
     std::map<Idx_t, sprite::Map> _individual_properties;
     std::vector<sprite::Map> _untracked_properties;
@@ -175,7 +267,10 @@ struct ConvertScene::Data {
                         if (it != _labels.end()) {
                             ptr = it->second;
                         } else
-                            _labels[id] = ptr = std::make_shared<Label>();
+                            _labels[id] = ptr = _unassigned_labels.getObject();
+                        
+                    } else {
+                        ptr = _unassigned_labels.getObject();
                     }
 
                     if (not ptr)
@@ -189,8 +284,13 @@ struct ConvertScene::Data {
                     ptr->text()->set(FillClr{ fill });
                     ptr->set_line_color(line);
                     //Print("Create new label with text = ", text);
-
-                    return Layout::Ptr(ptr);
+                    
+                    if(not id.valid())
+                    {
+                        ptr->set_uninitialized();
+                    }
+                    return Layout::Ptr(std::make_shared<LabelWrapper>(_unassigned_labels, std::move(ptr)));
+                    //return Layout::Ptr(ptr);
                 },
                 .update = [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool
                 {
@@ -209,7 +309,16 @@ struct ConvertScene::Data {
                         }
                     }
 
-                    auto p = o.to<Label>();
+                    Label* p;
+                    if(o.is<LabelWrapper>()) {
+                        p = o.to<LabelWrapper>()->label();
+                    } else
+                        p = o.to<Label>();
+                    
+                    if(not id.valid()) {
+                        p->set_uninitialized();
+                    }
+                    
                     auto source = p->source();
                     auto pos = source.pos();
                     auto center = p->center();
@@ -775,17 +884,25 @@ void ConvertScene::Data::drawBlobs(
         (*tmp)["center"] = first_pose;
         (*tmp)["tracked"] = tracked_id.valid() ? true : false;
         (*tmp)["color"] = tracked_color;
-        (*tmp)["id"] = tracked_id;
+        (*tmp)["fdx"] = tracked_id;
 		(*tmp)["visible"] = true;
         (*tmp)["size"] = Size2(bds.size());
         (*tmp)["radius"] = bds.size().length() * 0.5;
         (*tmp)["type"] = std::string(cname);
+        (*tmp)["speed"] = 0.f;
+        (*tmp)["has_neighbor"] = false;
         //if(Tracker::instance() && Tracker::background())
         //    (*tmp)["px"] = blob->recount(FAST_SETTING(track_threshold), *Tracker::background());
         //else
             (*tmp)["px"] = blob->recount(-1);
 
         (*tmp)["p"] = Meta::toStr(assign.p);
+        
+        if(not selected_ids.empty()
+           && selected_ids.front() == tracked_id)
+        {
+            _primary_selection = *tmp;
+        }
         
         /// save for closed loop
         if(closed_loop_enable)
@@ -906,7 +1023,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             });
         }),
         
-        ActionFunc("python", [this](Action action){
+        ActionFunc("python", [](Action action){
             REQUIRE_EXACTLY(1, action);
             
             Python::schedule(Python::PackagedTask{
@@ -914,7 +1031,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                 ._task = Python::PromisedTask(
                     [action](){
                         using py = PythonIntegration;
-                        Print("Executing: ", action.first());
+                        Print("Executing: ", no_quotes(util::unescape(action.first())));
                         py::execute(action.first());
                     }
                 ),
@@ -1033,6 +1150,9 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         }),
         VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
             return _untracked_gui;
+        }),
+        VarFunc("primary_selection", [this](const VarProps&) -> sprite::Map& {
+            return _primary_selection;
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             return _recovered_error;

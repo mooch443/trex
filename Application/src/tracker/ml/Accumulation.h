@@ -1,6 +1,7 @@
 #pragma once
 
 #if !TREX_NO_PYTHON
+#include <commons.pc.h>
 #include <tracking/Tracker.h>
 #include <tracking/DatasetQuality.h>
 #include <gui/types/Layout.h>
@@ -34,29 +35,51 @@ using hash_set = std::set<K>;
 class Accumulation {
 protected:
     struct Result {
-        FrameRange _range;
-        AccumulationStatus::Class _success;
-        AccumulationReason::Class _reasoning;
-        std::string _reason;
-        float _best_uniqueness;
-        float _uniqueness_after_step;
-        std::string _training_stop;
-        size_t _num_ranges_added;
+        FrameRange range;
+        AccumulationStatus::Class success{AccumulationStatus::None};
+        AccumulationReason::Class reasoning{AccumulationReason::None};
+        std::string reason;
+        float best_uniqueness{-1};
+        float uniqueness_after_step{-1};
+        std::string training_stop;
+        size_t num_ranges_added{0};
         
-        Result(FrameRange range = FrameRange(), float uniqueness_after = -1, AccumulationStatus::Class success = AccumulationStatus::None, AccumulationReason::Class reason = AccumulationReason::None, const std::string& r = "")
-            : _range(range),
-              _success(success),
-              _reasoning(reason),
-              _reason(r),
-              _best_uniqueness(-1),
-              _uniqueness_after_step(uniqueness_after),
-              _num_ranges_added(0)
-        {
-            
-        }
         std::string toStr() const;
         static std::string class_name() { return "Accumulation::Result"; }
     };
+    
+    Result MakeResult() {
+        return MakeResult<AccumulationStatus::None, AccumulationReason::None>(Range<Frame_t>{}, -1, "");
+    }
+    
+    template<AccumulationStatus::Class success, AccumulationReason::Class reasoning>
+        requires (is_in(success, AccumulationStatus::Failed, AccumulationStatus::Cached, AccumulationStatus::None))
+    Result MakeResult(Range<Frame_t> range, const std::string& reason = "")
+    {
+        return MakeResult<success, reasoning>(range, -1, reason);
+    }
+    
+    template<AccumulationStatus::Class success, AccumulationReason::Class reasoning>
+    Result MakeResult(Range<Frame_t> range, float uniqueness_after_step, const std::string& reason = "")
+    {
+        auto& history = _current_uniqueness_history;
+        auto best = best_uniqueness();
+        
+        Result result{
+            .range = FrameRange(range),
+            .success = success,
+            .reasoning = reasoning,
+            .reason = reason,
+            .best_uniqueness = best >= uniqueness_after_step ? best : uniqueness_after_step,
+            .uniqueness_after_step = uniqueness_after_step,
+            .training_stop = _last_stop_reason,
+            .num_ranges_added = _added_ranges.size()
+        };
+        
+        _last_stop_reason = "";
+        _accumulation_results.push_back(result);
+        return result;
+    }
     
     TrainingMode::Class _mode;
     std::vector<Range<Frame_t>> _trained;

@@ -27,9 +27,17 @@ void TrainingData::print_pointer_stats() {
     std::lock_guard<std::mutex> guard(_data_pointer_mutex);
     Print("----");
     Print("Currently ", _data_pointers.size()," trainingdata are allocated.");
+    size_t nimages{0};
     for(auto &ptr : _data_pointers) {
+        for(auto &data : ptr->data()) {
+            nimages += data->images.size();
+        }
         Print("\t", *ptr);
     }
+    auto image_size = SETTING(individual_image_size).value<Size2>();
+    const int channels = Background::meta_encoding() == meta_encoding_t::gray ? 1 : 3;
+    
+    Print("Overall: ", FileSize{uint64_t(nimages * size_t(image_size.width) * size_t(image_size.height) * size_t(channels))});
     Print("----");
 #endif
 }

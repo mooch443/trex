@@ -14,6 +14,8 @@ int main() {
     using namespace cmn;
     using namespace cmn::gui;
     
+    SETTING(terminate) = false;
+    
     Image image(300, 300, 1);
     cv::circle(image.get(), Vec2(50, 50), 10, White, -1);
     cv::imshow("raw", image.get());

@@ -9,7 +9,6 @@
 #include <file/Path.h>
 #include <tracking/TrainingData.h>
 #include <tracking/Stuffs.h>
-#include <misc/format.h>
 
 namespace Python {
 
@@ -199,6 +198,8 @@ public:
             ._can_run_before_init = false
         });
     }
+    
+    static std::future<void> clear_caches();
     
 private:
     static void set_variables_internal(auto&&, callback_t&&);

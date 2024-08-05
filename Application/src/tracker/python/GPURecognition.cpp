@@ -29,8 +29,6 @@
 
 #include <misc/DetectionTypes.h>
 
-#include <misc/format.h>
-
 #include <signal.h>
 typedef void (*sighandler_t)(int);
 
@@ -465,10 +463,63 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         Print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
      });
 
-    m.def("warn", [](std::string text) {
+    auto choose_backend = []() -> std::string {
+        using namespace default_config;
+        if(not _settings)
+            throw InvalidArgumentException("No _settings has been set.");
         
-        FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
-        });
+        auto torch = py::module::import("torch");
+        bool is_cuda_available = torch.attr("cuda").attr("is_available")().cast<bool>();
+        std::string backend;
+
+        if (is_cuda_available)
+            backend = "cuda";
+        // torch.backends.mps.is_available()
+        else if (torch.attr("backends").attr("mps").attr("is_available")().cast<bool>())
+            backend = "mps";
+        else
+            backend = "cpu";
+        
+        return backend;
+    };
+    
+    m.def("choose_backend", choose_backend);
+
+    m.def("choose_device", [choose_backend]() -> std::string {
+        using namespace default_config;
+        if(not _settings)
+            throw InvalidArgumentException("No _settings has been set.");
+        
+        std::string device;
+        auto device_from_settings = _settings->map().at("gpu_torch_device").value<default_config::gpu_torch_device_t::Class>();
+        if (device_from_settings == gpu_torch_device_t::automatic) {
+            device = "";
+        } else {
+            auto device_index = _settings->map().at("gpu_torch_device_index").value<int>();
+            if (device_index >= 0)
+                device = device_from_settings.toStr() + ":" + Meta::toStr(device_index);
+            else
+                device = device_from_settings.toStr();
+            
+            Print("Using device ", device, " from settings.");
+        }
+        
+        if(device.empty())
+            device = choose_backend();
+        return device;
+    });
+
+    m.def("warn", [](std::string text) {
+        py::module inspect_mod = py::module::import("inspect");
+        py::list frames = inspect_mod.attr("stack")();
+        py::object calling_frame = frames[0];
+        py::str filename_py = calling_frame.attr("filename");
+        py::int_ line_no_py = calling_frame.attr("lineno");
+        auto filename = filename_py.cast<std::string>();
+        auto line_no = line_no_py.cast<uint32_t>();
+        
+        FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py "), fmt::clr<FormatColor::DARK_YELLOW>(no_quotes(filename)), fmt::clr<FormatColor::DARK_GRAY>(":"), fmt::clr<FormatColor::GREEN>(Meta::toStr(line_no)), fmt::clr<FormatColor::DARK_GRAY>("] "), text.c_str());
+    });
 
     m.def("video_size", []() -> pybind11::dict {
         using namespace pybind11::literals;
@@ -868,7 +919,7 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
     }
     catch (pybind11::error_already_set & e) {
         e.restore();
-
+        
         if (PyErr_Occurred()) {
             PyErr_PrintEx(0);
             PyErr_Clear(); // this will reset the error indicator so you can run Python code again
@@ -877,6 +928,12 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
         _modules.at(module_name).release();
         //_modules.at(module_name) = pybind11::none();
         throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
+        
+    } catch(const std::exception& e) {
+        throw SoftException("Non-python error while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
+        
+    } catch(...) {
+        throw SoftException("Unknown exception while running ", module_name.c_str(),"::", function.c_str(),"().");
     }
 }
 

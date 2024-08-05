@@ -9,6 +9,7 @@
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+#include <python/ModuleProxy.h>
 
 namespace Python {
 
@@ -19,6 +20,8 @@ using namespace track;
 
 inline static std::mutex _instance_mutex;
 inline static std::unique_ptr<VINetwork> _instance;
+
+static constexpr auto module_name = "visual_recognition_torch";
 
 CREATE_STRUCT(Settings,
     (Size2, individual_image_size)
@@ -90,8 +93,8 @@ void VINetwork::add_percent_callback(
 void VINetwork::setup(bool force) {
     using py = PythonIntegration;
     
-    auto result = py::check_module("learn_static");
-    if(result || force || py::is_none("classes", "learn_static")) {
+    auto result = py::check_module(module_name);
+    if(result || force || py::is_none("classes", module_name)) {
         uint32_t N = FAST_SETTING(track_max_individuals) ? FAST_SETTING(track_max_individuals) : 1u;
         std::vector<uint32_t> ids;
         ids.resize(N);
@@ -100,6 +103,8 @@ void VINetwork::setup(bool force) {
             ids[i] = i;
         
         uint64_t batch_size = ids.size(); // compute the next highest power of 2 of 32-bit v
+        batch_size = max(batch_size, 64u);
+        
         if(batch_size < 128)
             batch_size = next_pow2<uint64_t>(batch_size);
         else
@@ -107,14 +112,20 @@ void VINetwork::setup(bool force) {
         
         auto version = SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>();
         Print("network version: ", version);
-        //py::unset_function("model", "learn_static");
-        py::set_variable("network_version", version.toStr(), "learn_static");
-        py::set_variable("classes", ids, "learn_static");
-        py::set_variable("image_width", PSetting(individual_image_size).width, "learn_static");
-        py::set_variable("image_height", PSetting(individual_image_size).height, "learn_static");
-        py::set_variable("learning_rate", SETTING(gpu_learning_rate).value<float>(), "learn_static");
-        py::set_variable("batch_size", (long_t)batch_size, "learn_static");
-        py::set_variable("video_length", narrow_cast<long_t>(SETTING(video_length).value<uint64_t>()), "learn_static");
+    
+        auto device = SETTING(gpu_torch_device).value<default_config::gpu_torch_device_t::Class>().toStr();
+        if(device == "automatic")
+            py::unset_function("device", module_name);
+        else
+            py::set_variable("device", device, module_name);
+        
+        py::set_variable("network_version", version.toStr(), module_name);
+        py::set_variable("classes", ids, module_name);
+        py::set_variable("image_width", int(PSetting(individual_image_size).width), module_name);
+        py::set_variable("image_height", int(PSetting(individual_image_size).height), module_name);
+        py::set_variable("learning_rate", SETTING(gpu_learning_rate).value<float>(), module_name);
+        py::set_variable("batch_size", (long_t)batch_size, module_name);
+        py::set_variable("video_length", narrow_cast<long_t>(SETTING(video_length).value<uint64_t>()), module_name);
         py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()));
         
         auto filename = VINetwork::network_path();
@@ -130,13 +141,13 @@ void VINetwork::setup(bool force) {
         }
         
         auto image_mode = Background::image_mode();
-        py::set_variable("image_channels", (long_t)required_channels(image_mode), "learn_static");
-        py::set_variable("output_path", filename.str(), "learn_static");
-        py::set_variable("output_prefix", SETTING(output_prefix).value<std::string>(), "learn_static");
-        py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), "learn_static");
+        py::set_variable("image_channels", (long_t)required_channels(image_mode), module_name);
+        py::set_variable("output_path", filename.str(), module_name);
+        py::set_variable("output_prefix", SETTING(output_prefix).value<std::string>(), module_name);
+        py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), module_name);
         
-        if(!py::valid("model", "learn_static")) {
-            py::run("learn_static", "reinitialize_network");
+        if(!py::valid("model", module_name)) {
+            py::run(module_name, "reinitialize_network");
         }
     }
         
@@ -153,13 +164,13 @@ void VINetwork::set_skip_button(std::function<bool ()> skip_function) {
 void VINetwork::set_work_variables(bool force) {
     using py = track::PythonIntegration;
     
-    if(force || py::is_none("update_work_percent", "learn_static")) {
+    if(force || py::is_none("update_work_percent", module_name)) {
         py::set_function("get_abort_training", (std::function<bool()>)[this]() -> bool {
             return abort_function ? abort_function() : false;
-        }, "learn_static");
+        }, module_name);
         py::set_function("get_skip_step", (std::function<bool()>)[this]() -> bool {
             return skip_function ? skip_function() : false;
-        }, "learn_static");
+        }, module_name);
         
         py::set_function("estimate_uniqueness", (std::function<float(void)>)[](void) -> float {
             if(Accumulation::current())
@@ -167,48 +178,48 @@ void VINetwork::set_work_variables(bool force) {
             FormatWarning("There is currently no accumulation in progress.");
             return 0;
             
-        }, "learn_static");
+        }, module_name);
         py::set_function("acceptable_uniqueness", (std::function<float(void)>)[](void) -> float {
             if(Accumulation::current())
                 return SETTING(gpu_accepted_uniqueness).value<float>();
             FormatWarning("There is currently no accumulation in progress.");
             return -1;
             
-        }, "learn_static");
+        }, module_name);
         py::set_function("accepted_uniqueness", (std::function<float(void)>)[](void) -> float {
             if(Accumulation::current())
                 return Accumulation::current()->accepted_uniqueness();
             FormatWarning("There is currently no accumulation in progress.");
             return -1;
             
-        }, "learn_static");
+        }, module_name);
         py::set_function("update_work_percent", [this](float x) {
             for(auto& [id, c] : _callbacks)
                 c(x, "");
-        }, "learn_static");
+        }, module_name);
         py::set_function("update_work_description", [this](std::string x) {
             for(auto& [id, c] : _callbacks)
                 c(-1, x);
             
-        }, "learn_static");
+        }, module_name);
         py::set_function("set_stop_reason", [](std::string x) {
             if(Accumulation::current()) {
                 Accumulation::current()->set_last_stop_reason(x);
             } else
                 FormatWarning("No accumulation object set.");
-        }, "learn_static");
+        }, module_name);
         py::set_function("set_per_class_accuracy", [](std::vector<float> x) {
             if(Accumulation::current()) {
                 Accumulation::current()->set_per_class_accuracy(x);
             } else
                 FormatWarning("No accumulation object set.");
-        }, "learn_static");
+        }, module_name);
         py::set_function("set_uniqueness_history", [](std::vector<float> x) {
             if(Accumulation::current()) {
                 Accumulation::current()->set_uniqueness_history(x);
             } else
                 FormatWarning("No accumulation object set.");
-        }, "learn_static");
+        }, module_name);
     }
 }
 
@@ -216,13 +227,17 @@ void VINetwork::unset_work_variables() {
     try {
         py::schedule([](){
             using py = track::PythonIntegration;
-            py::unset_function("update_work_percent", "learn_static");
-            py::unset_function("update_work_description", "learn_static");
-            py::unset_function("set_stop_reason", "learn_static");
-            py::unset_function("set_per_class_accuracy", "learn_static");
-            py::unset_function("set_uniqueness_history", "learn_static");
-            py::unset_function("get_abort_training", "learn_static");
-            py::unset_function("get_skip_step", "learn_static");
+            try {
+                py::unset_function("update_work_percent", module_name);
+                py::unset_function("update_work_description", module_name);
+                py::unset_function("set_stop_reason", module_name);
+                py::unset_function("set_per_class_accuracy", module_name);
+                py::unset_function("set_uniqueness_history", module_name);
+                py::unset_function("get_abort_training", module_name);
+                py::unset_function("get_skip_step", module_name);
+            } catch(...) {
+                FormatExcept("Failed to unset some variables.");
+            }
             
         }).get();
     } catch(const std::future_error& e) {
@@ -234,7 +249,7 @@ void VINetwork::reinitialize_internal() {
     using py = PythonIntegration;
     py::check_correct_thread_id();
     setup(true);
-    py::run("learn_static", "reinitialize_network");
+    py::run(module_name, "reinitialize_network");
     _status.weights_valid = false;
     _status.busy = false;
 }
@@ -244,7 +259,7 @@ void VINetwork::load_weights_internal() {
     reinitialize_internal();
     
     try {
-        py::run("learn_static", "load_weights");
+        py::run(module_name, "load_weights");
         Print("\tReloaded weights.");
         
     } catch(...) {
@@ -265,7 +280,7 @@ void VINetwork::load_weights() {
 
 bool VINetwork::weights_available() {
     auto filename = network_path();
-    return filename.add_extension("npz").exists();
+    return filename.add_extension("pth").exists();
 }
 
 
@@ -281,11 +296,11 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
             return;
         }
         
-        py::set_variable("images", images, "learn_static");
-        py::set_function("receive", std::move(callback), "learn_static");
-        py::run("learn_static", "predict");
-        py::unset_function("receive", "learn_static");
-        py::unset_function("images", "learn_static");
+        py::set_variable("images", images, module_name);
+        py::set_function("receive", std::move(callback), module_name);
+        py::run(module_name, "predict");
+        py::unset_function("receive", module_name);
+        py::unset_function("images", module_name);
         
     } catch(const SoftExceptionImpl& e) {
         FormatWarning("Runtime exception: ", e.what());
@@ -407,15 +422,15 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 else if(load_results == TrainingMode::Restart)
                     reinitialize_internal();
                 
-                py::set_variable("X", joined_data.training_images, "learn_static");
-                py::set_variable("Y", joined_data.training_ids, "learn_static");
+                py::set_variable("X", joined_data.training_images, module_name);
+                py::set_variable("Y", joined_data.training_ids, module_name);
                 
                 if(joined_data.training_images.size() != joined_data.training_ids.size()) {
                     throw U_EXCEPTION("Training image array size ",joined_data.training_images.size()," != ids array size ",joined_data.training_ids.size(),"");
                 }
-
-                py::set_variable("X_val", joined_data.validation_images, "learn_static");
-                py::set_variable("Y_val", joined_data.validation_ids, "learn_static");
+                
+                py::set_variable("X_val", joined_data.validation_images, module_name);
+                py::set_variable("Y_val", joined_data.validation_ids, module_name);
                 
                 if(joined_data.validation_images.size() != joined_data.validation_ids.size()) {
                     throw U_EXCEPTION("Validation image array size ",joined_data.validation_images.size()," != ids array size ",joined_data.validation_ids.size(),"");
@@ -423,17 +438,17 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 
                 py::set_variable("global_segment", std::vector<long_t>{
                     global_range.empty() ? -1 : (long_t)global_range.start().get(),
-                    global_range.empty() ? -1 : (long_t)global_range.end().get() }, "learn_static");
-                py::set_variable("accumulation_step", (long_t)accumulation_step, "learn_static");
-                py::set_variable("classes", classes, "learn_static");
-                py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");
+                    global_range.empty() ? -1 : (long_t)global_range.end().get() }, module_name);
+                py::set_variable("accumulation_step", (long_t)accumulation_step, module_name);
+                py::set_variable("classes", classes, module_name);
+                py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, module_name);
                 
                 Print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 
                 uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
-                py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), "learn_static");
-                py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<uchar>()), "learn_static");
-                py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), "learn_static");
+                py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), module_name);
+                py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<uchar>()), module_name);
+                py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), module_name);
                 
                 auto filename = network_path();
                 try {
@@ -448,24 +463,24 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 }
                 
                 py::set_variable("run_training",
-                    load_results == TrainingMode::Restart
-                    || load_results == TrainingMode::Continue
-                    || load_results == TrainingMode::Accumulate, "learn_static");
-                py::set_variable("best_accuracy_worst_class", (float)best_accuracy_worst_class, "learn_static");
+                                 load_results == TrainingMode::Restart
+                                 || load_results == TrainingMode::Continue
+                                 || load_results == TrainingMode::Accumulate, module_name);
+                py::set_variable("best_accuracy_worst_class", (float)best_accuracy_worst_class, module_name);
                 best_accuracy_worst_class = -1;
                 
                 py::set_function("do_save_training_images", (std::function<bool()>)[]() -> bool {
                     return SETTING(recognition_save_training_images).value<bool>();
-                }, "learn_static");
+                }, module_name);
                 
                 try {
                     _status.busy = true;
-                    py::run("learn_static", "start_learning");
+                    py::run(module_name, "start_learning");
                     
                     if (skip_function && skip_function())
                         throw SoftException("User skipped.");
-
-                    best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");
+                    
+                    best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", module_name);
                     if(worst_accuracy_per_class)
                         *worst_accuracy_per_class = best_accuracy_worst_class;
                     Print("best_accuracy_worst_class = ", best_accuracy_worst_class);
@@ -484,10 +499,10 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     //! TODO: MISSING probability clearing
                     {
                         /*std::unique_lock probs_guard(_probs_mutex);
-                        if(!probs.empty()) {
-                            FormatWarning("Re-trained network, so we'll clear everything...");
-                            probs.clear();
-                        }*/
+                         if(!probs.empty()) {
+                         FormatWarning("Re-trained network, so we'll clear everything...");
+                         probs.clear();
+                         }*/
                     }
                     
                     // save training data
@@ -508,27 +523,27 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                         all_ranges.push_back(d->frames.end.get());
                         
                         //for(auto && [range, d] : data->data()) {
-                            // save per fish
-                            for(auto && [id, fish] : d->mappings) {
-                                for(size_t i=0; i<fish.images.size(); ++i) {
-                                    if(resolution.width == -1) {
-                                        resolution = Size2(fish.images.at(i)->cols, fish.images.at(i)->rows);
-                                        
-                                    } else if(fish.images.at(i)->cols != resolution.width
-                                       || fish.images.at(i)->rows != resolution.height)
-                                    {
-                                        FormatExcept("Image dimensions of ",fish.images.at(i)->cols,"x",fish.images.at(i)->rows," are different from the others (",resolution.width,"x",resolution.height,") in training data for fish ",d->frames.start," in range [",d->frames.end,",%d].");
-                                        promise.set_value(false);
-                                        return;
-                                    }
+                        // save per fish
+                        for(auto && [id, fish] : d->mappings) {
+                            for(size_t i=0; i<fish.images.size(); ++i) {
+                                if(resolution.width == -1) {
+                                    resolution = Size2(fish.images.at(i)->cols, fish.images.at(i)->rows);
                                     
-                                    images.insert(images.end(), fish.images.at(i)->data(), fish.images.at(i)->data() + size_t(resolution.width * resolution.height));
-                                    ids.insert(ids.end(), id.get());
-                                    positions.insert(positions.end(), fish.positions.at(i).x);
-                                    positions.insert(positions.end(), fish.positions.at(i).y);
-                                    frames.insert(frames.end(), fish.frame_indexes.at(i).get());
+                                } else if(fish.images.at(i)->cols != resolution.width
+                                          || fish.images.at(i)->rows != resolution.height)
+                                {
+                                    FormatExcept("Image dimensions of ",fish.images.at(i)->cols,"x",fish.images.at(i)->rows," are different from the others (",resolution.width,"x",resolution.height,") in training data for fish ",d->frames.start," in range [",d->frames.end,",%d].");
+                                    promise.set_value(false);
+                                    return;
                                 }
+                                
+                                images.insert(images.end(), fish.images.at(i)->data(), fish.images.at(i)->data() + size_t(resolution.width * resolution.height));
+                                ids.insert(ids.end(), id.get());
+                                positions.insert(positions.end(), fish.positions.at(i).x);
+                                positions.insert(positions.end(), fish.positions.at(i).y);
+                                frames.insert(frames.end(), fish.frame_indexes.at(i).get());
                             }
+                        }
                         //}
                     }
                     
@@ -550,8 +565,12 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     Print("Runtime error: ", e.what());
                     throw;
                 }
-            
+                
                 promise.set_value(true);
+                
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception: ", ex.what());
+                promise.set_exception(std::current_exception());
             } catch(...) {
                 promise.set_exception(std::current_exception());
             }
@@ -609,6 +628,16 @@ std::vector<float> VINetwork::transform_results(
     return probs;
 }
 
+std::future<void> VINetwork::clear_caches() {
+    return py::schedule(PackagedTask{
+        ._network = instance() ? &instance()->_network : nullptr,
+        ._task = PromisedTask([](){
+            Python::ModuleProxy m(module_name, nullptr);
+            m.run("clear_caches");
+        })
+    });
+}
+
 std::set<Idx_t> VINetwork::classes() {
     auto identities = IndividualManager::all_ids();
     assert(FAST_SETTING(track_max_individuals) == identities.size());
@@ -653,18 +682,18 @@ this->stop_running();
     indexes.clear();
     
     try {
-        //check_module("learn_static");
+        //check_module(module_name);
         py::module module;
         
         {
-            if (check_module("learn_static"))
+            if (check_module(module_name))
                 throw SoftException("Had to reload learn_static while in the training process. This is currently unsupported.");
 
             std::lock_guard<std::mutex> guard(module_mutex);
-            if (!_modules.count("learn_static"))
+            if (!_modules.count(module_name))
                 throw SoftException("Cannot find 'learn_static'.");
 
-            module = _modules.find("learn_static")->second;
+            module = _modules.find(module_name)->second;
         }
         
         module.attr("images") = images;

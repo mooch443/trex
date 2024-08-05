@@ -56,6 +56,15 @@ struct SettingsScene::Data {
     Size2 _video_size;
     std::unordered_map<std::string, Layout::Ptr> _video_adapters;
     
+    ~Data() {
+        if(callback)
+            GlobalSettings::map().unregister_callbacks(std::move(callback));
+        dynGUI.clear();
+        
+        if(check_new_video_source.valid())
+            check_new_video_source.get();
+    }
+    
     file::Path target_file(std::string_view ext = "pv") {
         if(ext == "results") {
             auto filename = Output::TrackingResults::expected_filename();
@@ -769,15 +778,6 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
 void SettingsScene::activate() {
     WorkProgress::instance().start();
     
-    dyn::Modules::add(dyn::Modules::Module{
-        ._name = "follow",
-        ._apply = [](size_t index, dyn::State& state, const Layout::Ptr& o) {
-            state.display_fns[index] = [o = o.get()](DrawStructure& g){
-                o->set_pos(g.mouse_position() + Vec2(5));
-            };
-        }
-    });
-    
     _data = std::make_unique<Data>();
     _data->_window = (IMGUIBase*)window();
 
@@ -793,12 +793,12 @@ void SettingsScene::deactivate() {
     WorkProgress::stop();
 
     if(_data) {
-        Print("Clearing _data->dynGUI");
-        _data->dynGUI.clear();
-
         Print("_data is set, need to unregister callbacks...");
         if(_data->callback)
             GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
+        
+        Print("Clearing _data->dynGUI");
+        _data->dynGUI.clear();
 
         Print("_checking new video source: ", _data->check_new_video_source.valid());
         if(_data->check_new_video_source.valid())

@@ -30,6 +30,7 @@ public:
     Label(const std::string& txt = "", const Bounds& source = {}, const Vec2& center = {});
     ~Label();
     void update() override;
+    void set_uninitialized();
     float update(const FindCoord&, float alpha, float distance, bool disabled, double dt, Scale = {});
     void set_data(Frame_t frame, const std::string& text, const Bounds& source, const Vec2& center);
     float update_positions(Vec2 text_pos, bool animate, double dt);

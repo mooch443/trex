@@ -13,7 +13,6 @@
 #include <misc/default_settings.h>
 #include <gui/Graph.h>
 #include <gui/types/StaticText.h>
-#include <misc/checked_casts.h>
 #include <gui/DrawBase.h>
 #include <tracking/FilterCache.h>
 #include <misc/PythonWrapper.h>
@@ -187,6 +186,12 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                 _apply_callbacks.clear();
                 _apply_percent_callbacks.clear();
                 
+                try {
+                    Python::VINetwork::clear_caches().get();
+                } catch(...) {
+                    FormatExcept("Failed to clear caches.");
+                }
+                
             } else {
                 Print("[Apply] Percent: ", percent * 100, "%");
                 
@@ -265,10 +270,10 @@ std::vector<float> Accumulation::uniqueness_history() const {
 }
 
 std::string Accumulation::Result::toStr() const {
-    auto str = _reason;
-    if(_reason.length() > 80)
+    auto str = reason;
+    if(reason.length() > 80)
         str = str.substr(0, 40)+" [...] "+ str.substr(str.length() - 40, 40);
-    return Meta::toStr(_success)+". "+str+" unique:"+Meta::toStr(float(int(_best_uniqueness * 10000)) / 100.f)+"%";
+    return Meta::toStr(success)+". "+str+" unique:"+Meta::toStr(float(int(best_uniqueness * 10000)) / 100.f)+"%";
 }
 
 void Accumulation::unsetup() {
@@ -404,7 +409,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             
             if(min_size <= 5) {//min_size < max(50, max_size * 0.035)) {
                 auto str = format<FormatterType::NONE>("Cannot add range, because individual ",min_id," has only ", min_size," images vs. another individual with ", max_size,".");
-                end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Failed, AccumulationReason::NotEnoughImages, str));
+                end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::NotEnoughImages>(range, str));
                 FormatError(str.c_str());
                 return {false, {}};
             }
@@ -529,14 +534,14 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         
     } else if(unique_ids.size() != FAST_SETTING(track_max_individuals)) {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ",quality,") does not predict unique ids.");
-        end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs, str));
+        end_a_step(MakeResult<AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs>(range, str));
         Print(str.c_str());
         return {true, {}};
         
     } else if(min_prob <= pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTING(recognition_segment_add_factor),".");
-        end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow, str));
+        end_a_step(MakeResult<AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow>(range, str));
         Print(str.c_str());
         return {true, {}};
     }
@@ -547,8 +552,8 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
 void Accumulation::confirm_weights() {
     Print("Confirming weights.");
     auto path = py::VINetwork::network_path();
-    auto progress_path = file::Path(path.str() + "_progress.npz");
-    path = path.add_extension("npz");
+    auto progress_path = file::Path(path.str() + "_progress.pth");
+    path = path.add_extension("pth");
     
     if(progress_path.exists()) {
         Print("Moving weights from ",progress_path.str()," to ",path.str(),".");
@@ -792,6 +797,10 @@ float Accumulation::step_calculate_uniqueness() {
         current_best = up;
         temp_unique = map;
     }
+    
+    if(not _collected_data)
+        throw InvalidArgumentException("Cannot calculate uniqueness based on no data.");
+    
     update_coverage(*_collected_data);
     return up;
 }
@@ -829,11 +838,14 @@ bool Accumulation::start() {
         _network->load_weights();
         
     } else if(_mode == TrainingMode::Apply) {
-        auto data = std::make_shared<TrainingData>();
-        data->set_classes(Tracker::identities());
-        _network->train(data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
+        _collected_data = std::make_shared<TrainingData>();
+        _collected_data->set_classes(Tracker::identities());
+        _network->train(_collected_data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
         
-        elevate_task([video = _video](){ apply_network(video); });
+        elevate_task([video = _video](){
+            apply_network(video);
+        });
+        
         return true;
     }
     
@@ -919,7 +931,7 @@ bool Accumulation::start() {
     
     update_coverage(*_collected_data);
     
-    end_a_step(Result(FrameRange(), -1, AccumulationStatus::None, AccumulationReason::None, ""));
+    end_a_step(MakeResult());
     
     if(_mode == TrainingMode::Continue) {
         auto && [_, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
@@ -939,12 +951,15 @@ bool Accumulation::start() {
                 auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
                 
                 const Size2 dims = SETTING(individual_image_size);
-                FileSize size((data.validation_images.size() + data.training_images.size()) * size_t(dims.width * dims.height));
+                FileSize size((max(data.validation_images.size(), data.training_images.size())) * size_t(dims.width * dims.height) * size_t(channels));
                 std::vector<uchar> all_images;
                 all_images.resize(size.bytes);
                 
                 auto it = all_images.data();
                 for(auto &image : data.validation_images) {
+                    if(image->channels() != channels)
+                        throw U_EXCEPTION("Number of channels in ", *image, " it not correct: ", image->channels(), " != ", channels);
+                    
                     memcpy(it, image->data(), image->size());
                     it += image->size();
                 }
@@ -953,9 +968,15 @@ bool Accumulation::start() {
                     ids.emplace_back(id.get());
                 
                 cmn::npz_save(ranges_path.str(), "validation_ids", ids, "w");
-                cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
+                cmn::npz_save(ranges_path.str(), "validation_images", all_images.data(), { data.validation_images.size(), (size_t)dims.height, (size_t)dims.width, size_t(channels) }, "a");
+                
+                // reset start
+                it = all_images.data();
                 
                 for(auto &image : data.training_images) {
+                    if(image->channels() != channels)
+                        throw U_EXCEPTION("Number of channels in ", *image, " it not correct: ", image->channels(), " != ", channels);
+                    
                     memcpy(it, image->data(), image->size());
                     it += image->size();
                 }
@@ -968,14 +989,15 @@ bool Accumulation::start() {
                 Print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                 
                 cmn::npz_save(ranges_path.str(), "ids", ids, "a");
-                cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
+                cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.training_images.size(), (size_t)dims.height, (size_t)dims.width, (size_t)channels }, "a");
                 
             } catch(...) {
                 
             }
         }
         
-        float acc = best_uniqueness();
+        const float best_uniqueness_before = best_uniqueness();
+        float uniqueness_after = best_uniqueness_before;
         current_best = 0;
         
         py::VINetwork::add_percent_callback("Accumulation", [](float p, const std::string& desc) {
@@ -986,11 +1008,11 @@ bool Accumulation::start() {
         });
         
         try {
-            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &acc, SETTING(gpu_enable_accumulation) ? 0 : -1);
+            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(gpu_enable_accumulation) ? 0 : -1);
         
         } catch(...) {
             auto text = "["+std::string(_mode.name())+"] Initial training failed. Cannot continue to accumulate.";
-            end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, text));
+            end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::TrainingFailed>(_initial_range, uniqueness_after, text));
             
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text.c_str());
@@ -1001,15 +1023,15 @@ bool Accumulation::start() {
         
         {
             std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
-            _uniquenesses.push_back(acc);
+            _uniquenesses.push_back(uniqueness_after);
         }
         
         auto q = DatasetQuality::quality(_initial_range);
-        auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data, " with uniqueness ", acc);
+        auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data, " with uniqueness ", uniqueness_after);
         Print(str.c_str());
         
         _added_ranges.push_back(_initial_range);
-        end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
+        end_a_step(MakeResult<AccumulationStatus::Added, AccumulationReason::None>(_initial_range, uniqueness_after, str));
     }
     
     // we can skip each step after the first
@@ -1220,72 +1242,63 @@ bool Accumulation::start() {
                 // add salt from previous ranges if available
                 current_salt = second_data->add_salt(_collected_data, Meta::toStr(range));
                 
-                auto best_uniqueness = this->best_uniqueness();
-                float acc = best_uniqueness;
+                const auto best_uniqueness_before_step = this->best_uniqueness();
+                float uniqueness_after = best_uniqueness_before_step;
                 current_best = 0;
                 
                 py::init().get();
                 
                 try {
-                    //std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step
-                    _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &acc, narrow_cast<int>(steps));
+                    _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, narrow_cast<int>(steps));
                     
-                    float acceptance = 0;
-                    float uniqueness = -1;
-                    
-                    //if(acc >= SQR(best_accuracy_worst_class)*best_accuracy_worst_class) {
-                        // everything fine, no need to check uniqueness
-                    //    acceptance = 1;
-                    //} else {
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
-                    uniqueness = up;
-                    
-                    {
-                        std::vector<float> uniquenesses;
-                        {
-                            std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
-                            uniquenesses = _uniquenesses;
-                        }
-                        
-                        if(uniquenesses.empty())
-                            acceptance = uniqueness;
-                        else if(!uniquenesses.empty() && uniqueness >= accepted_uniqueness(best_uniqueness)) {
-                            Print("\tAccepting worst class accuracy of ", acc," because uniqueness is ", uniqueness," > ",best_uniqueness);
-                            acceptance = uniqueness;
-                        } /*else if(!uniquenesses.empty() && uniqueness >= best_uniqueness * 0.8 && acc >= SQR(best_accuracy_worst_class)*best_accuracy_worst_class) {
-                            Print("\tAccepting worst class accuracy of ",acc," because uniqueness is ",uniqueness," (vs. ",best_uniqueness * 0.8,") and accuracy is better than ",SQR(best_accuracy_worst_class)*best_accuracy_worst_class);
-                            acceptance = uniqueness;
-                        }*/
-                        //}
+                    if(uniqueness_after != up) {
+                        FormatWarning("Expected uniqueness_after to be the same as up: ", uniqueness_after, " vs. ", up);
                     }
                     
-                    if(acceptance > 0) {
+                    std::vector<float> uniquenesses;
+                    {
+                        std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
+                        uniquenesses = _uniquenesses;
+                    }
+                    
+                    if(uniquenesses.empty()
+                       || uniqueness_after >= accepted_uniqueness(best_uniqueness_before_step))
+                    {
+                        if(not uniquenesses.empty())
+                            Print("\tAccepting uniqueness of ", uniqueness_after," because it is > ",accepted_uniqueness(best_uniqueness_before_step));
+                        else
+                            Print("\tAccepting uniqueness of ", uniqueness_after, " because it is the first.");
+                        
                         _added_ranges.push_back(range);
+                        unique_map = map;
                         
-                        auto str = format<FormatterType::NONE>("Successfully added range ", *second_data," (previous acc: ", best_uniqueness,", current: ", acc,"). ", 
-                            uniqueness >= best_uniqueness ? "Confirming due to better uniqueness." : "Not replacing weights due to worse uniqueness.");
+                        auto str = format<FormatterType::NONE>("Successfully added range ", *second_data," (previous acc: ", best_uniqueness_before_step,", current: ", uniqueness_after,"). ",
+                            uniqueness_after >= best_uniqueness_before_step ? "Confirming due to better uniqueness." : "Not replacing weights due to worse uniqueness.");
                         Print(str.c_str());
-                        end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
                         
-                        if(uniqueness == -1) {
-                            auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
-                            unique_map = map;
-                            uniqueness = up;
-                        } else
-                            unique_map = map;
+                        if(uniqueness_after == -1) {
+                            throw InvalidArgumentException("Invalid state of uniqueness_after == -1 after completing a step.");
+                        }
                         
                         {
                             std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
-                            _uniquenesses.push_back(uniqueness);
+                            _uniquenesses.push_back(uniqueness_after);
                             str = Meta::toStr(_uniquenesses);
                         }
+                        
+                        end_a_step(MakeResult<AccumulationStatus::Added, AccumulationReason::None>(range, uniqueness_after, str));
                         
                         Print("\tUniquenesses after adding: ", str.c_str());
                         
                         //! only confirm the weights if uniqueness is actually better/equal
+                        //! and not just "acceptable".
                         /// but still use / merge the data if it isnt
-                        if(uniqueness >= best_uniqueness)
-                            confirm_weights();
+                        if(uniqueness_after >= best_uniqueness_before_step)
+                            confirm_weights(); // we keep this network, which is the best we have so far
+                        else if(uniqueness_after < best_uniqueness_before_step * 0.95)
+                            _network->load_weights(); // reload network if we are too far off
+                        
                         overall_ranges.insert(range);
                         
                         ++successful_ranges;
@@ -1294,14 +1307,13 @@ bool Accumulation::start() {
                         return {true, second_data};
                         
                     } else {
-                        if(uniqueness == -1) {
-                            auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
-                            uniqueness = p;
+                        if(uniqueness_after == -1) {
+                            throw InvalidArgumentException("Invalid state of uniqueness_after == -1 after completing a step.");
                         }
                         
-                        auto str = format<FormatterType::NONE>("Adding range ", range, " failed after checking acc+uniqueness (uniqueness would have been ", uniqueness, " vs. ", best_uniqueness, ").");
+                        auto str = format<FormatterType::NONE>("Adding range ", range, " failed after checking uniqueness (uniqueness would have been ", uniqueness_after, " vs. ", best_uniqueness_before_step, " before).");
                         Print(str.c_str());
-                        end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
+                        end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow>(range, uniqueness_after, str));
                         
                         _network->load_weights();
                         
@@ -1311,8 +1323,7 @@ bool Accumulation::start() {
                 } catch(...) {
                     std::string str;
                     try {
-                        auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
-                        str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", p, " vs. ", best_uniqueness, ").");
+                        str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", uniqueness_after, " vs. ", best_uniqueness_before_step, ").");
                         
                     } catch(...) {
                         str = format<FormatterType::NONE>("Adding range ", range, " failed.");
@@ -1321,10 +1332,10 @@ bool Accumulation::start() {
                     Print(str.c_str());
                     
                     if(gui::WorkProgress::item_custom_triggered()) {
-                        end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::Skipped, str));
+                        end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::Skipped>(range, uniqueness_after, str));
                         gui::WorkProgress::reset_custom_item();
                     } else
-                        end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, str));
+                        end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::TrainingFailed>(range, uniqueness_after, str));
                     
                     _network->load_weights();
                     return {false, nullptr};
@@ -1767,24 +1778,25 @@ bool Accumulation::start() {
         }
         
         uchar gpu_max_epochs = SETTING(gpu_max_epochs);
-        float acc = best_uniqueness();
+        const float best_uniqueness_before_step = best_uniqueness();
+        float uniqueness_after = best_uniqueness_before_step;
         current_best = 0;
-        _network->train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &acc, -2);
+        _network->train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &uniqueness_after, -2);
         
-        if(acc >= best_uniqueness()) {
+        if(uniqueness_after >= best_uniqueness_before_step) {
             {
                 std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
-                _uniquenesses.push_back(acc);
+                _uniquenesses.push_back(uniqueness_after);
             }
             
-            auto str = format<FormatterType::NONE>("Successfully finished overfitting with uniqueness of ", dec<2>(acc), ". Confirming.");
+            auto str = format<FormatterType::NONE>("Successfully finished overfitting with uniqueness of ", dec<2>(uniqueness_after), ". Confirming.");
             Print(str.c_str());
-            end_a_step(Result(FrameRange(), acc, AccumulationStatus::Added, AccumulationReason::None, str));
+            end_a_step(MakeResult<AccumulationStatus::Added, AccumulationReason::None>(Range<Frame_t>{}, uniqueness_after, str));
             confirm_weights();
         } else {
-            auto str = format<FormatterType::NONE>("Overfitting with uniqueness of ", dec<2>(acc), " did not improve score. Ignoring.");
+            auto str = format<FormatterType::NONE>("Overfitting with uniqueness of ", dec<2>(uniqueness_after), " did not improve score. Ignoring.");
             Print(str.c_str());
-            end_a_step(Result(FrameRange(), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
+            end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow>(Range<Frame_t>{}, uniqueness_after, str));
             _network->load_weights();
         }
     }
@@ -1804,6 +1816,12 @@ bool Accumulation::start() {
         
     }
     
+    try {
+        Python::VINetwork::clear_caches().get();
+    } catch(...) {
+        FormatExcept("There was a problem clearing caches.");
+    }
+    
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!gui::WorkProgress::item_aborted() && !uniqueness_history().empty()) {
         elevate_task([this](){apply_network(_video);});
@@ -1817,13 +1835,12 @@ float Accumulation::accepted_uniqueness(float base) const {
 }
 
 void Accumulation::end_a_step(Result reason) {
-    if(reason._success != AccumulationStatus::None) {
-        reason._best_uniqueness = best_uniqueness();
-        reason._training_stop = _last_stop_reason;
-        reason._num_ranges_added = _added_ranges.size();
+    /*if(reason.success != AccumulationStatus::None) {
+        reason.best_uniqueness = best_uniqueness();
+        reason.training_stop = _last_stop_reason;
+        reason.num_ranges_added = _added_ranges.size();
         _accumulation_results.push_back(reason);
-    }
-    _last_stop_reason = "";
+    }*/
     
     std::string text;
     size_t i=0;
@@ -1838,20 +1855,26 @@ void Accumulation::end_a_step(Result reason) {
         //auto str = r._reason;
         //if(str.length() > 50)
         //    str = str.substr(0,25) + " (...) "+ str.substr(str.length()-25);
-        last = "<key>"+Meta::toStr(i)+"</key> (<nr>"+Meta::toStr(int(r._best_uniqueness * 10000) / 100.f)+"</nr>%, "+Meta::toStr(r._num_ranges_added)+" added): <b>";
-        if(r._success == AccumulationStatus::Added)
+        if(r.best_uniqueness >= 0)
+            last = "<key>"+Meta::toStr(i)+"</key> (<nr>"+dec<2>(r.best_uniqueness * 100.f).toStr()+"</nr>%, "+Meta::toStr(r.num_ranges_added)+" added): <b>";
+        else
+            last = "<key>"+Meta::toStr(i)+"</key>: ";
+        
+        if(r.success == AccumulationStatus::Added)
             last += "<nr>";
-        else if(r._success == AccumulationStatus::Failed)
+        else if(r.success == AccumulationStatus::Failed)
             last += "<str>";
-        last += r._success.name();
-        if(r._success == AccumulationStatus::Added)
+        if(r.success != AccumulationStatus::None)
+            last += r.success.name();
+        if(r.success == AccumulationStatus::Added)
             last += "</nr>";
-        else if(r._success == AccumulationStatus::Failed)
+        else if(r.success == AccumulationStatus::Failed)
             last += "</str>";
-        last += "</b>.";
+        if(r.success != AccumulationStatus::None)
+            last += "</b>.";
         
         std::string reason;
-        switch (r._reasoning) {
+        switch (r.reasoning) {
             case AccumulationReason::data::values::None:
                 if(i == 0)
                     reason = "Initial range.";
@@ -1872,16 +1895,16 @@ void Accumulation::end_a_step(Result reason) {
                 reason = "Training routine returned error code.";
                 break;
             case AccumulationReason::data::values::UniquenessTooLow:
-                reason = "Uniqueness ("+Meta::toStr(int(r._uniqueness_after_step * 10000) / 100.f)+"%) was lower than ("+Meta::toStr(int(accepted_uniqueness(r._best_uniqueness) * 10000) / 100.f)+").";
+                reason = "Uniqueness ("+dec<2>(r.uniqueness_after_step * 100.f).toStr()+"%) was lower than ("+dec<2>(accepted_uniqueness(r.best_uniqueness) * 100.f).toStr()+").";
                 break;
             default:
-                reason = r._reasoning.name();
+                reason = r.reasoning.name();
                 break;
         }
         
         if(!reason.empty())
             reason = " "+settings::htmlify(reason);
-        last += reason+" "+(r._training_stop.empty() ? "": ("Stopped because <i>"+settings::htmlify(r._training_stop))+"</i>.")+"\n";
+        last += reason+" "+(r.training_stop.empty() ? "": ("Stopped because <i>"+settings::htmlify(r.training_stop))+"</i>.")+"\n";
         text += last;
         ++i;
     }
@@ -2020,30 +2043,47 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             _dots = std::make_shared<Entangled>();
         _dots->update([&](Entangled& e) {
             Loc offset;
-            float previous = accepted_uniqueness();
+            //float previous = accepted_uniqueness();
             size_t i=0;
             const Font font(0.55f, Style::Monospace, Align::Center);
-            const float accepted = SETTING(gpu_accepted_uniqueness).value<float>();
+            const float terminal_uniqueness = SETTING(gpu_accepted_uniqueness).value<float>();
+            const float best_uniqueness = this->best_uniqueness();
+            const float accepted_uniqueness = this->accepted_uniqueness(best_uniqueness);
             
             for(auto &d : history) {
-                Color color(255, 255, 255, 0);
-                if(previous <= d) {
+                Color color(255, 255, 255, 50);
+                /*if(previous <= d) {
                     color = Yellow;
                     previous = d;
-                }
+                }*/
                 
-                if(d >= accepted)
-                    color = Green;
+                if(d >= terminal_uniqueness) {
+                    color = d >= best_uniqueness && d >= current_best
+                        ? Green
+                        : DarkGreen;
+                    
+                } else if(d >= accepted_uniqueness) {
+                    if(d >= best_uniqueness && d >= current_best)
+                        color = Yellow;
+                    else
+                        color = DarkYellow;
+                    
+                } else if(d >= best_uniqueness) {
+                    color = White;
+                    
+                } else if(d >= current_best) {
+                    color = Gray;
+                }
                 
                 if(long_t(i) < long_t(history.size()) - 10) {
                     ++i;
                     continue;
                 }
                 
-                e.add<Circle>(offset, Radius{5}, LineClr{color}, FillClr{color.alpha(50)});
+                e.add<Circle>(offset, Radius{5}, LineClr{color}, FillClr{color.multiply_alpha(0.5)});
                 auto text = e.add<Text>(Str(Meta::toStr(i)), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), TextClr(White), font);
-                text = e.add<Text>(Str(Meta::toStr(int(d * 10000) / 100.0)+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(Cyan), font);
-                offset += Vec2(max(12, text->width() + 10), 0);
+                text = e.add<Text>(Str(dec<2>(d * 100.f).toStr()+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(Cyan), font);
+                offset += Vec2(max(15, text->local_bounds().width + 10), 0);
                 
                 ++i;
             }

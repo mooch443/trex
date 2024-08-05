@@ -191,7 +191,7 @@ struct DrawExportOptions::Data {
                     });
                     return Layout::Ptr(search);
                 },
-                .update = [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool {
+                .update = [](Layout::Ptr&, const Context& , State& , const auto& ) -> bool {
                     return false;
                 }
             });

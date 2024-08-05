@@ -27,9 +27,9 @@ struct GUIVideoAdapterElement : public dyn::CustomElement {
     Layout::Ptr _create(dyn::LayoutContext& context);
     
     bool _update(Layout::Ptr& o,
-                const dyn::Context& context,
-                dyn::State& state,
-                const robin_hood::unordered_map<std::string, dyn::Pattern>& patterns);
+                 const dyn::Context& context,
+                 dyn::State& state,
+                 const dyn::PatternMapType& patterns);
 };
 
 }

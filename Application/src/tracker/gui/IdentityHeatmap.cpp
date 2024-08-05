@@ -2,7 +2,6 @@
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
-#include <misc/checked_casts.h>
 #include <gui/Export.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>

@@ -50,14 +50,15 @@ void TrackingSettingsScene::activate() {
      SceneManager::getInstance().set_active("settings-menu");
      });*/
     
-    dyn::Modules::add(dyn::Modules::Module{
+    /*dyn::Modules::add(dyn::Modules::Module{
         ._name = "follow",
         ._apply = [](size_t index, dyn::State& state, const Layout::Ptr& o) {
-            state.display_fns[index] = [o = o.get()](DrawStructure& g){
+            auto obj = state.register_monostate(index);
+            obj->display_fn = [o = o.get()](DrawStructure& g){
                 o->set_pos(g.mouse_position() + Vec2(5));
             };
         }
-    });
+    });*/
 }
 
 void TrackingSettingsScene::deactivate() {

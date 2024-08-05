@@ -4,7 +4,6 @@
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
 #include <misc/PVBlob.h>
-#include <misc/checked_casts.h>
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
 #include <file/DataLocation.h>

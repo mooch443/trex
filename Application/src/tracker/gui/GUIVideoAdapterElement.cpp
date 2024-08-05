@@ -83,7 +83,7 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
 bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
             const Context& context,
             State& state,
-            const robin_hood::unordered_map<std::string, Pattern>& patterns)
+            const PatternMapType& patterns)
 {
     auto p = o.to<GUIVideoAdapter>();
     std::string path;

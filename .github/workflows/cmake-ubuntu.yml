@@ -56,7 +56,7 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build . --override-channels -c pytorch -c nvidia -c defaults
+        conda build . --override-channels -c pytorch -c nvidia -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
     - name: Test
@@ -65,7 +65,7 @@ jobs:
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c pytorch -c nvidia -c defaults trex
+        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c pytorch -c nvidia -c conda-forge trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support

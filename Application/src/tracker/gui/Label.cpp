@@ -191,6 +191,10 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     return update_positions(text_pos, _initialized && dis <= 1, dt);
 }
 
+void Label::set_uninitialized() {
+    _initialized = false;
+}
+
 float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     _initialized = true;
     

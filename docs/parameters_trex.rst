@@ -865,7 +865,7 @@ TRex parameters
 
 
 
-.. function:: gpu_torch_index(int)
+.. function:: gpu_torch_device_index(int)
 
 	**default value:** -1
 

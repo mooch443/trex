@@ -1,6 +1,5 @@
 #include "EventAnalysis.h"
 #include <misc/Timer.h>
-#include <misc/checked_casts.h>
 #include <tracking/Individual.h>
 
 namespace track {

@@ -56,16 +56,21 @@ namespace cmn {
                                 next_stage->queue.emplace(std::move(obj));
                             }
                             
-                            if(next_stage && result)
-                                next_stage->condition.notify_one();
-                            if (!next_stage)
-                                _finish_condition.notify_one();
-                            
                             if(result) {
                                 stage.timings += (float)stage.timer.elapsed();
                                 stage.samples ++;
                                 stage.average_time = stage.timings / stage.samples;
                             }
+                            
+                            if(next_stage && result)
+                                next_stage->condition.notify_one();
+                            
+                            lock.unlock();
+                            if (!next_stage) {
+                                std::unique_lock lock(_finish_mutex);
+                                _finish_condition.notify_one();
+                            }
+                            lock.lock();
                             
                         } else if(_stop)
                             break;
@@ -147,7 +152,10 @@ namespace cmn {
         if(!_stop) {
             _stop = true;
             
-            _finish_condition.notify_all();
+            {
+                std::unique_lock lock(_finish_mutex);
+                _finish_condition.notify_all();
+            }
             if(_main_thread) {
                 _main_thread->join();
                 delete _main_thread;
@@ -201,7 +209,10 @@ namespace cmn {
                 SETTING(track_pause) = pause;
             }
 
-            _finish_condition.notify_all();
+            {
+                std::unique_lock lock(_finish_mutex);
+                _finish_condition.notify_all();
+            }
             for(auto &s : _stages)
                 s.condition.notify_all();
 
@@ -210,7 +221,10 @@ namespace cmn {
                 while(is_paused() != pause)
                     std::this_thread::sleep_for(std::chrono::milliseconds(5));
                 
-                _finish_condition.notify_all();
+                {
+                    std::unique_lock lock(_finish_mutex);
+                    _finish_condition.notify_all();
+                }
                 for(auto &s : _stages)
                     s.condition.notify_all();
             });

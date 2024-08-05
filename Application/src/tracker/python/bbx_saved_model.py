@@ -228,7 +228,7 @@ class Model:
             if device_from_settings == "automatic":
                 device_from_settings = ""
             else:
-                device_index = eval(TRex.setting("gpu_torch_index"))
+                device_index = eval(TRex.setting("gpu_torch_device_index"))
                 if device_index >= 0:
                     device_from_settings = f"{device_from_settings}:{device_index}"
                 print(f"Using device {device_from_settings} from settings.")
@@ -264,7 +264,7 @@ class Model:
             if device_from_settings == "automatic":
                 device_from_settings = ""
             else:
-                device_index = eval(TRex.setting("gpu_torch_index"))
+                device_index = eval(TRex.setting("gpu_torch_device_index"))
                 if device_index >= 0:
                     device_from_settings = f"{device_from_settings}:{device_index}"
                 print(f"Using device {device_from_settings} from settings.")

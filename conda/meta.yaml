@@ -102,7 +102,7 @@ requirements:
     - ffmpeg =6 # [osx and arm64]
     - ffmpeg >=4.3,<=6 # [win]
     - defaults::ffmpeg >=4,<=6 # [osx and not arm64]
-    - defaults::ffmpeg =4.2 # [linux]
+    - ffmpeg =7 # [linux]
     - openh264 # [osx] 
     - numpy ==1.26.2 # [osx and not arm64]
     - numpy ==1.26.2 # [arm64]
@@ -122,9 +122,9 @@ requirements:
     #- tensorflow >=2,<3   # [osx and not arm64]
     - "pytorch::pytorch-mutex=*=cuda" # [linux or win]
     - "pytorch::pytorch=2.*=py3*" # [osx and not arm64]
-    - "pytorch::pytorch=2.*=py3*" # [osx and arm64]
+    - "pytorch::pytorch<2.4=py3*" # [osx and arm64]
     - "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" # [win]
-    - "pytorch::pytorch=1.*=py3.*_cuda11.7_cudnn*" # [linux]
+    - "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" # [linux]
     - "pytorch::pytorch-cuda=11.7" # [linux or win]
     - "pytorch::torchvision=*=py3*" # [osx and not arm64]
     - "pytorch::torchvision=*=py3*" # [osx and arm64]
@@ -135,6 +135,7 @@ requirements:
     #- cudnn # [win]
     # disable this for install builds
     #- cudnn =7.6 # [linux]
+    - mkl =2024.0 # [linux]
     - scikit-learn
     - seaborn
     - pip

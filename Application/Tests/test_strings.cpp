@@ -1,7 +1,6 @@
 #include "gtest/gtest.h"
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
-#include <misc/format.h>
 #include <misc/Timer.h>
 #include <file/Path.h>
 #include <misc/default_settings.h>

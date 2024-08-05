@@ -58,7 +58,7 @@ file::Path pv_file_path_for(const file::PathArray& array) {
     return output_file;
 }
 
-std::string window_title() {
+inline std::string window_title() {
     auto output_prefix = SETTING(output_prefix).value<std::string>();
     return SETTING(app_name).value<std::string>()
         + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))

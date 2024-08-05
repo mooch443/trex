@@ -10,6 +10,8 @@
 #include <tracking/Tracker.h>
 #include <gui/Export.h>
 
+//#define DEBUG_TM_ITEMS
+
 using namespace track::detect;
 
 namespace track {
@@ -645,7 +647,7 @@ void Segmenter::generator_thread() {
     //if (_should_terminate || (_next_frame_data && items.size() >= 10))
     //    return;
     if(_next_frame_data && items.size() >= 10) {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
         thread_print("TM enough items queued up...");
 #endif
         return;
@@ -671,7 +673,7 @@ void Segmenter::generator_thread() {
 
                 }
                 else {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
                     thread_print("TM Invalid future ", std::get<0>(items.front()));
 #endif
                     items.erase(items.begin());
@@ -708,7 +710,7 @@ void Segmenter::generator_thread() {
 
                 if (_overlayed_video->eof())
                 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
 					thread_print("TM EOF: ", result.error());
 #endif
 					//_next_frame_data = {};
@@ -722,7 +724,7 @@ void Segmenter::generator_thread() {
 					return;
 				}
                 //_overlayed_video->reset(0_f);
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
                 thread_print("TM Invalid item #", items.size(),": ", result.error());
 #endif
                 if(error_callback)
@@ -1007,7 +1009,7 @@ void Segmenter::tracking_thread() {
                 && _overlayed_video->eof())
             )
         {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
             Print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
 #endif
             guard.unlock();

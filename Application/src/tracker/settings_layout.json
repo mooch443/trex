@@ -171,7 +171,7 @@
                                                     "var":"{not:{equal:{global.gpu_torch_device}:automatic}}",
                                                     "then":{
                                                         "type":"settings",
-                                                        "var":"gpu_torch_index",
+                                                        "var":"gpu_torch_device_index",
                                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                         "size":"[{min:50:{max:120:{element_w}}},45]",

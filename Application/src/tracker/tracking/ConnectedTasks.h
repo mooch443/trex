@@ -53,6 +53,8 @@ namespace cmn {
         void bump() {
             if(not _stages.empty())
                 _stages[0].condition.notify_all();
+            
+            std::unique_lock lock(_finish_mutex);
             _finish_condition.notify_all();
         }
         void terminate();

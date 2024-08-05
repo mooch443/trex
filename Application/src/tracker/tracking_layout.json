@@ -48,12 +48,27 @@
                 "name":"info_box",
                 "children": [
 
-                    {
-                        "type":"stext",
-                        "text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
-                        "pad":[10,15,5,0],
-                        "font":{"size":0.6}
-                    },
+					{
+						"type":"collection",
+						"children":[
+							{
+								"type":"stext",
+								"text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
+								"pad":[10,15,5,0],
+								"font":{"size":0.6}
+							},
+							{
+								"type":"button",
+                                "pos":"[{-:{infocard_width}:26},8]",
+								"text":"<sym>🗙</sym>",
+								"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+								"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+								"action":"set:gui_focus_group:[]",
+								"font":{"size":0.5},
+								"size":[25,25]
+							}
+						]
+					},
                     {
                         "type":"drawsegments",
                         "fdx":"{at:0:{global.gui_focus_group}}",

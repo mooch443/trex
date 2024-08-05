@@ -59,6 +59,11 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                 /// gets destructed here
             });
             
+            SceneManager::getInstance().enqueue([](){
+                Print("Trying to give MPS another chance...");
+                Python::VINetwork::clear_caches().get();
+            });
+            
             //assert(not objects.textarea.get());
             
             return ret;

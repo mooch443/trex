@@ -2,11 +2,9 @@
 
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
-#include <misc/format.h>
 #include <misc/Timer.h>
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
-#include <misc/checked_casts.h>
 #include <file/Path.h>
 
 using namespace cmn::file;

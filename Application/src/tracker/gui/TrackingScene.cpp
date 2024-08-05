@@ -43,6 +43,13 @@ namespace cmn::gui {
 
 std::atomic<bool> _load_requested{false};
 
+static inline std::string window_title() {
+    auto output_prefix = SETTING(output_prefix).value<std::string>();
+    return SETTING(app_name).value<std::string>()
+        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
+        + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
+}
+
 class IndividualImage : public Entangled {
     GETTER(Idx_t, fdx);
     Image::Ptr ptr;
@@ -449,7 +456,9 @@ void TrackingScene::activate() {
         "track_threshold",
         "track_posture_threshold",
         "track_size_filter",
-        "track_include", "track_ignore"
+        "track_include", "track_ignore",
+        
+        "output_prefix"
         
     }, [this](std::string_view key) {
         if(is_in(key, 
@@ -512,6 +521,12 @@ void TrackingScene::activate() {
                 "track_include", "track_ignore"))
         {
             redraw_all();
+        }
+        
+        if(key == "output_prefix") {
+            SceneManager::getInstance().enqueue([this](){
+                window()->set_title(window_title());
+            });
         }
     });
     

@@ -1,7 +1,6 @@
 #include "gtest/gtest.h"
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
-#include <misc/format.h>
 #include <misc/Timer.h>
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
@@ -173,6 +172,10 @@ TEST(ParseText, EmptyBraces) {
 TEST(ParseText, InvalidEscapeSequence) {
     State state;
     Context context;
+    
+    EXPECT_NO_THROW(parse_text("\{\}", context, state));
+    EXPECT_THROW(parse_text("{\}", context, state), std::runtime_error);
+    EXPECT_NO_THROW(parse_text("\"\\n\"", context, state));
     EXPECT_THROW(parse_text("\\{invalid\\_escape}", context, state), std::runtime_error);
 }
 

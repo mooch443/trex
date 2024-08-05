@@ -4,7 +4,6 @@
 #include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
-#include <misc/checked_casts.h>
 #include <tracker/misc/default_config.h>
 #include <tracking/CategorizeDatastore.h>
 #include <misc/IdentifiedTag.h>
