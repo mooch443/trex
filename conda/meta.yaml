@@ -134,7 +134,7 @@ requirements:
     - "pytorch::torchmetrics"
     - "cuda-version=11.8" # [linux]
     - "cuda-version=11.8" # [win]
-    - "cuda-cccl=11.8" # [win]
+    - "cuda-cccl=11.8" # [win or linux]
     # disable this for install builds
     #- cudatoolkit =10.1 # [linux]
     #- cudatoolkit =11 # [win]
