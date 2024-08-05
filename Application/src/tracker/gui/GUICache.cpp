@@ -91,6 +91,9 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         display_blobs.clear();
         raw_blobs.clear();
         available_blobs_list.clear();
+        
+        if(_next_consecutive.valid())
+            _next_consecutive.get();
 
         std::lock_guard guard(percentile_mutex);
         if(percentile_ptr) {
@@ -305,6 +308,29 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
     
     if(_posture_window->valid())
         base.wrap_object(*_posture_window);
+}
+
+std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff() {
+    if(bool compared = false;
+       _last_consecutive_update.elapsed() > 10
+       && _updating_consecutive.compare_exchange_strong(compared, true))
+    {
+        _next_consecutive = std::async(std::launch::async, [](){
+            return Tracker::instance()->global_segment_order();
+        });
+    }
+    
+    if(_next_consecutive.valid()
+       && _next_consecutive.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+    {
+        _global_segment_order = _next_consecutive.get();
+        _last_consecutive_update.reset();
+        _updating_consecutive = false;
+        
+        return _global_segment_order;
+    }
+    
+    return std::nullopt;
 }
     
     Frame_t GUICache::update_data(const Frame_t frameIndex) {

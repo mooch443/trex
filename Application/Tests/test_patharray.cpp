@@ -6,6 +6,218 @@
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
 #include <file/Path.h>
+#include <misc/SpriteMap.h>
+
+using namespace cmn;
+
+struct TrivialType {
+    int value;
+    constexpr bool operator!=(const TrivialType& other) const { return value != other.value; }
+    constexpr bool operator==(const TrivialType& other) const { return value == other.value; }
+    std::string toStr() const { throw std::exception(); }
+    static TrivialType fromStr(const std::string&) { throw std::exception(); }
+    static std::string class_name() { return "TrivialType"; }
+    nlohmann::json to_json() const { throw std::exception(); }
+};
+
+struct NonTrivialType {
+    std::string value;
+    bool operator!=(const NonTrivialType& other) const { return value != other.value; }
+    bool operator==(const NonTrivialType& other) const { return value == other.value; }
+    std::string toStr() const { throw std::exception(); }
+    static NonTrivialType fromStr(const std::string&) { throw std::exception(); }
+    static std::string class_name() { return "NonTrivialType"; }
+    nlohmann::json to_json() const { throw std::exception(); }
+};
+
+struct TrivialTypeWithoutNonEquals {
+    int value;
+    constexpr bool operator==(const TrivialTypeWithoutNonEquals& other) const { return value == other.value; }
+    std::string toStr() const { throw std::exception(); }
+    static TrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
+    static std::string class_name() { return "TrivialTypeWithoutNonEquals"; }
+    nlohmann::json to_json() const { throw std::exception(); }
+};
+
+struct NonTrivialTypeWithoutNonEquals {
+    std::string value;
+    bool operator==(const NonTrivialTypeWithoutNonEquals& other) const { return value == other.value; }
+    std::string toStr() const { throw std::exception(); }
+    static NonTrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
+    static std::string class_name() { return "NonTrivialTypeWithoutNonEquals"; }
+    nlohmann::json to_json() const { throw std::exception(); }
+};
+
+TEST(ValueStoreTest, TrivialTypeWithNotEqualOperator) {
+    TrivialType t1{1};
+    TrivialType t2{2};
+
+    auto property = sprite::Property("trivial", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+}
+
+TEST(ValueStoreTest, NonTrivialTypeWithNotEqualOperator) {
+    NonTrivialType t1{"Hello"};
+    NonTrivialType t2{"World"};
+
+    auto property = sprite::Property("nontrivial", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+}
+
+TEST(ValueStoreTest, TrivialTypeWithoutNotEqualOperator) {
+    TrivialTypeWithoutNonEquals t1{1};
+    TrivialTypeWithoutNonEquals t2{2};
+
+    auto property = sprite::Property("simple", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+}
+
+TEST(ValueStoreTest, NonTrivialTypeWithoutNotEqualOperator) {
+    NonTrivialTypeWithoutNonEquals t1{"Hello"};
+    NonTrivialTypeWithoutNonEquals t2{"World"};
+
+    auto property = sprite::Property("complex", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+}
+
+// Edge case: Same initial value
+TEST(ValueStoreTest, TrivialTypeSameInitialValue) {
+    TrivialType t1{1};
+
+    auto property = sprite::Property("trivial", t1);
+
+    EXPECT_FALSE(property.assign_if(t1));
+}
+
+// Edge case: Assign to itself for non-trivial type
+TEST(ValueStoreTest, NonTrivialTypeAssignToItself) {
+    NonTrivialType t1{"Hello"};
+
+    auto property = sprite::Property("nontrivial", t1);
+
+    EXPECT_FALSE(property.assign_if(t1));
+}
+
+// Edge case: Assign if initial value is default
+TEST(ValueStoreTest, TrivialTypeDefaultInitialValue) {
+    TrivialType t2{2};
+
+    auto property = sprite::Property<TrivialType>("trivial");
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+}
+
+// Edge case: Non-trivial type default initial value
+TEST(ValueStoreTest, NonTrivialTypeDefaultInitialValue) {
+    NonTrivialType t2{"World"};
+
+    auto property = sprite::Property<NonTrivialType>("nontrivial");
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+}
+
+// Multiple assignments
+TEST(ValueStoreTest, TrivialTypeMultipleAssignments) {
+    TrivialType t1{1};
+    TrivialType t2{2};
+    TrivialType t3{3};
+
+    auto property = sprite::Property("trivial", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t3));
+    EXPECT_FALSE(property.assign_if(t3));
+}
+
+TEST(ValueStoreTest, NonTrivialTypeMultipleAssignments) {
+    NonTrivialType t1{"Hello"};
+    NonTrivialType t2{"World"};
+    NonTrivialType t3{"Test"};
+
+    auto property = sprite::Property("nontrivial", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t3));
+    EXPECT_FALSE(property.assign_if(t3));
+}
+
+// TrivialTypeWithoutNonEquals initial and subsequent assignment
+TEST(ValueStoreTest, TrivialTypeWithoutNonEqualsInitialAssignment) {
+    TrivialTypeWithoutNonEquals t1{1};
+    TrivialTypeWithoutNonEquals t2{2};
+
+    auto property = sprite::Property("simple", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+    EXPECT_TRUE(property.assign_if(t2));
+}
+
+// NonTrivialTypeWithoutNonEquals initial and subsequent assignment
+TEST(ValueStoreTest, NonTrivialTypeWithoutNonEqualsInitialAssignment) {
+    NonTrivialTypeWithoutNonEquals t1{"Hello"};
+    NonTrivialTypeWithoutNonEquals t2{"World"};
+
+    auto property = sprite::Property("complex", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+    EXPECT_TRUE(property.assign_if(t2));
+}
+
+TEST(ValueStoreTest, SpecialCase) {
+    Size2 t1{};
+    Size2 t2{1920, 1080};
+
+    auto property = sprite::Property("complex", t1);
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+    EXPECT_TRUE(property.assign_if(t2));
+    
+    EXPECT_EQ(property.value(), t2);
+}
+
+TEST(ValueStoreTest, SpecialCaseInMap) {
+    sprite::Map map;
+    
+    Size2 t1{};
+    Size2 t2{1920, 1080};
+
+    map["complex"] = t1;
+    
+    auto& property = map["complex"].get().toProperty<Size2>();
+
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+    EXPECT_TRUE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+    EXPECT_FALSE(property.assign_if(t2));
+    EXPECT_TRUE(property.assign_if(t1));
+    EXPECT_TRUE(property.assign_if(t2));
+    
+    EXPECT_EQ(property.value(), t2);
+    
+    map["complex"] = t1;
+    EXPECT_EQ(map.at("complex").value<Size2>(), t1);
+    
+    map["complex"] = t2;
+    EXPECT_EQ(map.at("complex").value<Size2>(), t2);
+}
 
 using namespace cmn::file;
 bool matched;

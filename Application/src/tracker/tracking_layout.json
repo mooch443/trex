@@ -659,15 +659,15 @@
                             },
                             "else": {
                                 "type":"button",
-                                "action":"set:track_pause:{not:{global.track_pause}}",
-                                "text":"{if:{global.track_pause}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
+                                "action":"set_paused:{not:{is_paused}}",
+                                "text":"{if:{is_paused}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
                                 "size":[15,20],
                                 "pad":[0,-4.5,0,0],
                                 "shadow":0.5,
                                 "font":{"size":0.8},
                                 "fill":[10,0,0,0],
                                 "line":[100,100,100,0],
-                                "color":"{if:{global.track_pause}:[30,80,30,100]:[200,120,80,100]}"
+                                "color":"{if:{is_paused}:[30,80,30,100]:[200,120,80,100]}"
                             }
                         },
 
@@ -683,7 +683,7 @@
                         
                         {
                             "type": "stext",
-                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{global.track_pause}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
+                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{is_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
                             "font":{ "size":0.65 },
                             "shadow":0.5,
                             "pad":[-5,0,0,7.5]

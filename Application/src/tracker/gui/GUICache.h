@@ -150,6 +150,10 @@ namespace globals {
         
         GETTER_PTR(const Background*, background){nullptr};
         
+        Timer _last_consecutive_update;
+        std::atomic<bool> _updating_consecutive;
+        std::future<std::vector<Range<Frame_t>>> _next_consecutive;
+        
     public:
         bool recognition_updated = false;
         
@@ -285,6 +289,7 @@ namespace globals {
         ~GUICache();
         
         void draw_posture(gui::DrawStructure &base, Frame_t frameNr);
+        std::optional<std::vector<Range<Frame_t>>> update_slow_tracker_stuff();
     };
 }
 

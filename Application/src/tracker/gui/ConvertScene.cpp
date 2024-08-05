@@ -151,6 +151,9 @@ struct ConvertScene::Data {
     std::vector<sprite::Map> _untracked_properties;
     std::vector<sprite::Map*> _tracked_properties;
     std::unordered_map<pv::bid, Identity> _visible_bdx;
+    std::vector<std::vector<Vertex>> _trajectories;
+    std::vector<std::tuple<Color, std::vector<Vec2>>> _postures;
+    
     std::vector<Idx_t> _inactive_ids;
     std::vector<Idx_t> _active_ids;
 
@@ -208,6 +211,25 @@ struct ConvertScene::Data {
     
     Frame_t last_frame;
     Timer timer;
+    
+    Data() {
+        reset_properties();
+    }
+    
+    void reset_properties() {
+        _primary_selection["color"] = Transparent;
+        _primary_selection["bdx"] = pv::bid();
+        _primary_selection["fdx"] = Idx_t();
+        _primary_selection["visible"] = false;
+        _primary_selection["tracked"] = false;
+        _primary_selection["speed"] = 0.f;
+        _primary_selection["has_neighbor"] = false;
+        _primary_selection["p"] = 0.0f;
+        
+        for (auto& [id, map] : _individual_properties) {
+            map["visible"] = false;
+        }
+    }
     
     void drawBlobs(DrawStructure&, Frame_t, const std::vector<std::string>& detect_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
     // Helper function to draw outlines
@@ -355,6 +377,8 @@ struct ConvertScene::Data {
         dynGUI.update(nullptr);
     }
     void draw(bool dirty, DrawStructure& graph, Base* window);
+    bool retrieve_and_prepare_data();
+    void draw_scene(DrawStructure& graph, const FindCoord& coords, const std::vector<std::string>& detect_classes, bool dirty);
 };
 
 Segmenter& ConvertScene::segmenter() const {
@@ -787,9 +811,7 @@ void ConvertScene::Data::drawBlobs(
 
     auto coords = FindCoord::get();
     std::set<Idx_t> tracked_ids;
-    for (auto& [id, map] : _individual_properties) {
-		map["visible"] = false;
-	}
+    reset_properties();
 
     auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
     std::vector<Vec2> targets;
@@ -896,7 +918,7 @@ void ConvertScene::Data::drawBlobs(
         //else
             (*tmp)["px"] = blob->recount(-1);
 
-        (*tmp)["p"] = Meta::toStr(assign.p);
+        (*tmp)["p"] = assign.p;
         
         if(not selected_ids.empty()
            && selected_ids.front() == tracked_id)
@@ -1196,7 +1218,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     auto coords = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
-        _bowl->set_video_aspect_ratio(output_size.width, output_size.height);//coord.video_size().width, coord.video_size().height);
+        _bowl->set_video_aspect_ratio(output_size.width, output_size.height);
         _bowl->fit_to_screen(coords.screen_size());
     }
     
@@ -1205,27 +1227,107 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
 
     graph.wrap_object(*_bowl);
     _bowl->update_scaling(dt);
-    //_bowl_mouse = coord.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
 
+    bool dirty = retrieve_and_prepare_data();
+    draw_scene(graph, coords, detect_classes, dirty);
+
+    check_gui(graph, window);
+    _bowl->update(_current_data.frame.index(), graph, coords);
+}
+
+bool ConvertScene::Data::retrieve_and_prepare_data() {
+    LockGuard lguard(w_t{}, "drawing", 10);
+    if (not lguard.locked()) {
+        return false;
+    }
+
+    bool dirty{ false };
+    SETTING(gui_frame) = _current_data.frame.index();
+
+    if (last_frame != _current_data.frame.index()) {
+        last_frame = _current_data.frame.index();
+        dirty = true;
+        
+        _active_ids.clear();
+        _inactive_ids.clear();
+        
+        auto a = IndividualManager::active_individuals(last_frame);
+        if(a && a.value()) {
+            for(auto fish : *a.value()) {
+                _active_ids.emplace_back(fish->identity().ID());
+            }
+        }
+        
+        IndividualManager::transform_all([this](Idx_t id, auto) {
+            if(not contains(_active_ids, id))
+                _inactive_ids.emplace_back(id);
+        });
+    }
+
+    using namespace track;
+    std::unordered_map<pv::bid, Identity> visible_bdx;
+    std::vector<std::vector<Vertex>> lines;
+    std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
+
+    IndividualManager::transform_all([&](Idx_t, Individual* fish) {
+        if (not fish->has(_current_data.frame.index()))
+            return;
+        auto p = fish->iterator_for(_current_data.frame.index());
+        auto segment = p->get();
+
+        auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
+
+        if (dirty) {
+            if (basic->blob.parent_id.valid())
+                visible_bdx.emplace(basic->blob.parent_id, fish->identity());
+            visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
+        }
+        
+        std::vector<Vertex> line;
+        fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
+        {
+            if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
+                return true;
+            auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
+            line.push_back(Vertex(p.x, p.y, fish->identity().color()));
+            return true;
+        });
+
+        lines.emplace_back(std::move(line));
+        //graph.vertices(line);
+    
+        if(posture
+           && posture->outline)
+        {
+            auto pts = posture->outline->uncompress();
+            auto p = basic->blob.calculate_bounds().pos();
+            for(auto &pt : pts)
+                pt += p;
+            
+            postures.emplace_back(fish->identity().color(), std::move(pts));
+            //graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
+        }
+    });
+    
+    if(dirty)
+        _visible_bdx = std::move(visible_bdx);
+    
+    _trajectories = std::move(lines);
+    _postures = std::move(postures);
+    
+    return true;
+}
+
+void ConvertScene::Data::draw_scene(DrawStructure& graph, const FindCoord& coords, const std::vector<std::string>& detect_classes, bool dirty) {
     graph.section("video", [&](auto&, Section* section) {
         section->set_size(output_size);
         section->set_pos(_bowl->_current_pos);
         section->set_scale(_bowl->_current_scale);
         
         Transform transform;
-        //transform.scale(_screen_size.div(video_size).reciprocal());
-       // transform.scale(graph.scale() / gui::interface_scale());
         transform.combine(section->global_transform());
         
         FindCoord::set_bowl_transform(transform);
-
-        LockGuard lguard(w_t{}, "drawing", 10);
-        if (not lguard.locked()) {
-            section->reuse_objects();
-            return;
-        }
-
-        SETTING(gui_frame) = _current_data.frame.index();
 
         if (_background_image->source()) {
             if(_background_image->source() && _background_image->source()->rows > 0 && _background_image->source()->cols > 0) {
@@ -1235,8 +1337,6 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
 
         for (auto &box : _current_data.tiles)
             graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
-        //auto coord = FindCoord::get();
-        //Print(coord.bowl_scale());
         
         ColorWheel wheel;
         size_t pose_index{ 0 };
@@ -1252,78 +1352,6 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         }
         if(pose_index < _skeletts.size())
             _skeletts.resize(pose_index);
-
-        bool dirty{ false };
-        if (last_frame != _current_data.frame.index()) {
-            last_frame = _current_data.frame.index();
-            //_gui_objects.clear();
-            //_individual_properties.clear();
-            dirty = true;
-            
-            _active_ids.clear();
-            _inactive_ids.clear();
-            
-            auto a = IndividualManager::active_individuals(last_frame);
-            if(a && a.value()) {
-                for(auto fish : *a.value()) {
-                    _active_ids.emplace_back(fish->identity().ID());
-                }
-            }
-            
-            IndividualManager::transform_all([this](Idx_t id, auto) {
-                if(not contains(_active_ids, id))
-                    _inactive_ids.emplace_back(id);
-            });
-        }
-
-        // Draw outlines
-        drawOutlines(graph, _bowl->_current_scale, _bowl->_current_pos);
-
-        using namespace track;
-        std::unordered_map<pv::bid, Identity> visible_bdx;
-
-        IndividualManager::transform_all([&](Idx_t, Individual* fish)
-            {
-                if (not fish->has(_current_data.frame.index()))
-                    return;
-                auto p = fish->iterator_for(_current_data.frame.index());
-                auto segment = p->get();
-
-                //auto basic = fish->compressed_blob(_current_data.frame.index());
-                auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
-                //auto bds = basic->calculate_bounds();//.mul(scale);
-
-                if (dirty) {
-                    if (basic->blob.parent_id.valid())
-                        visible_bdx.emplace(basic->blob.parent_id, fish->identity());
-                    visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
-                }
-
-                std::vector<Vertex> line;
-                fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
-                    {
-                        if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
-                            return true;
-                        auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
-                        line.push_back(Vertex(p.x, p.y, fish->identity().color()));
-                        return true;
-                    });
-
-                graph.vertices(line);
-            
-                if(posture
-                   && posture->outline)
-                {
-                    auto pts = posture->outline->uncompress();
-                    auto p = basic->blob.calculate_bounds().pos();
-                    for(auto &pt : pts)
-                        pt += p;
-                    graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
-                }
-            });
-        
-        if(dirty)
-            _visible_bdx = std::move(visible_bdx);
 
         //! do not need to continue further if the view isnt dirty
         if (not dirty) {
@@ -1373,18 +1401,22 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
         }
 
         drawBlobs(graph, _current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
+        
+        for(auto &traj : _trajectories) {
+            graph.vertices(traj);
+        }
+        
+        for(auto &[color, pts] : _postures) {
+            graph.vertices(pts, color, PrimitiveType::LineStrip);
+        }
     });
     
     graph.section("menus", [&](auto&, Section*) {
-        //section->set_scale(graph.scale().reciprocal() * gui::interface_scale());
-        
         _video_info["frame"] = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
     });
-
-    check_gui(graph, window);
-    _bowl->update(_current_data.frame.index(), graph, coords);
 }
+
 
 }

@@ -115,6 +115,11 @@ struct TrackingScene::Data {
     std::unique_ptr<DrawDataset> _dataset;
     std::unique_ptr<DrawExportOptions> _export_options;
     
+    /// these will help updating some visual stuff whenever
+    /// the tracker has added a new frame:
+    std::optional<std::size_t> _frame_callback;
+    std::atomic<bool> _tracker_has_added_frames{false};
+    
     std::unique_ptr<Bowl> _bowl;
     //std::unordered_map<Idx_t, Bounds> _last_bounds;
     
@@ -496,10 +501,12 @@ void TrackingScene::activate() {
                   && _data
                   && _data->_cache)
         {
-            WorkProgress::add_queue("", [frame = _data->_cache->frame_idx](){
-                Tracker::instance()->_remove_frames(frame);
-                SETTING(track_pause) = false;
-            });
+            if(Tracker::end_frame() >= _data->_cache->frame_idx) {
+                WorkProgress::add_queue("", [frame = _data->_cache->frame_idx](){
+                    Tracker::instance()->_remove_frames(frame);
+                    SETTING(track_pause) = false;
+                });
+            }
         }
         
         if(utils::beginsWith(key, "gui_show_")
@@ -539,8 +546,13 @@ void TrackingScene::activate() {
         }
     });
     
-    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    assert(not _data->_frame_callback);
+    _data->_frame_callback = _state->tracker->register_add_callback([this](Frame_t) {
+        if(_data)
+            _data->_tracker_has_added_frames = true;
+    });
     
+    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
     
     if(_load_requested) {
         bool exchange = true;
@@ -595,6 +607,13 @@ void TrackingScene::deactivate() {
         _data->_recorder.stop_recording(nullptr, nullptr);
         if(_data->_background)
             _data->_background->set_strict(false);
+    }
+    
+    /// unregister callback that tracks the tracker adding frames
+    if(_data && _data->_frame_callback) {
+        if(_state->tracker)
+            _state->tracker->unregister_add_callback(_data->_frame_callback.value());
+        _data->_frame_callback = std::nullopt;
     }
     
     Categorize::Work::terminate_prediction() = true;
@@ -717,6 +736,17 @@ void TrackingScene::_draw(DrawStructure& graph) {
     update_run_loop();
     if(not _data)
         return;
+    
+    if(_data->_tracker_has_added_frames
+       //&& _state && _state->analysis.is_paused()
+       && _data->_cache)
+    {
+        auto result = _data->_cache->update_slow_tracker_stuff();
+        if(result) {
+            _data->_tracker_has_added_frames = false;
+            redraw_all();
+        }
+    }
     
     //window_size = Vec2(window()->window_dimensions().width, window()->window_dimensions().height).div(((IMGUIBase*)window())->dpi_scale()) * gui::interface_scale();
     
@@ -1139,6 +1169,15 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     ._can_run_before_init = false
                 });
             }),
+            ActionFunc("set_paused", [this](Action action) {
+                REQUIRE_EXACTLY(1, action);
+                
+                bool value = Meta::fromStr<bool>(action.first());
+                WorkProgress::add_queue("Pausing...", [this, value](){
+                    if(_state)
+                        _state->analysis.set_paused(value).get();
+                });
+            }),
             ActionFunc("write_config", [video = _state->video](Action){
                 WorkProgress::add_queue("", [video]() {
                     settings::write_config(video.get(), false, SceneManager::getInstance().gui_task_queue());
@@ -1211,6 +1250,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                     }
                 }
                 return false;
+            }),
+            VarFunc("is_paused", [this](const VarProps&) -> bool {
+                if(not _state)
+                    return false;
+                return _state->analysis.is_paused();
             }),
             VarFunc("get_segment", [this](const VarProps& props) -> FrameRange {
                 if(props.parameters.size() != 1)
