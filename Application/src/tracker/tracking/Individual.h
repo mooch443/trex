@@ -288,32 +288,36 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         //! Properties based on centroid:
         const MotionRecord* centroid(Frame_t frameIndex) const;
-        MotionRecord* centroid(Frame_t frameIndex);
+        //MotionRecord* centroid(Frame_t frameIndex);
+        
         //! Properties based on posture / head position:
         const MotionRecord* head(Frame_t frameIndex) const;
-        MotionRecord* head(Frame_t frameIndex);
+        //MotionRecord* head(Frame_t frameIndex);
         
         const MotionRecord* centroid_posture(Frame_t frameIndex) const;
-        MotionRecord* centroid_posture(Frame_t frameIndex);
+        //MotionRecord* centroid_posture(Frame_t frameIndex);
         
         const MotionRecord* centroid_weighted(Frame_t frameIndex) const;
-        MotionRecord* centroid_weighted(Frame_t frameIndex);
+        //MotionRecord* centroid_weighted(Frame_t frameIndex);
         
         //! Raw blobs
         pv::BlobPtr blob(Frame_t frameIndex) const;
         pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
         [[nodiscard]] bool empty() const noexcept;
         
-        void save_posture(const BasicStuff& ptr, const PoseMidlineIndexes& pose_midline_indexes, Frame_t frameIndex, pv::BlobPtr&& pixels);
+        void save_posture(const BasicStuff& basic,
+                          const PoseMidlineIndexes& pose_midline_indexes,
+                          Frame_t frameIndex,
+                          pv::BlobPtr&& pixels);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
         int64_t thresholded_size(Frame_t frameIndex) const;
         
-        const Midline::Ptr midline(Frame_t frameIndex) const;
+        Midline::Ptr midline(Frame_t frameIndex) const;
         //const Midline::Ptr cached_fixed_midline(Frame_t frameIndex);
         Midline::Ptr fixed_midline(Frame_t frameIndex) const;
-        const Midline::Ptr pp_midline(Frame_t frameIndex) const;
-        MinimalOutline::Ptr outline(Frame_t frameIndex) const;
+        const Midline* pp_midline(Frame_t frameIndex) const;
+        const MinimalOutline* outline(Frame_t frameIndex) const;
         
         void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
         

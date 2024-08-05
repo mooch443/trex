@@ -42,7 +42,7 @@ namespace track {
 
     class Midline {
     public:
-        typedef std::shared_ptr<Midline> Ptr;
+        typedef std::unique_ptr<Midline> Ptr;
         
     private:
         GETTER_NCONST(float, len);
@@ -240,7 +240,7 @@ namespace track {
         friend class cmn::Data;
         
     public:
-        typedef std::shared_ptr<MinimalOutline> Ptr;
+        typedef std::unique_ptr<MinimalOutline> Ptr;
         
         MinimalOutline();
         MinimalOutline(const Outline& outline);

@@ -38,7 +38,7 @@ namespace cmn::gui {
         int32_t _probability_radius = 0;
         Vec2 _probability_center;
         track::Midline::Ptr _cached_midline;
-        track::MinimalOutline::Ptr _cached_outline;
+        const track::MinimalOutline* _cached_outline;
         GETTER(Vec2, fish_pos);
         Circle _circle;
 

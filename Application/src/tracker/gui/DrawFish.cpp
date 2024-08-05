@@ -181,7 +181,9 @@ Fish::~Fish() {
            it != GUICache::instance().fish_selected_blobs.end())
         {
             _basic_stuff = it->second.basic_stuff;
-            _posture_stuff = it->second.posture_stuff;
+            _posture_stuff = it->second.posture_stuff.has_value()
+                                ? it->second.posture_stuff->clone()
+                                : PostureStuff{};
         
             if(it->second.pred)
                 _pred = it->second.pred.value();
@@ -203,14 +205,15 @@ Fish::~Fish() {
                 
                 auto posture = obj.posture_stuff(_safe_frame);
                 if(posture)
-                    _posture_stuff = *posture;
+                    _posture_stuff = posture->clone();
                 else
                     _posture_stuff.reset();
             }
         }
         
-        _cached_outline = _posture_stuff 
-                            ? _posture_stuff->outline
+        /// need to update this as well so there are no old values
+        _cached_outline = _posture_stuff
+                            ? _posture_stuff->outline.get()
                             : nullptr;
         
         _ML = obj.midline_length();
@@ -441,7 +444,7 @@ Fish::~Fish() {
         const Vec2 offset = -_blob_bounds.pos();
         
         const auto centroid = _basic_stuff.has_value() ? &_basic_stuff->centroid : nullptr;
-        const auto head = _posture_stuff.has_value() ? _posture_stuff->head : nullptr;
+        const auto head = _posture_stuff.has_value() ? _posture_stuff->head.get() : nullptr;
         
         _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
@@ -704,7 +707,6 @@ Fish::~Fish() {
                 angle = -head->angle();
             }
         
-            auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
                 if(_next_frame_cache.valid) {
                     auto estimated = _next_frame_cache.estimated_px + offset;
@@ -715,7 +717,12 @@ Fish::~Fish() {
                 }
             }
         
-            if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && _posture_stuff && _posture_stuff->head) {
+            if(GUIOPTION(gui_happy_mode)
+               && _cached_midline
+               && _cached_outline
+               && _posture_stuff.has_value()
+               && _posture_stuff->head)
+            {
                 struct Physics {
                     Vec2 direction = Vec2();
                     Vec2 v = Vec2();
@@ -866,6 +873,8 @@ Fish::~Fish() {
             }
         
             if ((hovered || is_selected) && GUIOPTION(gui_show_selections)) {
+                auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
+                
                 auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
                 if(cache.primary_selected_id() != _id.ID())
                     circle_clr = Gray.alpha(circle_clr.a);
@@ -905,9 +914,8 @@ Fish::~Fish() {
                 
                     for (auto frame = _frame - Frame_t(FAST_SETTING(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTING(posture_direction_smoothing)); ++frame)
                     {
-                        auto midline = _pp_midline;
-                        if(midline) {
-                            auto angle = midline->original_angle();
+                        if(_pp_midline) {
+                            auto angle = _pp_midline->original_angle();
                             angles[frame] = angle;
                         
                             if(previous != FLT_MAX) {

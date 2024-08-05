@@ -411,25 +411,7 @@ class Network:
         self.add_official_models()
 
         def v119(model, image_width, image_height, classes, channels):
-            #model = create_vit_classifier(num_classes=len(classes), input_shape=(int(image_width),int(image_height),int(channels)))
-
-            
-            #model.add(Flatten())
-            #model.add(Dense(len(classes), activation='softmax'))
-            #return model
-        
             model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),int(channels))))
-            #model.add(Lambda(lambda x: tf.keras.applications.mobilenet.preprocess_input(tf.repeat(tf.cast(x, tf.float32), 3, axis=-1)),
-            #                 input_shape=(int(image_width),int(image_height),int(channels))))
-            #from tensorflow.keras.applications import MobileNetV2, MobileNetV3Small, MobileNetV3Large
-            #base_model = MobileNetV3Small(weights='imagenet', input_shape=(int(image_width),int(image_height),3), include_top=False,
-            ##                              include_preprocessing=False, classes=len(classes))
-
-            # Freeze the pre-trained weights
-            #for layer in base_model.layers:
-            #    layer.trainable = False
-
-            #model.add(base_model)
 
             model.add(Convolution2D(256, 5, padding='same'))
             model.add(BatchNormalization())
@@ -443,12 +425,6 @@ class Network:
             model.add(MaxPooling2D(pool_size=(2,2)))
             model.add(SpatialDropout2D(0.05))
 
-            '''model.add(Convolution2D(32, 5, strides=2, padding='same'))
-            model.add(BatchNormalization())
-            model.add(Activation('relu'))
-            #model.add(MaxPooling2D(pool_size=(2,2)))
-            model.add(SpatialDropout2D(0.05))'''
-
             model.add(Convolution2D(32, 5, padding='same'))
             model.add(BatchNormalization())
             model.add(Activation('relu'))
@@ -461,48 +437,12 @@ class Network:
             model.add(MaxPooling2D(pool_size=(2,2)))
             model.add(SpatialDropout2D(0.05))
 
-
             model.add(Dense(1024))
             model.add(BatchNormalization())
             model.add(Activation('relu'))
-            #model.add(SpatialDropout2D(0.05))
             
             model.add(Flatten())
             model.add(Dense(len(classes), activation='softmax'))
-
-
-            #from tensorflow.keras.applications import MobileNetV2, MobileNetV3Small, MobileNetV3Large
-            #base_model = MobileNetV3Small(weights=None, input_shape=(int(image_width),int(image_height),int(channels)), include_top=True,
-            #                              include_preprocessing=True, classes=len(classes))
-            # Load pre-trained MobileNetV2, but without the final classification layers
-            #base_model = MobileNetV2(weights='imagenet', include_top=False, 
-            #                        input_shape=(int(image_width),int(image_height),3))
-
-            # Freeze the pre-trained weights
-            #for layer in base_model.layers:
-            #    layer.trainable = False
-
-
-            #i = tf.keras.layers.Input([int(image_width),int(image_height), int(3)], dtype = tf.uint8)
-            #x = tf.cast(i, tf.float32)
-            #x = tf.keras.applications.mobilenet.preprocess_input(x)
-            # Add a normalization layer
-            #model.add(Lambda(lambda x: tf.keras.applications.mobilenet.preprocess_input(tf.repeat(tf.cast(x, tf.float32), 3, axis=-1)),
-            #                 input_shape=(int(image_width),int(image_height),int(channels))))
-
-
-            #model.add(Lambda(lambda x: tf.repeat(x, 3, axis=-1), input_shape=(int(image_width),int(image_height),int(channels))))
-            # model.add(x)
-            # Add the base model
-            #model.add(base_model)
-
-            #model.add(GlobalAveragePooling2D())
-
-            # Add a flattening layer
-            #model.add(Flatten())
-
-            # Add a dense layer with the number of classes as the number of nodes, with softmax activation for multiclass classification
-            #model.add(Dense(len(classes), activation='softmax'))
 
             return model
 

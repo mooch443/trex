@@ -25,40 +25,66 @@ struct PostureStuff {
     static constexpr float infinity = cmn::infinity<float>();
     Frame_t frame;
     
-    MotionRecord* head{nullptr};
-    MotionRecord* centroid_posture{nullptr};
+    std::unique_ptr<MotionRecord> head;
+    std::unique_ptr<MotionRecord> centroid_posture;
+    
     Midline::Ptr cached_pp_midline;
     MinimalOutline::Ptr outline;
+    
     float posture_original_angle{infinity};
     float midline_angle{infinity}, midline_length{infinity};
+    
     //!TODO: consider adding processed midline_angle and length
     //!TODO: need to fix copy operations for head etc
     PostureStuff() noexcept = default;
-    PostureStuff(PostureStuff&&) = delete;
-    PostureStuff(const PostureStuff& other) : frame(other.frame) {
-        if (other.head) head = new MotionRecord(*other.head);
-        if (other.centroid_posture) centroid_posture = new MotionRecord(*other.centroid_posture);
-        if (other.cached_pp_midline) cached_pp_midline = other.cached_pp_midline;
-        if (other.outline) outline = other.outline;
-        posture_original_angle = other.posture_original_angle;
-        midline_angle = other.midline_angle;
-        midline_length = other.midline_length;
-    }
-    PostureStuff& operator=(const PostureStuff& other) {
+    PostureStuff(PostureStuff&& other) noexcept
+          : frame(other.frame), 
+            head(std::move(other.head)), 
+            centroid_posture(std::move(other.centroid_posture)),
+            cached_pp_midline(std::move(other.cached_pp_midline)), 
+            outline(std::move(other.outline)),
+            posture_original_angle(other.posture_original_angle), 
+            midline_angle(other.midline_angle),
+            midline_length(other.midline_length) 
+    {}
+
+    PostureStuff& operator=(PostureStuff&& other) noexcept {
         if (this != &other) {
             frame = other.frame;
-            if (other.head) head = new MotionRecord(*other.head);
-            if (other.centroid_posture) centroid_posture = new MotionRecord(*other.centroid_posture);
-            if (other.cached_pp_midline) cached_pp_midline = other.cached_pp_midline;
-            if (other.outline) outline = other.outline;
+            head = std::move(other.head);
+            centroid_posture = std::move(other.centroid_posture);
+            cached_pp_midline = std::move(other.cached_pp_midline);
+            outline = std::move(other.outline);
             posture_original_angle = other.posture_original_angle;
             midline_angle = other.midline_angle;
             midline_length = other.midline_length;
         }
         return *this;
     }
-    PostureStuff& operator=(PostureStuff&&) = delete;
-    ~PostureStuff();
+
+    /// Perform a deep copy of the object
+    PostureStuff clone() const noexcept {
+        PostureStuff copy;
+        copy.frame = frame;
+        if (head) {
+            copy.head = std::make_unique<MotionRecord>(*head);
+        }
+        if (centroid_posture) {
+            copy.centroid_posture = std::make_unique<MotionRecord>(*centroid_posture);
+        }
+        if (cached_pp_midline) {
+            copy.cached_pp_midline = std::make_unique<Midline>(*cached_pp_midline);
+        }
+        if (outline) {
+            copy.outline = std::make_unique<MinimalOutline>(*outline);
+        }
+        copy.posture_original_angle = posture_original_angle;
+        copy.midline_angle = midline_angle;
+        copy.midline_length = midline_length;
+        return copy;
+    }
+
+    ~PostureStuff() = default;
     bool cached() const { return posture_original_angle != infinity; }
 };
 

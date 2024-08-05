@@ -437,15 +437,15 @@ const MotionRecord* Individual::centroid_weighted(Frame_t frameIndex) const {
 
 const MotionRecord* Individual::head(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->head : nullptr;
+    return ptr ? ptr->head.get() : nullptr;
 }
 
 const MotionRecord* Individual::centroid_posture(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->centroid_posture : nullptr;
+    return ptr ? ptr->centroid_posture.get() : nullptr;
 }
 
-MotionRecord* Individual::centroid(Frame_t frameIndex) {
+/*MotionRecord* Individual::centroid(Frame_t frameIndex) {
     auto ptr = basic_stuff(frameIndex);
     return ptr ? &ptr->centroid : nullptr;
 }
@@ -457,13 +457,13 @@ MotionRecord* Individual::centroid_weighted(Frame_t frameIndex) {
 
 MotionRecord* Individual::head(Frame_t frameIndex) {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->head : nullptr;
+    return ptr ? ptr->head.get() : nullptr;
 }
 
 MotionRecord* Individual::centroid_posture(Frame_t frameIndex) {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->centroid_posture : nullptr;
-}
+    return ptr ? ptr->centroid_posture.get() : nullptr;
+}*/
 
 pv::BlobPtr Individual::blob(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
@@ -479,7 +479,7 @@ pv::CompressedBlob* Individual::compressed_blob(Frame_t frameIndex) const {
     return nullptr;
 }
 
-const Midline::Ptr Individual::midline(Frame_t frameIndex) const {
+Midline::Ptr Individual::midline(Frame_t frameIndex) const {
     auto && [basic, posture] = all_stuff(frameIndex);
     if(!posture)
         return nullptr;
@@ -487,9 +487,9 @@ const Midline::Ptr Individual::midline(Frame_t frameIndex) const {
     return calculate_midline_for(*basic, *posture);
 }
 
-const Midline::Ptr Individual::pp_midline(Frame_t frameIndex) const {
+const Midline* Individual::pp_midline(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->cached_pp_midline : nullptr;
+    return ptr ? ptr->cached_pp_midline.get() : nullptr;
 }
 
 Midline::Ptr Individual::fixed_midline(Frame_t frameIndex) const {
@@ -503,16 +503,16 @@ Midline::Ptr Individual::fixed_midline(Frame_t frameIndex) const {
         movement = mov;
     }
 
-    auto fixed = std::make_shared<Midline>(*mid);
+    auto fixed = std::make_unique<Midline>(*mid);
     fixed->post_process(movement, DebugInfo{frameIndex, identity().ID(), false});
     fixed = fixed->normalize(midline_length());
     
     return fixed;
 }
 
-MinimalOutline::Ptr Individual::outline(Frame_t frameIndex) const {
+const MinimalOutline* Individual::outline(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->outline : nullptr;
+    return ptr ? ptr->outline.get() : nullptr;
 }
 
 Individual::Individual(std::optional<Identity>&& id)
@@ -1187,10 +1187,8 @@ float Individual::weird_distance() {
 
 void Individual::clear_post_processing() {
     for(auto & stuff : _posture_stuff) {
-        if(stuff->head) {
-            delete stuff->head;
+        if(stuff->head)
             stuff->head = nullptr;
-        }
         //stuff->midline = nullptr;
         stuff->posture_original_angle = PostureStuff::infinity;
     }
@@ -1358,8 +1356,11 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         if(not prop)
             throw InvalidArgumentException("Cannot find info on frame ", posture.frame);
         
-        posture.head = new MotionRecord;
-        posture.head->init(previous ? previous->head : nullptr, prop->time, pt, midline->angle());
+        posture.head = std::make_unique<MotionRecord>();
+        posture.head->init(previous ? previous->head.get() : nullptr,
+                           prop->time,
+                           pt,
+                           midline->angle());
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1378,7 +1379,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
                                      Vec2(cos(midline->angle()), sin(midline->angle())))
                > RADIANS(60))
             {
-                c.flip(previous ? previous->head : nullptr);
+                c.flip(previous ? previous->head.get() : nullptr);
             }
         }
         
@@ -1392,8 +1393,13 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture.centroid_posture = new MotionRecord;
-        posture.centroid_posture->init(previous ? previous->centroid_posture : nullptr, prop->time, centroid_point, midline->angle());
+        posture.centroid_posture = std::make_unique<MotionRecord>();
+        posture.centroid_posture->init(previous
+                                        ? previous->centroid_posture.get()
+                                        : nullptr,
+                                       prop->time,
+                                       centroid_point,
+                                       midline->angle());
         posture.midline_angle = midline->angle();
         posture.midline_length = midline->len();
         
@@ -1967,7 +1973,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     auto h = c;
     if(FAST_SETTING(calculate_posture)) {
         if(pp_posture && pp_posture->centroid_posture)
-            h = pp_posture->centroid_posture;
+            h = pp_posture->centroid_posture.get();
     }
     
     //cache.speed = h ? h->speed<Units::CM_AND_SECONDS>() : 0;
@@ -2448,7 +2454,6 @@ void Individual::save_posture(const BasicStuff& basic,
     }*/
     
 	if(!ptr.outline_empty()) {
-        const auto &midline = ptr.normalized_midline();
 		/*if(midline && midline->size() != FAST_SETTING(midline_resolution)) {
             FormatWarning("Posture error (",midline->size()," segments) in ",_identity.ID()," at frame ",frameIndex,".");
 		}*/
@@ -2463,9 +2468,11 @@ void Individual::save_posture(const BasicStuff& basic,
         stuff->frame = frameIndex;
         
         if(!ptr.outline_empty())
-            stuff->outline = std::make_shared<MinimalOutline>(ptr.outline());
+            stuff->outline = std::make_unique<MinimalOutline>(ptr.outline());
         
-        if(midline && !midline->empty()) {
+        if(auto &&midline = std::move(ptr).steal_normalized_midline();
+           midline && !midline->empty())
+        {
             //if(!FAST_SETTING(midline_samples) || _midline_length.added() < FAST_SETTING(midline_samples))
             //    _midline_length.addNumber(midline->len());
             
@@ -2473,7 +2480,7 @@ void Individual::save_posture(const BasicStuff& basic,
             //    _outline_size.addNumber(_outlines[frameIndex]->size());
             
             //auto copy = std::make_shared<Midline>(*midline);
-            stuff->cached_pp_midline = midline;
+            stuff->cached_pp_midline = std::move(midline);
 
             if (stuff && stuff->midline_length != PostureStuff::infinity) {
                 if (stuff->posture_original_angle == PostureStuff::infinity && stuff->cached_pp_midline)

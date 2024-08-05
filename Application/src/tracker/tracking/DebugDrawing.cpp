@@ -331,7 +331,7 @@ void DebugDrawing::paint(const track::Posture &posture, const cv::Mat& greyscale
         label = std::to_string(posture.outline().size());
     }
     
-    auto nmidline = posture.normalized_midline();
+    auto& nmidline = posture.normalized_midline();
     if(nmidline) {
         paint(nmidline.get());
     }

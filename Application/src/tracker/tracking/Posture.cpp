@@ -26,7 +26,7 @@ namespace track {
     };
     
     Posture::Posture(Frame_t frameIndex, Idx_t fishID)
-        : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(NULL)
+        : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(nullptr)
     { }
 
 //#define DEBUG_OUTLINES
@@ -401,22 +401,21 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
                     cv::putText(colored, str, OFFSET(outline_point->at(m.position.x)) + Vec2(-Base::text_dimensions(str).width * 0.5,-10), cv::FONT_HERSHEY_PLAIN, 1.0, Yellow);
                 }
                 
-                auto midline = _normalized_midline;
-                if(midline) {
-                    auto transform = midline->transform(default_config::individual_image_normalization_t::none, true);
-                    for(auto &seg : midline->segments()) {
+                if(_normalized_midline) {
+                    auto transform = _normalized_midline->transform(default_config::individual_image_normalization_t::none, true);
+                    for(auto &seg : _normalized_midline->segments()) {
                         auto trans = transform.transformPoint(seg.pos);
                         cv::circle(colored, OFFSET(trans), 3, Red);
                     }
                     
-                    if(midline->tail_index() != -1)
-                        cv::circle(colored, OFFSET(outline().at(midline->tail_index())), 10, Blue, -1);
-                    if(midline->head_index() != -1)
-                        cv::circle(colored, OFFSET(outline().at(midline->head_index())), 10, Red, -1);
+                    if(_normalized_midline->tail_index() != -1)
+                        cv::circle(colored, OFFSET(outline().at(_normalized_midline->tail_index())), 10, Blue, -1);
+                    if(_normalized_midline->head_index() != -1)
+                        cv::circle(colored, OFFSET(outline().at(_normalized_midline->head_index())), 10, Red, -1);
                     
                     cv::circle(colored, OFFSET(outline().front()), 5, Yellow, -1);
                     
-                    Print("tail:", midline->tail_index()," head:",midline->head_index());
+                    Print("tail:", _normalized_midline->tail_index()," head:",_normalized_midline->head_index());
                 }
                 
                 ColorWheel cwheel;
@@ -443,7 +442,7 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
     float Posture::calculate_midline(bool debug) {
         Midline midline;
         _outline.calculate_midline(midline, DebugInfo{frameIndex, fishID, debug});
-        _normalized_midline = std::make_shared<Midline>(midline);
+        _normalized_midline = std::make_unique<Midline>(midline);
         return _outline.confidence();
     }
 }

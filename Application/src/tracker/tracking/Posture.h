@@ -40,16 +40,19 @@ struct BasicStuff;
         Frame_t frameIndex;
         Idx_t fishID;
         GETTER(Outline, outline);
-        GETTER_PTR(Midline::Ptr, normalized_midline);
+        Midline::Ptr _normalized_midline;
         
     public:
         Posture(Frame_t frameIndex = {}, Idx_t fishID = {});
         ~Posture() {
         }
         
-        void calculate_posture(Frame_t frameIndex, pv::BlobWeakPtr blob);//const cv::Mat& greyscale, Vec2 previous_direction);
-        void calculate_posture(Frame_t frameIndex, const BasicStuff&, const blob::Pose& pose, const PoseMidlineIndexes& indexes);
-        void calculate_posture(Frame_t frameIndex, const BasicStuff&, const blob::SegmentedOutlines&);
+        Midline::Ptr&& steal_normalized_midline() && { return std::move(_normalized_midline); }
+        const Midline::Ptr& normalized_midline() const { return _normalized_midline; }
+        
+        void calculate_posture(Frame_t, pv::BlobWeakPtr);
+        void calculate_posture(Frame_t, const BasicStuff&, const blob::Pose &, const PoseMidlineIndexes &);
+        void calculate_posture(Frame_t, const BasicStuff &, const blob::SegmentedOutlines&);
         
         bool outline_empty() const { return _outline.empty(); }
     private:

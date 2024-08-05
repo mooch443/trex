@@ -166,8 +166,8 @@ uint64_t Data::write(const track::FrameProperties& val) {
     return write<data_long_t>(val.active_individuals);
 }
 
-MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline::Ptr midline) const {
-    MinimalOutline::Ptr ptr = std::make_shared<MinimalOutline>();
+MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline* midline) const {
+    MinimalOutline::Ptr ptr = std::make_unique<MinimalOutline>();
     static_assert(MinimalOutline::factor == 10, "MinimalOutline::factor was 10 last time I checked.");
     
     uint64_t L;
@@ -180,7 +180,8 @@ MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline::Ptr 
     if(_header.version > Output::ResultsFormat::Versions::V_9 && _header.version < Output::ResultsFormat::Versions::V_24) {
         data_long_t index;
         ref.read<data_long_t>(index);
-        midline->tail_index() = (long_t)index;
+        if(midline)
+            midline->tail_index() = (long_t)index;
     } /*else if(_header.version >= Output::ResultsFormat::Versions::V_24) {
         midline->tail_index() = ref.read<data_long_t>();
         midline->head_index() = ref.read<data_long_t>();
@@ -331,7 +332,7 @@ uint64_t Data::write(const pv::BlobPtr& val) {
 }
 
 Midline::Ptr Output::ResultsFormat::read_midline(Data& ref) {
-    auto midline = std::make_shared<Midline>();
+    auto midline = std::make_unique<Midline>();
     ref.read<float>(midline->len());
     ref.read<float>(midline->angle());
     ref.read<Vec2>(midline->offset());
@@ -688,12 +689,16 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ref.read<uint64_t>(N);
         Frame_t frame;
         
-        MotionRecord *prev = nullptr;
+        /// prev is pointing to something in prop
+        /// so we need to make sure its not used after prop
+        /// is freed.
+        const MotionRecord *prev = nullptr;
+        std::unique_ptr<MotionRecord> prop;
+        
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
             frame = Frame_t( frameIndex );
             
-            MotionRecord *prop;
             {
                 Vec2 pos;
                 float angle;
@@ -711,17 +716,17 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     time = Tracker::properties(frame)->time;
                 }
                 
-                prop = new MotionRecord;
-                prop->init(prev, time, pos, angle);
+                auto p = std::make_unique<MotionRecord>();
+                p->init(prev, time, pos, angle);
+                prop = std::move(p);
             }
             
             auto midline = read_midline(ref);
-            auto outline = read_outline(ref, midline);
+            auto outline = read_outline(ref, midline.get());
         
+            prev = prop.get();
+            
             if(check_analysis_range && not analysis_range.contains(frame)) {
-                if(prev)
-                    delete prev;
-                prev = prop;
                 continue;
             }
             
@@ -730,19 +735,15 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 auto stuff = std::make_unique<PostureStuff>();
                 
                 stuff->frame = frame;
-                stuff->cached_pp_midline = midline;
-                stuff->head = prop;
-                stuff->outline = outline;
+                stuff->cached_pp_midline = std::move(midline);
+                stuff->head = std::move(prop);
+                stuff->outline = std::move(outline);
                 
                 auto segment = fish->segment_for(frame);
                 if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 segment->add_posture_at(std::move(stuff), fish);
                 
             }
-            
-            if(prev)
-                delete prev;
-            prev = prop;
         }
         
     } else if(_header.version >= Versions::V_25) {
@@ -772,7 +773,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 auto stuff = std::make_unique<PostureStuff>();
                 
                 stuff->frame = frame;
-                stuff->cached_pp_midline = midline;
+                stuff->cached_pp_midline = std::move(midline);
                 
                 auto segment = fish->segment_for(frame);
                 if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
@@ -805,7 +806,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     stuff = it->second.get();
                 
                 assert(stuff);
-                stuff->outline = outline;
+                stuff->outline = std::move(outline);
             }
         }
         
@@ -1038,13 +1039,13 @@ uint64_t Data::write(const Individual& val) {
     }*/
     
     // write N, and then write all midlines and outlines (unprocessed)
-    std::map<data_long_t, Midline::Ptr> cached_pp_midlines;
-    std::map<data_long_t, MinimalOutline::Ptr> outlines;
+    std::map<data_long_t, const Midline*> cached_pp_midlines;
+    std::map<data_long_t, const MinimalOutline*> outlines;
     for(auto& stuff : val._posture_stuff) {
         if(stuff->cached_pp_midline)
-            cached_pp_midlines[stuff->frame.get()] = stuff->cached_pp_midline;
+            cached_pp_midlines[stuff->frame.get()] = stuff->cached_pp_midline.get();
         if(stuff->outline)
-            outlines[stuff->frame.get()] = stuff->outline;
+            outlines[stuff->frame.get()] = stuff->outline.get();
     }
     
     pack.write<uint64_t>(cached_pp_midlines.size());

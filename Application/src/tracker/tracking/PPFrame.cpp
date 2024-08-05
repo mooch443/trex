@@ -303,7 +303,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                         auto pindex = (*sit)->posture_stuff(frame);
                         if(const MotionRecord* posture{nullptr};
                            pindex != -1 &&
-                           (posture = fish->posture_stuff().at(pindex)->head))
+                           (posture = fish->posture_stuff().at(pindex)->head.get()))
                         {
                             last_positions.emplace_back(posture->template pos<Units::DEFAULT>());
                             //last_pos = posture->template pos<Units::DEFAULT>();

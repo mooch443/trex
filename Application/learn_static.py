@@ -65,30 +65,28 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         self.settings = settings
         self.last_skip_step = np.inf
         
-    def plot_comparison_raw(self, do_plot = True, length = -1):
+    # computes a number of important values that are used as feedback
+    # for the training loop
+    def plot_comparison_raw(self):
         X_test = self.X_test
         Y_test = self.Y_test
         classes = self.classes
     
-        matrix = np.zeros_like(np.ndarray(shape=(len(classes),len(classes))), dtype=float)
         result = np.zeros_like(np.ndarray(shape=(len(classes), 4), dtype=float))
         
-        predictions = []
-
         for i, c, images, zeros in zip(np.arange(len(classes)), classes, X_test, Y_test):
             if len(images) == 0:
                 continue
 
             Y = self.model.predict(tf.cast(images, dtype=np.float32), verbose=0)
-            predictions.append(Y)
-            
             distance = np.abs(Y - zeros).sum(axis=1)
 
             result[i, 0] = np.median(np.argmax(Y, axis=1))
             result[i, 1] = distance.std()
-            result[i, 2] = np.median(Y.sum(axis=1)) #distance.mean()
+            result[i, 2] = np.median(Y.sum(axis=1))
             result[i, 3] = (np.argmax(Y, axis=1) == i).sum() / len(Y)
-        return result, predictions
+        
+        return result
     
     def update_status(self, print_out = False, logs = {}, patience=5):
         description = "Epoch <c><nr>"+str(min(self.epoch+1, self.epochs))+"</nr></c>/<c><nr>"+str(self.epochs)+"</nr></c>"
@@ -120,7 +118,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         self.epoch = min(epoch + 1, self.epochs)
 
         if len(self.X_test) > 0:
-            result, predictions = self.plot_comparison_raw(do_plot = False, length = -1)
+            result = self.plot_comparison_raw()
             
             for i in range(0, len(result[:, 3])):
                 if not i in self.per_class_accuracy:
@@ -216,10 +214,6 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             TRex.log("\tminimal_loss_allowed: "+str(self.minimal_loss_allowed)+" -> mu: "+str(mu)+" current diffs: "+str(self.loss_diffs)+" average:"+str(np.mean(self.loss_diffs[-patience:])))
 
         if not self.model.stop_training:
-            #if self.compare_acc > -1 and "val_acc" in logs and len(self.worst_values) >= patience and logs["val_acc"] < self.compare_acc**3:
-            #    TRex.log("[STOP] val_acc is below "+str(self.compare_acc**3)+" even after "+str(len(self.worst_values))+" epochs.")
-            #               self.model.stop_training = True
-
             # check for accuracy plateau
             long_time = int(max(8, self.epochs * 0.1))
             long_time = min(long_time, 13)
@@ -247,10 +241,6 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                     self.model.stop_training = True
 
             if not self.model.stop_training and len(self.losses) > 1:
-                #if len(self.losses) >= patience and np.abs(loss_diff) < minimal_loss_allowed:
-                #                   TRex.log("[STOP] Loss is very small (epoch "+str(len(self.losses))+"). stopping. loss was "+str(current_loss)+" - "+str(previous_loss)+" = "+str(loss_diff))
-                #                self.model.stop_training = True
-    
                 # check for loss plateau
                 if not self.model.stop_training:
                     if len(self.losses) >= patience and abs(np.mean(self.loss_diffs[-patience:])) < self.minimal_loss_allowed:
@@ -317,21 +307,6 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         epoch = self.epoch
         epoch += self.batches / self.settings["per_epoch"]
         update_work_percent((epoch) / self.epochs)
-        #logs = logs or {}
-        #batch_size = logs.get('size', 0)
-        # In case of distribution strategy we can potentially run multiple steps
-        # at the same time, we should account for that in the `seen` calculation.
-        #num_steps = logs.get('num_steps', 1)
-        #if self.use_steps:
-        #    self.seen += num_steps
-        #else:
-        #    self.seen += batch_size * num_steps
-
-        #self.display_step += 1
-        # Skip progbar update for the last batch;
-        # will be handled by on_epoch_end.
-        #if self.verbose and self.seen < self.target and self.display_step % #self.display_per_batches == 0:
-        #    self.progbar.update(self.seen, self.log_values)
 
 def r3g3b2_to_vec(r3g3b2_array, channels=3, alpha=255):
     if channels == 3:
@@ -437,15 +412,7 @@ def start_learning():
     Y_train = np.array(Y, dtype=float)
 
     original_classes = np.copy(Y_train)
-    #test_original_classes = np.copy(test_Y)
     Y_train = to_categorical(Y_train, len(classes))
-    #Y_test = np_utils.to_categorical(test_Y, len(classes))
-
-    #X_train = tf.constant(X_train, dtype=float)
-    #Y_train = tf.constant(Y_train, dtype=float)
-
-    #X_test = tf.constant(X_test, dtype=float)
-    #Y_test = tf.constant(Y_test, dtype=float)
 
     print("Python received "+str(X_train.shape)+" training images ("+str(Y_train.shape)+") and  "
           +str(X_test.shape)+" validation images ("+str(Y_test.shape)+")")
@@ -489,7 +456,6 @@ def start_learning():
         return np.clip(images, 0, 255).astype(dtype)
 
     datagen = ImageDataGenerator(
-        #rescale = 1.0/255.0,
         rotation_range = 5,
         zoom_range = 0,
         horizontal_flip = False,
@@ -498,9 +464,7 @@ def start_learning():
         width_shift_range=move_range,
         height_shift_range=move_range,
         cval = 0,
-        fill_mode = "constant",
-        #preprocessing_function=preprocess,
-        #use_multiprocessing=True
+        fill_mode = "constant"
     )
 
     cvalues = np.array(cvalues)

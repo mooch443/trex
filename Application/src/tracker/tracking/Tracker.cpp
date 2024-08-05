@@ -2292,18 +2292,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         _individual_add_iterator_map.clear();
         _segment_map_known_capacity.clear();
         
-        auto added_it = find_sorted(_added_frames, frameIndex);
-        if(added_it != _added_frames.end()) {
-            Print("added: ", *added_it);
-            _added_frames.erase(added_it, _added_frames.end());
-        }
-        
-        if(_approximative_enabled_in_frame.valid()
-           && _approximative_enabled_in_frame >= frameIndex)
-        {
-            _approximative_enabled_in_frame.invalidate();
-        }
-        
         Print("** Removing frames after and including ", frameIndex);
         
         if (not start_frame().valid() || end_frame() < frameIndex) //|| start_frame() > frameIndex)
@@ -2337,6 +2325,19 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             }
 #endif
         );
+        
+        if(auto added_it = find_sorted(_added_frames, frameIndex);
+           added_it != _added_frames.end())
+        {
+            Print("added: ", *added_it);
+            _added_frames.erase(added_it, _added_frames.end());
+        }
+        
+        if(_approximative_enabled_in_frame.valid()
+           && _approximative_enabled_in_frame >= frameIndex)
+        {
+            _approximative_enabled_in_frame.invalidate();
+        }
         
         {
             //! update the cache for frame properties
@@ -2583,7 +2584,7 @@ void process_vi
             continue;
 
         Idx_t prev_id, next_id;
-        MotionRecord* prev_pos = nullptr, * next_pos = nullptr;
+        const MotionRecord* prev_pos = nullptr, * next_pos = nullptr;
 
         auto it = assigned_ranges.find(fdx);
         if (it != assigned_ranges.end()) {
@@ -2695,7 +2696,7 @@ void process_qr(Frame_t after_frame,
             continue;
 
         Idx_t prev_id, next_id;
-        MotionRecord* prev_pos = nullptr, * next_pos = nullptr;
+        const MotionRecord* prev_pos = nullptr, * next_pos = nullptr;
 
         auto it = assigned_ranges.find(fdx);
         if (it != assigned_ranges.end()) {
@@ -2777,8 +2778,8 @@ void apply(
  const FrameRange& segment,
  Idx_t prev_id,
  Idx_t next_id,
- MotionRecord* prev_pos,
- MotionRecord* next_pos)
+ const MotionRecord* prev_pos,
+ const MotionRecord* next_pos)
 {
     Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
     auto blob_start = fish->centroid_weighted(segment.start());
@@ -3195,8 +3196,8 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
            const FrameRange& segment,
            Idx_t prev_id,
            Idx_t next_id,
-           MotionRecord* prev_pos,
-           MotionRecord* next_pos)
+           const MotionRecord* prev_pos,
+           const MotionRecord* next_pos)
         {
            apply(
 #ifdef TREX_DEBUG_IDENTITIES

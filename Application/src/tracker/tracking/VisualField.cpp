@@ -478,7 +478,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     //  for all individuals with outline...
     for (auto a : active) {
         auto virtual_frame = _frame;
-        MinimalOutline::Ptr outline = nullptr;
+        const MinimalOutline* outline = nullptr;
         
         for (; virtual_frame>=a->start_frame() && virtual_frame + max_back_view >= _frame; --virtual_frame) {
             outline = a->outline(virtual_frame);

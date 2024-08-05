@@ -635,7 +635,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
                         .segment = segment_range
                     };
                     if(posture) {
-                        blob.posture_stuff = *posture;
+                        blob.posture_stuff = posture->clone();
                         
                         /// this could be optimized by using the posture stuff
                         /// in the fixed midline function + SETTING()

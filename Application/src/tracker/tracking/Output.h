@@ -175,7 +175,7 @@ namespace Output {
         
         Individual* read_individual(Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);
-        MinimalOutline::Ptr read_outline(Data& ref, Midline::Ptr midline) const;
+        MinimalOutline::Ptr read_outline(Data& ref, Midline* midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
         //MotionRecord* read_properties(Data& ref) const;
         

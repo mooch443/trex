@@ -1384,7 +1384,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
         }
     }
     
-    auto midline = std::make_shared<Midline>();
+    auto midline = std::make_unique<Midline>();
     midline->segments() = rotated;
     midline->len() = len;
     midline->angle() = calculate_angle(reduced);

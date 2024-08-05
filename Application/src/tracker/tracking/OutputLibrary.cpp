@@ -82,11 +82,11 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             percent = (float)(frame - pair.first->frame).get() / (float)(pair.second->frame - pair.first->frame).get();
             
             if(info.modifiers.is(Modifiers::POSTURE_CENTROID)) {
-                ptr0 = pair.first->centroid_posture;
-                ptr1 = pair.second->centroid_posture;
+                ptr0 = pair.first->centroid_posture.get();
+                ptr1 = pair.second->centroid_posture.get();
             } else
-                ptr0 = pair.first->head;
-                ptr1 = pair.second->head;
+                ptr0 = pair.first->head.get();
+                ptr1 = pair.second->head.get();
         }
     }
     
@@ -900,7 +900,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             
             for(auto fish : Tracker::active_individuals(frame)) {
                 if(fish->has(frame)) {
-                    MotionRecord *p = NULL;
+                    const MotionRecord *p = NULL;
                     
                     if(info.modifiers.is(Modifiers::CENTROID))
                         p = fish->centroid(frame);
@@ -932,7 +932,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             
             for(auto fish : Tracker::active_individuals(frame)) {
                 if(fish->has(frame)) {
-                    MotionRecord *p = NULL;
+                    const MotionRecord *p = NULL;
                     
                     if(info.modifiers.is(Modifiers::CENTROID))
                         p = fish->centroid(frame);
