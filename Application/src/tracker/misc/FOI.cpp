@@ -136,7 +136,9 @@ namespace track {
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         for(auto && [type, set] : _frames_of_interest) {
+#ifndef NDEBUG
             auto before = set.size();
+#endif
             auto name = _id_to_string.at(type);
             while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                 set.erase(--set.end());
@@ -153,7 +155,9 @@ namespace track {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         for(auto && [type, set] : _frames_of_interest) {
             if(type == id) {
+#ifndef NDEBUG
                 auto before = set.size();
+#endif
                 auto name = _id_to_string.at(type);
                 while(!set.empty()
                       && (not frameIndex.valid()

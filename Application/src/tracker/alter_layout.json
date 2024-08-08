@@ -69,9 +69,9 @@
 						"var":"{global.gui_show_texts}",
 						"then":{
 							"type":"label",
-							"text":"<c><b><nr>{i.fdx}</nr></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+							"text":"<c><b><nr>{i.fdx}</nr></b></c>:{if:{equal:{global.detect_type}:background_subtraction}:' s=<i>{dec:2:{i.px}}</i>':' <c>{i.type}</c> (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
 							"pos":"{i.pos}",
-							"length":100,
+							"length":80,
 							"line":"{i.color}",
 							"fill":[50,50,50,150],
 							"id":"{i.fdx}",
@@ -112,15 +112,15 @@
 						"var":"{global.gui_show_texts}",
 						"then":{
 							"type":"label",
-							"text":"<c><b><ref>untracked</ref></b>:{i.type}</c> (p=<i>{dec:2:{i.p}} s={dec:2:{i.px}}</i>)",
+							"text":"<c><b><gray>noise</gray></b></c>{if:{equal:{global.detect_type}:background_subtraction}:' (<lightgray>s=<i><nr>{dec:2:{i.px}}</nr></i></lightgray>)':': {i.type} (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
 							"pos":"{i.pos}",
-							"length":100,
+							"length":25,
 							"color":[200,200,200,255],
 							"line":[200,200,200,255],
 							"fill":[50,50,50,150],
 							"center":"{i.center}",
 							"size":"{i.size}",
-							"font":{"size":0.5,"align":"middle"}
+							"font":{"size":0.35,"align":"middle"}
 						}
 					}
 				]

@@ -7,6 +7,33 @@ using namespace cmn;
 
 namespace track::detect {
 
+namespace yolo {
+
+bool is_valid_default_model(const std::string& filename) {
+    static const std::regex pattern("^yolov\\d+([blmnxsucet]|x6|sp|lu|mu|xu|)?((\\d|[sn])+u|-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|[0-9]+)+)?\\.pt$");
+    return std::regex_match(filename, pattern);
+}
+
+std::string default_model() {
+    return "yolov10n.pt";
+}
+
+bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {
+    if(is_default_model(path))
+        return true;
+    
+    if(fs.exists(path) && path.has_extension("pt"))
+        return true;
+    
+    return false;
+}
+
+bool is_default_model(const file::Path& path) {
+    return is_valid_default_model(path.str());
+}
+
+}
+
 DetectResolution DetectResolution::fromStr(const std::string& str) {
     if(utils::beginsWith(str, '[')) {
         auto pair = Meta::fromStr<std::vector<uint16_t>>(str);

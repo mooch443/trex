@@ -105,6 +105,12 @@ target_link_libraries(test_dyngui PUBLIC
         commons
         pv)
 
+set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_pixels PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_patharray PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_dyngui PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+
 # This is so you can do 'make test' to see all your tests run, instead of
 # manually running the executable runUnitTests to see those specific tests.
 add_test(NAME test-matching COMMAND test_matching)

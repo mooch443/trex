@@ -64,24 +64,12 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
     if(detect_type == detect::ObjectDetectionType::none)
         detect_type = detect::ObjectDetectionType::yolo8;
     
+    /// set or default the *detect_type*
     output["detect_type"] = detect_type;
     
-    if(detect_type != track::detect::ObjectDetectionType::background_subtraction)
-    {
-        static const sprite::Map values {
-            "track_threshold", 0,
-            "track_posture_threshold", 0,
-            "track_background_subtraction", false,
-            "calculate_posture", true,
-            "outline_resample", 1.f,
-            //"meta_encoding", meta_encoding_t::rgb8,
-            "track_do_history_split", true,
-            "individual_image_normalization", individual_image_normalization_t::posture,
-            "detect_model", file::Path("yolov8x-pose"),
-            "blob_split_algorithm", blob_split_algorithm_t::none,
-            "track_max_reassign_time", 1.f
-        };
-        
+    /// copy the values from a defaults map to the
+    /// final output map:
+    const auto apply_values = [&](const sprite::Map& values) {
         for(auto &key : values.keys()) {
             if(not contains(exclude.toVector(), key)) {
                 if(not output.has(key)
@@ -92,8 +80,9 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
                 }
             }
         }
-        
-    } else {
+    };
+    
+    if(detect_type == track::detect::ObjectDetectionType::background_subtraction) {
         static const sprite::Map values {
             "track_threshold", 15,
             "track_posture_threshold", 15,
@@ -106,6 +95,24 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
             "track_max_reassign_time", 0.5f,
+            "detect_skeleton", blob::Pose::Skeleton()
+        };
+        
+        apply_values(values);
+        
+    } else {
+        static const sprite::Map values {
+            "track_threshold", 0,
+            "track_posture_threshold", 0,
+            "track_background_subtraction", false,
+            "calculate_posture", true,
+            "outline_resample", 1.f,
+            "outline_approximate", uchar(0),
+            "track_do_history_split", true,
+            "individual_image_normalization", individual_image_normalization_t::posture,
+            "detect_model", file::Path(detect::yolo::default_model()),
+            "blob_split_algorithm", blob_split_algorithm_t::none,
+            "track_max_reassign_time", 1.f,
             "detect_skeleton", blob::Pose::Skeleton("human", {
                 {0, 1, "Nose to Left Eye"},
                 {0, 2, "Nose to Right Eye"},
@@ -126,14 +133,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             })
         };
         
-        for(auto &key : values.keys()) {
-            if(not output.has(key)
-               || values.at(key).get() != output.at(key).get())
-            {
-                changed_keys.insert(key);
-                values.at(key).get().copy_to(&output);
-            }
-        }
+        apply_values(values);
     }
     
     return changed_keys;

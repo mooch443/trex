@@ -22,9 +22,6 @@ struct TREX_EXPORT Yolo8 {
     //    const std::span<float>& mask_points, const std::span<uint64_t>& mask_Ns);
     
     static void apply(std::vector<TileImage>&& tiles);
-    static bool valid_model(const file::Path&);
-    static bool is_default_model(const file::Path&);
-    static std::string default_model();
     
     static bool is_initializing();
     static double fps();

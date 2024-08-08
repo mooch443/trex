@@ -6,6 +6,7 @@
 #include <misc/Timer.h>
 #include <misc/ThreadPool.h>
 #include <misc/TrackingSettings.h>
+#include <python/GPURecognition.h>
 
 namespace track {
 
@@ -47,36 +48,6 @@ std::future<void> transferred_done;
 std::vector<detect::ModelConfig> _loaded_models;
 std::unique_ptr<GenericThreadPool> _pool;
 
-std::string Yolo8::default_model() {
-    return "yolov8n-pose.pt";
-}
-
-bool Yolo8::valid_model(const file::Path& path) {
-    std::string input_string = path.str();
-    if (path.has_extension("pt"))
-        return true;
-
-    return false;
-}
-
-bool Yolo8::is_default_model(const file::Path& path) {
-    std::string input_string = path.str();
-    std::regex regex_pattern("yolov8.*\\.pt");
-    std::regex regex_pattern2("yolov8.*$");
-
-    if (std::regex_match(input_string, regex_pattern)) {
-        return true;
-
-    } else if(std::regex_match(input_string, regex_pattern2)) {
-        return true;
-    }
-    
-    if(path.exists() && path.has_extension("pt"))
-        return true;
-    
-    return false;
-}
-
 void Yolo8::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
@@ -90,9 +61,7 @@ void Yolo8::reinit(ModuleProxy& proxy) {
 
     // caching here since it can be modified above
     auto path = SETTING(detect_model).value<file::Path>();
-    if(is_default_model(path)
-       || (valid_model(path) && path.exists()))
-    {
+    if(detect::yolo::valid_model(path)) {
         if(not path.has_extension()) {
             path = path.add_extension("pt"); // pytorch model
         }

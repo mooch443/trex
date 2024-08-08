@@ -809,7 +809,6 @@ bool Accumulation::start() {
     //! Will acquire and automatically free after return.
     /// Used for some utility functions (static callbacks from python).
     AccumulationLock lock(this);
-    const ImageMode mode = Background::meta_encoding() == meta_encoding_t::rgb8 ? ImageMode::RGB : ImageMode::GRAY;
     
     auto ranges = _global_segment_order;
     if(ranges.empty()) {
@@ -1857,7 +1856,7 @@ float Accumulation::accepted_uniqueness(float base) const {
     return (base == -1 ? best_uniqueness() : base) * 0.97f;
 }
 
-void Accumulation::end_a_step(Result reason) {
+void Accumulation::end_a_step(Result ) {
     /*if(reason.success != AccumulationStatus::None) {
         reason.best_uniqueness = best_uniqueness();
         reason.training_stop = _last_stop_reason;

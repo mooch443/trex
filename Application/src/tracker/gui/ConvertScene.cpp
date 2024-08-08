@@ -560,11 +560,9 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    if(SETTING(detect_model).value<file::Path>().empty()
-       || (not SETTING(detect_model).value<file::Path>().exists() 
-            && not Yolo8::is_default_model(SETTING(detect_model).value<file::Path>().str())))
+    if(not track::detect::yolo::valid_model(SETTING(detect_model).value<file::Path>()))
     {
-        SETTING(detect_model) = file::Path(Yolo8::default_model());
+        SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
     
     if(not GlobalSettings::current_defaults_with_config().has("save_raw_movie"))
@@ -1272,6 +1270,8 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
     IndividualManager::transform_all([&](Idx_t, Individual* fish) {
         if (not fish->has(_current_data.frame.index()))
             return;
+        if(not dirty)
+            return;
         auto p = fish->iterator_for(_current_data.frame.index());
         auto segment = p->get();
 
@@ -1309,11 +1309,11 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         }
     });
     
-    if(dirty)
+    if(dirty) {
         _visible_bdx = std::move(visible_bdx);
-    
-    _trajectories = std::move(lines);
-    _postures = std::move(postures);
+        _trajectories = std::move(lines);
+        _postures = std::move(postures);
+    }
     
     return true;
 }

@@ -44,7 +44,6 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
     cv::Scalar clr(255, 225, 0);
     
     float max_slope = 0.0;
-    int idx = -1;
     assert(outline.size() < INT_MAX);
     std::vector<float> curvature;
     curvature.resize(outline.size());
@@ -56,7 +55,6 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
         
         if (cmn::abs(slope) > max_slope) {
             max_slope = cmn::abs(slope);
-            idx = int(i);
         }
     }
     

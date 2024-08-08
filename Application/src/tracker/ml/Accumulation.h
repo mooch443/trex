@@ -63,7 +63,6 @@ protected:
     template<AccumulationStatus::Class success, AccumulationReason::Class reasoning>
     Result MakeResult(Range<Frame_t> range, float uniqueness_after_step, const std::string& reason = "")
     {
-        auto& history = _current_uniqueness_history;
         auto best = best_uniqueness();
         
         Result result{

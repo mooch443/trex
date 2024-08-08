@@ -340,17 +340,17 @@ TEST(PathArrayTest, GetPaths) {
 TEST(PathArrayTest, ConstructorAndEmpty) {
     // Custom mock filesystem for this specific test case
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
             // Mock implementation specific to this test
             return {};
         }
 
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             // Mock implementation specific to this test
             return true;
         }
         
-        bool exists(const file::Path& path) const override {
+        bool exists(const file::Path& ) const override {
             // Mock implementation specific to this test
             return false;
         }
@@ -377,7 +377,7 @@ std::vector<file::Path> resolve_paths_artificially(std::string pattern) {
 TEST(PathArrayTest, ParsePath) {
     // Custom mock filesystem for this specific test case
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
             // Mock implementation specific to this test
 #if defined(_WIN32)
             return { file::Path("C:\\path\\to\\file00"), file::Path("C:\\path\\to\\file01"), file::Path("C:\\path\\to\\file02") };
@@ -386,7 +386,7 @@ TEST(PathArrayTest, ParsePath) {
 #endif
         }
 
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             // Mock implementation specific to this test
             return true;
         }
@@ -440,7 +440,7 @@ TEST(PathArrayTest, ParsePath) {
 
 TEST(PathArrayTest, ParsePath_ConsecutiveFiles_10_100) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
             // Generate mock files from 10 to 100
             std::set<file::Path> mock_files;
             for (int i = 10; i <= 100; ++i) {
@@ -480,7 +480,7 @@ TEST(PathArrayTest, ParsePath_ConsecutiveFiles_10_100) {
 
     for (size_t i = 0; i < parsed_paths.size(); ++i) {
         // Generate the expected file name
-        int file_number = 10 + i; // Starting from 10
+        size_t file_number = 10 + i; // Starting from 10
         std::stringstream ss;
         ss << std::setw(6) << std::setfill('0') << file_number;  // Zero padding to 6 digits
 
@@ -498,14 +498,14 @@ TEST(PathArrayTest, ParsePath_ConsecutiveFiles_10_100) {
 // Test pattern matching with %10.3d
 TEST(PathArrayTest, ParsePath_From10ToEnd) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("C:\\path\\to\\file010"), file::Path("C:\\path\\to\\file011") };
 #else
             return { file::Path("/path/to/file010"), file::Path("/path/to/file011") };
 #endif
         }
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
         bool exists(const file::Path& path) const override {
@@ -571,14 +571,14 @@ TEST(PathArrayTest, RootFolderTest) {
 // Test pattern matching with %3d
 TEST(PathArrayTest, ParsePath_3DigitsPadded) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("C:\\path\\to\\file000"), file::Path("C:\\path\\to\\file001") };
 #else
             return { file::Path("/path/to/file000"), file::Path("/path/to/file001") };
 #endif
         }
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
         bool exists(const file::Path& path) const override {
@@ -603,14 +603,14 @@ TEST(PathArrayTest, ParsePath_3DigitsPadded) {
 TEST(PathArrayTest, ParsePath_03DigitsPadded) {
     // Custom mock filesystem for this specific test case
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("C:\\path\\to\\file000"), file::Path("C:\\path\\to\\file001") };
 #else
             return { file::Path("/path/to/file000"), file::Path("/path/to/file001") };
 #endif
         }
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
         bool exists(const file::Path& path) const override {
@@ -635,14 +635,14 @@ TEST(PathArrayTest, ParsePath_03DigitsPadded) {
 TEST(PathArrayTest, ParsePath_FilenamesWithSpaces) {
     // Custom mock filesystem for this specific test case
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("C:\\path to\\file 000"), file::Path("C:\\path to\\file 001") };
 #else
             return { file::Path("/path to/file 000"), file::Path("/path to/file 001") };
 #endif
         }
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
         bool exists(const file::Path& path) const override {
@@ -666,14 +666,14 @@ TEST(PathArrayTest, ParsePath_FilenamesWithSpaces) {
 // Test pattern matching with %[10,20,30]
 TEST(PathArrayTest, ParsePath_Array) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("C:\\path\\to\\file010"), file::Path("C:\\path\\to\\file020"), file::Path("C:\\path\\to\\file030") };
 #else
             return { file::Path("/path/to/file010"), file::Path("/path/to/file020"), file::Path("/path/to/file030") };
 #endif
         }
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
         bool exists(const file::Path& path) const override {
@@ -702,7 +702,7 @@ TEST(PathArrayTest, ParsePath_Array) {
 // Test pattern matching with array
 TEST(PathArrayTest, ParsePath_ArrayFormat) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
 #else
@@ -710,7 +710,7 @@ TEST(PathArrayTest, ParsePath_ArrayFormat) {
 #endif
         }
 
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
 
@@ -738,14 +738,14 @@ TEST(PathArrayTest, ParsePath_ArrayFormat) {
 // Test pattern matching with *
 TEST(PathArrayTest, ParsePath_Star) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
-        std::set<file::Path> find_files(const file::Path& path) const override {
+        std::set<file::Path> find_files(const file::Path& ) const override {
 #if defined(_WIN32)
             return { file::Path("C:\\path\\to\\file1"), file::Path("C:\\path\\to\\file2"), file::Path("C:\\path\\to\\file3") };
 #else
             return { file::Path("/path/to/file1"), file::Path("/path/to/file2"), file::Path("/path/to/file3") };
 #endif
         }
-        bool is_folder(const file::Path& path) const override {
+        bool is_folder(const file::Path& ) const override {
             return true;
         }
         bool exists(const file::Path& path) const override {
@@ -1034,7 +1034,7 @@ TEST(PathExistence, EmptyPathCheck) {
 
 // Define a custom mock filesystem for the test cases
 struct MockFilesystem : public file::FilesystemInterface {
-    std::set<file::Path> find_files(const file::Path& path) const override {
+    std::set<file::Path> find_files(const file::Path& ) const override {
         // Define the mock behavior for finding files
 #if defined(_WIN32)
         return { file::Path("C:\\mock\\path1"), file::Path("C:\\mock\\path2") };
@@ -1042,7 +1042,7 @@ struct MockFilesystem : public file::FilesystemInterface {
         return { file::Path("/mock/path1"), file::Path("/mock/path2") };
 #endif
     }
-    bool is_folder(const file::Path& path) const override {
+    bool is_folder(const file::Path& ) const override {
         // Define the mock behavior for checking if a path is a folder
         return true;
     }

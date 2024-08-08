@@ -114,7 +114,7 @@ struct SettingsScene::Data {
                 
                 ExtendableVector exclude;
                 if(not SETTING(detect_model).value<file::Path>().empty()
-                   && SETTING(detect_model).value<file::Path>() != file::Path(track::Yolo8::default_model()).remove_extension())
+                   && SETTING(detect_model).value<file::Path>() != file::Path(track::detect::yolo::default_model()).remove_extension())
                 {
                     exclude = {
                         "detect_model"
@@ -266,8 +266,7 @@ struct SettingsScene::Data {
                                 if (SETTING(detect_type).value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::yolo8) 
                                 {
                                     auto path = SETTING(detect_model).value<file::Path>();
-                                    if (Yolo8::is_default_model(path)
-                                        || (Yolo8::valid_model(path) && path.exists()))
+                                    if (track::detect::yolo::valid_model(path))
                                     {
                                         /// we have a valid model
                                     }

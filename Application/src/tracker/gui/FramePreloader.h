@@ -160,10 +160,6 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
             
             id_in_future.invalidate(); // nothing in future
             
-            double fps{0};
-            {
-                fps = last_time_to_frame;
-            }
             guard.unlock();
             
             auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
@@ -173,20 +169,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
                 _last_increment = increment;
             } else {
                 if(index + 1_f < target_index) {
-                    Frame_t difference = increment;//0_f;
-                    /*if(fps > 0) {
-                        double f = 1.0 / (double(PRELOAD_CACHE(frame_rate)) * PRELOAD_CACHE(gui_playback_speed));
-                        double frames_balance = (fps + 5.0 / 1000.0 - f) / f;
-                        
-                        if(frames_balance > 0) {
-                            // this is not good, we are lagging behind...
-                            difference = Frame_t(uint32_t(frames_balance + 0.5));
-#ifndef NDEBUG
-                            Print("Increased step fps=", fps, " f=", f, " => ", frames_balance, " = ", difference, " (diff=",target_index - index,")");
-#endif
-                        }
-                        
-                    }*/
+                    Frame_t difference = increment;
                     next_index_to_use = target_index + difference;
                     _last_increment = increment;
                 } else

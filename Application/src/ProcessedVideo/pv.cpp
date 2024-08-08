@@ -7,7 +7,6 @@
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
 #include <file/DataLocation.h>
-#include <regex>
 
 /**
  * =============================
@@ -1177,10 +1176,12 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         assert(_open_for_writing);
         assert(_header.timestamp != 0); // start time has to be set
         
+#ifndef NDEBUG
         auto channels = (frame.encoding() == meta_encoding_t::rgb8) ? 3u : 1u;
         for(size_t i = 0; i < frame.n(); ++i) {
             assert(frame.pixels().size() % channels == 0);
         }
+#endif
 
         std::unique_lock<std::mutex> lock(_lock);
 

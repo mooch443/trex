@@ -121,7 +121,7 @@ Cell::Cell() :
         for(auto &c : labels) {
             auto b = Layout::Make<Button>(Str(c), Box(Size2(Base::default_text_bounds(c, nullptr, Font(0.75)).width + 10, 33)));
             
-            b->on_click([this, c, ptr = &e](auto){
+            b->on_click([this, c](auto){
                 if(_sample && _row) {
                     try {
                         _sample->set_label(DataStore::label(c.c_str()));
@@ -139,7 +139,7 @@ Cell::Cell() :
         }
         
         auto b = Layout::Make<Button>(Str("Skip"), Box(Vec2(), Size2(50,33)));
-        b->on_click([this](Event e) {
+        b->on_click([this](Event) {
             if(_row) {
                 if(_sample) {
                     _sample->set_label(NULL);
