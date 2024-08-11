@@ -397,10 +397,10 @@ void Bowl::update_goals() {
     
     Vec2 sum_of_points(0.0f, 0.0f);
     for (const auto& point : *target_points) {
-        min_x = std::min(min_x, point.x);
-        max_x = std::max(max_x, point.x);
-        min_y = std::min(min_y, point.y);
-        max_y = std::max(max_y, point.y);
+        min_x = min(min_x, point.x);
+        max_x = max(max_x, point.x);
+        min_y = min(min_y, point.y);
+        max_y = max(max_y, point.y);
         sum_of_points = sum_of_points + point;
     }
     

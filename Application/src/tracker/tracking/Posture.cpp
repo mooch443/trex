@@ -206,7 +206,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
     void Posture::calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
         auto pts = generateOutline(pose, indexes, [](float percent) -> float {
             // scale center line by percentage
-            return 10.f * (1.f - percent) + 1.f;
+            return 40.f * (1.f - percent) + 1.f;
         });
         auto ptr = std::make_shared<std::vector<Vec2>>(pts);
         const auto pos = basic.blob.calculate_bounds().pos();

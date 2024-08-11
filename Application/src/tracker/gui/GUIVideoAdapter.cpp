@@ -122,11 +122,11 @@ void GUIVideoAdapter::update() {
         //auto blur = narrow_cast<float>(_video_loop.blur());
         _image.set_pos(_margins.pos());
         
-        auto blur = narrow_cast<float>(_video_loop.scale());
+        auto blur = narrow_cast<Float2_t>(_video_loop.scale());
         if(blur > 0)
-            _image.set(Scale{1.f / blur});
+            _image.set(Scale{1_F / blur});
         else
-            _image.set(Scale{1.f});
+            _image.set(Scale{1_F});
         
         if(not _image.source() || _image.source()->empty()) {
             set_size(_video_size/*.mul(_image.scale())*/ + _margins.size() + Size2(_margins.pos()));

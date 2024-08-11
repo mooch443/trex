@@ -159,7 +159,7 @@ void launch_gui(std::future<void>& f) {
                 if(scale != 1.f)
                     scale = 1.f + (scale - 1.f) * 0.35;
                 //Print("scale = ", 1920.f / work_area.width, " (",scale,") dpi = ", ptr->dpi_scale());
-                SETTING(gui_interface_scale) = float(scale);
+                SETTING(gui_interface_scale) = Float2_t(scale);
             }
         }
     });

@@ -40,7 +40,7 @@ struct DetectResolution {
     bool operator!=(const DetectResolution&) const = default;
     
     static DetectResolution fromStr(const std::string& str);
-    nlohmann::json to_json() const;
+    glz::json_t to_json() const;
     std::string toStr() const;
     static std::string class_name();
 };

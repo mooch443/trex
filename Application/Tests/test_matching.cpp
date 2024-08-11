@@ -8,184 +8,185 @@
 #include <misc/PixelTree.h>
 #include <filesystem>
 #include <misc/Image.h>
+#include <misc/DetectionTypes.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
 
 using namespace track;
 using namespace track::Match;
-using namesapce track::detect;
+using namespace track::detect;
 
 #include <python/Yolo8.h>
 
 TEST(YOLOFilenameTest, ValidFilenames) {
-    EXPECT_TRUE(Yolo8::is_default_model("yolov10b.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov10l.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov10m.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov10n.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov10s.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov10x.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov3-sppu.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov3-tinyu.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov3u.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5l6u.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5lu.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5m6u.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5mu.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5n6u.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5nu.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5s6u.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5su.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5x6u.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov5xu.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-cls.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-human.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-obb.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-oiv7.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-pose.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l-v8loader.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8l.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-cls.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-human.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-obb.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-oiv7.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-pose.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m-v8loader.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8m.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-cls.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-human.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-obb.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-oiv7.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-pose.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n-v8loader.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8n.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-cls.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-human.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-obb.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-oiv7.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-pose.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s-v8loader.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8s.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-cls.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-human.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-obb.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-oiv7.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-pose-p6.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-pose.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x-v8loader.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x6-oiv7.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x6.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9c-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9c.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9e-seg.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9e.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9m.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9s.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov9t.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov12.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov12345m.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov80x.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov22b.pt"));
-    EXPECT_TRUE(Yolo8::is_default_model("yolov45l.pt")); // Missing hyphen
-    EXPECT_TRUE(Yolo8::is_default_model("yolov20l-obb.pt")); // Hyphen not allowed in this position
-    EXPECT_TRUE(Yolo8::is_default_model("yolov8x6-500.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10b.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10l.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10s.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov3-sppu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov3-tinyu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov3u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5l6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5lu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5m6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5mu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5n6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5nu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5s6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5su.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5x6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5xu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-pose-p6.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x6-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x6.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9c-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9c.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9e-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9e.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9s.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9t.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov12.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov12345m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov80x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov22b.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov45l.pt")); // Missing hyphen
+    EXPECT_TRUE(yolo::is_default_model("yolov20l-obb.pt")); // Hyphen not allowed in this position
+    EXPECT_TRUE(yolo::is_default_model("yolov8x6-500.pt"));
 }
 
 TEST(YOLOFilenameTest, InvalidFilenames) {
     
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8l-world-cc3m.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8l-world.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8l-worldv2-cc3m.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8l-worldv2.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8m-world.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8m-worldv2.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8s-world.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8s-worldv2.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x-world.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-world-cc3m.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-worldv2-cc3m.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8m-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8m-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-worldv2.pt"));
     
-    EXPECT_FALSE(Yolo8::is_default_model("yolov7a.pt"));
-    EXPECT_FALSE(Yolo8::is_default_model("yolo10.pt")); // Missing 'v'
-    EXPECT_FALSE(Yolo8::is_default_model("yolov.pt")); // Missing version number
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10.ptx")); // Extra characters after .pt
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10_b.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10!.pt")); // Special character not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("abc_yolov10.pt")); // Extra prefix not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10.pt ")); // Trailing space not allowed
-    EXPECT_FALSE(Yolo8::is_default_model(" yolov10.pt")); // Leading space not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolovv10.pt")); // Double 'v'
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10-pt")); // Missing dot before 'pt'
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x6-pose!.pt")); // Special character '!' not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x- world.pt")); // Space not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov3tiny.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov5mu.px")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov5n_6u.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8n.seg.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x-world_pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8-l.pt")); // Hyphen not in correct position
-    EXPECT_FALSE(Yolo8::is_default_model("yolo_v8m.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8_x.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov_10b.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov-10l.pt")); // Hyphen not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10 m.pt")); // Space not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10n.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov10x..pt")); // Double dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8l_world.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8lworld.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8-lworldv2.pt")); // Hyphen not in correct position
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8lworldv2-pt")); // Hyphen not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8lm.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8mcl.s.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8mpose.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8m.seg.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8.m-obb.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8mworld.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8-n.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8n_cls.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8npose.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8n.seg-pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8n.world.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov_8s.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8s_obb.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8s-.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8s_worldpt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8s-worldv2.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8-s.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x_cl.s.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8xworld.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x_pose.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x..seg.pt")); // Double dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x6.oiv7.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x-6-500.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8x6.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9c_seg.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9c.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9_e.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9.e-seg.pt")); // Extra dot not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9m_.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9ms.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov9_t.pt")); // Underscore not allowed
-    EXPECT_FALSE(Yolo8::is_default_model("yolov12-x.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(Yolo8::is_default_model("yolov14world.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov15-pose.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov100seg.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov99nworld.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov8xtiny.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov3large.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov1small.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov11human.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov100pt")); // Missing dot before 'pt'
-    EXPECT_FALSE(Yolo8::is_default_model("yolov56pose.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov19seg.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov100m.ptx")); // Incorrect extension
-    EXPECT_FALSE(Yolo8::is_default_model("yolov77k.pt")); // Missing hyphen
-    EXPECT_FALSE(Yolo8::is_default_model("yolov202.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov7a.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolo10.pt")); // Missing 'v'
+    EXPECT_FALSE(yolo::is_default_model("yolov.pt")); // Missing version number
+    EXPECT_FALSE(yolo::is_default_model("yolov10.ptx")); // Extra characters after .pt
+    EXPECT_FALSE(yolo::is_default_model("yolov10_b.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10!.pt")); // Special character not allowed
+    EXPECT_FALSE(yolo::is_default_model("abc_yolov10.pt")); // Extra prefix not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10.pt ")); // Trailing space not allowed
+    EXPECT_FALSE(yolo::is_default_model(" yolov10.pt")); // Leading space not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolovv10.pt")); // Double 'v'
+    EXPECT_FALSE(yolo::is_default_model("yolov10-pt")); // Missing dot before 'pt'
+    EXPECT_FALSE(yolo::is_default_model("yolov8x6-pose!.pt")); // Special character '!' not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x- world.pt")); // Space not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov3tiny.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov5mu.px")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov5n_6u.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8n.seg.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-world_pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8-l.pt")); // Hyphen not in correct position
+    EXPECT_FALSE(yolo::is_default_model("yolo_v8m.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8_x.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov_10b.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov-10l.pt")); // Hyphen not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10 m.pt")); // Space not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10n.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov10x..pt")); // Double dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8l_world.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8lworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8-lworldv2.pt")); // Hyphen not in correct position
+    EXPECT_FALSE(yolo::is_default_model("yolov8lworldv2-pt")); // Hyphen not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8lm.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8mcl.s.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8mpose.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8m.seg.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8.m-obb.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8mworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8-n.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8n_cls.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8npose.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8n.seg-pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8n.world.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov_8s.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8s_obb.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8s_worldpt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-worldv2.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov8-s.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8x_cl.s.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8xworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8x_pose.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x..seg.pt")); // Double dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x6.oiv7.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-6-500.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8x6.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov9c_seg.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9c.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov9_e.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9.e-seg.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9m_.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9ms.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov9_t.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov12-x.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov14world.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov15-pose.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov100seg.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov99nworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8xtiny.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov3large.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov1small.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov11human.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov100pt")); // Missing dot before 'pt'
+    EXPECT_FALSE(yolo::is_default_model("yolov56pose.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov19seg.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov100m.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov77k.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov202.ptx")); // Incorrect extension
 }
 
 TEST(TestValidModels, Valid) {

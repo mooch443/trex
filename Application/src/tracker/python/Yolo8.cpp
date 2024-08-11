@@ -169,8 +169,8 @@ void normalize_points(std::vector<std::vector<Vec2>>& points) {
 
     for (const auto& outline : points) {
         for (const auto& point : outline) {
-            min_x = std::min(min_x, point.x);
-            min_y = std::min(min_y, point.y);
+            min_x = min(min_x, point.x);
+            min_y = min(min_y, point.y);
         }
     }
 
@@ -187,8 +187,8 @@ std::pair<int, int> find_bounding_box_size(const std::vector<std::vector<Vec2>>&
     float max_x = 0, max_y = 0;
     for (const auto& outline : points) {
         for (const auto& point : outline) {
-            max_x = std::max(max_x, point.x);
-            max_y = std::max(max_y, point.y);
+            max_x = max(max_x, point.x);
+            max_y = max(max_y, point.y);
         }
     }
     return { static_cast<int>(max_x) + 1, static_cast<int>(max_y) + 1 };

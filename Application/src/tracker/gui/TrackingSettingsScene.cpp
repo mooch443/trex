@@ -73,7 +73,6 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
     if(not dynGUI)
         dynGUI = DynamicGUI{
             .path = "tracking_settings_layout.json",
-            .graph = &graph,
             .context = {
                 ActionFunc("go-back", [](auto){
                     auto prev = SceneManager::getInstance().last_active();
@@ -115,7 +114,7 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
     
     graph.wrap_object(_main_layout);
     
-    dynGUI.update(_logo_title_layout.get(), [this](auto &objs){
+    dynGUI.update(graph, _logo_title_layout.get(), [this](auto &objs){
         objs.push_back(Layout::Ptr(_preview_image));
     });
     

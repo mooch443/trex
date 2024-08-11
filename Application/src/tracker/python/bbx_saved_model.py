@@ -220,7 +220,7 @@ class Model:
         assert isinstance(config, TRex.ModelConfig)
         self.config = config
         self.ptr = None
-        self.device = None
+        self.device : torch.device = None
 
         # if no device is specified, use cuda if available, otherwise use mps/cpu
         device_from_settings = TRex.setting("gpu_torch_device")
@@ -302,6 +302,7 @@ class Model:
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
 
+        self.ptr.half()
         self.ptr.to(self.device)
         self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))

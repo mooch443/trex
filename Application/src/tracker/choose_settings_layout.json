@@ -4,6 +4,7 @@
         "align": "left"
     },
     "color":[225,225,225,255],
+    
     "highlight_clr":[50,50,75],
     "window_color":[10,10,10],
     "vars":{

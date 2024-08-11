@@ -110,7 +110,6 @@ struct DrawExportOptions::Data {
             _gui = DynamicGUI{
                 .gui = SceneManager::getInstance().gui_task_queue(),
                 .path = "export_options_layout.json",
-                .graph = &base,
                 .context = [&](){
                     dyn::Context context;
                     context.actions = {
@@ -284,7 +283,7 @@ struct DrawExportOptions::Data {
             //Print("Filtering for: ",search.text());
         }
         
-        _gui.update(&_layout);
+        _gui.update(base, &_layout);
     }
 };
 

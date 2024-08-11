@@ -1077,36 +1077,36 @@ std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Yol
 }
 
 // Forward declaration of the function to handle recursive calls
-py::object json_to_pyobject(const nlohmann::json& j);
+py::object json_to_pyobject(const glz::json_t& j);
 
-py::dict json_to_pydict(const nlohmann::json& j) {
+py::dict json_to_pydict(const glz::json_t& j) {
     py::dict dict;
-    for (const auto& item : j.items()) {
-        dict[py::str(item.key())] = json_to_pyobject(item.value());
+    for (const auto& [key, item] : j.get_object()) {
+        dict[py::str(key)] = json_to_pyobject(item);
     }
     return dict;
 }
 
-py::list json_to_pylist(const nlohmann::json& j) {
+py::list json_to_pylist(const glz::json_t& j) {
     py::list list;
-    for (const auto& item : j) {
+    for (const auto& item : j.get_array()) {
         list.append(json_to_pyobject(item));
     }
     return list;
 }
 
-py::object json_to_pyobject(const nlohmann::json& j) {
+py::object json_to_pyobject(const glz::json_t& j) {
     if (j.is_null()) {
         return py::none();
     } else if (j.is_boolean()) {
         return py::bool_(j.get<bool>());
     } else if (j.is_number()) {
         // Checking for integer vs. floating-point
-        if (j.is_number_integer()) {
-            return py::int_(j.get<int>());
-        } else {
+        //if (j.is_number_integer()) {
+        //    return py::int_(j.get<int>());
+        //} else {
             return py::float_(j.get<double>());
-        }
+        //}
     } else if (j.is_string()) {
         return py::str(j.get<std::string>());
     } else if (j.is_array()) {
@@ -1120,7 +1120,7 @@ py::object json_to_pyobject(const nlohmann::json& j) {
 void PythonIntegration::set_function(const char* name_, std::function<bool()> f, const std::string &m) {
     set_function_internal(name_, f, m);
 }
-void PythonIntegration::set_function(const char* name_, std::function<nlohmann::json()> f, const std::string &m) {
+void PythonIntegration::set_function(const char* name_, std::function<glz::json_t()> f, const std::string &m) {
     set_function_internal(name_, [f = std::move(f)]() -> py::dict{
         py::dict dict = json_to_pydict(f());
         return dict;
@@ -1333,7 +1333,7 @@ IMPL_VARIABLE(uint64_t)
 void PythonIntegration::set_variable(const std::string & name, Size2 v, const std::string& m) {
     check_correct_thread_id();
     
-    std::vector<float> vec{
+    std::vector<Float2_t> vec{
         v.width, v.height
     };
     if(m.empty())
@@ -1348,7 +1348,7 @@ void PythonIntegration::set_variable(const std::string & name, Size2 v, const st
 void PythonIntegration::set_variable(const std::string & name, Vec2 v, const std::string& m) {
     check_correct_thread_id();
     
-    std::vector<float> vec{
+    std::vector<Float2_t> vec{
         v.x, v.y
     };
     if(m.empty())

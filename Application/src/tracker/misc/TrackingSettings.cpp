@@ -24,8 +24,8 @@ std::string PoseMidlineIndexes::toStr() const {
     return Meta::toStr(indexes);
 }
 
-nlohmann::json PoseMidlineIndexes::to_json() const {
-    auto a = nlohmann::json::array();
+glz::json_t PoseMidlineIndexes::to_json() const {
+    std::vector<glz::json_t> a;
     for(auto i : indexes)
         a.push_back(i);
     return a;

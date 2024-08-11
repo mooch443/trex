@@ -429,7 +429,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         //CONFIG("gui_transparent_background", false, "If enabled, fonts might look weird but you can record movies (and images) with transparent background (if gui_background_color.alpha is < 255).");
         
-        CONFIG("gui_interface_scale", float(1), "Scales the whole interface. A value greater than 1 will make it smaller.", SYSTEM);
+        CONFIG("gui_interface_scale", Float2_t(1), "Scales the whole interface. A value greater than 1 will make it smaller.", SYSTEM);
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");

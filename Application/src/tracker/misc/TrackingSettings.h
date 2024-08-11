@@ -61,7 +61,7 @@ struct PoseMidlineIndexes {
     
     static PoseMidlineIndexes fromStr(const std::string&);
     std::string toStr() const;
-    nlohmann::json to_json() const;
+    glz::json_t to_json() const;
     static std::string class_name() { return "PoseMidlineIndexes"; }
 
     bool operator==(const PoseMidlineIndexes& other) const {

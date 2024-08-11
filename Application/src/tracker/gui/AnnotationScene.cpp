@@ -326,7 +326,6 @@ void AnnotationScene::_draw(DrawStructure& graph) {
         *_gui = DynamicGUI{
             .gui = nullptr,
             .path = "annotation_layout.json",
-            .graph = &graph,
             .context = [&](){
                 dyn::Context context;
                 context.actions = {
@@ -563,8 +562,8 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             graph.wrap_object(*o);
     });
     
-    graph.section("gui", [this](DrawStructure &, Section *){
-        _gui->update(nullptr);
+    graph.section("gui", [this, &graph](DrawStructure &, Section *){
+        _gui->update(graph, nullptr);
     });
 }
 

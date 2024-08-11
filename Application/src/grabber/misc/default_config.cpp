@@ -167,7 +167,7 @@ namespace default_config {
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");
         CONFIG("image_invert", false, "Inverts the image greyscale values before thresholding.");
         
-        CONFIG("gui_interface_scale", float(1), "A lower number will make the texts and GUI elements bigger.", SYSTEM);
+        CONFIG("gui_interface_scale", Float2_t(1), "A lower number will make the texts and GUI elements bigger.", SYSTEM);
         
         CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
         CONFIG("meta_species", std::string(""), "Name of the species used.");

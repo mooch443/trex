@@ -214,7 +214,7 @@
                                                         "font": {"size": 0.55},
                                                         "max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
                                                         "pad":[5,5,5,5],
-                                                        "text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>null</gray>'}</c>"
+                                                        "text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
                                                     }
                                                 ]
                                             ]
@@ -374,24 +374,34 @@
                                         "type":"condition",
                                         "var":"{global.gui_show_matching_info}",
                                         "then": {
-                                            "type":"vlayout",
-                                            "pad":[0,5,0,0],
-                                            "children":[
-                                                {
-                                                    "type":"each",
-                                                    "var":"{primary_selection.ps}",
-                                                    "do":{
-                                                        "type":"stext",
-                                                        "font":{"size":0.5,"style":"mono"},
-                                                        "max_size":"[{infocard_width}, 0]",
-                                                        "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}"
+                                            "type":"condition",
+                                            "var":"{primary_selection.ps}",
+                                            "else":{
+                                                "type":"stext",
+                                                "pad":[0,5,0,10],
+                                                "font":{"size":0.5,"style":"mono"},
+                                                "text":" <gray><sym>⮩</sym></gray> <c><gray>[empty]</gray></c>"
+                                            },
+                                            "then": {
+                                                "type":"vlayout",
+                                                "pad":[0,5,0,0],
+                                                "children":[
+                                                    {
+                                                        "type":"each",
+                                                        "var":"{primary_selection.ps}",
+                                                        "do":{
+                                                            "type":"stext",
+                                                            "font":{"size":0.5,"style":"mono"},
+                                                            "max_size":"[{infocard_width}, 0]",
+                                                            "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}"
+                                                        }
+                                                    },
+                                                    {
+                                                        "type":"rect",
+                                                        "size":[0,5]
                                                     }
-                                                },
-                                                {
-                                                    "type":"rect",
-                                                    "size":[0,5]
-                                                }
-                                            ]
+                                                ]
+                                            }
                                         }
                                     }
                                 ]

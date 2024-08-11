@@ -168,7 +168,6 @@ struct SettingsScene::Data {
             dynGUI = DynamicGUI{
                 .gui = SceneManager::getInstance().gui_task_queue(),
                 .path = layout_name,
-                .graph = &graph,
                 .context = {
                     ActionFunc("set", [](Action action) {
                         REQUIRE_EXACTLY(2, action);
@@ -606,7 +605,7 @@ struct SettingsScene::Data {
         
         graph.wrap_object(_preview_image);
         //graph.wrap_object(_preview_image);
-        dynGUI.update(nullptr/*, [this](auto &objs){
+        dynGUI.update(graph, nullptr/*, [this](auto &objs){
             objs.push_back(Layout::Ptr(_preview_image));
         }*/);
         _video_size = _next_video_size.load();

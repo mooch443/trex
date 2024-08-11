@@ -107,12 +107,12 @@ void StartingScene::activate() {
         ++i;
     }
     
-    RecentItems::set_select_callback([](RecentItems::Item item){
+    RecentItems::set_select_callback([](RecentItemJSON item){
         item._options.set_print_by_default(true);
         
-        SETTING(output_dir) = item._output_dir;
-        SETTING(output_prefix) = item._output_prefix;
-        SETTING(filename) = item._filename;
+        SETTING(output_dir) = file::Path(item.output_dir);
+        SETTING(output_prefix) = item.output_prefix;
+        SETTING(filename) = file::Path(item.filename);
         
         for (auto& key : item._options.keys())
             item._options[key].get().copy_to(&GlobalSettings::map());
@@ -139,7 +139,6 @@ void StartingScene::_draw(DrawStructure& graph) {
     if(not dynGUI)
         dynGUI = {
             .path = "welcome_layout.json",
-            .graph = &graph,
             .context = [&](){
                 dyn::Context context;
                 context.actions = {
@@ -165,10 +164,10 @@ void StartingScene::_draw(DrawStructure& graph) {
                         if(item._options.has("filename"))
                             filename = item._options.at("filename").value<file::Path>();
                         else
-                            filename = item._filename;
+                            filename = item.filename;
                         
-                        file::Path output_dir = item._output_dir;
-                        std::string output_prefix = item._output_prefix;
+                        file::Path output_dir = item.output_dir;
+                        std::string output_prefix = item.output_prefix;
                         
                         sprite::Map copy = item._options;
                         copy["output_prefix"] = output_prefix;
@@ -266,7 +265,7 @@ void StartingScene::_draw(DrawStructure& graph) {
             }()
         };
     
-    dynGUI.update(nullptr);
+    dynGUI.update(graph, nullptr);
 }
 
 bool StartingScene::on_global_event(Event) {

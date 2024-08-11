@@ -518,8 +518,7 @@ void TrackingScene::activate() {
                  "track_threshold", 
                  "track_posture_threshold",
                  "track_size_filter",
-                 "frame_rate", 
-                 "gui_focus_group",
+                 "frame_rate",
                  "track_background_subtraction",
                  "meta_encoding",
                  "individual_image_normalization",
@@ -528,6 +527,24 @@ void TrackingScene::activate() {
                 "track_include", "track_ignore"))
         {
             redraw_all();
+        }
+        
+        if(key == "gui_focus_group") {
+            SceneManager::getInstance().enqueue([this, frame = _data && _data->_cache ? _data->_cache->frame_idx : Frame_t{}](){
+                if(_data && _data->_cache) {
+                    _data->_primary_selection = {};
+                    _data->_cache->set_tracking_dirty();
+                    //_data->_cache->set_raw_blobs_dirty();
+                    _data->_cache->set_fish_dirty(true);
+                    //if(frame.valid())
+                    //    _data->_cache->set_reload_frame(frame);
+                    _data->_cache->set_redraw();
+                    //_data->_cache->set_blobs_dirty();
+                    //_data->_cache->frame_idx = {};
+                    //SETTING(gui_frame) = Frame_t{};
+                    //set_frame(frame);
+                }
+            });
         }
         
         if(key == "output_prefix") {
@@ -985,7 +1002,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
     
-    _data->dynGUI.update(nullptr);
+    _data->dynGUI.update(graph, nullptr);
     
     Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
     
@@ -1100,7 +1117,6 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
     dyn::DynamicGUI g{
         .gui = SceneManager::getInstance().gui_task_queue(),
         .path = "tracking_layout.json",
-        .graph = &graph,
         .context = {
             ActionFunc("quit", [](Action) {
                 SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {

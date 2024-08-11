@@ -6,11 +6,320 @@
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualCache.h>
+#include <misc/detail.h>
+#include <misc/RecentItems.h>
 
 static constexpr auto lower = cmn::utils::lowercase("hiIbImS");
 
 using namespace cmn;
 using namespace utils;
+
+/**
+ 
+ { "type":"vlayout", "pos":[20,10], "pad":[5,5,5,5],
+   "children": [
+   { "type": "hlayout", "pad":[0,0,10,5], "children": [
+       { "type": "button", "text": "Quit", "action": "QUIT"},
+       { "type": "collection", "children": [
+         {"type": "text", "text": "Hello World!"}
+       ]}
+   ]},
+   { "type": "textfield",
+     "size":[500,40],
+     "color":[255,0,255,255],
+     "action":"QUIT"
+   },
+   {"type":"stext",
+   "text":"{mouse.x} {window_size.w} {video_length} -- {*:{video_length}:{/:{mouse.x}:{window_size.w}}}"
+ }
+ 
+ 
+ */
+
+
+namespace dyn {
+enum class Align {
+    left, center, right, verticalcenter
+};
+
+struct Font {
+    std::optional<Float2_t> size;
+    std::optional<dyn::Align> align;
+};
+
+using Color = std::vector<uint8_t>;
+using Loc = std::array<Float2_t, 2>;
+
+struct Template {
+    std::string text;
+    std::optional<std::string> detail;
+    std::optional<std::string> action;
+};
+
+struct Object {
+    std::string type;
+    std::optional<dyn::Loc> pos, max_size, size;
+    std::optional<std::array<Float2_t, 4>> pad;
+    std::optional<dyn::Color> color, line, fill, horizontal_clr, vertical_clr;
+    std::optional<std::vector<Object>> children;
+    std::optional<std::string> text, action, var;
+    std::optional<bool> clickable, foldable, folded;
+    std::optional<Template> schablone;
+    std::optional<dyn::Font> font;
+    std::optional<std::vector<std::string>> modules;
+    std::shared_ptr<Object> then;
+    std::shared_ptr<Object> _else;
+    std::shared_ptr<Object> preview;
+};
+
+struct MainFile {
+    std::vector<Object> objects;
+    std::optional<glz::json_t> defaults;
+};
+
+
+}
+
+template <>
+struct glz::meta<dyn::Object> {
+   using T = dyn::Object;
+   static constexpr auto value = object(&T::type,  //
+                                        &T::pos, &T::max_size, &T::size,
+                                        &T::pad,
+                                        &T::color, &T::line, &T::fill, &T::horizontal_clr, &T::vertical_clr,
+                                        &T::children,
+                                        &T::text, &T::action, &T::var,
+                                        &T::clickable, &T::foldable, &T::folded,
+                                        &T::schablone,
+                                        &T::font,
+                                        &T::modules,
+                                        &T::then,
+                                        "else", &T::_else,
+                                        &T::preview);
+};
+
+template <>
+struct glz::meta<dyn::Align> {
+   using enum dyn::Align;
+   static constexpr auto value = enumerate(left,
+                                           center,
+                                           right,
+                                           verticalcenter
+   );
+};
+
+template <>
+struct glz::meta<Vec2> {
+    static constexpr auto value = object(&Vec2::x, &Vec2::y);
+};
+
+struct StructTest {
+    uint64_t number;
+    std::string text;
+    std::optional<std::map<std::string, double>> numbers;
+};
+
+static const auto recent_items_test = R"({"entries":[{"created":"1722898354365058","filename":"/Users/user/Downloads/MatrixIssues/20240407_130252","modified":"1722898656173724","name":"/Users/user/Downloads/MatrixIssues/20240407_130252","output_dir":"","output_prefix":"","settings":{"cam_matrix":[0.9162667552083333,0,0.5045229020833334,0,1.6345315185185185,0.5236356972222223,0,0,1],"cam_undistort":true,"cam_undistort_vector":[-0.314080328,-0.0967427775,-0.000260259724,0.000191272304,0.476336027],"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"enable_absolute_difference":false,"function_test":null,"individual_image_scale":0.6000000238418579,"midline_stiff_percentage":0.10000000149011612,"output_dir":"","source":"/Users/user/Downloads/MatrixIssues/20240407_130252.MOV","threshold":40,"track_absolute_difference":false,"track_include":[[[1501,817],[463,841],[461,351],[1489,337]],[[1498,803],[1497,847],[456,861],[459,828]],[[1517,300],[1492,347],[456,364],[444,305]],[[498,853],[432,857],[430,316],[490,337]],[[1540,841],[1492,834],[1479,317],[1510,323]]],"track_max_individuals":2,"track_max_speed":40,"track_posture_threshold":9,"track_size_filter":[[0.25,1.5]],"track_threshold":40}},{"created":"1720779303324089","filename":"","modified":"1720779303324089","name":"/Users/user/Videos/tmp/juvenile_birchmanni_4_Trial12_UN_UN","output_dir":"","output_prefix":"","settings":{"blob_split_algorithm":"fill","calculate_posture":false,"cwd":"/Users/user/trex/Application/beta/Debug","detect_model":"yolov8x-pose","individual_image_normalization":"moments","meta_encoding":"r3g3b2","meta_source_path":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","source":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","track_do_history_split":false,"track_max_reassign_time":1}},{"created":"1720779303320210","filename":"","modified":"1720779303320210","name":"/Users/user/Videos/tmp/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"output_dir":"/Users/user/Videos/tmp","recognition_segment_add_factor":1,"source":"/Users/user/Downloads/002_full_pilot.MP4","track_max_individuals":4,"track_threshold":15}},{"created":"1720779303312230","filename":"","modified":"1720779303312230","name":"/Users/user/Downloads/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.10000000149011612,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"gui_focus_group":[2],"gui_show_individual_preview":true,"heatmap_ids":[2],"individual_image_size":[80,80],"manual_matches":{"0":{"0":331361215,"1":362298148,"2":365449625,"3":50918454}},"manual_splits":{"10145":[1798340233],"10147":[1794669897],"10392":[1616404981],"10755":[432130367],"11032":[429400456],"11477":[1531453472],"11488":[1524637286],"11966":[152144770],"11968":[148474138],"12968":[183080834],"12993":[230779254],"12996":[228680390],"13308":[227114888],"14421":[174613835],"14426":[171468834],"14944":[1822521131],"15312":[1574971339],"15318":[1578641100],"16071":[66138639],"1653":[67681770],"16850":[913424684],"17002":[44104078],"1732":[67152321],"17605":[1929459522],"17896":[216569868],"17897":[207132831],"17944":[222846982],"17946":[228613767],"18586":[1881244567],"20015":[175739857],"20510":[465689085],"20807":[340865054],"20811":[343485149],"2238":[469772213],"23193":[53004033],"23197":[52479054],"24079":[97563986],"25172":[1928388496],"25174":[1925242007],"27190":[75032149],"27266":[72926034],"278":[1093151078],"280":[1094199649],"2891":[1940964054],"29018":[1131421509],"30853":[1362219416],"31401":[743976203],"31406":[745024848],"31460":[743452091],"3195":[1486995894],"34363":[229209693],"3446":[307347713],"3626":[77129362],"37473":[1757510170],"38899":[1612717393],"3899":[578302611],"44644":[1779992133],"44680":[1758495877],"45275":[109088291],"4540":[1935218378],"4601":[1924228299],"4603":[1903257168],"4821":[1159321968],"4825":[1155127728],"50231":[267946708],"50759":[1803052086],"50932":[1842905049],"54123":[37802975],"5500":[436217029],"5506":[433071617],"55981":[688400379],"57154":[1944147094],"57158":[1937328989],"6038":[922830723],"6039":[923879310],"61508":[217617076],"62288":[1944102445],"62304":[1904777172],"62306":[1900582039],"62552":[1461727497],"62557":[1458582283],"6325":[1518979461],"63657":[1690912047],"67618":[84490233],"6805":[1075946738],"68194":[313629355],"68199":[285841900],"68400":[75552263],"7599":[1828216105],"7649":[1832936187],"7681":[1843423414],"7726":[1867022998],"8488":[370266431],"8495":[351391185],"8496":[402771064],"8499":[382847024],"8555":[144804749],"9027":[1344294991],"9280":[1530968058],"9464":[40954656],"9470":[40955829]},"output_dir":"","segment_size_filter":[[0.10000000149011612,100]],"source":"/Users/user/Downloads/002_full_pilot.MP4","threshold":15,"track_ignore":[[[679,2097],[6,2147],[3,1663]],[[499,10],[6,351],[2,3]],[[3834,2152],[3284,2130],[3832,1723]]],"track_max_individuals":4,"track_max_speed":100,"track_size_filter":[[1.5,10]],"track_threshold":15}}],"modified":"1723213416841714"})";
+
+TEST(ConversionTest, FileObjects) {
+    //dyn::MainFile object;
+    //std::string buffer = file::Path("/Users/tristan/trex/Application/src/commons/examples/test_gui.json").read_file();
+    
+    //glz::error_ctx error;
+    //ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
+    
+    RecentItemFile object;
+    std::string buffer = recent_items_test;//file::Path("/Users/tristan/trex/Application/beta/Debug/TRex.app/Contents/MacOS/../Resources/../Resources/.trex_recent_files").read_file();
+    
+    glz::error_ctx error;
+    ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
+}
+
+TEST(ConversionTest, RealObjects) {
+    /*glz::json_t json{};
+    std::string buffer = R"([18446744073709551615,"Hello World",{"pi":3.14}])";
+    glz::read_json(json, buffer);
+    ASSERT_EQ(json[1].get<std::string>(), "Hello World");*/
+    
+    dyn::Object object;
+    std::string buffer = R"({
+        "type":"vlayout",
+        "pos":[10,123],
+        "children":[
+            { "type":"button", 
+              "color":[255,255,255],
+              "font": {
+                "size":1,
+                "align":"left"
+              }
+            }
+        ]
+    })";
+    glz::error_ctx error;
+    ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
+    //ASSERT_EQ(test.at("array").number, 18446744073709551615llu);
+    
+    //ASSERT_EQ(json[0].get<int64_t>(), 5);
+    //ASSERT_EQ(json[2]["pi"].get<double>(), 3.14);
+    //ASSERT_EQ(test.number.toStr(), "5");
+}
+
+TEST(ConversionTest, Website) {
+    /*glz::json_t json{};
+    std::string buffer = R"([18446744073709551615,"Hello World",{"pi":3.14}])";
+    glz::read_json(json, buffer);
+    ASSERT_EQ(json[1].get<std::string>(), "Hello World");*/
+    
+    std::map<std::string, StructTest> test;
+    std::string buffer = R"({"array":{"number":18446744073709551615,"text":"Hello World"}})";
+    glz::error_ctx error;
+    ASSERT_EQ(error = glz::read_json(test, buffer), glz::error_code::none) << glz::format_error(error, buffer);
+    ASSERT_EQ(test.at("array").number, 18446744073709551615llu);
+    
+    //ASSERT_EQ(json[0].get<int64_t>(), 5);
+    //ASSERT_EQ(json[2]["pi"].get<double>(), 3.14);
+    //ASSERT_EQ(test.number.toStr(), "5");
+}
+
+/*TEST(ConversionTest, Basic) {
+    glz::json_t tuple_test = { 5.5, 5.5 };
+    
+    std::string s{};
+    double dbl = 3.14;
+    glz::json_t dblj = dbl;
+    glz::write_json(dblj, s);
+    
+    uint64_t nr = 55;
+
+    static_assert(glz::detail::num_t<uint64_t>);
+    glz::json_t j = nr;
+    ASSERT_TRUE(j.is_number());
+    ASSERT_TRUE(j.holds<uint64_t>());
+    glz::write_json(j, s);
+
+    EXPECT_EQ(s, R"(55)");
+    
+    glz::write_json(j, s);
+    
+    glz::json_t json = 64u;
+    glz::error_ctx error;
+    EXPECT_NO_THROW(error = glz::read_json(json, s));
+    EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
+    EXPECT_TRUE(json.is_number());
+    EXPECT_EQ(json.get_uint(), 55);
+}
+
+template <typename T>
+class NumberConversionTest : public ::testing::Test {
+protected:
+    void test_conversion(T value) {
+        std::string s;
+        glz::json_t json = value;
+        glz::write_json(json, s);
+
+        std::string expected;
+        if constexpr(std::is_floating_point_v<T>) {
+            std::stringstream ss;
+            ss << value;
+            expected = ss.str();
+        } else {
+            expected = Meta::toStr(value);
+        }
+
+        EXPECT_EQ(s, expected);
+        
+        glz::json_t json_read;
+        auto error = glz::read_json(json_read, s);
+        EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
+        EXPECT_EQ(json_read.get<T>(), value);
+    }
+};
+
+typedef ::testing::Types< uint64_t, int64_t, double> NumberTypes;
+TYPED_TEST_SUITE(NumberConversionTest, NumberTypes);
+
+TYPED_TEST(NumberConversionTest, BasicConversion) {
+    this->test_conversion(static_cast<TypeParam>(42));
+    this->test_conversion(static_cast<TypeParam>(-42));
+    this->test_conversion(static_cast<TypeParam>(0));
+    this->test_conversion(static_cast<TypeParam>(std::numeric_limits<TypeParam>::max()));
+    this->test_conversion(static_cast<TypeParam>(std::numeric_limits<TypeParam>::min()));
+}
+
+TEST(FloatDoubleConversionTest, PrecisionCheck) {
+    std::string s;
+    double dbl = 3.141592653589793;
+    glz::json_t dblj = dbl;
+    glz::write_json(dblj, s);
+    
+    EXPECT_EQ(s, "3.141592653589793");
+
+    glz::json_t json;
+    auto error = glz::read_json(json, s);
+    EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
+    EXPECT_EQ(json.get_float(), 3.141592653589793);
+}
+
+TEST(FloatDoubleConversionTest, ScientificNotation) {
+    std::string s;
+    double dbl = 1.23e-10;
+    glz::json_t dblj = dbl;
+    glz::write_json(dblj, s);
+    
+    EXPECT_EQ(s, "1.23E-10");
+
+    glz::json_t json;
+    auto error = glz::read_json(json, s);
+    EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
+    EXPECT_EQ(json.get_float(), 1.23e-10);
+}
+
+TEST(IntegerConversionTest, LargeIntegers) {
+    std::string s;
+    uint64_t large_uint = 18446744073709551615ULL; // Max value for uint64_t
+    glz::json_t json_uint = large_uint;
+    glz::write_json(json_uint, s);
+    
+    EXPECT_EQ(s, "18446744073709551615");
+
+    glz::json_t json;
+    auto error = glz::read_json(json, s);
+    EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
+    EXPECT_EQ(json.get<uint64_t>(), 18446744073709551615ULL);
+
+    int64_t large_int = 9223372036854775807LL; // Max value for int64_t
+    glz::json_t json_int = large_int;
+    glz::write_json(json_int, s);
+    
+    EXPECT_EQ(s, "9223372036854775807");
+
+    glz::json_t json_i;
+    error = glz::read_json(json_i, s);
+    EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
+    EXPECT_EQ(json_i.get<int64_t>(), 9223372036854775807LL);
+}
+
+TEST(ErrorHandlingTest, InvalidJson) {
+    std::string invalid_json = R"({"invalid": )"; // malformed JSON
+    glz::json_t input;
+    auto error = glz::read_json(input, invalid_json);
+    EXPECT_NE(error, glz::error_code::none);
+}
+
+TEST(ErrorHandlingTest, NonNumberToNumber) {
+    std::string invalid_json = R"("not a number")";
+    glz::json_t input;
+    auto error = glz::read_json(input, invalid_json);
+    EXPECT_NE(error, glz::error_code::none);
+}
+
+TEST(ErrorHandlingTest, ValidStringToNumber) {
+    std::string valid_number = "123";
+    glz::json_t input;
+    auto error = glz::read_json(input, valid_number);
+    EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, valid_number);
+    EXPECT_EQ(input.get<int64_t>(), 123);
+}*/
 
 
 TEST(CacheSizeTest, Basic) {
@@ -30,7 +339,7 @@ TEST(JSONTest, TestBasicJSON) {
     SETTING(graphs) = object;
     
     auto json = SETTING(graphs).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(json.dump()), SETTING(graphs).get().valueString());
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).get().valueString());
 }
 
 TEST(JSONTest, TestSkeletonJSON) {
@@ -44,7 +353,7 @@ TEST(JSONTest, TestSkeletonJSON) {
     SETTING(skeleton) = object;
     
     auto json = SETTING(skeleton).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(json.dump()), SETTING(skeleton).get().valueString());
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).get().valueString());
 }
 
 TEST(JSONTest, TestVec2JSON) {
@@ -52,14 +361,25 @@ TEST(JSONTest, TestVec2JSON) {
         Vec2(10,25)
     };
     SETTING(vectors) = object;
+    SETTING(number) = 5;
+    SETTING(big_number) = uint64_t(std::numeric_limits<uint64_t>::max());
     
     /// the strings will not be exactly the same.
     auto json = SETTING(vectors).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(json.dump())), object);
+    ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(glz::write_json(json).value())), object);
     
-    /// nlohmann does not remove trailing zeros
-    auto s = json.dump();
-    ASSERT_STREQ(s.c_str(), "[[10.0,25.0]]");
+    /// check whether it removes trailing zeros
+    auto s = glz::write_json(json).value();
+    ASSERT_STREQ(s.c_str(), "[[10,25]]");
+    
+    json = SETTING(number).get().to_json();
+    s = glz::write_json(json).value();
+    ASSERT_STREQ(s.c_str(), "5");
+    
+    json = SETTING(big_number).get().to_json();
+    s = glz::write_json(json).value();
+    /// currently not achievable - only in custom structs
+    //ASSERT_EQ(s, SETTING(big_number).get().valueString());
 }
 
 // Tests for the split function.

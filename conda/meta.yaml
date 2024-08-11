@@ -120,28 +120,24 @@ requirements:
     #- tensorflow-gpu =2.4.1 # [linux]
     #- tensorflow-estimator =2.4.1 # [linux]
     #- tensorflow >=2,<3   # [osx and not arm64]
-    - "pytorch::pytorch-mutex=*=cuda" # [linux or win]
-    - "pytorch::pytorch=2.*=py3*" # [osx and not arm64]
+    #- "pytorch::pytorch-mutex=*=cuda" # [linux or win]
+    - "pytorch::pytorch>=2.1,<3=py3*" # [osx and not arm64]
     - "pytorch::pytorch<2.4=py3*" # [osx and arm64]
-    - "pytorch::pytorch=2.*=py3*_cuda11.8_cudnn*" # [win]
-    - "pytorch::pytorch=2.*=py3*_cuda11.8_cudnn*" # [linux]
-    - "pytorch::pytorch-cuda=11.8" # [linux]
-    - "pytorch::pytorch-cuda=11.8" # [win]
-    - "pytorch::torchvision=*=py3*" # [osx and not arm64]
-    - "pytorch::torchvision=*=py3*" # [osx and arm64]
-    - "pytorch::torchvision=*=py3*_cu118" # [win]
-    - "pytorch::torchvision=*=py3*_cu118" # [linux]
+    - "pytorch::pytorch>=2.1,<3=py3*_cuda11.8_cudnn*" # [win or linux]
+    #- "pytorch::pytorch-cuda=11.8" # [win or linux]
+    - "pytorch::torchvision=*=py3*" # [osx]
+    - "pytorch::torchvision=*=py3*_cu118" # [win or linux]
     - "torchmetrics"
-    - "cuda-version=11.8" # [linux]
-    - "cuda-version=11.8" # [win]
-    - "cuda-cccl=11.8" # [win or linux]
+    #- "cuda-version=11.8" # [win or linux]
+    #- "cuda-cccl=11.8" # [win or linux]
     # disable this for install builds
     #- cudatoolkit =10.1 # [linux]
     #- cudatoolkit =11 # [win]
     #- cudnn # [win]
     # disable this for install builds
     #- cudnn =7.6 # [linux]
-    - mkl # [linux]
+    #- mkl # [linux]
+    - seaborn
     - scikit-learn
     - pip
     - requests

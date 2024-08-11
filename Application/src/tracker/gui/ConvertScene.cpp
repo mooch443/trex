@@ -29,6 +29,7 @@
 #include <misc/SettingsInitializer.h>
 #include <misc/PythonWrapper.h>
 #include <gui/WorkProgress.h>
+#include <misc/CTCollection.h>
 
 namespace cmn::gui {
 using namespace dyn;
@@ -142,7 +143,7 @@ struct ConvertScene::Data {
     file::Path closed_loop_path{SETTING(closed_loop_path).value<file::Path>().remove_extension()};
     
     std::mutex _current_json_mutex;
-    nlohmann::json _current_json;
+    glz::json_t _current_json;
 
     // Individual properties for each object
     sprite::Map _primary_selection;
@@ -225,6 +226,7 @@ struct ConvertScene::Data {
         _primary_selection["speed"] = 0.f;
         _primary_selection["has_neighbor"] = false;
         _primary_selection["p"] = 0.0f;
+        _primary_selection["ps"] = std::vector<std::tuple<double, double, double>>{};
         
         for (auto& [id, map] : _individual_properties) {
             map["visible"] = false;
@@ -254,7 +256,7 @@ struct ConvertScene::Data {
         
         Python::schedule([this](){
             ModuleProxy proxy(closed_loop_path.str(), [this](ModuleProxy& m) {
-                m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
+                m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
                     std::unique_lock guard{_current_json_mutex};
                     return _current_json;
                 });
@@ -270,9 +272,8 @@ struct ConvertScene::Data {
     void check_gui(DrawStructure& graph, Base* window) {
         if(not dynGUI) {
             dynGUI = init_gui(window);
-            dynGUI.graph = &graph;
-
-            dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(new CustomElement {
+            dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(
+              new CustomElement {
                 .name = "label",
                 .create = [this](LayoutContext& layout) -> Layout::Ptr {
                     std::shared_ptr<Label> ptr;
@@ -296,23 +297,20 @@ struct ConvertScene::Data {
                     }
 
                     if (not ptr)
-                        ptr = std::make_shared<Label>(text, Bounds(layout.pos, layout.size), Bounds(layout.pos, layout.size).center());
+                        throw RuntimeError("Apparently out of memory generating label ", text, ".");
 
                     ptr->set_line_length(line_length);
-                    ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);//Bounds(layout.pos, layout.size).center());
+                    ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);
                     auto font = parse_font(layout.obj, layout._defaults.font);
                     ptr->text()->set(font);
                     ptr->text()->set(color);
                     ptr->text()->set(FillClr{ fill });
                     ptr->set_line_color(line);
-                    //Print("Create new label with text = ", text);
                     
                     if(not id.valid())
-                    {
                         ptr->set_uninitialized();
-                    }
+                    
                     return Layout::Ptr(std::make_shared<LabelWrapper>(_unassigned_labels, std::move(ptr)));
-                    //return Layout::Ptr(ptr);
                 },
                 .update = [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool
                 {
@@ -324,8 +322,9 @@ struct ConvertScene::Data {
                         id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
                     
                     if (id.valid()) {
-                        auto it = _labels.find(id);
-                        if (it != _labels.end()) {
+                        if (auto it = _labels.find(id);
+                            it != _labels.end())
+                        {
                             if(it->second.get() != o.get())
                                 o = Layout::Ptr(it->second);
                         }
@@ -342,43 +341,45 @@ struct ConvertScene::Data {
                     }
                     
                     auto source = p->source();
-                    auto pos = source.pos();
-                    auto center = p->center();
-                    auto text = p->text()->text();
-
-                    if(patterns.contains("text"))
-                        text = parse_text(patterns.at("text").original, context, state);
-                    if (patterns.contains("pos")) {
-                        pos = Meta::fromStr<Vec2>(parse_text(patterns.at("pos").original, context, state));
-                    }
-                    if (patterns.contains("size")) {
-                        source = Bounds(pos, Meta::fromStr<Size2>(parse_text(patterns.at("size").original, context, state)));
-                    }
-                    if (patterns.contains("center")) {
-                        center = Meta::fromStr<Vec2>(parse_text(patterns.at("center").original, context, state));
-                    } else
-                        center = source.pos()+ Vec2(source.width, source.height) * 0.5;
-
-                    if(patterns.contains("line"))
-                        p->set_line_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
-                    if (patterns.contains("fill"))
-                        p->set_fill_color(Meta::fromStr<Color>(parse_text(patterns.at("fill").original, context, state)));
-                    if(patterns.contains("color"))
-                        p->text()->set(TextClr{ Meta::fromStr<Color>(parse_text(patterns.at("color").original, context, state)) });
-
-                    p->set_data(0_f, text, source, center);
+                    using namespace cmn::ct;
+                    
+                    CTCollection map{
+                        Key<"text", "pos", "size", "center", "line", "fill", "color">{},
+                        p->text()->text(),
+                        Vec2(source.pos()),
+                        source.size(),
+                        source.pos() + Vec2(source.width, source.height) * 0.5_F,
+                        p->line_color(),
+                        p->fill_color(),
+                        TextClr{p->text()->text_color()}
+                    };
+                    
+                    map.apply([&](std::string_view key, auto& value) {
+                        value = parse_value_with_default(value, key, patterns, context, state);
+                    });
+                    
+                    source = Bounds{ map.get<"pos">(), map.get<"size">() };
+                    p->set_line_color(map.get<"line">());
+                    p->set_fill_color(map.get<"fill">());
+                    p->text()->set(map.get<"color">());
+                    
+                    p->set_data(0_f,
+                                map.get<"text">(),
+                                source,
+                                map.get<"center">());
+                    
                     p->update(FindCoord::get(), 1, 1, false, dt, Scale{1});
                     
                     return true;
                 }
-            });
+              });
         }
         
-        dynGUI.update(nullptr);
+        dynGUI.update(graph, nullptr);
     }
     void draw(bool dirty, DrawStructure& graph, Base* window);
     bool retrieve_and_prepare_data();
-    void draw_scene(DrawStructure& graph, const FindCoord& coords, const std::vector<std::string>& detect_classes, bool dirty);
+    void draw_scene(DrawStructure& graph, const std::vector<std::string>& detect_classes, bool dirty);
 };
 
 Segmenter& ConvertScene::segmenter() const {
@@ -579,8 +580,8 @@ void ConvertScene::open_camera() {
     _video_info["length"] = segmenter().video_length();
 }
 
-nlohmann::json sprite_map_to_json(const sprite::Map& map) {
-    nlohmann::json json;
+glz::json_t sprite_map_to_json(const sprite::Map& map) {
+    glz::json_t json;
     for(auto& key : map.keys()) {
         auto &prop = map.at(key).get();
         json[key] = prop.to_json();
@@ -669,7 +670,7 @@ void ConvertScene::activate()  {
         
         Python::schedule([this](){
             ModuleProxy proxy(_data->closed_loop_path.str(), [this](ModuleProxy& m) {
-                m.set_function<std::function<nlohmann::json()>>("frame_info", [this]() {
+                m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
                     std::unique_lock guard{_data->_current_json_mutex};
                     return _data->_current_json;
                 });
@@ -815,7 +816,7 @@ void ConvertScene::Data::drawBlobs(
     std::vector<Vec2> targets;
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
     
-    nlohmann::json::array_t acc_json;
+    std::vector<glz::json_t> acc_json;
 
     for (auto& blob : _object_blobs) {
         auto bds = blob->bounds();
@@ -917,6 +918,7 @@ void ConvertScene::Data::drawBlobs(
             (*tmp)["px"] = blob->recount(-1);
 
         (*tmp)["p"] = assign.p;
+        (*tmp)["ps"] = std::vector<std::tuple<double, double, double>>{};
         
         if(not selected_ids.empty()
            && selected_ids.front() == tracked_id)
@@ -1227,10 +1229,10 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     _bowl->update_scaling(dt);
 
     bool dirty = retrieve_and_prepare_data();
-    draw_scene(graph, coords, detect_classes, dirty);
-
-    check_gui(graph, window);
+    draw_scene(graph, detect_classes, dirty);
     _bowl->update(_current_data.frame.index(), graph, coords);
+    
+    check_gui(graph, window);
 }
 
 bool ConvertScene::Data::retrieve_and_prepare_data() {
@@ -1261,55 +1263,54 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
                 _inactive_ids.emplace_back(id);
         });
     }
-
-    using namespace track;
-    std::unordered_map<pv::bid, Identity> visible_bdx;
-    std::vector<std::vector<Vertex>> lines;
-    std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
-
-    IndividualManager::transform_all([&](Idx_t, Individual* fish) {
-        if (not fish->has(_current_data.frame.index()))
-            return;
-        if(not dirty)
-            return;
-        auto p = fish->iterator_for(_current_data.frame.index());
-        auto segment = p->get();
-
-        auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
-
-        if (dirty) {
-            if (basic->blob.parent_id.valid())
-                visible_bdx.emplace(basic->blob.parent_id, fish->identity());
-            visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
-        }
-        
-        std::vector<Vertex> line;
-        fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
-        {
-            if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
-                return true;
-            auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
-            line.push_back(Vertex(p.x, p.y, fish->identity().color()));
-            return true;
-        });
-
-        lines.emplace_back(std::move(line));
-        //graph.vertices(line);
-    
-        if(posture
-           && posture->outline)
-        {
-            auto pts = posture->outline->uncompress();
-            auto p = basic->blob.calculate_bounds().pos();
-            for(auto &pt : pts)
-                pt += p;
-            
-            postures.emplace_back(fish->identity().color(), std::move(pts));
-            //graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
-        }
-    });
     
     if(dirty) {
+        using namespace track;
+        std::unordered_map<pv::bid, Identity> visible_bdx;
+        std::vector<std::vector<Vertex>> lines;
+        std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
+
+        IndividualManager::transform_all([&](Idx_t, Individual* fish) {
+            if (not fish->has(_current_data.frame.index()))
+                return;
+            
+            auto p = fish->iterator_for(_current_data.frame.index());
+            auto segment = p->get();
+
+            auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
+
+            if (dirty) {
+                if (basic->blob.parent_id.valid())
+                    visible_bdx.emplace(basic->blob.parent_id, fish->identity());
+                visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
+            }
+            
+            std::vector<Vertex> line;
+            fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
+            {
+                if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
+                    return true;
+                auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
+                line.push_back(Vertex(p.x, p.y, fish->identity().color()));
+                return true;
+            });
+
+            lines.emplace_back(std::move(line));
+            //graph.vertices(line);
+        
+            if(posture
+               && posture->outline)
+            {
+                auto pts = posture->outline->uncompress();
+                auto p = basic->blob.calculate_bounds().pos();
+                for(auto &pt : pts)
+                    pt += p;
+                
+                postures.emplace_back(fish->identity().color(), std::move(pts));
+                //graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
+            }
+        });
+        
         _visible_bdx = std::move(visible_bdx);
         _trajectories = std::move(lines);
         _postures = std::move(postures);
@@ -1318,7 +1319,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
     return true;
 }
 
-void ConvertScene::Data::draw_scene(DrawStructure& graph, const FindCoord& coords, const std::vector<std::string>& detect_classes, bool dirty) {
+void ConvertScene::Data::draw_scene(DrawStructure& graph, const std::vector<std::string>& detect_classes, bool dirty) {
     graph.section("video", [&](auto&, Section* section) {
         section->set_size(output_size);
         section->set_pos(_bowl->_current_pos);
@@ -1352,53 +1353,6 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const FindCoord& coord
         }
         if(pose_index < _skeletts.size())
             _skeletts.resize(pose_index);
-
-        //! do not need to continue further if the view isnt dirty
-        if (not dirty) {
-            size_t untracked = 0;
-            for (auto& blob : _object_blobs) {
-                auto bds = blob->bounds();
-                bds = coords.convert(BowlRect(bds));
-
-                Idx_t tracked_id;
-                Color tracked_color;
-
-                if (contains(_visible_bdx, blob->blob_id())) {
-                    auto id = _visible_bdx.at(blob->blob_id());
-                    tracked_color = id.color();
-                    tracked_id = id.ID();
-                }
-                else if (blob->parent_id().valid() && contains(_visible_bdx, blob->parent_id()))
-                {
-                    auto id = _visible_bdx.at(blob->parent_id());
-                    tracked_color = id.color();
-                    tracked_id = id.ID();
-                }
-                else {
-                    tracked_color = Gray;
-                }
-                
-                sprite::Map* tmp = nullptr;
-
-                if (tracked_id.valid()) {
-                    tmp = &_individual_properties[tracked_id];
-                }
-                else {
-                    if(untracked < _untracked_properties.size())
-                        tmp = &_untracked_properties[untracked++];
-                }
-                
-                if(tmp) {
-                    (*tmp)["pos"] = bds.pos();
-                    (*tmp)["size"] = Size2(bds.size());
-                    (*tmp)["radius"] = bds.size().length() * 0.5;
-                }
-                
-                if(blob)
-                    paint_blob_prediction(graph, tracked_color, *blob);
-            }
-            return;
-        }
 
         drawBlobs(graph, _current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
         

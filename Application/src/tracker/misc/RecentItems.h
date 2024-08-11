@@ -6,33 +6,50 @@
 #include <file/PathArray.h>
 #include <file/Path.h>
 
-class RecentItems {
-public:
-    struct Item {
-        std::string _name;
-        cmn::timestamp_t _created { cmn::timestamp_t::now() };
-        cmn::timestamp_t _modified { _created };
-        cmn::sprite::Map _options;
-        
-        /// extra settings
-        cmn::file::Path _filename;
-        std::string _output_prefix;
-        cmn::file::Path _output_dir;
+/// JSON representations of the recent items data
+struct RecentItemJSON {
+    std::variant<uint64_t, std::string> created{cmn::timestamp_t::now().get()}, modified{0llu};
+    std::string name, output_prefix;
+    std::string output_dir, filename;
+    std::map<std::string, glz::json_t> settings;
 
-        nlohmann::json to_json() const;
-        std::string toStr() const;
-        static std::string class_name() { return "RecentItems::Item"; }
-        
-        operator cmn::gui::DetailItem() const {
-            cmn::gui::DetailItem item;
-            item.set_name(std::string(cmn::file::Path(_name).filename()));
-            item.set_detail(_name);
-            return item;
-        }
-    };
+    cmn::sprite::Map _options;
     
+    glz::json_t to_json() const;
+    std::string toStr() const;
+    static std::string class_name() { return "RecentItem"; }
+    
+    operator cmn::gui::DetailItem() const {
+        cmn::gui::DetailItem item;
+        item.set_name(std::string(cmn::file::Path(name).filename()));
+        item.set_detail(name);
+        return item;
+    }
+    
+    cmn::timestamp_t t_modified() const;
+    cmn::timestamp_t t_created() const;
+};
+
+template <>
+struct glz::meta<RecentItemJSON> {
+   using T = RecentItemJSON;
+   static constexpr auto value = object(
+            &T::created, 
+            &T::modified, 
+            &T::name, &T::output_prefix,
+            &T::output_dir, &T::filename,
+            &T::settings,
+            "options", hide{&T::_options});
+};
+
+struct RecentItemFile {
+    std::vector<RecentItemJSON> entries;
+    std::variant<uint64_t, std::string> modified{0llu};
+};
+
+class RecentItems {
 protected:
-    GETTER(std::vector<Item>, items);
+    GETTER(std::vector<RecentItemJSON>, items);
 
     void add(std::string name, const cmn::sprite::Map& options);
     void write();
@@ -42,7 +59,7 @@ protected:
 
 public:
     static void open(const cmn::file::PathArray&, const cmn::sprite::Map& settings);
-    static void set_select_callback(std::function<void(Item)>);
+    static void set_select_callback(std::function<void(RecentItemJSON)>);
     bool has(std::string) const;
     void show(cmn::gui::ScrollableList<cmn::gui::DetailItem>& list);
     static RecentItems read();

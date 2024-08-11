@@ -51,11 +51,8 @@ DetectResolution DetectResolution::fromStr(const std::string& str) {
         return {width, width};
     }
 }
-nlohmann::json DetectResolution::to_json() const {
-    auto array = nlohmann::json::array();
-    array.push_back(height);
-    array.push_back(width);
-    return array;
+glz::json_t DetectResolution::to_json() const {
+    return { height, width };
 }
 std::string DetectResolution::toStr() const {
     std::ostringstream os;

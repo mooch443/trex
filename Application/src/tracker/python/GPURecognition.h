@@ -326,7 +326,7 @@ public:
     static void set_function(const char* name_, std::function<void(const std::vector<track::detect::Result>&)> f, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>)> f, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>, std::vector<int>)> f, const std::string& m = "");
-    static void set_function(const char* name_, std::function<nlohmann::json()>, const std::string& m = "");
+    static void set_function(const char* name_, std::function<glz::json_t()>, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<uint64_t>, std::vector<float>)> f, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<int>)> f, const std::string &m = "");
     static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");

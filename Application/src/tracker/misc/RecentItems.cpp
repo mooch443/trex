@@ -10,9 +10,9 @@ using namespace cmn::gui;
 using namespace cmn;
 
 std::mutex _recent_select_mutex;
-std::function<void(RecentItems::Item)> _recent_select_callback;
+std::function<void(RecentItemJSON)> _recent_select_callback;
 
-void RecentItems::set_select_callback(std::function<void (RecentItems::Item)> fn) {
+void RecentItems::set_select_callback(std::function<void (RecentItemJSON)> fn) {
     std::unique_lock guard(_recent_select_mutex);
     _recent_select_callback = fn;
 }
@@ -21,8 +21,50 @@ std::string RecentItems::toStr() const {
     return "RecentItems<" + Meta::toStr(_items) + ">";
 }
 
-std::string RecentItems::Item::toStr() const {
-    return _name;
+timestamp_t RecentItemJSON::t_modified() const {
+    if(std::holds_alternative<uint64_t>(modified)) {
+        return timestamp_t{std::get<uint64_t>(modified)};
+    } else {
+        return timestamp_t::fromStr(std::get<std::string>(modified));
+    }
+}
+
+timestamp_t RecentItemJSON::t_created() const {
+    if(std::holds_alternative<uint64_t>(created)) {
+        return timestamp_t{std::get<uint64_t>(created)};
+    } else {
+        return timestamp_t::fromStr(std::get<std::string>(created));
+    }
+}
+
+glz::json_t RecentItemJSON::to_json() const {
+    glz::json_t obj{};
+    obj["name"] = name;
+
+    glz::json_t settings{};
+    for (auto& key : _options.keys()) {
+        auto& prop = _options[key].get();
+        auto json = prop.to_json();
+        //std::cout << "Converted " << key << " to json: " << json << " vs " << json.dump() << std::endl;
+        settings[key] = json;
+    }
+    obj["settings"] = settings;
+    
+    obj["output_prefix"] = output_prefix;
+    obj["output_dir"] = output_dir;
+    obj["filename"] = filename;
+    
+    auto tm = t_modified();
+    obj["modified"] = tm.valid() ? tm.toStr() : "0";
+    tm = t_created();
+    obj["created"] = tm.valid() ? tm.toStr() : timestamp_t::now().toStr();
+
+    //std::cout << "Output:" << obj.dump() << std::endl;
+    return obj;
+}
+
+std::string RecentItemJSON::toStr() const {
+    return name;
 }
 
 void RecentItems::open(const file::PathArray& name, const sprite::Map& options) {
@@ -50,7 +92,7 @@ void RecentItems::show(ScrollableList<DetailItem>& list) {
             auto recent = RecentItems::read();
             if (recent._items.size() > i) {
                 auto& item = recent._items.at(i);
-                if (item._name == name.detail()) {
+                if (item.name == name.detail()) {
                     std::unique_lock guard(_recent_select_mutex);
                     if(_recent_select_callback) {
                         _recent_select_callback(item);
@@ -58,7 +100,7 @@ void RecentItems::show(ScrollableList<DetailItem>& list) {
                     return;
                 }
                 else {
-                    throw U_EXCEPTION("Unexpected item name: ", item._name, " != ", name);
+                    throw U_EXCEPTION("Unexpected item name: ", item.name, " != ", name);
                 }
             }
             else {
@@ -88,72 +130,39 @@ RecentItems RecentItems::read() {
     {
         try {
             auto str = path.read_file();
-            auto obj = nlohmann::json::parse(str);
+            RecentItemFile input{};
+            auto error = glz::read_json(input, str);
+            if(error != glz::error_code::none) {
+                std::string descriptive_error = glz::format_error(error, str);
+                throw U_EXCEPTION("Error loading ", path, ":\n", no_quotes(descriptive_error));
+            }
 
-            for (auto& key : obj.at("entries")) {
-                auto name = key.at("name").get<std::string>();
-                if (key.is_object()) {
-                    RecentItems::Item item{
-                        ._name = name,
-                        ._created = cmn::timestamp_t::now()
-                    };
+            for (RecentItemJSON entry : input.entries) {
+                for (auto& [k, v] : entry.settings) {
+                    std::string key = k;
+                    if(default_config::deprecations().contains(k)) {
+                        key = default_config::deprecations().at(k);
+                    }
                     
-                    load_key_if_avail<uint64_t>(key, path, "created", [&](auto v){
-                        if(v != 0)
-                            item._created = timestamp_t(v);
-                    });
-                    load_key_if_avail<uint64_t>(key, path, "modified", [&](auto v){
-                        if(v != 0)
-                            item._modified = timestamp_t(v);
-                    });
-                    
-                    load_key_if_avail<std::string>(key, path, "output_dir", [&](auto v){
-                        item._output_dir = v;
-                    });
-                    
-                    load_key_if_avail<std::string>(key, path, "filename", [&](auto v){
-                        item._filename = v;
-                    });
-                    
-                    load_key_if_avail<std::string>(key, path, "output_prefix", [&](auto v){
-                        item._output_prefix = v;
-                    });
-                    
-                    auto settings = key.at("settings");
-                    for (auto& i : settings.items()) {
-                        std::string key = i.key();
-                        if(default_config::deprecations().contains(key)) {
-                            key = default_config::deprecations().at(key);
+                    auto value = Meta::fromStr<std::string>(glz::write_json(v).value());
+                    try {
+                        if (not entry._options.has(key)) {
+                            if (GlobalSettings::defaults().has(key)) {
+                                GlobalSettings::defaults().at(key).get().copy_to(&entry._options);
+                            } else if(GlobalSettings::map().has(key)) {
+                                GlobalSettings::map().at(key).get().copy_to(&entry._options);
+                            } else
+                                throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
                         }
                         
-                        auto value = Meta::fromStr<std::string>(i.value().dump());
-                        /*if(key == "source") {
-                            value = name;
-                        }*/
-
-                        try {
-                            if (not item._options.has(key)) {
-                                if (GlobalSettings::defaults().has(key)) {
-                                    GlobalSettings::defaults().at(key).get().copy_to(&item._options);
-                                } else if(GlobalSettings::map().has(key)) {
-                                    GlobalSettings::map().at(key).get().copy_to(&item._options);
-                                } else
-                                    throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
-                            }
-                            
-                            item._options[key].get().set_value_from_string(value);
-                        }
-                        catch (const std::exception& e) {
-                            FormatWarning("Cannot set value for key ", key, ": ", e.what());
-                        }
+                        entry._options[key].get().set_value_from_string(value);
                     }
-
-                    items._items.push_back(std::move(item));
-
+                    catch (const std::exception& e) {
+                        FormatWarning("Cannot set value for key ", key, ": ", e.what());
+                    }
                 }
-                else {
-                    throw U_EXCEPTION("Key ", name, " should have been an object.");
-                }
+
+                items._items.push_back(std::move(entry));
             }
 
         }
@@ -162,15 +171,15 @@ RecentItems RecentItems::read() {
         }
     }
     
-    std::sort(items._items.begin(), items._items.end(), [](const Item& A, const Item& B) {
-        return std::make_tuple(A._modified, A._created) > std::make_tuple(B._modified, B._created);
+    std::sort(items._items.begin(), items._items.end(), [](const RecentItemJSON& A, const RecentItemJSON& B) {
+        return std::make_tuple(A.t_modified(), A.t_created()) > std::make_tuple(B.t_modified(), B.t_created());
     });
     return items;
 }
 
 bool RecentItems::has(std::string name) const {
     for (auto& item : _items)
-        if (item._name == name)
+        if (item.name == name)
             return true;
     return false;
 }
@@ -180,12 +189,12 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
 
     if (has(name)) {
         for (auto& item : _items) {
-            if (item._name == name) {
+            if (item.name == name) {
                 item._options = options;
-                item._filename = SETTING(filename).value<file::Path>();
-                item._output_prefix = SETTING(output_prefix).value<std::string>();
-                item._output_dir = SETTING(output_dir).value<file::Path>();
-                item._modified = timestamp_t::now();
+                item.filename = SETTING(filename).value<file::Path>().str();
+                item.output_prefix = SETTING(output_prefix).value<std::string>();
+                item.output_dir = SETTING(output_dir).value<file::Path>().str();
+                item.modified = timestamp_t::now().get();
                 //for(auto &key : config.keys())
                 //    config.at(key).get().copy_to(&item._options);
                 //config.write_to(item._options);
@@ -194,11 +203,11 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         }
     }
 
-    Item item{
-        ._name = name,
-        ._filename = SETTING(filename).value<file::Path>(),
-        ._output_prefix = SETTING(output_prefix).value<std::string>(),
-        ._output_dir = SETTING(output_dir).value<file::Path>()
+    RecentItemJSON item{
+        .name = name,
+        .filename = SETTING(filename).value<file::Path>().str(),
+        .output_prefix = SETTING(output_prefix).value<std::string>(),
+        .output_dir = SETTING(output_dir).value<file::Path>().str()
     };
     
     for(auto &key : config.keys())
@@ -207,43 +216,16 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     _items.emplace_back(std::move(item));
 }
 
-nlohmann::json RecentItems::Item::to_json() const {
-    auto obj = nlohmann::json::object();
-    obj["name"] = _name;
-
-    auto settings = nlohmann::json::object();
-    for (auto& key : _options.keys()) {
-        auto& prop = _options[key].get();
-        auto json = prop.to_json();
-        //std::cout << "Converted " << key << " to json: " << json << " vs " << json.dump() << std::endl;
-        settings[key] = json;
-    }
-    obj["settings"] = settings;
-    
-    obj["output_prefix"] = _output_prefix;
-    obj["output_dir"] = _output_dir.str();
-    obj["filename"] = _filename.str();
-    
-    obj["modified"] = _modified.valid() ? _modified.get() : uint64_t(0);
-    obj["created"] = _created.valid() ? _created.get() : timestamp_t::now().get();
-
-    //std::cout << "Output:" << obj.dump() << std::endl;
-    return obj;
-}
-
 void RecentItems::write() {
     auto path = file::DataLocation::parse("app", ".trex_recent_files");
     try {
-        auto array = nlohmann::json::array();
-        for (auto& item : items()) {
-            array.push_back(item.to_json());
-        }
-        auto obj = nlohmann::json::object();
-        obj["entries"] = array;
-        obj["modified"] = timestamp_t::now().get(); //std::time(nullptr);
-
+        RecentItemFile file{
+            .entries = _items,
+            .modified = timestamp_t::now().get()
+        };
+        
         auto f = path.fopen("wb");
-        auto dump = obj.dump();
+        auto dump = glz::write_json(file).value();
         fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
 
         //Print("Updated recent files: ", dump.c_str());
