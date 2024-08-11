@@ -205,9 +205,9 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
 
     RecentItemJSON item{
         .name = name,
-        .filename = SETTING(filename).value<file::Path>().str(),
         .output_prefix = SETTING(output_prefix).value<std::string>(),
-        .output_dir = SETTING(output_dir).value<file::Path>().str()
+        .output_dir = SETTING(output_dir).value<file::Path>().str(),
+        .filename = SETTING(filename).value<file::Path>().str(),
     };
     
     for(auto &key : config.keys())
