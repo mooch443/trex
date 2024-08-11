@@ -302,9 +302,9 @@ class Model:
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
 
+        self.ptr.fuse()
         self.ptr.half()
         self.ptr.to(self.device)
-        self.ptr.fuse()
         TRex.log("Loaded model: {}".format(self))
 
     def predict(self, images : List[np.ndarray], **kwargs):
