@@ -144,7 +144,7 @@ RecentItems RecentItems::read() {
                         key = default_config::deprecations().at(k);
                     }
                     
-                    auto value = Meta::fromStr<std::string>(glz::write_json(v).value());
+                    auto value = Meta::fromStr<std::string>(glz::write_json(v));
                     try {
                         if (not entry._options.has(key)) {
                             if (GlobalSettings::defaults().has(key)) {
@@ -225,7 +225,7 @@ void RecentItems::write() {
         };
         
         auto f = path.fopen("wb");
-        auto dump = glz::write_json(file).value();
+        auto dump = glz::write_json(file);
         fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
 
         //Print("Updated recent files: ", dump.c_str());
