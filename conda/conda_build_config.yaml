@@ -22,9 +22,9 @@ MACOSX_DEPLOYMENT_TARGET:
   #- 10.15 # [osx and not arm64]
 
 c_compiler:
-  - vs2019 # [win]
+  - vs2022 # [win]
 cxx_compiler:
-  - vs2019 # [win]
+  - vs2022 # [win]
 cxx_compiler_version:
   - 11 # [linux]
 c_compiler_version:
