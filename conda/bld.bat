@@ -29,7 +29,7 @@ echo Generator %CMAKE_GENERATOR%
 echo Python %PYTHON%
 echo GITHUB_WORKFLOW %GITHUB_WORKFLOW%
 set GENERATOR=-G "Visual Studio 16 2019"
-#set GENERATOR=-G "Visual Studio 17 2022"
+set GENERATOR=-G "Visual Studio 17 2022"
 
 if "%CMAKE_GENERATOR%" == "Visual Studio 16 2019 Win64" set CMAKE_GENERATOR=Visual Studio 16 2019
 if "%CMAKE_GENERATOR%" == "Visual Studio 17 2022 Win64" set CMAKE_GENERATOR=Visual Studio 17 2022
