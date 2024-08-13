@@ -54,6 +54,7 @@ jobs:
         p=${GITHUB_REF##*/}
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         sed -i -e 's/_cuda[0-9.]*/\*/g' -e 's/_cudnn/\*/g' -e 's/_cu[0-9.]*/\*/g' meta.yaml
+        sed -i '/torchmetrics/a\    - pytorch-mutex=*=cpu\n' meta.yaml
         sed -i -e 's/\*\*/\*/g' meta.yaml
         sed -i -e 's/\*\*/\*/g' meta.yaml
         cat meta.yaml
