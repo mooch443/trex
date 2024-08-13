@@ -1424,7 +1424,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
                             ps.emplace_back(bdx, value.p, value.p_time);
                         }
                         std::sort(ps.begin(), ps.end(), [](const auto &A, const auto& B){
-                            return std::make_tuple(std::get<1>(A), std::get<0>(A)) < std::make_tuple(std::get<1>(B), std::get<0>(B));
+                            return std::make_tuple(std::get<1>(A), std::get<0>(A)) > std::make_tuple(std::get<1>(B), std::get<0>(B));
                         });
                         map["ps"] = ps;
                     }
