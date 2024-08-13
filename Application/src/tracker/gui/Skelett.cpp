@@ -10,7 +10,7 @@ namespace cmn::gui {
         auto coord = FindCoord::get();
         static constexpr Font font(0.35);
         
-        begin();
+        auto ctx = OpenContext();
 
         size_t i = 0;
         if (not _skeleton.connections().empty()) {
@@ -72,8 +72,6 @@ namespace cmn::gui {
                 ++i;
             }
         }
-    
-        end();
     }
 
 

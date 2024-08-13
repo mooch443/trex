@@ -81,9 +81,9 @@ void GUIVideoAdapter::update() {
         }
     }
     
-    begin();
-    advance_wrap(_image);
-    end();
+    OpenContext([this]{
+        advance_wrap(_image);
+    });
     
     /// fade to the current image
     if(_fade_percent < 10

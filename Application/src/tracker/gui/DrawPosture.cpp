@@ -52,7 +52,7 @@ bool Posture::valid() const {
         } //else if(!content_changed())
             //return;
         
-        begin();
+        auto ctx = OpenContext();
         
         Vec2 topleft = Vec2(5);
         Loc zero{topleft + this->zero};
@@ -234,8 +234,6 @@ bool Posture::valid() const {
             advance_wrap(*_text);
             advance_wrap(*_close);
         }
-        
-        end();
     }
     
     void Posture::set_fish(track::Individual *fish, Frame_t frame) {

@@ -22,7 +22,7 @@ void SettingsDropdown::selected_setting(long_t index, const std::string& name, T
             
             Print("options: ", selected_option);
             
-            _settings_choice = std::make_shared<List>(Bounds(0, 0, 150, textfield.height()), "", items, [&textfield, this](List*, const gui::Item& item){
+            _settings_choice = std::make_shared<List>(Bounds(0, 0, 150, textfield.height()), "", std::move(items), [&textfield, this](List*, const gui::Item& item){
                 Print("Clicked on item ", item.ID());
                 textfield.set_text(item);
                 textfield.enter();

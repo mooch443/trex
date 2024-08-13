@@ -626,10 +626,10 @@ void HeatmapController::update() {
     if(!content_changed())
         return;
     
-    begin();
-    if(_image)
-        advance_wrap(*_image);
-    end();
+    OpenContext([this]{
+        if(_image)
+            advance_wrap(*_image);
+    });
     
     auto_size(Margin{0, 0});
 }

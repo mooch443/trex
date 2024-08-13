@@ -100,7 +100,7 @@ namespace cmn::gui {
             set_background(Black.alpha(180));
         }
         
-        begin();
+        auto ctx = OpenContext();
         advance_wrap(_pie);
         
         //advance_wrap(_bg);
@@ -114,7 +114,5 @@ namespace cmn::gui {
             add<Text>(Str{_layers.at(_current)._title}, Loc(rect->pos() + Vec2(0, rect->height() * 0.5)), TextClr{White}, Font(0.5, Style::Bold, Align::Center));
             //advance(new Text(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center)));
         }
-        
-        end();
     }
 }

@@ -21,7 +21,7 @@ Label::~Label() {
 }
 
 void Label::update() {
-    begin();
+    auto ctx = OpenContext();
 
     const bool is_in_mouse_dock = _position_override;//MouseDock::is_registered(this);
     if (not is_in_mouse_dock) {
@@ -33,7 +33,6 @@ void Label::update() {
     }
 
     advance_wrap(_line);
-    end();
 }
 
 void Label::set_data(Frame_t frame, const std::string &text, const Bounds &source, const Vec2 &center) {

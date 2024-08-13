@@ -33,7 +33,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
         set_content_changed(false);
     }
     
-    begin();
+    auto ctx = OpenContext();
     
     /*if (not _cache->has_selection()
        || not GUI_SETTINGS(gui_show_visualfield))
@@ -125,8 +125,6 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
             }
         }
     }
-    
-    end();
     
     set_bounds(Bounds(Vec2(), coord.video_size()));
     

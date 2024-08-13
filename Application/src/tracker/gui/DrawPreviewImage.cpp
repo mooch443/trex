@@ -33,7 +33,7 @@ struct LabeledField {
         v.push_back(_text);
     }
     virtual void update() {}
-    virtual Drawable* representative() { return _text.get(); }
+    virtual std::shared_ptr<Drawable> representative() { return _text.get_smart(); }
 };
 struct LabeledTextField : public LabeledField {
     gui::derived_ptr<gui::Textfield> _text_field;
@@ -44,7 +44,7 @@ struct LabeledTextField : public LabeledField {
         v.push_back(_text_field);
     }
     void update() override;
-    Drawable* representative() override { return _text_field.get(); }
+    std::shared_ptr<Drawable> representative() override { return _text_field.get_smart(); }
 };
 struct LabeledDropDown : public LabeledField {
     gui::derived_ptr<gui::Dropdown> _dropdown;
@@ -55,7 +55,7 @@ struct LabeledDropDown : public LabeledField {
         v.push_back(_dropdown);
     }
     void update() override;
-    Drawable* representative() override { return _dropdown.get(); }
+    std::shared_ptr<Drawable> representative() override { return _dropdown.get_smart(); }
 };
 struct LabeledCheckbox : public LabeledField {
     gui::derived_ptr<gui::Checkbox> _checkbox;
@@ -66,7 +66,7 @@ struct LabeledCheckbox : public LabeledField {
         v.push_back(_checkbox);
     }
     void update() override;
-    Drawable* representative() override { return _checkbox.get(); }
+    std::shared_ptr<Drawable> representative() override { return _checkbox.get_smart(); }
 };
 
 LabeledCheckbox::LabeledCheckbox(const std::string& name)

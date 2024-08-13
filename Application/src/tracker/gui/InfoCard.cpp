@@ -57,9 +57,12 @@ DrawSegments::DrawSegments()
             for(auto &[text, tooltip_text] : segment_texts) {
                 if(text->hovered()) {
                     // text->set(TextClr{0,125,200,255});
-                    found = text;
-                    if(_selected != text) {
-                        if(_selected && _highlight) {
+                    found = text.get();
+                    
+                    if(auto s = _selected.lock();
+                       s != text)
+                    {
+                        if(s && _highlight) {
                             _previous_bounds = _highlight->bounds();
                         } else {
                             _previous_bounds = text->bounds();
@@ -70,6 +73,8 @@ DrawSegments::DrawSegments()
                         _tooltip->set_text(tooltip_text);
                         _selected = text;
                         set_content_changed(true);
+                        
+                        break;
                     }
                 } else {
                     //text->set(TextClr{White});
@@ -77,12 +82,16 @@ DrawSegments::DrawSegments()
             }
         }
         
-        if(not found && _selected) {
-            _tooltip->set_other(nullptr);
-            _selected = nullptr;
-            _previous_bounds = {};
-            _target_bounds = {};
-            set_content_changed(true);
+        if(not found) {
+            if(auto s = _selected.lock();
+               s != nullptr)
+            {
+                _tooltip->set_other({});
+                _selected = {};
+                _previous_bounds = {};
+                _target_bounds = {};
+                set_content_changed(true);
+            }
         }
     });
 }
@@ -100,7 +109,7 @@ void DrawSegments::set(Idx_t fdx, Frame_t frame, const std::vector<ShadowSegment
     }
 }
 
-float DrawSegments::add_segments(bool display_hints, float)
+Float2_t DrawSegments::add_segments(bool display_hints, float)
 {
 #if DEBUG_ORIENTATION
     auto reason = fish->why_orientation(frameNr);
@@ -124,7 +133,7 @@ float DrawSegments::add_segments(bool display_hints, float)
     }
     
     std::vector<std::tuple<FrameRange, std::string>> strings;
-    segment_texts.clear();
+    //segment_texts.clear();
     _displayed_segments.clear();
     Size2 max_text_size(_limits.width, 0);
     long_t index_of_current{-1};
@@ -183,36 +192,65 @@ float DrawSegments::add_segments(bool display_hints, float)
                 
                 tt = "Segment "+Meta::toStr(ptr.frames)+" ended because:"+tt;
             }
-            segment_texts.push_back({nullptr, tt});
+            
+            if(i >= narrow_cast<long_t>(segment_texts.size())) {
+                auto text = std::make_shared<Text>();
+                text->set(_font);
+                text->set(Origin(1, 0.5));
+                text->set_clickable(true);
+                segment_texts.push_back({ std::move(text), tt});
+                
+            } else {
+                std::get<1>(segment_texts.at(i)) = tt;
+            }
         }
+        
+        if(i < narrow_cast<long_t>(segment_texts.size()))
+            segment_texts.resize(i);
     }
     
-    double y = _margins.y + Base::default_line_spacing(_font) * 0.5;
-    float offx = _margins.x;
+    Float2_t y = _margins.y + Base::default_line_spacing(_font) * 0.5_F;
+    Float2_t offx = _margins.x;
     
     auto p = Vec2(offx, y);
+    bool found_hovered{false};
+    
     for(long_t i=0; i<narrow_cast<long_t>(strings.size()); ++i) {
         auto &[range, str] = strings[i];
         
         //!TODO: Need to collect width() beforehand
         uint8_t alpha = 25 + 230 * (1 - cmn::abs(i-index_of_current) / float(strings.size()));
-        auto text = add<Text>(Str(str), Loc(max_text_size.width - 10, p.y),
-                             TextClr{_frame != range.start()
-                                        ? White.alpha(alpha)
-                                        : Color(200,235,255).alpha(alpha)},
-                             _font, Origin(1, 0.5f));
-        text->set_clickable(true);
+        
+        auto &text = std::get<0>(segment_texts.at(i));
+        assert(text);
+        
+        advance_wrap(*text);
+        
+        text->set(Str(str));
+        text->set(Loc(max_text_size.width - 10, p.y));
+        text->set(TextClr{_frame != range.start()
+                    ? White.alpha(alpha)
+                    : Color(200,235,255).alpha(alpha)});
+        
+        /*text->create( Str(str),
+                      Loc(max_text_size.width - 10, p.y),
+                      TextClr{_frame != range.start()
+                                 ? White.alpha(alpha)
+                                 : Color(200,235,255).alpha(alpha)},
+                      _font, Origin(1, 0.5f));*/
+        
         if(text->hovered()) {
-            update_box();
+            if(not _highlight)
+                _highlight = std::make_unique<Rect>();
             
             if(_highlight) {
                 _highlight->set(LineClr{0,125,255,alpha});
                 _highlight->set(Origin(text->origin()));
                 _highlight->set(FillClr{Transparent});
             }
-            advance_wrap(*_highlight);
+            
+            found_hovered = true;
         }
-        std::get<0>(segment_texts[i]) = text;
         
         if(range.start() == current_segment) {
             bool inside = range.contains(_frame);
@@ -229,6 +267,10 @@ float DrawSegments::add_segments(bool display_hints, float)
                      _font)
             ->height() + 7;
     
+    if(found_hovered) {
+        advance_wrap(*_highlight);
+    }
+    
     return p.y;
 }
 
@@ -240,6 +282,8 @@ void DrawSegments::update_box() {
     auto v = _target_bounds.pos() - bds.pos();
     auto L = v.length();
     if(L > 0.5 /*&& _previous_bounds != _target_bounds*/) {
+        Print("v = ", v);
+        
         v /= L;
         auto dt = GUICache::instance().dt();
         _highlight->set_pos(bds.pos() + v * dt * L * 10);
@@ -257,12 +301,14 @@ void DrawSegments::update() {
     if(not content_changed())
         return;
     
-    begin();
-    add_segments(true, 0);
-    if(_selected) {
-        advance_wrap(*_tooltip);
-    }
-    end();
+    OpenContext([this]{
+        add_segments(true, 0);
+        if(auto s = _selected.lock();
+           s != nullptr)
+        {
+            advance_wrap(*_tooltip);
+        }
+    });
     
     auto_size({_margins.width, _margins.height});
     set_content_changed(false);
@@ -305,7 +351,7 @@ InfoCard::~InfoCard() {
 
 void InfoCard::update() {
     static Tooltip tooltip(nullptr);
-    Text *other = nullptr;
+    std::shared_ptr<Text> other = nullptr;
     
     for(auto &[text, tooltip_text] : segment_texts) {
         if(text->hovered()) {
@@ -315,7 +361,9 @@ void InfoCard::update() {
         }
     }
     
-    if(other != previous) {
+    if(auto p = previous.lock();
+       other != p)
+    {
         set_content_changed(true);
     }
     
@@ -329,8 +377,8 @@ void InfoCard::update() {
         segment_texts.clear();
         other = nullptr;
         
-        begin();
-        end();
+        /// we just want an empty context
+        ClearContext();
         return;
     }
     
@@ -427,8 +475,7 @@ void InfoCard::update() {
         }
     }
     
-    begin();
-    
+    auto ctx = OpenContext();
     auto clr = _shadow->identity.color();
     if(clr.r < 80) clr = clr + clr * ((80 - clr.r) / 80.f);
     else if(clr.g < 80) clr = clr + clr * ((80 - clr.g) / 80.f);
@@ -492,7 +539,7 @@ void InfoCard::update() {
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
             
-            text = add<Text>(Str(str), Loc(p),
+            auto text = std::make_shared<Text>(Str(str), Loc(p),
                              TextClr{_shadow->frame != range.start()
                                         ? White.alpha(alpha)
                                         : Color(200,235,255).alpha(alpha)},
@@ -795,8 +842,6 @@ void InfoCard::update() {
         advance_wrap(tooltip);
     }
     
-    end();
-    
     set_background(bg);
 }
     
@@ -809,7 +854,7 @@ void InfoCard::update() {
         if(fdx.valid()) {
             if(_shadow->fdx != fdx) {
                 segment_texts.clear();
-                previous = nullptr;
+                previous = {};
                 
                 /*if(_fish) {
                     _fish->unregister_delete_callback(this);

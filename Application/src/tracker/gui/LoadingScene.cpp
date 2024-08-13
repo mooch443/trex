@@ -125,7 +125,7 @@ void LoadingScene::update_names() {
     _textfield->set_items(_search_items);
 }
 
-void LoadingScene::set_tooltip(int ID, Drawable* ptr, const std::string& docs)
+void LoadingScene::set_tooltip(int ID, const std::shared_ptr<Drawable>& ptr, const std::string& docs)
 {
     auto it = _tooltips.find(ID);
     if (!ptr) {

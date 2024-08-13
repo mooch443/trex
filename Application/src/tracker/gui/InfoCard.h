@@ -24,8 +24,8 @@ namespace cmn::gui {
         ShadowIndividual *_shadow{nullptr};
         std::shared_ptr<Button> prev, next, detail_button, automatic_button;
         //Button detail_button;
-        std::vector<std::tuple<Text*, std::string>> segment_texts;
-        Text * previous = nullptr;
+        std::vector<std::tuple<std::shared_ptr<Text>, std::string>> segment_texts;
+        std::weak_ptr<Text> previous;
         std::function<void(Frame_t)> _reanalyse;
 
     public:
@@ -38,7 +38,7 @@ namespace cmn::gui {
     class DrawSegments : public Entangled {
         std::vector<ShadowSegment> _segments;
         std::vector<ShadowSegment> _displayed_segments;
-        std::vector<std::tuple<Text*, std::string>> segment_texts;
+        std::vector<std::tuple<std::shared_ptr<Text>, std::string>> segment_texts;
         std::unique_ptr<Tooltip> _tooltip;
         
         GETTER(track::Idx_t, fdx);
@@ -46,7 +46,7 @@ namespace cmn::gui {
         Font _font{0.6};
         Margins _margins{0,0,0,0};
         SizeLimit _limits{300,0};
-        Text *_selected{nullptr};
+        std::weak_ptr<Text> _selected{};
         std::unique_ptr<Rect> _highlight;
         Bounds _previous_bounds;
         Bounds _target_bounds;
@@ -61,7 +61,7 @@ namespace cmn::gui {
         void set(Margins);
         void set(SizeLimit);
         
-        float add_segments(bool display_hints, float offx);
+        Float2_t add_segments(bool display_hints, float offx);
         
         void update();
         void update_box();

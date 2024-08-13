@@ -949,7 +949,7 @@ file::Path find_output_name(const sprite::Map& map,
         {
             file::Path path = _source.get_paths().front();
             if(not path.empty()) {
-                filename = file::DataLocation::parse("output", path, &map);
+                filename = path.absolute();//file::DataLocation::parse("output", path, &map);
             } else {
                 filename = {};
             }
@@ -960,9 +960,12 @@ file::Path find_output_name(const sprite::Map& map,
                 filename = filename.remove_extension();
         }
         
-        if(not filename.empty()) {
+        if(not filename.empty()
+           && not filename.has_extension("pv"))
+        {
             filename = file::DataLocation::parse("output", filename, &map);
-        } else {
+            
+        } else if(filename.empty()) {
             filename = {};
         }
         

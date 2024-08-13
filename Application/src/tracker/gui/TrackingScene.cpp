@@ -103,9 +103,10 @@ public:
     }
     
     void update() override {
-        begin();
-        advance_wrap(_display);
-        end();
+        OpenContext([this]{
+            advance_wrap(_display);
+        });
+        
         auto_size({});
     }
 };

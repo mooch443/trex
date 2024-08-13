@@ -179,7 +179,8 @@ void AnnotationView::set_annotation(Annotation && a) {
 }
 
 void AnnotationView::update() {
-    begin();
+    auto ctx = OpenContext();
+    
     if(_rect) {
         _rect->set(Box{_circles.front()->pos(), Size2(_circles.back()->pos() - _circles.front()->pos())});
     }
@@ -198,8 +199,6 @@ void AnnotationView::update() {
         advance_wrap(*c);
     if(_rect)
         advance_wrap(*_rect);
-    
-    end();
 }
 
 void AnnotationView::init() {
