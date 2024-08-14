@@ -128,6 +128,7 @@ requirements:
     - "pytorch::torchvision=*=py3*" # [osx]
     - "pytorch::torchvision=*=py3*_cu118" # [win or linux]
     - "torchmetrics"
+    - openh264 # [linux]
     #- "cuda-version=11.8" # [win or linux]
     #- "cuda-cccl=11.8" # [win or linux]
     # disable this for install builds
