@@ -1,6 +1,6 @@
 {% set git_cmd = "git describe --tags --always --abbrev=0" %}
 {% set latest_tag = os.popen(git_cmd).read().strip() or 'vuntagged' %}
-{% set git_tag = "dev" %}
+{% set git_tag = "main" %}
 {% set version_postfix = "" %}
 #{% set version_postfix = "i" %} # for installer packages
 
@@ -103,7 +103,7 @@ requirements:
     - ffmpeg >=4.3,<=6 # [win]
     - defaults::ffmpeg >=4,<=7 # [osx and not arm64]
     - ffmpeg >=4,<=7.0.1 # [linux]
-    - openh264 # [osx] 
+    - openh264 # [osx or linux] 
     - numpy ==1.26.4 # [osx and not arm64]
     - numpy ==1.26.4 # [arm64]
     - numpy ==1.26.4 # [linux]
@@ -115,6 +115,7 @@ requirements:
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
     - {{ pin_compatible('numpy', min_pin='x.x.x', max_pin='x.x.x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
+    - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [linux]
     #- tensorflow-gpu =2 # [win]
     # disable tensorflow packages for install builds
     #- tensorflow-gpu =2.4.1 # [linux]
@@ -128,7 +129,6 @@ requirements:
     - "pytorch::torchvision=*=py3*" # [osx]
     - "pytorch::torchvision=*=py3*_cu118" # [win or linux]
     - "torchmetrics"
-    - openh264 # [linux]
     #- "cuda-version=11.8" # [win or linux]
     #- "cuda-cccl=11.8" # [win or linux]
     # disable this for install builds
