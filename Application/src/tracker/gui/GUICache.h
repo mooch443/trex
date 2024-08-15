@@ -15,12 +15,12 @@
 #include <tracking/Stuffs.h>
 #include <gui/Event.h>
 #include <gui/ShadowSegment.h>
+#include <tracking/IndividualCache.h>
 
 class Timer;
 namespace track {
 class Individual;
 class PPFrame;
-struct IndividualCache;
 struct SegmentInformation;
 namespace constraints {
 struct FilterCache;

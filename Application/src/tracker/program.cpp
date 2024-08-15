@@ -9,6 +9,7 @@
 #include <misc/PixelTree.h>
 #include <processing/CPULabeling.h>
 #include <misc/PVBlob.h>
+#include <processing/DLList.h>
 
 int main() {
     using namespace cmn;
@@ -20,7 +21,8 @@ int main() {
     cv::circle(image.get(), Vec2(50, 50), 10, White, -1);
     cv::imshow("raw", image.get());
     
-    auto blobs = CPULabeling::run(image.get());
+    cmn::CPULabeling::DLList list;
+    auto blobs = CPULabeling::run(list, image.get());
     for (auto && pair : blobs) {
         auto blob = std::make_shared<pv::Blob>(std::move(pair.lines), std::move(pair.pixels), pair.extra_flags, std::move(pair.pred));
         auto outlines = pixel::find_outer_points(blob.get(), 0);

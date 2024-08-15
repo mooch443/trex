@@ -8,6 +8,7 @@
 #include <processing/CPULabeling.h>
 #include <misc/ranges.h>
 #include <file/DataLocation.h>
+#include <processing/DLList.h>
 
 using namespace cmn;
 
@@ -380,7 +381,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                     }
                 }
                 
-                auto blobs = CPULabeling::run(mat);
+                cmn::CPULabeling::DLList list;
+                auto blobs = CPULabeling::run(list, mat);
                 for(auto && pair : blobs) {
                     for(auto &line : *pair.lines) {
                         line.x0 += bounds.pos().x;

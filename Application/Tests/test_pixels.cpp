@@ -5,6 +5,7 @@
 #include <misc/PixelTree.h>
 #include <misc/TrackingSettings.h>
 #include <tracking/Posture.h>
+#include <processing/LuminanceGrid.h>
 
 using namespace cmn;
 using namespace track;

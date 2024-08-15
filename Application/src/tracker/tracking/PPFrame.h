@@ -9,6 +9,7 @@
 #include <misc/ProximityGrid.h>
 #include <misc/TrackingSettings.h>
 #include <misc/ThreadPool.h>
+#include <tracking/MotionRecord.h>
 
 #ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true

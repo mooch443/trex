@@ -1,12 +1,14 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <tracking/MotionRecord.h>
-#include <tracking/PairingGraph.h>
+#include <misc/frame_t.h>
+//#include <misc/TrackingSettings.h>
+//#include <tracking/MotionRecord.h>
+//#include <tracking/PairingGraph.h>
 
 namespace track {
 
-using prob_t = track::Match::prob_t;
+//using prob_t = track::Match::prob_t;
 
 struct IndividualCache {
     //Idx_t _idx;
@@ -39,10 +41,10 @@ struct IndividualCache {
     float local_tdelta;
     
     float time_probability;//, position_probability;
-    Frame_t previous_frame;
+    cmn::Frame_t previous_frame;
     
-    Vec2 last_seen_px;
-    Vec2 estimated_px;
+    cmn::Vec2 last_seen_px;
+    cmn::Vec2 estimated_px;
     /*bool operator<(const IndividualCache& other) const {
         return _idx < other._idx;
     }

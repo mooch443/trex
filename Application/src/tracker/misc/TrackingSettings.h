@@ -9,7 +9,7 @@
 #include <misc/frame_t.h>
 #include <misc/create_struct.h>
 #include <misc/BlobSizeRange.h>
-#include <processing/Background.h>
+#include <processing/encoding.h>
 
 namespace track {
 using namespace cmn;

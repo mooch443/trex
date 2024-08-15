@@ -328,7 +328,7 @@ TEST(CacheSizeTest, Basic) {
     using namespace track;
     //static_assert(std::is_trivial_v<TrivialOptional<uint32_t>>);
     static_assert(std::is_trivially_copyable_v<TrivialOptional<uint32_t>>);
-    Print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
+    //Print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
     //static_assert(std::is_trivial_v<Frame_t>);
 }
 

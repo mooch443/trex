@@ -481,7 +481,8 @@ TEST(TestLines, Threshold) {
     convert_to_r3g3b2<3>(black->get(), gs);
     //cv::cvtColor(black->get(), gs, cv::COLOR_BGR2GRAY);
     //cv::imwrite("test_image.png", gs);
-    auto blobs = CPULabeling::run(gs);
+    cmn::CPULabeling::DLList list;
+    auto blobs = CPULabeling::run(list, gs);
     ASSERT_EQ(blobs.size(), 1u);
     
     
@@ -507,7 +508,7 @@ TEST(TestLines, Threshold) {
     ASSERT_EQ(b.front()->hor_lines(), blob.hor_lines()) << _format(b.front()->hor_lines());
     //line_without_grid<DifferenceMethod_t::none>(&bg, blobs.front()->hor_lines(), px, threshold, lines, pixels);
     
-    auto next = CPULabeling::run(img->get());
+    auto next = CPULabeling::run(list, img->get());
     ASSERT_EQ(next.size(), 1u) << _format(next.size());
     blob.add_offset(-blob.bounds().pos());
     ASSERT_EQ(*next.front().lines, blob.hor_lines()) << _format(*next.front().lines);

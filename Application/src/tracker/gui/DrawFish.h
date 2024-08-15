@@ -14,6 +14,7 @@
 #include <tracking/SegmentInformation.h>
 #include <misc/Identity.h>
 #include <misc/idx_t.h>
+#include <misc/TrackingSettings.h>
 
 namespace pv {
 struct CompressedBlob;
