@@ -48,6 +48,8 @@ build:
     run_exports:
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+    ignore_run_exports:
+        - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     detect_binary_files_with_prefix: False # [win]
     detect_binary_files_with_prefix: True # [not win]
     files_with_prefix:
@@ -102,8 +104,8 @@ requirements:
     - ffmpeg =6 # [osx and arm64]
     - ffmpeg >=4.3,<=6 # [win]
     - defaults::ffmpeg >=4,<=7 # [osx and not arm64]
-    - ffmpeg >=4,<=7.0.1 # [linux]
-    - openh264 # [osx or linux] 
+    - defaults::ffmpeg >=4,<=7.0.1 # [linux]
+    - openh264 # [osx] 
     - numpy ==1.26.4 # [osx and not arm64]
     - numpy ==1.26.4 # [arm64]
     - numpy ==1.26.4 # [linux]
@@ -115,7 +117,6 @@ requirements:
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
     - {{ pin_compatible('numpy', min_pin='x.x.x', max_pin='x.x.x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
-    - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [linux]
     #- tensorflow-gpu =2 # [win]
     # disable tensorflow packages for install builds
     #- tensorflow-gpu =2.4.1 # [linux]
