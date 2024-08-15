@@ -1113,7 +1113,7 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
     }
 }
 
-void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& graph) {
+void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     using namespace dyn;
     dyn::DynamicGUI g{
         .gui = SceneManager::getInstance().gui_task_queue(),

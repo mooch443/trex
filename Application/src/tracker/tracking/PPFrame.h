@@ -10,11 +10,11 @@
 #include <misc/TrackingSettings.h>
 #include <misc/ThreadPool.h>
 
-//#ifndef NDEBUG
+#ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true
-//#else
-//#define TREX_ENABLE_HISTORY_LOGS false
-//#endif
+#else
+#define TREX_ENABLE_HISTORY_LOGS false
+#endif
 
 namespace track {
 

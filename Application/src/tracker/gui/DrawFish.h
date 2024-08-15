@@ -27,6 +27,27 @@ namespace cmn::gui {
     class Label;
     class Skelett;
 
+struct UpdateSettings {
+    bool gui_show_outline;
+    bool gui_show_midline;
+    bool gui_happy_mode;
+    bool gui_show_probabilities;
+    bool gui_show_shadows;
+    bool gui_show_texts;
+    bool gui_show_selections;
+    bool gui_show_boundary_crossings;
+    bool gui_show_paths;
+    bool gui_highlight_categories;
+    bool gui_show_match_modes;
+    bool gui_show_cliques;
+    int panic_button;
+    uint8_t gui_outline_thickness;
+    std::string gui_fish_color;
+    Color gui_single_identity_color;
+    Frame_t gui_pose_smoothing;
+    float gui_max_path_time;
+};
+
     class Fish {
         Entangled _view;
         Label* _label { nullptr };
@@ -41,6 +62,7 @@ namespace cmn::gui {
         const track::MinimalOutline* _cached_outline;
         GETTER(Vec2, fish_pos);
         Circle _circle;
+        std::unique_ptr<Line> _lines;
 
         std::vector<Vertex> _vertices;
         std::vector<std::unique_ptr<Vertices>> _paths;
@@ -67,9 +89,11 @@ namespace cmn::gui {
         std::shared_ptr<Circle> _recognition_circle;
         std::vector<Vec2> points;
         
+        UpdateSettings _options;
+        
         blob::Pose _average_pose;
         Bounds _blob_bounds;
-        int _match_mode;
+        std::optional<default_config::matching_mode_t::Class> _match_mode;
         track::IndividualCache _next_frame_cache{.valid=false};
         
         track::Identity _id;
@@ -108,7 +132,7 @@ namespace cmn::gui {
         ~Fish();
         void update(const FindCoord&, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
+        void set_data(const UpdateSettings& settings, track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;

@@ -141,7 +141,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     protected:
         //! dense array of all the basic stuff we want to save
         GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff);
-        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using);
+        std::vector<default_config::matching_mode_t::Class> _matched_using;
         
     protected:
         //! dense array of all posture related stuff we are saving
@@ -349,6 +349,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         bool is_manual_match(Frame_t frameIndex) const;
         bool is_automatic_match(Frame_t frameIndex) const;
         bool recently_manually_matched(Frame_t frameIndex) const;
+        
+        //std::optional<default_config::matching_mode_t::Class> matched_using(Frame_t frameIndex) const;
+        std::optional<default_config::matching_mode_t::Class> matched_using(size_t kown_index) const;
         
         std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> calculate_previous_vector(Frame_t frameIndex) const;
         

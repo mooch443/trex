@@ -104,7 +104,7 @@ requirements:
     - ffmpeg =6 # [osx and arm64]
     - ffmpeg >=4.3,<=6 # [win]
     - defaults::ffmpeg >=4,<=7 # [osx and not arm64]
-    - defaults::ffmpeg =4.2 # [linux]
+    - defaults::ffmpeg =4.2.2 # [linux]
     - openh264 # [osx] 
     - numpy ==1.26.4 # [osx and not arm64]
     - numpy ==1.26.4 # [arm64]

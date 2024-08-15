@@ -20,6 +20,8 @@ class Timer;
 namespace track {
 class Individual;
 class PPFrame;
+struct IndividualCache;
+struct SegmentInformation;
 namespace constraints {
 struct FilterCache;
 }
@@ -32,6 +34,30 @@ class Circle;
 class Drawable;
 
 namespace globals {
+    CREATE_STRUCT(CachedGUIOptions,
+        (bool, gui_show_outline),
+        (bool, gui_show_midline),
+        (gui::Color, gui_single_identity_color),
+        (std::string, gui_fish_color),
+        (bool, gui_show_boundary_crossings),
+        (uchar, gui_faded_brightness),
+        (bool, gui_show_probabilities),
+        (bool, gui_show_shadows),
+        (bool, gui_show_selections),
+        (bool, gui_show_paths),
+        (uint8_t, gui_outline_thickness),
+        (bool, gui_show_texts),
+        (float, gui_max_path_time),
+        (int, panic_button),
+        (bool, gui_happy_mode),
+        (bool, gui_highlight_categories),
+        (bool, gui_show_cliques),
+        (bool, gui_show_match_modes),
+        (Frame_t, gui_pose_smoothing)
+    )
+
+    #define GUIOPTION(NAME) ::cmn::gui::globals::CachedGUIOptions::copy < ::cmn::gui::globals::CachedGUIOptions :: NAME > ()
+
     CREATE_STRUCT(Cache,
         (bool, gui_run),
         (gui::mode_t::Class, gui_mode),
@@ -100,6 +126,9 @@ namespace globals {
     
     class GUICache {
         GETTER_NCONST(GenericThreadPool, pool);
+        std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
+        std::unordered_map<Idx_t, std::tuple<bool, FrameRange>> _processed_segment_caches;
+        std::unordered_map<Idx_t, std::shared_ptr<track::SegmentInformation>> _segment_caches;
 
         struct PPFrameMaker {
             std::unique_ptr<PPFrame> operator()() const;
@@ -272,6 +301,10 @@ namespace globals {
         bool must_redraw() const;
         
         bool something_important_changed(Frame_t) const;
+        
+        std::optional<const IndividualCache*> next_frame_cache(Idx_t) const;
+        std::tuple<bool, FrameRange> processed_segment_cache(Idx_t) const;
+        std::shared_ptr<track::SegmentInformation> segment_cache(Idx_t id) const;
         
         /// We can preload a pv::Frame here already, but not invalidate
         /// any of the actual data.

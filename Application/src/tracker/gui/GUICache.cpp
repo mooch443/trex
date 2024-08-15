@@ -84,6 +84,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     {
         cache() = this;
         globals::Cache::init();
+        globals::CachedGUIOptions::init();
     }
 
     GUICache::~GUICache() {
@@ -722,6 +723,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     _posture_window->set_fish(individuals.at(pid), frameIndex);
                 }
                 
+                IndividualCache _tmp;
                 for(auto id : selected) {
                     if(individuals.count(id)) {
                         auto fish = individuals.at(id);
@@ -1123,20 +1125,114 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 //base.wrap_object(*PD(cache)._fish_map[fish]);
                 //PD(cache)._fish_map[fish]->label(ptr, e);
             }
-
+            
+            UpdateSettings update_settings{
+                .gui_show_outline = GUIOPTION(gui_show_outline),
+                .gui_show_midline = GUIOPTION(gui_show_midline),
+                .gui_happy_mode = GUIOPTION(gui_happy_mode),
+                .gui_show_probabilities = GUIOPTION(gui_show_probabilities),
+                .gui_show_shadows = GUIOPTION(gui_show_shadows),
+                .gui_show_texts = GUIOPTION(gui_show_texts),
+                .gui_show_selections = GUIOPTION(gui_show_selections),
+                .gui_show_boundary_crossings = GUIOPTION(gui_show_boundary_crossings),
+                .gui_show_paths = GUIOPTION(gui_show_paths),
+                .gui_highlight_categories = GUIOPTION(gui_highlight_categories),
+                .gui_show_match_modes = GUIOPTION(gui_show_match_modes),
+                .gui_show_cliques = GUIOPTION(gui_show_cliques),
+                .panic_button = GUIOPTION(panic_button),
+                .gui_outline_thickness = GUIOPTION(gui_outline_thickness),
+                .gui_fish_color = GUIOPTION(gui_fish_color),
+                .gui_single_identity_color = GUIOPTION(gui_single_identity_color),
+                .gui_pose_smoothing = GUIOPTION(gui_pose_smoothing),
+                .gui_max_path_time = GUIOPTION(gui_max_path_time)
+            };
+            
             {
+                std::vector<Idx_t> ids_to_check;
+                
+                {
+                    std::unique_lock guard(_fish_map_mutex);
+                    for (auto it = _fish_map.begin(); it != _fish_map.end();) {
+                        if (not ids.contains(it->first)) {
+                            //Print("erasing from map ", it->first);
+                            _next_frame_caches.erase(it->first);
+                            it = _fish_map.erase(it);
+                        } else {
+                            ids_to_check.emplace_back(it->first);
+                            ++it;
+                        }
+                    }
+                }
+                
+                if(_props && _next_props) {
+                    auto current_time = _props->time;
+                    auto next_props = _next_props ? &_next_props.value() : nullptr;
+                    auto next_time = next_props ? next_props->time : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
+                    /// cache cache_for_frame(frame + 1)
+                    std::mutex map_mutex;
+                    
+                    for(auto it = _processed_segment_caches.begin(); it != _processed_segment_caches.end();) {
+                        if(not contains(ids_to_check, it->first)) {
+                            if(auto kit = _segment_caches.find(it->first);
+                               kit != _segment_caches.end())
+                            {
+                                _segment_caches.erase(kit);
+                            }
+                            it = _processed_segment_caches.erase(it);
+                        } else
+                            ++it;
+                    }
+                    
+                    std::unique_lock guard(individuals_mutex);
+                    distribute_indexes([this, &map_mutex, next_time, frameIndex](int64_t, auto start, auto end, int64_t)
+                    {
+                        for(auto it = start; it != end; ++it) {
+                            Individual* fish = individuals.at(*it);
+                            auto cache = fish->cache_for_frame(&_props.value(), frameIndex + 1_f, next_time);
+                            auto ptr = fish->segment_for(frameIndex);
+                            
+                            if(std::unique_lock g(map_mutex);
+                               cache)
+                            {
+                                _next_frame_caches[*it] = std::move(cache.value());
+                                _processed_segment_caches[*it] = fish->has_processed_segment(frameIndex);
+                                if(ptr)
+                                    _segment_caches[*it] = std::make_shared<SegmentInformation>(*ptr);
+                                else if(auto sit = _segment_caches.find(*it);
+                                        sit != _segment_caches.end())
+                                {
+                                    _segment_caches.erase(sit);
+                                }
+                                
+                            } else {
+                                auto kit = _next_frame_caches.find(*it);
+                                if(kit != _next_frame_caches.end())
+                                    _next_frame_caches.erase(kit);
+                                _processed_segment_caches[*it] = fish->has_processed_segment(frameIndex);
+                                if(ptr)
+                                    _segment_caches[*it] = std::make_shared<SegmentInformation>(*ptr);
+                                else if(auto sit = _segment_caches.find(*it);
+                                        sit != _segment_caches.end())
+                                {
+                                    _segment_caches.erase(sit);
+                                }
+                                
+                                FormatWarning("Cannot create cache_for_frame of ", *it, " for frame ", frameIndex + 1_f, " because: ", cache.error());
+                            }
+                        }
+                        
+                    }, pool(), ids_to_check.begin(), ids_to_check.end());
+                }
+                
                 std::unique_lock guard(_fish_map_mutex);
-                for (auto it = _fish_map.begin(); it != _fish_map.end();) {
-                    if (not ids.contains(it->first)) {
-                        //Print("erasing from map ", it->first);
-                        it = _fish_map.erase(it);
-                    }
-                    else {
-                        std::unique_lock guard(individuals_mutex);
-                        auto fish = individuals.at(it->first);
-                        it->second->set_data(*fish, frameIndex, properties->time, nullptr);
-                        ++it;
-                    }
+                for(auto id : ids_to_check) {
+                    auto it = _fish_map.find(id);
+                    if(it == _fish_map.end())
+                        continue;
+                    
+                    std::unique_lock guard(individuals_mutex);
+                    auto fish = individuals.at(it->first);
+                    it->second->set_data(update_settings, *fish, frameIndex, properties->time, nullptr);
                 }
             }
             
@@ -1211,4 +1307,32 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
     bool GUICache::key_down(Codes code) const {
         return _graph && _graph->is_key_pressed(code);
     }
+
+std::optional<const IndividualCache*> GUICache::next_frame_cache(Idx_t id) const
+{
+    auto it = _next_frame_caches.find(id);
+    if(it != _next_frame_caches.end()) {
+        return &it->second;
+    }
+    return std::nullopt;
+}
+
+std::tuple<bool, FrameRange> GUICache::processed_segment_cache(Idx_t id) const
+{
+    auto it = _processed_segment_caches.find(id);
+    if(it != _processed_segment_caches.end()) {
+        return it->second;
+    }
+    return {false, FrameRange{}};
+}
+
+std::shared_ptr<track::SegmentInformation> GUICache::segment_cache(Idx_t id) const
+{
+    auto it = _segment_caches.find(id);
+    if(it != _segment_caches.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
 }

@@ -12,6 +12,8 @@
 
 #include <processing/CPULabeling.h>
 #include <misc/PVBlob.h>
+#include <processing/DLList.h>
+#include <misc/ObjectCache.h>
 
 namespace track {
     static const std::vector<Vec2> neighbors = {
@@ -28,6 +30,8 @@ namespace track {
     Posture::Posture(Frame_t frameIndex, Idx_t fishID)
         : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(nullptr)
     { }
+
+static ObjectCache<CPULabeling::DLList, 50, std::unique_ptr, ThreadSafePolicy> _dllists;
 
 //#define DEBUG_OUTLINES
 using namespace blob;
@@ -69,9 +73,10 @@ void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) 
     
     //Print("initial = ", centers);
     
-    int anyMerged;
+    std::optional<size_t> anyMerged;
     do {
-        anyMerged = -1;
+        anyMerged = std::nullopt;
+        
         for (size_t i = 0; i < centers.size() - 1; ++i) {
             const size_t next = i + 1;
             if (!circlesIntersect(centers[i], radii[i], centers[next], radii[next])) {
@@ -99,7 +104,7 @@ void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) 
                 break;
             }
         }
-    } while (anyMerged != -1);
+    } while (anyMerged.has_value());
 }
 
 std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& midline, const std::function<float(float)>& radiusMap) {
@@ -165,7 +170,10 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
         
         /// now detect the merged object(s).
         /// theoretically there should only be one object exactly.
-        auto blobs = CPULabeling::run(merger);
+        auto list = _dllists.getObject();
+        auto blobs = CPULabeling::run(*list, merger);
+        _dllists.returnObject(std::move(list));
+        
         if(blobs.empty()) {
             /// this should not happen.
             FormatWarning("This is not a single blob: ", blobs.size(), " pose=", pose, " indexes=", midline, " centers=",centers, " radius=", radii);

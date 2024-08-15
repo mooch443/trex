@@ -395,7 +395,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         cv::Mat mask = cv::Mat::zeros(img->rows, img->cols, CV_32SC1);
         for(size_t i = 0; i < img->size() / img->channels(); ++i) {
             bool px_set = false;
-            for(int p = 0; p < img->channels(); ++p) {
+            for(uint p = 0; p < img->channels(); ++p) {
                 if(img->data()[i * img->channels() + p] != 0) {
                     px_set = true;
                     break;
@@ -583,7 +583,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                 const float distance = float(max_pixel - begin_threshold);
                 constexpr int segments = 3;
                 
-                auto work = [&]<bool accurate>(auto cache, auto& run, int thread_index)
+                auto work = [&]<bool accurate>(auto cache, auto& run, int64_t thread_index)
                 {
                     //! we run two samplings with a step of 2 each
                     //! for this thread
@@ -617,7 +617,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                         // go from start, but offset by thread index
                         // as well as sampling offset, go towards the end
                         // skipping big steps (segments * sampling_runs)
-                        for(int threshold = first_stage.start + thread_index * sampling_runs + offset;
+                        for(int threshold = first_stage.start + narrow_cast<int32_t>(thread_index) * sampling_runs + offset;
                             threshold < first_stage.end;
                             threshold += step)
                         {
@@ -651,7 +651,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     //! if we want to accept solutions not being found
                     //! in like 1% of cases.
                     constexpr int use_step = step / 2;//accurate ? step / 2 : step;
-                    for(int threshold = first_stage.end + thread_index;
+                    for(int threshold = first_stage.end + narrow_cast<int32_t>(thread_index);
                         threshold < end;
                         threshold += use_step)
                     {
@@ -724,7 +724,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     //! the first stage of the algorithm.
                     //! This reduces the number of misses.
                     //std::latch latch{ptrdiff_t(num_threads)};
-                    distribute_indexes([&](auto, auto, auto, int j) {
+                    distribute_indexes([&](auto, auto, auto, int64_t j) {
                         //! protects the usage of CPULabeling caches
                         //! via RAII
                         const split::Guard guard{};

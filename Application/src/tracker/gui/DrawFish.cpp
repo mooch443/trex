@@ -25,29 +25,7 @@ using namespace track;
 
 namespace cmn::gui {
 
-CREATE_STRUCT(CachedGUIOptions,
-    (bool, gui_show_outline),
-    (bool, gui_show_midline),
-    (gui::Color, gui_single_identity_color),
-    (std::string, gui_fish_color),
-    (bool, gui_show_boundary_crossings),
-    (uchar, gui_faded_brightness),
-    (bool, gui_show_probabilities),
-    (bool, gui_show_shadows),
-    (bool, gui_show_selections),
-    (bool, gui_show_paths),
-    (uint8_t, gui_outline_thickness),
-    (bool, gui_show_texts),
-    (float, gui_max_path_time),
-    (int, panic_button),
-    (bool, gui_happy_mode),
-    (bool, gui_highlight_categories),
-    (bool, gui_show_cliques),
-    (bool, gui_show_match_modes),
-    (Frame_t, gui_pose_smoothing)
-)
 
-#define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
 Fish::~Fish() {
     if (_label) {
         delete _label;
@@ -60,7 +38,6 @@ Fish::~Fish() {
             _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
     {
         _previous_color = obj.identity().color();
-        CachedGUIOptions::init();
         
         assert(_id.ID().valid());
         auto ID = _id.ID();
@@ -151,9 +128,12 @@ Fish::~Fish() {
             //}*/
         }
     }
+
+#define OPTION(NAME) _options. NAME
     
-    void Fish::set_data(Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
+    void Fish::set_data(const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
+        _options = options;
         _safe_frame = frameIndex;
         _time = time;
         _events = events;
@@ -171,11 +151,14 @@ Fish::~Fish() {
             _image.unsafe_get_source().set_index(-1);
         points.clear();
         
-        auto seg = _frame.valid() ? obj.segment_for(_frame) : nullptr;
-        if(seg) {
-            _match_mode = (int)obj.matched_using().at(seg->basic_stuff(_frame)).value();
-        } else
-            _match_mode = -1;
+        auto seg = _frame.valid() ? GUICache::instance().segment_cache(_id.ID()) : nullptr;
+        _match_mode = std::nullopt;
+        
+        if(seg && seg->contains(_frame)) {
+            auto matched_using = obj.matched_using(seg->basic_stuff(_frame));
+            if(matched_using.has_value())
+                _match_mode = matched_using.value();
+        }
         
         if(auto it = GUICache::instance().fish_selected_blobs.find(_id.ID());
            it != GUICache::instance().fish_selected_blobs.end())
@@ -218,7 +201,10 @@ Fish::~Fish() {
         
         _ML = obj.midline_length();
         
-        if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline) || GUIOPTION(gui_happy_mode)) {
+        if(   OPTION(gui_show_outline)
+           || OPTION(gui_show_midline)
+           || OPTION(gui_happy_mode))
+        {
             if(_posture_stuff) {
                 _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_basic_stuff, *_posture_stuff);
                 assert(!_cached_midline || _cached_midline->is_normalized());
@@ -247,7 +233,7 @@ Fish::~Fish() {
         }
 #endif
         
-        auto color_source = GUIOPTION(gui_fish_color);
+        auto color_source = OPTION(gui_fish_color);
         if(_basic_stuff
            && color_source != "identity")
         {
@@ -264,39 +250,40 @@ Fish::~Fish() {
         _range = Range<Frame_t>(obj.start_frame(), obj.end_frame());
         _empty = obj.empty();
         
-        _has_processed_segment = obj.has_processed_segment(_frame);
+        _has_processed_segment = GUICache::instance().processed_segment_cache(_id.ID()); //obj.has_processed_segment(_frame);
         if(std::get<0>(_has_processed_segment)) {
             processed_segment = obj.processed_recognition(std::get<1>(_has_processed_segment).start());
         } else
             processed_segment = {};
         
-        _segment = obj.segment_for(_frame);
+        _segment = GUICache::instance().segment_cache(_id.ID());//obj.segment_for(_frame);
         if(_segment) {
-            _segment = std::make_shared<SegmentInformation>(*_segment);
             _qr_code = obj.qrcode_at(_segment->start());
         } else
             _qr_code = {};
         
-        const auto frame_rate = slow::frame_rate;
-        auto current_time = _time;
-        auto next_props = GUICache::instance()._next_props ? &GUICache::instance()._next_props.value() : nullptr;
+        //const auto frame_rate = slow::frame_rate;
+        //auto current_time = _time;
+        //auto next_props = GUICache::instance()._next_props ? &GUICache::instance()._next_props.value() : nullptr;
         //auto next_props = Tracker::properties(_frame + 1_f);
-        auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
+        //auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
         
         //if(!_next_frame_cache.valid)
         if(GUICache::instance()._props) {
-            auto result = obj.cache_for_frame(&GUICache::instance()._props.value(), _frame + 1_f, next_time);
-            if(result) {
-                _next_frame_cache = std::move(result.value());
+            auto result = GUICache::instance().next_frame_cache(_id.ID());
+            //auto result = obj.cache_for_frame(&GUICache::instance()._props.value(), _frame + 1_f, next_time);
+            if(result.has_value()) {
+                _next_frame_cache = *result.value();
             } else {
-                FormatWarning("Cannot create cache_for_frame of ", _id, " for frame ", _frame + 1_f, " because: ", result.error());
+                //FormatWarning("Cannot create cache_for_frame of ", _id, " for frame ", _frame + 1_f, " because: ", result.error());
+                _next_frame_cache.valid = false;
             }
         }
         
         _color = get_color(&_basic_stuff.value());
 
-        //if(GUIOPTION(gui_pose_smoothing) > 0_f)
-        auto gui_pose_smoothing = GUIOPTION(gui_pose_smoothing);
+        //if(OPTION(gui_pose_smoothing) > 0_f)
+        auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
         _average_pose = obj.pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex);
         //else
         //    _average_pose = obj.pos
@@ -315,7 +302,7 @@ Fish::~Fish() {
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
         
         auto &cache = GUICache::instance();
-        if(GUIOPTION(gui_show_probabilities)
+        if(OPTION(gui_show_probabilities)
            && cache.is_selected(_id.ID()))
         {
             auto c = cache.processed_frame().cached(_id.ID());
@@ -433,7 +420,7 @@ Fish::~Fish() {
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
         //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
-        const auto single_identity = GUIOPTION(gui_single_identity_color);
+        const auto single_identity = OPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
         //const auto safe_properties = Tracker::properties(_safe_idx);
         auto &cache = GUICache::instance();
@@ -450,7 +437,7 @@ Fish::~Fish() {
         
         const bool hovered = _view.hovered();
         //const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
-        //const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
+        //const float max_color = timeline_visible ? 255 : OPTION(gui_faded_brightness);
         
         auto base_color = single_identity != Transparent ? single_identity : _id.color();
         //auto clr = base_color.alpha(saturate(((cache.is_selected(_obj.identity().ID()) || hovered) ? max_color : max_color * 0.4f) * time_fade_percent));
@@ -484,12 +471,12 @@ Fish::~Fish() {
         }*/
 
         if (active && _cached_outline) {
-            if (GUIOPTION(gui_show_shadows) || GUIOPTION(gui_show_outline)) {
+            if (OPTION(gui_show_shadows) || OPTION(gui_show_outline)) {
                 if(points.empty())
                     points = _cached_outline->uncompress();
             }
             
-            if (GUIOPTION(gui_show_shadows)) {
+            if (OPTION(gui_show_shadows)) {
                 if (!_polygon) {
                     _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
                     _polygon->set_fill_clr(Black.alpha(25));
@@ -538,7 +525,7 @@ Fish::~Fish() {
         Vec2 _force = _v * (-damping_linear);
         Vec2 mp;
 
-        const int panic_button = GUIOPTION(panic_button);
+        const int panic_button = OPTION(panic_button);
         auto section = panic_button ? graph.find("fishbowl") : nullptr;
         if (section) {
             Vec2 mouse_position = graph.mouse_position();
@@ -587,13 +574,13 @@ Fish::~Fish() {
                 window.set_size(Size2());
             }
 
-            if (active && _cached_outline && GUIOPTION(gui_show_outline)) {
+            if (active && _cached_outline && OPTION(gui_show_outline)) {
                 Line::Vertices_t oline;
                 if(points.empty())
                     points = _cached_outline->uncompress();
 
                 // check if we actually have a tail index
-                if (GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
+                if (OPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
                     window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), Radius{2}, LineClr{Blue.alpha(255 * 0.3f)});
 
                 //float right_side = outline->tail_index() + 1;
@@ -610,7 +597,7 @@ Fish::~Fish() {
                 }
                 oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
                 //auto line =
-                window.add<Line>(oline, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
+                window.add<Line>(oline, Line::Thickness_t{OPTION(gui_outline_thickness)});
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
@@ -625,12 +612,12 @@ Fish::~Fish() {
                         for(auto &pt : (std::vector<Vec2>)lines.at(i)) {
                             gline.emplace_back(pt + offset, _color.saturation(0.25));
                         }
-                        window.add<Line>(gline, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
+                        window.add<Line>(gline, Line::Thickness_t{OPTION(gui_outline_thickness)});
                     }
                 }
 
             }
-            if (active && _cached_midline && GUIOPTION(gui_show_midline)) {
+            if (active && _cached_midline && OPTION(gui_show_midline)) {
                 std::vector<MidlineSegment> midline_points;
                 //Midline _midline(*_cached_midline);
                 //float len = _obj.midline_length();
@@ -654,7 +641,7 @@ Fish::~Fish() {
                     line.push_back(Vertex(tf.transformPoint(segment.pos), _color));
                 }
 
-                window.add<Line>(line, Line::Thickness_t{GUIOPTION(gui_outline_thickness)});
+                window.add<Line>(line, Line::Thickness_t{OPTION(gui_outline_thickness)});
                 //window.vertices(line);
 
                 if (head) {
@@ -675,13 +662,13 @@ Fish::~Fish() {
 
             _path_dirty = false;
             
-            if (GUIOPTION(gui_show_paths)) {
+            if (OPTION(gui_show_paths)) {
                 for(auto& p : _paths)
                     _view.advance_wrap(*p);
                 //paintPath(offset);
             }
 
-            if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
+            if (FAST_SETTING(track_max_individuals) > 0 && OPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
 
             if(panic_button) {
@@ -707,7 +694,7 @@ Fish::~Fish() {
                 angle = -head->angle();
             }
         
-            if(GUIOPTION(gui_show_texts)) {
+            if(OPTION(gui_show_texts)) {
                 if(_next_frame_cache.valid) {
                     auto estimated = _next_frame_cache.estimated_px + offset;
                     
@@ -717,7 +704,7 @@ Fish::~Fish() {
                 }
             }
         
-            if(GUIOPTION(gui_happy_mode)
+            if(OPTION(gui_happy_mode)
                && _cached_midline
                && _cached_outline
                && _posture_stuff.has_value()
@@ -803,7 +790,7 @@ Fish::~Fish() {
                 }
             }
 
-            auto color_source = GUIOPTION(gui_fish_color);
+            auto color_source = OPTION(gui_fish_color);
             auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
             auto pdx = _basic_stuff.has_value() ? _basic_stuff->blob.parent_id : pv::bid();
 
@@ -864,7 +851,7 @@ Fish::~Fish() {
             }
         
             
-            if(is_selected && GUIOPTION(gui_show_probabilities)) {
+            if(is_selected && OPTION(gui_show_probabilities)) {
                 //_image.set_pos(offset);
                 _view.advance_wrap(_image);
             }
@@ -872,14 +859,44 @@ Fish::~Fish() {
                 _image.set_source(std::make_unique<Image>());
             }
         
-            if ((hovered || is_selected) && GUIOPTION(gui_show_selections)) {
+            if ((hovered || is_selected) && OPTION(gui_show_selections)) {
                 auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
                 
                 auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
                 if(cache.primary_selected_id() != _id.ID())
                     circle_clr = Gray.alpha(circle_clr.a);
-            
-                // draw circle around the fish
+                
+                {
+                    float rad = -_basic_stuff->centroid.angle();
+                    Vec2 center = _basic_stuff->blob.calculate_bounds().center() - _basic_stuff->blob.calculate_bounds().pos();
+                    
+                    Transform transform;
+                    transform.translate(-center);
+                    transform.rotate(DEGREE(rad));
+                    transform.translate(center);
+                    
+                    auto pt = transform.transformPoint(Vec2());
+                    
+                    //Print(offset, " -> ", pt, " -> ", transform.transformPoint(Vec2()));
+                    
+                    
+                    
+                    if(not _lines) {
+                        _lines = std::make_unique<Line>();
+                    }
+                    
+                   // auto pts = Line::Points_t{pt, transform.transformPoint(Vec2(10, 0)), pt, transform.transformPoint(Vec2(0, 10)), pt, transform.transformPoint(Vec2(10, 10))};
+                    auto pts = Line::Points_t{
+                        transform.transformPoint(0, 0),
+                        transform.transformPoint(10, 0),
+                        transform.transformPoint(0, 0),
+                        transform.transformPoint(0, 10)
+                    };
+                    _lines->set(pts, LineClr{Cyan});
+                    //Print((std::vector<Vec2>)pts);
+                    _view.advance_wrap(*_lines);
+                    // draw circle around the fish
+                }
             
                 _circle.set_pos(c_pos);
                 _circle.set_radius(radius);
@@ -1008,10 +1025,10 @@ Color Fish::get_color(const BasicStuff * basic) const {
     if(not basic)
         return Transparent;
     
-    const auto single_identity = GUIOPTION(gui_single_identity_color);
+    const auto single_identity = OPTION(gui_single_identity_color);
     auto base_color = single_identity != Transparent ? single_identity : _id.color();
     
-    auto color_source = GUIOPTION(gui_fish_color);
+    auto color_source = OPTION(gui_fish_color);
     auto clr = base_color.alpha(255);
     if(single_identity.a != 0) {
         clr = single_identity;
@@ -1045,7 +1062,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     from = _empty ? _frame : _range.start;
     to = _empty ? _frame : min(_range.end, _frame);
         
-    _color_start = max(sign_cast<int64_t>(_range.start.get()), round(sign_cast<int64_t>(_frame.get()) - FAST_SETTING(frame_rate) * GUIOPTION(gui_max_path_time)));
+    _color_start = max(sign_cast<int64_t>(_range.start.get()), round(sign_cast<int64_t>(_frame.get()) - FAST_SETTING(frame_rate) * OPTION(gui_max_path_time)));
     _color_end = max(_color_start + 1, (float)_frame.get());
     
     from = max(Frame_t(sign_cast<Frame_t::number_t>(_color_start)), from);
@@ -1059,7 +1076,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     _prev_frame_range = _range;
     
     const float max_speed = FAST_SETTING(track_max_speed);
-    //const float thickness = GUIOPTION(gui_outline_thickness);
+    //const float thickness = OPTION(gui_outline_thickness);
     
     auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
     
@@ -1159,7 +1176,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     
     void Fish::paintPath(const Vec2& offset) {
         //const float max_speed = FAST_SETTING(track_max_speed);
-        const float thickness = GUIOPTION(gui_outline_thickness);
+        const float thickness = OPTION(gui_outline_thickness);
         
         ///TODO: could try to replace vertices 1by1 and get "did change" for free, before we even
         ///      try to update the object.
@@ -1253,7 +1270,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     }
 
 void Fish::label(const FindCoord& coord, Entangled &e) {
-    if(GUIOPTION(gui_highlight_categories)) {
+    if(OPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
             e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
@@ -1267,15 +1284,15 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
         }
     }
     
-    if(GUIOPTION(gui_show_match_modes)) {
+    if(OPTION(gui_show_match_modes)) {
         e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                       Radius{_view.size().length()},
                       LineClr{Transparent},
-                      FillClr{ColorWheel(_match_mode).next().alpha(50)});
+                      FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)});
     }
     
     //auto bdx = blob->blob_id();
-    if(GUIOPTION(gui_show_cliques)) {
+    if(OPTION(gui_show_cliques)) {
         uint32_t i=0;
         for(auto &clique : GUICache::instance()._cliques) {
             if(clique.fishs.contains(_id.ID())) {
@@ -1289,7 +1306,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
         }
     }
     
-    if (!GUIOPTION(gui_show_texts))
+    if (!OPTION(gui_show_texts))
         return;
     
     //if(!_basic_stuff.has_value())
@@ -1393,7 +1410,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
 Drawable* Fish::shadow() {
     auto active = GUICache::instance().active_ids.find(_id.ID()) != GUICache::instance().active_ids.end();
     
-    if(GUIOPTION(gui_show_shadows) && active) {
+    if(OPTION(gui_show_shadows) && active) {
         if(!_polygon) {
             _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
             _polygon->set_fill_clr(Black.alpha(125));

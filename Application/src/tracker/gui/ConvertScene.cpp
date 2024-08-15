@@ -30,74 +30,11 @@
 #include <misc/PythonWrapper.h>
 #include <gui/WorkProgress.h>
 #include <misc/CTCollection.h>
+#include <misc/ObjectCache.h>
 
 namespace cmn::gui {
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
-
-// Policy classes
-struct ThreadSafePolicy {
-    using mutex_type = std::mutex;
-    using lock_type = std::unique_lock<mutex_type>;
-};
-
-struct NonThreadSafePolicy {
-    struct dummy_mutex {
-        void lock() {}
-        void unlock() {}
-    };
-    struct dummy_lock {
-        dummy_lock(dummy_mutex&) {}
-    };
-    using mutex_type = dummy_mutex;
-    using lock_type = dummy_lock;
-};
-
-// Single class managing the object cache
-template <typename T,
-          size_t maxCacheSize = 0,
-          template <typename...> class PtrType = std::unique_ptr,
-          typename ThreadPolicy = NonThreadSafePolicy>
-class ObjectCache {
-    using Ptr = PtrType<T>;
-public:
-    // Destructor that clears the cache
-    ~ObjectCache() {
-        clearCache();
-    }
-
-    // Method to get an object from the cache
-    Ptr getObject() {
-        typename ThreadPolicy::lock_type lock{cacheMutex};
-        if (not cache.empty()) {
-            auto obj = std::move(cache.back());
-            cache.pop_back();
-            return obj;
-        }
-        
-        return std::make_unique<T>();
-    }
-
-    // Method to return an object to the cache
-    void returnObject(Ptr&& obj) {
-        typename ThreadPolicy::lock_type lock{cacheMutex};
-        if (maxCacheSize > 0 && cache.size() >= maxCacheSize) {
-            return;
-        }
-        
-        cache.push_back(std::move(obj));
-    }
-
-    // Method to clear the cache
-    void clearCache() {
-        typename ThreadPolicy::lock_type lock{cacheMutex};
-        cache.clear();
-    }
-
-private:
-    std::vector<Ptr> cache;
-    typename ThreadPolicy::mutex_type cacheMutex;
-};
 
 class LabelWrapper;
 using LabelCache_t = ObjectCache<Label, 100, std::shared_ptr>;
@@ -125,6 +62,15 @@ public:
     }
 };
 
+uint64_t interleaveBits(const Vec2& pos) {
+    uint32_t x(pos.x), y(pos.y);
+    uint64_t z = 0;
+    for (uint64_t i = 0; i < sizeof(uint32_t) * 8; ++i) {
+        z |= (x & (1ULL << i)) << i | (y & (1ULL << i)) << (i + 1);
+    }
+    return z;
+}
+
 struct ConvertScene::Data {
     Segmenter* _segmenter{nullptr};
     LabelCache_t _unassigned_labels;
@@ -134,8 +80,9 @@ struct ConvertScene::Data {
                                    _overlay_image = std::make_shared<ExternalImage>();
 
     // Vectors for object blobs and GUI objects
-    std::vector<pv::BlobPtr> _object_blobs;
+    std::vector<pv::BlobPtr> _object_blobs, _tmp_store_blobs;
     SegmentationData _current_data;
+    SegmentationData _tmp_store_data;
 
     CallbackCollection callback;
     Skeleton skelet;
@@ -147,7 +94,8 @@ struct ConvertScene::Data {
 
     // Individual properties for each object
     sprite::Map _primary_selection;
-    std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui, _joint;
+    std::vector<Vec2> _zoom_targets;
+    std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui;
     std::map<Idx_t, sprite::Map> _individual_properties;
     std::vector<sprite::Map> _untracked_properties;
     std::vector<sprite::Map*> _tracked_properties;
@@ -249,6 +197,7 @@ struct ConvertScene::Data {
     void check_video_info(bool wait, std::string*);
     
     bool fetch_new_data();
+    void update_background_image();
     
     void check_module() {
         if(not closed_loop_enable)
@@ -718,42 +667,18 @@ bool ConvertScene::Data::fetch_new_data() {
     bool dirty = false;
     auto&& [data, obj] = _segmenter->grab();
     if(data.image) {
-        _current_data = std::move(data);
-        _object_blobs = std::move(obj);
+        if(_tmp_store_data.image)
+            _segmenter->overlayed_video()->source()->move_back(std::move(_tmp_store_data.image));
+        
+        _tmp_store_data = std::move(data);
+        _tmp_store_blobs = std::move(obj);
         dirty = true;
+        
+        std::sort(_tmp_store_blobs.begin(), _tmp_store_blobs.end(), [](auto& A, auto& B) {
+            return interleaveBits(A->bounds().center()) < interleaveBits(B->bounds().center());
+        });
     }
     
-    if (_current_data.image) {
-        if (_background_image->source()
-            && _background_image->source()->rows == _current_data.image->rows
-            && _background_image->source()->cols == _current_data.image->cols
-            && _background_image->source()->dims == 4)
-        {
-            if (_current_data.image->dims == 3)
-                cv::cvtColor(_current_data.image->get(), _background_image->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
-            else
-                _current_data.image->get().copyTo(_background_image->unsafe_get_source().get());
-
-            _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
-            //OverlayBuffers::put_back(std::move(_current_data.image));
-            _background_image->updated_source();
-        }
-        else {
-            auto rgba = Image::Make(_current_data.image->rows,
-                _current_data.image->cols, 4);
-            if (_current_data.image->dims == 3)
-                cv::cvtColor(_current_data.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
-            else
-                _current_data.image->get().copyTo(rgba->get());
-            _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
-            //OverlayBuffers::put_back(std::move(_current_data.image));
-            _background_image->set_source(std::move(rgba));
-        }
-
-        _current_data.image = nullptr;
-        
-        check_module();
-    }
     return dirty;
 }
 
@@ -785,15 +710,6 @@ void ConvertScene::Data::drawOutlines(DrawStructure&, const Size2&, Vec2) {
     }*/
 }
 
-uint64_t interleaveBits(const Vec2& pos) {
-    uint32_t x(pos.x), y(pos.y);
-    uint64_t z = 0;
-    for (uint64_t i = 0; i < sizeof(uint32_t) * 8; ++i) {
-        z |= (x & (1ULL << i)) << i | (y & (1ULL << i)) << (i + 1);
-    }
-    return z;
-}
-
 void ConvertScene::Data::drawBlobs(
     DrawStructure& graph,
     Frame_t frameIndex,
@@ -804,19 +720,16 @@ void ConvertScene::Data::drawBlobs(
 {
     //size_t i = 0;
     size_t untracked = 0;
-    std::sort(_object_blobs.begin(), _object_blobs.end(), [](auto& A, auto& B) {
-        return interleaveBits(A->bounds().center()) < interleaveBits(B->bounds().center());
-    });
 
     auto coords = FindCoord::get();
     std::set<Idx_t> tracked_ids;
     reset_properties();
 
     auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
-    std::vector<Vec2> targets;
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
     
     std::vector<glz::json_t> acc_json;
+    _zoom_targets.clear();
 
     for (auto& blob : _object_blobs) {
         auto bds = blob->bounds();
@@ -935,16 +848,16 @@ void ConvertScene::Data::drawBlobs(
         {
             if (blob) {
                 auto bds = blob->bounds();
-                targets.push_back(bds.pos());
-                targets.push_back(bds.pos() + bds.size());
-                targets.push_back(bds.pos() + bds.size().mul(0, 1));
-                targets.push_back(bds.pos() + bds.size().mul(1, 0));
+                _zoom_targets.push_back(bds.pos());
+                _zoom_targets.push_back(bds.pos() + bds.size());
+                _zoom_targets.push_back(bds.pos() + bds.size().mul(0, 1));
+                _zoom_targets.push_back(bds.pos() + bds.size().mul(1, 0));
                 _last_bounds[tracked_id] = { frameIndex, bds };
                 selected_ids.erase(std::find(selected_ids.begin(), selected_ids.end(), tracked_id));
             }
         }
         
-        if(blob)
+        if(blob && dirty)
             paint_blob_prediction(graph, tracked_color, *blob);
     }
 
@@ -968,22 +881,21 @@ void ConvertScene::Data::drawBlobs(
         _untracked_gui.resize(untracked);
     if (untracked < _untracked_properties.size())
         _untracked_properties.resize(untracked);
-
+    
+    if(tracked < _tracked_properties.size())
+        _tracked_properties.resize(tracked);
     if (tracked < _tracked_gui.size())
         _tracked_gui.resize(tracked);
-
-    _joint = _tracked_gui;
-    _joint.insert(_joint.end(), _untracked_gui.begin(), _untracked_gui.end());
 
     for (auto s : selected_ids) {
         if (auto it = _last_bounds.find(s);
             it != _last_bounds.end())
         {
             auto& [frame, bds] = it->second;
-            targets.push_back(bds.pos());
-            targets.push_back(bds.pos() + bds.size());
-            targets.push_back(bds.pos() + bds.size().mul(0, 1));
-            targets.push_back(bds.pos() + bds.size().mul(1, 0));
+            _zoom_targets.push_back(bds.pos());
+            _zoom_targets.push_back(bds.pos() + bds.size());
+            _zoom_targets.push_back(bds.pos() + bds.size().mul(0, 1));
+            _zoom_targets.push_back(bds.pos() + bds.size().mul(1, 0));
 
             if(frameIndex.try_sub(frame) > 10_f) {
 				_last_bounds.erase(it);
@@ -993,10 +905,10 @@ void ConvertScene::Data::drawBlobs(
 
     if (dirty) {
         _bowl->fit_to_screen(coords.screen_size());
-        _bowl->set_target_focus(targets);
+        _bowl->set_target_focus(_zoom_targets);
     }
     
-    if(closed_loop_enable) {
+    if(closed_loop_enable && dirty) {
         std::unique_lock guard{_current_json_mutex};
         _current_json["objects"] = acc_json;
     }
@@ -1236,87 +1148,127 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
 }
 
 bool ConvertScene::Data::retrieve_and_prepare_data() {
+    if(not _tmp_store_data)
+        return false;
+    
+    assert(last_frame != _tmp_store_data.frame.index());
+    //if(last_frame == _current_data.frame.index())
+    //    return false;
+    
     LockGuard lguard(w_t{}, "drawing", 10);
     if (not lguard.locked()) {
         return false;
     }
-
-    bool dirty{ false };
+    
+    /// commit the objects:
+    if(_current_data.image)
+        _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
+    _current_data = std::move(_tmp_store_data);
+    _object_blobs = std::move(_tmp_store_blobs);
+    ///
+    
     SETTING(gui_frame) = _current_data.frame.index();
-
-    if (last_frame != _current_data.frame.index()) {
-        last_frame = _current_data.frame.index();
-        dirty = true;
-        
-        _active_ids.clear();
-        _inactive_ids.clear();
-        
-        auto a = IndividualManager::active_individuals(last_frame);
-        if(a && a.value()) {
-            for(auto fish : *a.value()) {
-                _active_ids.emplace_back(fish->identity().ID());
-            }
+    last_frame = _current_data.frame.index();
+    
+    _active_ids.clear();
+    _inactive_ids.clear();
+    
+    auto a = IndividualManager::active_individuals(last_frame);
+    if(a && a.value()) {
+        for(auto fish : *a.value()) {
+            _active_ids.emplace_back(fish->identity().ID());
         }
-        
-        IndividualManager::transform_all([this](Idx_t id, auto) {
-            if(not contains(_active_ids, id))
-                _inactive_ids.emplace_back(id);
-        });
     }
     
-    if(dirty) {
-        using namespace track;
-        std::unordered_map<pv::bid, Identity> visible_bdx;
-        std::vector<std::vector<Vertex>> lines;
-        std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
+    IndividualManager::transform_all([this](Idx_t id, auto) {
+        if(not contains(_active_ids, id))
+            _inactive_ids.emplace_back(id);
+    });
+    
+    using namespace track;
+    std::unordered_map<pv::bid, Identity> visible_bdx;
+    std::vector<std::vector<Vertex>> lines;
+    std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
 
-        IndividualManager::transform_all([&](Idx_t, Individual* fish) {
-            if (not fish->has(_current_data.frame.index()))
-                return;
-            
-            auto p = fish->iterator_for(_current_data.frame.index());
-            auto segment = p->get();
+    IndividualManager::transform_all([&](Idx_t, Individual* fish) {
+        if (not fish->has(_current_data.frame.index()))
+            return;
+        
+        auto p = fish->iterator_for(_current_data.frame.index());
+        auto segment = p->get();
 
-            auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
-
-            if (dirty) {
-                if (basic->blob.parent_id.valid())
-                    visible_bdx.emplace(basic->blob.parent_id, fish->identity());
-                visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
-            }
-            
-            std::vector<Vertex> line;
-            fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
-            {
-                if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
-                    return true;
-                auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
-                line.push_back(Vertex(p.x, p.y, fish->identity().color()));
+        auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
+        if (basic->blob.parent_id.valid())
+            visible_bdx.emplace(basic->blob.parent_id, fish->identity());
+        visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
+        
+        std::vector<Vertex> line;
+        fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
+        {
+            if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
                 return true;
-            });
-
-            lines.emplace_back(std::move(line));
-            //graph.vertices(line);
-        
-            if(posture
-               && posture->outline)
-            {
-                auto pts = posture->outline->uncompress();
-                auto p = basic->blob.calculate_bounds().pos();
-                for(auto &pt : pts)
-                    pt += p;
-                
-                postures.emplace_back(fish->identity().color(), std::move(pts));
-                //graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
-            }
+            auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
+            line.push_back(Vertex(p.x, p.y, fish->identity().color()));
+            return true;
         });
-        
-        _visible_bdx = std::move(visible_bdx);
-        _trajectories = std::move(lines);
-        _postures = std::move(postures);
-    }
+
+        lines.emplace_back(std::move(line));
+        //graph.vertices(line);
+    
+        if(posture
+           && posture->outline)
+        {
+            auto pts = posture->outline->uncompress();
+            auto p = basic->blob.calculate_bounds().pos();
+            for(auto &pt : pts)
+                pt += p;
+            
+            postures.emplace_back(fish->identity().color(), std::move(pts));
+            //graph.vertices(pts, fish->identity().color(), PrimitiveType::LineStrip);
+        }
+    });
+    
+    _visible_bdx = std::move(visible_bdx);
+    _trajectories = std::move(lines);
+    _postures = std::move(postures);
+    
+    update_background_image();
     
     return true;
+}
+
+void ConvertScene::Data::update_background_image() {
+    if (_current_data.image) {
+        if (_background_image->source()
+            && _background_image->source()->rows == _current_data.image->rows
+            && _background_image->source()->cols == _current_data.image->cols
+            && _background_image->source()->dims == 4)
+        {
+            if (_current_data.image->dims == 3)
+                cv::cvtColor(_current_data.image->get(), _background_image->unsafe_get_source().get(), cv::COLOR_BGR2BGRA);
+            else
+                _current_data.image->get().copyTo(_background_image->unsafe_get_source().get());
+
+            _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
+            //OverlayBuffers::put_back(std::move(_current_data.image));
+            _background_image->updated_source();
+        }
+        else {
+            auto rgba = Image::Make(_current_data.image->rows,
+                _current_data.image->cols, 4);
+            if (_current_data.image->dims == 3)
+                cv::cvtColor(_current_data.image->get(), rgba->get(), cv::COLOR_BGR2BGRA);
+            else
+                _current_data.image->get().copyTo(rgba->get());
+            _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
+            //OverlayBuffers::put_back(std::move(_current_data.image));
+            _background_image->set_source(std::move(rgba));
+        }
+
+        _current_data.image = nullptr;
+        
+        check_module();
+    }
 }
 
 void ConvertScene::Data::draw_scene(DrawStructure& graph, const std::vector<std::string>& detect_classes, bool dirty) {
@@ -1329,6 +1281,13 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const std::vector<std:
         transform.combine(section->global_transform());
         
         FindCoord::set_bowl_transform(transform);
+        
+        if(not dirty) {
+            section->reuse_objects();
+            
+            drawBlobs(graph, _current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
+            return;
+        }
 
         if (_background_image->source()) {
             if(_background_image->source() && _background_image->source()->rows > 0 && _background_image->source()->cols > 0) {

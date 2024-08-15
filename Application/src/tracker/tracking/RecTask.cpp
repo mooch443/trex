@@ -193,13 +193,13 @@ void RecTask::update(RecTask&& task) {
         {
             result._ids = std::move(values);
 
-            std::unordered_map<int, int> _best_id;
+            std::unordered_map<int64_t, int> _best_id;
             for (auto i : result._ids)
                 _best_id[i]++;
 
-            int maximum = -1;
-            int max_key = -1;
-            int N = result._ids.size();
+            int64_t maximum = -1;
+            int64_t max_key = -1;
+            int64_t N = sign_cast<int64_t>(result._ids.size());
             for (auto& [k, v] : _best_id) {
                 if (v > maximum) {
                     maximum = v;

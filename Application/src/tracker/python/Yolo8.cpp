@@ -369,6 +369,8 @@ void Yolo8::process_instance_segmentation(
     /// array delivered in the result. go row by row and calculate
     /// the outlines from instance segmentation...
     auto fn = [&](auto, size_t start, size_t end, auto) {
+        cmn::CPULabeling::DLList list;
+        
         for(size_t i=start; i!=end; ++i) {
             auto& row = boxes[i];
             
@@ -381,7 +383,7 @@ void Yolo8::process_instance_segmentation(
             
             auto& mask = result.masks()[i];
             
-            auto r = process_instance(w, h, r3, row, mask, settings);
+            auto r = process_instance(list, w, h, r3, row, mask, settings);
             if(r) {
                 auto &&[assign, pair] = r.value();
                 
@@ -402,6 +404,7 @@ void Yolo8::process_instance_segmentation(
 }
 
 std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::process_instance(
+     cmn::CPULabeling::DLList& list,
      coord_t w,
      coord_t h,
      const cv::Mat &r3,
@@ -411,7 +414,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
 {
     Bounds bounds = row.box;
 
-    auto blobs = CPULabeling::run(mask.mat);
+    auto blobs = CPULabeling::run(list, mask.mat);
     if(blobs.empty())
         return std::nullopt;
     

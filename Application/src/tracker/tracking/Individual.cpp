@@ -1041,7 +1041,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     auto segment = update_add_segment(frameIndex, info.f_prop, info.f_prev_prop, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
-    auto index = _basic_stuff.size();
+    auto index = narrow_cast<long_t>(_basic_stuff.size());
     segment->add_basic_at(frameIndex, index);
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
         throw SoftException("(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
@@ -1054,6 +1054,14 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     }
     
     return int64_t(index);
+}
+
+std::optional<default_config::matching_mode_t::Class> Individual::matched_using(size_t known_index) const
+{
+    if(known_index >= _matched_using.size()) {
+        return std::nullopt;
+    }
+    return _matched_using[known_index];
 }
 
 void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
