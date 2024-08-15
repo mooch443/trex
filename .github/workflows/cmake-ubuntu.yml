@@ -70,7 +70,7 @@ jobs:
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c pytorch -c nvidia -c conda-forge trex
+        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c pytorch -c nvidia -c defaults trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
