@@ -111,6 +111,20 @@ uint64_t memory_selector(MemoryStats& stats, const std::deque<T>& obj, const std
     return bytes;
 }
 
+template<>
+uint64_t MemoryStats::get_memory_size(const blob::Prediction& pred, const std::string &) {
+    uint64_t bytes = 0;
+    using PointType = decltype(decltype(pred.outlines.lines)::value_type::_points)::value_type;
+    for(auto &line : pred.outlines.lines) {
+        bytes += line._points.size() * sizeof(PointType);
+    }
+    if(pred.outlines.original_outline) {
+        bytes += pred.outlines.original_outline->size() * sizeof(PointType);
+    }
+    bytes += pred.pose.points.size() * sizeof(decltype(pred.pose.points)::value_type);
+    return bytes;
+}
+
 uint64_t memory_selector(MemoryStats& stats, const Individual::LocalCache& obj, const std::string& name) {
     uint64_t bytes = 0;//sizeof(std::set<T>);
     //bytes += memory_selector(stats, obj._current_velocities, name);
@@ -124,8 +138,9 @@ uint64_t MemoryStats::get_memory_size(const std::string& obj, const std::string&
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const MinimalOutline::Ptr& obj, const std::string&) {
-    return (obj ? obj->memory_size() : 0);
+uint64_t MemoryStats::get_memory_size(const MinimalOutline& obj, const std::string&) {
+    return obj.memory_size();
+    //return (obj ? obj.memory_size() : 0) + ;
 }
 
 template <>
@@ -138,31 +153,34 @@ uint64_t MemoryStats::get_memory_size(const Image::SPtr& obj, const std::string&
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const MotionRecord*const& obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const MotionRecord&, const std::string& ) {
     uint64_t bytes = 0;
-    if(obj) {
-        bytes += sizeof(MotionRecord);
-        /*for(auto && v : obj->derivatives())
+    bytes += sizeof(MotionRecord);
+    /*for(auto && v : obj->derivatives())
             bytes += v->memory_size();*/
-    }
     return bytes;
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const pv::BlobPtr& obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const pv::BlobPtr& obj, const std::string& str) {
     uint64_t bytes = 0;
     if(obj) {
         bytes += sizeof(pv::Blob);
         if(obj->pixels()) bytes += obj->pixels()->size() * sizeof(typename cmn::remove_cvref<decltype(*obj->pixels())>::type::value_type);
         bytes += obj->hor_lines().size() * sizeof(typename cmn::remove_cvref<decltype(obj->hor_lines())>::type::value_type);
+        bytes += get_memory_size(obj->prediction(), str);
     }
     return bytes;
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const pv::CompressedBlob& obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const pv::CompressedBlob& obj, const std::string& str) {
     uint64_t bytes = 0;
     bytes += obj.lines().capacity() * sizeof(pv::ShortHorizontalLine);
+    bytes += sizeof(blob::Prediction);
+    if(obj.pred.valid()) {
+        bytes += get_memory_size(obj.pred, str);
+    }
     return bytes;
 }
 
@@ -181,8 +199,8 @@ uint64_t MemoryStats::get_memory_size(const Midline::Ptr& obj, const std::string
 #define _ADD_DETAIL(NAME) { auto by = get_memory_size(obj-> NAME, name); details[name][ #NAME ] += by; bytes += by; }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const std::shared_ptr<BasicStuff>& obj, const std::string& name) {
-    uint64_t bytes = sizeof(obj)
+uint64_t MemoryStats::get_memory_size(const std::unique_ptr<BasicStuff>& obj, const std::string& name) {
+    uint64_t bytes = sizeof(decltype(obj))
                    + sizeof(BasicStuff);
     
     _ADD_DETAIL(centroid)
@@ -193,8 +211,8 @@ uint64_t MemoryStats::get_memory_size(const std::shared_ptr<BasicStuff>& obj, co
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const std::shared_ptr<PostureStuff>& obj, const std::string& name) {
-    uint64_t bytes = sizeof(obj)
+uint64_t MemoryStats::get_memory_size(const std::unique_ptr<PostureStuff>& obj, const std::string& name) {
+    uint64_t bytes = sizeof(decltype(obj))
                    + sizeof(PostureStuff);
     
     _ADD_DETAIL(outline)

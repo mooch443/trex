@@ -512,7 +512,7 @@ Midline::Ptr Individual::fixed_midline(Frame_t frameIndex) const {
 
 const MinimalOutline* Individual::outline(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
-    return ptr ? ptr->outline.get() : nullptr;
+    return ptr ? &ptr->outline : nullptr;
 }
 
 Individual::Individual(std::optional<Identity>&& id)
@@ -900,7 +900,7 @@ Vec2 Individual::LocalCache::add(Frame_t /*frameIndex*/, const track::MotionReco
 
 void Individual::LocalCache::add(const PostureStuff& stuff) {
     if(stuff.outline) {
-        _outline_size += stuff.outline->size();
+        _outline_size += stuff.outline.size();
         ++_outline_samples;
     }
     
@@ -1393,7 +1393,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         
         // calculate midline centroid
         Vec2 centroid_point(0, 0);
-        auto points = outline->uncompress();
+        auto points = outline.uncompress();
         
         for (auto &p : points) {
             centroid_point += p;
@@ -2476,7 +2476,7 @@ void Individual::save_posture(const BasicStuff& basic,
         stuff->frame = frameIndex;
         
         if(!ptr.outline_empty())
-            stuff->outline = std::make_unique<MinimalOutline>(ptr.outline());
+            stuff->outline = ptr.outline();
         
         if(auto &&midline = std::move(ptr).steal_normalized_midline();
            midline && !midline->empty())

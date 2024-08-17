@@ -65,6 +65,7 @@ namespace default_config {
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
         constexpr auto LOAD = AccessLevelType::LOAD;
+        constexpr auto INIT = AccessLevelType::INIT;
         
         using namespace settings;
         Adding adding(config, docs, fn);
@@ -105,13 +106,13 @@ namespace default_config {
         CONFIG("threshold_maximum", int(255), "");
         
         CONFIG("web_quality", int(75), "Quality for images transferred over the web interface (0-100).");
-        CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", LOAD);
-        CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", LOAD);
+        CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", INIT);
+        CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", INIT);
         
-        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "If set to a valid value (!= -1), start and end values determine the range converted.", STARTUP);
+        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "If set to a valid value (!= -1), start and end values determine the range converted.", INIT);
         
-        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", LOAD);
-        CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", LOAD);
+        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
+        CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", INIT);
         CONFIG("video_source", std::string("webcam"), "Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].", LOAD);
         CONFIG("test_image", std::string("checkerboard"), "Defines, which test image will be used if `video_source` is set to 'test_image'.", LOAD);
         CONFIG("filename", Path(""), "The output filename.", LOAD);
@@ -125,9 +126,9 @@ namespace default_config {
         CONFIG("video_reading_use_threads", true, "Use threads to read images from a video file.", STARTUP);
         CONFIG("adaptive_threshold_scale", float(2), "Threshold value to be used for adaptive thresholding, if enabled.");
         CONFIG("use_adaptive_threshold", false, "Enables or disables adaptive thresholding (slower than normal threshold). Deals better with weird backgrounds.");
-        CONFIG("dilation_size", int32_t(0), "If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).", LOAD);
-        CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.", LOAD);
-        CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.", LOAD);
+        CONFIG("dilation_size", int32_t(0), "If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).", INIT);
+        CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.", INIT);
+        CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.", INIT);
         CONFIG("image_adjust", false, "Converts the image to floating-point (temporarily) and performs f(x,y) * `image_contrast_increase` + `image_brightness_increase` plus, if enabled, squares the image (`image_square_brightness`).");
         CONFIG("image_square_brightness", false, "Squares the floating point input image after background subtraction. This brightens brighter parts of the image, and darkens darker regions.");
         CONFIG("image_contrast_increase", float(3), "Value that is multiplied to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 1 here.");
@@ -136,7 +137,7 @@ namespace default_config {
         CONFIG("enable_difference", true, "Enables background subtraction. If disabled, `threshold` will be applied to the raw greyscale values instead of difference values.");
         CONFIG("track_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `enable_absolute_difference`, but during tracking instead of converting.");
         CONFIG("enable_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `track_absolute_difference`, but during conversion instead of tracking.");
-        CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", LOAD);
+        CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", INIT);
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
         CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
@@ -174,7 +175,7 @@ namespace default_config {
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
         CONFIG("meta_conditions", std::string(""), "Treatment name.");
         CONFIG("meta_misc", std::string(""), "Other information.");
-        CONFIG("meta_real_width", float(30), "Width of whatever is visible in the camera frame from left to right. Used to calculate `cm_per_pixel` ratio.", LOAD);
+        CONFIG("meta_real_width", float(30), "Width of whatever is visible in the camera frame from left to right. Used to calculate `cm_per_pixel` ratio.", INIT);
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", SYSTEM);
         CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", SYSTEM);

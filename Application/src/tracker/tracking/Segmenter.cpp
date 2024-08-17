@@ -22,22 +22,31 @@ file::Path average_name() {
     return path;
 }
 
+UninterruptableStep::UninterruptableStep(std::string_view name, std::string_view subname, ManagedThread&& thread) {
+    tid = REGISTER_THREAD_GROUP((std::string)name);
+    ThreadManager::getInstance().addThread(tid, (std::string)subname, std::move(thread));
+}
+
+GeneratorStep::GeneratorStep(std::string_view name, std::string_view subname, ManagedThread&& thread) {
+    tid = REGISTER_THREAD_GROUP((std::string)name);
+    ThreadManager::getInstance().addThread(tid, (std::string)subname, std::move(thread));
+}
+
 Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std::string)> error_callback)
     : error_callback(error_callback), eof_callback(eof_callback)
 {
     start_timer.reset();
-    _generator_group_id = REGISTER_THREAD_GROUP("Segmenter::GeneratorT");
-    
-    ThreadManager::getInstance().addThread(_generator_group_id, "generator-thread", ManagedThread{
+    _generating_step = GeneratorStep("Segmenter", "GeneratorT", {
         [this](auto&){ generator_thread(); }
     });
-    
-    _tracker_group_id = REGISTER_THREAD_GROUP("Segmenter::Tracking");
-    ThreadManager::getInstance().addThread(_tracker_group_id, "tracking-thread", ManagedThread{
+    _writing_step = UninterruptableStep("Segmenter", "Serialize", {
+        [this](auto&){ serialize_thread(); }
+    });
+    _tracking_step = UninterruptableStep("Segmenter", "Tracking", {
         [this](auto&){ tracking_thread(); }
     });
     
-    ThreadManager::getInstance().addOnEndCallback(_tracker_group_id, OnEndMethod{
+    ThreadManager::getInstance().addOnEndCallback(_tracking_step.tid, OnEndMethod{
         [this](){
             if (std::unique_lock guard(_mutex_general);
                 _output_file != nullptr)
@@ -78,6 +87,107 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
     });
 }
 
+bool UninterruptableStep::receive(SegmentationData&& item) {
+    std::unique_lock guard(mutex);
+    if(data)
+        return false;
+    
+    //thread_print("Last registered item: ", item.written_index());
+    
+    data = std::move(item);
+    ThreadManager::getInstance().notify(tid);
+    return true;
+}
+
+bool GeneratorStep::receive(std::tuple<Frame_t, std::future<SegmentationData>>&& item) {
+    std::unique_lock guard(mutex);
+    if(items.size() >= MAX_CAPACITY)
+        return false;
+    
+    items.emplace_back(std::move(item));
+    ThreadManager::getInstance().notify(tid);
+    return true;
+}
+
+void UninterruptableStep::terminate() {
+    ThreadManager::getInstance().terminateGroup(tid);
+}
+
+void UninterruptableStep::terminate_wait_blocking() {
+    while(true) {
+        if(std::unique_lock guard(mutex);
+           data)
+        {
+            // keep iterating until we sent it off{
+        } else
+            break;
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    
+    terminate();
+}
+
+void GeneratorStep::terminate_wait_blocking(UninterruptableStep& next_step) {
+    ThreadManager::getInstance().terminateGroup(tid);
+    
+    /// while the generator is shutdown already now,
+    /// we still need to wait for the tracker and ffmpeg queue to finish
+    /// all the queued up items:
+    while (true) {
+        if (std::unique_lock guard(mutex);
+            items.empty() && not data)
+        {
+            /// we assume here that we are terminating all of the steps
+            /// __in_order__ so that there won't be any more items coming
+            /// in after we finished our queue!
+            break;
+            
+        }
+        else if(not data) {
+            try {
+                auto item = std::move(items.front());
+                items.erase(items.begin());
+                
+                if(not std::get<1>(item).valid()) {
+                    // error state. the future is invalid
+                    // HOW DID THIS HAPPEN
+                    FormatError("Cannot identify the issue, but frame ", std::get<0>(item), " is invalid after generating it.");
+                    return;
+                }
+                
+                data = std::get<1>(item).get();
+                //thread_print("Sending ", data.written_index(), " to serialization...");
+                
+                if(next_step.receive(std::move(data))) {
+                    // we passed it on... no need to wait and try again
+                    // in the next loop.
+                    continue;
+                }
+            }
+            catch (const std::exception& ex) {
+                FormatExcept("Exception while feeding tracker: ", ex.what());
+            }
+            
+        } else {
+            // try again to send it... since it didnt work last time
+            // we want to try again every time.
+            ThreadManager::getInstance().notify(tid);
+            
+            if(next_step.receive(std::move(data))) {
+                continue; // no waiting
+            }
+        }
+
+        // wait a bit...
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    
+    for(auto &item : items)
+        std::get<1>(item).get();
+    items.clear();
+}
+
 Segmenter::~Segmenter() {
     auto time = start_timer.elapsed();
     thread_print("Total time for converting: ", time, "s");
@@ -86,39 +196,18 @@ Segmenter::~Segmenter() {
         GlobalSettings::map().unregister_callbacks(std::move(_undistort_callbacks));
     
     Detection::manager().set_weight_limit(1);
-    ThreadManager::getInstance().terminateGroup(_generator_group_id);
-
-    /// while the generator is shutdown already now,
-    /// we still need to wait for the tracker and ffmpeg queue to finish
-    /// all the queued up items:
-    while (true) {
-        if (std::unique_lock guard(_mutex_general);
-            items.empty())
-        {
-            if(not _next_frame_data)
-                break;
-        }
-        else if(not _next_frame_data) {
-            try {
-                auto data = std::get<1>(items.front()).get();
-                Print("Feeding the tracker ", data.original_index(), "...");
-                _next_frame_data = std::move(data);
-                ThreadManager::getInstance().notify(_tracker_group_id);
-            }
-            catch (const std::exception& ex) {
-                FormatExcept("Exception while feeding tracker: ", ex.what());
-            }
-            items.erase(items.begin());
-        } else
-            ThreadManager::getInstance().notify(_tracker_group_id);
-
-        // wait a bit...
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    ThreadManager::getInstance().terminateGroup(_tracker_group_id);
-
-    _should_terminate = true;
+    
+    /// 1. step: stop generating new frames
+    _generating_step.terminate_wait_blocking(_writing_step);
+    _generating_step = {};
+    
+    /// 2. step: stop writing stuff to file
+    _writing_step.terminate_wait_blocking();
+    _writing_step = {};
+    
+    /// 3. step: stop tracking stuff
+    _tracking_step.terminate_wait_blocking();
+    _tracking_step = {};
     
     {
         std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
@@ -156,10 +245,10 @@ Segmenter::~Segmenter() {
         _tracker = nullptr;
 
         _output_file = nullptr;
-        _next_frame_data = {};
-        _progress_data = {};
+        //_next_frame_data = {};
+        //_progress_data = {};
         _transferred_blobs.clear();
-        _progress_blobs.clear();
+        //_progress_blobs.clear();
         _transferred_current_data = {};
         //SETTING(source) = file::PathArray();
         //SETTING(filename) = file::Path();
@@ -187,9 +276,6 @@ Segmenter::~Segmenter() {
     
     _overlayed_video = nullptr;
     _output_file = nullptr;
-    for(auto &item : items) {
-        std::get<1>(item).get();
-    }
 }
 
 Size2 Segmenter::size() const {
@@ -420,7 +506,8 @@ void Segmenter::open_video() {
             Detection{},
             std::move(video_base),
             [this]() {
-                ThreadManager::getInstance().notify(_generator_group_id);
+                /// we generated some SegmentationData!
+                ThreadManager::getInstance().notify(_generating_step.tid);
             }
         });
     }
@@ -501,7 +588,7 @@ void Segmenter::open_camera() {
            BackgroundSubtraction{},
            std::move(camera),
            [this]() {
-               ThreadManager::getInstance().notify(_generator_group_id);
+               ThreadManager::getInstance().notify(_generating_step.tid);
                //_cv_messages.notify_one();
            }
         );
@@ -511,7 +598,7 @@ void Segmenter::open_camera() {
            Detection{},
            std::move(camera),
            [this]() {
-               ThreadManager::getInstance().notify(_generator_group_id);
+               ThreadManager::getInstance().notify(_generating_step.tid);
                //_cv_messages.notify_one();
            }
         );
@@ -589,8 +676,9 @@ void Segmenter::start() {
     
     start_recording_ffmpeg();
 
-    ThreadManager::getInstance().startGroup(_generator_group_id);
-    ThreadManager::getInstance().startGroup(_tracker_group_id);
+    ThreadManager::getInstance().startGroup(_generating_step.tid);
+    ThreadManager::getInstance().startGroup(_writing_step.tid);
+    ThreadManager::getInstance().startGroup(_tracking_step.tid);
 }
 
 void Segmenter::start_recording_ffmpeg() {
@@ -641,165 +729,175 @@ void Segmenter::start_recording_ffmpeg() {
 #endif
 }
 
+bool GeneratorStep::update(UninterruptableStep& next_step) {
+    std::unique_lock guard(mutex);
+    if(data) {
+        // we have an immediately pushable item
+        if(next_step.receive(std::move(data))) {
+            // data is empty again. continue below
+            assert(not data);
+            
+        } else if(items.size() >= MAX_CAPACITY) {
+            // we are over capacity!
+            // we cannot keep accumulating objects...
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
+            thread_print("TM enough items queued up...");
+#endif
+            return false;
+        }
+    }
+    
+    if(not data && not items.empty()) {
+        // we dont have an immediately pushable item
+        // check the future to see if a new element arrived:
+        auto& [frame, future] = items.front();
+        
+        if (frame.valid()
+            && future.valid())
+        {
+            // so we are still waiting... can only go in order
+            // of course, since we are processing chronological order
+            // (a freaking movie)
+            if(future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+            {
+                // yay we can retrieve the segmentationdata!
+                try {
+                    data = future.get();
+                } catch(...) {
+                    throw;
+                }
+                items.erase(items.begin());
+                
+                if(next_step.receive(std::move(data))) {
+                    // data is empty again.
+                    assert(not data);
+                }
+            }
+            
+        } else {
+            // an invalid item has been detected!
+            // (frame was invalid)
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
+            thread_print("TM Invalid future ", std::get<0>(items.front()));
+#endif
+            items.erase(items.begin());
+        }
+    }
+    
+    if(items.size() < MAX_CAPACITY
+       || not data)
+    {
+        ThreadManager::getInstance().notify(tid);
+    }
+    
+    // not over capacity, try to fetch more?
+    return true;
+}
+
+bool GeneratorStep::has_data() const {
+    std::unique_lock guard(mutex);
+    return data || not items.empty();
+}
+
+bool UninterruptableStep::has_data() const {
+    std::unique_lock guard(mutex);
+    return data;
+}
+
 void Segmenter::generator_thread() {
     //set_thread_name("GeneratorT");
-    std::unique_lock guard(_mutex_general);
+    //std::unique_lock guard(_mutex_general);
     //if (_should_terminate || (_next_frame_data && items.size() >= 10))
     //    return;
-    if(_next_frame_data && items.size() >= 10) {
-#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
-        thread_print("TM enough items queued up...");
-#endif
+    
+    /// maybe we have some data ready to be transferred!
+    /// check whether it is acceptable to retrieve another one...
+    /// if there is something, it will be pushed to writing step.
+    try {
+        if(not _generating_step.update(_writing_step)) {
+            // it tells us we cannot continue to add more data.
+            // so we have to skip...
+            return;
+        }
+        
+    } catch(const std::exception& ex) {
+        error_stop(ex.what());
         return;
     }
     
+    // if we land here, we likely pushed something to the writing step.
+    // see if we can get some stuff from the generator:
+    decltype(_overlayed_video->generate()) result;
+    
     {
-        try {
-            if (not _next_frame_data and not items.empty()) {
-                if (std::get<0>(items.front()).valid()
-                    && std::get<1>(items.front()).valid())
-                {
-                    if(std::get<1>(items.front()).wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
-                    {
-                        auto data = std::get<1>(items.front()).get();
-                        //thread_print("Got data for item ", data.frame.index());
-                        
-                        _next_frame_data = std::move(data);
-                        //_cv_ready_for_tracking.notify_one();
-                        ThreadManager::getInstance().notify(_tracker_group_id);
-                        
-                        items.erase(items.begin());
-                    }
-
-                }
-                else {
-#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
-                    thread_print("TM Invalid future ", std::get<0>(items.front()));
-#endif
-                    items.erase(items.begin());
-                    
-                    /*auto status = std::get<1>(items.front()).wait_for(std::chrono::seconds(0));
-                    if(status == std::future_status::ready) {
-                        thread_print("ready");
-                    } else if(status == std::future_status::timeout) {
-                        thread_print("timeout");
-                    } else
-                        thread_print("deferred");*/
-                }
-            }
-
-            guard.unlock();
-            
-            decltype(_overlayed_video->generate()) result;
-            try {
-                std::unique_lock vlock(_mutex_video);
-                // get from ApplyProcessor / result is future segmentation data
-                // We are in Segmenter::generator_thread
-                result = _overlayed_video->generate();
-            } catch(...) {
-                guard.lock();
-                throw;
-            }
-            guard.lock();
-            
-            if (not result) {
-                // set weight limit to ensure that the detection actually ends
-                // since we now go 1by1 and not in packages of multiple
-                // images
-                Detection::manager().set_weight_limit(1);
-
-                if (_overlayed_video->eof())
-                {
-#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
-					thread_print("TM EOF: ", result.error());
-#endif
-					//_next_frame_data = {};
-					//_cv_ready_for_tracking.notify_one();
-					ThreadManager::getInstance().notify(_tracker_group_id);
-                    
-                    if(_output_file && _output_file->length() == 0_f && not _next_frame_data && not items.empty()) {
-                        if(error_callback)
-                            error_callback("Cannot generate segmentation: EOF before anything was written.");
-                    }
-					return;
-				}
-                //_overlayed_video->reset(0_f);
-#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
-                thread_print("TM Invalid item #", items.size(),": ", result.error());
-#endif
-                if(error_callback)
-                    error_callback("Cannot generate segmentation: "+std::string(result.error()));
-            }
-            else {
-                assert(std::get<1>(result.value()).valid());
-                items.emplace_back(std::move(result.value()));
-            }
-
-        }
-        catch (...) {
-            // pass
-        }
-
-        if (items.size() >= 10) {
-            //thread_print("TM ", items.size(), " items queued up.");
-            /*_cv_messages.wait(guard, [&]() {
-                return not _next_frame_data or _should_terminate;
-            });*/
-            //thread_print("Received notification: next(", (bool)next, ") and ", items.size()," items in queue");
-            
-        }
-        if(items.size() < 10 || not _next_frame_data) {
-            ThreadManager::getInstance().notify(_generator_group_id);
-        }
+        std::unique_lock vlock(_mutex_video);
+        // get from ApplyProcessor / result is future segmentation data
+        // We are in Segmenter::generator_thread
+        result = _overlayed_video->generate();
     }
+    
+    if (not result) {
+        /// we detected an error in the queue, so we need to stop!
+        // set weight limit to ensure that the detection actually ends
+        // since we now go 1by1 and not in packages of multiple
+        // images
+        Detection::manager().set_weight_limit(1);
 
-    //thread_print("ended.");
+        if (std::unique_lock vlock(_mutex_video);
+            _overlayed_video->eof())
+        {
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
+            thread_print("TM EOF: ", result.error());
+#endif
+            ThreadManager::getInstance().notify(_writing_step.tid);
+            
+            if(_output_file && _output_file->length() == 0_f
+               && not _generating_step.has_data())
+            {
+                if(error_callback)
+                    error_callback("Cannot generate segmentation: EOF before anything was written.");
+            }
+            return;
+        }
+        //_overlayed_video->reset(0_f);
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
+        thread_print("TM Invalid item #", items.size(),": ", result.error());
+#endif
+        if(error_callback)
+            error_callback("Cannot generate segmentation: "+std::string(result.error()));
+    }
+    else {
+        assert(std::get<1>(result.value()).valid());
+        _generating_step.receive(std::move(result.value()));
+    }
 };
 
 double Segmenter::fps() const {
     return _fps.load();
 }
 
-void Segmenter::perform_tracking() {
+double Segmenter::write_fps() const {
+    return _write_fps.load();
+}
+
+void Segmenter::perform_tracking(SegmentationData&& progress_data) {
     Timer timer;
+
+    // collect all the blobs we find
+    std::vector<pv::BlobPtr> progress_blobs;
+    //thread_print("Tracking frame ", progress_data.written_index());
     
-    if(FAST_SETTING(frame_rate) == 0)
-        throw InvalidArgumentException("frame_rate should not be zero: ", FAST_SETTING(frame_rate), " vs. ", SETTING(frame_rate));
-    assert(FAST_SETTING(frame_rate) > 0);
-    auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
-    _progress_data.frame.set_timestamp(uint64_t(fake));
-    _progress_data.frame.set_index(running_id++);
-    _progress_data.frame.set_source_index(Frame_t(_progress_data.image->index()));
-    assert(_progress_data.frame.source_index() == Frame_t(_progress_data.image->index()));
-
-    if (_output_file) {
-        try {
-            if (not _output_file->is_open()) {
-                _output_file->set_start_time(_start_time);
-                _output_file->set_resolution(_output_size);
-            }
-            _output_file->add_individual(pv::Frame(_progress_data.frame));
-        }
-        catch (const std::exception& ex) {
-            // we cannot write to the file for some reason!
-            FormatExcept("Exception while writing to file: ", ex.what());
-            //_should_terminate = true;
-            //return;
-            throw;
-        }
-    }
-
-    if (std::unique_lock guard(_mutex_tracker); 
+    if (std::unique_lock guard(_mutex_tracker);
         _tracker != nullptr)
     {
         PPFrame pp;
-        Tracker::preprocess_frame(pv::Frame(_progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
+        Tracker::preprocess_frame(pv::Frame(progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
         
-        _progress_blobs.clear();
+        progress_blobs.reserve(pp.N_blobs());
         pp.transform_all([&](const pv::Blob& blob){
-            _progress_blobs.emplace_back(pv::Blob::Make(blob));
+            progress_blobs.emplace_back(pv::Blob::Make(blob));
             
-            auto &b = *_progress_blobs.back();
+            auto &b = *progress_blobs.back();
             if(b.last_recount_threshold() == -1) {
                 if(_tracker->background())
                     b.recount(SLOW_SETTING(track_threshold), *_tracker->background());
@@ -831,10 +929,10 @@ void Segmenter::perform_tracking() {
     _fps = (_samples + 1) / (_time + e);
     
 #if WITH_FFMPEG
-    if (_progress_data.image
+    if (progress_data.image
         && _queue) 
     {
-        _queue->add(Image::Make(*_progress_data.image));
+        _queue->add(Image::Make(*progress_data.image));
     }
 #endif
 
@@ -843,8 +941,8 @@ void Segmenter::perform_tracking() {
         //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
         if(_transferred_current_data)
             overlayed_video()->source()->move_back(std::move(_transferred_current_data.image));
-        _transferred_current_data = std::move(_progress_data);
-        _transferred_blobs = std::move(_progress_blobs);
+        _transferred_current_data = std::move(progress_data);
+        _transferred_blobs = std::move(progress_blobs);
     }
 
     static Timer last_add;
@@ -913,6 +1011,88 @@ void Segmenter::stop_average_generator(bool blocking) {
         average_generator.get();
 }
 
+std::optional<SegmentationData> UninterruptableStep::transfer_data() {
+    std::unique_lock guard(mutex);
+    if(data) {
+        ThreadManager::getInstance().notify(tid);
+        return std::move(data);
+    }
+    return std::nullopt;
+}
+
+void GeneratorStep::notify() const {
+    if(not valid())
+        return; // not a valid thread
+    ThreadManager::getInstance().notify(tid);
+}
+void UninterruptableStep::notify() const {
+    if(not valid())
+        return; // not a valid thread
+    ThreadManager::getInstance().notify(tid);
+}
+
+void Segmenter::serialize_thread() {
+    auto maybe_data = _writing_step.transfer_data();
+    if(not maybe_data) {
+        return; // nothing retrieved
+    } else {
+        // retrieved something... let previous step know its free!
+        _generating_step.notify();
+    }
+    
+    Timer timer;
+    
+    // we got something - write it to file!
+    auto &data = maybe_data.value();
+    
+    if(FAST_SETTING(frame_rate) == 0)
+        throw InvalidArgumentException("frame_rate should not be zero: ", FAST_SETTING(frame_rate), " vs. ", SETTING(frame_rate));
+    assert(FAST_SETTING(frame_rate) > 0);
+    auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+    data.frame.set_timestamp(uint64_t(fake));
+    data.frame.set_index(running_id++);
+    data.frame.set_source_index(Frame_t(data.image->index()));
+    assert(data.frame.source_index() == Frame_t(data.image->index()));
+
+    if (std::unique_lock guard(_mutex_general);
+        _output_file)
+    {
+        try {
+            if (not _output_file->is_open()) {
+                _output_file->set_start_time(_start_time);
+                _output_file->set_resolution(_output_size);
+            }
+            
+            // copy the frame to the file:
+            _output_file->add_individual(data.frame);
+        }
+        catch (const std::exception& ex) {
+            // we cannot write to the file for some reason!
+            FormatExcept("Exception while writing to file: ", ex.what());
+            //_should_terminate = true;
+            //return;
+            throw;
+        }
+    }
+    
+    // update fps
+    auto e = timer.elapsed();
+    auto _time = _write_time.load() + e;
+    auto _samples = _write_time_samples.load() + 1;
+    
+    _write_time = _time;
+    _write_time_samples = _samples;
+    
+    _write_fps = _samples / _time;
+    
+    // pass it on...
+    while(not _tracking_step.receive(std::move(data))) {
+        // retry...
+        //ThreadManager::getInstance().notify(_tracking_step.tid);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
 void Segmenter::tracking_thread() {
     try {
         stop_average_generator(FAST_SETTING(track_background_subtraction));
@@ -926,41 +1106,25 @@ void Segmenter::tracking_thread() {
         }
     }
     
-    //set_thread_name("Tracking thread");
-    std::unique_lock guard(_mutex_general);
-    //while (not _should_terminate)
-    if(_should_terminate)
-        return;
-    
-    {
-        Frame_t index;
-        if(_next_frame_data)
-            index = _next_frame_data.original_index();
-
-        if (_next_frame_data) {
-            try {
-                if(_progress_data) {
-                    overlayed_video()->source()->move_back(std::move(_progress_data.image));
-                }
-                _progress_data = std::move(_next_frame_data);
-                assert(not _next_frame_data);
-                //thread_print("Got next: ", progress.frame.index());
-            }
-            catch (...) {
-                FormatExcept("Exception while moving to progress");
-                return;
-            }
-            //guard.unlock();
-            //try {
+    Frame_t index;
+    auto next = _tracking_step.transfer_data();
+    if(next.has_value()) {
+        // retrieved something... let previous step know its free!
+        _writing_step.notify();
+        
+        SegmentationData data = std::move(next.value());
+        
+        if(data) {
+            index = data.original_index();
             
-            std::unique_lock vlock(_mutex_video);
-            if (_overlayed_video->source()->is_finite()) {
+            if (std::unique_lock vlock(_mutex_video);
+                _overlayed_video->source()->is_finite())
+            {
                 auto L = _overlayed_video->source()->length();
-                auto C = _progress_data.original_index();
 
-                if (L.valid() && C.valid()) {
+                if (L.valid() && index.valid()) {
                     size_t percent = L.get() > 0
-                                        ? float(C.get()) / float(L.get()) * 100
+                                        ? float(index.get()) / float(L.get()) * 100
                                         : 0;
                     //Print(C, " / ", L, " => ", percent);
                     static size_t last_progress = 0;
@@ -978,57 +1142,57 @@ void Segmenter::tracking_thread() {
                 std::unique_lock guard(_mutex_current);
                 if(progress_callback)
                     progress_callback(-1);
-                //spinner.tick();
             }
             
-
             try {
-                perform_tracking();
+                perform_tracking(std::move(data));
             }
             catch (const std::exception& e) {
-				FormatExcept("Exception while tracking: ", e.what());
-                guard.unlock();
+                FormatExcept("Exception while tracking: ", e.what());
                 error_stop(e.what());
                 return;
-			}
-            //guard.lock();
-        //} catch(...) {
-        //    FormatExcept("Exception while tracking");
-        //    throw;
-        //}
-        }
-
-        if (not _overlayed_video
-            || not _overlayed_video->source()
-            || (index.valid()
-                && _overlayed_video->source()->is_finite()
-                && (index >= _overlayed_video->source()->length()
-                    || index >= _video_conversion_range.end))
-            || (not index.valid() 
-                && items.empty() 
-                && _overlayed_video->eof())
-            )
-        {
-#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
-            Print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
-#endif
-            guard.unlock();
-            try {
-                graceful_end();
-            } catch(const std::exception& ex) {
-                FormatExcept("Exception while trying to gracefully end: ", ex.what());
             }
-            guard.lock();
+            
+            /// we somehow leaked an image...
+            if(data.image) {
+                FormatWarning("We are leaking an image of frame ", data.original_index(), ": ", *data.image);
+                overlayed_video()->source()->move_back(std::move(data.image));
+            }
+            
+        } else {
+            error_stop("The next frame data contained no data.");
         }
-
-        //thread_print("Waiting for next...");
-        //_cv_messages.notify_one();
-        //ThreadManager::getInstance().notify(_tracker_group_id);
-        if (not _should_terminate)
-            ThreadManager::getInstance().notify(_generator_group_id);
-        //if (not _should_terminate)
-        //    _cv_ready_for_tracking.wait(guard);
-        //thread_print("Received notification: next(", (bool)next,")");
+    }
+    
+    /// if either
+    /// 1. we have no video source anymore
+    /// 2. we didnt find data and the source is gone
+    /// 3. we have a source, found a frame and are over the length of the
+    ///    video, so past the length of it
+    /// 4. the video is eof and we have no more queue
+    /// we end the conversion.
+    std::unique_lock vlock(_mutex_video);
+    if (not _overlayed_video
+        || not _overlayed_video->source()
+        || (index.valid()
+            && _overlayed_video->source()->is_finite()
+            && (index >= _overlayed_video->source()->length()
+                || index >= _video_conversion_range.end))
+        || (not index.valid()
+            && not _tracking_step.has_data()
+            && _overlayed_video->eof())
+        )
+    {
+#if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
+        Print("index=", index, " finite=", _overlayed_video->source()->is_finite(), " L=",_overlayed_video->source()->length(), " EOF=",_overlayed_video->eof());
+#endif
+        vlock.unlock();
+        
+        try {
+            graceful_end();
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception while trying to gracefully end: ", ex.what());
+        }
     }
     //thread_print("Tracking ended.");
 }

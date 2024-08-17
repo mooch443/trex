@@ -122,8 +122,9 @@ namespace Output {
             V_35, // adding tags::information so it can be preserved across saves
             V_36, // writing blob::Prediction objects to results files
             V_37, // writing main outline for blob::Prediction objects
+            V_38, // writing midline conversion factor
             
-            current = V_37
+            current = V_38
         };
         
     private:
@@ -150,6 +151,7 @@ namespace Output {
             bool has_categories = false;
             std::vector<std::string> exclude_settings;
             ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> rec_data;
+            int32_t midline_factor;
         };
         
         GETTER_NCONST(Header, header);
@@ -175,7 +177,7 @@ namespace Output {
         
         Individual* read_individual(Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);
-        MinimalOutline::Ptr read_outline(Data& ref, Midline* midline) const;
+        MinimalOutline read_outline(Data& ref, Midline* midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
         //MotionRecord* read_properties(Data& ref) const;
         

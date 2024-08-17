@@ -185,29 +185,27 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     
     float tdelta;
     
-    {
-        LockGuard guard(ro_t{}, "history_split#1");
-        auto props = Tracker::properties(previous_frame);
-        if(props == nullptr) {
-            //! initial frame
-            assert(previous_frame.valid());
-            if(Tracker::start_frame().valid()
-               && FrameRange(Range<Frame_t>(Tracker::start_frame(), Tracker::end_frame())).contains(previous_frame))
-            {
-                FormatWarning("Previous frame has already been processed: ", Range(Tracker::start_frame(), Tracker::end_frame()), " and previous:", previous_frame);
-            }
-            assert(not Tracker::start_frame().valid()
-                   or previous_frame < Tracker::start_frame()
-                   or previous_frame > Tracker::end_frame());
-            return;
+    LockGuard guard(ro_t{}, "history_split#1");
+    auto props = Tracker::properties(previous_frame);
+    if(props == nullptr) {
+        //! initial frame
+        assert(previous_frame.valid());
+        if(Tracker::start_frame().valid()
+           && FrameRange(Range<Frame_t>(Tracker::start_frame(), Tracker::end_frame())).contains(previous_frame))
+        {
+            FormatWarning("Previous frame has already been processed: ", Range(Tracker::start_frame(), Tracker::end_frame()), " and previous:", previous_frame);
         }
-        
-        tdelta = time - props->time;
-        
-        hints.push(previous_frame, props);
-        hints.push(index(), Tracker::properties(index()));
+        assert(not Tracker::start_frame().valid()
+               or previous_frame < Tracker::start_frame()
+               or previous_frame > Tracker::end_frame());
+        return;
     }
     
+    tdelta = time - props->time;
+    
+    hints.push(previous_frame, props);
+    hints.push(index(), Tracker::properties(index()));
+
     const auto last_active = Tracker::active_individuals(previous_frame);
     const auto N = last_active.size();
     _individual_cache.reserve(N);
@@ -385,7 +383,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
         variable.notify_one();
     };
     
-    LockGuard guard(ro_t{}, "history_split#2");
+    //LockGuard guard(ro_t{}, "history_split#2");
     _previously_active_identities.reserve(N);
     for(auto fish : last_active)
         _previously_active_identities.push_back(fish->identity().ID());

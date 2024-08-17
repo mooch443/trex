@@ -595,6 +595,13 @@ void ConvertScene::activate()  {
     window()->set_title(window_title());
     _data->bar.set_progress(0);
     
+    SceneManager::getInstance().enqueue([this](IMGUIBase* base, DrawStructure& graph) {
+        if(not _data || not _data->_segmenter)
+            return;
+        if(not _data->_segmenter->output_size().empty())
+            graph.set_size(Size2(1024, _data->_segmenter->output_size().height / _data->_segmenter->output_size().width * 1024));
+    });
+    
     auto range = SETTING(video_conversion_range).value<Range<long_t>>();
     if (range.start == -1 && range.end == -1) {
         if(segmenter().is_finite())
@@ -999,6 +1006,11 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                 return 0;//throw U_EXCEPTION("No source available.");
             return _segmenter->fps();
         }),
+        VarFunc("write_fps", [this](const VarProps&) -> double {
+            if (not _segmenter)
+                return 0;//throw U_EXCEPTION("No source available.");
+            return _segmenter->write_fps();
+        }),
         VarFunc("time", [this](const VarProps&) -> float {
             return (_time.load() * 4);
         }),
@@ -1218,7 +1230,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         if(posture
            && posture->outline)
         {
-            auto pts = posture->outline->uncompress();
+            auto pts = posture->outline.uncompress();
             auto p = basic->blob.calculate_bounds().pos();
             for(auto &pt : pts)
                 pt += p;

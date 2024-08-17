@@ -672,8 +672,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //}
 
         // see whether this frame is worth compressing (size-threshold)
-        if (pack.size() >= 1500
-            && false)
+        if (pack.size() >= 15000
+            /*&& false*/)
         {
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
 
@@ -718,6 +718,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                     pack.write<uint32_t>((uint32_t)out_len);
                     pack.write<uint32_t>(in_len);
                     pack.write_data(out_len, out.data());
+                    
+                    //Print("Compression ratio ", double(out_len) / double(in_len) * 100,"%");
                 }
 
             }
@@ -1179,7 +1181,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
 #ifndef NDEBUG
         auto channels = (frame.encoding() == meta_encoding_t::rgb8) ? 3u : 1u;
         for(size_t i = 0; i < frame.n(); ++i) {
-            assert(frame.pixels().size() % channels == 0);
+            assert(frame.pixels().at(i) && frame.pixels().at(i)->size() % channels == 0);
         }
 #endif
 
@@ -1234,7 +1236,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
     void File::_update_global_settings() {
     }
 
-    void File::add_individual(Frame&& frame) {
+    void File::add_individual(const Frame& frame) {
         static auto pack_mutex = LOGGED_MUTEX("File::pack_mutex");
         static DataPackage pack;
 
@@ -1242,7 +1244,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         _check_opened();
         bool compressed;
         frame.serialize(pack, compressed);
-        add_individual(std::move(frame), pack, compressed);
+        add_individual(frame, pack, compressed);
     }
         
     void File::stop_writing() {

@@ -138,7 +138,8 @@ CREATE_STRUCT(Settings,
   (float, track_segment_max_length),
   (Size2, individual_image_size),
   (uint32_t, categories_min_sample_images),
-  (cmn::meta_encoding_t::Class, meta_encoding)
+  (cmn::meta_encoding_t::Class, meta_encoding),
+  (float, outline_compression)
 )
 
 //! Shorthand for defining slow settings cache entries:

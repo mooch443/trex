@@ -349,6 +349,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
         constexpr auto LOAD = AccessLevelType::LOAD;
+        constexpr auto INIT = AccessLevelType::INIT;
         
         using namespace settings;
         Adding adding(config, docs, fn);
@@ -373,7 +374,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
         CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
-        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", LOAD);
+        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
@@ -402,11 +403,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
         CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
-        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", LOAD);
+        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", INIT);
         CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
         CONFIG("video_length", uint64_t(0), "The length of the video in frames", LOAD);
         CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", LOAD);
-        CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", LOAD);
+        CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
         
         /*
          * According to @citation the average zebrafish larvae weight would be >200mg after 9-week trials.
@@ -758,6 +759,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_torch_device_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
         CONFIG("gpu_torch_no_fixes", true, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
         CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.");
+        CONFIG("outline_compression", float(0.f), "Applies a compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).");
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation");
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
@@ -788,7 +790,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_trusted_probability", float(0.25), "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current consecutive segment ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
-        CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", LOAD);
+        CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", SYSTEM);
         
         CONFIG("gui_connectivity_matrix_file", file::Path(), "Path to connectivity table. Expected structure is a csv table with columns [frame | #(track_max_individuals^2) values] and frames in y-direction.");
         CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.");

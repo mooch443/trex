@@ -14,6 +14,7 @@
 #include <misc/PVBlob.h>
 #include <processing/DLList.h>
 #include <misc/ObjectCache.h>
+#include <gui/GuiTypes.h>
 
 namespace track {
     static const std::vector<Vec2> neighbors = {
@@ -257,6 +258,15 @@ void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::Se
     _outline.replace_points(ptr);
     _outline.minimize_memory();
     _outline.resample(FAST_SETTING(outline_resample));
+    
+    const auto outline_compression = FAST_SETTING(outline_compression);
+    if(outline_compression > 0) {
+        auto &pts = _outline.points();
+        std::vector<Vec2> reduced;
+        reduced.reserve(pts.size());
+        gui::reduce_vertex_line(pts, reduced, outline_compression);
+        std::swap(reduced, pts);
+    }
     
     //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
     auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);

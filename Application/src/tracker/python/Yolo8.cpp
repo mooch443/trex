@@ -7,6 +7,7 @@
 #include <misc/ThreadPool.h>
 #include <misc/TrackingSettings.h>
 #include <python/GPURecognition.h>
+#include <gui/GuiTypes.h>
 
 namespace track {
 
@@ -195,10 +196,15 @@ std::pair<int, int> find_bounding_box_size(const std::vector<std::vector<Vec2>>&
 }
 
 // Function to draw outlines on an OpenCV matrix
-void draw_outlines(const std::vector<std::shared_ptr<std::vector<Vec2>>>& _points) {
+template<typename Vector>
+void draw_outlines(const std::vector<Vector>& _points, const std::string& title = "Outlines") {
     std::vector<std::vector<Vec2>> copy;
-    for(auto &pts : _points)
-        copy.emplace_back(*pts);
+    for(auto &pts : _points) {
+        if constexpr(_is_smart_pointer<std::remove_cvref_t<decltype(pts)>>)
+            copy.emplace_back(*pts);
+        else
+            copy.emplace_back(pts);
+    }
     
     normalize_points(copy);
     auto size = find_bounding_box_size(copy);
@@ -213,10 +219,11 @@ void draw_outlines(const std::vector<std::shared_ptr<std::vector<Vec2>>>& _point
             cv::Point2f start(outline[i].x, outline[i].y);
             cv::Point2f end(outline[(i + 1) % outline.size()].x, outline[(i + 1) % outline.size()].y);
             cv::line(image, start, end, color, 1);
+            cv::circle(image, start, 5, color);
         }
     }
     
-    tf::imshow("Outlines", image);
+    tf::imshow(title, image);
 }
 
 void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
@@ -482,12 +489,47 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         // not just the outer lines?
         //Print("We have detected ", points.size(), " outlines here but only use the first one.");
         
-        //draw_outlines(points);
-        //data.outlines.emplace_back(*points.front());
-        pair.pred.outlines.set_original(std::move(*points.front()));
+        /// we may have to downsample outlines
+        const float outline_compression = FAST_SETTING(outline_compression);
+        
+        std::vector<std::vector<Vec2>> all;
+        std::vector<Vec2> reduced;
+        if(outline_compression > 0
+           && points.front()->size() > 1000)
+        {
+            reduced.reserve(points.front()->size());
+            gui::reduce_vertex_line(*points.front(), reduced, 0.5);
+            Print(points.front()->size(), " reduced to ", reduced.size());
+            all.emplace_back(reduced);
+            
+            //data.outlines.emplace_back(*points.front());
+            pair.pred.outlines.set_original(std::move(reduced));
+            
+            draw_outlines(points);
+            
+        } else {
+            pair.pred.outlines.set_original(std::move(*points.front()));
+        }
+        
         points.erase(points.begin());
-        for(auto& pts : points) {
-            pair.pred.outlines.add(std::move(*pts));
+        
+        if(outline_compression > 0) {
+            for(auto& pts : points) {
+                reduced.clear();
+                reduced.reserve(pts->size());
+                
+                gui::reduce_vertex_line(*pts, reduced, 0.5);
+                Print("* ",pts->size(), " reduced to ", reduced.size());
+                all.emplace_back(reduced);
+                
+                pair.pred.outlines.add(std::move(reduced));
+            }
+            
+            draw_outlines(all, "Reduced");
+            
+        } else {
+            for(auto& pts : points)
+                pair.pred.outlines.add(std::move(*pts));
         }
     }
     
@@ -599,7 +641,17 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
     }
     catch (const std::exception& ex) {
         FormatError("Exception: ", ex.what());
-        throw SoftException(std::string(ex.what()));
+        for(auto &t : transfer.promises) {
+            try {
+                throw SoftException(no_quotes((std::string)ex.what()));
+            } catch(...) {
+                t.set_exception(std::current_exception());
+            }
+        }
+        
+        transfer.promises.clear();
+        ReceivePackage(std::move(transfer), {});
+        
     }
     catch (...) {
         FormatWarning("Continue after exception...");
@@ -621,20 +673,22 @@ void Yolo8::ReceivePackage(TransferData&& transfer, std::vector<track::detect::R
         if (not transfer.images.empty())
             tf::imshow("ma", transfer.images.front()->get());
 #endif
-        for (size_t i = 0; i < transfer.datas.size(); ++i) {
-            try {
-                transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
-            }
-            catch (...) {
-                FormatExcept("A promise failed for ", transfer.datas.at(i));
-                transfer.promises.at(i).set_exception(std::current_exception());
-            }
-
-            try {
-                transfer.callbacks.at(i)();
-            }
-            catch (...) {
-                FormatExcept("Exception in callback of element ", i, " in python results.");
+        if(not transfer.promises.empty()) {
+            for (size_t i = 0; i < transfer.datas.size(); ++i) {
+                try {
+                    transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
+                }
+                catch (...) {
+                    FormatExcept("A promise failed for ", transfer.datas.at(i));
+                    transfer.promises.at(i).set_exception(std::current_exception());
+                }
+                
+                try {
+                    transfer.callbacks.at(i)();
+                }
+                catch (...) {
+                    FormatExcept("Exception in callback of element ", i, " in python results.");
+                }
             }
         }
         FormatExcept("Empty data for ", transfer.datas, " image=", transfer.orig_id);

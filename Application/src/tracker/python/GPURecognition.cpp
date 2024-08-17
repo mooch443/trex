@@ -818,8 +818,11 @@ void PythonIntegration::deinit() {
 py::module_ import_module_from_file(pybind11::module& main, const file::Path& module_file_path) {
     // Extract directory path and module name from module_file_path
     file::Path directory_path = module_file_path.remove_filename();
-    if(directory_path.empty())
-        return main.import(module_file_path.c_str());
+    if(directory_path.empty()) {
+        auto mod = main.import(module_file_path.c_str());
+        mod.reload();
+        return mod;
+    }
     
     // Remove extension to get module name
     file::Path module_name_path = module_file_path.has_extension("py")
@@ -834,6 +837,7 @@ py::module_ import_module_from_file(pybind11::module& main, const file::Path& mo
     try {
         auto filename = module_name_path.filename();
         mod = main.import(filename.c_str());
+        mod.reload();
     } catch (py::error_already_set& e) {
         std::cerr << "Failed to import module: " << e.what() << std::endl;
         e.restore();

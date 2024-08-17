@@ -229,6 +229,31 @@
                                         }
                                     ]
                                 ]
+                            },
+                            {
+                                "type":"hlayout",
+                                "pad":[0,20,10,-10],
+                                "children":[
+                                    {
+                                        "type":"stext",
+                                        "text":"<sym>🎞</sym> convert <c>[from,to]</c> frame:",
+                                        "origin":"{label_origin}", "pos":[0,10]
+                                    },
+                                    {
+                                        "type":"settings",
+                                        "var":"video_conversion_range",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                        "list":{
+                                            "line":[220,220,220,200],
+                                            "fill":[25,25,25,220],
+                                            "size":"[{min:150:{element_w}},200]",
+                                            "font":{"size":0.6}
+                                        },
+                                        "size":"[{min:150:{-:{element_w}:200}},40]",
+                                        "desc":""
+                                    }
+                                ]
                             }
                         ]
                     }]

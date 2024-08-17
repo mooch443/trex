@@ -14,6 +14,214 @@ namespace Output {
 
 namespace cmn {
 class Data;
+
+/**
+ * @brief A lightweight, simplified vector-like container for small dynamic arrays of simple types.
+ *
+ * The SmallVector class is designed for efficient storage and management of small arrays, with a
+ * focus on minimizing memory overhead. It uses inline storage for small arrays and dynamically
+ * allocates memory only when necessary, which provides both performance benefits and reduced
+ * memory usage.
+ *
+ * This particular implementation is optimized for use with simple types, such as `uint16_t`,
+ * and assumes that the elements do not require construction or destruction, making it suitable
+ * for integral and floating-point types.
+ *
+ * Key Features:
+ * - **Inline Storage**: Stores a small number of elements directly within the object itself
+ *   (in this case, up to `InlineCapacity` elements), avoiding dynamic memory allocation for
+ *   small vectors.
+ * - **Dynamic Storage**: Automatically transitions to dynamic memory allocation when the
+ *   vector grows beyond its inline storage capacity.
+ * - **Memory Efficient**: The total size of the SmallVector object is kept small, making it
+ *   ideal for use cases where memory footprint is a critical concern.
+ *
+ * Memory Layout (with `T = uint16_t` and `InlineCapacity = 4`):
+ * - **size_**: 4 bytes (std::uint32_t) to track the number of elements currently stored.
+ * - **inline_storage**: 8 bytes (array of 4 `uint16_t` elements).
+ * - **dynamic_storage**: 8 bytes (pointer to dynamically allocated storage when needed).
+ * - The union ensures that either `inline_storage` or `dynamic_storage` is used, occupying
+ *   the larger of the two sizes.
+ * - **Padding**: The structure is padded to align to an 8-byte boundary, resulting in a total
+ *   size of 16 bytes.
+ *
+ * Limitations:
+ * - This class is specifically designed for simple types and does not support complex types
+ *   that require custom constructors or destructors.
+ * - The implementation is optimized for small vectors and may not be as efficient for larger
+ *   dynamic arrays where frequent resizing is required.
+ *
+ * Example Usage:
+ * ```
+ * SmallVector<uint16_t, 4> vec;
+ * vec.push_back(1);
+ * vec.push_back(2);
+ * vec.push_back(3);
+ * vec.push_back(4);
+ * vec.push_back(5); // This will trigger dynamic storage allocation.
+ * ```
+ *
+ * @tparam T Type of elements stored in the vector (e.g., `uint16_t`).
+ * @tparam InlineCapacity The number of elements that can be stored in the inline storage
+ *         before transitioning to dynamic storage.
+ */
+template<typename T, std::size_t InlineCapacity = 4>
+struct SmallVector {
+    using value_type = T;
+    
+    static_assert(std::is_integral_v<T> || std::is_floating_point_v<T>,
+                  "SmallVector only supports simple types (integral or floating-point types).");
+
+    std::uint32_t size_{0};  ///< Number of elements currently stored.
+    union {
+        T inline_storage[InlineCapacity];  ///< Inline storage for small sizes.
+        T* dynamic_storage;                ///< Pointer to dynamically allocated storage.
+    };
+    
+    constexpr SmallVector() noexcept = default;
+    
+    // Copy constructor
+    SmallVector(const SmallVector& other)
+        : size_(other.size_) {
+        if (size_ > InlineCapacity) {
+            dynamic_storage = static_cast<T*>(malloc(sizeof(T) * size_));
+            std::memcpy(dynamic_storage, other.dynamic_storage, sizeof(T) * size_);
+        } else {
+            std::memcpy(inline_storage, other.inline_storage, sizeof(T) * size_);
+        }
+    }
+
+    // Copy assignment operator
+    SmallVector& operator=(const SmallVector& other) {
+        if (this != &other) {
+            // Clean up current storage
+            if (size_ > InlineCapacity) {
+                free(dynamic_storage);
+            }
+
+            size_ = other.size_;
+            if (size_ > InlineCapacity) {
+                dynamic_storage = static_cast<T*>(malloc(sizeof(T) * size_));
+                std::memcpy(dynamic_storage, other.dynamic_storage, sizeof(T) * size_);
+            } else {
+                std::memcpy(inline_storage, other.inline_storage, sizeof(T) * size_);
+            }
+        }
+        return *this;
+    }
+
+    // Move constructor
+    constexpr SmallVector(SmallVector&& other) noexcept
+        : size_(other.size_) {
+        if (size_ > InlineCapacity) {
+            dynamic_storage = other.dynamic_storage;
+            other.dynamic_storage = nullptr;
+        } else {
+            std::memcpy(inline_storage, other.inline_storage, sizeof(T) * size_);
+        }
+        other.size_ = 0;
+    }
+
+    // Move assignment operator
+    constexpr SmallVector& operator=(SmallVector&& other) noexcept {
+        if (this != &other) {
+            // Clean up current storage
+            if (size_ > InlineCapacity) {
+                free(dynamic_storage);
+            }
+
+            size_ = other.size_;
+            if (size_ > InlineCapacity) {
+                dynamic_storage = other.dynamic_storage;
+                other.dynamic_storage = nullptr;
+            } else {
+                std::memcpy(inline_storage, other.inline_storage, sizeof(T) * size_);
+            }
+            other.size_ = 0;
+        }
+        return *this;
+    }
+
+    // Destructor
+    ~SmallVector() {
+        if (size_ > InlineCapacity) {
+            free(dynamic_storage);
+        }
+    }
+
+    // Access operator
+    constexpr T& operator[](std::size_t index) noexcept {
+        assert(index < size_);
+        return (size_ <= InlineCapacity) ? inline_storage[index] : dynamic_storage[index];
+    }
+
+    constexpr const T& operator[](std::size_t index) const noexcept {
+        assert(index < size_);
+        return (size_ <= InlineCapacity) ? inline_storage[index] : dynamic_storage[index];
+    }
+
+    constexpr std::size_t size() const noexcept {
+        return size_;
+    }
+
+    constexpr std::size_t capacity() const noexcept {
+        return (size_ <= InlineCapacity) ? InlineCapacity : size_;
+    }
+
+    void push_back(const T& value) {
+        resize(size_ + 1);
+        operator[](size_ - 1) = value;
+    }
+
+    void resize(std::size_t new_size) {
+        if (new_size == size_) return;
+
+        if (new_size < size_) {
+            // Shrinking, no need to destroy elements for simple types
+            if (new_size <= InlineCapacity && size_ > InlineCapacity) {
+                // Transition from dynamic storage back to inline storage
+                std::memmove(inline_storage, dynamic_storage, sizeof(T) * new_size);
+                free(dynamic_storage);
+            }
+        } else {
+            // Expanding
+            if (new_size > InlineCapacity && size_ <= InlineCapacity) {
+                // Transition from inline storage to dynamic storage
+                T* new_storage = static_cast<T*>(malloc(sizeof(T) * new_size));
+                std::memcpy(new_storage, inline_storage, sizeof(T) * size_);
+                dynamic_storage = new_storage;
+            } else if (new_size > InlineCapacity) {
+                // Expand dynamic storage
+                dynamic_storage = static_cast<T*>(realloc(dynamic_storage, sizeof(T) * new_size));
+            }
+            // No need to construct new elements for simple types, just increase size_
+        }
+
+        size_ = static_cast<std::uint32_t>(new_size);
+    }
+
+    void clear() noexcept {
+        if (size_ > InlineCapacity) {
+            free(dynamic_storage);
+            dynamic_storage = nullptr;
+        }
+        size_ = 0;
+    }
+
+    constexpr bool empty() const noexcept {
+        return size_ == 0;
+    }
+    
+    // Data method: provides access to the underlying array
+    T* data() noexcept {
+        return (size_ <= InlineCapacity) ? inline_storage : dynamic_storage;
+    }
+
+    const T* data() const noexcept {
+        return (size_ <= InlineCapacity) ? inline_storage : dynamic_storage;
+    }
+};
+
 }
 
 namespace track {
@@ -226,13 +434,12 @@ namespace track {
         friend Midline::Midline();
     };
     
+#pragma pack(push, 1)
     class MinimalOutline {
-    private:
-        static constexpr int factor = 10;
-        
     protected:
+        SmallVector<uint16_t> _points;
         GETTER(Vec2, first);
-        std::vector<uint16_t> _points;
+        float scale;
         //GETTER_NCONST(long_t, tail_index);
         //GETTER_NCONST(long_t, head_index);
         
@@ -240,16 +447,23 @@ namespace track {
         friend class cmn::Data;
         
     public:
-        typedef std::unique_ptr<MinimalOutline> Ptr;
+        //typedef std::unique_ptr<MinimalOutline> Ptr;
         
         MinimalOutline();
         MinimalOutline(const Outline& outline);
         ~MinimalOutline();
         inline size_t memory_size() const { return sizeof(MinimalOutline) + sizeof(decltype(_points)::value_type) * _points.size() + sizeof(decltype(_first)); }
         std::vector<Vec2> uncompress() const;
+        std::vector<Vec2> uncompress(float factor) const;
         size_t size() const { return _points.size(); }
         void convert_from(const std::vector<Vec2>& array);
+        
+        constexpr operator bool() const noexcept {
+            return not _points.empty();
+        }
     };
+#pragma pack(pop)
+
 }
 
 #endif

@@ -381,7 +381,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     
     auto angle = posture->head->angle();
     auto &outline = posture->outline;
-    auto opts = outline->uncompress();
+    auto opts = outline.uncompress();
     _fish_angle = angle;
     
     auto&& [eyes, pos] = generate_eyes(frame(), fish_id(), basic, opts, midline, angle);

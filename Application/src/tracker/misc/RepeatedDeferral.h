@@ -78,6 +78,8 @@ struct RepeatedDeferral {
                     e = runtime.elapsed();
                 }
                 catch (...) {
+                    //throw;
+                    FormatExcept("Unknown exception occurred.");
                     //p.set_exception(std::current_exception());
                 }
                 guard.lock();

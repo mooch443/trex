@@ -82,18 +82,48 @@ float Outline::max_curvature() {
 //#undef assert
 //#define assert(e) ((void)0)
 
-std::vector<Vec2> MinimalOutline::uncompress() const {
+std::vector<Vec2> MinimalOutline::uncompress(float factor) const {
     std::vector<Vec2> vector;
+    if(_points.empty())
+        return vector;
+    
     vector.resize(_points.size());
     
     Vec2 previous = _first;
     Vec2 vec;
     
-    for(size_t i=0; i<_points.size(); ++i) {
+    vector[0] = _first;
+    
+    for(size_t i=1; i<_points.size(); ++i) {
         vec.x = char(_points[i] >> 8);
         vec.y = char(_points[i] & 0xff);
         
         vec /= float(factor);
+        
+        vector[i] = previous + vec;
+        previous = vector[i];
+    }
+    
+    return vector;
+}
+
+std::vector<Vec2> MinimalOutline::uncompress() const {
+    std::vector<Vec2> vector;
+    if(_points.empty())
+        return vector;
+    
+    vector.resize(_points.size());
+    
+    Vec2 previous = _first;
+    Vec2 vec;
+    
+    vector[0] = _first;
+    
+    for(size_t i=1; i<_points.size(); ++i) {
+        vec.x = char(_points[i] >> 8);
+        vec.y = char(_points[i] & 0xff);
+        
+        vec /= float(scale);
         
         vector[i] = previous + vec;
         previous = vector[i];
@@ -139,31 +169,33 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
     float x,y;
     Vec2 relative;
     
-    for(size_t i=0; i<array.size(); ++i) {
+    const auto N = array.size();
+    const auto step = max(1u, N / 10u);
+    float maximum = 0;
+    for(size_t i=1; i<N; i+=step) {
+        auto m = (array[i] - array[i - 1]).max();
+        if(m > maximum)
+            maximum = m;
+    }
+    
+    scale = Float2_t(CHAR_MAX) / (maximum * 10 + 1);
+    //Print("\t-> ", scale, " scaling factor");
+    
+    for(size_t i=1; i<N; ++i) {
         relative = array[i] - previous;
         
-        x = relative.x * factor;
-        y = relative.y * factor;
-        
+        x = round(relative.x * scale);
+        y = round(relative.y * scale);
         
         if(x >= float(CHAR_MAX) || y >= float(CHAR_MAX) || x <= float(CHAR_MIN) || y <= float(CHAR_MIN))
-            throw U_EXCEPTION("Cannot compress ",x,",",y," to char (",arange(CHAR_MIN, CHAR_MAX),"). This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).");
+            FormatWarning("Cannot compress ",x,",",y," to char (",arange(CHAR_MIN, CHAR_MAX),"). This is an unresolvable error and is likely related to a too large outline_resample value. You will generate invalid outlines with this - instead, you could try resetting `outline_resample` and using `outline_compression`.");
         
         ux = x;
         uy = y;
         
         _points[i] = ((uint16_t(ux) << 8) | (uint16_t(uy) & 0xff));
-        previous = previous + Vec2(ux,uy) / float(factor);
-        
-       // m = max(abs(relative).max(), m);
-        
+        previous = previous + Vec2(ux,uy) / scale;
     }
-    
-    //if(!array.empty())
-    //    lost /= 2 * float(array.size());
-    
-    //size_t minimized = sizeof(Vec2) + _points.size() * sizeof(decltype(_points)::value_type) + sizeof(char);
-    //size_t full = array.size() * sizeof(Vec2);
 }
 
 size_t Midline::memory_size() const {
@@ -1242,6 +1274,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     
     size_t index = 0;
     std::vector<MidlineSegment> reduced;
+    reduced.reserve(_segments.size());
     reduced.push_back(_segments.front());
     /*long_t tail_index = -1, head_index = -1;
     if(this->head_index() == 0)
@@ -1294,7 +1327,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
                 segment.pos = s0.pos + line * percent;
                 segment.height = s0.height * (percent) + s1.height * (1.0 - percent);
                 segment.l_length = max(s0.l_length, s1.l_length);
-                reduced.push_back(segment);
+                reduced.emplace_back(std::move(segment));
                 
                 last_pt_distance = distance - length(line * (1.0 - percent));
                 
@@ -1304,7 +1337,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
                 segment.pos = s0.pos;
                 segment.height = s0.height;
                 
-                reduced.push_back(segment);
+                reduced.emplace_back(std::move(segment));
                 
                 last_pt_distance = distance;
             }
@@ -1316,7 +1349,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     //    tail_index = reduced.size()-1;
     
     if(length(reduced.back().pos - _segments.back().pos) >= 0.01) {
-        reduced.push_back(_segments.back());
+        reduced.emplace_back(_segments.back());
     }
     
     if(reduced.size() != resolution) {
@@ -1365,6 +1398,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     
     std::vector<MidlineSegment> rotated;
     long_t L = narrow_cast<long_t>(reduced.size());
+    rotated.reserve(L);
     
     for (long_t i=L-1; i>=0; i--) {
         long_t idx0 = i+1;
@@ -1373,7 +1407,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
         
         auto &seg = reduced[i];
         auto pt = tf.transformPoint(seg.pos);
-        rotated.push_back({ seg.height, seg.l_length, pt });
+        rotated.emplace_back( seg.height, seg.l_length, pt );
     }
     
     auto front = rotated.front().pos;
@@ -1384,7 +1418,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     }
     
     auto midline = std::make_unique<Midline>();
-    midline->segments() = rotated;
+    midline->segments() = std::move(rotated);
     midline->len() = len;
     midline->angle() = calculate_angle(reduced);
     midline->offset() = Vec2(offx, offy);

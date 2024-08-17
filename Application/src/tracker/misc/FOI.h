@@ -94,7 +94,7 @@ namespace track {
         static const std::string& name(long_t id);
         static long_t to_id(const std::string& name);
         static void add(FOI&&);
-        static foi_type::mapped_type foi(long_t id);
+        static std::optional<foi_type::mapped_type> foi(long_t id);
         static std::set<long_t> ids();
         static void remove_frames(Frame_t frameIndex);
         static void remove_frames(Frame_t frameIndex, long_t id);

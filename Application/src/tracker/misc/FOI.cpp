@@ -116,14 +116,14 @@ namespace track {
         return _props->id;
     }
 
-    FOI::foi_type::mapped_type FOI::foi(long_t id) {
+    std::optional<FOI::foi_type::mapped_type> FOI::foi(long_t id) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _frames_of_interest.find(id);
         if(it != _frames_of_interest.end()) {
             return it->second;
         }
         
-        throw U_EXCEPTION("Cannot find frames of interest with id ",id,".");
+        return std::nullopt;
     }
 
     FOI::foi_type FOI::all_fois() {

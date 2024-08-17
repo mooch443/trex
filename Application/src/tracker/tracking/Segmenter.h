@@ -13,13 +13,74 @@
 namespace track {
 
 class Tracker;
+struct UninterruptableStep;
+
+struct GeneratorStep {
+    static constexpr size_t MAX_CAPACITY = 10;
+    ThreadGroupId tid;
+    mutable std::mutex mutex;
+    std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
+    SegmentationData data;
+    
+    GeneratorStep() noexcept = default;
+    GeneratorStep(GeneratorStep&& other) {
+        *this = std::move(other);
+    }
+    GeneratorStep(std::string_view name, std::string_view subname, ManagedThread&& thread);
+    
+    GeneratorStep& operator=(GeneratorStep&& other) {
+        std::scoped_lock guard(other.mutex, mutex);
+        tid = std::move(other.tid);
+        items = std::move(other.items);
+        data = std::move(other.data);
+        return *this;
+    }
+    
+    bool update(UninterruptableStep&);
+    bool receive(std::tuple<Frame_t, std::future<SegmentationData>>&&);
+    void terminate_wait_blocking(UninterruptableStep&);
+    bool has_data() const;
+    
+    bool valid() const { return tid.valid(); }
+    void notify() const;
+};
+
+struct UninterruptableStep {
+    ThreadGroupId tid;
+    mutable std::mutex mutex;
+    SegmentationData data;
+    
+    UninterruptableStep() noexcept = default;
+    UninterruptableStep(UninterruptableStep&& other) {
+        *this = std::move(other);
+    }
+    UninterruptableStep(std::string_view name, std::string_view subname, ManagedThread&& thread);
+    
+    UninterruptableStep& operator=(UninterruptableStep&& other) {
+        std::scoped_lock guard(other.mutex, mutex);
+        tid = std::move(other.tid);
+        data = std::move(other.data);
+        return *this;
+    }
+    
+    bool receive(SegmentationData&&);
+    void terminate_wait_blocking();
+    void terminate();
+    std::optional<SegmentationData> transfer_data();
+    bool has_data() const;
+    
+    bool valid() const { return tid.valid(); }
+    void notify() const;
+};
 
 class Segmenter {
     // condition variables and mutexes for thread synchronization
     //std::condition_variable _cv_messages, _cv_ready_for_tracking;
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
-    ThreadGroupId _generator_group_id, _tracker_group_id;
+    UninterruptableStep _writing_step, _tracking_step;
+    GeneratorStep _generating_step; // the only one that can accumulate stuff
+    
     GETTER(Range<Frame_t>, video_conversion_range);
     file::Path _output_file_name;
     
@@ -30,8 +91,6 @@ class Segmenter {
     std::atomic<bool> _processor_initializing{false};
     std::unique_ptr<Tracker> _tracker;
     
-    std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
-    
     // File for output
     std::unique_ptr<pv::File> _output_file;
     
@@ -39,13 +98,10 @@ class Segmenter {
     GETTER(Size2, output_size);
     std::chrono::time_point<std::chrono::system_clock> _start_time;
     
-    // Segmentation data for the next frame
-    SegmentationData _next_frame_data;
-
     // Progress and current data for tracking
-    SegmentationData _progress_data, _transferred_current_data;
+    SegmentationData _transferred_current_data;
     
-    std::vector<pv::BlobPtr> _progress_blobs, _transferred_blobs;
+    std::vector<pv::BlobPtr> _transferred_blobs;
     
     std::function<void(float)> progress_callback;
     std::future<void> average_generator;
@@ -59,6 +115,8 @@ class Segmenter {
     Frame_t running_id = 0_f;
     std::atomic<double> _frame_time{0}, _frame_time_samples{0};
     std::atomic<double> _fps{0};
+    std::atomic<double> _write_time{0}, _write_time_samples{0};
+    std::atomic<double> _write_fps{0};
     
 #if WITH_FFMPEG
     std::unique_ptr<FFMPEGQueue> _queue;
@@ -86,11 +144,13 @@ public:
     std::future<std::optional<std::string_view>> video_recovered_error() const;
     float average_percent() const { return min(_average_percent.load(), 1.f); }
     double fps() const;
+    double write_fps() const;
     std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
     
 private:
     void generator_thread();
-    void perform_tracking();
+    void serialize_thread();
+    void perform_tracking(SegmentationData&&);
     void tracking_thread();
 
     void setDefaultSettings();

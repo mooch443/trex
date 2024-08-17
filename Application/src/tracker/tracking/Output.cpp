@@ -165,13 +165,28 @@ uint64_t Data::write(const track::FrameProperties& val) {
     return write<data_long_t>(val.active_individuals);
 }
 
-MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline* midline) const {
-    MinimalOutline::Ptr ptr = std::make_unique<MinimalOutline>();
-    static_assert(MinimalOutline::factor == 10, "MinimalOutline::factor was 10 last time I checked.");
+// Function to multiply x and y with a factor
+uint16_t multiply_xy(uint16_t value, float factor) {
+    // Extract x and y
+    int8_t x = (value >> 8) & 0xFF; // Top 8 bits
+    int8_t y = value & 0xFF;        // Bottom 8 bits
+
+    // Multiply x and y by the factor
+    x = saturate(roundf(float(x) * factor), CHAR_MIN, CHAR_MAX);
+    y = saturate(roundf(float(y) * factor), CHAR_MIN, CHAR_MAX);
+
+    // Recombine x and y into a single uint16_t
+    return (uint16_t(x) << 8) | (uint16_t(y) & 0xFF);
+}
+
+MinimalOutline Output::ResultsFormat::read_outline(Data& ref, Midline* midline) const {
+    MinimalOutline ptr;
+    //static_assert(MinimalOutline::factor == 10, "MinimalOutline::factor was 10 last time I checked.");
+    const float conversion_factor = 1.f / float(_header.midline_factor);
     
     uint64_t L;
     ref.read<uint64_t>(L);
-    ptr->_points.resize(narrow_cast<uint32_t>(L)); // prevent malformed files from filling the ram
+    ptr._points.resize(narrow_cast<uint32_t>(L)); // prevent malformed files from filling the ram
     /*if(_header.version > Output::ResultsFormat::Versions::V_9) {
         ptr->_tail_index = ref.read<data_long_t>();
     } else
@@ -187,23 +202,33 @@ MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline* midl
     }*/
     
     if(_header.version >= Output::ResultsFormat::Versions::V_17) {
-        ref.read_convert<float>(ptr->_first.x);
-        ref.read_convert<float>(ptr->_first.y);
+        ref.read_convert<float>(ptr._first.x);
+        ref.read_convert<float>(ptr._first.y);
         
-        ref.read_data(ptr->_points.size() * sizeof(decltype(ptr->_points)::value_type), (char*)ptr->_points.data());
+        ref.read_data(ptr._points.size() * sizeof(decltype(ptr._points)::value_type), (char*)ptr._points.data());
+        
+        if(_header.version >= Output::ResultsFormat::Versions::V_38) {
+            ref.read<float>(ptr.scale);
+            
+        } else {
+            // we need to change the conversion factor
+            if(conversion_factor != 1)
+                ptr.convert_from(ptr.uncompress(_header.midline_factor));
+        }
+        
     } else {
         struct Point {
             float x, y;
         };
         
         std::vector<Point> points;
-        points.resize(ptr->_points.size());
-        ref.read_data(ptr->_points.size() * sizeof(Point), (char*)points.data());
+        points.resize(ptr._points.size());
+        ref.read_data(ptr._points.size() * sizeof(Point), (char*)points.data());
         std::vector<Vec2> vecs;
         for(auto &p : points)
             vecs.push_back(Vec2(p.x, p.y));
         
-        ptr->convert_from(vecs);
+        ptr.convert_from(vecs);
     }
     
     return ptr;
@@ -221,6 +246,8 @@ uint64_t Data::write(const track::MinimalOutline& val) {
     //pack.write<uint64_t>(outline->points.size());
     //pack.write<data_long_t>(outline->tail_index);
     //pack.write_data(outline->points.size() * sizeof(Vec2), (char*)outline->points.data());
+    write<float>(val.scale);
+    
     return p;
 }
 
@@ -1044,7 +1071,7 @@ uint64_t Data::write(const Individual& val) {
         if(stuff->cached_pp_midline)
             cached_pp_midlines[stuff->frame.get()] = stuff->cached_pp_midline.get();
         if(stuff->outline)
-            outlines[stuff->frame.get()] = stuff->outline.get();
+            outlines[stuff->frame.get()] = &stuff->outline;
     }
     
     pack.write<uint64_t>(cached_pp_midlines.size());
@@ -1180,6 +1207,12 @@ namespace Output {
             _header.creation_time = timestamp_t{ stamp };
         }
         
+        if(_header.version >= ResultsFormat::V_38) {
+            _header.midline_factor = 1;
+        } else {
+            _header.midline_factor = 10; // it used to be 10 always
+        }
+        
         if(_header.version >= ResultsFormat::V_14) {
             read<std::string>(_header.settings);
         }
@@ -1258,6 +1291,8 @@ namespace Output {
         write<int64_t>(range.end);
         
         write<uint64_t>(_header.creation_time.get());
+        
+        //write<int32_t>(MinimalOutline::factor);
 
         std::string text = default_config::generate_delta_config(nullptr, true, _header.exclude_settings).to_settings();
         write<std::string>(text);
@@ -1302,7 +1337,7 @@ namespace Output {
         4 + sizeof(data_long_t)*2
         + sizeof(uchar)*3
         + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob._lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
-        + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?SETTING(midline_resolution).value<uint32_t>() : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline->size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
+        + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?SETTING(midline_resolution).value<uint32_t>() : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline.size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
         + val._basic_stuff.size() * sizeof(decltype(BasicStuff::thresholded_size)) + sizeof(uint64_t);
         
         return pack_size;

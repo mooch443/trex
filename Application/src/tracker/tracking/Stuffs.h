@@ -29,7 +29,7 @@ struct PostureStuff {
     std::unique_ptr<MotionRecord> centroid_posture;
     
     Midline::Ptr cached_pp_midline;
-    MinimalOutline::Ptr outline;
+    MinimalOutline outline;
     
     float posture_original_angle{infinity};
     float midline_angle{infinity}, midline_length{infinity};
@@ -76,7 +76,7 @@ struct PostureStuff {
             copy.cached_pp_midline = std::make_unique<Midline>(*cached_pp_midline);
         }
         if (outline) {
-            copy.outline = std::make_unique<MinimalOutline>(*outline);
+            copy.outline = outline;
         }
         copy.posture_original_angle = posture_original_angle;
         copy.midline_angle = midline_angle;

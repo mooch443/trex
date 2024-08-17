@@ -386,7 +386,7 @@ namespace pv {
             _header.offsets = offsets;
         }
         
-        void add_individual(Frame&& frame);
+        void add_individual(const Frame& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
         template<meta_encoding_t::Class mode>

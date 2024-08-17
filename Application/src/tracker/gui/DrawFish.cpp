@@ -196,7 +196,7 @@ Fish::~Fish() {
         
         /// need to update this as well so there are no old values
         _cached_outline = _posture_stuff
-                            ? _posture_stuff->outline.get()
+                            ? &_posture_stuff->outline
                             : nullptr;
         
         _ML = obj.midline_length();

@@ -361,9 +361,9 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
         }
         
         if(posture->outline) {
-            median_outline.addNumber(posture->outline->size());
+            median_outline.addNumber(posture->outline.size());
             if(calculate_std)
-                outline_stds.insert(posture->outline->size());
+                outline_stds.insert(posture->outline.size());
         }
         
         return true;

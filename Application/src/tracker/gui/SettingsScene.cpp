@@ -143,13 +143,13 @@ struct SettingsScene::Data {
                    || defaults.at(key) != copy.at(key)
                   )
                 //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
-               && (GlobalSettings::access_level(key) < AccessLevelType::LOAD
-                   || is_in(key, "output_dir", "output_prefix", "settings_file")))
+               && (GlobalSettings::access_level(key) < AccessLevelType::INIT
+                   || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range")))
             {
-                /*if(_defaults.has(key))
-                    Print("Keeping ", key, ": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
+                if(_defaults.has(key))
+                    Print("Keeping ", key, "::",GlobalSettings::access_level(key),": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
                 else
-                    Print("Keeping ", key, ": ", copy.at(key).get());*/
+                    Print("Keeping ", key, "::",GlobalSettings::access_level(key),": ", copy.at(key).get());
                 
                 continue;
             }

@@ -36,6 +36,7 @@
 #include <gui/DrawExportOptions.h>
 #include <misc/PythonWrapper.h>
 #include <python/GPURecognition.h>
+#include <tracking/MemoryStats.h>
 
 using namespace track;
 
@@ -799,14 +800,19 @@ void TrackingScene::_draw(DrawStructure& graph) {
         uint64_t last_change = FOI::last_change();
         auto name = SETTING(gui_foi_name).value<std::string>();
 
-        if (last_change != _data->_foi_state.last_change || name != _data->_foi_state.name) {
+        if (last_change != _data->_foi_state.last_change
+            || name != _data->_foi_state.name)
+        {
             _data->_foi_state.name = name;
 
             if (!_data->_foi_state.name.empty()) {
                 long_t id = FOI::to_id(_data->_foi_state.name);
                 if (id != -1) {
-                    _data->_foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
-                    _data->_foi_state.color = FOI::color(_data->_foi_state.name);
+                    auto changed = FOI::foi(id);
+                    if(changed.has_value()) {
+                        _data->_foi_state.changed_frames = std::move(changed.value());
+                        _data->_foi_state.color = FOI::color(_data->_foi_state.name);
+                    }
                 }
             }
 
@@ -1119,6 +1125,25 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
         .gui = SceneManager::getInstance().gui_task_queue(),
         .path = "tracking_layout.json",
         .context = {
+            ActionFunc("print_memory_stats", [this](Action){
+                mem::IndividualMemoryStats overall;
+                {
+                    auto lock = _data->_cache->lock_individuals();
+                    for(auto && [fdx, fish] : lock.individuals) {
+                        mem::IndividualMemoryStats stats(fish);
+                        stats.print();
+                        overall += stats;
+                    }
+                }
+            
+                overall.print();
+                
+                mem::TrackerMemoryStats stats;
+                stats.print();
+                
+                mem::OutputLibraryMemoryStats ol;
+                ol.print();
+            }),
             ActionFunc("quit", [](Action) {
                 SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
                     graph.dialog([](Dialog::Result result) {
