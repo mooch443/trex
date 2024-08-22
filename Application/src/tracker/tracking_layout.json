@@ -856,15 +856,16 @@
 
         {
             "type":"condition",
-            "var":"{||:{hovered:timeline}:{hovered}}",
+            "var":"{||:{hovered:timeline}:{hovered:button_thing}}",
             "z-index":1,
-            "then":
-            {
+            "then": {
                 "type":"collection",
                 "children":[
                     {
                         "type":"collection",
                         "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
+                        "name":"button_thing",
+                        "clickable":true,
                         "children":[
                             {
                                 "type":"vlayout",

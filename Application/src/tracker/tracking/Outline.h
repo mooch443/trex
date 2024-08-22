@@ -346,7 +346,7 @@ namespace track {
         //GETTER(long_t, head_index);
         
         //! When set to true, this Outline cannot be changed anymore.
-        GETTER(bool, concluded);
+        GETTER(bool, concluded){false};
         
         int curvature_range;
         

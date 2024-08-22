@@ -253,7 +253,7 @@ struct ConvertScene::Data {
                     auto font = parse_font(layout.obj, layout._defaults.font);
                     ptr->text()->set(font);
                     ptr->text()->set(color);
-                    ptr->text()->set(FillClr{ fill });
+                    ptr->set(FillClr{ fill });
                     ptr->set_line_color(line);
                     
                     if(not id.valid())
@@ -305,6 +305,7 @@ struct ConvertScene::Data {
                     
                     map.apply([&](std::string_view key, auto& value) {
                         value = parse_value_with_default(value, key, patterns, context, state);
+                        Print(key," = ", value);
                     });
                     
                     source = Bounds{ map.get<"pos">(), map.get<"size">() };

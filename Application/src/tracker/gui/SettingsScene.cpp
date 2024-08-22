@@ -84,12 +84,7 @@ struct SettingsScene::Data {
         if(callback)
             GlobalSettings::map().unregister_callbacks(std::move(callback));
         
-        callback = GlobalSettings::map().register_callbacks({
-            "filename",
-            "source",
-            "detect_type"
-            
-        }, [this](auto name) {
+        auto fn = [this](auto name) {
             if(name == "filename") {
                 file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
                 if(not path.empty() && not path.remove_filename().empty()) {
@@ -123,17 +118,26 @@ struct SettingsScene::Data {
                 
                 settings::set_defaults_for(detect_type, GlobalSettings::map(), exclude);
             }
-        });
+        };
+        
+        callback = GlobalSettings::map().register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({
+            "filename",
+            "source",
+            "detect_type"
+            
+        }, fn);
+        
+        fn("source");
     }
     
     sprite::Map get_changed_props() const {
         sprite::Map copy = GlobalSettings::map();
         const auto &defaults = GlobalSettings::defaults();
         const auto &_defaults = GlobalSettings::current_defaults_with_config();
-        /*Print("current output_dir = ", _defaults.at("calculate_posture"));
-        Print("current output_dir = ", copy.at("calculate_posture"));
+        Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
+        Print("current video_conversion_range = ", copy.at("video_conversion_range"));
         Print("keys = ", copy.keys());
-        Print("_defaults keys = ", _defaults.keys());*/
+        Print("_defaults keys = ", _defaults.keys());
         
         for(auto &key : copy.keys()) {
             
@@ -156,7 +160,7 @@ struct SettingsScene::Data {
             
             copy.erase(key);
         }
-        //Print("Maintaining: ", copy.keys());
+        Print("Maintaining: ", copy.keys());
         return copy;
     }
     
