@@ -143,27 +143,6 @@ namespace hist_utils {
     }
 }
 
-// (X[i], Y[i]) are coordinates of i'th point.
-Float2_t polygonArea(const std::vector<Vec2>& pts)
-{
-    // Initialze area
-    Float2_t area = 0.0;
-    if(pts.empty())
-        return 0;
-    
-    // Calculate value of shoelace formula
-    auto n = pts.size();
-    size_t j = n - 1;
-    for (size_t i = 0; i < n; i++)
-    {
-        area += (pts[j].x + pts[i].x) * (pts[j].y - pts[i].y);
-        j = i;  // j is previous vertex to i
-    }
-    
-    // Return absolute value
-    return cmn::abs(area / 2.0f);
-}
-
 void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame_t>& range, const std::function<void(float, std::string_view)>& progress_callback) {
     using namespace gui;
     using namespace track::image;
@@ -611,7 +590,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             
                             midline_lengths.push_back(midline->segments().size());
                             midline_cms.push_back(midline->len() * FAST_SETTING(cm_per_pixel));
-                            areas.push_back(polygonArea(points));
+                            areas.push_back(polygon_area(points));
                         }
                         
                         ++counter;

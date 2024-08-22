@@ -205,10 +205,12 @@ void WorkProgress::stop() {
         if(std::unique_lock guard{instance_mutex()};
            raw_instance()) 
         {
-            if(std::unique_lock guard(raw_instance()->start_mutex);
+            if(std::unique_lock guard2(raw_instance()->start_mutex);
                _thread)
             {
+                guard.unlock();
                 _thread->join();
+                guard.lock();
                 delete _thread;
                 _thread = nullptr;
             }

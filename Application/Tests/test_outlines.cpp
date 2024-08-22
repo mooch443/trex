@@ -27,8 +27,8 @@ bool comparePoints(const Vec2& a, const Vec2& b, float tolerance = 0.01) {
 }
 
 // Helper function to create an artificial outline
-std::shared_ptr<std::vector<Vec2>> createOutline(const std::vector<Vec2>& points) {
-    return std::make_shared<std::vector<Vec2>>(points);
+std::unique_ptr<std::vector<Vec2>> createOutline(const std::vector<Vec2>& points) {
+    return std::make_unique<std::vector<Vec2>>(points);
 }
 
 // Helper function to calculate the length of a vector
@@ -51,8 +51,8 @@ bool compareOutlines(const std::vector<Vec2>& outline1, const std::vector<Vec2>&
 
 // Test case for basic functionality
 TEST(OutlineResampleTest, BasicFunctionality) {
-    std::shared_ptr<std::vector<Vec2>> points = createOutline({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
-    Outline outline(points);
+    auto points = createOutline({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    Outline outline(std::move(points));
 
     outline.resample(5.0f);
 
@@ -62,8 +62,8 @@ TEST(OutlineResampleTest, BasicFunctionality) {
 
 // Test case for very small resampling distance
 TEST(OutlineResampleTest, VerySmallResamplingDistance) {
-    std::shared_ptr<std::vector<Vec2>> points = createOutline({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
-    Outline outline(points);
+    auto points = createOutline({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    Outline outline(std::move(points));
 
     outline.resample(0.1f);
 
@@ -73,8 +73,8 @@ TEST(OutlineResampleTest, VerySmallResamplingDistance) {
 
 // Test case for very large resampling distance
 TEST(OutlineResampleTest, VeryLargeResamplingDistance) {
-    std::shared_ptr<std::vector<Vec2>> points = createOutline({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
-    Outline outline(points);
+    auto points = createOutline({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    Outline outline(std::move(points));
 
     outline.resample(50.0f);
 
@@ -84,8 +84,8 @@ TEST(OutlineResampleTest, VeryLargeResamplingDistance) {
 
 // Test case for single-point outline (should not change as it's a degenerate case)
 TEST(OutlineResampleTest, SinglePointOutline) {
-    std::shared_ptr<std::vector<Vec2>> points = createOutline({{0, 0}});
-    Outline outline(points);
+    auto points = createOutline({{0, 0}});
+    Outline outline(std::move(points));
 
     outline.resample(5.0f);
 

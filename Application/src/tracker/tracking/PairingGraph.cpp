@@ -1410,7 +1410,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
     }
     
 PairingGraph::PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired)
-    : _frame(frame), _time(props.time), _paired(std::move(paired)), _optimal_pairing(NULL)
+  : _frame(frame), _time(props.time()), _paired(std::move(paired)), _optimal_pairing(NULL)
 {
 }
 

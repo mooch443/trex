@@ -149,20 +149,24 @@ uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
 template<> void Data::read(track::FrameProperties& p) {
     uint64_t ts;
     read<uint64_t>(ts);
-    p.org_timestamp = timestamp_t(ts);
-    p.time = double(p.org_timestamp.get()) / double(1000*1000);
+    p.set_timestamp(ts);
+    
+    long_t active_individuals;
+    
     auto *ptr = static_cast<Output::ResultsFormat*>(this);
     if(ptr->header().version >= Output::ResultsFormat::V_31) {
-        read_convert<data_long_t>(p.active_individuals);
+        read_convert<data_long_t>(active_individuals);
     } else
-        p.active_individuals = -1;
+        active_individuals = -1;
+    
+    p.set_active_individuals(active_individuals);
 }
 
 template<>
 uint64_t Data::write(const track::FrameProperties& val) {
-    write<data_long_t>(val.frame.get());
-    write<uint64_t>(val.org_timestamp.get());
-    return write<data_long_t>(val.active_individuals);
+    write<data_long_t>(val.frame().get());
+    write<uint64_t>(val.timestamp().get());
+    return write<data_long_t>(val.active_individuals());
 }
 
 // Function to multiply x and y with a factor
@@ -208,7 +212,7 @@ MinimalOutline Output::ResultsFormat::read_outline(Data& ref, Midline* midline) 
         ref.read_data(ptr._points.size() * sizeof(decltype(ptr._points)::value_type), (char*)ptr._points.data());
         
         if(_header.version >= Output::ResultsFormat::Versions::V_38) {
-            ref.read<float>(ptr.scale);
+            ref.read_convert<float>(ptr.scale);
             
         } else {
             // we need to change the conversion factor
@@ -359,8 +363,8 @@ uint64_t Data::write(const pv::BlobPtr& val) {
 
 Midline::Ptr Output::ResultsFormat::read_midline(Data& ref) {
     auto midline = std::make_unique<Midline>();
-    ref.read<float>(midline->len());
-    ref.read<float>(midline->angle());
+    ref.read_convert<float>(midline->len());
+    ref.read_convert<float>(midline->angle());
     ref.read<Vec2>(midline->offset());
     ref.read<Vec2>(midline->front());
     if(_header.version >= Versions::V_24) {
@@ -436,7 +440,7 @@ void Output::ResultsFormat::process_frame(
         auto cache = fish->cache_for_frame(Tracker::properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
         if(cache) {
             assert(frameIndex > fish->start_frame());
-            p = fish->probability(label ? label->id : -1, cache.value(), frameIndex, data.stuff->blob);//.p;
+            p = Individual::probability(label ? label->id : MaybeLabel{}, cache.value(), frameIndex, data.stuff->blob);//.p;
         } else {
             throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", cache.error());
         }
@@ -608,7 +612,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         ref.read_convert<float>(time);
                 } else {
                     auto p = Tracker::properties(Frame_t(frameIndex), cache);
-                    if(p) time = p->time;
+                    if(p) time = p->time();
                     else {
                         FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
                         time = -1;
@@ -739,7 +743,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     else
                         ref.read_convert<float>(time);
                 } else {
-                    time = Tracker::properties(frame)->time;
+                    time = Tracker::properties(frame)->time();
                 }
                 
                 auto p = std::make_unique<MotionRecord>();
@@ -1480,26 +1484,26 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         for(const auto &fish : it->second) {
             n += fish->has(props.frame) ? 1 : 0;
         }*/
-        n = props->active_individuals;
+        n = props->active_individuals();
         
         // update tracker with the numbers
         //assert(it->first == props.frame);
-        auto &active = *IndividualManager::active_individuals(props->frame).value();
-        assert(props->frame.valid());
-        if(prev_props && prev_frame > props->frame + 1_f)
+        auto &active = *IndividualManager::active_individuals(props->frame()).value();
+        assert(props->frame().valid());
+        if(prev_props && prev_frame > props->frame() + 1_f)
             prev_props = nullptr;
         
-        _tracker.update_consecutive(active, props->frame, false);
-        _tracker.update_warnings(props->frame, props->time, (long_t)number_fish, (long_t)n, (long_t)prev, props.get(), prev_props, active, iterator_map);
+        _tracker.update_consecutive(active, props->frame(), false);
+        _tracker.update_warnings(props->frame(), props->time(), (long_t)number_fish, (long_t)n, (long_t)prev, props.get(), prev_props, active, iterator_map);
         
         prev = n;
         prev_props = props.get();
-        prev_frame = props->frame;
+        prev_frame = props->frame();
         
-        if(props->frame.get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
-            update_progress("FOIs...", props->frame.get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame)+" / "+Meta::toStr(_tracker.end_frame()));
+        if(props->frame().get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
+            update_progress("FOIs...", props->frame().get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame())+" / "+Meta::toStr(_tracker.end_frame()));
             if(!GlobalSettings::is_runtime_quiet())
-                Print("\tupdate_fois ", props->frame," / ",_tracker.end_frame(),"\r");
+                Print("\tupdate_fois ", props->frame()," / ",_tracker.end_frame(),"\r");
         }
     }
     
@@ -1507,6 +1511,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         update_progress("Finding segments...", -1, "");
         DatasetQuality::update();
     }
+}
+
+FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
+    return FrameProperties(frame, time, timestamp);
 }
     
     ResultsFormat::Header TrackingResults::load(std::function<void(const std::string&, float, const std::string&)> update_progress, Path filename) {
@@ -1575,22 +1583,20 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         for (uint64_t i=0; i<L; i++) {
             file.read<data_long_t>(frameIndex);
             
-            if(file._header.version >= ResultsFormat::Versions::V_2)
+            if(file._header.version >= ResultsFormat::Versions::V_2) {
                 file.read<track::FrameProperties>(props);
-            else {
+                props = FrameProperties(Frame_t(frameIndex), props.time(), props.timestamp());
+            } else {
                 file.read<CompatibilityFrameProperties>(comp);
-                props.org_timestamp = comp.timestamp;
-                props.time = comp.time;
+                props = comp.convert(Frame_t(frameIndex));
             }
             
-            props.frame = Frame_t(frameIndex);
-            
-            if(check_analysis_range && not analysis_range.contains(props.frame))
+            if(check_analysis_range && not analysis_range.contains(props.frame()))
                 continue;
             
             if(!_tracker._startFrame.load().valid())
-                _tracker._startFrame = props.frame;
-            _tracker._endFrame = props.frame;
+                _tracker._startFrame = props.frame();
+            _tracker._endFrame = props.frame();
             
             _tracker.add_next_frame(props);
         }
@@ -1693,10 +1699,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for(auto &props : _tracker._added_frames) {
                 // number of individuals actually assigned in this frame
                 n = 0;
-                for(const auto &fish : Tracker::active_individuals(props->frame)) {
-                    n += fish->has(props->frame);
+                for(const auto &fish : Tracker::active_individuals(props->frame())) {
+                    n += fish->has(props->frame());
                 }
-                props->active_individuals = n;
+                props->set_active_individuals(n);
             }
         }
         

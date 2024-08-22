@@ -24,7 +24,6 @@ namespace mem { struct TrackerMemoryStats; }
 
 namespace track {
 
-class Posture;
 class TrainingData;
 class FOI;
 struct SplitData;
@@ -269,8 +268,6 @@ public:
     static void analysis_state(AnalysisState);
     
 protected:
-    friend class track::Posture;
-    
     void update_consecutive(const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
     void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     

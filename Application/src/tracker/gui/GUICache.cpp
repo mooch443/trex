@@ -389,7 +389,10 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             if(not next_frame_matches) {
                 /// the next frame does *not* match - at least should
                 /// nudge the preloader:
-                auto maybe_frame = _preloader.get_frame(frameIndex, _preloader.last_increment(), std::chrono::milliseconds(0));
+                auto maybe_frame = _load_frames_blocking
+                    ? _preloader.load_exactly(frameIndex, _preloader.last_increment())
+                    : _preloader.get_frame(frameIndex, _preloader.last_increment(), std::chrono::milliseconds(0));
+                
                 //if(maybe_frame.has_value())
                 //    timer.reset();
                 
@@ -627,7 +630,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             else
                 connectivity_matrix.clear();
             
-            double time = properties ? properties->time : 0;
+            double time = properties ? properties->time() : 0;
             
             for(auto fish : active) {
                 Range<Frame_t> segment_range;
@@ -964,7 +967,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 Frame_t f(frameIndex);
                 
                 if(raw_blobs.size() > 50) {
-                    std::vector<int> labels(raw_blobs.size());
+                    std::vector<MaybeLabel> labels(raw_blobs.size());
                     
                     distribute_indexes([&](auto i, auto start, auto end, auto){
                         for(auto it = start; it != end; ++it, ++i) {
@@ -974,13 +977,15 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     
                     for(size_t i=0; i<raw_blobs.size(); ++i) {
                         auto &b = raw_blobs[i];
-                        _ranged_blob_labels[b->blob->blob_id()] = labels[i];
+                        if(labels[i].has_value())
+                            _ranged_blob_labels[b->blob->blob_id()] = labels[i].value();
                     }
                     
                 } else {
                     for(auto &b: raw_blobs) {
                         auto label = Categorize::DataStore::_ranged_label_unsafe(f, b->blob->blob_id());
-                        _ranged_blob_labels[b->blob->blob_id()] = label;
+                        if(label.has_value())
+                            _ranged_blob_labels[b->blob->blob_id()] = label.value();
                     }
                 }
             }
@@ -1165,9 +1170,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 }
                 
                 if(_props && _next_props) {
-                    auto current_time = _props->time;
+                    auto current_time = _props->time();
                     auto next_props = _next_props ? &_next_props.value() : nullptr;
-                    auto next_time = next_props ? next_props->time : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
+                    auto next_time = next_props ? next_props->time() : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
                     /// cache cache_for_frame(frame + 1)
                     std::mutex map_mutex;
                     
@@ -1232,7 +1237,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     
                     std::unique_lock guard(individuals_mutex);
                     auto fish = individuals.at(it->first);
-                    it->second->set_data(update_settings, *fish, frameIndex, properties->time, nullptr);
+                    it->second->set_data(update_settings, *fish, frameIndex, properties->time(), nullptr);
                 }
             }
             
@@ -1266,16 +1271,22 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         checked_probs.insert(fdx);
         
         if (frame_idx.valid()) {
-            LockGuard guard(ro_t{}, "GUICache::probs");
-            auto c = processed_frame().cached(fdx);
-            if(c) {
-                std::unique_lock guard(individuals_mutex);
+            if(auto c = processed_frame().cached(fdx);
+               c != nullptr)
+            {
+                /// this is probably(?) safe since the probability does _not_
+                /// access anything inside individual. should make this static
+                /// to make sure this never happens.
+                //std::unique_lock guard(individuals_mutex);
                 processed_frame().transform_blobs([&](const pv::Blob& blob) {
-                    auto it = individuals.find(fdx);
-                    if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
-                        return;
+                    //auto it = active_ids.find(fdx);
+                    //if(it == active_ids.end())
+                    //    return;
+                    //auto it = individuals.find(fdx);
+                    //if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
+                    //    return;
                     
-                    auto p = individuals.at(fdx)->probability(processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
+                    auto p = Individual::probability(processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
                         probabilities[fdx][blob.blob_id()] = {
                             .p = p,

@@ -72,10 +72,12 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
                 for (size_t i=0; i<VisualField::field_resolution; i++) {
                     if(eye._depth[i] < VisualField::invalid_value) {
                         //auto w = (1 - sqrt(eye._depth[i]) / (sqrt(max_d) * 0.5));
-                        crosses.emplace_back(eye._visible_points[i], eye.clr);
+                        //if(Idx_t(eye._visible_ids[i]) != fish->identity().ID())
+                        {
+                            crosses.emplace_back(eye._visible_points[i], eye.clr);
+                            //add<Line>(Line::Point_t{eye.pos}, Line::Point_t{eye._visible_points.at(i)}, LineClr{Viridis::value(i / double(VisualField::field_resolution))});
+                        }
                         
-                        //if(eye._visible_ids[i] != fish->identity().ID())
-                        //add<Line>(Line::Point_t{eye.pos}, Line::Point_t{eye._visible_points.at(i)}, LineClr{Viridis::value(i / double(VisualField::field_resolution))});
                     } else {
                         static const Rangef fov_range(-VisualField::symmetric_fov, VisualField::symmetric_fov);
                         static const double len = fov_range.end - fov_range.start;
@@ -104,6 +106,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
                 } else {
                     _polygons[poly_idx]->set_vertices(std::move(crosses));
                 }
+                _polygons[poly_idx]->set_show_points(true);
                 
                 //    base.add_object(poly);
                 advance_wrap(*_polygons[poly_idx++]);

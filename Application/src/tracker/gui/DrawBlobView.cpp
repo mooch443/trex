@@ -174,8 +174,7 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
     {
         //auto label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->blob_id());
         auto it = parm.cache._ranged_blob_labels.find(blob.blob_id());
-        if(it != parm.cache._ranged_blob_labels.end()
-           && it->second != -1)
+        if(it != parm.cache._ranged_blob_labels.end())
         {
             auto cats = FAST_SETTING(categories_ordered);
             if(size_t(it->second) < cats.size()) // also excludes < 0

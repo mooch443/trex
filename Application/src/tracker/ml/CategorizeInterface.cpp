@@ -204,8 +204,19 @@ void receive_prediction_results(const LearningTask& task) {
     std::fill(task.sample->_probabilities.begin(), task.sample->_probabilities.end(), 0.f);
     
     for(size_t i=0; i<task.result.size(); ++i) {
-        assert(task.result.at(i) == DataStore::label(task.result.at(i))->id);
-        task.sample->_probabilities[task.result.at(i)] += float(1);
+        auto raw_label = task.result.at(i);
+        if(raw_label < 0) {
+#ifndef NDEBUG
+            FormatWarning("Invalid label @position{", i, "} in ", task.result);
+#endif
+            continue;
+        }
+        const uint16_t read_label_index{narrow_cast<uint16_t>(raw_label)};
+#ifndef NDEBUG
+        auto id = DataStore::label(MaybeLabel{read_label_index})->id;
+        assert(read_label_index == id.value());
+#endif
+        task.sample->_probabilities[read_label_index] += float(1);
     }
     
 #ifndef NDEBUG
@@ -249,11 +260,12 @@ void Cell::update(float s) {
                     max_p = _sample->_probabilities[i];
                 }
             
-            for(size_t i=0; i<_sample->_probabilities.size(); ++i) {
+            for(uint16_t i=0, N = narrow_cast<uint16_t>(_sample->_probabilities.size()); i<N; ++i)
+            {
                 if(!summary.empty())
                     summary += " ";
                 summary += std::string(index == i ? "<b><str>" : "<ref>")
-                    +  DataStore::label(i)->name
+                    +  DataStore::label(MaybeLabel{i})->name
                     + (index == i ? "</str></b>" : "</ref>")
                     + ":<nr>" + dec<2>(_sample->_probabilities[i] * 100).toStr()+"</nr>%";
             }
@@ -289,7 +301,7 @@ void Cell::update(float s) {
         std::lock_guard g(Work::recv_mutex());
         float max_p = 0;
         if(!_sample->_probabilities.empty()) {
-            for(size_t j=0; j<_sample->_probabilities.size(); ++j) {
+            for(int j=0, N = narrow_cast<int>(_sample->_probabilities.size()); j<N; ++j) {
                 auto p = _sample->_probabilities[j];
                 if(p > max_p) {
                     max_p = p;

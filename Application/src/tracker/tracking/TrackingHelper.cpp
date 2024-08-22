@@ -45,7 +45,7 @@ TrackingHelper::TrackingHelper(
         auto it = --added_frames.end();
         if(it != added_frames.begin()) {
             --it;
-            if((*it)->frame == frame.index() - 1_f)
+            if((*it)->frame() == frame.index() - 1_f)
                 prev_props = (*it).get();
         }
     }

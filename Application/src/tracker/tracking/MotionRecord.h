@@ -45,21 +45,26 @@ struct FrameProperties {
         return std::make_unique<FrameProperties>(std::forward<Args>(args)...);
     }
     
+    double _time{-1};
+    timestamp_t _org_timestamp{0};
+    GETTER(Frame_t, frame);
+    GETTER(long_t, active_individuals){-1};
+    
 public:
-    double time{-1};
-    timestamp_t org_timestamp{0};
-    Frame_t frame;
-    long_t active_individuals{-1};
-        
     FrameProperties(Frame_t frame, double t, timestamp_t ot)
-        : time(t), org_timestamp(ot), frame(frame)
+        : _time(t), _org_timestamp(ot), _frame(frame)
     {}
     FrameProperties() noexcept = default;
     
     bool operator<(Frame_t frame) const {
-        return this->frame < frame;
+        return this->_frame < frame;
     }
     
+    void set_timestamp(uint64_t ts);
+    void set_active_individuals(long_t);
+    
+    timestamp_t timestamp() const;
+    double time() const;
     std::string toStr() const;
     static std::string class_name() { return "FrameProperties"; }
 };

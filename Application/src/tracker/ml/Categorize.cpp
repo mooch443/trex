@@ -282,7 +282,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
         throw InvalidArgumentException("No valid pointer to video source.");
     
     ImageExtractor(std::move(ptr), [normalize](const Query& q) -> bool {
-        return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
+        return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && not DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()).has_value();
         
     }, [](std::vector<Result>&& results) {
 #ifndef NDEBUG
@@ -347,10 +347,11 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                             const auto& frame = results[i].frame;
                             const auto& bdx = results[i].bdx;
                             
-                            if(r[i] <= -1)
+                            auto label = r[i] < 0 ? MaybeLabel{} : MaybeLabel{narrow_cast<uint16_t>(r[i])};
+                            if(not label.has_value())
                                 FormatWarning("Label for frame ", frame," blob ",bdx," is nullptr.");
                             else {
-                                DataStore::_set_label_unsafe(Frame_t(frame), bdx, r[i]);
+                                DataStore::_set_label_unsafe(Frame_t(frame), bdx, label);
                             }
                         }
                     }
@@ -400,8 +401,8 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                             auto& basic = fish->basic_stuff()[bix];
                             ranged._blobs.emplace_back(basic->blob.blob_id());
                             auto label = DataStore::_label_unsafe(basic->frame, ranged._blobs.back());
-                            if(label != -1) {
-                                ++sums[label];
+                            if(label.has_value()) {
+                                ++sums[label.value()];
                                 ++samples;
                             }
                         }

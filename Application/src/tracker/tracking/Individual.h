@@ -326,14 +326,14 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::tuple<BasicStuff*, PostureStuff*> all_stuff(Frame_t frameIndex) const;
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob) const;
-        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;
-        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
+        static Probability probability(MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob);
+        static Probability probability(MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob);
+        static Probability probability(MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels);
         
     private:
-        Match::prob_t time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) const;
+        static Match::prob_t time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples);
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
-        Match::prob_t position_probability(const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
+        static Match::prob_t position_probability(const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center);
         
     public:
         const BasicStuff* find_frame(Frame_t frameIndex) const;
@@ -353,7 +353,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //std::optional<default_config::matching_mode_t::Class> matched_using(Frame_t frameIndex) const;
         std::optional<default_config::matching_mode_t::Class> matched_using(size_t kown_index) const;
         
-        std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> calculate_previous_vector(Frame_t frameIndex) const;
+        std::tuple<std::vector<std::tuple<Float2_t, Float2_t>>, std::vector<Float2_t>, size_t, MovementInformation> calculate_previous_vector(Frame_t frameIndex) const;
         
         std::string toStr() const;
         static std::string class_name() {

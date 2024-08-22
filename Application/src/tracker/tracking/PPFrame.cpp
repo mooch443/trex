@@ -201,7 +201,8 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
         return;
     }
     
-    tdelta = time - props->time;
+    tdelta = time - props->time();
+    assert(tdelta > 0);
     
     hints.push(previous_frame, props);
     hints.push(index(), Tracker::properties(index()));
@@ -254,37 +255,28 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
             auto fish = *it;
             
             // IndividualCache is in the same position as the indexes here
-            IndividualCache *cache;
             auto result = fish->cache_for_frame(previous, index(), time, &hints);
-            if(result) {
-                auto &ref = cache_map[fish->identity().ID()];
-                ref = std::move(result.value());
-                cache = &ref;
-            } else {
-                //auto result = fish->cache_for_frame(index(), time, &hints);
-                //throw U_EXCEPTION("Cannot create cache_for_frame for ", fish->identity(), " in frame ", index(), " because: ", result.error());
+            if(not result)
                 continue;
-            }
             
-            //if(!history_split)
-             //   continue;
+            auto& cache = cache_map[fish->identity().ID()];
+            cache_map[fish->identity().ID()] = std::move(result.value());
             
-            
-            const auto time_limit = cache->previous_frame.get() - frame_limit; // dont allow too far to the past
-            assert(cache->previous_frame.valid());
+            const auto time_limit = cache.previous_frame.get() - frame_limit; // dont allow too far to the past
+            assert(cache.previous_frame.valid());
                 
             // does the current individual have the frame previous to the current frame?
             //! try to find a frame thats close in time AND space to the current position
             size_t counter = 0;
             std::vector<Vec2> last_positions;
-            Frame_t last_frame = cache->previous_frame;
+            Frame_t last_frame = cache.previous_frame;
             long_t last_L = -1;
             
-            auto sit = fish->iterator_for(cache->previous_frame);
-            if (sit != fish->frame_segments().end() && (*sit)->contains(cache->previous_frame))
+            auto sit = fish->iterator_for(cache.previous_frame);
+            if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame))
             {
                 for (; sit != fish->frame_segments().end()
-                        && min((*sit)->end(), cache->previous_frame).get() >= time_limit
+                        && min((*sit)->end(), cache.previous_frame).get() >= time_limit
                         && counter < frame_limit; // shouldnt this be the same as the previous?
                     ++counter)
                 {
@@ -317,7 +309,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                         if (last_positions.empty()
                             || sqdistance(pos, last_positions.back()) < space_limit)
                         {
-                            last_frame = min((*sit)->end(), cache->previous_frame);
+                            last_frame = min((*sit)->end(), cache.previous_frame);
                             assert(last_frame.valid());
                             last_L = (last_frame - (*sit)->start()).get();
                         }
@@ -335,18 +327,18 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                 Log("\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best segment length is ", last_L," and we are in frame ", index(),".");
                 
             } else {
-                auto set = blob_grid().query(cache->estimated_px, max_d);
+                auto set = blob_grid().query(cache.estimated_px, max_d);
                 
                 if(!set.empty()) {
                     auto fdx = fish->identity().ID();
                     auto& map = fish_assignments[i - start];
                     map.fdx = fdx;
                     if(last_positions.empty()) {
-                        map.last_pos = {cache->estimated_px};
+                        map.last_pos = {cache.estimated_px};
                         //last_pos.x == -1 ? cache->estimated_px : last_pos;
                     } else {
                         map.last_pos = last_positions;
-                        map.last_pos.emplace_back(cache->estimated_px);
+                        map.last_pos.emplace_back(cache.estimated_px);
                     }
                     
                     for(auto && [d, bdx] : set) {
@@ -358,7 +350,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                     }
                 }
                 
-                Log("\tFish ", fish->identity()," (", cache->estimated_px.x, ",", cache->estimated_px.y, ") proximity: ", set);
+                Log("\tFish ", fish->identity()," (", cache.estimated_px.x, ",", cache.estimated_px.y, ") proximity: ", set);
             }
         }
 
@@ -471,13 +463,13 @@ void PPFrame::_assume_not_finalized(const char* file, int line) {
 #endif
 }
 
-int PPFrame::label(const pv::bid& bdx) const {
+MaybeLabel PPFrame::label(const pv::bid& bdx) const {
 #if !COMMONS_NO_PYTHON
     auto l = Categorize::DataStore::ranged_label(Frame_t(index()), bdx);
     if(l)
         return l->id;
 #endif
-    return -1;
+    return {};
 }
 
 void PPFrame::add_noise(pv::BlobPtr && blob) {

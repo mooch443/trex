@@ -262,16 +262,16 @@ Label::Ptr DataStore::label(const char* name) {
     return nullptr;
 }
 
-Label::Ptr DataStore::label(int ID) {
-    if(ID == -1)
+Label::Ptr DataStore::label(MaybeLabel ID) {
+    if(not ID.has_value())
         return nullptr;
     
     auto names = FAST_SETTING(categories_ordered);
-    if(/*ID >= 0 && */size_t(ID) < names.size()) {
-        return label(names[ID].c_str());
+    if(/*ID >= 0 && */size_t(ID.value()) < names.size()) {
+        return label(names[ID.value()].c_str());
     }
     
-    Print("ID ",ID," not found");
+    Print("ID ",ID.value()," not found");
     return nullptr;
 }
 
@@ -364,7 +364,7 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
-    assert(r._label != -1);
+    assert(r._label.has_value());
     assert(size_t(r._range.length().get()) == r._blobs.size());
     Frame_t m; // initialize with start of inserted range
     auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
@@ -423,7 +423,7 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
     std::shared_lock guard(range_mutex());
     return DataStore::label(_ranged_label_unsafe(frame, blob.blob_id()));
 }
-int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
+MaybeLabel DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
     auto eit = std::lower_bound(_ranged_labels.begin(), _ranged_labels.end(), frame);
     
     // returned first range which end()s after frame,
@@ -441,15 +441,15 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
             break;
     }
     
-    return -1;
+    return {};
 }
 
 void DataStore::set_label(Frame_t idx, pv::bid bdx, const Label::Ptr& label) {
     std::unique_lock guard(cache_mutex());
-    _set_label_unsafe(idx, bdx, label? label->id : -1);
+    _set_label_unsafe(idx, bdx, label? label->id : MaybeLabel{});
 }
 
-void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
+void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, MaybeLabel ldx) {
     auto cache = _insert_cache_for_frame(idx);
 #ifndef NDEBUG
     if (contains(*cache, BlobLabel{bdx, ldx})) {
@@ -546,13 +546,14 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                 assert(index > -1);
                 auto &basic = fish->basic_stuff().at(index);
                 auto l = label(Frame_t(basic->frame), &basic->blob);
-                if(l && label_id_to_index.count(l->id) == 0) {
+                if(l && (not l->id.has_value() || label_id_to_index.count(l->id.value()) == 0))
+                {
                     FormatWarning("Label not found: ", l->name.c_str()," (", l->id,") in map ",label_id_to_index);
                     continue;
                 }
                 
                 if(l) {
-                    auto index = label_id_to_index.at(l->id);
+                    auto index = label_id_to_index.at(l->id.value());
                     if(index < counts.size())
                         ++counts[index];
                     else
@@ -612,9 +613,9 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                 auto &basic = fish->basic_stuff()[index];
                 auto l = _label_unsafe(Frame_t(basic->frame), basic->blob.blob_id());
 
-                if(l != -1) {
-                    if(size_t(l) < counts.size())
-                        ++counts[l];
+                if(l.has_value()) {
+                    if(size_t(l.value()) < counts.size())
+                        ++counts[l.value()];
                     else
                         FormatWarning("Label index ", l," > counts.size() = ",counts.size());
                 }
@@ -747,7 +748,7 @@ Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
     return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
 }
 
-int DataStore::_label_unsafe(Frame_t idx, pv::bid bdx) {
+MaybeLabel DataStore::_label_unsafe(Frame_t idx, pv::bid bdx) {
     auto cache = _cache_for_frame(idx);
     if(cache) {
         auto sit = find_keyed_tuple(*cache, bdx);
@@ -755,7 +756,7 @@ int DataStore::_label_unsafe(Frame_t idx, pv::bid bdx) {
             return sit->ldx;
         }
     }
-    return -1;
+    return {};
 }
 
 Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob) {
@@ -1316,9 +1317,9 @@ void DataStore::write(cmn::DataFormat& data, int /*version*/) {
             data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
 
             for (auto& [bdx, label] : v) {
-                assert(label >= 0);
+                assert(label.has_value());
                 data.write<uint32_t>((uint32_t)bdx); // blob id
-                data.write<int32_t>(label); // label id
+                data.write<int32_t>(label.value()); // label id
             }
             ++k;
         }
@@ -1334,8 +1335,8 @@ void DataStore::write(cmn::DataFormat& data, int /*version*/) {
             data.write<uint32_t>(ranged._range.start().get());
             data.write<uint32_t>(ranged._range.end().get());
 
-            assert(ranged._label >= 0);
-            data.write<int>(ranged._label);
+            assert(ranged._label.has_value());
+            data.write<int32_t>(ranged._label.value());
 
             assert(size_t(ranged._range.length().get()) == ranged._blobs.size());
             for (auto& bdx : ranged._blobs)
@@ -1398,7 +1399,7 @@ void DataStore::read(cmn::DataFormat& data, int /*version*/) {
                 data.read(lid);
 
                 if (frame >= (uint32_t)start_frame.get())
-                    DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid);
+                    DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid == -1 ? MaybeLabel{} : MaybeLabel{narrow_cast<uint16_t>(lid)});
             }
         }
     }
@@ -1419,10 +1420,10 @@ void DataStore::read(cmn::DataFormat& data, int /*version*/) {
 
             ranged._range = FrameRange(Range<Frame_t>(Frame_t(start), Frame_t(end)));
 
-            data.read<int>(ranged._label);
-            if (ranged._label == -1) {
-                Print("Ranged.label is nullptr for id ", ranged._label);
-            }
+            int label;
+            data.read<int>(label);
+            if(label != -1)
+                ranged._label = MaybeLabel{narrow_cast<uint16_t>(label)};
 
             // should probably check this always and fault gracefully on error since this is user input
             assert(start <= end);

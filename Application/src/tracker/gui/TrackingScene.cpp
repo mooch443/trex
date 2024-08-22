@@ -692,8 +692,11 @@ void TrackingScene::update_run_loop() {
     if(not _data || not _data->_cache)
         return;
     
+    const uint32_t gui_playback_speed = GUI_SETTINGS(gui_playback_speed);
+    const double frame_rate = GUI_SETTINGS(frame_rate) * gui_playback_speed;
+    
     if(_data->_recorder.recording()) {
-        _data->_cache->set_dt(0.75 / double(FAST_SETTING(frame_rate)));
+        _data->_cache->set_dt(0.75 / double(frame_rate));
     } else {
         _data->_cache->set_dt(last_redraw.elapsed());
     }
@@ -706,12 +709,17 @@ void TrackingScene::update_run_loop() {
         return;
     
     const auto dt = _data->_cache->dt();
-    const double frame_rate = GUI_SETTINGS(frame_rate) * GUI_SETTINGS(gui_playback_speed);
-    
     Frame_t index = GUI_SETTINGS(gui_frame);
     
     if(_data->_recorder.recording()) {
-        index += 1_f;
+        if(_data->_cache)
+            _data->_cache->set_load_frames_blocking(true);
+        
+        if(gui_playback_speed > 1) {
+            index += Frame_t(gui_playback_speed);
+        } else {
+            index += 1_f;
+        }
         
         if(auto L = _state->video->length();
            index >= L) 
@@ -720,10 +728,18 @@ void TrackingScene::update_run_loop() {
             SETTING(gui_run) = false;
         }
         set_frame(index);
-        if(_data && _data->_background)
-            _data->_background->set_increment(1_f);
+        if(_data && _data->_background) {
+            if(gui_playback_speed > 1) {
+                _data->_background->set_increment(Frame_t(gui_playback_speed));
+            } else {
+                _data->_background->set_increment(1_f);
+            }
+        }
         
     } else {
+        if(_data->_cache)
+            _data->_cache->set_load_frames_blocking(false);
+        
         _data->_time_since_last_frame += dt;
         
         double advances = _data->_time_since_last_frame * frame_rate;

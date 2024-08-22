@@ -860,6 +860,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_mode",
             "gui_frame",
             "gui_show_infocard",
+            "gui_show_timeline",
+            "gui_zoom_polygon",
             "gui_displayed_frame",
             "gui_source_video_frame",
             "gui_run",

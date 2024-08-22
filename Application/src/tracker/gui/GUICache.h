@@ -143,6 +143,7 @@ namespace globals {
         FramePreloader<FramePtr> _preloader;
         Timer _last_success;
         std::unique_ptr<PPFrame> _next_processed_frame;
+        GETTER_SETTER(bool, load_frames_blocking){false};
         
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
 
@@ -248,7 +249,7 @@ namespace globals {
         std::mutex _fish_map_mutex;
         std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<Frame_t, track::Statistics> _statistics;
-        std::unordered_map<pv::bid, int> _ranged_blob_labels;
+        std::unordered_map<pv::bid, uint16_t> _ranged_blob_labels;
         
         std::vector<track::Clique> _cliques;
         

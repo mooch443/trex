@@ -28,10 +28,6 @@ namespace track {
         Vec2(-1,0)
     };
     
-    Posture::Posture(Frame_t frameIndex, Idx_t fishID)
-        : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(nullptr)
-    { }
-
 static ObjectCache<CPULabeling::DLList, 50, std::unique_ptr, ThreadSafePolicy> _dllists;
 
 //#define DEBUG_OUTLINES
@@ -215,255 +211,175 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
     return {};
 }
 
-    void Posture::calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
-        auto pts = generateOutline(pose, indexes, [](float percent) -> float {
-            // scale center line by percentage
-            return 40.f * (1.f - percent) + 1.f;
-        });
-        auto ptr = std::make_shared<std::vector<Vec2>>(pts);
+namespace posture {
+
+tl::expected<Result, const char*> calculate_midline(Result&& result) {
+    if(result.outline.empty())
+        return tl::unexpected("Outline was empty.");
+    
+    auto r = result.outline.calculate_midline({});
+    if(not r) {
+        return tl::unexpected(r.error());
+    }
+    
+    result.midline = std::move(r.value());
+    assert(result.midline);
+    assert(not result.midline->is_normalized());
+    
+    //result.normalized_midline = result.midline->normalize();
+    
+    /*if(not result.normalized_midline || result.normalized_midline->size() != FAST_SETTING(midline_resolution)) {
+        return tl::unexpected("Unexpected number of points in normalized midline.");
+    }*/
+    
+    return result;
+}
+
+tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
+    Outline::check_constants();
+    
+    auto pts = generateOutline(pose, indexes, [](float percent) -> float {
+        // scale center line by percentage
+        return 40.f * (1.f - percent) + 1.f;
+    });
+    
+    Result result;
+    
+    {
+        auto ptr = std::make_unique<std::vector<Vec2>>(pts);
         const auto pos = basic.blob.calculate_bounds().pos();
         for(auto &pt : *ptr)
             pt -= pos;
         
-        _outline.clear();
-        _outline.replace_points(ptr);
-        _outline.minimize_memory();
-        _outline.resample(FAST_SETTING(outline_resample));
-        
-        //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-        auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
-        float confidence = calculate_midline(debug);
-        bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
-        error = !_normalized_midline;
-        
-        auto norma = _normalized_midline ? _normalized_midline->normalize() : nullptr;
-        if(norma && norma->size() != FAST_SETTING(midline_resolution))
-            error = true;
-        
-        //outline_point = ptr;
-        
-        if(!error && confidence > 0.9f) {
-            // found a good configuration! escape.
-            return;
-        }
+        //result.outline.clear();
+        result.outline.replace_points(std::move(ptr));
     }
-
-void Posture::calculate_posture(Frame_t, const BasicStuff &basic, const blob::SegmentedOutlines& outlines) {
-    auto ptr = std::make_shared<std::vector<Vec2>>(outlines.original_outline.value());
-    const auto pos = basic.blob.calculate_bounds().pos();
-    for(auto &pt : *ptr)
-        pt -= pos;
     
-    _outline.clear();
-    _outline.replace_points(ptr);
-    _outline.minimize_memory();
-    _outline.resample(FAST_SETTING(outline_resample));
+    result.outline.resample(FAST_SETTING(outline_resample));
+    result.outline.minimize_memory();
+    
+    return calculate_midline(std::move(result));
+}
+
+tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &basic, const blob::SegmentedOutlines& outlines) {
+    Outline::check_constants();
+    
+    Result result;
+    
+    {
+        auto ptr = std::make_unique<std::vector<Vec2>>(outlines.original_outline.value());
+        const auto pos = basic.blob.calculate_bounds().pos();
+        for(auto &pt : *ptr)
+            pt -= pos;
+        
+        result.outline.replace_points(std::move(ptr));
+    }
+    result.outline.resample(FAST_SETTING(outline_resample));
+    result.outline.minimize_memory();
     
     const auto outline_compression = FAST_SETTING(outline_compression);
     if(outline_compression > 0) {
-        auto &pts = _outline.points();
+        auto &pts = result.outline.points();
         std::vector<Vec2> reduced;
         reduced.reserve(pts.size());
         gui::reduce_vertex_line(pts, reduced, outline_compression);
         std::swap(reduced, pts);
     }
     
-    //std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-    auto debug = false;//std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
-    float confidence = calculate_midline(debug);
-    bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
-    error = !_normalized_midline;
-    
-    auto norma = _normalized_midline ? _normalized_midline->normalize() : nullptr;
-    if(norma && norma->size() != FAST_SETTING(midline_resolution))
-        error = true;
-    
-    //outline_point = ptr;
-    
-    if(!error && confidence > 0.9f) {
-        // found a good configuration! escape.
-        return;
-    }
+    return calculate_midline(std::move(result));
 }
 
-    void Posture::calculate_posture(Frame_t frame, pv::BlobWeakPtr blob)
-    {
-        const int initial_threshold = FAST_SETTING(track_posture_threshold);
-        int threshold = initial_threshold;
+tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blob)
+{
+    Outline::check_constants();
+    
+    const int initial_threshold = FAST_SETTING(track_posture_threshold);
+    int threshold = initial_threshold;
+    
+    // order the calculated points to make the outline
+    static Timing timing("posture", 100);
+    TakeTiming take(timing);
+    
+    std::optional<std::vector<Vec2>> first_outline;
+    
+    /// we will store our result here
+    Result result;
+    
+    while(true) {
+        // calculate outline points in (almost) random order based on
+        // greyscale values, instead of just binary thresholding.
+        //auto raw_outline = subpixel_threshold(greyscale, threshold);
+        auto thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::background(), FAST_SETTING(posture_closing_steps), FAST_SETTING(posture_closing_size));
+        thresholded_blob->add_offset(-blob->bounds().pos());
         
-        // order the calculated points to make the outline
-        static Timing timing("posture", 100);
-        timing.start_measure();
-        
-        std::shared_ptr<Outline> first_outline;
-        pv::BlobPtr thresholded_blob = nullptr;
-        std::vector<std::shared_ptr<std::vector<Vec2>>> _outlines;
-        std::vector<Vec2> custom;
-        std::shared_ptr<std::vector<Vec2>> outline_point;
-
-        while(true) {
-            // calculate outline points in (almost) random order based on
-            // greyscale values, instead of just binary thresholding.
-            //auto raw_outline = subpixel_threshold(greyscale, threshold);
-            thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::background(), FAST_SETTING(posture_closing_steps), FAST_SETTING(posture_closing_size));
-            thresholded_blob->add_offset(-blob->bounds().pos());
-
+        periodic::points_t selected = nullptr;
+        {
             auto outlines = pixel::find_outer_points(thresholded_blob.get(), threshold);
-            std::vector<Vec2> interp;
-            _outlines = outlines;
-            custom = interp;
             
-            //if(frame == 177 && blob->blob_id() == 40305448) {
-            
-            
-            decltype(outlines)::value_type selected = nullptr;
             size_t max_size = 0;
             for(auto &ol : outlines) {
                 if(ol->size() > max_size) {
-                    selected = ol;
                     max_size = ol->size();
+                    selected = std::move(ol);
                 }
-            }
-            
-            if(selected != nullptr) {
-                _outline.clear();
-                _outline.replace_points(selected);
-                _outline.minimize_memory();
-                
-                
-            //}
-            
-            //if(calculate_outline(raw_outline) > 0.9f) {
-                _outline.resample(FAST_SETTING(outline_resample));
-                
-                std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-                auto debug = std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish);
-                float confidence = calculate_midline(debug);
-                bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
-                error = !_normalized_midline;
-                
-                auto norma = _normalized_midline ? _normalized_midline->normalize() : nullptr;
-                if(norma && norma->size() != FAST_SETTING(midline_resolution))
-                    error = true;
-                
-                if(first_outline == nullptr) {
-                    first_outline = std::make_shared<Outline>(_outline);
-                    first_outline->replace_points(std::make_shared<std::vector<Vec2>>(_outline.points()));
-                }
-                
-                outline_point = selected;
-                
-                if(!error && confidence > 0.9f) {
-                    // found a good configuration! escape.
-                    break;
-                }
-            }
-            
-            // increase threshold by 2
-            threshold += 2;
-            
-            if(threshold >= initial_threshold + 50) {
-                break;
             }
         }
         
-        if(!_normalized_midline && first_outline)
-            _outline = *first_outline;
-        
-        timing.conclude_measure();
-        
-        std::tuple<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-        if(std::get<0>(gui_show_fish) == blob->blob_id() && frame == std::get<1>(gui_show_fish)
-           && outline_point) {
-            Print(frame, " ", blob->blob_id(),": threshold ", threshold);
-            auto &blob = thresholded_blob;
-            auto && [pos, image] = blob->color_image();
-            //tf::imshow("image", image->get());
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+        if(selected != nullptr) {
+            result.outline.clear();
+            result.outline.replace_points(std::move(selected));
             
-            auto curv = periodic::curvature(outline_point, max(1, Outline::get_curvature_range_ratio() * outline_point->size()));
-            auto diffs = periodic::differentiate(curv, 2);
+            result.outline.resample(FAST_SETTING(outline_resample));
             
-            auto peak_mode = SETTING(peak_mode).value<default_config::peak_mode_t::Class>() == default_config::peak_mode_t::broad ? periodic::PeakMode::FIND_BROAD : periodic::PeakMode::FIND_POINTY;
-            auto && [maxima_ptr, minima_ptr] = periodic::find_peaks(curv, 0, diffs, peak_mode);
-            auto str = Meta::toStr(*maxima_ptr);
-            Print(frame, ", ", blob->blob_id(),": ", str.c_str());
-            Print(*outline_point);
-            
-            {
-                using namespace gui;
-                float scale = 20;
-                
-                cv::Mat colored;
-                if(image->channels() == 1)
-                    cv::cvtColor(image->get(), colored, cv::COLOR_GRAY2BGR);
-                else {
-                    assert(image->dims == 3);
-                    image->get().copyTo(colored);
-                }
-                cv::resize(colored, colored, (cv::Size)(Size2(image->cols, image->rows) * scale), 0, 0, cv::INTER_NEAREST);
-                
-                for(auto &pt : custom) {
-                    cv::circle(colored, (Vec2(pt.x, pt.y) - pos + Vec2(0.5)) * scale, 5, DarkCyan, -1);
-                }
-                
-                for (uint i=0; i<image->cols; ++i) {
-                    cv::line(colored, Vec2(i, 0) * scale, Vec2(i, image->rows) * scale, Black);
-                }
-                
-                for (uint i=0; i<image->rows; ++i) {
-                    cv::line(colored, Vec2(0, i) * scale, Vec2(image->cols, i) * scale, Black);
-                }
-                
-#define OFFSET(X) (((X) - pos) * scale)
-                for (auto m : *maxima_ptr) {
-                    cv::circle(colored, OFFSET(outline_point->at(m.position.x)), 15, Yellow);
-                    auto str = Meta::toStr(m);
-                    cv::putText(colored, str, OFFSET(outline_point->at(m.position.x)) + Vec2(-Base::text_dimensions(str).width * 0.5,-10), cv::FONT_HERSHEY_PLAIN, 1.0, Yellow);
-                }
-                
-                if(_normalized_midline) {
-                    auto transform = _normalized_midline->transform(default_config::individual_image_normalization_t::none, true);
-                    for(auto &seg : _normalized_midline->segments()) {
-                        auto trans = transform.transformPoint(seg.pos);
-                        cv::circle(colored, OFFSET(trans), 3, Red);
-                    }
-                    
-                    if(_normalized_midline->tail_index() != -1)
-                        cv::circle(colored, OFFSET(outline().at(_normalized_midline->tail_index())), 10, Blue, -1);
-                    if(_normalized_midline->head_index() != -1)
-                        cv::circle(colored, OFFSET(outline().at(_normalized_midline->head_index())), 10, Red, -1);
-                    
-                    cv::circle(colored, OFFSET(outline().front()), 5, Yellow, -1);
-                    
-                    Print("tail:", _normalized_midline->tail_index()," head:",_normalized_midline->head_index());
-                }
-                
-                ColorWheel cwheel;
-                cwheel.next();
-                for (auto &clique: _outlines) {
-                    auto color = cwheel.next();
-                    
-                    auto prev = clique->back();
-                    for (auto node : *clique) {
-                        cv::circle(colored, OFFSET(node), 5, color);
-                        cv::line(colored, OFFSET(prev), OFFSET(node), color);
-                        prev = node;
-                    }
-                }
-                
-                cv::cvtColor(colored, colored, cv::COLOR_BGR2RGB);
-                tf::imshow("image", colored);
-                
-                Tracker::analysis_state(Tracker::AnalysisState::PAUSED);
+            auto r = calculate_midline(std::move(result));
+            if(r) {
+                /// we found an acceptable configuration with the lowest threshold
+                /// possible, so lets just return that:
+                return r;
             }
+            
+            if(not first_outline.has_value()) {
+                if(not result.outline.empty())
+                    first_outline = result.outline.points();
+                else {
+                    FormatWarning("Cannot reset since points are empty.");
+                    first_outline = std::nullopt;
+                }
+            }
+        }
+        
+        // increase threshold by 2
+        threshold += 2;
+        
+        if(threshold >= initial_threshold + 50) {
+            break;
         }
     }
     
-    float Posture::calculate_midline(bool debug) {
-        Midline midline;
-        _outline.calculate_midline(midline, DebugInfo{frameIndex, fishID, debug});
-        _normalized_midline = std::make_unique<Midline>(midline);
-        return _outline.confidence();
+    if(first_outline.has_value()) {
+        // move the already resampled points if we have any
+        result.outline.replace_points(std::move(first_outline.value()));
+        result.midline = nullptr;
+        result.normalized_midline = nullptr;
+        first_outline = std::nullopt;
+        // but midline must have failed, so at least we can return this...
     }
+    
+    if(not result.outline.empty()) {
+        result.outline.minimize_memory();
+        return result;
+    }
+    
+    return tl::unexpected("Cannot find valid posture.");
+}
+
+/*float Posture::calculate_midline(bool debug) {
+    Midline midline;
+    _outline.calculate_midline(midline, DebugInfo{frameIndex, fishID, debug});
+    _normalized_midline = std::make_unique<Midline>(midline);
+    return _outline.confidence();
+}*/
+
+}
+
 }

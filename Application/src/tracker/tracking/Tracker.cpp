@@ -247,7 +247,7 @@ const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) c
 double Tracker::time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache) {
     auto props_1 = properties(frame_1, cache);
     auto props_2 = properties(frame_2, cache);
-    return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTING(frame_rate)));
+    return props_1 && props_2 ? abs(props_1->time() - props_2->time()) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTING(frame_rate)));
 }
 
 const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints* hints) {
@@ -279,13 +279,13 @@ const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints*
 decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Frame_t frameIndex) {
     auto& frames = this->frames();
     auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](Frame_t frame, const auto& prop) -> bool {
-        return frame < prop->frame;
+        return frame < prop->frame();
     });
     
     if((it == frames.end() && !frames.empty()) || (it != frames.begin())) {
         --it;
         
-        if((*it)->frame == frameIndex) {
+        if((*it)->frame() == frameIndex) {
             return it;
         }
     }
@@ -469,7 +469,7 @@ Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& ma
 }
 
 bool operator<(Frame_t frame, const FrameProperties& props) {
-    return frame < props.frame;
+    return frame < props.frame();
 }
 
 //! Assumes a sorted array.
@@ -533,7 +533,7 @@ void Tracker::add(PPFrame &frame) {
     }
     
     auto props = properties(frame.index() - 1_f);
-    if(props && frame.timestamp < props->org_timestamp.get()) {
+    if(props && frame.timestamp < props->timestamp()) {
         FormatError("Cannot add frame with timestamp smaller than previous timestamp. Frames have to be in order. Skipping.");
         return;
     }
@@ -811,7 +811,7 @@ void Tracker::prefilter(
 #if !COMMONS_NO_PYTHON
                 if(!track_only_categories.empty()) {
                     auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), ptr->blob_id());
-                    if(ldx == -1 || !contains(track_only_categories, Categorize::DataStore::label(ldx)->name)) {
+                    if(not ldx.has_value() || !contains(track_only_categories, Categorize::DataStore::label(ldx)->name)) {
                         result.filter_out(std::move(ptr), FilterReason::Category);
                         continue;
                     }
@@ -876,7 +876,7 @@ void Tracker::prefilter(
                           return false;
                       
                       auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result.frame_index), blob->blob_id());
-                      if (ldx == -1 || !contains(track_only_categories, Categorize::DataStore::label(ldx)->name))
+                      if (not ldx.has_value() || !contains(track_only_categories, Categorize::DataStore::label(ldx)->name))
                       {
                           noises.push_back(std::move(blob));
                           return true;
@@ -963,14 +963,14 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
         auto it = frames.rbegin();
         while(it != frames.rend() && !instance()->properties_cache().full())
         {
-            instance()->properties_cache().push((*it)->frame, (*it).get());
+            instance()->properties_cache().push((*it)->frame(), (*it).get());
             ++it;
         }
-        assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*frames.rbegin())->frame == end_frame()));
+        assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*frames.rbegin())->frame() == end_frame()));
         
     } else {
         std::unique_lock guard(properties_mutex());
-        instance()->properties_cache().push(props.frame, frames.back().get());
+        instance()->properties_cache().push(props.frame(), frames.back().get());
     }
     
     return frames.back().get();
@@ -1043,7 +1043,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         });
         
         // Create Individuals for unassigned blobs
-        std::vector<int> blob_labels(s.frame.N_blobs());
+        std::vector<MaybeLabel> blob_labels(s.frame.N_blobs());
         std::vector<pv::bid> bdxes(blob_labels.size());
         std::vector<pv::BlobWeakPtr> ptrs(blob_labels.size());
         std::vector<size_t> unassigned_blobs;
@@ -1060,11 +1060,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 if(!s._manager.blob_assigned(bdx)) {
                     auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), bdx);
-                    blob_labels[i] = label ? label->id : -1;
+                    blob_labels[i] = label ? label->id : MaybeLabel{};
                     ptrs[i] = &blob;
                     unassigned_blobs.push_back(i);
                 } else {
-                    blob_labels[i] = -1;
+                    blob_labels[i] = std::nullopt;
                     ptrs[i] = nullptr;
                 }
             });
@@ -1093,7 +1093,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
         const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
-        IndividualCache empty{.valid=false, .individual_empty=true};
         
         auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
@@ -1101,31 +1100,27 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             for (auto it = start; it != end; ++it, ++pid) {
                 auto fish = *it;
-                if(fish->empty())
+                
+                /// check preconditions, otherwise there wont be a cache
+                if(fish->empty() || fish->start_frame() >= frameIndex)
                     continue;
                 
                 auto cache = s.frame.cached(fish->identity().ID());
-                if(!cache || fish->empty()) {
-                    cache = &empty;
-                } else {
-                    assert(cache != nullptr);
-                    //assert(cache->_idx == fish->identity().ID());
-                }
-                
                 auto &probs = _probs[pid];
                 
-                for (size_t i = 0; i < N_blobs; ++i) {
-                    auto &bix = unassigned_blobs[i];
-                    auto ptr = ptrs[bix];//s.frame.bdx_to_ptr(bdxes[bix]);
-                    //auto &own = s.frame.unsafe_access_all_blobs()[bix];
-                    //if(!own.regular)
-                    //    continue;
-                    //auto ptr = s.frame.bdx_to_ptr(blob);
-                    //assert(own.blob != nullptr);
-                    auto p = fish->probability(blob_labels[bix], *cache, frameIndex, *ptr);
-                    //PPFrame::Log(bdxes[bix], " + ", fish->identity().ID(), " => ", p, " (t = ", cache->time_probability,")");
-                    if (p > matching_probability_threshold)
-                        probs[bdxes[bix]] = p;
+                if(cache) {
+                    for (size_t i = 0; i < N_blobs; ++i) {
+                        auto &bix = unassigned_blobs[i];
+                        auto ptr = ptrs[bix];
+                        auto p = Individual::probability(blob_labels[bix], *cache, frameIndex, *ptr);
+                        //PPFrame::Log(bdxes[bix], " + ", fish->identity().ID(), " => ", p, " (t = ", cache->time_probability,")");
+                        if (p > matching_probability_threshold)
+                            probs[bdxes[bix]] = p;
+                    }
+                } else {
+#ifndef NDEBUG
+                    FormatWarning("Cannot retrieve cache for ", fish->identity(), " and frame=",frameIndex);
+#endif
                 }
             }
             
@@ -1883,7 +1878,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     }
     
     _max_individuals = cmn::max(_max_individuals.load(), s._manager.assigned_count());
-    _added_frames.back()->active_individuals = narrow_cast<long_t>(s._manager.assigned_count());
+    _added_frames.back()->set_active_individuals( narrow_cast<long_t>(s._manager.assigned_count()));
     
     uint32_t n = 0;
     uint32_t prev = 0;
@@ -1938,7 +1933,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 return;
 
             for (const auto &[bdx, blob] : owner) {
-                auto p = fish->probability(-1, *cache, frameIndex, *blob);
+                auto p = Individual::probability(MaybeLabel{}, *cache, frameIndex, *blob);
                 if (p >= p_threshold)
                     probs[bdx] = p;
             }
@@ -2033,7 +2028,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         }
         
         //if(!prev_props) prev_props = properties(frameIndex - 1);
-        if(prev_props && time - prev_props->time >= FAST_SETTING(huge_timestamp_seconds)) {
+        if(prev_props && time - prev_props->time() >= FAST_SETTING(huge_timestamp_seconds)) {
             FOI::add(FOI(frameIndex, "huge time jump"));
             for(auto fish : active_individuals)
                 merge["correcting"].insert(FOI::fdx_t(fish->identity().ID()));
@@ -2343,7 +2338,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             //! update the cache for frame properties
             std::unique_lock guard(properties_mutex());
             while(!_added_frames.empty()) {
-                if((*(--_added_frames.end()))->frame < frameIndex)
+                if((*(--_added_frames.end()))->frame() < frameIndex)
                     break;
                 _added_frames.erase(--_added_frames.end());
             }
@@ -2353,7 +2348,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             auto it = _added_frames.rbegin();
             while(it != _added_frames.rend() && !properties_cache().full())
             {
-                properties_cache().push((*it)->frame, (*it).get());
+                properties_cache().push((*it)->frame(), (*it).get());
                 ++it;
             }
         }
@@ -2383,7 +2378,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             _endFrame = _startFrame = Frame_t();
         }
         
-        assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame == end_frame()));
+        assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame() == end_frame()));
         
         FilterCache::clear();
         //! TODO: MISSING remove_frames

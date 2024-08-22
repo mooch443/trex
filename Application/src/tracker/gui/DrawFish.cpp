@@ -16,6 +16,7 @@
 #include <gui/Skelett.h>
 #include <tracking/Individual.h>
 #include <processing/Background.h>
+#include <misc/CircularGraph.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
 //#include <gui.h>
@@ -42,35 +43,7 @@ Fish::~Fish() {
         assert(_id.ID().valid());
         auto ID = _id.ID();
         _view.set_clickable(true);
-        _circle.set_clickable(true);
-        _view.on_hover([this](auto e) {
-            _path_dirty = true;
-            if(!GUICache::exists() || !e.hover.hovered)
-                return;
-            GUICache::instance().set_tracking_dirty();
-        });
-        _view.on_click([ID, this](auto) {
-            std::vector<Idx_t> selections = SETTING(gui_focus_group);
-            auto it = std::find(selections.begin(), selections.end(), ID);
-            
-            if(_view.stage() && !(_view.stage()->is_key_pressed(gui::LShift) || _view.stage()->is_key_pressed(gui::RShift))) {
-                if(it != selections.end())
-                    GUICache::instance().deselect_all();
-                else
-                    GUICache::instance().deselect_all_select(ID);
-                
-            } else {
-                if(it != selections.end())
-                    GUICache::instance().deselect(ID);
-                else
-                    GUICache::instance().do_select(ID);
-            }
-            
-            
-            //SETTING(gui_focus_group) = selections;
-            _view.set_dirty();
-        });
-        
+        //_circle.set_clickable(true);
         _posture.set_origin(Vec2(0));
     }
 
@@ -145,8 +118,8 @@ Fish::~Fish() {
         _frame = frameIndex;
         
         _library_y = GlobalSettings::invalid();
-        _avg_cat = -1;
-        _next_frame_cache.valid = false;
+        _avg_cat = std::nullopt;
+        _next_frame_cache = std::nullopt;
         if (_image.source())
             _image.unsafe_get_source().set_index(-1);
         points.clear();
@@ -164,9 +137,10 @@ Fish::~Fish() {
            it != GUICache::instance().fish_selected_blobs.end())
         {
             _basic_stuff = it->second.basic_stuff;
-            _posture_stuff = it->second.posture_stuff.has_value()
-                                ? it->second.posture_stuff->clone()
-                                : PostureStuff{};
+            if(it->second.posture_stuff.has_value())
+                _posture_stuff = it->second.posture_stuff->clone();
+            else
+                _posture_stuff.reset();
         
             if(it->second.pred)
                 _pred = it->second.pred.value();
@@ -195,7 +169,7 @@ Fish::~Fish() {
         }
         
         /// need to update this as well so there are no old values
-        _cached_outline = _posture_stuff
+        _cached_outline = _posture_stuff && _posture_stuff->outline
                             ? &_posture_stuff->outline
                             : nullptr;
         
@@ -228,7 +202,7 @@ Fish::~Fish() {
         
         auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
         _cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), bdx);
-        if (_cat != -1 && _cat != _avg_cat) {
+        if (_cat.has_value() && _cat != _avg_cat) {
             _cat_name = Categorize::DataStore::label(_cat)->name;
         }
 #endif
@@ -276,7 +250,7 @@ Fish::~Fish() {
                 _next_frame_cache = *result.value();
             } else {
                 //FormatWarning("Cannot create cache_for_frame of ", _id, " for frame ", _frame + 1_f, " because: ", result.error());
-                _next_frame_cache.valid = false;
+                _next_frame_cache = std::nullopt;
             }
         }
         
@@ -349,7 +323,7 @@ Fish::~Fish() {
                         
                         auto ptr = mat.ptr(pos.y, pos.x);
                         
-                        auto p = obj.probability(-1, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
+                        auto p = obj.probability(MaybeLabel{}, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
                         if (p < FAST_SETTING(matching_probability_threshold))
                             return;
                         
@@ -410,12 +384,264 @@ Fish::~Fish() {
                 }
             }
         }
+        
+        if(_basic_stuff) {
+            const auto centroid = _basic_stuff.has_value()
+                ? &_basic_stuff->centroid
+                : nullptr;
+            const Vec2 offset = -_blob_bounds.pos();
+            auto c_pos = centroid->pos<Units::PX_AND_SECONDS>() + offset;
+            
+            float angle = -centroid->angle();
+            if (_posture_stuff.has_value()
+                && _posture_stuff->head)
+            {
+                angle = -_posture_stuff->head->angle();
+            }
+            
+            setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle);
+        }
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
         auto &blob = _obj.pixels(_safe_idx);
         window.image(blob_bounds.pos(), _image);
     }*/
+
+void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const Vec2& , Float2_t angle)
+{
+    //Vec2 center = _blob_bounds.center() + offset;
+    
+    auto ptr = _basic_stuff->blob.unpack();
+    
+    //Vec2 mi(FLT_MAX, FLT_MAX);
+    //Vec2 ma(0, 0);
+    
+    auto find_rbb = [&coords](Vec2 offset, Float2_t angle, Vec2 pt_center, auto& points){
+        Vec2 pose_center;
+        size_t count{0};
+        
+        Vec2 mi(FLT_MAX, FLT_MAX);
+        Vec2 ma(0, 0);
+        
+        using Point_t = std::remove_cvref_t<decltype(points)>;
+        
+        for(auto &_pt : points) {
+            if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
+                if(not _pt.valid())
+                    continue;
+            }
+            
+            pose_center += (Vec2)_pt;
+            ++count;
+        }
+        
+        if(count > 0)
+            pose_center /= count;
+        
+        Transform transform;
+        transform.translate(pt_center);
+        transform.rotate(DEGREE(angle));
+        transform.translate(-pt_center);
+        
+        for(auto &_pt : points) {
+            if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
+                if(not _pt.valid())
+                    continue;
+            }
+            
+            Vec2 pt = transform.transformPoint(_pt);
+            assert(not std::isnan(pt.x));
+            mi.x = min(mi.x, (Float2_t)pt.x);
+            mi.y = min(mi.y, (Float2_t)pt.y);
+            ma.x = max(ma.x, (Float2_t)pt.x);
+            ma.y = max(ma.y, (Float2_t)pt.y);
+        }
+        
+        assert(not std::isnan(coords.bowl_scale().x));
+        auto scaled_w = abs(coords.bowl_scale().x * (mi.x - ma.x));
+        if(scaled_w < 25) {
+            auto d = 15 - scaled_w;
+            mi.x -= d * 0.5;
+            ma.x += d * 0.5;
+        }
+        
+        auto scaled_h = abs(coords.bowl_scale().y * (mi.y - ma.y));
+        if(scaled_h < 25) {
+            auto d = 15 - scaled_h;
+            mi.y -= d * 0.5;
+            ma.y += d * 0.5;
+        }
+        
+        //Print("scaled_w = ", scaled_w, " scaled_h = ", scaled_h);
+        
+        auto bds = Bounds{mi, Size2(ma - mi)};
+        auto inverted = transform.getInverse();
+        
+        Transform t;
+        t.translate(offset);
+        inverted = t.combine(inverted);
+        
+        std::vector<Vec2> vertices {
+            inverted.transformPoint(mi),
+            inverted.transformPoint(Vec2(ma.x, mi.y)),
+            inverted.transformPoint(ma),
+            inverted.transformPoint(Vec2(mi.x, ma.y)),
+        };
+        
+        mi = Vec2(FLT_MAX, FLT_MAX);
+        ma = Vec2();
+        
+        for(auto &p0 : vertices) {
+            assert(not std::isnan(p0.x));
+            
+            mi.x = min(mi.x, p0.x);
+            mi.y = min(mi.y, p0.y);
+            ma.x = max(ma.x, p0.x);
+            ma.y = max(ma.y, p0.y);
+        }
+        
+        auto c = (ma - mi) * 0.5;
+        for(auto &p0 : vertices)
+            p0 += c;
+        
+        return std::make_unique<periodic::points_t::element_type>(vertices);
+    };
+    
+    periodic::points_t ellipse;
+    
+    if(_basic_stuff
+       && _basic_stuff->blob.pred.valid()
+       && not _basic_stuff->blob.pred.pose.empty())
+    {
+        auto &pose = _basic_stuff->blob.pred.pose;
+        Vec2 pose_center;
+        size_t count{0};
+        
+        for(auto &_pt : pose.points) {
+            if(_pt.valid()) {
+                pose_center += (Vec2)_pt;
+                ++count;
+            }
+        }
+        
+        if(count > 0)
+            pose_center /= count;
+        
+        ellipse = find_rbb(offset, angle, pose_center, pose.points);
+    }
+    
+    if(not ellipse
+       && _posture_stuff)
+    {
+        auto example_points = _posture_stuff->outline.uncompress();
+        
+        Vec2 c;
+        for(auto &pt : example_points) {
+            pt += _blob_bounds.pos();
+            c += pt;
+        }
+        if(not example_points.empty())
+            c /= example_points.size();
+        
+        ellipse = find_rbb(offset, angle, c, example_points);
+    }
+    
+    if(not ellipse
+       && ptr)
+    {
+        std::vector<Vec2> example_points;
+        example_points.reserve(ptr->lines()->size() * 2);
+        
+        for(auto &line : *ptr->lines()) {
+            example_points.emplace_back(line.x0, line.y);
+            example_points.emplace_back(line.x1, line.y);
+        }
+        
+        ellipse = find_rbb(offset, angle, _blob_bounds.center(), example_points);
+        
+        /*auto mi = Vec2(FLT_MAX, FLT_MAX);
+        auto ma = Vec2();
+        
+        for(auto &p0 : *ellipse) {
+            mi.x = min(mi.x, p0.x);
+            mi.y = min(mi.y, p0.y);
+            ma.x = max(ma.x, p0.x);
+            ma.y = max(ma.y, p0.y);
+        }
+        
+        auto c = (ma - mi) * 0.5;
+        for(auto &p0 : *ellipse)
+            p0 -= c;
+        
+        {
+            auto coeffs = periodic::eft(*ellipse, 7);
+            if(coeffs) {
+                auto pts = std::move(periodic::ieft(*coeffs, coeffs->size(), 50, center, false, 1_F).back());
+                ellipse = std::move(pts);
+            }
+        }*/
+        
+       //ellipse = std::make_unique<periodic::points_t::element_type>(vertices);
+    }
+    
+    const auto init = [this](auto& o) {
+        if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+            //Print("Registering ", o);
+            o.on_hover([this](Event e) {
+                selection_hovered(e);
+            });
+            o.on_click([this](Event e) {
+                selection_clicked(e);
+            });
+            o.set_clickable(true);
+        } else {
+            Print("Unknown object.");
+        }
+    };
+    
+    if(ellipse) {
+        //if(poly_area < circle_area * 0.5) {
+        if(not std::holds_alternative<Polygon>(_selection)) {
+            _selection.emplace<Polygon>();
+            std::visit(init, _selection);
+        }
+        auto &poly = std::get<Polygon>(_selection);
+        poly.set_vertices(*ellipse);
+        poly.set_origin(Vec2(0.5));
+    }
+}
+
+void Fish::selection_hovered(Event e) {
+    //Print("Hovering ", e.hover.x, ",", e.hover.y);
+    _path_dirty = true;
+    if(!GUICache::exists() || !e.hover.hovered)
+        return;
+    GUICache::instance().set_tracking_dirty();
+}
+
+void Fish::selection_clicked(Event) {
+    auto ID = _id.ID();
+    std::vector<Idx_t> selections = SETTING(gui_focus_group);
+    auto it = std::find(selections.begin(), selections.end(), ID);
+    
+    if(_view.stage() && !(_view.stage()->is_key_pressed(gui::LShift) || _view.stage()->is_key_pressed(gui::RShift))) {
+        if(it != selections.end())
+            GUICache::instance().deselect_all();
+        else
+            GUICache::instance().deselect_all_select(ID);
+        
+    } else {
+        if(it != selections.end())
+            GUICache::instance().deselect(ID);
+        else
+            GUICache::instance().do_select(ID);
+    }
+    
+    
+    //SETTING(gui_focus_group) = selections;
+    _view.set_dirty();
+}
     
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
         //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
@@ -432,10 +658,20 @@ Fish::~Fish() {
         
         const auto centroid = _basic_stuff.has_value() ? &_basic_stuff->centroid : nullptr;
         const auto head = _posture_stuff.has_value() ? _posture_stuff->head.get() : nullptr;
+        const auto pcentroid = _posture_stuff.has_value() ? _posture_stuff->centroid_posture.get() : nullptr;
         
-        _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
+        _fish_pos = centroid
+            ? centroid->pos<Units::PX_AND_SECONDS>()
+            : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
-        const bool hovered = _view.hovered();
+        const bool hovered = std::visit([this](auto& o) -> bool {
+            if constexpr(std::same_as<std::monostate, std::remove_cvref_t<decltype(o)>>) {
+                return _view.hovered();
+            } else {
+                return o.hovered();
+            }
+            
+        }, _selection);
         //const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
         //const float max_color = timeline_visible ? 255 : OPTION(gui_faded_brightness);
         
@@ -465,10 +701,6 @@ Fish::~Fish() {
         }
 #endif
 #endif
-
-        /*if(midline && !midline->is_normalized()) {
-            midline = midline->normalize();
-        }*/
 
         if (active && _cached_outline) {
             if (OPTION(gui_show_shadows) || OPTION(gui_show_outline)) {
@@ -679,7 +911,7 @@ Fish::~Fish() {
         
             // DISPLAY LABEL AND POSITION
             auto bg = GUICache::instance().background();
-            auto c_pos = centroid->pos<Units::PX_AND_SECONDS>() + offset;
+            auto c_pos = (pcentroid ? pcentroid->pos<Units::PX_AND_SECONDS>() : centroid->pos<Units::PX_AND_SECONDS>()) + offset;
             if(not bg || c_pos.x > bg->image().cols || c_pos.y > bg->image().rows)
                 return;
         
@@ -695,8 +927,8 @@ Fish::~Fish() {
             }
         
             if(OPTION(gui_show_texts)) {
-                if(_next_frame_cache.valid) {
-                    auto estimated = _next_frame_cache.estimated_px + offset;
+                if(_next_frame_cache.has_value()) {
+                    auto estimated = _next_frame_cache->estimated_px + offset;
                     
                     _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(255)});
                     _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(estimated), LineClr{ _color });
@@ -850,7 +1082,6 @@ Fish::~Fish() {
                 });
             }
         
-            
             if(is_selected && OPTION(gui_show_probabilities)) {
                 //_image.set_pos(offset);
                 _view.advance_wrap(_image);
@@ -858,7 +1089,66 @@ Fish::~Fish() {
             else if(!_image.source()->empty()) {
                 _image.set_source(std::make_unique<Image>());
             }
-        
+            
+            if ((hovered || is_selected) && OPTION(gui_show_selections)) {
+                std::visit([&](auto&) {
+                    if(abs(last_scale - FindCoord::get().bowl_scale().x) > std::numeric_limits<Float2_t>::epsilon()) {
+                        setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle);
+                        last_scale = FindCoord::get().bowl_scale().x;
+                    }
+                }, _selection);
+                
+                std::visit([this](auto& o) {
+                    if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+                        //Print("Highlight ", o);
+                        if(o.hovered()) {
+                            o.set(FillClr{White.alpha(50)});
+                            o.set(LineClr{White.alpha(200)});
+                        } else {
+                            o.set(FillClr{White.alpha(5)});
+                            o.set(LineClr{White.alpha(100)});
+                        }
+                        
+                        _view.advance_wrap(o);
+                        //if(not std::isinf(_view.global_text_scale().x)
+                        //   && _view.global_text_scale().min() > 0)
+                        {
+                            
+                            //auto cbs = FindCoord::get().convert(BowlRect(o.bounds()));
+                            /*static Vec2 minimum_scale(1, 1);
+                            static int direction = -1;
+                            minimum_scale += direction * minimum_scale.x * 0.01;
+                            if(minimum_scale.x < 0.5)
+                                direction = 1;
+                            else if(minimum_scale.x > 1.5)
+                                direction = -1;
+                                
+                            minimum_scale = Vec2(20_F).div(cbs.size());
+                            auto scale = Vec2(max(1_F, minimum_scale.y),
+                                              max(1_F, minimum_scale.x));
+                            //max(28_F / cbs.size().mean(), 1_F);
+                            //auto s = FindCoord::get().bowl_scale();
+                            //Print("cbs = ", cbs, " scale = ", minimum_scale);
+                            o.set_scale(scale);//s.reciprocal());*/
+                        }
+                        
+                        //static float angle = 0;
+                        //angle += 0.01;
+                        //o.set(Rotation{angle});
+                    }
+                }, _selection);
+            } else {
+                std::visit([this](auto& o) {
+                    if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+                        //Print("Transparent ", o);
+                        o.set(FillClr{Transparent});
+                        o.set(LineClr{Transparent});
+                        _view.advance_wrap(o);
+                        //o.set(Rotation{0});
+                    }
+                }, _selection);
+            }
+            
             if ((hovered || is_selected) && OPTION(gui_show_selections)) {
                 auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
                 
@@ -866,53 +1156,6 @@ Fish::~Fish() {
                 if(cache.primary_selected_id() != _id.ID())
                     circle_clr = Gray.alpha(circle_clr.a);
                 
-                {
-                    float rad = -_basic_stuff->centroid.angle();
-                    Vec2 center = _basic_stuff->blob.calculate_bounds().center() - _basic_stuff->blob.calculate_bounds().pos();
-                    
-                    Transform transform;
-                    transform.translate(-center);
-                    transform.rotate(DEGREE(rad));
-                    transform.translate(center);
-                    
-                    auto pt = transform.transformPoint(Vec2());
-                    
-                    //Print(offset, " -> ", pt, " -> ", transform.transformPoint(Vec2()));
-                    
-                    
-                    
-                    if(not _lines) {
-                        _lines = std::make_unique<Line>();
-                    }
-                    
-                   // auto pts = Line::Points_t{pt, transform.transformPoint(Vec2(10, 0)), pt, transform.transformPoint(Vec2(0, 10)), pt, transform.transformPoint(Vec2(10, 10))};
-                    auto pts = Line::Points_t{
-                        transform.transformPoint(0, 0),
-                        transform.transformPoint(10, 0),
-                        transform.transformPoint(0, 0),
-                        transform.transformPoint(0, 10)
-                    };
-                    _lines->set(pts, LineClr{Cyan});
-                    //Print((std::vector<Vec2>)pts);
-                    _view.advance_wrap(*_lines);
-                    // draw circle around the fish
-                }
-            
-                _circle.set_pos(c_pos);
-                _circle.set_radius(radius);
-                _circle.set_origin(Vec2(0.5));
-                _circle.set_line_clr(circle_clr);
-                _circle.set_fill_clr(hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
-                //_circle.set_scale(Vec2(1));
-                _view.advance_wrap(_circle);
-                
-                auto &gb = _circle.global_bounds();
-                if(gb.width < 15) {
-                    _circle.set_scale(_circle.scale().mul(15 / gb.width));
-                }
-            
-                //window.circle(c_pos, radius, circle_clr, hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
-            
                 // draw unit circle showing the angle of the fish
                 Loc pos(cmn::cos(angle), -cmn::sin(angle));
                 pos = pos * radius + c_pos;
@@ -1253,6 +1496,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
             auto ts = GUICache::instance().dt();
             float target_radius = 100;
             float percent = min(1, _recognition_circle->radius() / target_radius);
+            //Print(_id, " = ", percent, " target:", target_radius);
             
             if(percent < 1.0) {
                 percent *= percent;
@@ -1271,11 +1515,11 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
 
 void Fish::label(const FindCoord& coord, Entangled &e) {
     if(OPTION(gui_highlight_categories)) {
-        if(_avg_cat != -1) {
+        if(_avg_cat.has_value()) {
             e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
                           LineClr{Transparent},
-                          FillClr{ColorWheel(_avg_cat).next().alpha(75)});
+                          FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)});
         } else {
             /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
@@ -1369,17 +1613,17 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     auto c = GUICache::instance().processed_frame().cached(_id.ID());
     if(c) {
         auto cat = c->current_category;
-        if(cat != -1 && cat != _avg_cat) {
+        if(cat.has_value() && cat != _avg_cat) {
             secondary_text += std::string(" ") + "<key>"+_cat_name+"</key>";
         }
     }
     
-    if (_cat != -1 && _cat != _avg_cat) {
+    if (_cat.has_value() && _cat != _avg_cat) {
         secondary_text += std::string(" ") + (_cat ? "<b>" : "") + "<i>" + _cat_name + "</i>" + (_cat ? "</b>" : "");
     }
     
-    if(_avg_cat != -1) {
-        secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + _avg_cat_name + "</nr>";
+    if(_avg_cat.has_value()) {
+        secondary_text += (_avg_cat.has_value() ? std::string(" ") : std::string()) + "<nr>" + _avg_cat_name + "</nr>";
     }
 #endif
     

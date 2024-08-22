@@ -430,7 +430,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             auto props = Tracker::properties(frame);
             if(!props)
                 return GlobalSettings::invalid();
-            return props->time;
+            return props->time();
         });
         
         _cache_func["timestamp"] = LIBGLFNC({
@@ -439,7 +439,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             auto props = Tracker::properties(frame);
             if(!props)
                 return GlobalSettings::invalid();
-            return props->org_timestamp.get();
+            return props->timestamp().get();
         });
         
         _cache_func["frame"] = LIBGLFNC({
@@ -707,16 +707,16 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             auto blob = fish->compressed_blob(frame);
             if (blob) {
                 auto l = Categorize::DataStore::label(Frame_t(frame), blob);
-                if (l)
-                    return l->id;
+                if (l && l->id.has_value())
+                    return l->id.value();
             }
             return GlobalSettings::invalid();
         });
         
         _cache_func["average_category"] = LIB_NO_CHECK_FNC({
             auto l = Categorize::DataStore::label_averaged(fish, Frame_t(frame));
-            if (l) {
-                return l->id;
+            if (l && l->id.has_value()) {
+                return l->id.value();
             }
             return GlobalSettings::invalid();
         });

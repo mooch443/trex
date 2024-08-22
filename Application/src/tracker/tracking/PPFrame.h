@@ -148,7 +148,7 @@ public:
     const grid::ProximityGrid& blob_grid();
     auto& unsafe_access_all_blobs() { return _blob_owner; }
     
-    int label(const pv::bid&) const;
+    MaybeLabel label(const pv::bid&) const;
     bool has_fixed_matches() const;
     size_t number_objects() const { return _blob_owner.size() + _noise_owner.size(); }
     size_t N_blobs() const { return _blob_owner.size(); }

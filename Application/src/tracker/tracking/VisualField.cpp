@@ -91,14 +91,14 @@ void project_angles_1d(std::tuple<T, T>& t, const T& ref_angle, T angle0, T angl
     std::get<1>(t) = (angle1 >= fov_start && angle1 <= fov_end) ? (angle1 - fov_start) / fov_len * T(VisualField::field_resolution) : -1;
 }
 
-void VisualField::plot_projected_line(eye& e, std::tuple<Scalar64, Scalar64>& tuple, Scalar64 d, const Vec64& point, Idx_t id, float hd)
+void VisualField::plot_projected_line(eye& e, std::tuple<Scalar64, Scalar64>& tuple, Scalar64 d, const Vec64& point, Idx_t id, Scalar64 hd)
 {
     auto x0 = std::get<0>(tuple), x1 = std::get<1>(tuple);
     if (x0 == x1 && x0 == -1) return;
     
     // Ensure x0 and x1 are within valid range before casting to uint
-    x0 = (x0 == Scalar64(-1)) ? x1 : std::max(Scalar64(0.0), x0 - Scalar64(0.5));
-    x1 = (x1 == Scalar64(-1)) ? x0 : std::min(static_cast<Scalar64>(field_resolution) - Scalar64(1.0), x1 + Scalar64(0.5));
+    x0 = (x0 == Scalar64(-1)) ? x1 : std::max(Scalar64(0.0), x0 - Scalar64(1));
+    x1 = (x1 == Scalar64(-1)) ? x0 : std::min(static_cast<Scalar64>(field_resolution) - Scalar64(1.0), x1 + Scalar64(1));
     
     // Safely convert to uint, ensuring no underflow
     const uint start = static_cast<uint>(std::max(Scalar64(0.0), x0));
@@ -189,7 +189,7 @@ RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeH
     
     if(samples > 1) {
         accum.frame = 1_f;
-        accum /= Float2_t(samples);
+        accum /= Scalar64(samples);
 #ifndef NDEBUG
         Print(samples, " samples for ", fdx, " in frame ", frame);
 #endif
@@ -211,8 +211,8 @@ VisualField::generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, co
     
     //! Find where the eyes should be based on a given midline segment
     auto find_eyes_from = [&](const MidlineSegment& segment, Scalar64 midline_angle, Scalar64 eye_angle){
-        auto h0 = segment.l_length + 3;
-        auto h1 = segment.height - segment.l_length + 3;
+        Scalar64 h0 = segment.l_length + 3;
+        Scalar64 h1 = segment.height - segment.l_length + 3;
         
         //! detect the contact points and decide where the eyes are going to be, depending on where an outgoing line intersects with the own outline
         Vec64 pt(segment.pos.rotate(midline_angle) + midline->offset());
@@ -267,7 +267,7 @@ VisualField::generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, co
         return pt;
     };
     
-    const auto visual_field_history_smoothing = FAST_SETTING(visual_field_history_smoothing);
+    const Scalar64 visual_field_history_smoothing = FAST_SETTING(visual_field_history_smoothing);
     size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTING(visual_field_eye_offset));
     Scalar64 eye_separation = RADIANS(FAST_SETTING(visual_field_eye_separation));
     auto &segment = midline->segments().at(segment_index);
@@ -297,7 +297,7 @@ VisualField::generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, co
             //! center of both (smoothed) eye points:
             auto smooth_center = e1 + 0.5 * (e0 - e1);
             
-            float min_d = VisualField::invalid_value;
+            Scalar64 min_d = VisualField::invalid_value;
             size_t min_i = 0;
             const auto moffset = midline->offset() + bounds.pos();
             
@@ -390,66 +390,80 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     
     // loop local variables
     Vec64 line0, line1, rp;
-    float hd;
+    Scalar64 hd;
     std::tuple<Scalar64, Scalar64> p0;
     
     //! allow for a couple of frames look-back, in case individuals arent present in the current frame but have been previously
     const Frame_t max_back_view = Frame_t(max(1u, uint32_t(FAST_SETTING(track_max_reassign_time) * FAST_SETTING(frame_rate))));
     
-    auto add_line = [&](const Idx_t& id, const Vec64& pos, const std::vector<Vec64>& points, float left_side, float right_side) {
+    auto add_line = [&](const Idx_t& id, const Vec64& pos, const std::vector<Vec64>& points, Scalar64 left_side, Scalar64 right_side) {
         if(points.empty())
             return;
+        
+        // we separate these so that it doesn't matter whether the individual is
+        // bent or something like that (which would increase the number of points
+        // artificially on one side)
+        // in case the head is at zero / tail is at zero
+        if(left_side == 0) left_side = points.size() - right_side;
+        if(right_side == 0) right_side = points.size() - left_side;
         
         for(auto &e : _eyes)
             e.rpos = pos - e.pos;
         
         auto previous = points[points.size() - 1];
+        auto _ptp = points[(points.size() - 2) % points.size()];
         
         // let $E_e$ be the position of each eye, relative to the image position
         // for each point P_j in outline (coordinates relative to image position)...
         //  write information for each data stream
         for(size_t i=0; i<points.size(); i++) {
-            const Vec64& pt0 = previous;
-            const Vec64& pt1 = points[i];
+            const Vec64& _pt0 = previous;
+            const Vec64& _pt1 = points[i];
             
-            // let $T_i =$ tail index, $L_{l/r} =$ number of points in left/right side of outline
-            // if i > T_i:
-            //   head_distance = 1 - abs(i - T_i) / L_l
-            // else:
-            //   head_distance = 1 - abs(i - T_i) / L_r
-            hd = 1 - cmn::abs(float(i) - float(midline->tail_index())) / ((long_t)i > midline->tail_index() ? left_side : right_side);
-            assert(hd >= 0 && hd <= 1);
-            hd *= 255;
-            
-            // for each eye E_e:
-            for(auto &e : _eyes) {
-                line0 = pt0 + e.rpos;
-                line1 = pt1 + e.rpos;
+            for(auto& [pt0, pt1] : std::array{
+                std::tuple(_pt0, _pt1),
+                std::tuple(_ptp, _pt1)
+            }) {
+                // let $T_i =$ tail index, $L_{l/r} =$ number of points in left/right side of outline
+                // if i > T_i:
+                //   head_distance = 1 - abs(i - T_i) / L_l
+                // else:
+                //   head_distance = 1 - abs(i - T_i) / L_r
+                hd = 1 - cmn::abs(Scalar64(i) - Scalar64(midline->tail_index())) / (((long_t)i > midline->tail_index() ? left_side : right_side) + 1);
+                assert(hd >= 0 && hd <= 1);
+                hd *= 255;
                 
-                // project angles ranging from atan2(P_{j-1} + E_e) to atan2(P_j + E_e) - \alpha_e (eye orientation offset)
-                // (angles are normalized between 0-180 afterwards)
-                // \alpha_{je} = angle_normalize(atan2(P_j + E_e) - \alpha_e - f_{start}) / (f_{end} - f_{start}) * R
-                // with $R$ being the resulting image width
-                project_angles_1d(p0, e.angle, atan2(line0), atan2(line1));
-                
-                // if either the first or the second angle is inside the visual field
-                if(std::get<0>(p0) >= 0 || std::get<1>(p0) >= 0) {
-                    if(std::get<0>(p0) >= 0)
-                        rp = pt0 + pos;
-                    else
-                        rp = pt1 + pos;
-                    Scalar64 d = (SQR(Scalar64(rp.x) - Scalar64(e.pos.x)) + SQR(Scalar64(rp.y) - Scalar64(e.pos.y)));
+                // for each eye E_e:
+                for(auto &e : _eyes) {
+                    line0 = pt0 + e.rpos;
+                    line1 = pt1 + e.rpos;
                     
-                    // let index $k \in \mathbb{N},\ 0 \leq k < R $ of current angle in discrete FOV be $(angle - f_{start}) / (f_{end} - f_{start})$
-                    // let $\delta_{je} = || P_{j-1} - E_e || $
-                    // if \vec{depth}_k > \delta_{je}
-                    //      \vec{D}_k = \{ data-streams (head_distance, \alpha, ...) \}^T
+                    // project angles ranging from atan2(P_{j-1} + E_e) to atan2(P_j + E_e) - \alpha_e (eye orientation offset)
+                    // (angles are normalized between 0-180 afterwards)
+                    // \alpha_{je} = angle_normalize(atan2(P_j + E_e) - \alpha_e - f_{start}) / (f_{end} - f_{start}) * R
+                    // with $R$ being the resulting image width
+                    project_angles_1d(p0, e.angle, atan2(line0), atan2(line1));
                     
-                    plot_projected_line(e, p0, d, rp, id, hd);
+                    // if either the first or the second angle is inside the visual field
+                    if(std::get<0>(p0) >= 0 || std::get<1>(p0) >= 0) {
+                        if(std::get<0>(p0) >= 0)
+                            rp = pt0 + pos;
+                        else
+                            rp = pt1 + pos;
+                        Scalar64 d = (SQR(Scalar64(rp.x) - Scalar64(e.pos.x)) + SQR(Scalar64(rp.y) - Scalar64(e.pos.y)));
+                        
+                        // let index $k \in \mathbb{N},\ 0 \leq k < R $ of current angle in discrete FOV be $(angle - f_{start}) / (f_{end} - f_{start})$
+                        // let $\delta_{je} = || P_{j-1} - E_e || $
+                        // if \vec{depth}_k > \delta_{je}
+                        //      \vec{D}_k = \{ data-streams (head_distance, \alpha, ...) \}^T
+                        
+                        plot_projected_line(e, p0, d, rp, id, hd);
+                    }
                 }
             }
             
-            previous = pt1;
+            _ptp = previous;
+            previous = _pt1;
         }
     };
     
@@ -459,6 +473,9 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
             continue;
         
         auto convex = poly_convex_hull(&points);
+        //std::vector<Vec2> tmp;
+       // reduce_vertex_line(*convex, tmp, 0.5);
+        
         auto copy = tesselate_outline(*convex);
         
         Vec64 pos(0);
@@ -470,7 +487,9 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         for(auto &pt : copy)
             pt -= pos;
         
-        add_line(Idx_t{object_id}, pos, copy, 0, copy.size() / 2);
+        Scalar64 right_side = midline->tail_index() + 1;
+        Scalar64 left_side = copy.size() - midline->tail_index();
+        add_line(Idx_t{object_id}, pos, copy, left_side, right_side);
         object_id--;
     }
     
@@ -494,9 +513,16 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         // only use outline if we actually have a midline as well (so -> tail_index is set)
         if(outline && midline && midline->tail_index() != -1) {
             std::vector<Vec2> _points = outline->uncompress();
+            
+            //auto convex = poly_convex_hull(&_points);
+            //std::vector<Vec2> tmp;
+            //reduce_vertex_line(_points, tmp, 1);
+            
+            auto copy = tesselate_outline(_points);
+            
             std::vector<Vec64> points;
-            points.reserve(_points.size());
-            for(auto &pt : _points)
+            points.reserve(copy.size());
+            for(auto &pt : copy)
                 points.emplace_back(pt);
             
             //const auto &head = a->head(_frame)->pos(PX_AND_SECONDS);

@@ -214,6 +214,8 @@ void launch_gui(std::future<void>& f) {
 
         if(f.valid())
             f.get();
+        
+        errored_out = false;
         scene.set_segmenter(segmenter.get());
         
         // on activate
@@ -332,6 +334,8 @@ void launch_gui(std::future<void>& f) {
     });
     
     manager.clear();
+    
+    WorkProgress::stop();
     
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();

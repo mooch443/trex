@@ -38,6 +38,8 @@ namespace Output {
         
         std::string toStr() const { return "CompatibilityFrameProperties<"+std::to_string(time)+" "+timestamp.toStr()+">"; }
         static std::string class_name() { return "CompatibilityFrameProperties"; }
+        
+        FrameProperties convert(Frame_t) const;
     };
     
     //! Compatibility for float frame properties < V_8

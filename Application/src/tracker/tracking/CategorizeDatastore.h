@@ -20,7 +20,7 @@ struct Probabilities {
 struct Label {
     using Ptr = std::shared_ptr<Label>;
     std::string name;
-    int id;
+    MaybeLabel id;
 
     template<typename... Args>
     static Ptr Make(Args&&...args) {
@@ -37,7 +37,7 @@ struct Label {
 
 struct RangedLabel {
     FrameRange _range;
-    int _label = -1;
+    MaybeLabel _label;
     std::vector<pv::bid> _blobs;
     Frame_t _maximum_frame_after;
 
@@ -147,7 +147,7 @@ struct DataStore {
     }
     
     static Label::Ptr label(const char* name);
-    static Label::Ptr label(int ID);
+    static Label::Ptr label(MaybeLabel ID);
     
     static Sample::Ptr sample(
          const std::weak_ptr<pv::File>& source,
@@ -187,7 +187,7 @@ struct DataStore {
     static void clear_cache();
     static Label::Ptr label(Frame_t, pv::bid);
     //! does not lock the mutex (assumes it is locked)
-    static int _label_unsafe(Frame_t, pv::bid);
+    static MaybeLabel _label_unsafe(Frame_t, pv::bid);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
     //! does not lock the mutex (assumes it is locked)
     static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
@@ -196,14 +196,14 @@ struct DataStore {
     static void set_ranged_label(RangedLabel&&);
     static Label::Ptr ranged_label(Frame_t, pv::bid);
     static Label::Ptr ranged_label(Frame_t, const pv::CompressedBlob&);
-    static int _ranged_label_unsafe(Frame_t, pv::bid);
+    static MaybeLabel _ranged_label_unsafe(Frame_t, pv::bid);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
     static Label::Ptr _label_averaged_unsafe(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
-    static void _set_label_unsafe(Frame_t, pv::bid bdx, int ldx);
+    static void _set_label_unsafe(Frame_t, pv::bid bdx, MaybeLabel ldx);
     
     static void reanalysed_from(Frame_t);
     
@@ -231,10 +231,10 @@ struct DataStore {
 
 struct BlobLabel {
     pv::bid bdx;
-    int ldx;
+    MaybeLabel ldx;
     
     Label::Ptr label() const {
-        if(ldx == -1)
+        if(not ldx.has_value())
             return nullptr;
         return DataStore::label(ldx);
     }
@@ -246,7 +246,7 @@ struct BlobLabel {
         return bdx == other.bdx;
     }
     std::string toStr() const {
-        return Meta::toStr(bdx)+"->"+(ldx != -1 ? DataStore::label(ldx)->name : "NULL");
+        return Meta::toStr(bdx)+"->"+(ldx.has_value() ? DataStore::label(ldx)->name : "NULL");
     }
 };
 }

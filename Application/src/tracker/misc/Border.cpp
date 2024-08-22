@@ -61,11 +61,11 @@ ENUM_CLASS_DOCS(recognition_border_t,
         return *this;
     }
     
-    periodic::points_t smooth_outline(const periodic::points_t& points, float range, long step) {
-        const long L = points->size();
+    periodic::points_t smooth_outline(const periodic::points_t::element_type& points, float range, long step) {
+        const long L = points.size();
         
         if(L > range) {
-            periodic::points_t smoothed = std::make_shared<std::vector<Vec2>>();
+            periodic::points_t smoothed = std::make_unique<std::vector<Vec2>>();
             smoothed->reserve(L);
             
             const float step_row = range * step;
@@ -98,7 +98,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     while (idx >= L)
                         idx -= L;
                     
-                    pt += points->operator[](idx) * weights[samples++];
+                    pt += points[idx] * weights[samples++];
                 }
                 
                 if(samples)
@@ -242,258 +242,257 @@ ENUM_CLASS_DOCS(recognition_border_t,
     
     void Border::update_outline(pv::File &video) {
         _type = Type::outline;
+        if(_vertices.empty())
+            return;
         
-        if(_vertices.empty()) {
-            Timer timer;
-            Print("Generating outline...");
+        Timer timer;
+        Print("Generating outline...");
+        
+        if((size_t)video.size().height > (size_t)USHRT_MAX)
+            throw U_EXCEPTION("Video is too big (max: ",USHRT_MAX,"x",USHRT_MAX,")");
+        
+        if(x_valid.empty() && y_valid.empty()) {
+            // generate one line for every row
+            x_range.clear();
+            y_range.clear();
             
-            if((size_t)video.size().height > (size_t)USHRT_MAX)
-                throw U_EXCEPTION("Video is too big (max: ",USHRT_MAX,"x",USHRT_MAX,")");
+            x_range.resize(video.size().height);
+            y_range.resize(video.size().width);
             
-            if(x_valid.empty() && y_valid.empty()) {
-                // generate one line for every row
-                x_range.clear();
-                y_range.clear();
+            const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
+            CPULabeling::ListCache_t cache;
+            
+            std::vector<pv::BlobPtr> collection;
+            pv::Frame frame;
+            for (Frame_t i=0_f; i<video.length(); i+=max(1_f, Frame_t(Frame_t::number_t(video.length().get() * 0.0005)))) {
+                video.read_frame(frame, i);
+                auto blobs = frame.get_blobs();
                 
-                x_range.resize(video.size().height);
-                y_range.resize(video.size().width);
-                
-                const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
-                CPULabeling::ListCache_t cache;
-                
-                std::vector<pv::BlobPtr> collection;
-                pv::Frame frame;
-                for (Frame_t i=0_f; i<video.length(); i+=max(1_f, Frame_t(Frame_t::number_t(video.length().get() * 0.0005)))) {
-                    video.read_frame(frame, i);
-                    auto blobs = frame.get_blobs();
+                for(auto &b : blobs) {
+                    auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), _background);
                     
-                    for(auto &b : blobs) {
-                        auto pb = pixel::threshold_blob(cache, b.get(), FAST_SETTING(track_threshold), _background);
-                        
-                        for(auto &&b : pb) {
-                            auto size = b->num_pixels() * sqcm;
-                            if(FAST_SETTING(track_size_filter) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
-                                collection.push_back(std::move(b));
-                        }
-                    }
-                }
-                
-                Print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(track_size_filter)," with scale 0.5");
-                
-                std::vector<std::multiset<ushort>> xs;
-                std::vector<std::multiset<ushort>> ys;
-                
-                x_valid.clear();
-                y_valid.clear();
-                xs.resize(video.size().height);
-                ys.resize(video.size().width);
-                x_valid.resize(ys.size());
-                y_valid.resize(xs.size());
-                
-                for(auto &x : x_range)
-                    x = Rangef(0, video.size().width-1);
-                for(auto &y : y_range)
-                    y = Rangef(0, video.size().height-1);
-                
-                Vec2 average_height;
-                for(auto &b : collection) {
-                    //Vec2 center = b->bounds().pos() + b->bounds().size() * 0.5;
-                    average_height += b->bounds().size() * 0.5;
-                    
-                    for(auto &k : b->hor_lines()) {
-                        if(k.x0 < ys.size())
-                            ys.at(k.x0).insert(k.y);
-                        if(k.x1 < ys.size())
-                            ys.at(k.x1).insert(k.y);
-                        
-                        if(k.y < xs.size()) {
-                            xs.at(k.y).insert(k.x0);
-                            xs.at(k.y).insert(k.x1);
-                        }
-                    }
-                }
-                
-                std::multiset<float> max_y, max_x;
-                
-                for(ushort y = 0; y<xs.size(); ++y) {
-                    if(!xs[y].empty()) {
-                        y_valid.at(y) = true;
-                        
-                        auto it = xs.at(y).begin();
-                        std::advance(it, xs[y].size() * 0.03);
-                        
-                        auto rit = xs[y].rbegin();
-                        std::advance(rit, xs[y].size() * 0.03);
-                        
-                        x_range.at(y).start = *it;
-                        x_range.at(y).end = *rit;
-                        
-                        max_x.insert(*it);
-                        max_x.insert(*rit);
-                        
-                    } else if(y > 0 && y_valid[y-1]) {
-                        y_valid[y] = true;
-                        
-                        x_range[y].start = x_range[y-1].start;
-                        x_range[y].end = x_range[y-1].end;
-                    }
-                }
-                
-                for(ushort x = 0; x<ys.size(); ++x) {
-                    if(!ys[x].empty()) {
-                        x_valid.at(x) = true;
-                        
-                        auto it = ys.at(x).begin();
-                        std::advance(it, ys[x].size() * 0.03);
-                        
-                        auto rit = ys[x].rbegin();
-                        std::advance(rit, ys[x].size() * 0.03);
-                        
-                        y_range.at(x).start = *it;
-                        y_range.at(x).end = *rit;
-                        
-                        max_y.insert(*it);
-                        max_y.insert(*rit);
-                        
-                    } else if(x > 0 && x_valid[x-1]) {
-                        x_valid[x] = true;
-                        
-                        y_range[x].start = y_range[x-1].start;
-                        y_range[x].end = y_range[x-1].end;
-                    }
-                }
-                
-                if(!max_y.empty()) {
-                    auto it = max_y.begin();
-                    std::advance(it, max_y.size() * 0.02);
-                    
-                    auto rit = max_y.rbegin();
-                    std::advance(rit, max_y.size() * 0.02);
-                    assert(*it < y_valid.size());
-                    
-                    Print("Invalidate y from ", *it," to ",*rit);
-                    
-                    for(ushort y=0; y<min(*it, *rit, y_valid.size()); ++y) {
-                        y_valid[y] = false;
-                    }
-                    
-                    for(ushort y=*rit; y<y_valid.size(); ++y) {
-                        y_valid[y] = false;
-                    }
-                }
-                
-                if(!max_x.empty()) {
-                    auto it = max_x.begin();
-                    std::advance(it, max_x.size() * 0.02);
-                    
-                    auto rit = max_x.rbegin();
-                    std::advance(rit, max_x.size() * 0.02);
-                    assert(*rit < x_valid.size());
-                    
-                    Print("Invalidate x from ", *it," to ",*rit);
-                    
-                    for(ushort x=0; x<min(*it, *rit, x_valid.size()); ++x) {
-                        x_valid[x] = false;
-                    }
-                    
-                    for(ushort x=*rit; x<x_valid.size(); ++x) {
-                        x_valid[x] = false;
+                    for(auto &&b : pb) {
+                        auto size = b->num_pixels() * sqcm;
+                        if(FAST_SETTING(track_size_filter) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
+                            collection.push_back(std::move(b));
                     }
                 }
             }
             
-            _vertices.resize(1);
+            Print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(track_size_filter)," with scale 0.5");
             
-            for(ushort x = 0; x<y_range.size(); ++x) {
-                if(!x_valid[x])
-                    continue;
-                
-                Vec2 pt(x, y_range.at(x).start);
-                _vertices.front().push_back(pt);
-            }
+            std::vector<std::multiset<ushort>> xs;
+            std::vector<std::multiset<ushort>> ys;
             
-            for(ushort y = 0; y<x_range.size(); ++y) {
-                if(!y_valid[y])
-                    continue;
-                
-                Vec2 pt(x_range.at(y).end, y);
-                _vertices.front().push_back(pt);
-            }
+            x_valid.clear();
+            y_valid.clear();
+            xs.resize(video.size().height);
+            ys.resize(video.size().width);
+            x_valid.resize(ys.size());
+            y_valid.resize(xs.size());
             
-            for(ushort x = y_range.size()-1; x>0; --x) {
-                if(!x_valid[x])
-                    continue;
-                
-                Vec2 pt(x, y_range.at(x).end);
-                _vertices.front().push_back(pt);
-            }
+            for(auto &x : x_range)
+                x = Rangef(0, video.size().width-1);
+            for(auto &y : y_range)
+                y = Rangef(0, video.size().height-1);
             
-            for(ushort y = x_range.size() - 1; y>0; --y) {
-                if(!y_valid[y])
-                    continue;
+            Vec2 average_height;
+            for(auto &b : collection) {
+                //Vec2 center = b->bounds().pos() + b->bounds().size() * 0.5;
+                average_height += b->bounds().size() * 0.5;
                 
-                Vec2 pt(x_range.at(y).start, y);
-                _vertices.front().push_back(pt);
-            }
-            
-            uint16_t coeff = SETTING(recognition_coeff);
-            if(coeff > 0) {
-                auto ptr = std::make_shared<std::vector<Vec2>>(_vertices.front());
-                ptr = smooth_outline(ptr, SETTING(recognition_smooth_amount).value<uint16_t>(), 1);
-                
-                Vec2 middle;
-                float samples = 0;
-                for(auto &pt : _vertices.front()) {
-                    middle += pt;
-                    ++samples;
-                }
-                if(samples)
-                    middle /= samples;
-                
-                //auto ptr = std::make_shared<std::vector<Vec2>>(_vertices);
-                auto && [cw, p] = periodic::differentiate_and_test_clockwise(ptr);
-                if(cw < 0) {
-                    std::reverse(ptr->begin(), ptr->end());
-                }
-                auto c = periodic::eft(ptr, coeff);
-                ptr = periodic::ieft(c, coeff, /*_vertices.size() * 0.01*/ min(coeff * 2.0, 50), Vec2(), false).back();
-                
-                if(ptr) {
-                    _vertices.front() = *ptr;
+                for(auto &k : b->hor_lines()) {
+                    if(k.x0 < ys.size())
+                        ys.at(k.x0).insert(k.y);
+                    if(k.x1 < ys.size())
+                        ys.at(k.x1).insert(k.y);
                     
-                    for(auto & pt : _vertices.front()) {
-                        pt.x = (pt.x + middle.x); //* 0.95;
-                        pt.y = (pt.y + middle.y); //* 0.95;
+                    if(k.y < xs.size()) {
+                        xs.at(k.y).insert(k.x0);
+                        xs.at(k.y).insert(k.x1);
                     }
+                }
+            }
+            
+            std::multiset<float> max_y, max_x;
+            
+            for(ushort y = 0; y<xs.size(); ++y) {
+                if(!xs[y].empty()) {
+                    y_valid.at(y) = true;
                     
-                } else
-                    _vertices.clear();
-                
-                Print("Generating mask...");
-                Timer timer;
-                _mask = Image::Make(video.size().height, video.size().width);
-                if(!_vertices.empty()) {
-                    for(ushort x = 0; x < _mask->cols; ++x) {
-                        for (ushort y = 0; y < _mask->rows; ++y) {
-                            _mask->data()[y * _mask->cols + x] = pnpoly(_vertices.front(), Vec2(x,y)) ? 255 : 0;
-                        }
-                    }
+                    auto it = xs.at(y).begin();
+                    std::advance(it, xs[y].size() * 0.03);
                     
-                } else
-                    memset(_mask->data(), 0, _mask->size());
+                    auto rit = xs[y].rbegin();
+                    std::advance(rit, xs[y].size() * 0.03);
+                    
+                    x_range.at(y).start = *it;
+                    x_range.at(y).end = *rit;
+                    
+                    max_x.insert(*it);
+                    max_x.insert(*rit);
+                    
+                } else if(y > 0 && y_valid[y-1]) {
+                    y_valid[y] = true;
+                    
+                    x_range[y].start = x_range[y-1].start;
+                    x_range[y].end = x_range[y-1].end;
+                }
+            }
+            
+            for(ushort x = 0; x<ys.size(); ++x) {
+                if(!ys[x].empty()) {
+                    x_valid.at(x) = true;
+                    
+                    auto it = ys.at(x).begin();
+                    std::advance(it, ys[x].size() * 0.03);
+                    
+                    auto rit = ys[x].rbegin();
+                    std::advance(rit, ys[x].size() * 0.03);
+                    
+                    y_range.at(x).start = *it;
+                    y_range.at(x).end = *rit;
+                    
+                    max_y.insert(*it);
+                    max_y.insert(*rit);
+                    
+                } else if(x > 0 && x_valid[x-1]) {
+                    x_valid[x] = true;
+                    
+                    y_range[x].start = y_range[x-1].start;
+                    y_range[x].end = y_range[x-1].end;
+                }
+            }
+            
+            if(!max_y.empty()) {
+                auto it = max_y.begin();
+                std::advance(it, max_y.size() * 0.02);
                 
-                //tf::imshow("mask", _mask->get());
+                auto rit = max_y.rbegin();
+                std::advance(rit, max_y.size() * 0.02);
+                assert(*it < y_valid.size());
                 
-                auto sec = timer.elapsed() / _mask->size() * 1000 * 1000;
-                auto str = Meta::toStr(DurationUS{uint64_t(sec)});
-                Print("Mask took ",str,"/pixel");
-                poly_set = true;
+                Print("Invalidate y from ", *it," to ",*rit);
+                
+                for(ushort y=0; y<min(*it, *rit, y_valid.size()); ++y) {
+                    y_valid[y] = false;
+                }
+                
+                for(ushort y=*rit; y<y_valid.size(); ++y) {
+                    y_valid[y] = false;
+                }
+            }
+            
+            if(!max_x.empty()) {
+                auto it = max_x.begin();
+                std::advance(it, max_x.size() * 0.02);
+                
+                auto rit = max_x.rbegin();
+                std::advance(rit, max_x.size() * 0.02);
+                assert(*rit < x_valid.size());
+                
+                Print("Invalidate x from ", *it," to ",*rit);
+                
+                for(ushort x=0; x<min(*it, *rit, x_valid.size()); ++x) {
+                    x_valid[x] = false;
+                }
+                
+                for(ushort x=*rit; x<x_valid.size(); ++x) {
+                    x_valid[x] = false;
+                }
+            }
+        }
+        
+        _vertices.resize(1);
+        
+        for(ushort x = 0; x<y_range.size(); ++x) {
+            if(!x_valid[x])
+                continue;
+            
+            Vec2 pt(x, y_range.at(x).start);
+            _vertices.front().push_back(pt);
+        }
+        
+        for(ushort y = 0; y<x_range.size(); ++y) {
+            if(!y_valid[y])
+                continue;
+            
+            Vec2 pt(x_range.at(y).end, y);
+            _vertices.front().push_back(pt);
+        }
+        
+        for(ushort x = y_range.size()-1; x>0; --x) {
+            if(!x_valid[x])
+                continue;
+            
+            Vec2 pt(x, y_range.at(x).end);
+            _vertices.front().push_back(pt);
+        }
+        
+        for(ushort y = x_range.size() - 1; y>0; --y) {
+            if(!y_valid[y])
+                continue;
+            
+            Vec2 pt(x_range.at(y).start, y);
+            _vertices.front().push_back(pt);
+        }
+        
+        uint16_t coeff = SETTING(recognition_coeff);
+        if(coeff > 0) {
+            auto ptr = smooth_outline(_vertices.front(), SETTING(recognition_smooth_amount).value<uint16_t>(), 1);
+            
+            Vec2 middle;
+            float samples = 0;
+            for(auto &pt : _vertices.front()) {
+                middle += pt;
+                ++samples;
+            }
+            if(samples)
+                middle /= samples;
+            
+            //auto ptr = std::make_shared<std::vector<Vec2>>(_vertices);
+            auto && [cw, p] = periodic::differentiate_and_test_clockwise(*ptr);
+            if(cw < 0) {
+                std::reverse(ptr->begin(), ptr->end());
+            }
+            auto c = periodic::eft(*ptr, coeff);
+            ptr = std::move(periodic::ieft(*c, coeff, /*_vertices.size() * 0.01*/ min(coeff * 2.0, 50), Vec2(), false).back());
+            
+            if(ptr) {
+                _vertices.front() = *ptr;
+                
+                for(auto & pt : _vertices.front()) {
+                    pt.x = (pt.x + middle.x); //* 0.95;
+                    pt.y = (pt.y + middle.y); //* 0.95;
+                }
                 
             } else
-                poly_set = false;
+                _vertices.clear();
             
-            Print("This took ", DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)}," (",_vertices.size()," points)");
-        }
+            Print("Generating mask...");
+            Timer timer;
+            _mask = Image::Make(video.size().height, video.size().width);
+            if(!_vertices.empty()) {
+                for(ushort x = 0; x < _mask->cols; ++x) {
+                    for (ushort y = 0; y < _mask->rows; ++y) {
+                        _mask->data()[y * _mask->cols + x] = pnpoly(_vertices.front(), Vec2(x,y)) ? 255 : 0;
+                    }
+                }
+                
+            } else
+                memset(_mask->data(), 0, _mask->size());
+            
+            //tf::imshow("mask", _mask->get());
+            
+            auto sec = timer.elapsed() / _mask->size() * 1000 * 1000;
+            auto str = Meta::toStr(DurationUS{uint64_t(sec)});
+            Print("Mask took ",str,"/pixel");
+            poly_set = true;
+            
+        } else
+            poly_set = false;
+        
+        Print("This took ", DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)}," (",_vertices.size()," points)");
     }
     
     void Border::update(pv::File& video) {

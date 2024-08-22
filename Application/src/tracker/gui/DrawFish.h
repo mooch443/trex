@@ -62,8 +62,8 @@ struct UpdateSettings {
         track::Midline::Ptr _cached_midline;
         const track::MinimalOutline* _cached_outline;
         GETTER(Vec2, fish_pos);
-        Circle _circle;
-        std::unique_ptr<Line> _lines;
+        std::variant<std::monostate, Rect, Polygon, Circle> _selection;
+        //std::unique_ptr<Line> _lines;
 
         std::vector<Vertex> _vertices;
         std::vector<std::unique_ptr<Vertices>> _paths;
@@ -95,7 +95,7 @@ struct UpdateSettings {
         blob::Pose _average_pose;
         Bounds _blob_bounds;
         std::optional<default_config::matching_mode_t::Class> _match_mode;
-        track::IndividualCache _next_frame_cache{.valid=false};
+        std::optional<track::IndividualCache> _next_frame_cache;
         
         track::Identity _id;
         std::optional<track::BasicStuff> _basic_stuff;
@@ -117,10 +117,12 @@ struct UpdateSettings {
         std::string circle_animator{ "recognition-circle-"+Meta::toStr((uint64_t)this) };
         bool _path_dirty{false};
         //ExternalImage _colored;
+        Float2_t last_scale{0};
         
         /// Categorization information
-        int _avg_cat = -1;
-        int _cat = -1;
+        track::MaybeLabel _avg_cat{};
+        track::MaybeLabel _cat{};
+        
         std::string _cat_name;
         std::string _avg_cat_name;
         
@@ -142,6 +144,9 @@ struct UpdateSettings {
         //void paintPixels() const;
         void update_recognition_circle();
         Color get_color(const track::BasicStuff*) const;
+        void setup_rotated_bbx(const FindCoord&, const Vec2& offset, const Vec2& c_pos, Float2_t angle);
+        void selection_hovered(Event);
+        void selection_clicked(Event);
     public:
         void label(const FindCoord&, Entangled&);
         Drawable* shadow();
