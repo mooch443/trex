@@ -282,7 +282,7 @@ void DrawSegments::update_box() {
     auto v = _target_bounds.pos() - bds.pos();
     auto L = v.length();
     if(L > 0.5 /*&& _previous_bounds != _target_bounds*/) {
-        Print("v = ", v);
+        //Print("v = ", v);
         
         v /= L;
         auto dt = GUICache::instance().dt();

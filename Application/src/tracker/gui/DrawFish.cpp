@@ -42,7 +42,7 @@ Fish::~Fish() {
         
         assert(_id.ID().valid());
         auto ID = _id.ID();
-        _view.set_clickable(true);
+        //_view.set_clickable(true);
         //_circle.set_clickable(true);
         _posture.set_origin(Vec2(0));
     }
@@ -424,7 +424,7 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         Vec2 mi(FLT_MAX, FLT_MAX);
         Vec2 ma(0, 0);
         
-        using Point_t = std::remove_cvref_t<decltype(points)>;
+        using Point_t = std::remove_cvref_t<decltype(points)>::value_type;
         
         for(auto &_pt : points) {
             if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
@@ -461,14 +461,14 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         assert(not std::isnan(coords.bowl_scale().x));
         auto scaled_w = abs(coords.bowl_scale().x * (mi.x - ma.x));
         if(scaled_w < 25) {
-            auto d = 15 - scaled_w;
+            auto d = 25 - scaled_w;
             mi.x -= d * 0.5;
             ma.x += d * 0.5;
         }
         
         auto scaled_h = abs(coords.bowl_scale().y * (mi.y - ma.y));
         if(scaled_h < 25) {
-            auto d = 15 - scaled_h;
+            auto d = 25 - scaled_h;
             mi.y -= d * 0.5;
             ma.y += d * 0.5;
         }
