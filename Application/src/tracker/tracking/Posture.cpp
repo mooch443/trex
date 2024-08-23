@@ -235,18 +235,21 @@ tl::expected<Result, const char*> calculate_midline(Result&& result) {
     return result;
 }
 
-tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes) {
+tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes)
+{
     Outline::check_constants();
-    
-    auto pts = generateOutline(pose, indexes, [](float percent) -> float {
-        // scale center line by percentage
-        return 40.f * (1.f - percent) + 1.f;
-    });
     
     Result result;
     
     {
-        auto ptr = std::make_unique<std::vector<Vec2>>(pts);
+        auto bds = basic.blob.calculate_bounds();
+        
+        auto pts = generateOutline(pose, indexes, [m = bds.size().mean() * 0.08_F](float percent) -> float {
+            // scale center line by percentage
+            return m * (1_F - percent) + 1;
+        });
+        
+        auto ptr = std::make_unique<std::vector<Vec2>>(std::move(pts));
         const auto pos = basic.blob.calculate_bounds().pos();
         for(auto &pt : *ptr)
             pt -= pos;

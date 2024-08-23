@@ -305,7 +305,6 @@ struct ConvertScene::Data {
                     
                     map.apply([&](std::string_view key, auto& value) {
                         value = parse_value_with_default(value, key, patterns, context, state);
-                        Print(key," = ", value);
                     });
                     
                     source = Bounds{ map.get<"pos">(), map.get<"size">() };
