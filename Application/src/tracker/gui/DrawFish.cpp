@@ -911,7 +911,7 @@ void Fish::selection_clicked(Event) {
         
             // DISPLAY LABEL AND POSITION
             auto bg = GUICache::instance().background();
-            auto c_pos = (pcentroid ? pcentroid->pos<Units::PX_AND_SECONDS>() : centroid->pos<Units::PX_AND_SECONDS>()) + offset;
+            auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() : Vec2()) + offset;
             if(not bg || c_pos.x > bg->image().cols || c_pos.y > bg->image().rows)
                 return;
         
