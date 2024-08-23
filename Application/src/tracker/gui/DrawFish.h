@@ -92,7 +92,7 @@ struct UpdateSettings {
         
         UpdateSettings _options;
         
-        blob::Pose _average_pose;
+        //blob::Pose _average_pose;
         Bounds _blob_bounds;
         std::optional<default_config::matching_mode_t::Class> _match_mode;
         std::optional<track::IndividualCache> _next_frame_cache;

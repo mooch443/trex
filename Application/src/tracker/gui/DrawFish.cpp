@@ -257,8 +257,8 @@ Fish::~Fish() {
         _color = get_color(&_basic_stuff.value());
 
         //if(OPTION(gui_pose_smoothing) > 0_f)
-        auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
-        _average_pose = obj.pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex);
+        //auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
+        //_average_pose = obj.pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex);
         //else
         //    _average_pose = obj.pos
         if (not _skelett) {
@@ -270,7 +270,11 @@ Fish::~Fish() {
             _skelett->set_color(Gray.alpha(100));
         _skelett->set_name(Meta::toStr(_id.color()));
         
-        _skelett->set_pose(_average_pose);
+        if(_basic_stuff && _basic_stuff->blob.pred.valid()
+           && not _basic_stuff->blob.pred.pose.empty())
+        {
+            _skelett->set_pose(_basic_stuff->blob.pred.pose);
+        }
         _skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
 
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
@@ -911,7 +915,7 @@ void Fish::selection_clicked(Event) {
         
             // DISPLAY LABEL AND POSITION
             auto bg = GUICache::instance().background();
-            auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() : Vec2()) + offset;
+            auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() + offset : Vec2());
             if(not bg || c_pos.x > bg->image().cols || c_pos.y > bg->image().rows)
                 return;
         
@@ -1632,8 +1636,10 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
         return;
     
     auto pos = fish_pos();
-    if(not _average_pose.empty()) {
-        pos = _average_pose.points.front();
+    if(_basic_stuff && _basic_stuff->blob.pred.valid()
+       && not _basic_stuff->blob.pred.pose.empty())
+    {
+        pos = _basic_stuff->blob.pred.pose.points.front();
     }
     
     if (!_label) {
