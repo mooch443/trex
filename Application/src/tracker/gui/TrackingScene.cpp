@@ -693,10 +693,10 @@ void TrackingScene::update_run_loop() {
         return;
     
     const uint32_t gui_playback_speed = GUI_SETTINGS(gui_playback_speed);
-    const double frame_rate = GUI_SETTINGS(frame_rate) * gui_playback_speed;
+    const double frame_rate = GUI_SETTINGS(frame_rate);// * gui_playback_speed;
     
     if(_data->_recorder.recording()) {
-        _data->_cache->set_dt(0.75 / double(frame_rate));
+        _data->_cache->set_dt(1.0 / double(frame_rate));
     } else {
         _data->_cache->set_dt(last_redraw.elapsed());
     }

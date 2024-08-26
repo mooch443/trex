@@ -91,12 +91,13 @@ public:
                 
                 if(index != target_index) {
                     if(discard) {
-                        Print("* While trying to load exactly ", target_index, " discarding ", index);
+                        //thread_print("* While trying to load exactly ", target_index, " discarding ", index);
                         discard(std::move(frame.value()));
                     }
                     frame.reset();
                 } else {
                     auto ptr = std::move(frame.value());
+                    //thread_print("* While trying to load exactly ", target_index, " got exactly ", index);
                     frame.reset();
                     return ptr;
                 }
@@ -104,12 +105,12 @@ public:
             } else if(std::unique_lock guard(future_mutex);
                       future.valid())
             {
-                //Print("* While trying to load exactly ", target_index, " got nullptr.");
+                //thread_print("* While trying to load exactly ", target_index, " got nullptr.");
                 guard.unlock();
                 updated_frame.wait(g);
                 
             } else {
-                //Print("* While trying to load exactly ", target_index, " but no future, so we're not waiting.");
+                //thread_print("* While trying to load exactly ", target_index, " but no future, so we're not waiting.");
             }
         }
     }
@@ -143,65 +144,117 @@ private:
 
 template<typename FrameType>
 // Non-blocking call to get a frame
-std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index, Frame_t increment, std::chrono::milliseconds delay) {
+std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index, Frame_t increment, std::chrono::milliseconds delay)
+{
+    auto update_next_index = [&](Frame_t index){
+        auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
+        if(target_index == index) {
+            //thread_print("* Setting next index to use to ", target_index," + ", increment);
+            next_index_to_use = target_index + increment;//Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed))));
+            _last_increment = increment;
+        } else {
+            if(index + 1_f < target_index) {
+                Frame_t difference = increment;
+                //thread_print("* Setting next index to use to ", target_index," + diff[", difference, "]");
+                next_index_to_use = target_index + difference;
+                _last_increment = increment;
+            } else {
+                next_index_to_use = target_index;
+                _last_increment = 1_f;
+                //thread_print("* Setting next index to use to ", target_index);
+            }
+        }
+        
+        last_returned_index = index;
+    };
+
+    auto set_next_index = [&](Frame_t target_index){
+        /// we havent returned (so currently we arent working on the
+        /// correct image yet), so lets check the next item:
+        if(auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
+            not next_index_to_use.valid()
+            || next_index_to_use != target_index)
+        {
+            /// the next image after the current item will not be the
+            /// target index, so we need to update the next index:
+            //thread_print("* Reset next index ", next_index_to_use, " to target index ", target_index);
+            next_index_to_use = target_index;
+        }
+
+        ThreadManager::getInstance().notify(group_id);
+    };
+    
     if (std::unique_lock guard(future_mutex);
-        future.valid())
+        future.valid()
+        && id_in_future == target_index)
+        
     {
+        /// we have already been waiting for the correct index
         if(future.wait_for(delay) == std::future_status::ready) {
+            /// and it seems to be ready:
             auto &&[index, image] = future.get();
+            id_in_future.invalidate(); // nothing in future
             
             if(not image) {
                 // the returned image is illegal
-                auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
-                if(id_in_future != target_index)
-                    next_index_to_use = target_index;
+                //thread_print("* Illegal image for index ", index, " instead of ", target_index);
+                ThreadManager::getInstance().notify(group_id);
                 return std::nullopt;
             }
             
-            id_in_future.invalidate(); // nothing in future
-            
+            //thread_print("* Got valid image for index ", index, " (", target_index, ")");
+
             guard.unlock();
             
-            auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
-            if(target_index == index) {
-                //Print("Adding ", Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed)))), " every frame.");
-                next_index_to_use = target_index + increment;//Frame_t((uint32_t)max(1, ceil(PRELOAD_CACHE(gui_playback_speed))));
-                _last_increment = increment;
-            } else {
-                if(index + 1_f < target_index) {
-                    Frame_t difference = increment;
-                    next_index_to_use = target_index + difference;
-                    _last_increment = increment;
-                } else
-                    next_index_to_use = target_index;
-            }
+            assert(index == id_in_future);
+            assert(image->index() == index);
+            update_next_index(index);
             
             ThreadManager::getInstance().notify(group_id);
-            if(image)
-                last_returned_index = Frame_t(image->index());
-            //Print("next index = ", next_index_to_use);
             return std::optional<FrameType>(std::move(image));
             
         } else {
-            ThreadManager::getInstance().notify(group_id);
+            /// not ready yet after allowed period!
+            //thread_print("* Image wasnt ready yet for index ", id_in_future, " == ", target_index);
+            return std::nullopt;
         }
         
-    } else if(auto guard = LOGGED_LOCK(preloaded_frame_mutex);
-              not next_index_to_use.valid()
-              || next_index_to_use != target_index)
+    } else if(future.valid()
+              && id_in_future != target_index)
     {
-        //Print("Reset next index ", next_index_to_use, " => ", target_index);
-        next_index_to_use = target_index;
-        ThreadManager::getInstance().notify(group_id);
-        
-    } else if(next_index_to_use == target_index
-              && target_index != last_returned_index)
-    {
-        //Print("No future for index ", target_index, " but was also not the last returned index ", last_returned_index,". Nudge.");
-        current_id.invalidate();
-        ThreadManager::getInstance().notify(group_id);
+        /// there is something in the pipeline upon read, but
+        /// its unfortunately not the right image... need to get
+        /// rid of it though.
+        if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            auto &&[index, image] = future.get();
+            id_in_future.invalidate();
+            
+            if(image) {
+                //thread_print("* returning wrong image for index ", index, " instead of ", target_index);
+                guard.unlock();
+
+                assert(index == id_in_future);
+                if(index != target_index + 1_f) {
+                    set_next_index(target_index + 1_f);
+                } else {
+                    // we are stuck in a loop on the same image
+                    set_next_index(target_index);
+                }
+                
+                //return std::optional<FrameType>(std::move(image));
+                if(discard)
+                    discard(std::move(image));
+                return std::nullopt;
+               // thread_print("* Discarding image for index ", index, " instead of ", target_index);
+            }
+            
+        } else {
+            /// not ready yet after allowed period!
+            //thread_print("* Image wasnt ready yet for index ", id_in_future, " != ", target_index);
+        }
     }
     
+    set_next_index(target_index);
     return std::nullopt;
 }
 
@@ -214,14 +267,16 @@ void FramePreloader<FrameType>::preload_frames() {
         if(next_index_to_use.valid()) {
             if(current_id != next_index_to_use) {
                 if(image) {
+                    //thread_print("Discarding image ", image->index(), " (",current_id,") since we need ", next_index_to_use);
+                    
                     // discard current image, since we will replace it
                     // with a new one:
                     if(discard) {
-                        thread_print("Discarding image ", image->index(), " since we need ", next_index_to_use);
                         discard(std::move(image));
                     } else
                         image = nullptr;
                 }
+                
                 current_id = next_index_to_use;
             }
         }
@@ -232,7 +287,7 @@ void FramePreloader<FrameType>::preload_frames() {
         return;
     
     if(not image) {
-        //thread_print("*** [jump] loading ", current, " last_next=",last_next);
+        //thread_print("*** [jump] loading ", current);
         
         promise = typename decltype(promise)::value_type{};
         {
@@ -257,6 +312,8 @@ void FramePreloader<FrameType>::preload_frames() {
 
     // check whether frame has been gathered:
     if(image) {
+        //thread_print("Got image for next index ", current, ".");
+        
         std::unique_lock fguard(future_mutex);
         auto guard = LOGGED_LOCK(preloaded_frame_mutex);
         promise->set_value({current, std::move(image)});
@@ -264,12 +321,14 @@ void FramePreloader<FrameType>::preload_frames() {
         
         updated_frame.notify_all();
         
-        //thread_print("Got image for next index ", current, " (next = ", next_index_to_use,")");
         if(current == next_index_to_use) {
+            //thread_print("Got image for next index ", current, " (next = ", next_index_to_use,"), invalidating.");
             current_id.invalidate();
             next_index_to_use.invalidate();
-        } else
+        } else {
+            //thread_print("Got image for next index ", current, " (next = ", next_index_to_use,"), confirming.");
             current_id = next_index_to_use;
+        }
         
         // future mutex required:
         last_time_to_frame = last_time_to_frame * 0.25 + time_to_frame.elapsed() * 0.75;
@@ -278,6 +337,7 @@ void FramePreloader<FrameType>::preload_frames() {
         auto guard = LOGGED_LOCK(preloaded_frame_mutex);
         current_id.invalidate();
         promise->set_value({Frame_t(), nullptr});
+        //thread_print("Got no image for next index ", current, " (next = ", next_index_to_use,")");
     }
 }
 

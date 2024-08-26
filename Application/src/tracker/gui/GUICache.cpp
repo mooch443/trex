@@ -390,8 +390,10 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 /// the next frame does *not* match - at least should
                 /// nudge the preloader:
                 auto maybe_frame = _load_frames_blocking
-                    ? _preloader.load_exactly(frameIndex, _preloader.last_increment())
-                    : _preloader.get_frame(frameIndex, _preloader.last_increment(), std::chrono::milliseconds(0));
+                    ? _preloader.load_exactly(frameIndex, 1_f)
+                    : _preloader.get_frame(frameIndex, 1_f, std::chrono::milliseconds(50));
+                
+                // _preloader.get_frame(frameIndex, Frame_t(saturate(static_cast<uint8_t>(GUI_SETTINGS(gui_playback_speed)), 1, 255)), std::chrono::milliseconds(50));
                 
                 //if(maybe_frame.has_value())
                 //    timer.reset();
