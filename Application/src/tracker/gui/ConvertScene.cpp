@@ -181,7 +181,7 @@ struct ConvertScene::Data {
         }
     }
     
-    void drawBlobs(DrawStructure&, Frame_t, const std::vector<std::string>& detect_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
+    void drawBlobs(DrawStructure&, Frame_t, const std::map<uint16_t, std::string_view>& detect_classes, const Vec2& scale, Vec2 offset, const std::unordered_map<pv::bid, Identity>& visible_bdx, bool dirty);
     // Helper function to draw outlines
     void drawOutlines(DrawStructure& graph, const Size2& scale, Vec2 offset);
     void paint_blob_prediction(DrawStructure& graph, const Color& tracked_color, const pv::Blob& blob) {
@@ -328,7 +328,7 @@ struct ConvertScene::Data {
     }
     void draw(bool dirty, DrawStructure& graph, Base* window);
     bool retrieve_and_prepare_data();
-    void draw_scene(DrawStructure& graph, const std::vector<std::string>& detect_classes, bool dirty);
+    void draw_scene(DrawStructure& graph, const detect::yolo::names::map_t& detect_classes, bool dirty);
 };
 
 Segmenter& ConvertScene::segmenter() const {
@@ -720,8 +720,8 @@ void ConvertScene::Data::drawOutlines(DrawStructure&, const Size2&, Vec2) {
 void ConvertScene::Data::drawBlobs(
     DrawStructure& graph,
     Frame_t frameIndex,
-    const std::vector<std::string>& detect_classes, 
-    const Vec2&, Vec2, 
+    const detect::yolo::names::map_t& detect_classes,
+    const Vec2&, Vec2,
     const std::unordered_map<pv::bid, Identity>& visible_bdx, 
     bool dirty) 
 {
@@ -786,15 +786,22 @@ void ConvertScene::Data::drawBlobs(
             //    Print("[draw]4 blob ", blob->blob_id(), " prediction not found...");
         }
         
-        auto cname = detect_classes.size() > assign.clid
-            ? detect_classes.at(assign.clid)
-            : ((assign.clid == size_t(-1)
-                   ? (is_background_subtraction 
-                      ? (detect_classes.empty()
-                           ? FAST_SETTING(individual_prefix)
-                           : detect_classes.front())
-                      : "<no prediction>")
-                   : "<unknown:" + Meta::toStr(assign.clid) + ">"));
+        auto cname = [&]() -> std::string {
+            if(assign.clid == size_t(-1)) {
+                return is_background_subtraction
+                        ? detect_classes.contains(0)
+                            ? FAST_SETTING(individual_prefix)
+                            : (std::string)detect_classes.at(0)
+                        : "<no prediction>";
+            } else if(auto it = detect_classes.find(assign.clid);
+                      it != detect_classes.end())
+            {
+                return (std::string)it->second;
+                
+            } else {
+                return "<unknown:" + Meta::toStr(assign.clid) + ">";
+            }
+        }();
 
         sprite::Map* tmp = nullptr;
 
@@ -1147,7 +1154,7 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
     }
     
     _last_mouse = graph.mouse_position();
-    const auto detect_classes = SETTING(detect_classes).value<std::vector<std::string>>();
+    const auto detect_classes = detect::yolo::names::get_map();
 
     graph.wrap_object(*_bowl);
     _bowl->update_scaling(dt);
@@ -1283,7 +1290,7 @@ void ConvertScene::Data::update_background_image() {
     }
 }
 
-void ConvertScene::Data::draw_scene(DrawStructure& graph, const std::vector<std::string>& detect_classes, bool dirty) {
+void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::names::map_t& detect_classes, bool dirty) {
     graph.section("video", [&](auto&, Section* section) {
         section->set_size(output_size);
         section->set_pos(_bowl->_current_pos);

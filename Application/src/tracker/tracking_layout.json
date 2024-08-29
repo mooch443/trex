@@ -37,6 +37,15 @@
     "children":[
         {
             "type":"condition",
+            "var":"{key.lshift}",
+            "then":{
+                "type":"rect",
+                "line":[0,225,125,255],
+                "size":"{window_size}"
+            }
+        },
+        {
+            "type":"condition",
             "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}}",
             "then":{
                 "type":"vlayout",

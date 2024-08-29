@@ -193,6 +193,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
         if(future.wait_for(delay) == std::future_status::ready) {
             /// and it seems to be ready:
             auto &&[index, image] = future.get();
+            assert(not image || index == id_in_future);
             id_in_future.invalidate(); // nothing in future
             
             if(not image) {
@@ -206,8 +207,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
 
             guard.unlock();
             
-            assert(index == id_in_future);
-            assert(image->index() == index);
+            assert(Frame_t(image->index()) == index);
             update_next_index(index);
             
             ThreadManager::getInstance().notify(group_id);
@@ -227,13 +227,13 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
         /// rid of it though.
         if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
             auto &&[index, image] = future.get();
+            assert(not image || index == id_in_future);
             id_in_future.invalidate();
             
             if(image) {
                 //thread_print("* returning wrong image for index ", index, " instead of ", target_index);
                 guard.unlock();
 
-                assert(index == id_in_future);
                 if(index != target_index + 1_f) {
                     set_next_index(target_index + 1_f);
                 } else {

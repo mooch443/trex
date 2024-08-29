@@ -48,7 +48,6 @@ struct SettingsScene::Data {
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
-    ExternalImage _preview_image;
     IMGUIBase *_window{nullptr};
     
     file::PathArray _initial_source;
@@ -597,17 +596,6 @@ struct SettingsScene::Data {
             }*/
         }
         
-        auto scale = Vec2{
-            max(window_size.width / max(_preview_image.width(), 1.f),
-                window_size.height / max(_preview_image.height(), 1.f))
-        };
-        
-        _preview_image.set_scale(scale);
-        _preview_image.set_origin(Vec2(0.5));
-        _preview_image.set_pos(window_size * 0.5);
-        _preview_image.set_color(White.alpha(100));
-        
-        graph.wrap_object(_preview_image);
         //graph.wrap_object(_preview_image);
         dynGUI.update(graph, nullptr/*, [this](auto &objs){
             objs.push_back(Layout::Ptr(_preview_image));

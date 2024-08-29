@@ -422,9 +422,9 @@ void load(file::PathArray source,
     GlobalSettings::map()["terminate"].get().set_do_print(false);
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
-    if(cmd.settings_keys().contains("cwd")) {
-        combined.map["cwd"] = file::Path(cmd.settings_keys().at("cwd"));
-        set_config_if_different("cwd", combined.map);
+    if(cmd.settings_keys().contains("wd")) {
+        combined.map["wd"] = file::Path(cmd.settings_keys().at("wd"));
+        set_config_if_different("wd", combined.map);
     }
     exclude += extract_keys( cmd.settings_keys() );
 
@@ -916,7 +916,7 @@ void load(file::PathArray source,
     
     CommandLine::instance().reset_settings({
         //"output_dir", 
-        "gpu_torch_device", "cwd"
+        "gpu_torch_device", "wd"
     });
 }
 

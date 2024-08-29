@@ -61,9 +61,10 @@ class V200(nn.Module):
         self.fc2 = nn.Linear(1024, num_classes)
         
     def forward(self, x):
-        from torch.mps import profiler
+        #from torch.mps import profiler
 
-        with profiler.profile() as prof:
+        #with profiler.profile() as prof:
+        if True:
             x = self.relu1(self.bn1(self.conv1(x)))
             x = self.pool1(self.relu2(self.bn2(self.conv2(x))))
             x = self.dropout1(x)

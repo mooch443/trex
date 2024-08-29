@@ -2,6 +2,16 @@
 #include <commons.pc.h>
 #include <file/Path.h>
 
+namespace track::detect::yolo::names {
+
+using map_t = std::map<uint16_t, std::string_view>;
+using vec_t = std::vector<std::string_view>;
+
+vec_t get_vector();
+map_t get_map();
+
+}
+
 namespace track::detect {
 
 ENUM_CLASS(ObjectDetectionType, none, yolo8, background_subtraction);

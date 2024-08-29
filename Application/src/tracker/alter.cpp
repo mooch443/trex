@@ -146,7 +146,7 @@ void launch_gui(std::future<void>& f) {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
-    }, [ptr = &base](auto&, Event e) {
+    }, [ptr = &base](DrawStructure&g, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
             if(e.type == EventType::KEY) {
                 if(e.key.code == Keyboard::Escape) {
@@ -154,11 +154,8 @@ void launch_gui(std::future<void>& f) {
                 }
                 
             } else if(e.type == EventType::WINDOW_RESIZED) {
-                auto work_area = ptr->work_area();
-                auto scale = 1920.f / work_area.width;
-                if(scale != 1.f)
-                    scale = 1.f + (scale - 1.f) * 0.35;
-                //Print("scale = ", 1920.f / work_area.width, " (",scale,") dpi = ", ptr->dpi_scale());
+                auto h = g.height();
+                auto scale = max(1.f, sqrtf(480.f / h));
                 SETTING(gui_interface_scale) = Float2_t(scale);
             }
         }
@@ -617,18 +614,18 @@ int main(int argc, char**argv) {
      */
     //SETTING(meta_video_scale) = float(1);
     
+    DebugHeader("LOADING COMMANDLINE");
+    GlobalSettings::map()["wd"].get().set_do_print(true);
+    CommandLine::init(argc, argv, true);
     
     namespace py = Python;
-    auto cwd = file::cwd();
+    auto cwd = GlobalSettings::map()["wd"].value<file::Path>();
+    //auto cwd = file::cwd();
     if(cwd.empty())
         cwd = file::Path(default_config::homedir());
-    
     Print("CWD: ", cwd);
-    DebugHeader("LOADING COMMANDLINE");
-    GlobalSettings::map()["cwd"].get().set_do_print(true);
-    CommandLine::init(argc, argv, true);
-    CommandLine::instance().add_setting("cwd", cwd.str());
-    SETTING(cwd) = cwd;
+    CommandLine::instance().add_setting("wd", cwd.str());
+    //SETTING(wd) = cwd;
     file::cd(file::DataLocation::parse("app").absolute());
     Print("CWD: ", file::cwd());
     

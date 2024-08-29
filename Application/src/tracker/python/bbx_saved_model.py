@@ -292,7 +292,7 @@ class Model:
             raise Exception(f"Unknown task {self.ptr.task}")
         
         try:
-            train_args = self.ptr.__dict__["ckpt"]["train_args"]
+            train_args = self.ptr.ckpt["train_args"]
             imgsz = train_args["imgsz"]
             if isinstance(imgsz, int):
                 imgsz = [imgsz, imgsz]

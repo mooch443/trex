@@ -643,20 +643,22 @@ void Tracker::prefilter(
     std::vector<pv::BlobPtr> ptrs;
     auto track_only_categories = FAST_SETTING(track_only_categories);
     auto track_conf_threshold = FAST_SETTING(track_conf_threshold);
-    const auto detect_classes = GlobalSettings::has("detect_classes")
-                        ? SETTING(detect_classes).value<std::vector<std::string>>()
-                        : std::vector<std::string>{};
+    const auto detect_classes = detect::yolo::names::get_map();
     [[maybe_unused]] auto get_class_name = [&detect_classes](size_t i) -> std::string {
-        if(i < detect_classes.size())
-            return detect_classes[i];
+        if(auto it = detect_classes.find(i);
+           it != detect_classes.end())
+        {
+            return (std::string)it->second;
+        }
         return Meta::toStr(i);
     };
     auto get_class_id = [&detect_classes](const std::string& name)
         -> std::optional<uint8_t>
     {
-        for(size_t i=0, N=detect_classes.size(); i<N; ++i) {
-            if(detect_classes[i] == name)
-                return narrow_cast<uint8_t>(i);
+        for(auto &[id, n] : detect_classes) {
+            if(name == n) {
+                return narrow_cast<uint8_t>(id);
+            }
         }
         return std::nullopt;
     };

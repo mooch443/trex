@@ -355,7 +355,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         Adding adding(config, docs, fn);
         
         CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
-        CONFIG("cwd", file::Path(""), "Working directory the program was started from.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
         CONFIG("app_last_update_check", uint64_t(0), "Time-point of when the application has last checked for an update.", SYSTEM);
         CONFIG("app_last_update_version", std::string(), "");
@@ -385,20 +384,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
-        static const auto detect_classes = std::vector<std::string>{
-            "person", "bicycle", "car", "motorcycle", "airplane",
-            "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
-            "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse",
-            "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
-            "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
-            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard",
-            "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork",
-            "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
-            "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
-            "couch", "potted plant", "bed", "dining table", "toilet", "tv",
-            "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave",
-            "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
-            "scissors", "teddy bear", "hair drier", "toothbrush"
+        static const auto detect_classes = std::map<uint16_t, std::string>{
+            {0, "person"}
         };
         CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
         CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
@@ -1064,7 +1051,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 return filename;
             }
             
-            auto path = map.at("cwd").value<file::Path>();
+            auto path = map.at("wd").value<file::Path>();
             if(path.empty()) {
                 auto d = map.at("output_dir").value<file::Path>();
                 if(d.empty())
@@ -1088,7 +1075,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 auto source = map.at("source").value<file::PathArray>();
                 auto base = file::find_parent(source);
                 if(not base) {
-                    output_path = map.at("cwd").value<file::Path>();
+                    output_path = map.at("wd").value<file::Path>();
                 } else {
                     output_path = base.value();
                 }
@@ -1103,8 +1090,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 } else {
                     /// QUESTIONABLE: we might want to include / and \ again, but
                     /// right now this is turning it into /webcam a lot of the time.
-                    if(not is_in(map.at("cwd").value<file::Path>(), "", "/", "\\"))
-                        filename = map.at("cwd").value<file::Path>() / filename;
+                    if(not is_in(map.at("wd").value<file::Path>(), "", "/", "\\"))
+                        filename = map.at("wd").value<file::Path>() / filename;
                 }
                 
             } else if(not filename.has_extension("pv")) {

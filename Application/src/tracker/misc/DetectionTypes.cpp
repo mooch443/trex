@@ -9,6 +9,85 @@ namespace track::detect {
 
 namespace yolo {
 
+namespace names {
+
+std::mutex names_mutex;
+std::optional<std::map<uint16_t, std::string>> names_owner;
+std::optional<map_t> easy_cp_names_reference;
+std::optional<vec_t> easy_cp_names_vector;
+
+CallbackCollection callbacks;
+
+void check_callbacks() {
+    static std::once_flag flag;
+    std::call_once(flag, [](){
+        if(callbacks)
+            return;
+        
+        callbacks = GlobalSettings::map().register_callbacks({
+            "detect_classes"
+        }, [](auto) {
+            std::unique_lock g(names_mutex);
+            names_owner = SETTING(detect_classes).value<std::map<uint16_t, std::string>>();
+            easy_cp_names_vector.reset();
+            easy_cp_names_reference.reset();
+        });
+    });
+}
+
+const std::map<uint16_t, std::string>& raw_names() {
+    
+    //std::unique_lock g(names_mutex);
+    return names_owner.value();
+}
+
+vec_t get_vector() {
+    check_callbacks();
+    
+    /// check if the value already exists
+    /// otherwise initialise it
+    if(std::unique_lock g(names_mutex);
+       easy_cp_names_vector.has_value())
+    {
+        return easy_cp_names_vector.value();
+    }
+    
+    std::unique_lock g(names_mutex);
+    auto& names = raw_names();
+    std::vector<std::string_view> cp;
+    cp.reserve(names.size());
+    
+    for(auto &[key, value] : names)
+        cp.emplace_back(value);
+    
+    easy_cp_names_vector = cp;
+    return cp;
+}
+
+map_t get_map() {
+    check_callbacks();
+    
+    /// check if the value already exists
+    /// otherwise initialise it
+    if(std::unique_lock g(names_mutex);
+       easy_cp_names_reference.has_value())
+    {
+        return easy_cp_names_reference.value();
+    }
+    
+    std::unique_lock g(names_mutex);
+    auto& names = raw_names();
+    std::map<uint16_t, std::string_view> cp;
+    
+    for(auto &[key, value] : names)
+        cp.emplace(key, value);
+    
+    easy_cp_names_reference = cp;
+    return cp;
+}
+
+}
+
 bool is_valid_default_model(const std::string& filename) {
     static const std::regex pattern("^yolov\\d+([blmnxsucet]|x6|sp|lu|mu|xu|)?((\\d|[sn])+u|-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|[0-9]+)+)?\\.pt$");
     return std::regex_match(filename, pattern);
