@@ -926,7 +926,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                     sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & GlobalSettings::map(), {}, default_config::deprecations());
                 }
                 if(tmp.has("meta_source_path")
-                   && tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>())
+                   //&& tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>()
+                   )
                 {
                     explicitly_include.insert("meta_source_path");
                 }

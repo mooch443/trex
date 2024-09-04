@@ -724,7 +724,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     {
         file::Path filename = GlobalSettings::map().at("filename");
         try {
-            settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+            settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, {});
         }
         catch (const std::exception& ex) {
             FormatWarning("Ex = ", ex.what());

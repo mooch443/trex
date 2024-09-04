@@ -670,7 +670,7 @@ void load(file::PathArray source,
             path = path.add_extension("pv");
         if(path.is_regular()) {
             auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
-            if(not settings_file.exists()) {
+            if(not settings_file.exists() && source_map.empty()) {
                 try {
                     G g(path.str());
                     sprite::Map tmp;
