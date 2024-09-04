@@ -9,6 +9,7 @@
 #include <misc/SettingsInitializer.h>
 #include <tracking/Tracker.h>
 #include <gui/Export.h>
+#include <misc/SettingsInitializer.h>
 
 //#define DEBUG_TM_ITEMS
 
@@ -55,6 +56,17 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 _output_file->close();
                 _output_file = nullptr;
                 
+                try {
+                    std::string suffix;
+                    auto filename = file::DataLocation::parse("output_settings");
+                    if(filename.exists()) {
+                        suffix = "backup";
+                    }
+                    settings::write_config(_output_file.get(), false, nullptr, suffix);
+                } catch(const std::exception&e) {
+                    FormatWarning("Cannot write settings file: ", e.what());
+                }
+                
                 /// preserve all parameters
                 /*sprite::Map parm;
                 for(auto &key : GlobalSettings::map().keys())
@@ -74,6 +86,8 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 } catch(...) {
                     // we are not interested in open-errors
                 }
+                
+                
             }
             
             try {

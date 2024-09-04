@@ -811,8 +811,8 @@ void ConvertScene::Data::drawBlobs(
             if(assign.clid == size_t(-1)) {
                 return is_background_subtraction
                         ? detect_classes.contains(0)
-                            ? FAST_SETTING(individual_prefix)
-                            : (std::string)detect_classes.at(0)
+                            ? (std::string)detect_classes.at(0)
+                            : FAST_SETTING(individual_prefix)
                         : "<no prediction>";
             } else if(auto it = detect_classes.find(assign.clid);
                       it != detect_classes.end())
@@ -1385,7 +1385,12 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
         if(pose_index < _skeletts.size())
             _skeletts.resize(pose_index);
 
-        drawBlobs(graph, _current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
+        try {
+            drawBlobs(graph, _current_data.frame.index(), detect_classes, _bowl->_current_scale, _bowl->_current_pos, _visible_bdx, dirty);
+            
+        } catch(const std::exception& e) {
+            FormatWarning("Cannot draw blobs: ", e.what());
+        }
         
         for(auto &traj : _trajectories) {
             graph.vertices(traj);

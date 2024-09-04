@@ -669,68 +669,76 @@ void load(file::PathArray source,
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");
         if(path.is_regular()) {
-            try {
-                G g(path.str());
-                sprite::Map tmp;
-                auto f = pv::File::Read(path);
-                if(f.header().version < pv::Version::V_10) {
-                    /// we need to have a `detect_type` in order to set the
-                    /// correct task-defaults in the next step.
-                    ///
-                    /// since there was no other `detect_type` before
-                    /// **V_10** and there also was no type parameter to
-                    /// query, we set bg subtraction:
-                    tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
-                }
-                
-                if(f.header().metadata.has_value()) {
-                    const auto& meta = f.header().metadata.value();
-                    sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
-                                         changed_model_manually
-                                         ? (exclude + exclude_from_external).toVector()
-                                         : exclude.toVector(),
-                                         default_config::deprecations());
-                }
-                
-                exclude_from_default += tmp.keys();
-                //Print("// pv file keys = ", tmp.keys());
-                
-                for(auto &key : tmp.keys())
-                    set_config_if_different(key, tmp, true);
-                
-                if((not tmp.has("detect_type") || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
-                    && (not tmp.has("detect_model") || tmp.at("detect_model").value<file::Path>().empty())
-                   && not contains(exclude.toVector(), "detect_type"))
-                {
-                    /// if we dont know, but there is no setting
-                    /// its probably older versions and we use
-                    /// background subtraction defaults:
-                    combined.map["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
-                    set_config_if_different("detect_type", combined.map);
-                }
-                else {
-                    if(tmp.has("detect_type"))
-                        type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
-                    if (tmp.has("detect_model") && not tmp.at("detect_model").value<file::Path>().empty()
-                        && detect::ObjectDetectionType::none == type)
-                    {
-                        type = detect::ObjectDetectionType::yolo8;
+            auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
+            if(not settings_file.exists()) {
+                try {
+                    G g(path.str());
+                    sprite::Map tmp;
+                    auto f = pv::File::Read(path);
+                    if(f.header().version < pv::Version::V_10) {
+                        /// we need to have a `detect_type` in order to set the
+                        /// correct task-defaults in the next step.
+                        ///
+                        /// since there was no other `detect_type` before
+                        /// **V_10** and there also was no type parameter to
+                        /// query, we set bg subtraction:
+                        tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
                     }
-                    //tmp.at("detect_type").get().copy_to(&combined.map);
+                    
+                    if(f.header().metadata.has_value()) {
+                        const auto& meta = f.header().metadata.value();
+                        sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
+                                             changed_model_manually
+                                             ? (exclude + exclude_from_external).toVector()
+                                             : exclude.toVector(),
+                                             default_config::deprecations());
+                    }
+                    
+                    exclude_from_default += tmp.keys();
+                    //Print("// pv file keys = ", tmp.keys());
+                    
+                    for(auto &key : tmp.keys())
+                        set_config_if_different(key, tmp, true);
+                    
+                    if((not tmp.has("detect_type") || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
+                       && (not tmp.has("detect_model") || tmp.at("detect_model").value<file::Path>().empty())
+                       && not contains(exclude.toVector(), "detect_type"))
+                    {
+                        /// if we dont know, but there is no setting
+                        /// its probably older versions and we use
+                        /// background subtraction defaults:
+                        combined.map["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                        set_config_if_different("detect_type", combined.map);
+                    }
+                    else {
+                        if(tmp.has("detect_type"))
+                            type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
+                        if (tmp.has("detect_model") && not tmp.at("detect_model").value<file::Path>().empty()
+                            && detect::ObjectDetectionType::none == type)
+                        {
+                            type = detect::ObjectDetectionType::yolo8;
+                        }
+                        //tmp.at("detect_type").get().copy_to(&combined.map);
+                    }
+                    
+                    if (not combined.map.has("meta_real_width")
+                        || combined.map.at("meta_real_width").value<Float2_t>() == 0)
+                    {
+                        combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                        set_config_if_different("meta_real_width", combined.map);
+                    }
+                    
+                } catch(const std::exception& ex) {
+                    FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
                 }
-                
-                if (not combined.map.has("meta_real_width")
-                    || combined.map.at("meta_real_width").value<Float2_t>() == 0)
-                {
-                    combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
-                    set_config_if_different("meta_real_width", combined.map);
-                }
-
-            } catch(const std::exception& ex) {
-                FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
+            } else {
+                Print("// Not loading settings from ", path, " because the settings file ", settings_file, " exists.");
             }
         }
-    }
+        
+    } //else {
+        //Print("// Not loading settings from a potentially existing .pv file in tracking mode.");
+   // }
     
     /// ---------------------------
     /// 11. defaults based on task
@@ -1009,7 +1017,7 @@ void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* qu
             });
             
         } else
-            Print("Settings file ",filename.str()," already exists. To overwrite, please add the keyword 'force'.");
+            Print("Settings file ",filename.str()," already exists. Will not overwrite.");
         
     } else {
         if(!filename.remove_filename().exists())

@@ -401,6 +401,8 @@ void TrackingScene::activate() {
         "track_size_filter",
         "track_include", "track_ignore",
         
+        "detect_skeleton",
+        
         "heatmap_resolution", "heatmap_dynamic",
         "heatmap_ids", "heatmap_value_range",
         "heatmap_normalization", "heatmap_frames",
@@ -472,6 +474,7 @@ void TrackingScene::activate() {
                  "individual_image_size",
                  "individual_image_scale",
                  "gui_zoom_polygon","gui_zoom_limit",
+                 "detect_skeleton",
                  "track_include", "track_ignore"))
         {
             redraw_all();
