@@ -732,6 +732,55 @@ void load(file::PathArray source,
                     FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
                 }
             } else {
+                try {
+                    G g(path.str());
+                    sprite::Map tmp;
+                    auto f = pv::File::Read(path);
+                    if(f.header().version < pv::Version::V_10) {
+                        /// we need to have a `detect_type` in order to set the
+                        /// correct task-defaults in the next step.
+                        ///
+                        /// since there was no other `detect_type` before
+                        /// **V_10** and there also was no type parameter to
+                        /// query, we set bg subtraction:
+                        tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                    }
+                    
+                    if(f.header().metadata.has_value()) {
+                        const auto& meta = f.header().metadata.value();
+                        sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
+                                             changed_model_manually
+                                             ? (exclude + exclude_from_external).toVector()
+                                             : exclude.toVector(),
+                                             default_config::deprecations());
+                    }
+                    
+                    if(not source_map.has("meta_encoding")
+                       && tmp.has("meta_encoding"))
+                    {
+                        tmp.at("meta_encoding").get().copy_to(&combined.map);
+                        set_config_if_different("meta_encoding", combined.map);
+                    }
+                    
+                    if(not source_map.has("meta_source_path")
+                       && tmp.has("meta_source_path"))
+                    {
+                        tmp.at("meta_source_path").get().copy_to(&combined.map);
+                        set_config_if_different("meta_source_path", combined.map);
+                    }
+                    
+                    if ((not combined.map.has("meta_real_width")
+                        || combined.map.at("meta_real_width").value<Float2_t>() == 0)
+                        && not source_map.has("meta_real_width"))
+                    {
+                        combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                        set_config_if_different("meta_real_width", combined.map);
+                    }
+                    
+                } catch(const std::exception& ex) {
+                    FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
+                }
+                
                 Print("// Not loading settings from ", path, " because the settings file ", settings_file, " exists.");
             }
         }

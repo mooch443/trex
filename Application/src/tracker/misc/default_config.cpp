@@ -917,7 +917,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         Config result;
         result.excluded += exclude_fields;
         
-        std::set<std::string_view> explicitly_include;
+        std::set<std::string_view> explicitly_include{
+            "meta_source_path",
+            "meta_real_width",
+            "detect_type",
+            "meta_encoding"
+        };
         if(video) {
             sprite::Map tmp;
             try {
@@ -925,12 +930,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 if(metadata.has_value()) {
                     sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & GlobalSettings::map(), {}, default_config::deprecations());
                 }
-                if(tmp.has("meta_source_path")
+                /*if(tmp.has("meta_source_path")
                    //&& tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>()
                    )
                 {
                     explicitly_include.insert("meta_source_path");
-                }
+                }*/
                 
             } catch(...) {
                 FormatExcept("Error while trying to inspect the metadata of ", video, ".");
@@ -950,7 +955,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             // UPDATE: write only keys with values that have changed compared
             // to the default options
             if(not config.has(key)
-               || config.at(key) != GlobalSettings::map().at(key))
+               || config.at(key) != GlobalSettings::map().at(key)
+               || explicitly_include.contains(key))
             {
                 if((include_build_number && utils::beginsWith(key, "build"))
                    || explicitly_include.contains(key)

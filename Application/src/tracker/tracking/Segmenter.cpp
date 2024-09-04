@@ -877,13 +877,18 @@ void Segmenter::generator_thread() {
             ThreadManager::getInstance().notify(_writing_step.tid);
             
             if(_output_file && _output_file->length() == 0_f
-               && not _generating_step.has_data())
+               && not _generating_step.has_data()
+               && not _writing_step.has_data()
+               && not _tracking_step.has_data())
             {
                 if(error_callback)
                     error_callback("Cannot generate segmentation: EOF before anything was written.");
             }
+            
+            graceful_end();
             return;
         }
+             
         //_overlayed_video->reset(0_f);
 #if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
         thread_print("TM Invalid item #", items.size(),": ", result.error());
@@ -891,8 +896,20 @@ void Segmenter::generator_thread() {
         if(error_callback)
             error_callback("Cannot generate segmentation: "+std::string(result.error()));
     }
+    else if(auto index = std::get<0>(result.value());
+            not _overlayed_video
+            || not _overlayed_video->source()
+            || (index.valid()
+                && _overlayed_video->source()->is_finite()
+                && index > _video_conversion_range.end)
+        )
+    {
+        ThreadManager::getInstance().notify(_writing_step.tid);
+        graceful_end();
+    }
     else {
         assert(std::get<1>(result.value()).valid());
+        _last_generated_frame = index;
         _generating_step.receive(std::move(result.value()));
     }
 };
@@ -1198,7 +1215,7 @@ void Segmenter::tracking_thread() {
     ///    video, so past the length of it
     /// 4. the video is eof and we have no more queue
     /// we end the conversion.
-    std::unique_lock vlock(_mutex_video);
+    /*std::unique_lock vlock(_mutex_video);
     if (not _overlayed_video
         || not _overlayed_video->source()
         || (index.valid()
@@ -1221,7 +1238,7 @@ void Segmenter::tracking_thread() {
             FormatExcept("Exception while trying to gracefully end: ", ex.what());
         }
     }
-    //thread_print("Tracking ended.");
+    thread_print("Tracking ended.");*/
 }
 
 void Segmenter::force_stop() {

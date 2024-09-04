@@ -81,6 +81,7 @@ class Segmenter {
     std::atomic<bool> _should_terminate{false};
     UninterruptableStep _writing_step, _tracking_step;
     GeneratorStep _generating_step; // the only one that can accumulate stuff
+    Frame_t _last_generated_frame;
     
     GETTER(Range<Frame_t>, video_conversion_range);
     file::Path _output_file_name;
