@@ -782,12 +782,13 @@ void load(file::PathArray source,
         try {
             sprite::Map map;
             map.set_print_by_default(false);
+            
+            auto manual_exclude = changed_model_manually
+                    ? (exclude + exclude_from_external).toVector()
+                    : exclude.toVector();
+            Print("// Excluding ", manual_exclude, " from settings file.");
 
-            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, 
-                                               changed_model_manually
-                                                   ? (exclude + exclude_from_external).toVector()
-                                                   : exclude.toVector(),
-                                                &map, &combined.map);
+            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, manual_exclude, &map, &combined.map);
             
             warn_deprecated(settings_file, rejected);
             
