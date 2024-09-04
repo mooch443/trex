@@ -888,19 +888,24 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         if(version >= Version::V_5) {
             _meta_offset = index_offset+len;
-            ref.read(metadata, _meta_offset);
+            
+            std::string metadata;
+            ref.read<std::string>(metadata, _meta_offset);
             
             try {
                 sprite::Map map;
                 map.set_print_by_default(false);
                 map["quiet"] = true;
-                map["meta_real_width"] = float();
-                sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map());
+                map["meta_real_width"] = Float2_t();
+                
+                if(not metadata.empty())
+                    sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map());
+                this->metadata = metadata;
                 /*for(auto key : map.keys()) {
                  Print("Key: ", key, " Value: ", map[key].get().valueString());
                  }*/
                 if(map.has("meta_real_width"))
-                    meta_real_width = map["meta_real_width"].value<float>();
+                    meta_real_width = map["meta_real_width"].value<Float2_t>();
             } catch(const std::exception& ex) {
                 FormatExcept("Error parsing settings metadata from ", ref.filename(), ": ", ex.what());
             } catch(...) {
@@ -1006,6 +1011,21 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         }
     }
 
+    void File::set_metadata(const sprite::Map &diff) {
+        std::map<std::string, std::string> jsons;
+        for(const auto& key : diff.keys()) {
+            try {
+                jsons.emplace(key, diff.at(key).get().valueString());
+                
+            } catch(const std::exception& ex) {
+                FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
+            }
+        }
+        
+        std::string dump = Meta::toStr(jsons);//glz::write_json(jsons);
+        _header.metadata = dump;
+    }
+
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
@@ -1015,8 +1035,11 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
             ref.write<decltype(index_table)::value_type>(index);
         }
         
-        metadata = generate_metadata();
-        _meta_offset = ref.write(metadata);
+        //metadata = generate_metadata();
+        if(metadata.has_value())
+            _meta_offset = ref.write(metadata.value());
+        else
+            _meta_offset = ref.write(std::string("{}"));
         
         ref.write(this->num_frames, _num_frames_offset);
         ref.write(this->index_offset, _index_offset);
@@ -1029,7 +1052,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
     }
     
-    std::string Header::generate_metadata() const {
+    /*std::string Header::generate_metadata() const {
         std::stringstream ss;
         
         std::vector<std::string> write_these = GlobalSettings::map().has("meta_write_these") ? SETTING(meta_write_these) : std::vector<std::string>();
@@ -1050,7 +1073,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         }
         
         return ret;
-    }
+    }*/
     
     Header& File::header() {
         if(not bool(_mode & FileMode::WRITE))
@@ -1152,10 +1175,10 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         ss << std::endl;
         
         if(full) {
-            if(header().metadata.empty())
+            if(not header().metadata.has_value())
                 ss << ("<b>Metadata empty.</b>");
             else {
-                return ss.str() + "<b>Metadata:</b> " + header().metadata;
+                return ss.str() + "<b>Metadata:</b> " + header().metadata.value();
             }
         }
         
@@ -1348,8 +1371,11 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
         
-        auto keys = sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata).keys();
-        sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata);
+        auto keys = file.header().metadata.has_value()
+            ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value()).keys()
+            : std::vector<std::string>{};
+        if(file.header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata.value());
         SETTING(meta_write_these) = keys;
         
         if(file.has_mask())
@@ -1412,8 +1438,8 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         std::vector<std::string> save = GlobalSettings::map().has("meta_write_these") ? SETTING(meta_write_these) : std::vector<std::string>{};
         
         sprite::Map map;
-        if(!header().metadata.empty())
-            sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata);
+        if(header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value());
         SETTING(meta_write_these) = map.keys();
         
         pv::Frame frame;
@@ -1449,9 +1475,11 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
            || not is_open())
             throw U_EXCEPTION("Must be open for writing.");
     
-        Print("Updating metadata...");
-        auto metadata = _header.generate_metadata();
-        write(metadata, _header.meta_offset());
+        if(_header.metadata.has_value()) {
+            Print("Updating metadata...");
+            //auto metadata = _header.generate_metadata();
+            write(_header.metadata.value(), _header.meta_offset());
+        }
     }
     
     short File::framerate() const {

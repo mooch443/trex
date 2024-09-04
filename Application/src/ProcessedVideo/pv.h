@@ -183,7 +183,7 @@ namespace pv {
         std::string name;
         
         //! Metadata string associated with this file
-        std::string metadata;
+        std::optional<std::string> metadata;
         
         //! Number of channels per pixel
         uchar channels{1u};
@@ -230,7 +230,7 @@ namespace pv {
         
         //! The width of the arena from left to right edge
         //! of the video frame (in cm).
-        float meta_real_width;
+        Float2_t meta_real_width;
         
         //! Contains average time delta between frames
         double average_tdelta;
@@ -267,7 +267,7 @@ namespace pv {
                 delete average;
         }
         
-        std::string generate_metadata() const;
+        //std::string generate_metadata() const;
         
         static Header move(Header&& src) {
             Header dest = std::move(src);
@@ -372,6 +372,8 @@ namespace pv {
         
         void close() override;
         const pv::Frame& last_frame();
+        
+        void set_metadata(const sprite::Map& diff);
         
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
         std::string get_info(bool full = true);

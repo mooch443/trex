@@ -139,8 +139,6 @@ public:
         std::vector<Image::SPtr> training_images, validation_images;
         std::vector<Idx_t> training_ids, validation_ids;
     };
-    //std::map<long_t, FilterCache> custom_midline_lengths_no_std;
-    //std::map<long_t, FilterCache> custom_midline_lengths_std;
     
 private:
     GETTER_SETTER_I(default_config::individual_image_normalization_t::Class, normalized, default_config::individual_image_normalization_t::none);

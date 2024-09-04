@@ -71,6 +71,7 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(huge_timestamp_seconds);
         DEF_CALLBACK(track_end_segment_for_speed);
         DEF_CALLBACK(track_segment_max_length);
+        DEF_CALLBACK(posture_direction_smoothing);
         
         static const auto update_range = [](){
             const auto video_length = narrow_cast<long_t>(SETTING(video_length).value<Settings::video_length_t>())-1;
@@ -318,7 +319,7 @@ Tracker::Tracker(const pv::File& video)
     : Tracker(Image::Make(video.average()), video.header().encoding, settings::infer_meta_real_width_from(video))
 { }
 
-Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float meta_real_width)
+Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t meta_real_width)
       : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
         _max_individuals(0),
         _background(NULL),
@@ -346,14 +347,14 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float me
     set_average(std::move(average), encoding);
     
     if(not GlobalSettings::has("meta_real_width")
-       || SETTING(meta_real_width).value<float>() == 0)
+       || SETTING(meta_real_width).value<Float2_t>() == 0)
     {
         SETTING(meta_real_width) = meta_real_width;
     }
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
     if(!GlobalSettings::has("cm_per_pixel")
-       || SETTING(cm_per_pixel).value<float>() == 0)
+       || SETTING(cm_per_pixel).value<Float2_t>() == 0)
     {
         SETTING(cm_per_pixel) = settings::infer_cm_per_pixel();
     }
@@ -634,7 +635,7 @@ void Tracker::prefilter(
     static Timing timing("prefilter", 100);
     TakeTiming take(timing);
     
-    const float cm_sqr = SQR(SLOW_SETTING(cm_per_pixel));
+    const Float2_t cm_sqr = SQR(SLOW_SETTING(cm_per_pixel));
     
     const auto track_include = FAST_SETTING(track_include);
     const auto track_ignore = FAST_SETTING(track_ignore);
@@ -834,7 +835,7 @@ void Tracker::prefilter(
                 }
                 
                 if(ptr->prediction().valid()) {
-                    if(float(ptr->prediction().p) / 255.f < track_conf_threshold) {
+                    if(Float2_t(ptr->prediction().p) / 255_F < track_conf_threshold) {
                         //! TODO: use own filter reason
                         result.filter_out(std::move(ptr), FilterReason::LabelConfidenceThreshold);
                         continue;
@@ -1979,8 +1980,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     
     entry.adding_seconds = adding;
     entry.loading_seconds = loading;
-    entry.match_improvements_made = frame._split_objects;
-    entry.match_leafs_visited = frame._split_pixels;
+    //entry.match_improvements_made = frame._split_objects;
+    //entry.match_leafs_visited = frame._split_pixels;
     
     _time_samples.add(adding, entry.number_fish);
     
@@ -3368,7 +3369,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                     };
                     auto pair = imageFromLines(info, *frame.mask().at(k), NULL, NULL, NULL, frame.pixels().at(k).get(), SETTING(track_threshold).value<int>(), &bg);
                     
-                    float value = pair.second * SQR(SETTING(cm_per_pixel).value<float>());
+                    Float2_t value = pair.second * SQR(SETTING(cm_per_pixel).value<Float2_t>());
                     if(value > 0) {
                         frame_values.insert(value);
                     }

@@ -387,11 +387,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         static const auto detect_classes = std::map<uint16_t, std::string>{
             {0, "person"}
         };
-        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
+        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.", AccessLevelType::SYSTEM);
         CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
-        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", INIT);
-        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
+        CONFIG("meta_real_width", Float2_t(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", INIT);
+        CONFIG("cm_per_pixel", Float2_t(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
         CONFIG("video_length", uint64_t(0), "The length of the video in frames", LOAD);
         CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", LOAD);
         CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
@@ -543,7 +543,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `track_size_filter`) and set `track_max_individuals` to that value.");
         
         CONFIG("track_speed_decay", float(1.0), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
-        CONFIG("track_max_speed", float(25), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
+        CONFIG("track_max_speed", Float2_t(25), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
         CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
         CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
         CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
@@ -563,7 +563,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
         CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
         CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
-        CONFIG("track_conf_threshold", float(0.1), "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
+        CONFIG("track_conf_threshold", 0.1_F, "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
@@ -719,7 +719,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point `[[x0,y0],[x1,y1],...]`, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");
         CONFIG("grid_points_scaling", float(0.8), "Scaling applied to the average distance between the points in order to shrink or increase the size of the circles for recognition (see `grid_points`).");
-        CONFIG("recognition_segment_add_factor", float(1.5), "This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
+        CONFIG("recognition_segment_add_factor", 1.5_F, "This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
         CONFIG("recognition_save_progress_images", false, "If set to true, an image will be saved for all training epochs, documenting the uniqueness in each step.");
         CONFIG("recognition_shapes", std::vector<std::vector<Vec2>>(), "If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.");
         CONFIG("recognition_border", track::recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
@@ -745,9 +745,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_device_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
         CONFIG("gpu_torch_no_fixes", true, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
-        CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.");
+        CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.", AccessLevelType::INIT);
         CONFIG("outline_compression", float(0.f), "Applies a compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).");
-        CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation");
+        CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo8_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
@@ -755,10 +755,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
         CONFIG("detect_only_classes", std::vector<uint8_t>{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
         CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
-        CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).");
-        CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).");
-        CONFIG("detect_iou_threshold", float(0.7), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
-        CONFIG("detect_conf_threshold", float(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
+        CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM);
+        CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM);
+        CONFIG("detect_iou_threshold", Float2_t(0.5), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
+        CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
@@ -774,7 +774,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
         CONFIG("huge_timestamp_ends_segment", true, "If enabled, a huge timestamp difference will end the current trajectory segment and will be displayed as a reason in the segment overview at the top of the selected individual info card.");
-        CONFIG("track_trusted_probability", float(0.25), "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current consecutive segment ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
+        CONFIG("track_trusted_probability", 0.25_F, "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current consecutive segment ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
         CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", SYSTEM);
@@ -812,7 +812,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 		return map[key];
     }
     
-    Config generate_delta_config(const pv::File* video, bool include_build_number, std::vector<std::string> additional_exclusions) {
+    Config generate_delta_config(AccessLevel access, const pv::File* video, bool include_build_number, std::vector<std::string> additional_exclusions) {
         auto keys = GlobalSettings::map().keys();
         
         sprite::Map config;
@@ -858,7 +858,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "wd",
             "gui_show_fish",
             "auto_quit",
-            "auto_apply",
+            "auto_apply", "auto_train",
             "auto_no_results",
             "auto_no_tracking_data",
             "load",
@@ -868,12 +868,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "analysis_range",
             //"output_prefix",
 
-            "detect_model",
+            /*"detect_model",
             "region_model",
             "detect_format",
             "detect_type",
             "region_resolution",
-            "detect_resolution",
+            "detect_resolution",*/
 
             "cmd_line",
             "ffmpeg_path",
@@ -903,7 +903,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Exclude some settings based on what would automatically be assigned
          * if they weren't set at all.
          */
-        if(SETTING(cm_per_pixel).value<float>() == SETTING(meta_real_width).value<float>() / float(SETTING(video_size).value<Size2>().width))
+        if(SETTING(cm_per_pixel).value<Float2_t>() == SETTING(meta_real_width).value<Float2_t>() / SETTING(video_size).value<Size2>().width)
         {
             exclude_fields.push_back("cm_per_pixel");
         }
@@ -921,8 +921,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         if(video) {
             sprite::Map tmp;
             try {
-                auto metadata = video->header().metadata;
-                sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata, & GlobalSettings::map(), {}, default_config::deprecations());
+                auto& metadata = video->header().metadata;
+                if(metadata.has_value()) {
+                    sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & GlobalSettings::map(), {}, default_config::deprecations());
+                }
                 if(tmp.has("meta_source_path")
                    && tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>())
                 {
@@ -951,12 +953,16 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {
                 if((include_build_number && utils::beginsWith(key, "build"))
                    || explicitly_include.contains(key)
-                   || (GlobalSettings::access_level(key) < AccessLevelType::LOAD
+                   || (GlobalSettings::access_level(key) <= access
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
                     result[key] = &GlobalSettings::get(key).get();
+                } else {
+                    //Print("// ",key," not part of delta");
                 }
+            } else {
+                //Print("// ", key, " not part of delta (!=)");
             }
         }
         
@@ -1086,7 +1092,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(not absolute) {
                 //! file is not an absolute path
                 if(not output_path.empty()) {
-                    filename = output_path / filename.filename();
+                    filename = output_path / filename;
                 } else {
                     /// QUESTIONABLE: we might want to include / and \ again, but
                     /// right now this is turning it into /webcam a lot of the time.
@@ -1105,7 +1111,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                    && not absolute)
                     filename = filename.remove_filename() / prefix / filename.filename();
                 else if(not absolute)
-                    filename = prefix / filename.filename();
+                    filename = prefix / filename;
                 else
                     filename = filename.remove_filename() / prefix / filename.filename();
             }

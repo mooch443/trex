@@ -279,7 +279,7 @@ namespace track {
         static void fix_length(Float2_t len, std::vector<MidlineSegment>& segments, bool debug = false);
         size_t memory_size() const;
         
-        std::array<Vec2, 2> both_directions() const;
+        Vec2 midline_direction() const;
         Float2_t original_angle() const;
         
         /**

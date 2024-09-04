@@ -286,9 +286,9 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     big_blobs.clear();
     
     PPFrame::Log("&nbsp;Collected ", collection, " from frame.");
-    for(auto &b: collection)
+    /*for(auto &b: collection)
         frame._split_pixels += b->num_pixels();
-    frame._split_objects += collection.size();
+    frame._split_objects += collection.size();*/
     
     PrefilterBlobs::split_big(
            std::move(collection),

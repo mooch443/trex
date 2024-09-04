@@ -155,7 +155,7 @@ public:
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
 public:
-    Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, float meta_real_width);
+    Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t meta_real_width);
     Tracker(const pv::File& file);
     ~Tracker();
     

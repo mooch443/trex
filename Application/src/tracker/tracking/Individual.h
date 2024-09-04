@@ -191,7 +191,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
             Vec2 _current_velocity;
             std::vector<Vec2> _v_samples;
             
-            float _midline_length{0};
+            Float2_t _midline_length{0};
             uint64_t _midline_samples{0};
             
             float _outline_size{0};
@@ -236,9 +236,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         bool add_qrcode(Frame_t frameIndex, pv::BlobPtr&&);
 #endif
 
-        float midline_length() const;
+        Float2_t midline_length() const;
         size_t midline_samples() const;
-        float outline_size() const;
+        Float2_t outline_size() const;
         
         void add_tag_image(tags::Tag&& tag);
         const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
@@ -319,7 +319,27 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const Midline* pp_midline(Frame_t frameIndex) const;
         const MinimalOutline* outline(Frame_t frameIndex) const;
         
-        void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
+        void _iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
+        
+        template<typename Fn,
+                 typename R = std::remove_cvref_t<std::invoke_result_t<Fn, Frame_t, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*>>>
+            requires (std::same_as<R, void> || std::same_as<R, bool>)
+        void iterate_frames(const Range<Frame_t>& segment, Fn&& fn) const
+        {
+            if constexpr(std::same_as<R, void>) {
+                _iterate_frames(segment, [&fn](Frame_t frame,
+                                           const std::shared_ptr<SegmentInformation>& ptr,
+                                           const BasicStuff* basic,
+                                           const PostureStuff* posture)
+                               -> bool
+                {
+                    fn(frame, ptr, basic, posture);
+                    return true;
+                });
+            } else {
+                _iterate_frames(segment, fn);
+            }
+        }
         
         BasicStuff* basic_stuff(Frame_t frameIndex) const;
         PostureStuff* posture_stuff(Frame_t frameIndex) const;
@@ -353,7 +373,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //std::optional<default_config::matching_mode_t::Class> matched_using(Frame_t frameIndex) const;
         std::optional<default_config::matching_mode_t::Class> matched_using(size_t kown_index) const;
         
-        std::tuple<std::vector<std::tuple<Float2_t, Float2_t>>, std::vector<Float2_t>, size_t, MovementInformation> calculate_previous_vector(Frame_t frameIndex) const;
+        MovementInformation calculate_previous_vector(Frame_t frameIndex) const;
         
         std::string toStr() const;
         static std::string class_name() {
@@ -368,11 +388,11 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true);
         //size_t memory_size() const;
         
-        static float weird_distance();
+        static Float2_t weird_distance();
         //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
         void update_midlines(const CacheHints*);
-        Midline::Ptr calculate_midline_for(const BasicStuff& basic, const PostureStuff& posture_stuff) const;
+        Midline::Ptr calculate_midline_for(const PostureStuff& posture_stuff) const;
         
         blob::Pose pose_window(Frame_t start, Frame_t end, Frame_t ref) const;
         

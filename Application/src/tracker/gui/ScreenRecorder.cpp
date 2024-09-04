@@ -169,7 +169,7 @@ struct ScreenRecorder::Data {
         auto filename = SETTING(filename).value<file::Path>();
         if(filename.has_extension("pv"))
             filename = filename.remove_extension();
-        return file::DataLocation::parse("output", file::Path("frames") / (std::string)filename.filename());
+        return file::DataLocation::parse("output", file::Path("clips") / (std::string)filename.filename());
     }
     
     void start_recording(Base* base, Frame_t frame) {

@@ -322,7 +322,7 @@ void TrackingState::init_video() {
     //cmd.load_settings(&combined);
     
     //SETTING(gui_interface_scale) = Float2_t(1);
-    Print("cm_per_pixel = ", SETTING(cm_per_pixel).value<float>());
+    Print("cm_per_pixel = ", SETTING(cm_per_pixel).value<Float2_t>());
     
     for (auto i=0_f; i<cache_size; ++i)
         unused.emplace(std::make_unique<PPFrame>(tracker->average().bounds().size()));

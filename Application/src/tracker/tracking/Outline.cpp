@@ -864,30 +864,29 @@ tl::expected<Midline::Ptr, const char*> Outline::calculate_midline(const DebugIn
     return midline;
 }
 
-std::array<Vec2, 2> Midline::both_directions() const {
+Vec2 Midline::midline_direction() const {
     const long_t samples = max(1, segments().size() * OUTLINE_SETTING(midline_stiff_percentage));
-    std::array<Vec2, 2> direction{Vec2(0), Vec2(0)};
+    Vec2 direction{0};
     
-    for (long_t i=0; i<samples && i + 1 < (long_t)segments().size(); i++) {
-        direction[0] += segments().at(i+1).pos - segments().at(i).pos;
-        direction[1] += segments().at(segments().size() - 2 - i).pos - segments().at(segments().size() - 1 - i).pos;
+    long_t counted{0};
+    for (long_t i=0; i<samples && i + 1 < (long_t)segments().size(); i++, counted++) {
+        direction += segments().at(i+1).pos - segments().at(i).pos;
     }
     
-    direction[0] /= Float2_t(samples);
-    direction[1] /= Float2_t(samples);
-    
-    direction[0] = direction[0].normalize();
-    direction[1] = direction[1].normalize();
+    if(counted > 0) {
+        direction /= Float2_t(counted);
+        direction = direction.normalize();
+    } else {
+        FormatWarning("No samples for midline smoothing. Expected ", samples, " counted ", counted);
+    }
     
     return direction;
 }
 
 Float2_t Midline::original_angle() const {
-    auto direction = both_directions();
+    auto direction = midline_direction();
     auto _needs_invert = !FAST_SETTING(midline_invert);
-    auto current_index = _needs_invert ? 0 : 1;
-    auto current_direction = direction[current_index];
-    return atan2(current_direction);
+    return atan2(_needs_invert ? direction : -direction);
 }
 
 void Midline::post_process(const MovementInformation &movement, DebugInfo info) {
@@ -900,9 +899,9 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         return;
     }
     
-    auto direction = both_directions();
+    auto direction = midline_direction();
     auto _needs_invert = !FAST_SETTING(midline_invert);
-    auto current_index = _needs_invert ? 0 : 1;
+    direction = _needs_invert ? direction : -direction;
     //auto current_direction = direction[current_index];
     //outline.original_angle() = atan2(current_direction);
     
@@ -936,7 +935,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         
         if(sums[1 - current_index] < sums[current_index]) {*/
         
-        if(acos(direction[1 - current_index].dot(movement.direction)) < acos(direction[current_index].dot(movement.direction))) {
+        if(acos((-direction).dot(movement.direction)) < acos(direction.dot(movement.direction))) {
         //if(euclidean_distance(next_position, dpos[1 - current_index]) < euclidean_distance(next_position, dpos[current_index])) {
             
             /*if(angle_between_vectors(direction[0], direction[1]) >= RADIANS(90)) {

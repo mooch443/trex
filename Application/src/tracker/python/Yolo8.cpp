@@ -14,7 +14,7 @@ namespace track {
 using namespace cmn;
 
 struct AcceptanceSettings {
-    float sqcm;
+    Float2_t sqcm;
     BlobSizeRange min_max;
     
     bool is_acceptable(const pv::Blob& blob) const {

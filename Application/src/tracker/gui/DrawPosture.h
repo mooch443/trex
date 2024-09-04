@@ -24,7 +24,7 @@ namespace cmn::gui {
         bool _valid{false};
         pv::BlobPtr _lines;
         track::Midline::Ptr _midline;
-        double midline_length{0};
+        Float2_t midline_length{0};
         std::vector<Vec2> _outline;
         std::unique_ptr<StaticText> _text;
         std::unique_ptr<Button> _close;

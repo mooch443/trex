@@ -8,7 +8,6 @@
 #include <tracking/IndividualCache.h>
 #include <misc/ProximityGrid.h>
 #include <misc/TrackingSettings.h>
-#include <misc/ThreadPool.h>
 #include <tracking/MotionRecord.h>
 
 #ifndef NDEBUG
@@ -16,6 +15,10 @@
 #else
 #define TREX_ENABLE_HISTORY_LOGS false
 #endif
+
+namespace cmn {
+class GenericThreadPool;
+}
 
 namespace track {
 
@@ -64,7 +67,7 @@ public:
     map_t<Idx_t, map_t<pv::bid, Match::prob_t>> paired;
     map_t<Idx_t, std::vector<Vec2>> last_positions;
     
-    std::atomic<uint64_t> _split_objects{0}, _split_pixels{0};
+    //std::atomic<uint64_t> _split_objects{0}, _split_pixels{0};
     
 #if TREX_ENABLE_HISTORY_LOGS
     static std::shared_ptr<std::ofstream>& history_log();
@@ -622,9 +625,52 @@ public:
     PPFrame(const Size2&);
 
     PPFrame(const PPFrame&) = delete;
-    PPFrame(PPFrame&&) noexcept = delete;
+    PPFrame(PPFrame&& other) noexcept 
+        : _finalized(other._finalized),
+        _finalized_at(std::move(other._finalized_at)),
+        _tags(std::move(other._tags)),
+        _blob_owner(std::move(other._blob_owner)),
+        _noise_owner(std::move(other._noise_owner)),
+        _blob_map(std::move(other._blob_map)),
+        _noise_map(std::move(other._noise_map)),
+        _big_ids(std::move(other._big_ids)),
+        _num_pixels(other._num_pixels),
+        _pixel_samples(other._pixel_samples),
+        _resolution(other._resolution)
+    {
+        {
+            std::scoped_lock guard(_blob_grid_mutex, other._blob_grid_mutex);
+            _blob_grid = std::move(other._blob_grid);
+        }
+        other._finalized = false;
+        other._finalized_at = source_location::current();
+    }
+    
     PPFrame& operator=(const PPFrame&) = delete;
-    PPFrame& operator=(PPFrame&&) noexcept = delete;
+    PPFrame& operator=(PPFrame&& other) noexcept {
+        if(this != &other) {
+            clear();
+            _tags = std::move(other._tags);
+            _blob_owner = std::move(other._blob_owner);
+            _noise_owner = std::move(other._noise_owner);
+            _blob_map = std::move(other._blob_map);
+            _noise_map = std::move(other._noise_map);
+            _big_ids = std::move(other._big_ids);
+            _num_pixels = other._num_pixels;
+            _pixel_samples = other._pixel_samples;
+            _resolution = other._resolution;
+            {
+                std::scoped_lock guard(_blob_grid_mutex, other._blob_grid_mutex);
+                _blob_grid = std::move(other._blob_grid);
+            }
+            _finalized = other._finalized;
+            _finalized_at = other._finalized_at;
+            other._finalized = false;
+            other._finalized_at = source_location::current();
+        }
+        
+        return *this;
+    }
     
     void clear();
     

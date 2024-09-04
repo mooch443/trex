@@ -41,7 +41,7 @@ void FrameProperties::set_active_individuals(long_t n) {
     _active_individuals = n;
 }
 
-void MotionRecord::init(const MotionRecord* previous, double time, const Vec2& pos, float angle)
+void MotionRecord::init(const MotionRecord* previous, double time, const Vec2& pos, Float2_t angle)
 {
     _time = time;
     
@@ -50,10 +50,10 @@ void MotionRecord::init(const MotionRecord* previous, double time, const Vec2& p
 }
 
 void MotionRecord::flip(const MotionRecord* previous) {
-    value<Units::DEFAULT>(previous, normalize_angle(angle() + float(M_PI)), 0);
+    value<Units::DEFAULT>(previous, normalize_angle(angle() + Float2_t(M_PI)), 0);
 }
 
-float MotionRecord::cm_per_pixel() {
+Float2_t MotionRecord::cm_per_pixel() {
     return SLOW_SETTING(cm_per_pixel);
 }
 

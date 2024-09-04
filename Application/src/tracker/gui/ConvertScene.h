@@ -21,8 +21,6 @@ class Segmenter;
 
 namespace cmn::gui {
 
-std::string window_title();
-
 namespace ind = indicators;
 using namespace track;
 
@@ -69,8 +67,6 @@ private:
 
     // Main _draw function
     void _draw(DrawStructure& graph);
-    
-    std::string window_title() const;
     
     SegmentationData& current_data();
     ExternalImage& background_image();

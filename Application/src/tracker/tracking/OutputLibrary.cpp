@@ -156,12 +156,12 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         
         if(not _callback) {
             _callback = GlobalSettings::map().register_callbacks({"output_centered", "output_origin"}, [](auto) {
-                const float cm_per_px = FAST_SETTING(cm_per_pixel);
-                const float CENTER_X = SETTING(output_centered)
-                    ? (SETTING(meta_video_size).value<Size2>().width * 0.5f * cm_per_px)
+                const auto cm_per_px = FAST_SETTING(cm_per_pixel);
+                const auto CENTER_X = SETTING(output_centered)
+                    ? (SETTING(meta_video_size).value<Size2>().width * 0.5_F * cm_per_px)
                     : (SETTING(output_origin).value<Vec2>().x * cm_per_px);
-                const float CENTER_Y = SETTING(output_centered)
-                    ? (SETTING(meta_video_size).value<Size2>().height * 0.5f * cm_per_px)
+                const auto CENTER_Y = SETTING(output_centered)
+                    ? (SETTING(meta_video_size).value<Size2>().height * 0.5_F * cm_per_px)
                     : (SETTING(output_origin).value<Vec2>().y * cm_per_px);
                 CENTER() = Vec2{CENTER_X, CENTER_Y};
             });
@@ -977,8 +977,8 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         _cache_func["midline_length"] = LIBFNC({
             auto posture = fish->posture_stuff(frame);
             
-            if (posture) {
-                return posture->midline_length; //* FAST_SETTING(cm_per_pixel);
+            if (posture && posture->midline_length.has_value()) {
+                return posture->midline_length.value(); //* FAST_SETTING(cm_per_pixel);
             }
             
             return GlobalSettings::invalid();

@@ -377,7 +377,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
 }
 
 std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
-    const float pure_chance = 1.f / float(FAST_SETTING(track_max_individuals));
+    const Float2_t pure_chance = 1_F / Float2_t(FAST_SETTING(track_max_individuals));
    // data.set_normalized(SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>());
     
     if(data.empty()) {
@@ -1744,7 +1744,7 @@ bool Accumulation::start() {
                         }*/
                         
                         using namespace default_config;
-                        auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
+                        auto midline = posture ? fish->calculate_midline_for(*posture) : nullptr;
                         
                         image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));
                         if(image)

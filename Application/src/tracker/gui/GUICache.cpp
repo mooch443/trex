@@ -671,7 +671,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         
                         /// this could be optimized by using the posture stuff
                         /// in the fixed midline function + SETTING()
-                        blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*basic, *posture);
+                        blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*posture);
                     }
                     
                     blob_selected_fish[blob.bdx] = fish->identity().ID();

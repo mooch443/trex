@@ -31,7 +31,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     std::vector<std::shared_ptr<Background>> backgrounds;
     std::vector<std::shared_ptr<sprite::Map>> configs;
     
-    std::map<pv::File*, float> cms_per_pixel;
+    std::map<pv::File*, Float2_t> cms_per_pixel;
     Size2 resolution;
     
     file::DataLocation::register_path("merge", [](const sprite::Map& map, file::Path filename) -> file::Path {
@@ -81,14 +81,14 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             grab::default_config::get(*config, docs, NULL);
             
             GlobalSettings::load_from_string(sprite::MapSource{settings_file}, {}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
-            if(!file->header().metadata.empty())
-                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata);
-            if(!config->has("meta_real_width") || config->at("meta_real_width").value<float>() == 0)
-                (*config)["meta_real_width"].value<float>(30);
-            if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<float>() == 0)
-                (*config)["cm_per_pixel"] = config->at("meta_real_width").value<float>() / float(file->average().cols);
+            if(file->header().metadata.has_value())
+                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata.value());
+            if(!config->has("meta_real_width") || config->at("meta_real_width").value<Float2_t>() == 0)
+                (*config)["meta_real_width"].value<Float2_t>(30);
+            if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<Float2_t>() == 0)
+                (*config)["cm_per_pixel"] = Float2_t(config->at("meta_real_width").value<Float2_t>() / Float2_t(file->average().cols));
             
-            cms_per_pixel[file.get()] = config->at("cm_per_pixel").value<float>();
+            cms_per_pixel[file.get()] = config->at("cm_per_pixel").value<Float2_t>();
             configs.push_back(config);
             
         } else {
@@ -145,8 +145,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     Background new_background(Image::Make(average), meta_encoding_t::gray);
     
     if(SETTING(frame_rate).value<uint32_t>() == 0){
-        if(!files.front()->header().metadata.empty())
-            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata);
+        if(files.front()->header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata.value());
         
         //SETTING(frame_rate) = int(1000 * 1000 / float(frame.timestamp()));
     }

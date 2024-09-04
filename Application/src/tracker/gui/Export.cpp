@@ -218,7 +218,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             pv::BlobPtr blob;
             Idx_t fdx;
             gui::Transform midline_transform;
-            float median_midline_length_px{0.f};
+            Float2_t median_midline_length_px{0_F};
             Range<Frame_t> range;
         };
         std::map<Frame_t, std::map<Idx_t, ImageData>> waiting_pixels;

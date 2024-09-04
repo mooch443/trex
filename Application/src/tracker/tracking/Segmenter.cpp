@@ -369,13 +369,21 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
     return std::make_tuple(do_generate_average, bg);
 }
 
+void Segmenter::set_metadata() {
+    auto config = default_config::generate_delta_config(AccessLevelType::LOAD);
+    sprite::Map diff;
+    for(auto &[key, value] : config.map)
+        value->copy_to(&diff);
+    _output_file->set_metadata(std::move(diff));
+}
+
 void Segmenter::callback_after_generating(cv::Mat &bg) {
     const auto channels = required_channels(Background::image_mode());
     
     {
         std::unique_lock guard(_mutex_tracker);
         if(not _tracker)
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<float>());
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
         //else
         //    _tracker->set_average(Image::Make(bg));
     }
@@ -384,6 +392,7 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
         std::unique_lock vlock(_mutex_general);
         if (not _output_file) {
             _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+            set_metadata();
         }
         try {
             _output_file->set_average(bg);
@@ -455,11 +464,12 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), SETTING(meta_real_width).value<float>());
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
             }
 
             std::unique_lock vlock(_mutex_general);
             _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+            set_metadata();
         }
         
     } else {
@@ -516,7 +526,7 @@ void Segmenter::open_video() {
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
-    SETTING(meta_real_width) = float(_output_size.width);
+    SETTING(meta_real_width) = Float2_t(_output_size.width);
 
     //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
 
@@ -609,7 +619,7 @@ void Segmenter::open_camera() {
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
-    SETTING(meta_real_width) = float(_output_size.width);
+    SETTING(meta_real_width) = Float2_t(_output_size.width);
 
     //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
 
@@ -620,7 +630,7 @@ void Segmenter::open_camera() {
 
     {
         std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<float>());
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
     }
     static_assert(ObjectDetection<Detection>);
 
@@ -636,6 +646,7 @@ void Segmenter::open_camera() {
     {
         std::unique_lock vlock(_mutex_general);
         _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+        set_metadata();
         _output_file->set_average(bg);
     }
 
@@ -887,10 +898,11 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
     std::vector<pv::BlobPtr> progress_blobs;
     //thread_print("Tracking frame ", progress_data.written_index());
     
+    PPFrame pp;
+    
     if (std::unique_lock guard(_mutex_tracker);
         _tracker != nullptr)
     {
-        PPFrame pp;
         Tracker::preprocess_frame(pv::Frame(progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
         
         progress_blobs.reserve(pp.N_blobs());
@@ -941,6 +953,7 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
         //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
         if(_transferred_current_data)
             overlayed_video()->source()->move_back(std::move(_transferred_current_data.image));
+        _transferred_frame = std::move(pp);
         _transferred_current_data = std::move(progress_data);
         _transferred_blobs = std::move(progress_blobs);
     }
@@ -1235,17 +1248,18 @@ void Segmenter::set_progress_callback(std::function<void (float)> callback) {
     progress_callback = callback;
 }
 
-std::tuple<SegmentationData, std::vector<pv::BlobPtr>> Segmenter::grab() {
+std::tuple<SegmentationData, track::PPFrame, std::vector<pv::BlobPtr>> Segmenter::grab() {
     std::unique_lock guard(_mutex_current);
     if (_transferred_current_data.image) {
         return {
             std::move(_transferred_current_data),
+            std::move(_transferred_frame),
             std::move(_transferred_blobs)
         };
     }
     SegmentationData data;
     data.frame.set_channels(Background::image_mode() == ImageMode::RGB ? 3 : 1);
-    return {std::move(data), std::vector<pv::BlobPtr>{}};
+    return {std::move(data), track::PPFrame{}, std::vector<pv::BlobPtr>{}};
 }
 
 void Segmenter::reset(Frame_t frame) {
@@ -1257,7 +1271,7 @@ void Segmenter::reset(Frame_t frame) {
 
 void Segmenter::setDefaultSettings() {
     SETTING(detect_only_classes) = std::vector<uint8_t>{};
-    SETTING(track_conf_threshold) = SETTING(detect_conf_threshold).value<float>();
+    SETTING(track_conf_threshold) = SETTING(detect_conf_threshold).value<Float2_t>();
 }
 
 void Segmenter::printDebugInformation() {

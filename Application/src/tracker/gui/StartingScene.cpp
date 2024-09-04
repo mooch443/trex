@@ -13,6 +13,7 @@
 #include <gui/WorkProgress.h>
 #include <misc/Coordinates.h>
 #include <gui/GUITaskQueue.h>
+#include <gui/GuiSettings.h>
 
 namespace cmn::gui {
 
@@ -56,13 +57,6 @@ file::Path pv_file_path_for(const file::PathArray& array) {
         }
     }
     return output_file;
-}
-
-inline std::string window_title() {
-    auto output_prefix = SETTING(output_prefix).value<std::string>();
-    return SETTING(app_name).value<std::string>()
-        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
-        + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
 }
 
 void StartingScene::activate() {

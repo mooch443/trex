@@ -129,7 +129,7 @@ void PrefilterBlobs::split_big(
     
     const int threshold = FAST_SETTING(track_threshold);
     const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
-    const float cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
+    const auto cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
     const auto track_ignore = FAST_SETTING(track_ignore);
     const auto track_include = FAST_SETTING(track_include);
     

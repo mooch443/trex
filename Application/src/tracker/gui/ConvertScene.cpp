@@ -31,6 +31,9 @@
 #include <gui/WorkProgress.h>
 #include <misc/CTCollection.h>
 #include <misc/ObjectCache.h>
+#include <gui/GuiSettings.h>
+#include <gui/PreviewAdapterElement.h>
+#include <tracking/FilterCache.h>
 
 namespace cmn::gui {
 using namespace dyn;
@@ -83,7 +86,11 @@ struct ConvertScene::Data {
     std::vector<pv::BlobPtr> _object_blobs, _tmp_store_blobs;
     SegmentationData _current_data;
     SegmentationData _tmp_store_data;
-
+    PPFrame _tmp_store_frame, _current_frame;
+    
+    std::map<Idx_t, std::shared_ptr<constraints::FilterCache>> filter_cache;
+    std::map<Idx_t, BdxAndPred> fish_selected_blobs;
+    
     CallbackCollection callback;
     Skeleton skelet;
     bool closed_loop_enable{SETTING(closed_loop_enable)};
@@ -221,6 +228,28 @@ struct ConvertScene::Data {
     void check_gui(DrawStructure& graph, Base* window) {
         if(not dynGUI) {
             dynGUI = init_gui(window);
+            
+            dynGUI.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> const track::PPFrame*
+            {
+                return &_current_frame;
+                
+            }, [this](Idx_t fdx) -> std::tuple<const constraints::FilterCache*, std::optional<BdxAndPred>>
+            {
+                const constraints::FilterCache* filters{nullptr};
+                if(auto it = filter_cache.find(fdx);
+                   it != filter_cache.end())
+                {
+                    filters = it->second.get();
+                }
+                
+                if(auto it = fish_selected_blobs.find(fdx);
+                   it != fish_selected_blobs.end())
+                {
+                    return {filters, it->second.clone()};
+                }
+                
+                return {filters, std::nullopt};
+            }));
             dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(
               new CustomElement {
                 .name = "label",
@@ -357,15 +386,6 @@ sprite::Map ConvertScene::_video_info = []() {
 //Size2 ConvertScene::output_size() const {
 //    return segmenter().output_size();
 //}
-
-std::string ConvertScene::window_title() const {
-    auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-    auto output_prefix = SETTING(output_prefix).value<std::string>();
-    return SETTING(app_name).value<std::string>()
-        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
-        + (not filename.empty() ? " (" + filename + ")" : "")
-        + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
-}
 
 ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate) : Scene(window, "convert-scene",
     [this](Scene&, DrawStructure& graph) {
@@ -595,7 +615,7 @@ void ConvertScene::activate()  {
     window()->set_title(window_title());
     _data->bar.set_progress(0);
     
-    SceneManager::getInstance().enqueue([this](IMGUIBase* base, DrawStructure& graph) {
+    SceneManager::getInstance().enqueue([this](IMGUIBase*, DrawStructure& graph) {
         if(not _data || not _data->_segmenter)
             return;
         if(not _data->_segmenter->output_size().empty())
@@ -672,12 +692,13 @@ bool ConvertScene::Data::fetch_new_data() {
     check_video_info(false, &_recovered_error);
     
     bool dirty = false;
-    auto&& [data, obj] = _segmenter->grab();
+    auto&& [data, frame, obj] = _segmenter->grab();
     if(data.image) {
         if(_tmp_store_data.image)
             _segmenter->overlayed_video()->source()->move_back(std::move(_tmp_store_data.image));
         
         _tmp_store_data = std::move(data);
+        _tmp_store_frame = std::move(frame);
         _tmp_store_blobs = std::move(obj);
         dirty = true;
         
@@ -1184,6 +1205,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         _segmenter->overlayed_video()->source()->move_back(std::move(_current_data.image));
     _current_data = std::move(_tmp_store_data);
     _object_blobs = std::move(_tmp_store_blobs);
+    _current_frame = std::move(_tmp_store_frame);
     ///
     
     SETTING(gui_frame) = _current_data.frame.index();
@@ -1208,15 +1230,46 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
     std::unordered_map<pv::bid, Identity> visible_bdx;
     std::vector<std::vector<Vertex>> lines;
     std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
+    const bool output_normalize_midline_data = SETTING(output_normalize_midline_data);
 
-    IndividualManager::transform_all([&](Idx_t, Individual* fish) {
-        if (not fish->has(_current_data.frame.index()))
+    IndividualManager::transform_all([&, frameIndex = _current_data.frame.index()](Idx_t, Individual* fish) {
+        if (not fish->has(frameIndex))
             return;
         
         auto p = fish->iterator_for(_current_data.frame.index());
         auto segment = p->get();
+        Range<Frame_t> segment_range;
+        
+        if(segment) {
+            auto filters = constraints::local_midline_length(fish, segment->range);
+            filter_cache[fish->identity().ID()] = std::move(filters);
+            segment_range = segment->range;
+        }
 
-        auto [basic, posture] = fish->all_stuff(_current_data.frame.index());
+        auto [basic, posture] = fish->all_stuff(frameIndex);
+        
+        if(basic) {
+            //active_ids.insert(fish->identity().ID());
+            
+            BdxAndPred blob{
+                .bdx = basic->blob.blob_id(),
+                .basic_stuff = *basic,
+                .automatic_match = fish->is_automatic_match(frameIndex),
+                .segment = segment_range
+            };
+            if(posture) {
+                blob.posture_stuff = posture->clone();
+                
+                /// this could be optimized by using the posture stuff
+                /// in the fixed midline function + SETTING()
+                blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*posture);
+            }
+            
+            //blob_selected_fish[blob.bdx] = fish->identity().ID();
+            //fish_last_bounds[fish->identity().ID()] = basic->blob.calculate_bounds();
+            fish_selected_blobs[fish->identity().ID()] = std::move(blob);
+        }
+        
         if (basic->blob.parent_id.valid())
             visible_bdx.emplace(basic->blob.parent_id, fish->identity());
         visible_bdx.emplace(basic->blob.blob_id(), fish->identity());

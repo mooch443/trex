@@ -181,7 +181,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
  */
 split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>& blobs)
 {
-    const float sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
+    const Float2_t sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
     size_t pixels = 0;
     std::optional<size_t> min_size;
     for(size_t i=0; i < blobs.size(); ++i) {
@@ -385,7 +385,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     ResultProp best_match;
     float first_size = 0;
     
-    const float sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
+    const Float2_t sqrcm = SQR(SPLIT_SETTING(cm_per_pixel));
     
     const auto apply_watershed = [this](const std::vector<std::vector<Vec2>>& centers, std::vector<pv::BlobPtr>& output) {
         static const cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * 1 + 1, 2 * 1 + 1), cv::Point(1, 1));

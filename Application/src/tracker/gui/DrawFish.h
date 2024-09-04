@@ -60,6 +60,7 @@ struct UpdateSettings {
         int32_t _probability_radius = 0;
         Vec2 _probability_center;
         track::Midline::Ptr _cached_midline;
+        const track::Midline* _pp_midline{nullptr};
         const track::MinimalOutline* _cached_outline;
         GETTER(Vec2, fish_pos);
         std::variant<std::monostate, Rect, Polygon, Circle> _selection;
@@ -82,7 +83,7 @@ struct UpdateSettings {
         struct FrameVertex {
             Frame_t frame;
             Vertex vertex;
-            float speed_percentage;
+            Float2_t speed_percentage;
         };
         
         float _color_start, _color_end;
@@ -100,9 +101,11 @@ struct UpdateSettings {
         track::Identity _id;
         std::optional<track::BasicStuff> _basic_stuff;
         std::optional<track::PostureStuff> _posture_stuff;
-        double _ML{0}; // midline length
-        track::Midline::Ptr _pp_midline;
+        Float2_t _ML{0}; // midline length
+        std::map<Frame_t, Float2_t> _previous_midline_angles, _previous_midline_angles_d, _previous_midline_angles_dd;
         bool _empty{true};
+        Vec2 posture_direction_, midline_direction;
+        std::vector<Vec2> _posture_directions;
         Range<Frame_t> _range;
         
         std::tuple<bool, FrameRange> _has_processed_segment;
@@ -126,7 +129,6 @@ struct UpdateSettings {
         std::string _cat_name;
         std::string _avg_cat_name;
         
-        Graph _graph;
         Entangled _posture, _label_parent;
         std::unique_ptr<Skelett> _skelett;
         

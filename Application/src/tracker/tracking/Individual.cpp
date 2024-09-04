@@ -480,11 +480,11 @@ pv::CompressedBlob* Individual::compressed_blob(Frame_t frameIndex) const {
 }
 
 Midline::Ptr Individual::midline(Frame_t frameIndex) const {
-    auto && [basic, posture] = all_stuff(frameIndex);
-    if(!posture)
+    auto posture = posture_stuff(frameIndex);
+    if(not posture)
         return nullptr;
     
-    return calculate_midline_for(*basic, *posture);
+    return calculate_midline_for(*posture);
 }
 
 const Midline* Individual::pp_midline(Frame_t frameIndex) const {
@@ -499,8 +499,7 @@ Midline::Ptr Individual::fixed_midline(Frame_t frameIndex) const {
     
     MovementInformation movement;
     if(FAST_SETTING(posture_direction_smoothing) > 1) {
-        auto && [samples, hist, index, mov] = calculate_previous_vector(frameIndex);
-        movement = mov;
+        movement = calculate_previous_vector(frameIndex);
     }
 
     auto fixed = std::make_unique<Midline>(*mid);
@@ -857,13 +856,17 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     
 }
 
-float Individual::midline_length() const {
+Float2_t Individual::midline_length() const {
     return _local_cache._midline_samples == 0
         ? GlobalSettings::invalid()
-        : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f);
+        : (_local_cache._midline_length / _local_cache._midline_samples * 1.1_F);
 }
 size_t Individual::midline_samples() const { return _local_cache._midline_samples; }
-float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? GlobalSettings::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
+Float2_t Individual::outline_size() const {
+    return _local_cache._outline_samples == 0
+                ? GlobalSettings::invalid()
+                : (_local_cache._outline_size / _local_cache._outline_samples);
+}
 
 Vec2 Individual::LocalCache::add(Frame_t /*frameIndex*/, const track::MotionRecord *current) {
     const auto frame_rate = track::slow::frame_rate;
@@ -904,8 +907,8 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
         ++_outline_samples;
     }
     
-    if(stuff.midline_length != PostureStuff::infinity) {
-        _midline_length += stuff.midline_length;
+    if(stuff.midline_length.has_value()) {
+        _midline_length += stuff.midline_length.value();
         ++_midline_samples;
     }
 }
@@ -1066,7 +1069,7 @@ std::optional<default_config::matching_mode_t::Class> Individual::matched_using(
     return _matched_using[known_index];
 }
 
-void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
+void Individual::_iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
     auto fit = iterator_for(segment.start);
     auto end = _frame_segments.end();
     
@@ -1190,9 +1193,9 @@ SegmentInformation* Individual::update_add_segment(const Frame_t frameIndex, con
     return segment ? segment->get() : nullptr;
 }
 
-float Individual::weird_distance() {
+Float2_t Individual::weird_distance() {
     const auto track_max_speed = SLOW_SETTING(track_max_speed);
-    return track_max_speed * 0.99;
+    return track_max_speed * 0.99_F;
 }
 
 void Individual::clear_post_processing() {
@@ -1200,7 +1203,9 @@ void Individual::clear_post_processing() {
         if(stuff->head)
             stuff->head = nullptr;
         //stuff->midline = nullptr;
-        stuff->posture_original_angle = PostureStuff::infinity;
+        stuff->posture_original_angle.reset();
+        stuff->midline_length.reset();
+        stuff->midline_angle.reset();
     }
     for(auto && [frame, custom] : _custom_data) {
         for(auto it = custom.begin(); it!=custom.end();) {
@@ -1226,7 +1231,9 @@ void Individual::update_midlines(const CacheHints* hints) {
     //! find the first frame that needs to be cached, but hasnt been yet
     auto it = _posture_stuff.rbegin(), last_found = _posture_stuff.rend();
     for (; it != _posture_stuff.rend(); ++it) {
-        if((smooth_range == 0_f || video_length == end_frame || (*it)->frame <= end_frame - smooth_range) && (*it)->cached_pp_midline)
+        assert(*it != nullptr);
+        
+        if((smooth_range == 0_f || video_length == end_frame || (*it)->frame <= end_frame.try_sub(smooth_range)) && (*it)->cached_pp_midline)
         {
             if((*it)->cached()) {
                 break;
@@ -1239,8 +1246,12 @@ void Individual::update_midlines(const CacheHints* hints) {
     if(it != _posture_stuff.rend()) {
         //long_t last_frame = (*it)->frame;
         for (; ; --it) {
-            if((smooth_range == 0_f || video_length == end_frame || (*it)->frame <= end_frame - smooth_range) && (*it)->cached_pp_midline)
+            assert(*it != nullptr);
+            
+            if((smooth_range == 0_f || video_length == end_frame || (*it)->frame <= end_frame.try_sub(smooth_range)) && (*it)->cached_pp_midline)
             {
+                assert((*it)->cached_pp_midline->original_angle() != FLT_MAX
+                       && (*it)->cached_pp_midline->original_angle() != std::numeric_limits<Float2_t>::infinity());
                 (*it)->posture_original_angle = (*it)->cached_pp_midline->original_angle();
 
                 auto basic = basic_stuff((*it)->frame);
@@ -1281,7 +1292,7 @@ void Individual::update_midlines(const CacheHints* hints) {
     }*/
 }
 
-Midline::Ptr Individual::calculate_midline_for(const BasicStuff &, const PostureStuff &posture) const
+Midline::Ptr Individual::calculate_midline_for(const PostureStuff &posture) const
 {
     //if(!posture || !basic)
     //    return nullptr;
@@ -1297,11 +1308,8 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &, const Posture
         midline = std::make_unique<Midline>(*ptr);
         
         MovementInformation movement;
-        //movement.position = blob->bounds().pos();
-        
-        if(FAST_SETTING(posture_direction_smoothing) > 1) {
-            auto && [samples, hist, index, mov] = calculate_previous_vector(posture.frame);
-            movement = mov;
+        if(SLOW_SETTING(posture_direction_smoothing) > 1) {
+            movement = calculate_previous_vector(posture.frame);
         }
         
         midline->post_process(movement, DebugInfo{posture.frame, identity().ID(), false});
@@ -1338,7 +1346,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
     Midline::Ptr midline;
     
     if(ptr) {
-        midline = calculate_midline_for(basic, posture);
+        midline = calculate_midline_for(posture);
         auto &outline = posture.outline;
         auto &c = basic.centroid;
         
@@ -1412,6 +1420,21 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
                                        midline->angle());
         posture.midline_angle = midline->angle();
         posture.midline_length = midline->len();
+        
+        assert(posture.midline_length.has_value());
+        /*{
+            if (not posture.posture_original_angle.has_value()
+                && posture.cached_pp_midline)
+            {
+                assert(posture.cached_pp_midline->original_angle() != FLT_MAX
+                       && posture.cached_pp_midline->original_angle() != std::numeric_limits<Float2_t>::infinity());*/
+        auto oangle = posture.cached_pp_midline->original_angle();
+        auto nangle = midline->original_angle();
+        assert(nangle != FLT_MAX
+               && nangle != std::numeric_limits<Float2_t>::infinity());
+        posture.posture_original_angle = nangle;
+            /*}
+        }*/
         
         _local_cache.add(posture);
     }
@@ -2192,9 +2215,6 @@ Probability Individual::probability(MaybeLabel label, const IndividualCache& cac
 const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
 {
     if(empty()) {
-#ifndef NDEBUG
-        throw U_EXCEPTION("Individual ", *this," is empty. Cannot retrieve frame ",frameIndex,".");
-#endif
         return nullptr;
     }
     
@@ -2249,162 +2269,59 @@ const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
     return _basic_stuff[ index ].get();
 }
 
-std::tuple<std::vector<std::tuple<Float2_t, Float2_t>>, std::vector<Float2_t>, size_t, MovementInformation> Individual::calculate_previous_vector(Frame_t frameIndex) const {
+MovementInformation Individual::calculate_previous_vector(Frame_t frameIndex) const {
     const auto min_samples = Frame_t(FAST_SETTING(posture_direction_smoothing));
-    std::vector<Float2_t> tmp;
-    std::vector<std::tuple<Float2_t, Float2_t>> samples;
     MovementInformation movement;
-    std::vector<Float2_t> hist;
-    Float2_t space_width = M_PI * 2;
-    Float2_t bin_size = RADIANS(5);
-    hist.resize(space_width / bin_size);
     
     if(!centroid(frameIndex)) {
-        return {samples, hist, 0, movement};
+        return movement;
     }
     
     std::vector<Frame_t> all_frames;
     std::vector<Float2_t> all_angles;
     std::vector<Vec2> all_head_positions;
-    float position_sum = 0;
-    float position_samples = 0;
     
-    Range<Frame_t> range(max(start_frame(), frameIndex - min_samples), min(end_frame(), frameIndex + min_samples));
+    Range<Frame_t> range(max(start_frame(), frameIndex.try_sub(min_samples)), min(end_frame(), frameIndex));
     
-    iterate_frames(range, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
-    {
-        if(frame == range.start) {
-            movement.directions.push_back(Vec2(0));
-            return true;
-        }
+    for(auto i = range.start; i < range.end; ++i) {
+        auto [basic, posture] = this->all_stuff(i);
+        if(not basic || not posture || not posture->midline_angle.has_value())
+            continue;
         
-        if(posture && posture->midline_length != PostureStuff::infinity) {
-            assert(posture->posture_original_angle != PostureStuff::infinity);
-            all_head_positions.push_back(-Vec2(cos(posture->midline_angle), sin(posture->midline_angle)) * posture->midline_length * 0.5);
-            //auto post = head(it->first);
-            //all_head_positions.push_back(post->pos(PX_AND_SECONDS, true) - centroid(it->first)->pos(PX_AND_SECONDS, true));
-            all_angles.push_back(posture->posture_original_angle);
-            
-            movement.directions.push_back(Vec2(cos(posture->posture_original_angle), sin(posture->posture_original_angle)).normalize());
-            all_frames.push_back(basic->frame);
-            
-            position_sum += posture->midline_length * 0.5;//all_head_positions.back().length();
-            ++position_samples;
-        }
+        auto pp = pp_midline(i);
+        if(not pp)
+            continue;
         
-        return true;
-    });
-    
-    position_sum /= position_samples;
-    
-    //auto str = Meta::toStr(all_head_positions);
-    //for(size_t i=0; i<all_head_positions.size(); ++i) {
-    //}
-    
-    Vec2 last_head(GlobalSettings::invalid());
-    if(!all_head_positions.empty()) {
-        last_head = all_head_positions.front();
+        auto angle = posture->midline_angle.value();
+        auto oangle = pp->original_angle();
+        auto L = posture->midline_length.value();
+        
+        all_head_positions.push_back(- Vec2{
+            cos(angle),
+            sin(angle)
+        } * L * 0.5_F);
+        
+        all_angles.push_back(oangle);
+        
+        movement.directions.push_back(Vec2{
+            cos(oangle),
+            sin(oangle)
+        }.normalize());
+        
+        all_frames.push_back(basic->frame);
     }
     
-    if(frameIndex > start_frame()) {
-        auto props = Tracker::properties(frameIndex);
-        auto previous = Tracker::properties(frameIndex - 1_f);
-        auto cache = cache_for_frame(previous, frameIndex, props->time());
-        if(cache) {
-            movement.position = cache.value().estimated_px;
-            movement.velocity = Vec2(position_sum);
-        } else {
-            FormatWarning("Cannot calculate cache_for_frame in ", frameIndex, " for ", *this, " because: ", cache.error());
-        }
+    for(auto &d : movement.directions) {
+        movement.direction += d;
     }
-    //movement.position = last_head;
-    //movement.velocity = centroid(frameIndex)->v(PX_AND_SECONDS, true);
-    
-    
-    for(size_t i=0; i<all_angles.size(); ++i) {
-        auto angle = all_angles.at(i) + bin_size * 0.5;
-        //assert(it->second >= -M_PI && it->second <= M_PI);
-        
-        while(angle >= space_width) {
-            angle -= space_width;
-        }
-        while (angle < 0) {
-            angle += space_width;
-        }
-        
-        //float w = (1 - float(all_frames.at(i)) / min_samples) * 0.9 + 0.1;
-        //w *= w;
-        float w = 1;
-        
-        size_t bin = angle / space_width * hist.size();
-        hist.at(bin) += w;
-        
-        samples.push_back(std::tuple<float, float>{(float)w, (float)all_angles.at(i)});
+    if(not movement.directions.empty()) {
+        movement.direction /= movement.directions.size();
+        movement.direction = movement.direction.normalize();
     }
-    
-    Outline::smooth_array(hist, tmp);
-    Outline::smooth_array(tmp, hist);
-    Outline::smooth_array(hist, tmp);
-    Outline::smooth_array(tmp, hist);
-    
-    //auto str = Meta::toStr(all_angles);
-    
-    Vec2 previous_direction;
-    
-    auto && [maptr, miptr] = periodic::find_peaks(std::make_unique<std::vector<Float2_t>>(hist.begin(), hist.end()), 0, {}, periodic::PeakMode::FIND_POINTY);
-    float max_len = 0;
-    Vec2 max_index;
-    float angle = -1;
-    float m_hist = 0;
-    size_t idx = 0;
-    for(auto &maximum : *maptr) {
-        auto len = abs(maximum.integral);
-        if(len > max_len) { //maximum.range.length() > max_len) {
-            max_len = len;
-            max_index = maximum.position;
-            m_hist = maximum.position.y;
-            angle = (maximum.position.x + 0.5) * bin_size;
-            idx = maximum.position.x;
-        }
-    }
-    
-    /*Vec2 result;
-    if(angle != -1) {
-        float samples = 0;
-        for(auto &maximum : *maptr) {
-            float angle = (maximum.position.x + 0.5) * bin_size;
-            float w = (abs(maximum.integral) / max_len);
-            result += Vec2(cos(angle), sin(angle)) * w;
-            samples += w;
-            //middle += maximum.position * (abs(maximum.integral) / max_len);
-        }
-    
-        if(samples > 0) {
-            result /= samples;
-            previous_direction = result;
-        }
-        //angle = atan2(result);
-    }*/
-    
-    /*float m_hist = 0;
-    size_t idx = 0;
-    float angle = -1;
-    for (size_t i=0; i<hist.size(); ++i) {
-        if(hist.at(i) > m_hist) {
-            m_hist = hist.at(i);
-            idx = i;
-            angle = (i + 0.5) * bin_size;
-        }
-    }*/
-    
-    if(angle != -1 && m_hist > 0) {
-        previous_direction = Vec2(cos(angle), sin(angle));
-    } else previous_direction = Vec2(0);
-    
-    movement.direction = previous_direction.normalize();
+    //movement.direction = previous_direction.normalize();
     //movement.direction = position_sum.normalize();
     
-    return {samples, hist, idx, movement};
+    return movement;
 }
 
 //void Individual::clear_training_data() {
@@ -2463,11 +2380,6 @@ void Individual::save_posture(const BasicStuff& basic,
        midline && !midline->empty())
     {
         stuff->cached_pp_midline = std::move(midline);
-
-        if (stuff && stuff->midline_length != PostureStuff::infinity) {
-            if (stuff->posture_original_angle == PostureStuff::infinity && stuff->cached_pp_midline)
-                stuff->posture_original_angle = stuff->cached_pp_midline->original_angle();
-        }
     }
     
     segment->add_posture_at(std::move(stuff), this);

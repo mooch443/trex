@@ -175,7 +175,7 @@ namespace default_config {
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
         CONFIG("meta_conditions", std::string(""), "Treatment name.");
         CONFIG("meta_misc", std::string(""), "Other information.");
-        CONFIG("meta_real_width", float(30), "Width of whatever is visible in the camera frame from left to right. Used to calculate `cm_per_pixel` ratio.", INIT);
+        CONFIG("meta_real_width", Float2_t(30), "Width of whatever is visible in the camera frame from left to right. Used to calculate `cm_per_pixel` ratio.", INIT);
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", SYSTEM);
         CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", SYSTEM);

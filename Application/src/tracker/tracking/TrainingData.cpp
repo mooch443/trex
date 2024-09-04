@@ -1147,7 +1147,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             
             using namespace default_config;
             auto midline = posture
-                ? fish->calculate_midline_for(*basic, *posture)
+                ? fish->calculate_midline_for(*posture)
                 : nullptr;
             
             image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));

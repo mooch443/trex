@@ -30,8 +30,8 @@ set_defaults_for( track::detect::ObjectDetectionType_t detect_type,
 SettingsMaps reset(const cmn::sprite::Map& extra_map = {}, cmn::sprite::Map* output = nullptr);
 
 void write_config(const pv::File*, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix = "");
-float infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);
-float infer_meta_real_width_from(const pv::File &file, const sprite::Map* map = nullptr);
+Float2_t infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);
+Float2_t infer_meta_real_width_from(const pv::File &file, const sprite::Map* map = nullptr);
 
 file::Path find_output_name(const sprite::Map&, file::PathArray source = {}, file::Path filename = {}, bool respect_user_choice = true);
 

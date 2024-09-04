@@ -91,7 +91,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "segment_size_filter", BlobSizeRange({Rangef(0.1f, 1000.f)}),
             //"meta_encoding", meta_encoding_t::rgb8,
             "track_do_history_split", true,
-            "detect_classes", std::vector<std::string>{},
+            "detect_classes", std::map<uint16_t, std::string>{},
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
             "track_max_reassign_time", 0.5f,
@@ -366,7 +366,7 @@ void load(file::PathArray source,
                     Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
                 }*/
                 if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
-                    //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
+                    Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
                     from.at(key).get().copy_to(&combined.map);
                     was_different = true;
                 }
@@ -375,7 +375,7 @@ void load(file::PathArray source,
                     type = from.at(key).value<decltype(type)>();
             }
             else {
-                //Print("// ", key, " is already set to ", combined.map.at(key).get().valueString());
+                Print("/// ", key, " is already set to ", combined.map.at(key).get().valueString());
             }
         }
         
@@ -383,36 +383,37 @@ void load(file::PathArray source,
            || current_defaults.at(key) != from.at(key))
         {
             //if(do_print)
-            //    Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
+                Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
             if (not GlobalSettings::defaults().has(key)
                 || GlobalSettings::defaults().at(key) != from.at(key)) 
             {
                 from.at(key).get().copy_to(&current_defaults);
-                //Print("// [current_defaults] ", current_defaults.at(key).get());
+                Print("/// [current_defaults] ", current_defaults.at(key).get());
             }
             else if (current_defaults.has(key)) 
             {
-                //Print("// [current_defaults] REMOVE ", current_defaults.at(key).get());
+                Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
                 current_defaults.erase(key);
             }
             else {
                 /// we dont have it, but it is default
-                //Print("// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+                Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
             }
             
         } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
         else if(current_defaults.has(key)) {
-            //Print("// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+            Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
             //current_defaults.erase(key);
         }
         else {
-            Print("// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+            Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
 		}
         
         return was_different;
     };
     
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_mode"].get().set_do_print(false);
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
     GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
@@ -682,12 +683,14 @@ void load(file::PathArray source,
                     tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
                 }
                 
-                const auto& meta = f.header().metadata;
-                sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
-                                     changed_model_manually
+                if(f.header().metadata.has_value()) {
+                    const auto& meta = f.header().metadata.value();
+                    sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
+                                         changed_model_manually
                                          ? (exclude + exclude_from_external).toVector()
                                          : exclude.toVector(),
-                                     default_config::deprecations());
+                                         default_config::deprecations());
+                }
                 
                 exclude_from_default += tmp.keys();
                 //Print("// pv file keys = ", tmp.keys());
@@ -717,7 +720,7 @@ void load(file::PathArray source,
                 }
                 
                 if (not combined.map.has("meta_real_width")
-                    || combined.map.at("meta_real_width").value<float>() == 0)
+                    || combined.map.at("meta_real_width").value<Float2_t>() == 0)
                 {
                     combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
                     set_config_if_different("meta_real_width", combined.map);
@@ -822,7 +825,7 @@ void load(file::PathArray source,
     /// -------------------------------------
     if(not source_map.empty()) {
         G g("GUI settings");
-        //Print("gui settings contains: ", source_map.keys());
+        Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -832,6 +835,7 @@ void load(file::PathArray source,
                 {
                     /// can be ignored / no print-out since it would
                     /// not change anything
+                    Print("// Can ignore ", key, " from source map.");
                     continue;
                 }
                 Print("// Not allowed to copy ", key, " from source map.");
@@ -845,9 +849,9 @@ void load(file::PathArray source,
     }
 
     if (not combined.map.has("meta_real_width")
-        || combined.map.at("meta_real_width").value<float>() == 0)
+        || combined.map.at("meta_real_width").value<Float2_t>() == 0)
     {
-        combined.map["meta_real_width"] = 1000.f;
+        combined.map["meta_real_width"] = 1000_F;
     }
     
     if (combined.map.has("cm_per_pixel")
@@ -978,7 +982,7 @@ file::Path find_output_name(const sprite::Map& map,
 
 void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {
     auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
-    auto text = default_config::generate_delta_config(video).to_settings();
+    auto text = default_config::generate_delta_config(AccessLevelType::PUBLIC, video).to_settings();
     
     if(filename.exists() && !overwrite) {
         if(queue) {
@@ -1022,7 +1026,7 @@ void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* qu
     }
 }
 
-float infer_cm_per_pixel(const sprite::Map* map) {
+Float2_t infer_cm_per_pixel(const sprite::Map* map) {
     if(map == nullptr)
         map = &GlobalSettings::map();
 
@@ -1030,38 +1034,38 @@ float infer_cm_per_pixel(const sprite::Map* map) {
     if(not map->has("cm_per_pixel")
        || map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
     {
-        auto w = map->at("meta_real_width").value<float>();
+        auto w = map->at("meta_real_width").value<Float2_t>();
         if(w <= 0) {
             return 1;
         }
         
-        return 1 / max(1.0, w * 0.05);
+        return 1_F / max(1.0_F, w * 0.05_F);
         //return w / float(average().cols);
     }
 
     return map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
 }
 
-float infer_meta_real_width_from(const pv::File &file, const sprite::Map* map) {
+Float2_t infer_meta_real_width_from(const pv::File &file, const sprite::Map* map) {
     if(not map)
         map = &GlobalSettings::map();
     
     if(not map->has("meta_real_width")
-        || map->at("meta_real_width").value<float>() == 0)
+        || map->at("meta_real_width").value<Float2_t>() == 0)
     {
         if(file.header().meta_real_width <= 0) {
             FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
-            return float(30.0);
+            return Float2_t(30.0);
         } else {
             if(not map->has("meta_real_width")
-                || map->at("meta_real_width").value<float>() == 0)
+                || map->at("meta_real_width").value<Float2_t>() == 0)
             {
                 return file.header().meta_real_width;
             }
         }
     }
     
-    return map->at("meta_real_width").value<float>();
+    return map->at("meta_real_width").value<Float2_t>();
 }
 
 }

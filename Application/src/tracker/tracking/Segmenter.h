@@ -9,6 +9,7 @@
 #if WITH_FFMPEG
 #include <misc/tomp4.h>
 #endif
+#include <tracking/PPFrame.h>
 
 namespace track {
 
@@ -100,6 +101,7 @@ class Segmenter {
     
     // Progress and current data for tracking
     SegmentationData _transferred_current_data;
+    track::PPFrame _transferred_frame;
     
     std::vector<pv::BlobPtr> _transferred_blobs;
     
@@ -145,7 +147,7 @@ public:
     float average_percent() const { return min(_average_percent.load(), 1.f); }
     double fps() const;
     double write_fps() const;
-    std::tuple<SegmentationData, std::vector<pv::BlobPtr>> grab();
+    std::tuple<SegmentationData, track::PPFrame, std::vector<pv::BlobPtr>> grab();
     
 private:
     void generator_thread();
@@ -165,6 +167,8 @@ private:
     void callback_after_generating(cv::Mat& bg);
     
     void init_undistort_from_settings();
+    
+    void set_metadata();
 };
 
 }

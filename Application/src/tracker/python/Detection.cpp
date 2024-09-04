@@ -214,7 +214,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     CPULabeling::ListCache_t cache;
     const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
     const auto min_max = SETTING(segment_size_filter).value<BlobSizeRange>();
-    const float sqcm = SQR(cm_per_pixel);
+    const Float2_t sqcm = SQR(cm_per_pixel);
     cv::Mat r3;
     
     size_t i = 0;

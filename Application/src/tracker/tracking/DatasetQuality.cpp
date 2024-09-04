@@ -425,8 +425,8 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
             
             positions.push_back(pos);
             
-            if(posture && posture->outline && posture->cached())
-                orientations.insert(std::round(DEGREE(posture->midline_angle)));
+            if(posture && posture->outline && posture->midline_angle.has_value())
+                orientations.insert(std::round(DEGREE(posture->midline_angle.value())));
             
             if(i > consec.start() && prev.x != FLT_MAX && pos != prev) {
                 auto L = ((pos - prev) * FAST_SETTING(cm_per_pixel)).length();

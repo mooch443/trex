@@ -1298,7 +1298,7 @@ namespace Output {
         
         //write<int32_t>(MinimalOutline::factor);
 
-        std::string text = default_config::generate_delta_config(nullptr, true, _header.exclude_settings).to_settings();
+        std::string text = default_config::generate_delta_config(AccessLevelType::LOAD, nullptr, true, _header.exclude_settings).to_settings();
         write<std::string>(text);
         write<std::string>(SETTING(cmd_line).value<std::string>());
 

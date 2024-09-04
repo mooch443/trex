@@ -42,7 +42,7 @@ void InteractiveCamera::Fish::update(float dt, const Vec2& poi, const std::vecto
     velocity += _force / mass * dt;
     
     auto vl = velocity.length();
-    static const float max_speed = SETTING(track_max_speed).value<float>() / SETTING(cm_per_pixel).value<float>();
+    static const auto max_speed = SETTING(track_max_speed).value<Float2_t>() / SETTING(cm_per_pixel).value<Float2_t>();
     if(vl >= max_speed) {
         velocity = velocity / vl * max_speed;
     }

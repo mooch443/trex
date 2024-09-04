@@ -106,25 +106,25 @@ protected:
     GETTER(double, time);
 
     std::array<Vec2, MotionRecord::max_derivatives> _pos;
-    std::array<float, MotionRecord::max_derivatives> _angle;
+    std::array<Float2_t, MotionRecord::max_derivatives> _angle;
         
 public:
-    void init(const MotionRecord* previous, double time, const Vec2& pos, float angle);
+    void init(const MotionRecord* previous, double time, const Vec2& pos, Float2_t angle);
         
-    template<Units to> float speed(bool smooth) const { return v<to>(smooth).length(); }
-    template<Units to> float speed() const { return v<to>().length(); }
+    template<Units to> Float2_t speed(bool smooth) const { return v<to>(smooth).length(); }
+    template<Units to> Float2_t speed() const { return v<to>().length(); }
         
-    template<Units to> float acceleration(bool smooth) const { return length(a<to>(smooth)); }
-    template<Units to> float acceleration() const { return length(a<to>()); }
+    template<Units to> Float2_t acceleration(bool smooth) const { return length(a<to>(smooth)); }
+    template<Units to> Float2_t acceleration() const { return length(a<to>()); }
         
-    float angle(bool smooth) const { return value<float>(0, smooth); }
-    float angle() const { return get<float>(0); }
+    Float2_t angle(bool smooth) const { return value<Float2_t>(0, smooth); }
+    Float2_t angle() const { return get<Float2_t>(0); }
         
-    template<Units to> float angular_velocity(bool smooth) const { return value<to, float>(1, smooth); }
-    template<Units to> float angular_velocity() const { return value<to, float>(1); }
+    template<Units to> Float2_t angular_velocity(bool smooth) const { return value<to, Float2_t>(1, smooth); }
+    template<Units to> Float2_t angular_velocity() const { return value<to, Float2_t>(1); }
         
-    template<Units to> float angular_acceleration(bool smooth) const { return value<to, float>(2, smooth); }
-    template<Units to> float angular_acceleration() const { return value<to, float>(2); }
+    template<Units to> Float2_t angular_acceleration(bool smooth) const { return value<to, Float2_t>(2, smooth); }
+    template<Units to> Float2_t angular_acceleration() const { return value<to, Float2_t>(2); }
         
     template<Units to> Vec2 pos(bool smooth) const { return value<to, Vec2>(0, smooth); }
     template<Units to> Vec2 pos() const { return value<to, Vec2>(0); }
@@ -136,27 +136,27 @@ public:
     template<Units to> Vec2 a() const { return value<to, Vec2>(2); }
         
     void flip(const MotionRecord* previous);
-    static float cm_per_pixel();
+    static Float2_t cm_per_pixel();
         
 private:
     template<typename T>
     const T& get(size_t derivative = 0) const {
         if constexpr (std::is_same_v<T, Vec2>)
             return _pos[derivative];
-        else if constexpr (std::is_same_v<T, float>)
+        else if constexpr (std::is_same_v<T, Float2_t>)
             return _angle[derivative];
         else
-            static_assert(std::same_as<T, float>);
+            static_assert(std::same_as<T, Float2_t>);
     }
 
     template<typename T>
     constexpr T& get(size_t derivative = 0) {
         if constexpr (std::same_as<T, Vec2>)
             return _pos[derivative];
-        else if constexpr (std::is_same_v<T, float>)
+        else if constexpr (std::is_same_v<T, Float2_t>)
             return _angle[derivative];
         else
-            static_assert(std::same_as<T, float>);
+            static_assert(std::same_as<T, Float2_t>);
     }
 
     template<typename T>
@@ -248,7 +248,7 @@ private:
             return;
         }
 
-        float tdelta = /*abs*/(time() - prev->time());
+        Float2_t tdelta = /*abs*/(time() - prev->time());
         const T& current_value = get<T>(index - 1);
         const T& prev_value = prev->get<T>(index - 1);
 

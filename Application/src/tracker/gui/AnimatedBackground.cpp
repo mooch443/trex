@@ -32,11 +32,12 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             grab::default_config::get(combined.map, combined.docs, nullptr);
             default_config::get(combined.map, combined.docs, nullptr);
 
-            sprite::parse_values(sprite::MapSource{video->filename()}, combined.map, metadata);
+            if(metadata.has_value())
+                sprite::parse_values(sprite::MapSource{video->filename()}, combined.map, metadata.value());
 
         }
         catch (...) {
-            FormatExcept("Failed to load metadata from: ", metadata);
+            FormatExcept("Failed to load metadata from: ", metadata.has_value() ? metadata.value() : "");
         }
 
         /*if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))

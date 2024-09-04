@@ -739,11 +739,12 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     {
         try {
             pv::File file(source_path.remove_extension());
-            auto str = file.header().metadata;
+            auto& str = file.header().metadata;
             
             sprite::Map map;
             try {
-                sprite::parse_values(sprite::MapSource{ source_path }, map, str, &GlobalSettings::defaults(), exclude, default_config::deprecations());
+                if(str.has_value())
+                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &GlobalSettings::defaults(), exclude, default_config::deprecations());
             }
             catch (...) {
                 /// do nothing
@@ -783,24 +784,24 @@ void SettingsScene::deactivate() {
     WorkProgress::stop();
 
     if(_data) {
-        Print("_data is set, need to unregister callbacks...");
+        //Print("_data is set, need to unregister callbacks...");
         if(_data->callback)
             GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
         
-        Print("Clearing _data->dynGUI");
+        //Print("Clearing _data->dynGUI");
         _data->dynGUI.clear();
 
-        Print("_checking new video source: ", _data->check_new_video_source.valid());
+        //Print("_checking new video source: ", _data->check_new_video_source.valid());
         if(_data->check_new_video_source.valid())
             _data->check_new_video_source.get();
 
         /// need to clear queue in case we got something pushed in the check_new_video_source
         SceneManager::getInstance().update_queue();
         
-        Print("Deleting _data...");
+        //Print("Deleting _data...");
         _data = nullptr;
 
-        Print("Done.");
+        //Print("Done.");
     }
     dyn::Modules::remove("follow");
 }

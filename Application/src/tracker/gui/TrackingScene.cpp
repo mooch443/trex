@@ -37,80 +37,15 @@
 #include <misc/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <tracking/MemoryStats.h>
+#include <grabber/misc/default_config.h>
+#include <gui/GuiSettings.h>
+#include <gui/PreviewAdapterElement.h>
 
 using namespace track;
 
 namespace cmn::gui {
 
 std::atomic<bool> _load_requested{false};
-
-static inline std::string window_title() {
-    auto output_prefix = SETTING(output_prefix).value<std::string>();
-    return SETTING(app_name).value<std::string>()
-        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
-        + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
-}
-
-class IndividualImage : public Entangled {
-    GETTER(Idx_t, fdx);
-    Image::Ptr ptr;
-    GETTER(Frame_t, frame);
-    ExternalImage _display;
-
-    static constexpr inline std::array<std::string_view, 10> _setting_names {
-        "individual_image_normalization",
-        "individual_image_size",
-        "individual_image_scale",
-        
-        "track_background_subtraction",
-        "meta_encoding",
-        "track_threshold",
-        "track_posture_threshold",
-        "track_size_filter",
-        "track_include", "track_ignore"
-    };
-    std::unordered_map<std::string_view, std::string> _settings;
-    
-public:
-    using Entangled::set;
-    void set_data(Idx_t fdx, Frame_t frame, pv::BlobWeakPtr blob, const Background* background, const constraints::FilterCache* filters, const Midline* midline) {
-        // already set
-        if(fdx == _fdx && _frame == frame && not settings_changed())
-            return;
-        
-        this->_fdx = fdx;
-        this->_frame = frame;
-        
-        auto &&[image, pos] = DrawPreviewImage::make_image(blob, midline, filters, background);
-        _display.set_source(std::move(image));
-        update_settings();
-        update();
-    }
-
-    bool settings_changed() const {
-        if(_settings.empty())
-            return true;
-        for(auto&[key, value] : _settings) {
-            if(GlobalSettings::map().at(key).get().valueString() != value) {
-                return true;
-            }
-        }
-        return false;
-    }
-    void update_settings() {
-        for(auto key : _setting_names) {
-            _settings[key] = GlobalSettings::map().at(key).get().valueString();
-        }
-    }
-    
-    void update() override {
-        OpenContext([this]{
-            advance_wrap(_display);
-        });
-        
-        auto_size({});
-    }
-};
 
 struct TrackingScene::Data {
     std::unique_ptr<GUICache> _cache;
@@ -453,6 +388,7 @@ void TrackingScene::activate() {
         "gui_show_blobs",
         "gui_show_selections",
         "gui_zoom_polygon",
+        "gui_zoom_limit",
         
         "individual_image_normalization",
         "individual_image_size",
@@ -464,6 +400,11 @@ void TrackingScene::activate() {
         "track_posture_threshold",
         "track_size_filter",
         "track_include", "track_ignore",
+        
+        "heatmap_resolution", "heatmap_dynamic",
+        "heatmap_ids", "heatmap_value_range",
+        "heatmap_normalization", "heatmap_frames",
+        "heatmap_source",
         
         "output_prefix"
         
@@ -503,10 +444,14 @@ void TrackingScene::activate() {
                   && _data
                   && _data->_cache)
         {
-            if(Tracker::end_frame() >= _data->_cache->frame_idx) {
-                WorkProgress::add_queue("", [frame = _data->_cache->frame_idx](){
+            if(Tracker::end_frame().valid()
+               && _data->_cache->frame_idx.valid()
+               && Tracker::end_frame() >= _data->_cache->frame_idx)
+            {
+                WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
                     Tracker::instance()->_remove_frames(frame);
-                    SETTING(track_pause) = false;
+                    if(_state)
+                        _state->analysis.set_paused(false);
                 });
             }
         }
@@ -526,12 +471,15 @@ void TrackingScene::activate() {
                  "individual_image_normalization",
                  "individual_image_size",
                  "individual_image_scale",
-                "track_include", "track_ignore"))
+                 "gui_zoom_polygon","gui_zoom_limit",
+                 "track_include", "track_ignore"))
         {
             redraw_all();
         }
         
-        if(key == "gui_focus_group") {
+        if(key == "gui_focus_group"
+           || utils::beginsWith(key, "heatmap_"))
+        {
             SceneManager::getInstance().enqueue([this, frame = _data && _data->_cache ? _data->_cache->frame_idx : Frame_t{}](){
                 if(_data && _data->_cache) {
                     _data->_primary_selection = {};
@@ -646,7 +594,7 @@ void TrackingScene::deactivate() {
     if(_data && _data->_callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
     
-    auto config = default_config::generate_delta_config(_state ? _state->video.get() : nullptr);
+    auto config = default_config::generate_delta_config(AccessLevelType::LOAD, _state ? _state->video.get() : nullptr);
     for(auto &[key, value] : config.map) {
         Print(" * ", *value);
     }
@@ -676,6 +624,28 @@ void TrackingScene::deactivate() {
     
     SETTING(filename) = file::Path();
     SETTING(source) = file::PathArray();
+    
+    SettingsMaps combined;
+    grab::default_config::get(combined.map, combined.docs, [&](auto& name, auto level){
+        combined.access_levels[name] = level;
+    });
+    default_config::get(combined.map, combined.docs, [&](auto& name, auto level){
+        combined.access_levels[name] = level;
+    });
+    
+    for(auto key : combined.map.keys()) {
+        if(GlobalSettings::access_level(key) > AccessLevelType::LOAD) {
+            //combined.map.at(key)->valueString();
+            //Print(" - Ignoring ", key, " ", no_quotes(combined.map.at(key)->valueString()), " vs. ", no_quotes(GlobalSettings::at(key)->valueString()));
+            continue;
+        }
+        
+        //Print(" * Resetting ", key);
+        combined.map.at(key).get().copy_to(&GlobalSettings::map());
+    }
+    
+    GlobalSettings::set_current_defaults(combined.map);
+    GlobalSettings::set_current_defaults_with_config(combined.map);
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex) {
@@ -1449,6 +1419,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     map["frame"] = frame;
                     map["has_neighbor"] = false;
                     map["bdx"] = pv::bid();
+                    map["px"] = Float2_t{};
+                    map["size"] = Float2_t{};
                     map["ps"] = std::vector<std::tuple<pv::bid, Probability, Probability>>{};
                     map["p"] = 0.0;
                     map["p_time"] = 0.0;
@@ -1506,6 +1478,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                 map["bdx"] = it->second.bdx;
                                 map["is_automatic"] = it->second.automatic_match;
                                 map["segment"] = it->second.segment;
+                                map["size"] = Float2_t(it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0)) * SQR(FAST_SETTING(cm_per_pixel));
+                                map["px"].toProperty<Float2_t>() = it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0);
                                 
                                 if(probs) {
                                     if(auto pit = probs->find(it->second.bdx);
@@ -1558,60 +1532,31 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
         }
     };
     
-    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new CustomElement{
-        .name = "preview",
-        .create = [](LayoutContext& context) -> Layout::Ptr {
-            [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
-            auto ptr = Layout::Make<IndividualImage>();
-            return ptr;
-        },
-        .update = [this](Layout::Ptr&o, const Context& context, State& state, const auto& patterns) {
-            auto ptr = o.to<IndividualImage>();
-            
-            Idx_t fdx;
-            Frame_t frame = _data->_cache->frame_idx;
-            
-            if(patterns.contains("fdx")) {
-                fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
-            }
-            /*if(patterns.contains("frame")) {
-                frame = Meta::fromStr<Frame_t>(parse_text(patterns.at("frame").original, context, state));
-            }*/
-            
-            if(fdx != ptr->fdx()
-               || frame != ptr->frame()
-               || ptr->settings_changed())
-            {
-                const constraints::FilterCache* cache{nullptr};
-                if(auto it = _data->_cache->filter_cache.find(fdx);
-                   it != _data->_cache->filter_cache.end())
-                {
-                    cache = it->second.get();
-                }
-                
-                pv::BlobWeakPtr blob_ptr{nullptr};
-                if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
-                   it != _data->_cache->fish_selected_blobs.end())
-                {
-                    _data->_cache->processed_frame().transform_blobs_by_bid(std::array{it->second.bdx}, [&blob_ptr](pv::Blob& blob) {
-                        blob_ptr = &blob;
-                    });
-                    
-                    if(blob_ptr) {
-                        if(blob_ptr->encoding() == Background::meta_encoding())
-                            ptr->set_data(fdx, frame, blob_ptr, _data->_cache->background(), cache, it->second.midline.get());
-                        else
-                            FormatWarning("Not displaying image yet because of the wrong encoding: ", blob_ptr->encoding(), " vs. ", Background::meta_encoding());
-                    }
-                    //else
-                    //    throw InvalidArgumentException("Cannot find pixels for ", fdx, " and ", it->second.bdx);
-                } //else
-                  //  throw InvalidArgumentException("Cannot find individual ", fdx, " in cache.");
-            }
-            
-            return false;
+    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> const track::PPFrame* {
+        if(not _data || not _data->_cache)
+            return nullptr;
+        return &_data->_cache->processed_frame();
+        
+    }, [this](Idx_t fdx) -> std::tuple<const constraints::FilterCache*, std::optional<BdxAndPred>>
+    {
+        if(not _data || not _data->_cache)
+            return {nullptr, std::nullopt};
+        
+        const constraints::FilterCache* filters{nullptr};
+        if(auto it = _data->_cache->filter_cache.find(fdx);
+           it != _data->_cache->filter_cache.end())
+        {
+            filters = it->second.get();
         }
-    });
+        
+        if(auto it = _data->_cache->fish_selected_blobs.find(fdx);
+           it != _data->_cache->fish_selected_blobs.end())
+        {
+            return {filters, it->second.clone()};
+        }
+        
+        return {filters, std::nullopt};
+    }));
     
     g.context.custom_elements["drawsegments"] = std::unique_ptr<CustomElement>(new CustomElement{
         .name = "drawsegments",

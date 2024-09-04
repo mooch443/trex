@@ -35,8 +35,7 @@ Fish::~Fish() {
 
     Fish::Fish(Individual& obj)
         :   _id(obj.identity()),
-            _info(&obj, Output::Options_t{}),
-            _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
+            _info(&obj, Output::Options_t{})
     {
         _previous_color = obj.identity().color();
         
@@ -174,15 +173,32 @@ Fish::~Fish() {
                             : nullptr;
         
         _ML = obj.midline_length();
+        _pp_midline = nullptr;
         
         if(   OPTION(gui_show_outline)
            || OPTION(gui_show_midline)
            || OPTION(gui_happy_mode))
         {
             if(_posture_stuff) {
-                _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_basic_stuff, *_posture_stuff);
+                _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_posture_stuff);
+                _pp_midline = obj.pp_midline(frameIndex);
                 assert(!_cached_midline || _cached_midline->is_normalized());
             }
+        }
+        
+        if(FAST_SETTING(posture_direction_smoothing)) {
+            std::map<Frame_t, Float2_t> interp;
+            _previous_midline_angles.clear();
+            _previous_midline_angles_d.clear();
+            _previous_midline_angles_dd.clear();
+        
+            auto movement = obj.calculate_previous_vector(_frame);
+            if(_pp_midline) {
+                midline_direction = _pp_midline->midline_direction();
+            } else midline_direction = Vec2();
+            
+            posture_direction_ = movement.direction;
+            _posture_directions = movement.directions;
         }
         
         _view.set_dirty();
@@ -288,7 +304,7 @@ Fish::~Fish() {
                 auto &mat = _image.unsafe_get_source();
                 //if(mat.index() != narrow_cast<long_t>(_frame.get()))
                 {
-                    _probability_radius = saturate(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel) * 0.5, 1, 5000);
+                    _probability_radius = saturate(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel) * 0.5_F, 1_F, 5000_F);
                     //auto coord = FindCoord::get();
                     
                     auto res_factor = max(1.0, _probability_radius * 2 / max(512, _probability_radius * 2 / 4));
@@ -1168,87 +1184,28 @@ void Fish::selection_clicked(Event) {
                 _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
             
                 if(FAST_SETTING(posture_direction_smoothing)) {
-                    std::map<Frame_t, float> angles;
-                    std::map<Frame_t, float> dangle, ddangle, interp;
-                
-                    float previous = FLT_MAX;
-                    bool hit = false;
-                    float value = 0;
-                    //size_t count_ones = 0;
-                
-                    for (auto frame = _frame - Frame_t(FAST_SETTING(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTING(posture_direction_smoothing)); ++frame)
-                    {
-                        if(_pp_midline) {
-                            auto angle = _pp_midline->original_angle();
-                            angles[frame] = angle;
-                        
-                            if(previous != FLT_MAX) {
-                                auto val = abs((Vec2(cos(previous), sin(previous)).dot(Vec2(cos(angle), sin(angle))) - 1) * 0.5);
-                            
-                                if(!dangle.empty()) {
-                                    ddangle[frame] = val - dangle.rbegin()->second;
-                                    if(ddangle[frame] <= -0.75) {
-                                        if(!hit) {
-                                            hit = true;
-                                            value = 1;
-                                        } else {
-                                            hit = false;
-                                            value = 0;
-                                        }
-                                    }
-                                }
-                            
-                                interp[frame] = value;
-                                //if(hit) {
-                                    //++count_ones;
-                                //}
-                            
-                                dangle[frame] = val;
-                            }
-                            previous = angle;
-                        }
+                    size_t i = 0;
+                    for(auto d : _posture_directions) {
+                        pos = c_pos + d * (radius + i * 5);
+                        _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{Red.alpha(50)});
+                        _view.add<Circle>(pos, Radius{3}, LineClr{Red.alpha(100)});
+                        ++i;
                     }
-                
-                    /*if(count_ones >= interp.size() * 0.5) {
-                        for(auto & [frame, n] : interp) {
-                            n = n ? 0 : 1;
-                        }
-                    }*/
-                
-                    for(auto && [frame, in] : interp) {
-                        if(frame == _frame) {
-                            _graph.set_title(Meta::toStr(ddangle.count(frame) ? ddangle.at(frame) : FLT_MAX) + " " +Meta::toStr(in));
-                        }
-                    }
-                
-                    _graph.clear();
-                    _graph.set_pos(c_pos + Vec2(radius, radius));
-                
-                    auto first_frame = interp.empty() ? 0_f : interp.begin()->first;
-                    auto last_frame = interp.empty() ? 0_f : interp.rbegin()->first;
-                    _graph.set_ranges(Rangef(first_frame.get(), last_frame.get()), Rangef(-1, 1));
-                
-                    std::vector<Vec2> points;
-                    for(auto && [frame, a] : dangle) {
-                        points.push_back(Vec2(frame.get(), a));
-                    }
-                    _graph.add_points("angle'", points);
-                
-                    points.clear();
-                    for(auto && [frame, a] : ddangle) {
-                        points.push_back(Vec2(frame.get(), a));
-                    }
-                    _graph.add_points("angle''", points);
                     
-                    points.clear();
-                    for(auto && [frame, a] : angles) {
-                        points.push_back(Vec2(frame.get(), a));
-                    }
-                    _graph.add_points("angle", points);
+                    auto _needs_invert = !FAST_SETTING(midline_invert);
+                    auto direction = _needs_invert ? midline_direction : -midline_direction;
                     
-                    _graph.set_zero(_frame.get());
-                
-                    _view.advance_wrap(_graph);
+                    auto inverted = acos((-direction).dot(posture_direction_)) < acos(direction.dot(posture_direction_));
+                    if(inverted)
+                        direction = -direction;
+                    
+                    
+                    pos = c_pos + direction * radius;
+                    _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{Yellow});
+                    
+                    pos = c_pos + posture_direction_ * radius;
+                    _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{Cyan});
+                    _view.add<Circle>(pos, Radius{3}, LineClr{inverted ? Yellow : Cyan});
                 }
             }
             
@@ -1322,7 +1279,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     
     _prev_frame_range = _range;
     
-    const float max_speed = FAST_SETTING(track_max_speed);
+    const Float2_t max_speed = FAST_SETTING(track_max_speed);
     //const float thickness = OPTION(gui_outline_thickness);
     
     auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
@@ -1363,7 +1320,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
                     frame_vertices.push_front(FrameVertex{
                         .frame = i,
                         .vertex = Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>(), get_color(stuff.get())),
-                        .speed_percentage = min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
+                        .speed_percentage = min(1_F, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
                     });
                 }
             }
@@ -1408,7 +1365,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
                     frame_vertices.push_back(FrameVertex{
                         .frame = i,
                         .vertex = Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>(), get_color(stuff.get())),
-                        .speed_percentage = min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
+                        .speed_percentage = min(1_F, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)
                     });
                 }
             }
@@ -1427,7 +1384,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
         
         ///TODO: could try to replace vertices 1by1 and get "did change" for free, before we even
         ///      try to update the object.
-        const float max_distance = SQR(Individual::weird_distance() * 0.1 / slow::cm_per_pixel);
+        const Float2_t max_distance = SQR(Individual::weird_distance() * 0.1_F / slow::cm_per_pixel);
         size_t paths_index = 0;
         _vertices.clear();
         _vertices.reserve(frame_vertices.size());
@@ -1472,19 +1429,23 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
             _vertices.emplace_back(fv.vertex.position() + offset, fv.vertex.clr().alpha(percent * 255));
         }
         
-        
-        if (_paths.size() <= paths_index) {
-            _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::COPY));
-            _paths[paths_index]->set_thickness(thickness);
-            //_view.advance_wrap(*_paths[paths_index]);
-        }
-        else {
-            auto& v = _paths[paths_index];
-            if(v->change_points() != _vertices) {
-                std::swap(v->change_points(), _vertices);
-                v->confirm_points();
-                //_view.advance_wrap(*v);
+        if(_vertices.size() > 1) {
+            if (_paths.size() <= paths_index) {
+                _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::COPY));
+                _paths[paths_index]->set_thickness(thickness);
+                //_view.advance_wrap(*_paths[paths_index]);
             }
+            else {
+                auto& v = _paths[paths_index];
+                if(v->change_points() != _vertices) {
+                    std::swap(v->change_points(), _vertices);
+                    v->confirm_points();
+                    //_view.advance_wrap(*v);
+                }
+            }
+            
+        } else if(_vertices.size() == 1 && paths_index > 0) {
+            --paths_index;
         }
         if(paths_index + 1 < _paths.size())
             _paths.resize(paths_index + 1);

@@ -373,7 +373,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     
     Midline::Ptr midline{nullptr};
     IndividualManager::transform_if_exists(_fish_id, [&](auto fish) {
-        midline = fish->calculate_midline_for(basic, *posture);
+        midline = fish->calculate_midline_for(*posture);
     });
     auto &active = Tracker::active_individuals(_frame);
     

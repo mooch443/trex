@@ -204,7 +204,7 @@ bool _callback_registered;
         if(!posture || !posture->cached())
             return GlobalSettings::invalid();
         
-        float ratio = posture->midline_length / midline->len();
+        float ratio = posture->midline_length.value() / midline->len();
         if(ratio > 1)
             ratio = 1/ratio;
         if(ratio < 0.6)

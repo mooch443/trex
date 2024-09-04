@@ -3,6 +3,7 @@
 #include <tracking/CategorizeDatastore.h>
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
+#include <misc/ThreadPool.h>
 
 //#define TREX_DEBUG_BLOBS
 
@@ -211,7 +212,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     const auto N = last_active.size();
     _individual_cache.reserve(N);
     
-    const float max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5;
+    const auto max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5_F;
     const auto frame_limit = SLOW_SETTING(frame_rate) * SLOW_SETTING(track_max_reassign_time);
     
     const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
@@ -783,7 +784,7 @@ void PPFrame::clear() {
     //split_blobs.clear();
     _num_pixels = 0;
     _pixel_samples = 0;
-    _split_objects = _split_pixels = 0;
+    //_split_objects = _split_pixels = 0;
     
     //fish_mappings.clear();
     blob_mappings.clear();

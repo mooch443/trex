@@ -1201,7 +1201,7 @@ Sample::Ptr DataStore::temporary(
             LockGuard guard(ro_t{}, "Categorize::sample");
             basic = fish->basic_stuff().at(index).get();
             auto posture = fish->posture_stuff(frame);
-            midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
+            midline = posture ? fish->calculate_midline_for(*posture) : nullptr;
             
             custom_len = *constraints::local_midline_length(fish, range);
         }

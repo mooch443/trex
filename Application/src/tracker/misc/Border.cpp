@@ -157,8 +157,8 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 return grid_cells[{uint16_t(pos.x), uint16_t(pos.y)}];
             };
             
-            const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
-            const float rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
+            const Float2_t sqcm = SQR(FAST_SETTING(cm_per_pixel));
+            const Float2_t rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
             
             Print("Reading video...");
             pv::Frame frame;
@@ -259,7 +259,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             x_range.resize(video.size().height);
             y_range.resize(video.size().width);
             
-            const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
+            const Float2_t sqcm = SQR(FAST_SETTING(cm_per_pixel));
             CPULabeling::ListCache_t cache;
             
             std::vector<pv::BlobPtr> collection;

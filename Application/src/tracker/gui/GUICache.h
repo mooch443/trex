@@ -16,6 +16,7 @@
 #include <gui/Event.h>
 #include <gui/ShadowSegment.h>
 #include <tracking/IndividualCache.h>
+#include <gui/BdxAndPred.h>
 
 class Timer;
 namespace track {
@@ -219,16 +220,6 @@ namespace globals {
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
         std::unordered_map<Idx_t, std::vector<ShadowSegment>> _individual_ranges;
-        
-        struct BdxAndPred {
-            pv::bid bdx;
-            std::optional<BasicStuff> basic_stuff;
-            std::optional<PostureStuff> posture_stuff;
-            std::optional<std::vector<float>> pred;
-            Midline::Ptr midline;
-            bool automatic_match;
-            Range<Frame_t> segment;
-        };
         
         std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
         std::map<Idx_t, BdxAndPred> fish_selected_blobs;

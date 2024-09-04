@@ -43,10 +43,10 @@ calculate_diff_image(pv::BlobWeakPtr blob,
 namespace constraints {
 
 struct FilterCache {
-    float median_midline_length_px{-1};
-    float median_number_outline_pts{-1};
-    float midline_length_px_std{-1}, outline_pts_std{-1};
-    float median_angle_diff{-1};
+    cmn::Float2_t median_midline_length_px{-1};
+    cmn::Float2_t median_number_outline_pts{-1};
+    cmn::Float2_t midline_length_px_std{-1}, outline_pts_std{-1};
+    cmn::Float2_t median_angle_diff{-1};
     
     bool empty() const { return median_midline_length_px == -1; }
     bool has_std() const { return midline_length_px_std != -1; }

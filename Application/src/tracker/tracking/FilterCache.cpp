@@ -248,15 +248,17 @@ static auto& filter_mutex() {
 }
 inline static std::map<Idx_t, std::map<Range<Frame_t>, std::shared_ptr<FilterCache>>> _filter_cache_std, _filter_cache_no_std;
 
-inline float standard_deviation(const std::set<float> & v) {
-    double sum = std::accumulate(v.begin(), v.end(), 0.0);
-    double mean = sum / v.size();
+inline Float2_t standard_deviation(const std::set<Float2_t> & v) {
+    Float2_t sum = std::accumulate(v.begin(), v.end(), 0.0_F);
+    Float2_t mean = sum / v.size();
     
-    std::vector<double> diff(v.size());
-    std::transform(v.begin(), v.end(), diff.begin(), [mean](double x) { return x - mean; });
-    double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+    std::vector<Float2_t> diff(v.size());
+    std::transform(v.begin(), v.end(), diff.begin(), [mean](Float2_t x) {
+        return x - mean;
+    });
+    Float2_t sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0_F);
     
-    return (float)std::sqrt(sq_sum / v.size());
+    return (Float2_t)std::sqrt(sq_sum / v.size());
 }
 
 std::tuple<Image::Ptr, Vec2> diff_image(
@@ -331,8 +333,8 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     if(cached_filter(fish->identity().ID(), segment, *constraints, calculate_std))
         return constraints;
     
-    Median<float> median_midline, median_outline, median_angle_diff;
-    std::set<float> midline_lengths, outline_stds;
+    Median<Float2_t> median_midline, median_outline, median_angle_diff;
+    std::set<Float2_t> midline_lengths, outline_stds;
     
     const PostureStuff* previous_midline = nullptr;
     
@@ -346,13 +348,17 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
             return true;
         
         if(posture->cached()) {
-            median_midline.addNumber(posture->midline_length);
+            auto L = posture->midline_length.value();
+            median_midline.addNumber(L);
             if(calculate_std)
-                midline_lengths.insert(posture->midline_length);
+                midline_lengths.insert(L);
             
             if(previous_midline && previous_midline->frame == frame - 1_f) {
-                auto first = Vec2(sin(previous_midline->midline_angle), cos(previous_midline->midline_angle));
-                auto second = Vec2(sin(posture->midline_angle), cos(posture->midline_angle));
+                auto pangle = previous_midline->midline_angle.value();
+                auto cangle = posture->midline_angle.value();
+                
+                auto first = Vec2(sin(pangle), cos(pangle));
+                auto second = Vec2(sin(cangle), cos(cangle));
                 auto diff = (first - second).length();
                 median_angle_diff.addNumber(diff);
             }

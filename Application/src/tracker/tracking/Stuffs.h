@@ -22,7 +22,9 @@ struct BasicStuff {
 //! calculated and present in the given frame.
 //! (There are no frame_segments available for pre-sorting requests)
 struct PostureStuff {
-    static constexpr float infinity = cmn::infinity<float>();
+    using ml_t = TrivialOptional<Float2_t, TrivialIllegalValueType::Infinity>;
+    
+    //static constexpr Float2_t infinity = cmn::infinity<Float2_t>();
     Frame_t frame;
     
     std::unique_ptr<MotionRecord> head;
@@ -31,8 +33,8 @@ struct PostureStuff {
     Midline::Ptr cached_pp_midline;
     MinimalOutline outline;
     
-    float posture_original_angle{infinity};
-    float midline_angle{infinity}, midline_length{infinity};
+    ml_t posture_original_angle;
+    ml_t midline_angle, midline_length;
     
     //!TODO: consider adding processed midline_angle and length
     //!TODO: need to fix copy operations for head etc
@@ -46,7 +48,10 @@ struct PostureStuff {
             posture_original_angle(other.posture_original_angle), 
             midline_angle(other.midline_angle),
             midline_length(other.midline_length) 
-    {}
+    {
+        assert(posture_original_angle.has_value() == midline_angle.has_value()
+               && midline_length.has_value() == midline_angle.has_value());
+    }
 
     PostureStuff& operator=(PostureStuff&& other) noexcept {
         if (this != &other) {
@@ -58,6 +63,9 @@ struct PostureStuff {
             posture_original_angle = other.posture_original_angle;
             midline_angle = other.midline_angle;
             midline_length = other.midline_length;
+            
+            assert(posture_original_angle.has_value() == midline_angle.has_value()
+                   && midline_length.has_value() == midline_angle.has_value());
         }
         return *this;
     }
@@ -85,7 +93,11 @@ struct PostureStuff {
     }
 
     ~PostureStuff() = default;
-    bool cached() const { return posture_original_angle != infinity; }
+    bool cached() const {
+        assert(posture_original_angle.has_value() == midline_angle.has_value()
+               && midline_length.has_value() == midline_angle.has_value());
+        return posture_original_angle.has_value();
+    }
 };
 
 }

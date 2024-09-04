@@ -73,13 +73,13 @@ struct PoseMidlineIndexes {
 //! calling `FAST_SETTING(name)`.
 CREATE_STRUCT(Settings,
   (uint32_t, smooth_window),
-  (float, cm_per_pixel),
+  (Float2_t, cm_per_pixel),
   (uint32_t, frame_rate),
   (bool, track_enforce_frame_rate),
   (float, track_max_reassign_time),
   (float, speed_extrapolation),
   (bool, calculate_posture),
-  (float, track_max_speed),
+  (Float2_t, track_max_speed),
   (BlobSizeRange, track_size_filter),
   (int, track_threshold),
   (int, track_threshold_2),
@@ -127,14 +127,14 @@ CREATE_STRUCT(Settings,
   (uint8_t, posture_closing_size),
   (float, individual_image_scale),
   (bool, track_pause),
-  (float, track_trusted_probability),
-  (float, recognition_segment_add_factor),
+  (Float2_t, track_trusted_probability),
+  (Float2_t, recognition_segment_add_factor),
   (bool, output_interpolate_positions),
   (bool, track_consistent_categories),
   (std::vector<std::string>, categories_ordered),
   (std::vector<std::string>, track_only_categories),
   (std::vector<std::string>, track_only_classes),
-  (float, track_conf_threshold),
+  (Float2_t, track_conf_threshold),
   (float, track_segment_max_length),
   (Size2, individual_image_size),
   (uint32_t, categories_min_sample_images),
@@ -166,6 +166,8 @@ struct slow {
     DEF_SLOW_SETTINGS(huge_timestamp_seconds);
     DEF_SLOW_SETTINGS(track_end_segment_for_speed);
     DEF_SLOW_SETTINGS(track_segment_max_length);
+    
+    DEF_SLOW_SETTINGS(posture_direction_smoothing);
 };
 
 #undef DEF_SLOW_SETTINGS

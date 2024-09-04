@@ -218,8 +218,12 @@ namespace cmn {
 
             auto task = std::async(std::launch::async, [this, pause](){
                 cmn::set_thread_name("ConnectedTasks::set_paused");
-                while(is_paused() != pause)
+                while(is_paused() != pause) {
+                    if(_paused != pause) {
+                        break;
+                    }
                     std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
                 
                 {
                     std::unique_lock lock(_finish_mutex);

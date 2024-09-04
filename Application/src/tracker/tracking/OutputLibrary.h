@@ -34,7 +34,7 @@ using namespace cmn;
     
     // , const std::function<float(float)>& options
 #define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
-#define _LIBFNC(CONTENT) LIBPARAM -> float \
+#define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
 { auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
     

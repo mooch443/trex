@@ -190,10 +190,42 @@
                                             "type": "gridlayout",
                                             "clickable":true,
                                             "name":"infos",
-                                            "vertical_clr":[0,0,0,200],
-                                            "horizontal_clr":[10,50,80,40],
+                                            "vertical_clr":[0,0,0,30],
+                                            "horizontal_clr":[10,50,80,80],
                                             "halign":"left",
                                             "children": [
+                                                [
+                                                    {
+                                                        "type": "stext",
+                                                        "max_size": "[{*:0.5:{infocard_width}}, 300]",
+                                                        "pad":[5,5,5,5],
+                                                        "font": {"size": 0.55},
+                                                        "text": "{if:{hovered:infos}:<c>[<b>Size</b>]</c>:''}"
+                                                    },
+                                                    {
+                                                        "type":"stext",
+                                                        "font": {"size": 0.55},
+                                                        "max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
+                                                        "pad":[5,5,5,5],
+                                                        "text":"<c><cyan>{primary_selection.size}</cyan><gray>cm²/px²</gray></c>"
+                                                    }
+                                                ],
+                                                [
+                                                    {
+                                                        "type": "stext",
+                                                        "max_size": "[{*:0.5:{infocard_width}}, 300]",
+                                                        "pad":[5,5,5,5],
+                                                        "font": {"size": 0.55},
+                                                        "text": "{if:{hovered:infos}:<c>[<b>Pixels</b>]</c>:''}"
+                                                    },
+                                                    {
+                                                        "type":"stext",
+                                                        "font": {"size": 0.55},
+                                                        "max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
+                                                        "pad":[5,5,5,5],
+                                                        "text":"<c><cyan>{primary_selection.px}</cyan><gray>px</gray></c>"
+                                                    }
+                                                ],
                                                 [
                                                     {
                                                         "type": "stext",
@@ -718,19 +750,28 @@
                     "children":[
                         {
                             "type": "rect",
+                            "pos": [11, -9],
+                            "size": "[{width},30]",
+                            "fill": [0,0,0,0],
+                            "line": [0,0,0,50]
+                        },
+                        {
+                            "type": "rect",
                             "pos": [10, -10],
                             "size": "[{width},30]",
-                            "fill": [30,30,30,0],
+                            "fill": [130,130,130,10],
                             "line": [255,255,255,220],
                             "clickable":true,
+                            "name":"timeline_line",
                             "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
                         },
                         {
                             "type": "rect",
                             "pos": [0,-10],
                             "size": [11,30],
-                            "fill": [30,30,30,0],
-                            "line": [255,255,255,0],
+                            "fill": "[0,0,0,{if:{hovered}:50:0}]",
+                            "line": [0,0,0,0],
+                            "name":"timeline_left_border",
                             "clickable":true,
                             "drag": "set:gui_frame:0"
                         },
@@ -738,8 +779,9 @@
                             "type": "rect",
                             "pos": "[{+:{width}:9},-10]",
                             "size": [11,30],
-                            "fill": [30,30,30,0],
+                            "fill": "[0,0,0,{if:{hovered}:50:0}]",
                             "line": [255,255,255,0],
+                            "name": "timeline_right_border",
                             "clickable":true,
                             "drag": "set:gui_frame:{length}"
                         },
@@ -747,6 +789,7 @@
                             "type": "rect",
                             "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{-:{window_size.x}:22}}},-9]",
                             "size": "[{max:0:{-:{-:{window_size.x}:11}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{width23}}}}},28]",
+                            "name":"timeline_back",
                             "fill": [0,0,0,0],
                             "line": [250,250,250,0],
                             "clickable":false
@@ -754,18 +797,37 @@
 
                         {
                             "type": "rect",
-                            "pos": "{current_pos}",
-                            "size": "[{+:10:{-:{*:{/:{max:{global.gui_frame}:{min:{min:{global.video_length}:{-:{tracker.end}:1}}:{end}}}:{length}}:{-:{window_size.x}:22}}:{at:0:{current_pos}}}},28]",
-                            "fill": [20,40,50,180],
+                            "pos": "{timeline_start}",
+                            "size": "[{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}},30]",
+                            "name":"timeline_current_offset",
+                            "fill": [50,50,50,0],
+                            "line": [50,155,250,150],
+                            "clickable":false
+                        },
+                        {
+                            "type": "rect",
+                            "pos": "[{+:11:{*:{/:{analysis_range.start}:{length}}:{-:{window_size.x}:22}}},-9]",
+                            "size": "[{*:{/:{-:{analysis_range.end}:{analysis_range.start}}:{length}}:{width}},30]",
+                            "fill": [150,150,150,50],
+                            "line": [155,155,155,0],
+                            "clickable":false
+                        },
+
+                        {
+                            "type": "rect",
+                            "pos": "[{+:11:{*:{/:{tracker.start}:{length}}:{-:{window_size.x}:22}}},-9]",
+                            "size": "[{*:{/:{-:{-:{tracker.end}:1}:{tracker.start}}:{length}}:{-:{window_size.x}:22}},28]",
+                            "name":"timeline_analysed",
+                            "fill": [5,5,5,150],
                             "line": [250,250,250,0],
                             "clickable":false
                         },
                         
                         {
                             "type": "rect",
-                            "pos": "{timeline_start}",
-                            "size": "[{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}},30]",
-                            "fill": [20,20,20,180],
+                            "pos": "{current_pos}",
+                            "size": "[1,28]",
+                            "fill": [10,10,10,0],
                             "line": [255,255,255,220],
                             "clickable":false
                         },

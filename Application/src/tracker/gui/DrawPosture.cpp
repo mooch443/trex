@@ -215,9 +215,9 @@ bool Posture::valid() const {
             std::stringstream ss;
             if(_midline) {
                 if(not _text->hovered())
-                    ss << "Length: <cyan>" << dec<2>(_midline->len() * FAST_SETTING(cm_per_pixel)).toStr() << "</cyan><i>cm</i> (<sym>ø</sym><cyan>" << dec<2>(midline_length / 1.1f * FAST_SETTING(cm_per_pixel)).toStr() << "</cyan><i>cm</i>)";
+                    ss << "Length: <cyan>" << dec<2>(_midline->len() * FAST_SETTING(cm_per_pixel)).toStr() << "</cyan><i>cm</i> (<sym>ø</sym><cyan>" << dec<2>(midline_length / 1.1_F * FAST_SETTING(cm_per_pixel)).toStr() << "</cyan><i>cm</i>)";
                 else
-                    ss << "Length: <cyan>" << dec<2>(_midline->len()).toStr() << "</cyan><i>px</i> (<sym>ø</sym><cyan>" << dec<2>(midline_length / 1.1f).toStr() << "</cyan><i>px</i>)";
+                    ss << "Length: <cyan>" << dec<2>(_midline->len()).toStr() << "</cyan><i>px</i> (<sym>ø</sym><cyan>" << dec<2>(midline_length / 1.1_F).toStr() << "</cyan><i>px</i>)";
             } else
                 ss << "<orange>no midline</orange>";
             

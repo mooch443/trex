@@ -195,6 +195,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 item.output_prefix = SETTING(output_prefix).value<std::string>();
                 item.output_dir = SETTING(output_dir).value<file::Path>().str();
                 item.modified = timestamp_t::now().get();
+                item.settings = {};
                 for(auto &key : config.keys())
                     item.settings[key] = config.at(key).get().to_json();
                 //    config.at(key).get().copy_to(&item._options);

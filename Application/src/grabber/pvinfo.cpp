@@ -314,8 +314,8 @@ int main(int argc, char**argv) {
         
         SETTING(crop_offsets) = video.header().offsets;
         
-        if(!video.header().metadata.empty())
-            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata);
+        if(video.header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata.value());
         
         if(!be_quiet)
             video.print_info();
@@ -370,7 +370,7 @@ int main(int argc, char**argv) {
         }
         
         if(SETTING(write_settings)) {
-            auto text = default_config::generate_delta_config().to_settings();
+            auto text = default_config::generate_delta_config(AccessLevelType::PUBLIC).to_settings();
             auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
             
             if(filename.exists() && !be_quiet)
@@ -479,8 +479,11 @@ int main(int argc, char**argv) {
             // new instance with modify rights
             auto video = pv::File::Write<pv::FileMode::MODIFY>(name, 1);
             
-            std::vector<std::string> keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata).keys();
-            sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata);
+            std::vector<std::string> keys;
+            if(video.header().metadata.has_value()) {
+                keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata.value()).keys();
+                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata.value());
+            }
             
             for (auto &[k,v] : updated_settings) {
                 if(!contains(keys, k)) {
@@ -639,10 +642,10 @@ int main(int argc, char**argv) {
             SETTING(video_length) = uint64_t(video.length().get());
         }
         
-        if(SETTING(meta_real_width).value<float>() == 0)
-            SETTING(meta_real_width) = float(30.0);
-        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-            SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(average.cols);
+        if(SETTING(meta_real_width).value<Float2_t>() == 0)
+            SETTING(meta_real_width) = Float2_t(30.0);
+        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<Float2_t>() == 0)
+            SETTING(cm_per_pixel) = Float2_t(SETTING(meta_real_width).value<Float2_t>() / Float2_t(average.cols));
         
         path = path.add_extension("results");
         
@@ -656,7 +659,7 @@ int main(int argc, char**argv) {
         GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
-        track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<float>());
+        track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<Float2_t>());
         
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             Output::TrackingResults results(tracker);

@@ -243,10 +243,9 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                         auto filter = constraints::local_midline_length(fish, range, false);
                         median_midline_length_px = filter->median_midline_length_px;
                         
-                        auto basic = fish->basic_stuff(index);
                         auto posture = fish->posture_stuff(index);
-                        if(posture && basic) {
-                            Midline::Ptr midline = fish->calculate_midline_for(*basic, *posture);
+                        if(posture) {
+                            Midline::Ptr midline = fish->calculate_midline_for(*posture);
                             if(midline)
                                 midline_transform = midline->transform(individual_image_normalization);
                             else {

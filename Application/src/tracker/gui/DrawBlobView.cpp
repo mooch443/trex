@@ -638,7 +638,10 @@ void draw_blob_view(const DisplayParameters& parm)
                 {
                     float d = FLT_MAX;
                     auto c = parm.cache.processed_frame().cached(id);
-                    if(frame > Tracker::start_frame() && c) {
+                    if(Tracker::start_frame().valid()
+                       && frame > Tracker::start_frame()
+                       && c)
+                    {
                         d = (c->estimated_px - blob_pos).length();
                     }
                     uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 2) & 0xFFFFFFFF) << 32);
@@ -768,9 +771,9 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                         Print("Value is: ", value);
                         
                         if(value > 0) {
-                            SETTING(cm_per_pixel) = float(value / D);
+                            SETTING(cm_per_pixel) = Float2_t(value / D);
                             
-                            base.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<float>())+"</nr>.");
+                            base.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.");
                             
                             return true;
                         }
@@ -960,7 +963,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                         Rotation(a));
                     
                     base.text(
-                        Str(Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm"), 
+                        Str(Meta::toStr(D * SETTING(cm_per_pixel).value<Float2_t>())+" cm"), 
                         Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                         TextClr{Cyan.alpha(200)}, 
                         font, 
