@@ -91,7 +91,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "segment_size_filter", BlobSizeRange({Rangef(0.1f, 1000.f)}),
             //"meta_encoding", meta_encoding_t::rgb8,
             "track_do_history_split", true,
-            "detect_classes", std::map<uint16_t, std::string>{},
+            "detect_classes", detect::yolo::names::owner_map_t{},
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
             "track_max_reassign_time", 0.5f,
@@ -366,7 +366,7 @@ void load(file::PathArray source,
                     Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
                 }*/
                 if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
-                    Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
+                    //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
                     from.at(key).get().copy_to(&combined.map);
                     was_different = true;
                 }
@@ -374,39 +374,39 @@ void load(file::PathArray source,
                 if(key == "detect_type")
                     type = from.at(key).value<decltype(type)>();
             }
-            else {
+            /*else {
                 Print("/// ", key, " is already set to ", combined.map.at(key).get().valueString());
-            }
+            }*/
         }
         
         if(not current_defaults.has(key)
            || current_defaults.at(key) != from.at(key))
         {
             //if(do_print)
-                Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
+            //    Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
             if (not GlobalSettings::defaults().has(key)
                 || GlobalSettings::defaults().at(key) != from.at(key)) 
             {
                 from.at(key).get().copy_to(&current_defaults);
-                Print("/// [current_defaults] ", current_defaults.at(key).get());
+                //Print("/// [current_defaults] ", current_defaults.at(key).get());
             }
             else if (current_defaults.has(key)) 
             {
-                Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
+                //Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
                 current_defaults.erase(key);
             }
             else {
                 /// we dont have it, but it is default
-                Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+                //Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
             }
             
         } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
         else if(current_defaults.has(key)) {
-            Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+            //Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
             //current_defaults.erase(key);
         }
         else {
-            Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+            //Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
 		}
         
         return was_different;
@@ -777,6 +777,30 @@ void load(file::PathArray source,
                         set_config_if_different("meta_real_width", combined.map);
                     }
                     
+                    if ((not combined.map.has("frame_rate")
+                        || combined.map.at("frame_rate").value<uint>() == 0)
+                        && not source_map.has("frame_rate"))
+                    {
+                        tmp.at("frame_rate").get().copy_to(&combined.map);
+                        set_config_if_different("frame_rate", combined.map);
+                    }
+                    
+                    if ((not combined.map.has("cm_per_pixel")
+                         || combined.map.at("cm_per_pixel").value<Float2_t>() == 0)
+                        && not source_map.has("cm_per_pixel"))
+                    {
+                        tmp.at("cm_per_pixel").get().copy_to(&combined.map);
+                        set_config_if_different("cm_per_pixel", combined.map);
+                    }
+                    
+                    if((not source_map.has("detect_type")
+                        || source_map.at("detect_type").value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
+                       && tmp.has("detect_type"))
+                    {
+                        tmp.at("detect_type").get().copy_to(&combined.map);
+                        set_config_if_different("detect_type", combined.map);
+                    }
+                    
                 } catch(const std::exception& ex) {
                     FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
                 }
@@ -835,7 +859,7 @@ void load(file::PathArray source,
             auto manual_exclude = changed_model_manually
                     ? (exclude + exclude_from_external).toVector()
                     : exclude.toVector();
-            Print("// Excluding ", manual_exclude, " from settings file.");
+            //Print("// Excluding ", manual_exclude, " from settings file.");
 
             auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, manual_exclude, &map, &combined.map);
             
@@ -854,21 +878,21 @@ void load(file::PathArray source,
             //combined.map.set_print_by_default(false);
 
             for(auto &key : map.keys()) {
-                if(not set_config_if_different(key, map)) {
+                /*if(not set_config_if_different(key, map)) {
                     Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
-                }
+                }*/
                 
                 map.at(key).get().copy_to(&GlobalSettings::current_defaults_with_config());
             }
             //combined.map.set_print_by_default(before);
             //exclude_from_pv = exclude_from_pv + map.keys();
             
-            for(auto &[key, value] : rejected) {
+            /*for(auto &[key, value] : rejected) {
                 if(not map.has(key) || not combined.map.has(key) || map.at(key) != combined.map.at(key)) {
                     // has been ignored
                     Print("// not setting ", key);
                 }
-            }
+            }*/
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
@@ -883,7 +907,7 @@ void load(file::PathArray source,
     /// -------------------------------------
     if(not source_map.empty()) {
         G g("GUI settings");
-        Print("gui settings contains: ", source_map.keys());
+        //Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -893,7 +917,7 @@ void load(file::PathArray source,
                 {
                     /// can be ignored / no print-out since it would
                     /// not change anything
-                    Print("// Can ignore ", key, " from source map.");
+                    //Print("// Can ignore ", key, " from source map.");
                     continue;
                 }
                 Print("// Not allowed to copy ", key, " from source map.");
@@ -973,7 +997,7 @@ void load(file::PathArray source,
         }
     }
     
-    Print("current defaults = ", current_defaults.keys());
+    //Print("current defaults = ", current_defaults.keys());
     GlobalSettings::current_defaults_with_config() = current_defaults;
     
     CommandLine::instance().reset_settings({

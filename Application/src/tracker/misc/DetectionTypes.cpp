@@ -12,7 +12,7 @@ namespace yolo {
 namespace names {
 
 std::mutex names_mutex;
-std::optional<std::map<uint16_t, std::string>> names_owner;
+std::optional<owner_map_t> names_owner;
 std::optional<map_t> easy_cp_names_reference;
 std::optional<vec_t> easy_cp_names_vector;
 
@@ -28,14 +28,14 @@ void check_callbacks() {
             "detect_classes"
         }, [](auto) {
             std::unique_lock g(names_mutex);
-            names_owner = SETTING(detect_classes).value<std::map<uint16_t, std::string>>();
+            names_owner = SETTING(detect_classes).value<owner_map_t>();
             easy_cp_names_vector.reset();
             easy_cp_names_reference.reset();
         });
     });
 }
 
-const std::map<uint16_t, std::string>& raw_names() {
+const owner_map_t& raw_names() {
     
     //std::unique_lock g(names_mutex);
     return names_owner.value();

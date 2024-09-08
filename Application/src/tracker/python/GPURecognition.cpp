@@ -352,6 +352,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readonly("use_tracking", &ModelConfig::use_tracking)
         .def_readonly("model_path", &ModelConfig::model_path)
         .def_readwrite("trained_resolution", &ModelConfig::trained_resolution)
+        .def_readwrite("classes", &ModelConfig::classes)
         .def_readwrite("output_format", &ModelConfig::output_format)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)

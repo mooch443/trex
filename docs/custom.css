@@ -73,3 +73,11 @@ p:has(.green-text) {
     margin-bottom: 1px;
     margin-left: 1px;
 }
+
+figcaption, figcaption p .caption-text, figcaption p .caption-number {
+    font-size: 0.9em;
+    text-align: center;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    color: #666;
+}

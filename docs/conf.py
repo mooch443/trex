@@ -21,7 +21,7 @@ numfig = True
 # -- Project information -----------------------------------------------------
 
 project = 'TRex'
-copyright = '2020, Tristan Walter'
+copyright = '2024, Tristan Walter'
 author = 'Tristan Walter'
 
 
@@ -63,10 +63,10 @@ master_doc = 'contents'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = [ 
-    "custom.css"
+    #"css/custom.css"
 ]
 html_css_files = [
-    "custom.css"
+    #"css/custom.css"
 ]
 
 html_theme_options = {

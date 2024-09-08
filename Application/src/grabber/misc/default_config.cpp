@@ -109,7 +109,7 @@ namespace default_config {
         CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", INIT);
         CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", INIT);
         
-        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "If set to a valid value (!= -1), start and end values determine the range converted.", INIT);
+        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "This determines which part of the video will be converted. By default (`[-1,-1]`) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other).", INIT);
         
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", INIT);
@@ -122,7 +122,7 @@ namespace default_config {
         CONFIG("terminate_error", false, "Internal variable.", SYSTEM);
         
         CONFIG("web_time_threshold", float(0.125), "Time-threshold after which a new request can be answered (prevents DDoS).");
-        CONFIG("tgrabs_use_threads", true, "Use threads to process images (specifically the blob detection).", STARTUP);
+        //CONFIG("tgrabs_use_threads", true, "Use threads to process images (specifically the blob detection).", STARTUP);
         CONFIG("video_reading_use_threads", true, "Use threads to read images from a video file.", STARTUP);
         CONFIG("adaptive_threshold_scale", float(2), "Threshold value to be used for adaptive thresholding, if enabled.");
         CONFIG("use_adaptive_threshold", false, "Enables or disables adaptive thresholding (slower than normal threshold). Deals better with weird backgrounds.");

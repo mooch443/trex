@@ -384,10 +384,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
-        static const auto detect_classes = std::map<uint16_t, std::string>{
-            {0, "person"}
-        };
-        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.", AccessLevelType::SYSTEM);
+        static const auto detect_classes = track::detect::yolo::names::owner_map_t{};
+        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
         CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_real_width", Float2_t(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", INIT);
@@ -899,6 +897,25 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gpu_torch_no_fixes"
         };
         
+        if(auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+           format != track::detect::ObjectDetectionFormat::poses)
+        {
+            exclude_fields.push_back("detect_skeleton");
+        }
+        
+        if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
+           type != track::detect::ObjectDetectionType::yolo8)
+        {
+            exclude_fields.push_back("detect_iou_threshold");
+            exclude_fields.push_back("detect_skeleton");
+            exclude_fields.push_back("detect_conf_threshold");
+            exclude_fields.push_back("detect_model");
+        }
+        
+        if(SETTING(region_model).value<file::Path>().empty()) {
+            exclude_fields.push_back("region_model");
+        }
+        
         /**
          * Exclude some settings based on what would automatically be assigned
          * if they weren't set at all.
@@ -921,8 +938,16 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "meta_source_path",
             "meta_real_width",
             "detect_type",
-            "meta_encoding"
+            "meta_encoding",
+            "cm_per_pixel"
         };
+        
+        if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
+           type == track::detect::ObjectDetectionType::yolo8)
+        {
+            explicitly_include.emplace("detect_classes");
+        }
+        
         if(video) {
             sprite::Map tmp;
             try {

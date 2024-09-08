@@ -76,6 +76,7 @@ If you use this software in your work, please cite our `open-access paper <https
    :caption: Contents:
    :hidden:
    
+   tutorials
    install
    run
    update

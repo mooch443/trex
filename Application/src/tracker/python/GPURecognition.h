@@ -62,6 +62,7 @@ struct TREX_EXPORT ModelConfig {
     std::string model_path;
     DetectResolution trained_resolution;
     ObjectDetectionFormat::data::values output_format;
+    detect::yolo::names::owner_map_t classes;
 };
 
 struct TREX_EXPORT Rect {

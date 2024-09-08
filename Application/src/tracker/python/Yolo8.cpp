@@ -98,6 +98,10 @@ void Yolo8::reinit(ModuleProxy& proxy) {
         if(config.task == ModelTaskType::detect) {
             SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
             SETTING(detect_resolution) = config.trained_resolution;
+            if(SETTING(detect_classes).value<detect::yolo::names::owner_map_t>().empty()) {
+                Print("// Loading classes from model.");
+                SETTING(detect_classes) = config.classes;
+            }
         } else if(config.task == ModelTaskType::region) {
             SETTING(region_resolution) = config.trained_resolution;
         }

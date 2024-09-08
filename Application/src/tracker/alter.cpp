@@ -59,6 +59,8 @@
 #endif
 
 #include <gui/GuiSettings.h>
+#include <gui/Terminal.h>
+#include <gui/CalibrateScene.h>
 
 using namespace gui;
 static_assert(ObjectDetection<Yolo8>);
@@ -68,6 +70,7 @@ namespace ind = indicators;
 using namespace default_config;
 
 bool wants_to_load{false};
+bool pause_stuff{false};
 
 void save_rst_files() {
     auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels());
@@ -140,6 +143,15 @@ TRexTask determineTaskType() {
     }
     
     return TRexTask_t::convert;
+}
+
+void check_pause() {
+    if(not pause_stuff)
+        return;
+    
+    pause_stuff = false;
+    
+    terminal::open_terminal();
 }
 
 void launch_gui(std::future<void>& f) {
@@ -244,6 +256,9 @@ void launch_gui(std::future<void>& f) {
     
     AnnotationScene annotations{base};
     manager.register_scene(&annotations);
+    
+    CalibrateScene calibrate{base};
+    manager.register_scene(&calibrate);
 
     LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
@@ -329,6 +344,8 @@ void launch_gui(std::future<void>& f) {
             f.get();
         }
         manager.update(&base, *base.graph());
+        
+        check_pause();
     });
     
     manager.clear();
@@ -371,7 +388,10 @@ static void signal_handler(int sig) {
         //dumpstack();
         panic("FATAL: %s Fault. Logged StackTrace\n", (sig == SIGSEGV) ? "Segmentation" : ((sig == SIGBUS) ? "Bus" : "Unknown"));
     }
-    if (sig == SIGQUIT) panic("QUIT signal ended program\n");
+    if (sig == SIGQUIT) {
+        //panic("QUIT signal ended program\n");
+        pause_stuff = true;
+    }
     if (sig == SIGKILL) panic("KILL signal ended program\n");
     if(sig == SIGINT) {
         if(!SETTING(terminate_error))

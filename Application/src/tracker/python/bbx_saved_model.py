@@ -297,9 +297,9 @@ class Model:
             if isinstance(imgsz, int):
                 imgsz = [imgsz, imgsz]
             self.config.trained_resolution = DetectResolution(imgsz[1], imgsz[0])
+            self.config.classes = self.ptr.names
             TRex.log(f"set trained_resolution = {self.config.trained_resolution}")
 
-            TRex.setting("detect_classes", str(self.ptr.names))
         except Exception as e:
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
