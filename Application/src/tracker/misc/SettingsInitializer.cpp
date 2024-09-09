@@ -878,9 +878,9 @@ void load(file::PathArray source,
             //combined.map.set_print_by_default(false);
 
             for(auto &key : map.keys()) {
-                /*if(not set_config_if_different(key, map)) {
-                    Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
-                }*/
+                if(not set_config_if_different(key, map)) {
+                    //Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
+                }
                 
                 map.at(key).get().copy_to(&GlobalSettings::current_defaults_with_config());
             }

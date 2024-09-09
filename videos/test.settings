@@ -16,5 +16,7 @@ averaging_method = mode
 auto_no_results = true
 output_format = csv
 threshold = 9
+track_threshold = 9
+track_posture_threshold = 9
 meta_real_width = 2304
 outline_resample = 0.5
