@@ -1414,7 +1414,7 @@ Midline::Ptr Midline::normalize(Float2_t fix_length, bool debug) const {
         
         auto &seg = reduced[i];
         auto pt = tf.transformPoint(seg.pos);
-        rotated.emplace_back( seg.height, seg.l_length, pt );
+        rotated.emplace_back(MidlineSegment{ seg.height, seg.l_length, pt });
     }
     
     auto front = rotated.front().pos;
