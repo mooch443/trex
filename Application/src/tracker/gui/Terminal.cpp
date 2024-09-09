@@ -65,7 +65,7 @@ void open_terminal() {
                 py::schedule([copy]() {
                     using py = track::PythonIntegration;
                     
-                    print("Executing ",copy);
+                    Print("Executing ",copy);
                     try {
                         py::execute(copy);
                     } catch(const SoftExceptionImpl& e) {
