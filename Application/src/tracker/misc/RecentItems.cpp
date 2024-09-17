@@ -168,6 +168,16 @@ RecentItems RecentItems::read() {
         }
         catch (const std::exception& e) {
             FormatWarning("Cannot open recent files file: ", e.what());
+            
+            try {
+                if(path.delete_file()) {
+                    FormatWarning("Deleted broken file.");
+                } else {
+                    FormatError("Failed to delete broken file at ", path, ". Please check permissions.");
+                }
+            } catch(...) {
+                // pass
+            }
         }
     }
     
@@ -221,19 +231,39 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
 }
 
 void RecentItems::write() {
-    auto path = file::DataLocation::parse("app", ".trex_recent_files");
+    auto path = file::DataLocation::parse("app", ".trex_recent_files.backup");
     try {
         RecentItemFile file{
             .entries = _items,
             .modified = timestamp_t::now().get()
         };
         
-        auto f = path.fopen("wb");
-        auto dump = glz::write_json(file);
-        fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
+        {
+            auto f = path.fopen("wb");
+            auto dump = glz::write_json(file);
+            fwrite(dump.c_str(), sizeof(uchar), dump.length(), f.get());
+        }
 
         //Print("Updated recent files: ", dump.c_str());
-
+        
+        auto destination = file::DataLocation::parse("app", ".trex_recent_files");
+        try {
+            if(destination.is_regular()) {
+                if(not destination.delete_file()) {
+                    FormatWarning("Cannot delete file at ", destination,". Please check file permissions.");
+                }
+            } else {
+                FormatError("The recent files state cannot be saved since ", destination, " points to a folder. Please remove this folder to able to use this feature again.");
+            }
+            
+        } catch(...) {
+            FormatWarning("Cannot delete file at ", destination);
+        }
+        
+        if(not path.move_to(path.remove_extension())) {
+            FormatError("There was an error moving ", path, " to ", destination, ". Please check permissions.");
+        }
+            
     }
     catch (...) {
         FormatWarning("Cannot open recent files file.");

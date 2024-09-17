@@ -50,6 +50,8 @@ private:
     
 public:
     BlurryVideoLoop(const std::string& name = "VideoBackground");
+    BlurryVideoLoop(const BlurryVideoLoop&) = delete;
+    BlurryVideoLoop(BlurryVideoLoop&&) = delete;
     
     void preloader_thread(const ThreadGroupId& gid);
     

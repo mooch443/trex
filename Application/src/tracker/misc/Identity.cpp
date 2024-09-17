@@ -48,7 +48,7 @@ Identity Identity::Make(Idx_t idx) {
 
 const std::string& Identity::raw_name() {
     auto names = Settings::get<Settings::individual_names>();
-    auto it = names->find(_myID.get());
+    auto it = names->find(_myID);
     if(it != names->end()) {
         _name = it->second;
     }
@@ -58,7 +58,7 @@ const std::string& Identity::raw_name() {
 std::string Identity::name() const {
     {
         auto names = Settings::get<Settings::individual_names>();
-        auto it = names->find(_myID.get());
+        auto it = names->find(_myID);
         if(it != names->end()) {
             return it->second;
         }
@@ -68,7 +68,7 @@ std::string Identity::name() const {
 
 std::string Identity::raw_name() const {
     auto names = Settings::get<Settings::individual_names>();
-    auto it = names->find(_myID.get());
+    auto it = names->find(_myID);
     if(it != names->end()) {
         return it->second;
     }

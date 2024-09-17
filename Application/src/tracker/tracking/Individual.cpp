@@ -1353,17 +1353,10 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         if(!midline)
             return nullptr;
         
-        size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTING(posture_head_percentage))));
-        auto pt = midline->segments().at(head_index).pos;
+        const size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTING(posture_head_percentage))));
         
-        float angle = midline->angle() + M_PI;
-        float x = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
-        float y = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
-        
-        auto bounds = blob.calculate_bounds();
-        
-        pt = Vec2(x, y);
-        pt += bounds.pos() + midline->offset();
+        const auto bounds = blob.calculate_bounds();
+        const auto pt = midline->real_point(bounds, head_index);
         
         const PostureStuff* previous = nullptr;
         if (posture_it != _posture_stuff.begin()) {
@@ -1403,13 +1396,18 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         
         // calculate midline centroid
         Vec2 centroid_point(0, 0);
-        auto points = outline.uncompress();
-        
-        for (auto &p : points) {
-            centroid_point += p;
+        if(midline && not midline->segments().empty()) {
+            centroid_point = midline->real_point(bounds, min(midline->segments().size() / 2u, midline->segments().size() - 1u));
+            
+        } else {
+            auto points = outline.uncompress();
+
+            for (auto &p : points) {
+                centroid_point += p;
+            }
+            centroid_point /= float(points.size());
+            centroid_point += bounds.pos();
         }
-        centroid_point /= float(points.size());
-        centroid_point += bounds.pos();
         
         posture.centroid_posture = std::make_unique<MotionRecord>();
         posture.centroid_posture->init(previous
@@ -1428,7 +1426,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
             {
                 assert(posture.cached_pp_midline->original_angle() != FLT_MAX
                        && posture.cached_pp_midline->original_angle() != std::numeric_limits<Float2_t>::infinity());*/
-        auto oangle = posture.cached_pp_midline->original_angle();
+        //auto oangle = posture.cached_pp_midline->original_angle();
         auto nangle = midline->original_angle();
         assert(nangle != FLT_MAX
                && nangle != std::numeric_limits<Float2_t>::infinity());

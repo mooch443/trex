@@ -1427,9 +1427,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     map["ps"] = std::vector<std::tuple<pv::bid, Probability, Probability>>{};
                     map["p"] = 0.0;
                     map["p_time"] = 0.0;
-                    map["color"] = Identity::Temporary(fdx).color();
+                    auto _id = Identity::Temporary(fdx);
+                    map["color"] = _id.color();
                     map["is_automatic"] = false;
                     map["segment"] = Range<Frame_t>{};
+                    map["name"] = _id.name();
                     
                     auto probs = fdx.valid()
                         ? _data->_cache->probs(fdx)

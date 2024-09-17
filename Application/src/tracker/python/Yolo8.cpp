@@ -494,7 +494,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         //Print("We have detected ", points.size(), " outlines here but only use the first one.");
         
         /// we may have to downsample outlines
-        const float outline_compression = FAST_SETTING(outline_compression);
+        const auto outline_compression = FAST_SETTING(outline_compression);
         
         std::vector<std::vector<Vec2>> all;
         std::vector<Vec2> reduced;

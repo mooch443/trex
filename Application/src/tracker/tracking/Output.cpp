@@ -128,11 +128,43 @@ uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
         ref.write<uint16_t>(pt.y);
     }
     
-    ref.write<uint8_t>(narrow_cast<uint8_t>(pred.outlines.lines.size(), tag::fail_on_error{}));
-    for(const blob::SegmentedOutlines::Outline &line : pred.outlines.lines) {
-        ref.write<uint16_t>(narrow_cast<uint16_t>(line._points.size(), tag::fail_on_error{}));
-        for(auto &pt : line._points)
-            ref.write<int32_t>(pt);
+    if(pred.outlines.lines.size() >= 255) {
+#ifndef NDEBUG
+        Size2 dim(5120, 2700);
+        cv::Mat mat = cv::Mat::zeros(dim.height, dim.width, CV_8UC3);
+        gui::ColorWheel wheel;
+        for(auto &outline : pred.outlines.lines) {
+            auto clr = wheel.next();
+            Vec2 previous = outline[outline.size() - 1u];
+            for(size_t i = 0; i < outline.size(); ++i) {
+                auto pt = outline[i];
+                cv::line(mat, previous, pt, clr);
+                previous = pt;
+            }
+        }
+        tf::imshow("too many sub-outlines", mat);
+#endif
+        
+        static constexpr auto limit = std::numeric_limits<uint8_t>::max();
+        FormatWarning("Prediction ", pred, " has too many outlines: ", pred.outlines.lines.size(), ". Only saving the first ",limit,".");
+        
+        const uint8_t N = static_cast<uint8_t>(min(pred.outlines.lines.size(), limit));
+        ref.write<uint8_t>(N);
+        
+        for(uint8_t i = 0; i < N; ++i) {
+            const blob::SegmentedOutlines::Outline &line = pred.outlines.lines[i];
+            ref.write<uint16_t>(narrow_cast<uint16_t>(line._points.size(), tag::fail_on_error{}));
+            for(auto &pt : line._points)
+                ref.write<int32_t>(pt);
+        }
+        
+    } else {
+        ref.write<uint8_t>(narrow_cast<uint8_t>(pred.outlines.lines.size(), tag::fail_on_error{}));
+        for(const blob::SegmentedOutlines::Outline &line : pred.outlines.lines) {
+            ref.write<uint16_t>(narrow_cast<uint16_t>(line._points.size(), tag::fail_on_error{}));
+            for(auto &pt : line._points)
+                ref.write<int32_t>(pt);
+        }
     }
     
     if(pred.outlines.has_original_outline()) {
@@ -500,7 +532,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         auto id = Identity::Temporary( Idx_t{ID} );
         if(name != id.raw_name() && !name.empty()) {
             auto map = FAST_SETTING(individual_names);
-            map[ID] = name;
+            map[Idx_t{ID}] = name;
             SETTING(individual_names) = map;
         }
     }

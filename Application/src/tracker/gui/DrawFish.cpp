@@ -40,10 +40,19 @@ Fish::~Fish() {
         _previous_color = obj.identity().color();
         
         assert(_id.ID().valid());
-        auto ID = _id.ID();
+        //auto ID = _id.ID();
         //_view.set_clickable(true);
         //_circle.set_clickable(true);
         _posture.set_origin(Vec2(0));
+        _view.set_name(_id.name());
+        
+        _tight_selection.set_clickable(true);
+        _tight_selection.on_hover([this](Event e) {
+            selection_hovered(e);
+        });
+        _tight_selection.on_click([this](Event e) {
+            selection_clicked(e);
+        });
     }
 
     void Fish::check_tags() {
@@ -114,6 +123,9 @@ Fish::~Fish() {
         //    return;
         
         _path_dirty = true;
+        if(_frame != frameIndex) {
+            _frame_change.reset();
+        }
         _frame = frameIndex;
         
         _library_y = GlobalSettings::invalid();
@@ -405,21 +417,27 @@ Fish::~Fish() {
             }
         }
         
-        if(_basic_stuff) {
-            const auto centroid = _basic_stuff.has_value()
-                ? &_basic_stuff->centroid
-                : nullptr;
+        {
+            const auto centroid = _posture_stuff.has_value() && _posture_stuff->centroid_posture
+                    ? _posture_stuff->centroid_posture.get()
+                    : (_basic_stuff.has_value()
+                        ? &_basic_stuff->centroid
+                        : nullptr);
             const Vec2 offset = -_blob_bounds.pos();
-            auto c_pos = centroid->pos<Units::PX_AND_SECONDS>() + offset;
+            auto c_pos = centroid
+                ? (centroid->pos<Units::PX_AND_SECONDS>() + offset)
+                : Vec2(_blob_bounds.size() * 0.5_F);
             
-            float angle = -centroid->angle();
+            auto angle = centroid ? -centroid->angle() : 0_F;
             if (_posture_stuff.has_value()
                 && _posture_stuff->head)
             {
                 angle = -_posture_stuff->head->angle();
             }
             
-            setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle);
+            if(setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle)) {
+                _view.set_animating(false);
+            }
         }
     }
     
@@ -428,107 +446,327 @@ Fish::~Fish() {
         window.image(blob_bounds.pos(), _image);
     }*/
 
-void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const Vec2& , Float2_t angle)
+// Insert points uniformly into a vector until its size matches the target size
+void insertUniformPoints(std::vector<Vec2>& vec, size_t targetSize) {
+    size_t currentSize = vec.size();
+    if (currentSize >= targetSize) return;
+
+    // Step 1: Calculate the total length of the polyline formed by the current points
+    float totalLength = 0.0f;
+    std::vector<float> segmentLengths(currentSize - 1);
+    for (size_t i = 0; i < currentSize - 1; ++i) {
+        segmentLengths[i] = euclidean_distance(vec[i], vec[i + 1]);
+        totalLength += segmentLengths[i];
+    }
+
+    // Step 2: Calculate the required distance between each point in the final vector
+    float desiredSpacing = totalLength / (targetSize - 1);
+
+    // Step 3: Walk along the original segments and insert new points
+    std::vector<Vec2> newVec;
+    newVec.push_back(vec[0]);  // Start with the first point
+
+    float accumulatedDistance = 0.0f;
+    size_t currentSegment = 0;
+
+    // Loop until we have inserted all required points
+    for (size_t i = 1; i < targetSize - 1; ++i) {
+        float targetDistance = i * desiredSpacing;
+
+        // Advance along the segments until we reach the desired distance
+        while (accumulatedDistance + segmentLengths[currentSegment] < targetDistance) {
+            accumulatedDistance += segmentLengths[currentSegment];
+            currentSegment++;
+        }
+
+        // Calculate the exact position of the new point within the current segment
+        float remainingDistance = targetDistance - accumulatedDistance;
+        float t = remainingDistance / segmentLengths[currentSegment];  // Fraction along the current segment
+
+        // Interpolate to find the new point
+        Vec2 newPoint = lerp(vec[currentSegment], vec[currentSegment + 1], t);
+        newVec.push_back(newPoint);
+    }
+
+    // Add the last point
+    newVec.push_back(vec.back());
+
+    vec = newVec;  // Update the original vector
+}
+
+// Find the optimal rotation that minimizes the total distance between source and target
+size_t findOptimalRotation(const std::vector<Vec2>& source, const std::vector<Vec2>& target) {
+    size_t bestRotation = 0;
+    Float2_t minDistance = std::numeric_limits<Float2_t>::max();
+    size_t N = source.size();
+
+    // Ensure source and target are of the same size
+    if (N != target.size() || N == 0) {
+        throw std::invalid_argument("Source and target vectors must be of the same non-zero size.");
+    }
+
+    // Precompute distances for all possible shifts
+    for (size_t shift = 0; shift < N; ++shift) {
+        Float2_t totalDistance = 0;
+
+        for (size_t i = 0; i < N; ++i) {
+            size_t sourceIndex = (i + shift) % N;
+            totalDistance += sqdistance(source[sourceIndex], target[i]);
+
+            // Early exit if totalDistance exceeds minDistance
+            if (totalDistance >= minDistance) {
+                break;
+            }
+        }
+
+        if (totalDistance < minDistance) {
+            minDistance = totalDistance;
+            bestRotation = shift;
+        }
+    }
+
+    return bestRotation;
+}
+
+// Function to calculate the center (centroid) of a set of points
+Vec2 calculateCenter(const std::vector<Vec2>& points) {
+    Vec2 center(0_F, 0_F);
+    for (const auto& p : points)
+        center += p;
+    center /= static_cast<Float2_t>(points.size());
+    return center;
+}
+
+// Function to adjust points relative to a center point
+void adjustPointsRelativeToCenter(std::vector<Vec2>& points, const Vec2& center, bool subtract) {
+    for (auto& p : points) {
+        if (subtract) {
+            p.x -= center.x;
+            p.y -= center.y;
+        } else {
+            p.x += center.x;
+            p.y += center.y;
+        }
+    }
+}
+
+Float2_t easeInOutQuad(Float2_t t) {
+    if (t < 0.5_F) {
+        return 2._F * t * t;
+    } else {
+        return -1._F + (4._F - 2._F * t) * t;
+    }
+}
+
+Float2_t easeOutCubic(Float2_t t) {
+    t -= 1._F;
+    return t * t * t + 1._F;
+}
+
+
+bool morphVectorsWithRotation(std::vector<Vec2>& source, std::vector<Vec2>& target, Float2_t dt, Float2_t threshold) {
+    // Ensure both source and target are not empty
+    if (source.empty()) {
+        source = target;
+        return true;
+    }
+
+    //Print("Morphing vectors with dt =", dt, ", threshold =", threshold);
+
+    // Step 1: Equalize the number of points
+    size_t sourceSize = source.size();
+    size_t targetSize = target.size();
+    
+    // we are using sqdistances
+    threshold *= threshold;
+
+    if (sourceSize < targetSize) {
+        insertUniformPoints(source, targetSize);
+    } else if (targetSize < sourceSize) {
+        insertUniformPoints(target, sourceSize);
+    }
+
+    //Print("After equalizing, number of points =", source.size());
+
+    // Step 2: Calculate centers
+    /*Vec2 sourceCenter = calculateCenter(source);
+    Vec2 targetCenter = calculateCenter(target);
+
+    // Step 3: Adjust points relative to their centers
+    for (size_t i = 0; i < source.size(); ++i) {
+        source[i] -= sourceCenter;
+        target[i] -= targetCenter;
+    }*/
+
+    // Step 4: Find optimal rotation
+    size_t optimalRotation = findOptimalRotation(source, target);
+    //Print("Optimal rotation =", optimalRotation);
+
+    // Step 5: Rotate source for optimal alignment
+    std::rotate(source.begin(), source.begin() + optimalRotation, source.end());
+
+    // Step 5: Perform the synchronous morphing
+    size_t size = source.size();
+
+    // Step 5.1: Calculate maximum distance
+    Float2_t maxDistance = 0._F;
+    std::vector<Float2_t> distances(size);
+    for (size_t i = 0; i < size; ++i) {
+        distances[i] = sqdistance(source[i], target[i]);
+        if (distances[i] > maxDistance) {
+            maxDistance = distances[i];
+        }
+    }
+
+    // Step 5.2: Morph points using non-linear interpolation
+    Float2_t interpolationSpeed = 5._F;  // Adjust as needed
+    for (size_t i = 0; i < size; ++i) {
+        // Normalize the movement based on distance
+        Float2_t normalizedT = dt * interpolationSpeed;
+        if (maxDistance > 0._F) {
+            normalizedT *= (distances[i] / maxDistance);
+        }
+        
+        normalizedT = sqrt(normalizedT);
+        normalizedT = std::min(normalizedT, 1._F);  // Clamp to 1.0
+
+        // Apply easing function to normalizedT
+        Float2_t easedT = easeOutCubic(normalizedT);
+
+        // Morph the source point towards the corresponding target point
+        source[i] = lerp(source[i], target[i], easedT);
+
+        // If the source point is close enough to the target point, snap it to the target
+        if (sqdistance(source[i], target[i]) <= threshold) {
+            source[i] = target[i];
+        }
+
+        // Debug print for each point
+        //Print("Point", i, ": normalizedT =", normalizedT, ", easedT =", easedT, ", distance =", distances[i]);
+    }
+
+    // Step 7: Adjust source points back to absolute positions using target center
+    /*for (size_t i = 0; i < size; ++i) {
+        source[i] += targetCenter;
+    }*/
+
+    // Step 8: Check if all points have reached their targets
+    bool allPointsMatch = true;
+    for (size_t i = 0; i < size; ++i) {
+        if (sqdistance(source[i], target[i] /*+ targetCenter*/) > threshold) {
+            allPointsMatch = false;
+            break;
+        }
+    }
+
+    //Print("All points match =", allPointsMatch);
+
+    // If all points match, resize source if needed
+    if (allPointsMatch) {
+        source.resize(target.size());
+        return true;
+    } else
+        return false;
+}
+
+std::vector<Vec2> generateCircleVertices(const Vec2& center, Float2_t radius, int N) {
+    std::vector<Vec2> vertices;
+    vertices.reserve(N);  // Reserve space for efficiency
+
+    // Calculate the angle between each point
+    Float2_t angleIncrement = (2.0_F * M_PI) / static_cast<Float2_t>(N);
+
+    // Generate the vertices
+    for (int i = 0; i < N; ++i) {
+        Float2_t angle = angleIncrement * static_cast<Float2_t>(i);
+        Float2_t x = center.x + radius * cos(angle);
+        Float2_t y = center.y + radius * sin(angle);
+        vertices.emplace_back(x, y);
+    }
+
+    return vertices;
+}
+
+template<typename Points>
+std::vector<Vec2> find_rbb(const FindCoord& coords, Vec2 offset, Float2_t angle, Vec2 pt_center, Points& points)
 {
-    //Vec2 center = _blob_bounds.center() + offset;
+    Vec2 mi(FLT_MAX, FLT_MAX);
+    Vec2 ma(0, 0);
     
-    auto ptr = _basic_stuff->blob.unpack();
+    using Point_t = Points::value_type;
     
-    //Vec2 mi(FLT_MAX, FLT_MAX);
-    //Vec2 ma(0, 0);
+    Transform transform;
+    transform.translate(pt_center);
+    transform.rotate(DEGREE(angle));
+    transform.translate(-pt_center);
     
-    auto find_rbb = [&coords](Vec2 offset, Float2_t angle, Vec2 pt_center, auto& points){
-        Vec2 pose_center;
-        size_t count{0};
-        
-        Vec2 mi(FLT_MAX, FLT_MAX);
-        Vec2 ma(0, 0);
-        
-        using Point_t = std::remove_cvref_t<decltype(points)>::value_type;
-        
-        for(auto &_pt : points) {
-            if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
-                if(not _pt.valid())
-                    continue;
-            }
-            
-            pose_center += (Vec2)_pt;
-            ++count;
+    for(auto &_pt : points) {
+        if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
+            if(not _pt.valid())
+                continue;
         }
         
-        if(count > 0)
-            pose_center /= count;
-        
-        Transform transform;
-        transform.translate(pt_center);
-        transform.rotate(DEGREE(angle));
-        transform.translate(-pt_center);
-        
-        for(auto &_pt : points) {
-            if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
-                if(not _pt.valid())
-                    continue;
-            }
-            
-            Vec2 pt = transform.transformPoint(_pt);
-            assert(not std::isnan(pt.x));
-            mi.x = min(mi.x, (Float2_t)pt.x);
-            mi.y = min(mi.y, (Float2_t)pt.y);
-            ma.x = max(ma.x, (Float2_t)pt.x);
-            ma.y = max(ma.y, (Float2_t)pt.y);
-        }
-        
-        assert(not std::isnan(coords.bowl_scale().x));
-        auto scaled_w = abs(coords.bowl_scale().x * (mi.x - ma.x));
-        if(scaled_w < 25) {
-            auto d = 25 - scaled_w;
-            mi.x -= d * 0.5;
-            ma.x += d * 0.5;
-        }
-        
-        auto scaled_h = abs(coords.bowl_scale().y * (mi.y - ma.y));
-        if(scaled_h < 25) {
-            auto d = 25 - scaled_h;
-            mi.y -= d * 0.5;
-            ma.y += d * 0.5;
-        }
-        
-        //Print("scaled_w = ", scaled_w, " scaled_h = ", scaled_h);
-        
-        auto bds = Bounds{mi, Size2(ma - mi)};
-        auto inverted = transform.getInverse();
-        
-        Transform t;
-        t.translate(offset);
-        inverted = t.combine(inverted);
-        
-        std::vector<Vec2> vertices {
-            inverted.transformPoint(mi),
-            inverted.transformPoint(Vec2(ma.x, mi.y)),
-            inverted.transformPoint(ma),
-            inverted.transformPoint(Vec2(mi.x, ma.y)),
-        };
-        
-        mi = Vec2(FLT_MAX, FLT_MAX);
-        ma = Vec2();
-        
-        for(auto &p0 : vertices) {
-            assert(not std::isnan(p0.x));
-            
-            mi.x = min(mi.x, p0.x);
-            mi.y = min(mi.y, p0.y);
-            ma.x = max(ma.x, p0.x);
-            ma.y = max(ma.y, p0.y);
-        }
-        
-        auto c = (ma - mi) * 0.5;
-        for(auto &p0 : vertices)
-            p0 += c;
-        
-        return std::make_unique<periodic::points_t::element_type>(vertices);
+        Vec2 pt = transform.transformPoint(_pt);
+        assert(not std::isnan(pt.x));
+        mi.x = min(mi.x, (Float2_t)pt.x);
+        mi.y = min(mi.y, (Float2_t)pt.y);
+        ma.x = max(ma.x, (Float2_t)pt.x);
+        ma.y = max(ma.y, (Float2_t)pt.y);
+    }
+    
+    assert(not std::isnan(coords.bowl_scale().x));
+    auto scaled_w = abs(coords.bowl_scale().x * (mi.x - ma.x));
+    if(scaled_w < 30) {
+        auto d = 30 - scaled_w;
+        mi.x -= d * 0.5;
+        ma.x += d * 0.5;
+    }
+    
+    auto scaled_h = abs(coords.bowl_scale().y * (mi.y - ma.y));
+    if(scaled_h < 30) {
+        auto d = 30 - scaled_h;
+        mi.y -= d * 0.5;
+        ma.y += d * 0.5;
+    }
+    
+    //Print("scaled_w = ", scaled_w, " scaled_h = ", scaled_h);
+    
+    auto bds = Bounds{mi, Size2(ma - mi)};
+    auto inverted = transform.getInverse();
+    
+    Transform t;
+    t.translate(offset);
+    inverted = t.combine(inverted);
+    
+    std::vector<Vec2> vertices {
+        inverted.transformPoint(mi),
+        inverted.transformPoint(Vec2(ma.x, mi.y)),
+        inverted.transformPoint(ma),
+        inverted.transformPoint(Vec2(mi.x, ma.y)),
     };
     
-    periodic::points_t ellipse;
+    mi = Vec2(FLT_MAX, FLT_MAX);
+    ma = Vec2();
+    
+    for(auto &p0 : vertices) {
+        assert(not std::isnan(p0.x));
+        
+        mi.x = min(mi.x, p0.x);
+        mi.y = min(mi.y, p0.y);
+        ma.x = max(ma.x, p0.x);
+        ma.y = max(ma.y, p0.y);
+    }
+    
+    auto c = (ma - mi) * 0.5;
+    for(auto &p0 : vertices)
+        p0 += c;
+    
+    return vertices;
+}
+
+bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const Vec2&, Float2_t angle)
+{
+    bool corners_changed{false};
     
     if(_basic_stuff
        && _basic_stuff->blob.pred.valid()
@@ -548,12 +786,14 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         if(count > 0)
             pose_center /= count;
         
-        ellipse = find_rbb(offset, angle, pose_center, pose.points);
-    }
-    
-    if(not ellipse
-       && _posture_stuff)
-    {
+        auto corners = find_rbb(coords, offset, angle, pose_center, pose.points);
+        if(_current_corners != corners)
+        {
+            _current_corners = std::move(corners);
+            corners_changed = true;
+        }
+        
+    } else if(_posture_stuff) {
         auto example_points = _posture_stuff->outline.uncompress();
         
         Vec2 c;
@@ -564,11 +804,15 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         if(not example_points.empty())
             c /= example_points.size();
         
-        ellipse = find_rbb(offset, angle, c, example_points);
-    }
-    
-    if(not ellipse
-       && ptr)
+        auto corners = find_rbb(coords, offset, angle, c, example_points);
+        if(_current_corners != corners)
+        {
+            _current_corners = std::move(corners);
+            corners_changed = true;
+        }
+        
+    } else if(auto ptr = _basic_stuff ? _basic_stuff->blob.unpack() : nullptr;
+       ptr != nullptr)
     {
         std::vector<Vec2> example_points;
         example_points.reserve(ptr->lines()->size() * 2);
@@ -578,7 +822,12 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
             example_points.emplace_back(line.x1, line.y);
         }
         
-        ellipse = find_rbb(offset, angle, _blob_bounds.center(), example_points);
+        auto corners = find_rbb(coords, offset, angle, _blob_bounds.center(), example_points);
+        if(_current_corners != corners)
+        {
+            _current_corners = std::move(corners);
+            corners_changed = true;
+        }
         
         /*auto mi = Vec2(FLT_MAX, FLT_MAX);
         auto ma = Vec2();
@@ -606,7 +855,7 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
     }
     
     const auto init = [this](auto& o) {
-        if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+        /*if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
             //Print("Registering ", o);
             o.on_hover([this](Event e) {
                 selection_hovered(e);
@@ -617,19 +866,93 @@ void Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
             o.set_clickable(true);
         } else {
             Print("Unknown object.");
-        }
+        }*/
     };
     
-    if(ellipse) {
-        //if(poly_area < circle_area * 0.5) {
-        if(not std::holds_alternative<Polygon>(_selection)) {
-            _selection.emplace<Polygon>();
-            std::visit(init, _selection);
+    //Print(_id, ": corners_changed = ", corners_changed);
+    
+    /// upsample points if we have them
+    if(corners_changed || _frame_change.elapsed() < 0.2_F) {
+        auto corners = _current_corners;
+        insertUniformPoints(corners, 50);
+        
+        //Print("Calculating area for ", _current_corners, " of ", _id);
+        auto poly_area = polygon_area(_current_corners);
+        //auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.5;
+        if(corners_changed) {
+            _tight_selection.set_vertices(_current_corners);
+            _tight_selection.set_origin(Vec2{0.5_F});
+            _tight_selection.set_fill_clr(Transparent);
+            _cached_circle.clear();
+            _cached_points.clear();
         }
-        auto &poly = std::get<Polygon>(_selection);
-        poly.set_vertices(*ellipse);
-        poly.set_origin(Vec2(0.5));
+        
+        auto c = calculateCenter(corners);
+        
+        Float2_t max_d{0};
+        for(auto &pt : corners) {
+            auto d = sqdistance(c, pt);
+            if(d > max_d)
+                max_d = d;
+        }
+        max_d = sqrt(max_d);
+        
+        {
+            auto radius = max_d * 0.85;
+            if(_radius <= 1)
+                _radius = radius;
+            else {
+                _radius = _radius + (radius - _radius) * GUICache::instance().dt() * 5_F;
+                _cached_circle.clear();
+            }
+        }
+        
+        auto circle_area = M_PI * SQR(_radius);
+        
+        if(_frame_change.elapsed() >= 0.05_F && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame ))
+        {
+            // ok
+        } else {
+            // make circle
+            if(_cached_circle.empty())
+                _cached_circle = generateCircleVertices(Vec2(), _radius, 100);
+            
+            corners.clear();
+            for(auto &pt : _cached_circle)
+                corners.push_back(pt + _blob_bounds.size() * 0.5_F + _radius);
+        }
+        
+        _cached_points = std::move(corners);
     }
+    
+    /// if we dont have data, dont do anything
+    if(_cached_points.empty()) {
+        //Print("done with ", _id);
+        return true;
+    }
+    
+    if(not std::holds_alternative<Polygon>(_selection)) {
+        _selection.emplace<Polygon>();
+        std::visit(init, _selection);
+    }
+    
+    auto &poly = std::get<Polygon>(_selection);
+    
+    auto finished = morphVectorsWithRotation(_current_points, _cached_points, GUICache::instance().dt() * 1.25_F, 1_F);
+    if(finished && _frame_change.elapsed() >= 0.1_F) {
+        //Print("done with ",_id,".");
+        poly.set_animating(false);
+    } else {
+        //Print("not done with ", _id);
+        poly.set_animating(true);
+        poly.set_dirty();
+    }
+    
+    poly.set_vertices(_current_points);
+    //poly.set_vertices(*ellipse);
+    poly.set_origin(Vec2(0.5));
+    poly.set_name(_id.name()+"-poly");
+    return finished;
 }
 
 void Fish::selection_hovered(Event e) {
@@ -685,11 +1008,7 @@ void Fish::selection_clicked(Event) {
             : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = std::visit([this](auto& o) -> bool {
-            if constexpr(std::same_as<std::monostate, std::remove_cvref_t<decltype(o)>>) {
-                return _view.hovered();
-            } else {
-                return o.hovered();
-            }
+                return _tight_selection.hovered();
             
         }, _selection);
         //const bool timeline_visible = true;//GUICache::exists() && Timeline::visible(); //TODO: timeline_visible
@@ -909,9 +1228,13 @@ void Fish::selection_clicked(Event) {
         //if(_view.content_changed())
         //if(_path_dirty)
         _view.update([&](Entangled&) {
-            if(not _basic_stuff.has_value())
-				return;
+            if(not _basic_stuff.has_value()) {
+                return;
+            }
 
+            if(_id.ID() == Idx_t(28)) {
+                //Print("Updating ", _id, " animating=",_view.is_animating());
+            }
             _path_dirty = false;
             
             if (OPTION(gui_show_paths)) {
@@ -931,6 +1254,12 @@ void Fish::selection_clicked(Event) {
         
             // DISPLAY LABEL AND POSITION
             auto bg = GUICache::instance().background();
+            const auto centroid = _posture_stuff.has_value() && _posture_stuff->centroid_posture
+                    ? _posture_stuff->centroid_posture.get()
+                    : (_basic_stuff.has_value()
+                        ? &_basic_stuff->centroid
+                        : nullptr);
+            
             auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() + offset : Vec2());
             if(not bg || c_pos.x > bg->image().cols || c_pos.y > bg->image().rows)
                 return;
@@ -1110,18 +1439,29 @@ void Fish::selection_clicked(Event) {
                 _image.set_source(std::make_unique<Image>());
             }
             
+            _view.advance_wrap(_tight_selection);
+            
             if ((hovered || is_selected) && OPTION(gui_show_selections)) {
-                std::visit([&](auto&) {
+                std::visit([&](auto& o) {
                     if(abs(last_scale - FindCoord::get().bowl_scale().x) > std::numeric_limits<Float2_t>::epsilon()) {
-                        setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle);
+                        if(last_scale == 0)
+                            _frame_change.reset();
                         last_scale = FindCoord::get().bowl_scale().x;
+                        setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle);
+                    }
+                    else if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+                        if(not o.is_animating())
+                            return;
+                        setup_rotated_bbx(FindCoord::get(), offset, c_pos, angle);
                     }
                 }, _selection);
                 
                 std::visit([this](auto& o) {
                     if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+                        o.set_name(_id.name());
+                        
                         //Print("Highlight ", o);
-                        if(o.hovered()) {
+                        if(_tight_selection.hovered()) {
                             o.set(FillClr{White.alpha(50)});
                             o.set(LineClr{White.alpha(200)});
                         } else {
@@ -1163,14 +1503,16 @@ void Fish::selection_clicked(Event) {
                         //Print("Transparent ", o);
                         o.set(FillClr{Transparent});
                         o.set(LineClr{Transparent});
+                        //o.set_animating(false);
                         _view.advance_wrap(o);
                         //o.set(Rotation{0});
                     }
+                    last_scale = 0_F;
                 }, _selection);
             }
             
             if ((hovered || is_selected) && OPTION(gui_show_selections)) {
-                auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
+                auto radius = _radius;//(slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
                 
                 auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
                 if(cache.primary_selected_id() != _id.ID())

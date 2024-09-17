@@ -273,7 +273,7 @@ class Categorize:
         TRex.log("#/class: "+str(np.unique(Y, return_counts=True)))
         training_indexes = np.delete(training_indexes, self.validation_indexes)
 
-        self.plot_samples_grid()
+        #self.plot_samples_grid()
 
         X = X.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
 

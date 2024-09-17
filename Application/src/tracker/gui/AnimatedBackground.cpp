@@ -319,7 +319,8 @@ void AnimatedBackground::before_draw() {
         _grey_image.set_color(_static_image.color().alpha(255 * (1.0 - _fade)));
         set_animating(true);
         //Print("Animating... ", _fade, " with dt=",dt);
-    }
+    } else
+        set_animating(false);
     
     _fade_timer.reset();
     

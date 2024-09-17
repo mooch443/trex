@@ -14,6 +14,7 @@
 #include <tracking/SegmentInformation.h>
 #include <misc/Identity.h>
 #include <misc/idx_t.h>
+#include <misc/Timer.h>
 #include <misc/TrackingSettings.h>
 
 namespace pv {
@@ -63,7 +64,12 @@ struct UpdateSettings {
         const track::Midline* _pp_midline{nullptr};
         const track::MinimalOutline* _cached_outline;
         GETTER(Vec2, fish_pos);
+        
         std::variant<std::monostate, Rect, Polygon, Circle> _selection;
+        Polygon _tight_selection;
+        double _radius{0};
+        Timer _frame_change;
+        std::vector<Vec2> _current_points, _current_corners, _cached_points, _cached_circle;
         //std::unique_ptr<Line> _lines;
 
         std::vector<Vertex> _vertices;
@@ -146,7 +152,7 @@ struct UpdateSettings {
         //void paintPixels() const;
         void update_recognition_circle();
         Color get_color(const track::BasicStuff*) const;
-        void setup_rotated_bbx(const FindCoord&, const Vec2& offset, const Vec2& c_pos, Float2_t angle);
+        bool setup_rotated_bbx(const FindCoord&, const Vec2& offset, const Vec2& c_pos, Float2_t angle);
         void selection_hovered(Event);
         void selection_clicked(Event);
     public:

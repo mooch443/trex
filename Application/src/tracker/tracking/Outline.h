@@ -291,6 +291,8 @@ namespace track {
          **/
         gui::Transform transform(const default_config::individual_image_normalization_t::Class &type, bool to_real_world = false) const;
         
+        Vec2 real_point(const Bounds& bounds, size_t index) const;
+        
     private:
         friend class Outline;
         static Float2_t calculate_angle(const std::vector<MidlineSegment>& segments);
@@ -447,7 +449,7 @@ namespace track {
         static void check_constants();
     };
     
-#pragma pack(push, 1)
+//#pragma pack(push, 1)
     class MinimalOutline {
     protected:
         SmallVector<uint16_t> _points;
@@ -475,7 +477,7 @@ namespace track {
             return not _points.empty();
         }
     };
-#pragma pack(pop)
+//#pragma pack(pop)
 
 }
 
