@@ -43,7 +43,7 @@ build:
       - SDKROOT
       - CC
       - CXX
-    number: 84
+    number: 87
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
@@ -101,15 +101,10 @@ requirements:
     - python =3.11 # [win]
     - python =3.11 # [linux]
     - openblas # [arm64]
-    - ffmpeg =6 # [osx and arm64]
-    - ffmpeg >=4.3,<=6 # [win]
-    - defaults::ffmpeg >=4,<=7 # [osx and not arm64]
-    - defaults::ffmpeg =4.2.2 # [linux]
-    - openh264 # [osx] 
-    - numpy ==1.26.4 # [osx and not arm64]
-    - numpy ==1.26.4 # [arm64]
-    - numpy ==1.26.4 # [linux]
-    - numpy ==1.26.4 # [win]
+    - ffmpeg <=7 # [osx]
+    - ffmpeg <=7=*lgpl* # [not osx]
+    - openh264 # [osx]
+    - numpy ==1.26.4
 
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
@@ -117,28 +112,6 @@ requirements:
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
     - {{ pin_compatible('numpy', min_pin='x.x.x', max_pin='x.x.x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
-    #- tensorflow-gpu =2 # [win]
-    # disable tensorflow packages for install builds
-    #- tensorflow-gpu =2.4.1 # [linux]
-    #- tensorflow-estimator =2.4.1 # [linux]
-    #- tensorflow >=2,<3   # [osx and not arm64]
-    #- "pytorch::pytorch-mutex=*=cuda" # [linux or win]
-    - "pytorch::pytorch>=2.1,<3=py3*" # [osx and not arm64]
-    - "pytorch::pytorch<2.4=py3*" # [osx and arm64]
-    - "pytorch::pytorch>=2.1,<3=py3*_cuda11.8_cudnn*" # [win or linux]
-    #- "pytorch::pytorch-cuda=11.8" # [win or linux]
-    - "pytorch::torchvision=*=py3*" # [osx]
-    - "pytorch::torchvision=*=py3*_cu118" # [win or linux]
-    - "torchmetrics"
-    #- "cuda-version=11.8" # [win or linux]
-    #- "cuda-cccl=11.8" # [win or linux]
-    # disable this for install builds
-    #- cudatoolkit =10.1 # [linux]
-    #- cudatoolkit =11 # [win]
-    #- cudnn # [win]
-    # disable this for install builds
-    #- cudnn =7.6 # [linux]
-    #- mkl # [linux]
     - seaborn
     - scikit-learn
     - pip

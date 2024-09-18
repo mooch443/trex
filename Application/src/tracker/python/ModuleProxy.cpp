@@ -7,12 +7,22 @@ ModuleProxy::ModuleProxy(const std::string& name,
             std::function<void(ModuleProxy&)> unloader)
     : _unset(unset), m(name)
 {
-    if(PythonIntegration::check_module(name, [this, unloader]() mutable {
-        if(unloader)
-            unloader(*this);
-    }))
-    {
-        reinit(*this);
+    try {
+        if(PythonIntegration::check_module(name, [this, unloader]() mutable {
+            if(unloader)
+                unloader(*this);
+        }))
+        {
+            reinit(*this);
+        }
+        
+    } catch(...) {
+        if(PythonIntegration::has_loaded_module(name)) {
+            /// we can safely ignore this reload. just keep whatever we had
+            return;
+        }
+        
+        throw;
     }
 }
 ModuleProxy::~ModuleProxy() {

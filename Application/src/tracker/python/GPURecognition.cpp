@@ -849,6 +849,15 @@ py::module_ import_module_from_file(pybind11::module& main, const file::Path& mo
     return mod;
 }
 
+bool PythonIntegration::has_loaded_module(const std::string &name) {
+    check_correct_thread_id();
+    std::unique_lock guard{module_mutex};
+    if (_module_contents.contains(name) && not CHECK_NONE(_modules[name])) {
+        return true;
+    }
+    return false;
+}
+
 bool PythonIntegration::check_module(const std::string& name,
                                      std::function<void()> unloader)
 {

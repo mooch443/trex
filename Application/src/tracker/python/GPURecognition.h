@@ -302,6 +302,7 @@ public:
     static void execute(const std::string&, bool safety_check = true);
     static void import_module(const std::string&);
     static void unload_module(const std::string&);
+    static bool has_loaded_module(const std::string&);
     static bool check_module(const std::string&, std::function<void()> unloader = nullptr);
     static bool is_none(const std::string& name, const std::string& attribute);
     static void run(const std::string& module_name, const std::string& function);

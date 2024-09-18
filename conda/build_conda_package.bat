@@ -1,1 +1,1 @@
-conda build . -c pytorch -c nvidia -c defaults
+conda build . --override-channels -c conda-forge
