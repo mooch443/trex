@@ -14,18 +14,17 @@ fi
 echo "Installing pip packages..." >> $PREFIX/.messages.txt
 if [ "$(uname -p)" == "arm" ]; then
 	echo "ARM architecture detected, installing torch, torchvision, torchaudio, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
-	{ python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 2>&1; } >> $PREFIX/.messages.txt;
-	{ python -m pip install 'opencv-python<4.10' 'ultralytics<=8.2.73' numpy==1.26.4 dill 2>&1; }  >> $PREFIX/.messages.txt;
+	{ python -m pip install torch torchvision 'opencv-python<4.10' 'ultralytics<=8.2.73' numpy==1.26.4 dill 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
 
 elif [ "$(uname)" == "Darwin" ]; then
-	echo "MacOS detected, installing torch, torchvision, torchaudio, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
-    { python -m pip install torch torchvision torchaudio 'opencv-python<4.10' 'ultralytics<=8.2.73' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt;
+	echo "MacOS detected, installing torch, torchvision, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
+    { python -m pip install torch torchvision 'opencv-python<4.10' 'ultralytics<=8.2.73' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt;
     echo "" >> $PREFIX/.messages.txt;
 
 else
-	echo "Linux architecture detected, installing torch, torchvision, torchaudio, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
-	{ python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 2>&1; } >> $PREFIX/.messages.txt;
+	echo "Linux architecture detected, installing torch, torchvision, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
+	{ python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118 2>&1; } >> $PREFIX/.messages.txt;
 	{ python -m pip install 'opencv-python<4.10' 'ultralytics<=8.2.73' numpy==1.26.4 dill 2>&1; }  >> $PREFIX/.messages.txt;
 	echo "" >> $PREFIX/.messages.txt;
 fi

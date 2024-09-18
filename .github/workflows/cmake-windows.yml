@@ -54,7 +54,7 @@ jobs:
         p=${GITHUB_REF##*/}
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         cat meta.yaml
-        sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.sh
+        sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.bat
         cat post-link.sh
         echo "::endgroup::"
         echo "::group::Build"
