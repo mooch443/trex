@@ -42,12 +42,12 @@ glz::json_t RecentItemJSON::to_json() const {
     obj["name"] = name;
 
     glz::json_t settings{};
-    for (auto& key : _options.keys()) {
+    /*for (auto& key : _options.keys()) {
         auto& prop = _options[key].get();
         auto json = prop.to_json();
         //std::cout << "Converted " << key << " to json: " << json << " vs " << json.dump() << std::endl;
         settings[key] = json;
-    }
+    }*/
     obj["settings"] = settings;
     
     obj["output_prefix"] = output_prefix;
