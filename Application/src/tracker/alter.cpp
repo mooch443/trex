@@ -4,7 +4,6 @@
 #include <gui/SFLoop.h>
 #include <gui/types/Button.h>
 #include <video/VideoSource.h>
-#include <opencv2/dnn.hpp>
 #include <pv.h>
 #include <python/GPURecognition.h>
 #include <misc/PythonWrapper.h>
