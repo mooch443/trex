@@ -35,10 +35,11 @@ jobs:
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
     - uses: conda-incubator/setup-miniconda@v3
       with:
+        miniforge-version: latest
         environment-file: .github/environment.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
-        channels: main
+        channels: conda-forge
         auto-activate-base: true
         auto-update-conda: true
     - name: Build
