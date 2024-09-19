@@ -366,10 +366,10 @@ TEST(JSONTest, TestVec2JSON) {
     
     /// the strings will not be exactly the same.
     auto json = SETTING(vectors).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(glz::write_json(json))), object);
+    ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(glz::write_json(json).value())), object);
     
     /// check whether it removes trailing zeros
-    auto s = glz::write_json(json);
+    auto s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "[[10,25]]");
     
     json = SETTING(number).get().to_json();
