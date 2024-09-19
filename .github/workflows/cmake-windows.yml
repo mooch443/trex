@@ -35,7 +35,7 @@ jobs:
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
-        environment-file: .github/macos-environment.yml
+        environment-file: .github/environment.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
