@@ -170,8 +170,8 @@ void Tracker::initialize_slows() {
         
         
         Settings::init();
-        //for(auto &n : Settings :: names())
-        //    Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
+        for(auto &n : Settings :: names())
+            Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
     });
     
     if (not _callback) {
