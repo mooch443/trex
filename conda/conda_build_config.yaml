@@ -26,9 +26,9 @@ c_compiler:
 cxx_compiler:
   - vs2022 # [win]
 cxx_compiler_version:
-  - 11 # [linux]
+  - 13 # [linux]
 c_compiler_version:
-  - 11 # [linux]
+  - 13 # [linux]
 
 pin_run_as_build:
   python:

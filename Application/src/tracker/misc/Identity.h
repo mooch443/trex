@@ -14,7 +14,7 @@ protected:
     GETTER_SETTER(cmn::gui::Color, color);
     Idx_t _myID;
     std::string _name;
-    GETTER_SETTER(bool, manual);
+    GETTER_SETTER(bool, manual){false};
     
 public:
     static Identity Make(Idx_t);
