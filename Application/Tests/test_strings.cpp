@@ -131,7 +131,7 @@ TEST(ConversionTest, FileObjects) {
     RecentItemFile object;
     std::string buffer = recent_items_test;//file::Path("/Users/tristan/trex/Application/beta/Debug/TRex.app/Contents/MacOS/../Resources/../Resources/.trex_recent_files").read_file();
     
-    glz::error_code error;
+    glz::error_ctx error;
     ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
 }
 
@@ -155,7 +155,7 @@ TEST(ConversionTest, RealObjects) {
             }
         ]
     })";
-    glz::error_code error;
+    glz::error_ctx error;
     ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
     //ASSERT_EQ(test.at("array").number, 18446744073709551615llu);
     
@@ -172,7 +172,7 @@ TEST(ConversionTest, Website) {
     
     std::map<std::string, StructTest> test;
     std::string buffer = R"({"array":{"number":18446744073709551615,"text":"Hello World"}})";
-    glz::error_code error;
+    glz::error_ctx error;
     ASSERT_EQ(error = glz::read_json(test, buffer), glz::error_code::none) << glz::format_error(error, buffer);
     ASSERT_EQ(test.at("array").number, 18446744073709551615llu);
     
