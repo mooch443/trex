@@ -40,7 +40,7 @@ std::string _custom_button_text;
 std::queue<std::function<void(Entangled&)>> _additional_updates;
 std::atomic<float> _percent{0.0f};
 std::map<std::string, Image::Ptr> _images;
-std::map<std::string, std::unique_ptr<ExternalImage>> _gui_images;
+std::map<std::string, std::shared_ptr<ExternalImage>> _gui_images;
 #if WIN32
 ITaskbarList3* ptbl = NULL;
 #endif
@@ -595,14 +595,14 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
             std::vector<Layout::Ptr> objects;
             
             for(auto && [name, image] : work_images) {
-                ExternalImage* ptr;
+                std::shared_ptr<ExternalImage> ptr;
                 
                 auto it = _gui_images.find(name);
                 if(it == _gui_images.end()) {
                     _gui_images[name] = std::make_unique<ExternalImage>();
-                    ptr = _gui_images[name].get();
+                    ptr = _gui_images[name];
                 } else
-                    ptr = it->second.get();
+                    ptr = it->second;
                 
                 ptr->set_source(Image::Make(*image));
                 
@@ -615,7 +615,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
                 }
                 
                 ptr->set_scale(Vec2(scale));
-                objects.push_back(ptr);
+                objects.emplace_back(ptr);
             }
             
             base.wrap_object(gui->layout);

@@ -547,7 +547,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             auto anns = it->second.getAllObjects();
             for(auto [ID, obj] : anns) {
                 if(not _views.contains(ID)) {
-                    auto [it, r] = _views.emplace(ID, new AnnotationView);
+                    auto [it, r] = _views.emplace(ID, std::make_shared<AnnotationView>());
                     if(not r)
                         throw InvalidArgumentException("Cannot insert ", ID, " into the map.");
                     it->second->set_annotation(std::move(obj));
