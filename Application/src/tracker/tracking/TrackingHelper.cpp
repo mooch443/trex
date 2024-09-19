@@ -50,7 +50,7 @@ TrackingHelper::TrackingHelper(
         }
     }
     
-    if(save_tags()) {
+    if(save_tags() && track_size_filter) {
         frame.transform_noise([this, max_range = track_size_filter.max_range()](const pv::Blob& blob){
             if(blob.recount(-1) <= max_range.start)
                 noise.emplace_back(pv::Blob::Make(blob));

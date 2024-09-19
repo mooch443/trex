@@ -159,7 +159,8 @@ void PrefilterBlobs::split_big(
             if(not b)
                 continue;
             
-            if(!track_size_filter.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
+            if(track_size_filter
+               && !track_size_filter.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
             {
                 noise.push_back(std::move(b));
                 continue;
@@ -172,7 +173,9 @@ void PrefilterBlobs::split_big(
                 ex = expect.at(bdx);
             
             auto rec = b->recount(threshold, *Tracker::background());
-            if(!track_size_filter.close_to_maximum_of_one(rec, 10 * ex.number)) {
+            if(track_size_filter
+               && !track_size_filter.close_to_maximum_of_one(rec, 10 * ex.number))
+            {
                 noise.push_back(std::move(b));
                 continue;
             }

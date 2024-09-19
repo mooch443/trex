@@ -88,7 +88,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_posture_threshold", 15,
             "track_background_subtraction", true,
             "calculate_posture", true,
-            "segment_size_filter", BlobSizeRange({Rangef(0.1f, 1000.f)}),
+            "track_size_filter", BlobSizeRange(),
+            "segment_size_filter", BlobSizeRange({Ranged(10, 100000)}),
             //"meta_encoding", meta_encoding_t::rgb8,
             "track_do_history_split", true,
             "detect_classes", detect::yolo::names::owner_map_t{},
@@ -105,6 +106,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_threshold", 0,
             "track_posture_threshold", 0,
             "track_background_subtraction", false,
+            "segment_size_filter", BlobSizeRange(),
+            "track_size_filter", BlobSizeRange(),
             "calculate_posture", true,
             "outline_resample", 1.f,
             "outline_approximate", uchar(3),
@@ -942,7 +945,7 @@ void load(file::PathArray source,
         if (combined.map.has("source")
             && combined.map.at("source").value<file::PathArray>() == file::PathArray("webcam"))
         {
-            combined.map["cm_per_pixel"] = Settings::cm_per_pixel_t(0.01);
+            combined.map["cm_per_pixel"] = Settings::cm_per_pixel_t(1);
         } else
             combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
     }
@@ -1116,12 +1119,13 @@ Float2_t infer_cm_per_pixel(const sprite::Map* map) {
     if(not map->has("cm_per_pixel")
        || map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
     {
-        auto w = map->at("meta_real_width").value<Float2_t>();
+        /*auto w = map->at("meta_real_width").value<Float2_t>();
         if(w <= 0) {
             return 1;
         }
         
-        return 1_F / max(1.0_F, w * 0.05_F);
+        return 1_F / max(1.0_F, w * 0.05_F);*/
+        return 1_F;
         //return w / float(average().cols);
     }
 

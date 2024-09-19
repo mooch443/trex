@@ -192,12 +192,14 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
         return split::Action::ABORT;
     }
     
-    const float min_size_threshold = SPLIT_SETTING(track_size_filter).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
-    auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
-        auto fsize = blob->num_pixels() * sqrcm;
-        return fsize < min_size_threshold;
-    });
-    blobs.erase(it, blobs.end());
+    if(not SPLIT_SETTING(track_size_filter).empty()) {
+        const auto min_size_threshold = SPLIT_SETTING(track_size_filter).max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
+        auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
+            auto fsize = blob->num_pixels() * sqrcm;
+            return fsize < min_size_threshold;
+        });
+        blobs.erase(it, blobs.end());
+    }
     
     for(size_t i=0; i<presumed_nr && i < blobs.size(); ++i) {
         if(!min_size.has_value() || blobs.at(i)->num_pixels() < min_size.value()) {
@@ -205,7 +207,8 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
         }
     }
     
-    if(min_size.has_value()
+    if(SPLIT_SETTING(track_size_filter)
+       && min_size.has_value()
        && min_size.value() * sqrcm > SPLIT_SETTING(track_size_filter).max_range().end)
     {
         return split::Action::REMOVE;
@@ -552,7 +555,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     
     if(action != split::Action::KEEP
        && action != split::Action::KEEP_ABORT
-       && _blob->num_pixels() * sqrcm < SPLIT_SETTING(track_size_filter).max_range().end * 100)
+       && (not SPLIT_SETTING(track_size_filter)
+            || _blob->num_pixels() * sqrcm < SPLIT_SETTING(track_size_filter).max_range().end * 100))
     {
         
         if(presumed_nr > 1) {

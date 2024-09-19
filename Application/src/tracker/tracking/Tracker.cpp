@@ -711,10 +711,13 @@ void Tracker::prefilter(
     auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr, &manual_ignore_bdx_c](pv::BlobPtr&& b, bool precise_check_boundaries)
     {
         // TODO: magic numbers
-        if(b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
+        if(result.fish_size
+           && b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
+        {
             b->force_set_recount(result.threshold);
-        else
+        } else {
             b->recount(result.threshold, *result.background);
+        }
         
         if(manual_ignore_bdx_c.has_value()) {
             if(manual_ignore_bdx_c.value()->contains(b->blob_id())
@@ -770,7 +773,8 @@ void Tracker::prefilter(
         //  posture_threshold. Using the minimum ensures that the thresholds dont depend on each other
         //  as the threshold used here will reduce the number of available pixels for posture analysis
         //  or tracking respectively (pixels below used threshold will be removed).
-        if(result.fish_size.close_to_minimum_of_one(recount, 0.5)
+        if((not result.fish_size
+             || result.fish_size.close_to_minimum_of_one(recount, 0.5))
            && result.threshold > 0
            )
         {
@@ -846,7 +850,7 @@ void Tracker::prefilter(
                 /// to the "filtered" array:
                 result.commit(std::move(ptr));
                 
-            } else if(recount < result.fish_size.max_range().start) {
+            } else if(result.fish_size && recount < result.fish_size.max_range().start) {
                 result.filter_out(std::move(ptr), FilterReason::OutsideRange);
             } else
                 result.big_blob(std::move(ptr));
@@ -3353,8 +3357,8 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             std::multiset<float> values;
             const uint32_t number_fish = SETTING(track_max_individuals).value<uint32_t>();
             
-            std::vector<std::multiset<float>> blobs;
-            Median<float> median;
+            std::vector<std::multiset<Float2_t>> blobs;
+            Median<Float2_t> median;
             
             auto step = Frame_t((video.length().get() - video.length().get()%500) / 500);
             for (Frame_t i=0_f; i<video.length(); i+=step) {
@@ -3404,9 +3408,9 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             middle = (ranges[1] - ranges[0]) * 0.5 + ranges[0];*/
             
             if(SETTING(auto_minmax_size))
-                SETTING(track_size_filter) = BlobSizeRange({Rangef(ranges[0] * 0.25, ranges[1] * 1.75)});
+                SETTING(track_size_filter) = BlobSizeRange({Range<double>(ranges[0] * 0.25, ranges[1] * 1.75)});
             
-            auto blob_range = SETTING(track_size_filter).value<BlobSizeRange>();
+            auto track_size_filter = SETTING(track_size_filter).value<BlobSizeRange>();
             
             std::multiset<size_t> number_individuals;
             
@@ -3414,8 +3418,8 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                 size_t number = 0;
                 std::map<size_t, Median<float>> min_ratios;
                 std::map<size_t, float> sizes;
-                for(auto v : vector) {
-                    if(blob_range.in_range_of_one(v))
+                for(const auto &v : vector) {
+                    if(track_size_filter.in_range_of_one(v))
                         ++number;
                 }
                 

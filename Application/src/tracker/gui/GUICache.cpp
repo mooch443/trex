@@ -900,7 +900,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         processed_frame().transform_noise([&](pv::Blob& blob) {
             blob.calculate_moments();
             
-            if((nothing_to_zoom_on && blob.recount(-1) >= FAST_SETTING(track_size_filter).max_range().start)
+            if((nothing_to_zoom_on
+                && (not FAST_SETTING(track_size_filter)
+                    || blob.recount(-1) >= FAST_SETTING(track_size_filter).max_range().start))
                || selected_blobs.find(blob.blob_id()) != selected_blobs.end())
             {
                 min_vec = min(min_vec, blob.bounds().pos());

@@ -32,6 +32,7 @@ struct SettingsScene::Data {
     double blur_target{1};
     double blur_percentage{0};
     
+    std::mutex _video_source_mutex;
     std::future<void> check_new_video_source;
     
     dyn::DynamicGUI dynGUI;
@@ -60,8 +61,11 @@ struct SettingsScene::Data {
             GlobalSettings::map().unregister_callbacks(std::move(callback));
         dynGUI.clear();
         
-        if(check_new_video_source.valid())
+        if(std::unique_lock guard{_video_source_mutex};
+           check_new_video_source.valid())
+        {
             check_new_video_source.get();
+        }
     }
     
     file::Path target_file(std::string_view ext = "pv") {
@@ -96,6 +100,8 @@ struct SettingsScene::Data {
                 //SETTING(filename) = file::Path();
 
                 file::PathArray source = GlobalSettings::map().at("source");
+                
+                std::unique_lock guard{_video_source_mutex};
                 if(check_new_video_source.valid())
                     check_new_video_source.get();
                 
@@ -792,8 +798,11 @@ void SettingsScene::deactivate() {
         _data->dynGUI.clear();
 
         //Print("_checking new video source: ", _data->check_new_video_source.valid());
-        if(_data->check_new_video_source.valid())
+        if(std::unique_lock guard{_data->_video_source_mutex};
+           _data->check_new_video_source.valid())
+        {
             _data->check_new_video_source.get();
+        }
 
         /// need to clear queue in case we got something pushed in the check_new_video_source
         SceneManager::getInstance().update_queue();
