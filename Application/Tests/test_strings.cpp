@@ -131,7 +131,7 @@ TEST(ConversionTest, FileObjects) {
     RecentItemFile object;
     std::string buffer = recent_items_test;//file::Path("/Users/tristan/trex/Application/beta/Debug/TRex.app/Contents/MacOS/../Resources/../Resources/.trex_recent_files").read_file();
     
-    glz::parse_error error;
+    glz::error_code error;
     ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
 }
 
@@ -155,7 +155,7 @@ TEST(ConversionTest, RealObjects) {
             }
         ]
     })";
-    glz::parse_error error;
+    glz::error_code error;
     ASSERT_EQ(error = glz::read_json(object, buffer), glz::error_code::none) << glz::format_error(error, buffer);
     //ASSERT_EQ(test.at("array").number, 18446744073709551615llu);
     
@@ -172,7 +172,7 @@ TEST(ConversionTest, Website) {
     
     std::map<std::string, StructTest> test;
     std::string buffer = R"({"array":{"number":18446744073709551615,"text":"Hello World"}})";
-    glz::parse_error error;
+    glz::error_code error;
     ASSERT_EQ(error = glz::read_json(test, buffer), glz::error_code::none) << glz::format_error(error, buffer);
     ASSERT_EQ(test.at("array").number, 18446744073709551615llu);
     
@@ -339,7 +339,7 @@ TEST(JSONTest, TestBasicJSON) {
     SETTING(graphs) = object;
     
     auto json = SETTING(graphs).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json)), SETTING(graphs).get().valueString());
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).get().valueString());
 }
 
 TEST(JSONTest, TestSkeletonJSON) {
@@ -353,7 +353,7 @@ TEST(JSONTest, TestSkeletonJSON) {
     SETTING(skeleton) = object;
     
     auto json = SETTING(skeleton).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json)), SETTING(skeleton).get().valueString());
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).get().valueString());
 }
 
 TEST(JSONTest, TestVec2JSON) {
@@ -373,11 +373,11 @@ TEST(JSONTest, TestVec2JSON) {
     ASSERT_STREQ(s.c_str(), "[[10,25]]");
     
     json = SETTING(number).get().to_json();
-    s = glz::write_json(json);
+    s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "5");
     
     json = SETTING(big_number).get().to_json();
-    s = glz::write_json(json);
+    s = glz::write_json(json).value();
     /// currently not achievable - only in custom structs
     //ASSERT_EQ(s, SETTING(big_number).get().valueString());
 }

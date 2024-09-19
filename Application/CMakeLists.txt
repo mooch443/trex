@@ -220,6 +220,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
         set(M1OPTIONS "")
     endif()
 
+    set(TREX_WARNING_FLAGS "-Wmove -Werror=return-stack-address -Wthread-safety")
+
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-stack-address -Wthread-safety")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -fno-lto")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto")
@@ -264,6 +266,8 @@ if(CMAKE_COMPILER_IS_GNUCXX)
         set(CMAKE_SKIP_RPATH TRUE)
     endif()
 endif()
+
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DRELWITHDEBINFO")
 
 if(XCODE)
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++23")
