@@ -51,7 +51,7 @@ jobs:
       run: |
         echo "::group::Info"
         conda info
-        conda search numpy
+        conda search --override-channels -c conda-forge numpy
         conda list
         echo "::endgroup::"
         echo "::group::Fix Meta"

@@ -21,10 +21,8 @@ package:
   version: "{{ version }}"
 
 channels:
-  - conda-forge     # [arm64 or linux]
-  - pytorch
-  - apple           # [arm64]
-  - nodefaults      # [arm64]
+  - conda-forge
+  - nodefaults
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1

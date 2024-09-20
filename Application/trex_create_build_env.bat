@@ -1,7 +1,7 @@
 @echo off
 
 set env_name=trex
-set channels=pytorch nvidia defaults
+set channels=conda-forge
 echo "macos: set channels=conda-forge"
 set packages=cmake python=3.10 numpy=1.23.5 "pytorch::pytorch-mutex=*=cuda" "pytorch::pytorch=2.*=py3.*_cuda11.7_cudnn*" "pytorch::torchvision=*=py3*" scikit-learn seaborn pip requests ffmpeg=4 git nasm
 echo "macos: set packages=cmake python=3.11 numpy=1.26.2 pytorch torchvision scikit-learn seaborn pip requests ffmpeg=6 git nasm"
