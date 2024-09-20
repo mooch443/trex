@@ -540,7 +540,7 @@ void Segmenter::open_video() {
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
-    SETTING(meta_real_width) = Float2_t(_output_size.width);
+    //SETTING(meta_real_width) = Float2_t(_output_size.width);
 
     //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
 
@@ -633,7 +633,7 @@ void Segmenter::open_camera() {
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
-    SETTING(meta_real_width) = Float2_t(_output_size.width);
+    //SETTING(meta_real_width) = Float2_t(_output_size.width);
 
     //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
 

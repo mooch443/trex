@@ -51,6 +51,7 @@ jobs:
       run: |
         echo "::group::Info"
         conda info
+        conda search numpy
         conda list
         echo "::endgroup::"
         echo "::group::Fix Meta"
@@ -70,6 +71,7 @@ jobs:
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
+        conda search --override-channels -c conda-forge numpy
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
         pvinfo -opencv_ffmpeg_support

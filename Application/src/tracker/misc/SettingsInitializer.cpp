@@ -8,7 +8,7 @@
 #include <misc/TrackingSettings.h>
 #include <gui/DrawStructure.h>
 #include <pv.h>
-
+#include <video/VideoSource.h>
 
 using namespace track;
 using namespace default_config;
@@ -936,7 +936,26 @@ void load(file::PathArray source,
     if (not combined.map.has("meta_real_width")
         || combined.map.at("meta_real_width").value<Float2_t>() == 0)
     {
-        combined.map["meta_real_width"] = 1000_F;
+        if(auto source = combined.map.at("source").value<file::PathArray>();
+           source == file::PathArray("webcam"))
+        {
+            combined.map["meta_real_width"] = 1000_F;
+            
+        } else if(source.get_paths().size() == 1
+                  && source.get_paths().front().has_extension("pv"))
+        {
+            /// we are looking at a .pv file as input
+            Print("Should have already loaded this?");
+            
+        } else {
+            try {
+                VideoSource video(source);
+                auto size = video.size();
+                combined.map["meta_real_width"] = Float2_t(size.width);
+            } catch(...) {
+                combined.map["meta_real_width"] = 0_F;
+            }
+        }
     }
     
     if (combined.map.has("cm_per_pixel")
