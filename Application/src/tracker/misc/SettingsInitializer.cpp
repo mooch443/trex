@@ -613,6 +613,12 @@ void load(file::PathArray source,
         } else if(path.is_absolute()) {
             combined.map["filename"] = file::Path(path.filename());
             set_config_if_different("filename", combined.map);
+        } else {
+#ifndef NDEBUG
+            Print("Not absolute: ", path);
+#endif
+            combined.map["filename"] = file::Path(path);
+            set_config_if_different("filename", combined.map);
         }
     }
     

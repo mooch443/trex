@@ -350,12 +350,18 @@ struct SettingsScene::Data {
                             
                             Print("changed props = ", copy.keys());
                             auto array = SETTING(source).value<file::PathArray>();
-                            auto front = file::Path(file::find_basename(array));
+                            //auto front = file::Path(file::find_basename(array));
                             
-                            auto output_file = (not front.has_extension() || front.extension() != "pv") ?
+                            auto output_file = settings::find_output_name(before);
+                            if(not output_file.has_extension() || output_file.extension() != "pv")
+                            {
+                                output_file = output_file.add_extension("pv");
+                            }
+                            /*auto output_file = (not front.has_extension() || front.extension() != "pv") ?
                             file::DataLocation::parse("output", front.add_extension("pv")) :
-                            file::DataLocation::parse("output", front.replace_extension("pv"));
-                            if (output_file.exists()) {
+                            file::DataLocation::parse("output", front.replace_extension("pv"));*/
+                            //if (output_file.exists())
+                            {
                                 SETTING(filename) = file::Path(output_file);
                             }
                             
