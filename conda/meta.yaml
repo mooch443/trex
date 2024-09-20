@@ -41,6 +41,7 @@ build:
       - SDKROOT
       - CC
       - CXX
+      - CONDA_CHANNELS=conda-forge,nodefaults
     number: 90
     string: "{{ hash }}_{{ number }}"
     run_exports:
