@@ -65,7 +65,7 @@ requirements:
     - make                  # [unix]
     - {{ compiler('c') }}   # [not osx]
     - {{ compiler('cxx') }} # [not osx]
-    - cmake >=3.20
+    - cmake >=3.20,<4
     - git # [not win]
     - git <2.34|>=2.35 # [win]
     - {{ cdt('libselinux') }}  # [linux]
