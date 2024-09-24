@@ -67,13 +67,15 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
             std::vector<Vertex> crosses;
             
             for(auto &eye : ptr->eyes()) {
-                crosses.emplace_back(Vec2(eye.pos), eye.clr);
-                
+                //crosses.emplace_back(Vec2(eye.pos), eye.clr);
                 for (size_t i=0; i<VisualField::field_resolution; i++) {
                     if(eye._depth[i] < VisualField::invalid_value) {
                         //auto w = (1 - sqrt(eye._depth[i]) / (sqrt(max_d) * 0.5));
                         //if(Idx_t(eye._visible_ids[i]) != fish->identity().ID())
                         {
+                            //auto d = sqrt(eye._depth[i]);
+                            //auto pt = Vec2(eye.pos) + Vec2(cos(percent),sin(percent)) * d;
+                            //crosses.emplace_back(pt, eye.clr);
                             crosses.emplace_back(eye._visible_points[i], eye.clr);
                             //add<Line>(Line::Point_t{eye.pos}, Line::Point_t{eye._visible_points.at(i)}, LineClr{Viridis::value(i / double(VisualField::field_resolution))});
                         }

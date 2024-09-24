@@ -1253,6 +1253,8 @@ void Individual::update_midlines(const CacheHints* hints) {
                 assert((*it)->cached_pp_midline->original_angle() != FLT_MAX
                        && (*it)->cached_pp_midline->original_angle() != std::numeric_limits<Float2_t>::infinity());
                 (*it)->posture_original_angle = (*it)->cached_pp_midline->original_angle();
+                (*it)->midline_angle = (*it)->cached_pp_midline->angle();
+                (*it)->midline_length = (*it)->cached_pp_midline->len();
 
                 auto basic = basic_stuff((*it)->frame);
                 auto base_it = it.base() - 1;
@@ -2848,7 +2850,7 @@ void * Individual::custom_data(Frame_t frame, long_t id) const {
     return NULL;
 }
 
-void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range, const std::function<void(float, const std::string&)>& update, bool blocking) {
+void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range, const std::function<void(float, const std::string&)>& update, bool blocking) const {
     if(range.empty())
         range = Range<Frame_t>(_startFrame, _endFrame);
     
@@ -2857,6 +2859,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     std::vector<long_t> ids;
     std::vector<Vec2> fish_pos, eye_pos;
     std::vector<float> fish_angle, eye_angle;
+    std::vector<Vec2> visible_points;
     std::vector<Frame_t::number_t> frames;
     
     size_t len = 0;
@@ -2881,6 +2884,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     fish_pos.reserve(len);
     fish_angle.reserve(len);
+    visible_points.reserve(eye_len * 2);
     
     eye_angle.reserve(len * 2);
     eye_pos.reserve(len * 2);
@@ -2915,6 +2919,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
                 eye_angle.push_back(e.angle);
                 eye_pos.emplace_back(e.pos);
                 
+                visible_points.insert(visible_points.end(), e._visible_points.begin(), e._visible_points.begin() + vres);
                 depth.insert(depth.end(), e._depth.begin(), e._depth.begin() + vres);
                 body_part.insert(body_part.end(), e._visible_head_distance.begin(), e._visible_head_distance.begin() + vres);
                 ids.insert(ids.end(), e._visible_ids.begin(), e._visible_ids.begin() + vres);
@@ -2934,6 +2939,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     Print("Saving depth...");
     FileSize fileSize(depth.size() * sizeof(decltype(depth)::value_type)
+                      + visible_points.size() * sizeof(decltype(visible_points)::value_type)
                       + ids.size() * sizeof(decltype(ids)::value_type)
                       + body_part.size() * sizeof(decltype(body_part)::value_type));
     update(0.5, "writing files ("+Meta::toStr(fileSize)+")");
@@ -2977,6 +2983,14 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
             VisualField::layers,
             vres / VisualField::layers
         });
+        
+        cnpy::npz_save(path.str() + ".npz", "visible_points", (const Float2_t*)visible_points.data(), {
+            len,
+            2,
+            VisualField::layers,
+            vres / VisualField::layers,
+            2
+        }, "a");
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";

@@ -723,7 +723,7 @@ int main(int argc, char**argv) {
     GlobalSettings::map().set_print_by_default(true);
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     SETTING(app_name) = std::string("TRex");
-    SETTING(meta_real_width) = 1000_F;
+    //SETTING(meta_real_width) = 1000_F;
     
     std::stringstream ss;
     for(int i=0; i<argc; ++i) {

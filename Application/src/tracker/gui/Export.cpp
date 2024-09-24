@@ -469,6 +469,11 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     }
                 }
                 
+                if(SETTING(export_visual_fields).value<bool>()) {
+                    auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
+                    fish->save_visual_field(path, range, progress_callback, true);
+                }
+                
                 if(SETTING(output_recognition_data)) {
                     // output network data
                     file::Path path = (filename + "_recognition_" + fish->identity().name() + ".npz");

@@ -385,7 +385,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //  Also pre-caches a few other properties of the individual.
         tl::expected<IndividualCache, const char*> cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
         
-        void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true);
+        void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true) const;
         //size_t memory_size() const;
         
         static Float2_t weird_distance();

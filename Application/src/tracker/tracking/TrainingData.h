@@ -197,7 +197,7 @@ public:
         auto isc = image_class(image);
         if(c != isc) {
             static_cast<TrainingImageData*>(image->custom_data())->type = c;
-            assert(c != ImageClass::NONE);
+            //assert(c != ImageClass::NONE);
             
             /*if(c == ImageClass::NONE)
                 image->set_index(0);
