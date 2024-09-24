@@ -42,7 +42,7 @@ build:
       - CC
       - CXX
       - CONDA_CHANNELS=conda-forge,nodefaults
-    number: 90
+    number: 91
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
@@ -68,7 +68,7 @@ requirements:
     - {{ compiler('cxx') }} # [not osx]
     - cmake >=3.20,<4
     - git # [not win]
-    - git <2.34|>=2.35 # [win]
+    - git <2.34 # [win]
     - {{ cdt('libselinux') }}  # [linux]
     - {{ cdt('libxdamage') }}  # [linux]
     - {{ cdt('libxxf86vm') }}  # [linux]
