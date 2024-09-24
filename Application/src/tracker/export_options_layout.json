@@ -241,6 +241,42 @@
                     "pad":[10,0,15,5],
                     "line":[100,100,100,50],
                     "children":[
+                        {
+                            "type":"stext",
+                            "pad":[5,10,0,0],
+                            "text":"<c>Save visual field data</c>",
+                            "font":{
+                                "size":0.5
+                            },
+                            "color":[255,255,255]
+                        },
+                        {
+                            "type":"settings",
+                            "var":"export_visual_fields",
+                            "desc":"",
+                            "label":{
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                "font":{"size":0.5}
+                            },
+                            "list":{
+                                "line":[220,220,220,200],
+                                "fill":[25,25,25,220],
+                                "size":"[{column_width},200]",
+                                "font":{"size":0.5}
+                            },
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                            "size":"[{-:{-:{column_width}:93}:50},30]"
+                        }
+                    ]
+                }],
+
+                [{
+                    "type":"vlayout",
+                    "pad":[10,0,15,5],
+                    "line":[100,100,100,50],
+                    "children":[
                     {
                         "type":"stext",
                         "pad":[5,10,0,0],

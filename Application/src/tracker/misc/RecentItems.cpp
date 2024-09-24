@@ -138,7 +138,7 @@ RecentItems RecentItems::read() {
             }
 
             for (RecentItemJSON entry : input.entries) {
-                for (auto& [k, v] : entry.settings) {
+                /*for (auto& [k, v] : entry.settings) {
                     std::string key = k;
                     if(default_config::deprecations().contains(k)) {
                         key = default_config::deprecations().at(k);
@@ -160,7 +160,7 @@ RecentItems RecentItems::read() {
                     catch (const std::exception& e) {
                         FormatWarning("Cannot set value for key ", key, ": ", e.what());
                     }
-                }
+                }*/
 
                 items._items.push_back(std::move(entry));
             }
@@ -200,14 +200,14 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     if (has(name)) {
         for (auto& item : _items) {
             if (item.name == name) {
-                item._options = options;
+                //item._options = options;
                 item.filename = SETTING(filename).value<file::Path>().str();
                 item.output_prefix = SETTING(output_prefix).value<std::string>();
                 item.output_dir = SETTING(output_dir).value<file::Path>().str();
                 item.modified = timestamp_t::now().get();
                 item.settings = {};
-                for(auto &key : config.keys())
-                    item.settings[key] = config.at(key).get().to_json();
+                //for(auto &key : config.keys())
+                //    item.settings[key] = config.at(key).get().to_json();
                 //    config.at(key).get().copy_to(&item._options);
                 //config.write_to(item._options);
                 return;
