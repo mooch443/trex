@@ -12,6 +12,10 @@ using namespace cmn;
 std::mutex _recent_select_mutex;
 std::function<void(RecentItemJSON)> _recent_select_callback;
 
+bool is_writable_key(auto&& key) {
+    return is_in(key, "filename", "output_prefix", "source", "output_dir");
+}
+
 void RecentItems::set_select_callback(std::function<void (RecentItemJSON)> fn) {
     std::unique_lock guard(_recent_select_mutex);
     _recent_select_callback = fn;
@@ -42,12 +46,15 @@ glz::json_t RecentItemJSON::to_json() const {
     obj["name"] = name;
 
     glz::json_t settings{};
-    /*for (auto& key : _options.keys()) {
+    for (auto& key : _options.keys()) {
+        if(not is_writable_key(key))
+            continue;
+        
         auto& prop = _options[key].get();
         auto json = prop.to_json();
         //std::cout << "Converted " << key << " to json: " << json << " vs " << json.dump() << std::endl;
         settings[key] = json;
-    }*/
+    }
     obj["settings"] = settings;
     
     obj["output_prefix"] = output_prefix;
@@ -138,8 +145,11 @@ RecentItems RecentItems::read() {
             }
 
             for (RecentItemJSON entry : input.entries) {
-                /*for (auto& [k, v] : entry.settings) {
+                for (auto& [k, v] : entry.settings) {
                     std::string key = k;
+                    if(not is_writable_key(key))
+                        continue;
+                    
                     if(default_config::deprecations().contains(k)) {
                         key = default_config::deprecations().at(k);
                     }
@@ -160,7 +170,7 @@ RecentItems RecentItems::read() {
                     catch (const std::exception& e) {
                         FormatWarning("Cannot set value for key ", key, ": ", e.what());
                     }
-                }*/
+                }
 
                 items._items.push_back(std::move(entry));
             }
@@ -200,15 +210,22 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     if (has(name)) {
         for (auto& item : _items) {
             if (item.name == name) {
+                item._options = {};
+                for(auto& key : options.keys()) {
+                    if(not is_writable_key(key))
+                        continue;
+                    options.at(key).get().copy_to(&item._options);
+                }
+                
                 //item._options = options;
                 item.filename = SETTING(filename).value<file::Path>().str();
                 item.output_prefix = SETTING(output_prefix).value<std::string>();
                 item.output_dir = SETTING(output_dir).value<file::Path>().str();
                 item.modified = timestamp_t::now().get();
                 item.settings = {};
-                //for(auto &key : config.keys())
-                //    item.settings[key] = config.at(key).get().to_json();
-                //    config.at(key).get().copy_to(&item._options);
+                for(auto &key : item._options.keys())
+                    item.settings[key] = item._options.at(key).get().to_json();
+                    //config.at(key).get().copy_to(&item._options);
                 //config.write_to(item._options);
                 return;
             }
@@ -222,10 +239,13 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         .filename = SETTING(filename).value<file::Path>().str(),
     };
     
-    for(auto &key : config.keys())
+    for(auto &key : config.keys()) {
+        if(not is_writable_key(key))
+            continue;
         config.at(key).get().copy_to(&item._options);
-    for(auto &key : config.keys())
-        item.settings[key] = config.at(key).get().to_json();
+    }
+    for(auto &key : item._options.keys())
+        item.settings[key] = item._options.at(key).get().to_json();
     //config.write_to(item._options);
     _items.emplace_back(std::move(item));
 }
