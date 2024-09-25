@@ -22,7 +22,7 @@ struct PreviewAdapterElement : public dyn::CustomElement {
     PreviewAdapterElement(const PreviewAdapterElement&) = delete;
     PreviewAdapterElement& operator=(PreviewAdapterElement&&) = delete;
     PreviewAdapterElement& operator=(const PreviewAdapterElement&) = delete;
-    ~PreviewAdapterElement();
+    virtual ~PreviewAdapterElement();
     
     Layout::Ptr _create(dyn::LayoutContext& context);
     

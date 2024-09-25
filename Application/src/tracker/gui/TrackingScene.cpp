@@ -589,10 +589,11 @@ void TrackingScene::deactivate() {
     Categorize::Work::terminate_prediction() = true;
     WorkProgress::stop();
     Categorize::Work::terminate_prediction() = false;
-    
+
+    cmn::gui::tracker::blob_view_shutdown();
+
     if(_data)
         _data->dynGUI.clear();
-    cmn::gui::tracker::blob_view_shutdown();
     
     if(_data && _data->_callback)
         GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
@@ -602,7 +603,7 @@ void TrackingScene::deactivate() {
         Print(" * ", *value);
     }
     Print();
-    
+
     _data = nullptr;
     _state = nullptr;
     
@@ -636,7 +637,7 @@ void TrackingScene::deactivate() {
         combined.access_levels[name] = level;
     });
     
-    for(auto key : combined.map.keys()) {
+    for(auto &key : combined.map.keys()) {
         if(GlobalSettings::access_level(key) > AccessLevelType::LOAD) {
             //combined.map.at(key)->valueString();
             //Print(" - Ignoring ", key, " ", no_quotes(combined.map.at(key)->valueString()), " vs. ", no_quotes(GlobalSettings::at(key)->valueString()));
@@ -1564,8 +1565,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     }));
     
     g.context.custom_elements["drawsegments"] = std::unique_ptr<CustomElement>(new CustomElement{
-        .name = "drawsegments",
-        .create = [](LayoutContext& context) -> Layout::Ptr {
+        "drawsegments",
+        [](LayoutContext& context) -> Layout::Ptr {
             [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
             auto pad = context.get(Bounds(), "pad");
             auto limit = context.get(Size2(), "max_size");
@@ -1576,7 +1577,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             ptr.to<DrawSegments>()->set(attr::SizeLimit{limit});
             return ptr;
         },
-        .update = [this](Layout::Ptr&o, const Context& context, State& state, const auto& patterns) {
+        [this](Layout::Ptr&o, const Context& context, State& state, const auto& patterns) {
             auto ptr = o.to<DrawSegments>();
             
             Idx_t fdx;
@@ -1599,9 +1600,6 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     
                 }
             }
-            /*if(patterns.contains("frame")) {
-                frame = Meta::fromStr<Frame_t>(parse_text(patterns.at("frame").original, context, state));
-            }*/
             
             if(fdx != ptr->fdx()
                || frame != ptr->frame())

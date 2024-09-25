@@ -252,8 +252,8 @@ struct ConvertScene::Data {
             }));
             dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(
               new CustomElement {
-                .name = "label",
-                .create = [this](LayoutContext& layout) -> Layout::Ptr {
+                "label",
+                [this](LayoutContext& layout) -> Layout::Ptr {
                     std::shared_ptr<Label> ptr;
                     auto text = layout.get<std::string>("", "text");
                     auto center = layout.get<Vec2>(Vec2(), "center");
@@ -290,7 +290,7 @@ struct ConvertScene::Data {
                     
                     return Layout::Ptr(std::make_shared<LabelWrapper>(_unassigned_labels, std::move(ptr)));
                 },
-                .update = [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool
+                [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool
                 {
                     //Print("Updating label with patterns: ", patterns);
                     //Print("o = ", o.get());

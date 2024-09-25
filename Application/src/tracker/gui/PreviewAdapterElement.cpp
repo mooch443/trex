@@ -92,7 +92,9 @@ PreviewAdapterElement::PreviewAdapterElement(decltype(get_current_frame)&& fn, d
     };
 }
 
-PreviewAdapterElement::~PreviewAdapterElement() { }
+PreviewAdapterElement::~PreviewAdapterElement() {
+    //Print("Freeing preview adapter element @ ", hex(this));
+}
 
 Layout::Ptr PreviewAdapterElement::_create(LayoutContext& context) {
     [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");

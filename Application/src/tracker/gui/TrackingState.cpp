@@ -827,7 +827,8 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 });
             
             auto start = Tracker::start_frame();
-            Tracker::instance()->_remove_frames(start);
+            if(start.valid())
+                Tracker::instance()->_remove_frames(start);
                 //removed_frames(start);
         }
         

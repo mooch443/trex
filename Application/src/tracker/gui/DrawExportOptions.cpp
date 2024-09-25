@@ -180,8 +180,8 @@ struct DrawExportOptions::Data {
             };
             
             _gui.context.custom_elements["option_search"] = std::unique_ptr<CustomElement>(new CustomElement {
-                .name = "option_search",
-                .create = [this](LayoutContext& layout) -> Layout::Ptr {
+                "option_search",
+                [this](LayoutContext& layout) -> Layout::Ptr {
                     derived_ptr<Textfield> search = std::make_shared<Textfield>(Box(Vec2(), Size2(parent.width() - 10, 30)));
                     Placeholder_t placeholder{ layout.get(std::string("Type to filter..."), "placeholder") };
                     search->set(placeholder);
@@ -190,7 +190,7 @@ struct DrawExportOptions::Data {
                     });
                     return Layout::Ptr(search);
                 },
-                .update = [](Layout::Ptr&, const Context& , State& , const auto& ) -> bool {
+                [](Layout::Ptr&, const Context& , State& , const auto& ) -> bool {
                     return false;
                 }
             });

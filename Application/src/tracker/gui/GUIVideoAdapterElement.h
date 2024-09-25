@@ -22,7 +22,7 @@ struct GUIVideoAdapterElement : public dyn::CustomElement {
     GUIVideoAdapterElement(const GUIVideoAdapterElement&);
     GUIVideoAdapterElement& operator=(GUIVideoAdapterElement&&) = delete;
     GUIVideoAdapterElement& operator=(const GUIVideoAdapterElement&) = delete;
-    ~GUIVideoAdapterElement();
+    virtual ~GUIVideoAdapterElement();
     
     Layout::Ptr _create(dyn::LayoutContext& context);
     

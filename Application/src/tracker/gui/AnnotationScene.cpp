@@ -406,9 +406,8 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             .base = window()
         };
         
-        _gui->context.custom_elements["pose"] = std::unique_ptr<CustomElement>(new CustomElement {
-            .name = "pose",
-            .create = [this](LayoutContext& layout) -> Layout::Ptr {
+        _gui->context.custom_elements["pose"] = std::unique_ptr<CustomElement>(new CustomElement {"pose",
+            [this](LayoutContext& layout) -> Layout::Ptr {
                 std::shared_ptr<Skelett> ptr;
                 auto points = layout.get<std::vector<Pose::Point>>(std::vector<Pose::Point>{}, "points");
                 //auto color = layout.textClr;
@@ -439,7 +438,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 
                 return Layout::Ptr(ptr);
             },
-            .update = [](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool {
+            [](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool {
                 //Print("Updating label with patterns: ", patterns);
                 //Print("o = ", o.get());
 
