@@ -28,8 +28,7 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(indicators)
-  include_directories(${indicators_SOURCE_DIR}/include)
-endif()
+include_directories(${indicators_SOURCE_DIR}/include)
 
 include_directories(.)
 
