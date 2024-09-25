@@ -27,9 +27,7 @@ FetchContent_Declare(
   GIT_TAG        v2.3
 )
 
-FetchContent_GetProperties(indicators)
-if(NOT indicators_POPULATED)
-  FetchContent_Populate(indicators)
+FetchContent_MakeAvailable(indicators)
   include_directories(${indicators_SOURCE_DIR}/include)
 endif()
 
