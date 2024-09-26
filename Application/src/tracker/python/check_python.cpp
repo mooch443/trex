@@ -24,11 +24,13 @@ int main(int , char**) {
     printf("trex_check_python\n");
 #endif
 	py::scoped_interpreter guard;
-    auto importlib = py::module::import("importlib");
+    auto importlib = py::module::import("importlib.util");
 #ifndef NDEBUG
     printf("loading keras...\n");
 #endif
-    importlib.attr("find_loader")("tensorflow.keras").attr("name");
+    assert(not importlib.is_none());
+    if (importlib.attr("find_spec")("torch").is_none())
+        throw cmn::RuntimeError("Cannot find torch.");
 #ifndef NDEBUG
     printf("success.\n");
 #endif
