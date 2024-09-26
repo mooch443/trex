@@ -668,6 +668,166 @@ TEST(SplitTest, TestSkipEmpty) {
     EXPECT_EQ(split(ws, ',', false, false), expected_ws);
 }
 
+TEST(StringTrimTests, LTrimUTF8Test) {
+    // Test with leading Unicode whitespace characters (e.g., U+3000 IDEOGRAPHIC SPACE)
+    std::string str1 = "　　leading"; // Each '　' is U+3000
+    auto result1 = ltrim(str1);
+    ASSERT_EQ(result1, "leading");
+
+    std::string_view str2 = "　　leading";
+    auto result2 = ltrim(str2);
+    ASSERT_EQ(result2, "leading");
+
+    // Test with mixed ASCII and Unicode whitespace
+    std::string str3 = " \t\n　leading";
+    auto result3 = ltrim(str3);
+    ASSERT_EQ(result3, "leading");
+
+    std::string_view str4 = " \t\n　leading";
+    auto result4 = ltrim(str4);
+    ASSERT_EQ(result4, "leading");
+}
+
+TEST(StringTrimTests, RTrimUTF8Test) {
+    // Test with trailing Unicode whitespace characters
+    std::string str1 = "trailing　　";
+    auto result1 = rtrim(str1);
+    ASSERT_EQ(result1, "trailing");
+
+    std::string_view str2 = "trailing　　";
+    auto result2 = rtrim(str2);
+    ASSERT_EQ(result2, "trailing");
+
+    // Test with mixed ASCII and Unicode whitespace
+    std::string str3 = "trailing \t\n　";
+    auto result3 = rtrim(str3);
+    ASSERT_EQ(result3, "trailing");
+
+    std::string_view str4 = "trailing \t\n　";
+    auto result4 = rtrim(str4);
+    ASSERT_EQ(result4, "trailing");
+}
+
+TEST(StringTrimTests, TrimUTF8Test) {
+    // Test with leading and trailing Unicode whitespace characters
+    std::string str1 = "　　both　　";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "both");
+
+    std::string_view str2 = "　　both　　";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "both");
+
+    // Test with mixed ASCII and Unicode whitespace
+    std::string str3 = "\t \n　both　 \n\t";
+    auto result3 = trim(str3);
+    ASSERT_EQ(result3, "both");
+
+    std::string_view str4 = "\t \n　both　 \n\t";
+    auto result4 = trim(str4);
+    ASSERT_EQ(result4, "both");
+}
+
+TEST(StringTrimTests, TrimUTF8NonWhitespaceTest) {
+    // Test strings with non-whitespace multibyte UTF-8 characters to ensure they are not trimmed
+    std::string str1 = "Привет"; // "Hello" in Russian
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "Привет");
+
+    std::string_view str2 = "こんにちは"; // "Hello" in Japanese
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "こんにちは");
+}
+
+TEST(StringTrimTests, TrimUTF8ComplexWhitespaceTest) {
+    // Test with various Unicode whitespace characters
+    std::string unicode_whitespace = "           "; // U+2000 to U+200A spaces
+    std::string str1 = unicode_whitespace + "text" + unicode_whitespace;
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "text");
+
+    std::string str2 = unicode_whitespace + "text" + unicode_whitespace;
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "text");
+}
+
+TEST(StringTrimTests, TrimEmptyUTF8Test) {
+    // Test with a string that contains only Unicode whitespace
+    std::string str1 = "　　"; // Only IDEOGRAPHIC SPACE (U+3000)
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "");
+
+    std::string_view str2 = "  "; // EN QUAD (U+2000) and EM QUAD (U+2001)
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "");
+}
+
+TEST(StringTrimTests, TrimMixedWhitespaceTest) {
+    // Use UTF-8 byte sequences for ZERO WIDTH SPACE and WORD JOINER
+    std::string str1 = "\xE2\x80\x8B\xE2\x81\xA0text\xE2\x80\x8B\xE2\x81\xA0";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "text");
+
+    std::string_view str2 = "\xE2\x80\x8B\xE2\x81\xA0text\xE2\x80\x8B\xE2\x81\xA0";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "text");
+}
+
+TEST(StringTrimTests, TrimNoWhitespaceTest) {
+    // Test with a string that has no whitespace
+    std::string str1 = "nowhitespace";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "nowhitespace");
+
+    std::string_view str2 = "nowhitespace";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "nowhitespace");
+}
+
+TEST(StringTrimTests, TrimFullWidthSpacesTest) {
+    // Test with full-width spaces (commonly used in CJK languages)
+    std::string str1 = "　　fullwidth spaces　　";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "fullwidth spaces");
+
+    std::string_view str2 = "　　fullwidth spaces　　";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "fullwidth spaces");
+}
+
+TEST(StringTrimTests, TrimCombiningCharactersTest) {
+    // Test with combining characters to ensure they are not trimmed
+    std::string str1 = "e\u0301e\u0300e\u0302"; // e with acute, grave, and circumflex accents
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "e\u0301e\u0300e\u0302");
+
+    std::string_view str2 = "e\u0301e\u0300e\u0302";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "e\u0301e\u0300e\u0302");
+}
+
+TEST(StringTrimTests, TrimEmojiTest) {
+    // Test with emoji characters to ensure they are not trimmed
+    std::string str1 = "😀😃😄";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "😀😃😄");
+
+    std::string_view str2 = "😀😃😄";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "😀😃😄");
+}
+
+TEST(StringTrimTests, TrimStringWithNonBreakingSpace) {
+    // Use UTF-8 byte sequences for NO-BREAK SPACE
+    std::string str1 = "\xC2\xA0\xC2\xA0non-breaking\xC2\xA0\xC2\xA0";
+    auto result1 = trim(str1);
+    ASSERT_EQ(result1, "non-breaking");
+
+    std::string_view str2 = "\xC2\xA0\xC2\xA0non-breaking\xC2\xA0\xC2\xA0";
+    auto result2 = trim(str2);
+    ASSERT_EQ(result2, "non-breaking");
+}
+
 // repeat
 
 TEST(RepeatTest, TestBasicRepeat) {
