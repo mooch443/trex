@@ -717,8 +717,7 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
-                textfield = Layout::Make<Textfield>(Str("W,S"), Box(Size2(d->layout().width() * 0.75, 33)));
-                textfield->set_size(Size2(d->layout().width() * 0.75, 33));
+                textfield = Layout::Make<Textfield>(Str("W,S"), Box(Size2(500 * 0.75, 33)));
                 d->set_custom_element(textfield);
                 d->layout().Layout::update_layout();
             }

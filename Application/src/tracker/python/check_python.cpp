@@ -30,7 +30,7 @@ int main(int , char**) {
 #endif
     assert(not importlib.is_none());
     if (importlib.attr("find_spec")("torch").is_none())
-        throw cmn::RuntimeError("Cannot find torch.");
+        throw std::runtime_error("torch not found");
 #ifndef NDEBUG
     printf("success.\n");
 #endif

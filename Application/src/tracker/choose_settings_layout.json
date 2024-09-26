@@ -459,7 +459,6 @@
                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                         "placeholder":"<sym>🔍</sym> Parameters",
-                        "postfix":"test",
                         "list":{
                             "line":[220,220,220,200],
                             "fill":[25,25,25,220],

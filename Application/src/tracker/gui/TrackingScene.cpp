@@ -1482,6 +1482,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                 
                                 map["nearest_neighbor_distance"] = min_d * FAST_SETTING(cm_per_pixel);
                                 map["bdx"] = it->second.bdx;
+                                map["predictions"] = it->second.pred ? it->second.pred.value() : std::vector<float>{};
                                 map["is_automatic"] = it->second.automatic_match;
                                 map["segment"] = it->second.segment;
                                 map["size"] = Float2_t(it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0)) * SQR(FAST_SETTING(cm_per_pixel));
