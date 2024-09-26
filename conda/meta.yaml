@@ -3,6 +3,8 @@
 {% set git_tag = "main" %}
 {% set version_postfix = "" %}
 #{% set version_postfix = "i" %} # for installer packages
+{% set build_time = time.time() %}
+{% set build_number = (build_time | int - 86400) %}
 
 ####
 {% if git_tag != 'main' %}
@@ -42,7 +44,7 @@ build:
       - CC
       - CXX
       - CONDA_CHANNELS=conda-forge,nodefaults
-    number: 91
+    number: {{ build_number }}
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
