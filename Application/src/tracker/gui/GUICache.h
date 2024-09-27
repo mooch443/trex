@@ -130,6 +130,7 @@ namespace globals {
         std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
         std::unordered_map<Idx_t, std::tuple<bool, FrameRange>> _processed_segment_caches;
         std::unordered_map<Idx_t, std::shared_ptr<track::SegmentInformation>> _segment_caches;
+        std::optional<ska::bytell_hash_map<pv::bid, std::vector<float>>> _current_predictions;
 
         struct PPFrameMaker {
             std::unique_ptr<PPFrame> operator()() const;
@@ -312,6 +313,8 @@ namespace globals {
         
         GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>);
         ~GUICache();
+        
+        std::optional<std::vector<float>> find_prediction(pv::bid) const;
         
         void draw_posture(gui::DrawStructure &base, Frame_t frameNr);
         std::optional<std::vector<Range<Frame_t>>> update_slow_tracker_stuff();

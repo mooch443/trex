@@ -552,12 +552,14 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
                 {
                     LockGuard guard(ro_t{}, "visual_field", 10);
                     set_of_individuals_t s;
-                    auto lock = _cache->lock_individuals();
-                    for(auto idx : _cache->selected) {
-                        if(auto it = lock.individuals.find(idx);
-                           it != lock.individuals.end())
-                        {
-                            s.insert(it->second);
+                    {
+                        auto lock = _cache->lock_individuals();
+                        for(auto idx : _cache->selected) {
+                            if(auto it = lock.individuals.find(idx);
+                               it != lock.individuals.end())
+                            {
+                                s.insert(it->second);
+                            }
                         }
                     }
                     _data->_vf_widget.update(frame, coord, s);

@@ -63,6 +63,7 @@ if [ "$(uname)" == "Linux" ]; then
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
+            -DTREX_WITH_TESTS=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
@@ -85,6 +86,7 @@ if [ "$(uname)" == "Linux" ]; then
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
+            -DTREX_WITH_TESTS=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
             -DWITH_PYLON=ON

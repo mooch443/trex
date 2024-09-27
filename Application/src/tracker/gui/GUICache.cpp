@@ -1086,7 +1086,13 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     //Print("active: ", fish->identity().ID());
                 }
             }
-
+            
+            auto pred = _tracker.get_prediction(frameIndex);
+            if(pred) {
+                _current_predictions = pred.value();
+            } else
+                _current_predictions.reset();
+            
             std::unordered_set<Idx_t> ids;
             std::unordered_map<Idx_t, Individual*> actives;
             
@@ -1322,6 +1328,18 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
     bool GUICache::key_down(Codes code) const {
         return _graph && _graph->is_key_pressed(code);
     }
+
+std::optional<std::vector<float>> GUICache::find_prediction(pv::bid bdx) const {
+    if(not _current_predictions)
+        return std::nullopt;
+    
+    auto it = _current_predictions->find(bdx);
+    if(it != _current_predictions->end()) {
+        return it->second;
+    }
+    
+    return std::nullopt;
+}
 
 std::optional<const IndividualCache*> GUICache::next_frame_cache(Idx_t id) const
 {

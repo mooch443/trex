@@ -51,7 +51,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
         VisualField* ptr = nullptr;//(VisualField*)fish->custom_data(frame, VisualField::custom_id);
         
         if(!ptr && not _fields.contains(id) && fish->head(frame)) {
-            _fields[id] = std::make_unique<VisualField>(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), true);
+            _fields[id] = std::make_unique<VisualField>(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), false);
             ptr = _fields[id].get();
             //ptr = new VisualField(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), true);
             /*fish->add_custom_data(frame, VisualField::custom_id, ptr, [](void* ptr) {

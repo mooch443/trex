@@ -228,6 +228,18 @@ const std::vector<float>& Tracker::get_prediction(Frame_t frame, pv::bid bdx) co
     return *ptr;
 }
 
+tl::expected<ska::bytell_hash_map<pv::bid, std::vector<float>>, const char*> Tracker::get_prediction(Frame_t frame) const {
+    if(not frame.valid())
+        return tl::unexpected("Frame is invalid in get_prediction.");
+    
+    std::shared_lock g(_vi_mutex);
+    auto it = _vi_predictions.find(frame);
+    if(it == _vi_predictions.end())
+        return tl::unexpected("Cannot find frame.");
+    
+    return it->second;
+}
+
 const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) const
 {
     if(not frame.valid() || not bdx.valid())
