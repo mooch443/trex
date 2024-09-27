@@ -42,6 +42,7 @@ struct UpdateSettings {
     bool gui_highlight_categories;
     bool gui_show_match_modes;
     bool gui_show_cliques;
+    std::string gui_fish_label;
     int panic_button;
     uint8_t gui_outline_thickness;
     std::string gui_fish_color;

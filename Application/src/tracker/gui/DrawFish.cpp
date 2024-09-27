@@ -558,8 +558,7 @@ Fish::~Fish() {
         }
         
         dyn::State state;
-        auto temp = SETTING(gui_fish_label).value<std::string>();
-        _data->label_text = dyn::parse_text(temp, _data->context, state);
+        _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {

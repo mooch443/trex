@@ -1154,6 +1154,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 .gui_highlight_categories = GUIOPTION(gui_highlight_categories),
                 .gui_show_match_modes = GUIOPTION(gui_show_match_modes),
                 .gui_show_cliques = GUIOPTION(gui_show_cliques),
+                .gui_fish_label = GUIOPTION(gui_fish_label),
                 .panic_button = GUIOPTION(panic_button),
                 .gui_outline_thickness = GUIOPTION(gui_outline_thickness),
                 .gui_fish_color = GUIOPTION(gui_fish_color),

@@ -49,6 +49,7 @@ namespace globals {
         (uint8_t, gui_outline_thickness),
         (bool, gui_show_texts),
         (float, gui_max_path_time),
+        (std::string, gui_fish_label),
         (int, panic_button),
         (bool, gui_happy_mode),
         (bool, gui_highlight_categories),
