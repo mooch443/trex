@@ -390,6 +390,8 @@ void TrackingScene::activate() {
         "gui_zoom_polygon",
         "gui_zoom_limit",
         
+        "gui_fish_label",
+        
         "individual_image_normalization",
         "individual_image_size",
         "individual_image_scale",
@@ -481,6 +483,7 @@ void TrackingScene::activate() {
         }
         
         if(key == "gui_focus_group"
+           || key == "gui_fish_label"
            || utils::beginsWith(key, "heatmap_"))
         {
             SceneManager::getInstance().enqueue([this, frame = _data && _data->_cache ? _data->_cache->frame_idx : Frame_t{}](){
@@ -783,6 +786,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
             _data->_zoom_dirty = true;
         }
         _data->_last_mouse = mouse;
+        
+        //if(graph.root().is_animating())
+        //    Print("Is animating", graph.root().is_animating());
     }
     
     //if(false)

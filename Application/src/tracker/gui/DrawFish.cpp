@@ -17,6 +17,10 @@
 #include <tracking/Individual.h>
 #include <processing/Background.h>
 #include <misc/CircularGraph.h>
+#include <gui/DynamicGUI.h>
+#include <gui/dyn/Action.h>
+#include <gui/dyn/Context.h>
+#include <gui/dyn/ParseText.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
 //#include <gui.h>
@@ -26,6 +30,10 @@ using namespace track;
 
 namespace cmn::gui {
 
+struct Fish::Data {
+    dyn::Context context;
+    std::string label_text;
+};
 
 Fish::~Fish() {
     if (_label) {
@@ -37,6 +45,90 @@ Fish::~Fish() {
         :   _id(obj.identity()),
             _info(&obj, Output::Options_t{})
     {
+        _data = std::make_unique<Data>();
+        _data->context = [&](){
+            using namespace dyn;
+            Context context;
+            context.actions = {
+            };
+/// {name}{if:{not:{has_pred}}:' {max_pred}':''}
+            context.variables = {
+                VarFunc("help", [this](const VarProps&) -> std::string {
+                    return "The following variables are available: "+Meta::toStr(extract_keys(_data->context.variables));
+                }),
+                VarFunc("hovered", [this](const VarProps&) -> bool {
+                    return _tight_selection.hovered();
+                }),
+                VarFunc("window_size", [](const VarProps&) -> Vec2 {
+                    return FindCoord::get().screen_size();
+                }),
+                VarFunc("has_pred", [this](const VarProps&) {
+                    return _raw_preds.has_value();
+                }),
+                VarFunc("max_pred", [this](const VarProps&) -> std::pair<Idx_t, float>{
+                    //Print("max_pred: ", no_quotes(_raw_preds ? Meta::toStr(_raw_preds.value()) : "null"));
+                    if(_raw_preds.has_value()) {
+                        auto m = max_element(_raw_preds.value());
+                        if(m)
+                            return *m;
+                    }
+                    
+                    return {};
+                }),
+                VarFunc("predictions", [this](const VarProps&) -> std::vector<float> {
+                    std::vector<float> r;
+                    for(auto &[k, v] : _raw_preds.value()) {
+                        r.push_back(v);
+                    }
+                    return r;
+                }),
+                VarFunc("name", [this](const VarProps&) {
+                    return _id.raw_name();
+                }),
+                VarFunc("id", [this](const VarProps&) {
+                    return _id.ID();
+                }),
+                VarFunc("bdx", [this](const VarProps&) {
+                    return _basic_stuff ? _basic_stuff->blob.blob_id() : pv::bid();
+                }),
+                VarFunc("tag", [this](const VarProps&) -> sprite::Map {
+                    if(not _basic_stuff)
+                        return {};
+                        //throw InvalidArgumentException("Invalid frame, no data available.");
+                    auto bdx = _basic_stuff->blob.blob_id();
+                    auto detection = tags::find(_frame, bdx);
+                    if(not detection.valid())
+                        return {};
+                    
+                    sprite::Map map;
+                    map["id"] = detection.id;
+                    map["p"] = detection.p;
+                    return map;
+                }),
+                VarFunc("qr", [this](const VarProps&) -> sprite::Map {
+                    if(not _segment) {
+                        return {};//throw InvalidArgumentException("No segment set to retrieve QRCode from.");
+                    }
+                    
+                    auto [id, p, n] = _qr_code;
+                    sprite::Map map;
+                    map["id"] = id;
+                    map["p"] = p;
+                    map["n"] = n;
+                    return map;
+                }),
+                VarFunc("category", [this](const VarProps&) {
+                    return _cat_name;
+                }),
+                
+                VarFunc("average_category", [this](const VarProps&) {
+                    return _avg_cat_name;
+                })
+            };
+
+            return context;
+        }();
+        
         _previous_color = obj.identity().color();
         
         assert(_id.ID().valid());
@@ -282,6 +374,31 @@ Fish::~Fish() {
             }
         }
         
+        /**
+         * ML Predictions
+         */
+        if(_basic_stuff) {
+            auto && [valid, segment] = obj.has_processed_segment(frameIndex);
+            
+            std::string title = "recognition";
+            
+            if(valid) {
+                auto && [n, values] = obj.processed_recognition(segment.start());
+                title = "average n:"+Meta::toStr(n);
+                _raw_preds = values;
+                
+            } else {
+                auto pred = GUICache::instance().find_prediction(_basic_stuff->blob.blob_id());
+                if(pred)
+                    _raw_preds = track::prediction2map(*pred);
+                else
+                    _raw_preds = std::nullopt;
+            }
+            
+            _recognition_segment = segment;
+            _recognition_str = title;
+        }
+        
         _color = get_color(&_basic_stuff.value());
 
         //if(OPTION(gui_pose_smoothing) > 0_f)
@@ -439,6 +556,10 @@ Fish::~Fish() {
                 _view.set_animating(false);
             }
         }
+        
+        dyn::State state;
+        auto temp = SETTING(gui_fish_label).value<std::string>();
+        _data->label_text = dyn::parse_text(temp, _data->context, state);
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
@@ -1863,17 +1984,14 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     //if(!_basic_stuff.has_value())
     //    return;
     
-    std::string color = "";
+    /*std::string color = "";
     std::stringstream text;
     std::string secondary_text;
     
 
     text << _id.raw_name() << " ";
     
-    /*if (DrawMenu::matching_list_open() && blob) {
-        secondary_text = "blob" + Meta::toStr(blob->blob_id());
-    }
-    else*/ if (GUI_SETTINGS(gui_show_recognition_bounds)) {
+    if (GUI_SETTINGS(gui_show_recognition_bounds)) {
         auto& [valid, segment] = _has_processed_segment;
         if (valid) {
             auto& [samples, map] = processed_segment;
@@ -1932,9 +2050,9 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     if(_avg_cat.has_value()) {
         secondary_text += (_avg_cat.has_value() ? std::string(" ") : std::string()) + "<nr>" + _avg_cat_name + "</nr>";
     }
-#endif
+#endif*/
+    /// {if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{int:{*:100:{at:1:{max_pred}}}}</nr><i>%</i></c>]}}{if:{tag}:' <a>tag:{tag.id} ({dec:2:{tag.p}})</a>':''}{if:{average_category}:' <nr>{average_category}</nr>':''}{if:{&&:{category}:{not:{equal:{category}:{average_category}}}}:' <b><i>{category}</i></b>':''}
     
-    auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
     if(not _basic_stuff.has_value())
         return;
     
@@ -1946,10 +2064,10 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     }
     
     if (!_label) {
-        _label = new Label(label_text, _basic_stuff->blob.calculate_bounds(), pos);
+        _label = new Label(_data->label_text, _basic_stuff->blob.calculate_bounds(), pos);
     }
     else
-        _label->set_data(this->frame(), label_text, _basic_stuff->blob.calculate_bounds(), pos);
+        _label->set_data(this->frame(), _data->label_text, _basic_stuff->blob.calculate_bounds(), pos);
 
     //Print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
     

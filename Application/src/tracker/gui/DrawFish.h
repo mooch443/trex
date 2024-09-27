@@ -135,6 +135,13 @@ struct UpdateSettings {
         std::string _cat_name;
         std::string _avg_cat_name;
         
+        std::string _recognition_str;
+        FrameRange _recognition_segment;
+        
+        struct Data;
+        std::unique_ptr<Data> _data;
+        std::optional<std::map<track::Idx_t, float>> _raw_preds;
+        
         Entangled _posture, _label_parent;
         std::unique_ptr<Skelett> _skelett;
         
