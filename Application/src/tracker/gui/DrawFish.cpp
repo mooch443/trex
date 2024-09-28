@@ -54,7 +54,7 @@ Fish::~Fish() {
 /// {name}{if:{not:{has_pred}}:' {max_pred}':''}
             context.variables = {
                 VarFunc("help", [this](const VarProps&) -> std::string {
-                    return "The following variables are available: "+Meta::toStr(extract_keys(_data->context.variables));
+                    return "The following variables are available:\n"+Meta::toStr(extract_keys(_data->context.variables));
                 }),
                 VarFunc("hovered", [this](const VarProps&) -> bool {
                     return _tight_selection.hovered();
@@ -557,8 +557,15 @@ Fish::~Fish() {
             }
         }
         
-        dyn::State state;
-        _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
+        try {
+            dyn::State state;
+            _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
+        } catch(const std::exception& ex) {
+#ifndef NDEBUG
+            FormatWarning("Caught exception when parsing text: ", ex.what());
+#endif
+            _data->label_text = "[<red>ERROR</red>] <lightgray>gui_fish_label</lightgray>: <red>"+std::string(ex.what())+"</red>";
+        }
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
