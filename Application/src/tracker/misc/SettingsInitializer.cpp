@@ -764,50 +764,64 @@ void load(file::PathArray source,
                                              default_config::deprecations());
                     }
                     
-                    if(not source_map.has("meta_encoding")
-                       && tmp.has("meta_encoding"))
-                    {
-                        tmp.at("meta_encoding").get().copy_to(&combined.map);
-                        set_config_if_different("meta_encoding", combined.map);
-                    }
-                    
-                    if(not source_map.has("meta_source_path")
-                       && tmp.has("meta_source_path"))
-                    {
-                        tmp.at("meta_source_path").get().copy_to(&combined.map);
-                        set_config_if_different("meta_source_path", combined.map);
-                    }
-                    
-                    if ((not combined.map.has("meta_real_width")
-                        || combined.map.at("meta_real_width").value<Float2_t>() == 0)
-                        && not source_map.has("meta_real_width"))
-                    {
-                        combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
-                        set_config_if_different("meta_real_width", combined.map);
-                    }
-                    
-                    if ((not combined.map.has("frame_rate")
-                        || combined.map.at("frame_rate").value<uint>() == 0)
-                        && not source_map.has("frame_rate"))
-                    {
-                        tmp.at("frame_rate").get().copy_to(&combined.map);
-                        set_config_if_different("frame_rate", combined.map);
-                    }
-                    
-                    if ((not combined.map.has("cm_per_pixel")
-                         || combined.map.at("cm_per_pixel").value<Float2_t>() == 0)
-                        && not source_map.has("cm_per_pixel"))
-                    {
-                        tmp.at("cm_per_pixel").get().copy_to(&combined.map);
-                        set_config_if_different("cm_per_pixel", combined.map);
-                    }
-                    
-                    if((not source_map.has("detect_type")
-                        || source_map.at("detect_type").value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
-                       && tmp.has("detect_type"))
-                    {
-                        tmp.at("detect_type").get().copy_to(&combined.map);
-                        set_config_if_different("detect_type", combined.map);
+                    // List of fields to check and their default handlers
+                    const std::vector<std::string> fields_to_check = {
+                        "meta_encoding",
+                        "meta_source_path",
+                        "meta_video_size",
+                        "meta_real_width",
+                        "frame_rate",
+                        "cm_per_pixel",
+                        "detect_type"
+                    };
+
+                    // Functions to compute default values when not available in tmp
+                    const std::unordered_map<std::string, std::function<void()>> compute_defaults = {
+                        {"meta_video_size", [&]() {
+                            combined.map["meta_video_size"] = Size2(f.size());
+                            set_config_if_different("meta_video_size", combined.map);
+                        }},
+                        {"meta_real_width", [&]() {
+                            combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                            set_config_if_different("meta_real_width", combined.map);
+                        }},
+                        {"cm_per_pixel", [&]() {
+                            FormatWarning("Source ", path, " does not have `cm_per_pixel`.");
+                        }},
+                        {"detect_type", [&]() {
+                            if (tmp.has("detect_type")) {
+                                tmp.at("detect_type").get().copy_to(&combined.map);
+                                set_config_if_different("detect_type", combined.map);
+                            }
+                        }}
+                    };
+
+                    for (const auto& key : fields_to_check) {
+                        // Skip if the key is present in source_map
+                        if (source_map.has(key)) {
+                            continue;
+                        }
+
+                        // Get the default value for comparison
+                        const auto default_value = current_defaults.has(key)
+                                            ? &current_defaults.at(key).get()
+                                            : nullptr;
+
+                        // Determine if we need to update the value
+                        const bool needs_update = default_value && (!combined.map.has(key) ||
+                                combined.map.at(key).get() == *default_value);
+
+                        if (needs_update) {
+                            if (tmp.has(key)) {
+                                // Copy value from tmp if available
+                                tmp.at(key).get().copy_to(&combined.map);
+                                set_config_if_different(key, combined.map);
+                            } else if (compute_defaults.count(key)) {
+                                // Compute and set the default value if a handler exists
+                                compute_defaults.at(key)();
+                            }
+                            // No action needed if neither tmp has the key nor a compute function is defined
+                        }
                     }
                     
                 } catch(const std::exception& ex) {
@@ -938,31 +952,47 @@ void load(file::PathArray source,
             //source_map.at(key).get().copy_to(&current_defaults);
         }
     }
-
+    
+    if(not combined.map.has("meta_video_size")
+       || combined.map.at("meta_video_size").value<Size2>().empty())
+    {
+        try {
+            if(auto source = combined.map.at("source").value<file::PathArray>();
+               source == file::PathArray("webcam"))
+            {
+                combined.map["meta_video_size"] = 1920_F;
+                
+            } else if(source.get_paths().size() == 1
+                      && source.get_paths().front().has_extension("pv"))
+            {
+                /// we are looking at a .pv file as input
+                Print("Should have already loaded this?");
+                
+                /// if this errors out, we should skip... so we let it through
+                pv::File video(source.get_paths().front());
+                combined.map["meta_video_size"] = Size2(video.size());
+                ///
+                
+            } else {
+                VideoSource video(source);
+                auto size = video.size();
+                combined.map["meta_video_size"] = Size2(size);
+            }
+            
+        } catch(...) {
+            combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
+            FormatWarning("Cannot open video source ", source, ". Please check permissions, or whether the file provided is broken. Defaulting to 1920px.");
+        }
+    }
+    
     if (not combined.map.has("meta_real_width")
         || combined.map.at("meta_real_width").value<Float2_t>() == 0)
     {
-        if(auto source = combined.map.at("source").value<file::PathArray>();
-           source == file::PathArray("webcam"))
-        {
-            combined.map["meta_real_width"] = 1000_F;
-            
-        } else if(source.get_paths().size() == 1
-                  && source.get_paths().front().has_extension("pv"))
-        {
-            /// we are looking at a .pv file as input
-            Print("Should have already loaded this?");
-            
-        } else {
-            try {
-                VideoSource video(source);
-                auto size = video.size();
-                combined.map["meta_real_width"] = Float2_t(size.width);
-            } catch(...) {
-                combined.map["meta_real_width"] = 0_F;
-            }
-        }
+        assert(combined.map.at("meta_video_size").valid() && not combined.map.at("meta_video_size").value<Size2>().empty());
+        combined.map["meta_real_width"] = combined.map.at("meta_video_size").value<Size2>().width;
     }
+    
+    current_defaults["track_max_speed"] = 10_F * combined.map.at("meta_video_size").value<Size2>().width * combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
     
     if (combined.map.has("cm_per_pixel")
         && combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
@@ -975,6 +1005,16 @@ void load(file::PathArray source,
             combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
     }
     
+    if(not combined.map.has("track_max_speed")
+       || combined.map.at("track_max_speed").value<Settings::track_max_speed_t>() == 0)
+    {
+        combined.map["track_max_speed"] = current_defaults["track_max_speed"].value<Settings::track_max_speed_t>();
+    }
+    
+    Print("track_max_speed = ", combined.map.at("track_max_speed").value<Settings::track_max_speed_t>());
+    Print("cm_per_pixel = ", combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
+    Print("meta_real_width = ", no_quotes(combined.map.at("meta_real_width").get().valueString()));
+    Print("meta_video_size = ", no_quotes(combined.map.at("meta_video_size").get().valueString()));
     
     if(type == detect::ObjectDetectionType::none)
     {

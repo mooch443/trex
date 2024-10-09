@@ -75,6 +75,7 @@ public:
         std::shared_lock g(_vi_mutex);
         return !_vi_predictions.empty();
     }
+    void clear_vi_predictions();
     
     void set_vi_data(const decltype(_vi_predictions)& predictions);
     void predicted(Frame_t, pv::bid, std::span<float>);

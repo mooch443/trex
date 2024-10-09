@@ -20,6 +20,7 @@
 namespace cmn {
 
 ENUM_CLASS_DOCS(meta_encoding_t,
+                "No color information is stored. This makes .pv video files very small, but loses all greyscale or color information.",
                 "Grayscale video, calculated by simply extracting one channel (default R) from the video.",
                 "Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).",
                 "Encode all colors into a full color 8-bit R8G8B8 array.");

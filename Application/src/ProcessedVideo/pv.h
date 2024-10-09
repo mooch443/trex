@@ -96,8 +96,14 @@ namespace pv {
         /** Adding main outline if available (blob::Prediction) */
         V_13,
         
+        /** Changing encoding to -> string so we do not have to rely on the
+            order of encodings in the enum to be the same. Also removing channels
+            since this is implicit from the encoding.
+         */
+        V_14,
+        
         //! current
-        current = V_13
+        current = V_14
     };
     
     class Frame {
@@ -110,7 +116,7 @@ namespace pv {
         GETTER_I(uint16_t, n, 0u);
         GETTER_SETTER_I(float, loading_time, 0.f);
         GETTER_SETTER(Frame_t, source_index);
-        GETTER_SETTER(uint8_t, channels) = 1u;
+        //GETTER_SETTER(uint8_t, channels) = 1u;
         GETTER_SETTER(meta_encoding_t::Class, encoding) = meta_encoding_t::gray;
         
         GETTER_NCONST(std::vector<blob::line_ptr_t>, mask);
@@ -130,7 +136,7 @@ namespace pv {
         explicit Frame(const Frame&);
         
         //! create a new one from scratch
-        Frame(const timestamp_t& timestamp, decltype(_n) n, uint8_t channels);
+        Frame(const timestamp_t& timestamp, decltype(_n) n, cmn::meta_encoding_t::Class e);
         
         //! read from a file
         Frame(File& ref, Frame_t idx);
@@ -186,7 +192,7 @@ namespace pv {
         std::optional<std::string> metadata;
         
         //! Number of channels per pixel
-        uchar channels{1u};
+        //uchar channels{1u};
         
         meta_encoding_t::Class encoding{meta_encoding_t::gray};
         
@@ -258,8 +264,8 @@ namespace pv {
     public:
         Header() = default;
         Header(Header&&) = default;
-        Header(const std::string& n, uint8_t channels, meta_encoding_t::Class encoding)
-            : name(n), channels(channels), encoding(encoding)
+        Header(const std::string& n, meta_encoding_t::Class encoding)
+            : name(n), encoding(encoding)
         { }
         
         ~Header() {
@@ -336,35 +342,35 @@ namespace pv {
         
     public:
         File(const file::Path& filename) 
-            : File(filename, FileMode::READ, 0)
+            : File(filename, FileMode::READ, meta_encoding_t::binary)
         { }
         
         template<FileMode Mode = FileMode::READ>
             requires (bool((int)Mode & (int)FileMode::READ))
         static std::unique_ptr<File> Make(const file::Path& filename) {
-            return std::unique_ptr<File>(new File(filename, Mode, 1));
+            return std::unique_ptr<File>(new File(filename, Mode, meta_encoding_t::gray));
         }
         template<FileMode Mode>
             requires (bool((int)Mode & (int)FileMode::WRITE)
                       || bool((int)Mode & (int)FileMode::MODIFY))
-        static std::unique_ptr<File> Make(const file::Path& filename, uint8_t channels) {
-            return std::unique_ptr<File>(new File(filename, Mode, channels));
+        static std::unique_ptr<File> Make(const file::Path& filename, meta_encoding_t::Class encoding) {
+            return std::unique_ptr<File>(new File(filename, Mode, encoding));
         }
         
         template<FileMode Mode = FileMode::READ>
             requires (bool((int)Mode & (int)FileMode::READ))
         static File Read(const file::Path& filename) {
-            return File(filename, Mode, 1);
+            return File(filename, Mode, meta_encoding_t::gray);
         }
         template<FileMode Mode = FileMode::WRITE>
             requires (bool((int)Mode & (int)FileMode::WRITE)
                       || bool((int)Mode & (int)FileMode::MODIFY))
-        static File Write(const file::Path& filename, uint8_t channels) {
-            return File(filename, Mode, channels);
+        static File Write(const file::Path& filename, meta_encoding_t::Class encoding) {
+            return File(filename, Mode, encoding);
         }
         
     private:
-        File(const file::Path& filename, FileMode mode, uint8_t channels);
+        File(const file::Path& filename, FileMode mode, std::optional<meta_encoding_t::Class> encoding);
         
     public:
         File(File&&) noexcept;
@@ -399,6 +405,9 @@ namespace pv {
         
         void read_with_encoding(Frame& frame, Frame_t frameIndex, meta_encoding_t::Class mode) {
             switch(mode) {
+                case meta_encoding_t::data::values::binary:
+                    read_frame<meta_encoding_t::binary>(frame, frameIndex);
+                    break;
                 case meta_encoding_t::data::values::rgb8:
                     read_frame<meta_encoding_t::rgb8>(frame, frameIndex);
                     break;

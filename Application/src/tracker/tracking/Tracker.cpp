@@ -209,6 +209,11 @@ std::set<Idx_t> _fixed_identities;
 Tracker* Tracker::instance() {
     return _instance;
 }
+
+void Tracker::clear_vi_predictions() {
+    std::unique_lock g(_vi_mutex);
+    _vi_predictions.clear();
+}
     
 void Tracker::predicted(Frame_t frame, pv::bid bdx, std::span<float> ps) {
     std::unique_lock g(_vi_mutex);
@@ -724,7 +729,7 @@ void Tracker::prefilter(
     {
         // TODO: magic numbers
         if(result.fish_size
-           && b->pixels()->size() * cm_sqr > result.fish_size.max_range().end * 100)
+           && b->num_pixels() * cm_sqr > result.fish_size.max_range().end * 100)
         {
             b->force_set_recount(result.threshold);
         } else {
@@ -3380,10 +3385,16 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                 
                 for (size_t k=0; k<frame.n(); k++) {
                     InputInfo info{
-                        .channels = static_cast<uint8_t>(pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_rgb) ? 3 : 1),
-                        .encoding = pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_rgb) ? meta_encoding_t::rgb8 : (pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_r3g3b2) ? meta_encoding_t::r3g3b2 : meta_encoding_t::gray)
+                        .channels = static_cast<uint8_t>(pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_rgb) ? 3 : (pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_binary) ? 0 : 1)),
+                        .encoding = pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_rgb)
+                                        ? meta_encoding_t::rgb8
+                                        : (pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_r3g3b2)
+                                                ? meta_encoding_t::r3g3b2
+                                                : (pv::Blob::is_flag(frame.flags().at(k), pv::Blob::Flags::is_binary)
+                                                   ? meta_encoding_t::binary
+                                                   : meta_encoding_t::gray))
                     };
-                    auto pair = imageFromLines(info, *frame.mask().at(k), NULL, NULL, NULL, frame.pixels().at(k).get(), SETTING(track_threshold).value<int>(), &bg);
+                    auto pair = imageFromLines(info, *frame.mask().at(k), NULL, NULL, NULL, frame.pixels().empty() ? nullptr : frame.pixels().at(k).get(), SETTING(track_threshold).value<int>(), &bg);
                     
                     Float2_t value = pair.second * SQR(SETTING(cm_per_pixel).value<Float2_t>());
                     if(value > 0) {

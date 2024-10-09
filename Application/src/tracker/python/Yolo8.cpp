@@ -231,15 +231,9 @@ void draw_outlines(const std::vector<Vector>& _points, const std::string& title 
 }
 
 void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
+    const auto encoding = Background::meta_encoding();
     const auto mode = Background::image_mode();
-    if(mode == ImageMode::RGB) {
-        data.frame.set_channels(3);
-    } else if(mode == ImageMode::GRAY) {
-        data.frame.set_channels(1);
-    } else if(mode == ImageMode::R3G3B2) {
-        data.frame.set_channels(1);
-    } else
-        throw InvalidArgumentException("Invalid ImageMode ", mode,".");
+    data.frame.set_encoding(encoding);
         
     cv::Mat r3;
     if (mode == ImageMode::R3G3B2) {
@@ -263,6 +257,8 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
             cv::cvtColor(data.image->get(), r3, cv::COLOR_BGR2GRAY);
         else if(data.image->dims == 4)
             cv::cvtColor(data.image->get(), r3, cv::COLOR_BGRA2GRAY);
+        else if(data.image->dims == 1)
+            r3 = data.image->get();
         else
 			throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
     } else
@@ -332,6 +328,7 @@ void Yolo8::process_boxes_only(
             pv::Blob::set_flag(flags, pv::Blob::Flags::is_rgb, r3.channels() == 3);
             /// TODO: this might be a bit unsafe?
             pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
+            pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
             
             pv::Blob blob(lines, flags);
             
@@ -456,12 +453,15 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
         .p = uint8_t(float(row.conf) * 255.f)
     };
     pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
-    if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+    
+    const auto meta_encoding = Background::meta_encoding();
+    if(meta_encoding == meta_encoding_t::r3g3b2) {
         assert(r3.channels() == 1);
         pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_r3g3b2, true);
     }
-    pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_rgb, Background::meta_encoding() == meta_encoding_t::rgb8);
-    assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (Background::meta_encoding() == meta_encoding_t::rgb8));
+    pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_rgb, meta_encoding == meta_encoding_t::rgb8);
+    pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_binary, meta_encoding == meta_encoding_t::binary);
+    assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (meta_encoding == meta_encoding_t::rgb8));
 
     pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
     

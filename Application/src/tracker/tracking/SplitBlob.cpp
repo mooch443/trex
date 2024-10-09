@@ -123,7 +123,7 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
 
 size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold, std::vector<pv::BlobPtr> &output, const Background& background)
 {
-    if(_diff_px.empty()) {
+    if(_diff_px.empty() && not _blob->is_binary()) {
         _diff_px.resize(_blob->pixels()->size());
         auto px = _blob->pixels()->data();
         auto out = _diff_px.data();
@@ -162,10 +162,12 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
     
     std::sort(output.begin(), output.end(),
        [](const pv::BlobPtr& a, const pv::BlobPtr& b) { 
-            return std::make_tuple(a->pixels()->size(), a->blob_id()) > std::make_tuple(b->pixels()->size(), b->blob_id()); 
+            return std::make_tuple(a->num_pixels(), a->blob_id()) > std::make_tuple(b->num_pixels(), b->blob_id());
        });
     
-    return output.empty() ? 0 : (*output.begin())->pixels()->size() / (*output.begin())->channels();
+    return output.empty() || (*output.begin())->channels() == 0
+                ? 0
+                : (*output.begin())->num_pixels() / (*output.begin())->channels();
 }
 
 /**
@@ -473,7 +475,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 
         std::sort(output.begin(), output.end(),
             [](const pv::BlobPtr& a, const pv::BlobPtr& b) {
-                return std::make_tuple(a->pixels()->size(), a->blob_id()) > std::make_tuple(b->pixels()->size(), b->blob_id());
+                return std::make_tuple(a->num_pixels(), a->blob_id()) > std::make_tuple(b->num_pixels(), b->blob_id());
             });
 
 
@@ -500,7 +502,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         }
         tf::imshow("blobs", tmp);*/
 
-        return output.empty() ? 0 : (*output.begin())->pixels()->size() / (*output.begin())->channels();
+        return output.empty() || (*output.begin())->channels() == 0 ? 0 : (*output.begin())->num_pixels() / (*output.begin())->channels();
     };
     
     std::atomic<float> max_size;

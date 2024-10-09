@@ -50,20 +50,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                             return nullptr; // past the end
                         
                         pv::Frame frame;
-                        switch(Background::meta_encoding()) {
-                            case meta_encoding_t::data::values::rgb8:
-                                video->read_frame<meta_encoding_t::rgb8>(frame, frameIndex);
-                                break;
-                            case meta_encoding_t::data::values::gray:
-                                video->read_frame<meta_encoding_t::gray>(frame, frameIndex);
-                                break;
-                            case meta_encoding_t::data::values::r3g3b2:
-                                video->read_frame<meta_encoding_t::r3g3b2>(frame, frameIndex);
-                                break;
-                                
-                            default:
-                                throw InvalidArgumentException("Unknown meta_encoding: ", Background::meta_encoding());
-                        }
+                        video->read_with_encoding(frame, frameIndex, Background::meta_encoding());
                         
                         ptr = buffers.get(source_location::current());
                         ptr->clear();

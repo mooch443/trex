@@ -117,8 +117,6 @@ void IndividualManager::assign_blob_individual(const AssignInfo& info, Individua
     }
 #endif
     
-    //assert(required_channels(Background::image_mode()) == (blob->is_rgb() ? 3 : 1));
-    
     assert(blob->properties_ready());
     auto bdx = blob->blob_id();
     if(!blob->moments().ready) {

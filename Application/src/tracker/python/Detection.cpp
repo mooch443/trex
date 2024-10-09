@@ -205,8 +205,7 @@ double BackgroundSubtraction::fps() {
 
 void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
-    const auto mode = Background::image_mode();
-    const uint8_t channels = required_channels(mode);
+    const auto mode = Background::meta_encoding();
     
     RawProcessing raw(data().gpu, &data().float_average, nullptr);
     gpuMat gpu_buffer;
@@ -223,7 +222,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
             std::vector<blob::Pair> filtered, filtered_out;
             
             for(auto &image : tile.images) {
-                if (mode == ImageMode::R3G3B2) {
+                if (mode == meta_encoding_t::r3g3b2) {
                     if (image->dims == 3)
                         convert_to_r3g3b2<3>(image->get(), r3);
                     else if (image->dims == 4)
@@ -231,14 +230,16 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                     else
                         throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
                 }
-                else if (mode == ImageMode::GRAY) {
+                else if (mode == meta_encoding_t::gray
+                         || mode == meta_encoding_t::binary)
+                {
                     if(image->dims == 3)
                         cv::cvtColor(image->get(), r3, cv::COLOR_BGR2GRAY);
                     else if(image->dims == 4)
                         cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
                     else
                         throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
-                } else if(mode == ImageMode::RGB) {
+                } else if(mode == meta_encoding_t::rgb8) {
                     if(image->dims == 4)
                         cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2BGR);
                     else
@@ -250,8 +251,6 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 gpuMat* input = &gpu_buffer;
                 r3.copyTo(*input);
                 
-                
-
                 /*if (processed().has_mask()) {
                     static gpuMat mask;
                     if (mask.empty())
@@ -279,8 +278,9 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
 
                     const uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
                             | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation)
-                            | (r3.channels() == 3 ? pv::Blob::flag(pv::Blob::Flags::is_rgb) : 0)
-                            | (mode == ImageMode::R3G3B2 ? pv::Blob::flag(pv::Blob::Flags::is_r3g3b2) : 0);
+                            | (mode == meta_encoding_t::rgb8 ? pv::Blob::flag(pv::Blob::Flags::is_rgb) : 0)
+                            | (mode == meta_encoding_t::r3g3b2 ? pv::Blob::flag(pv::Blob::Flags::is_r3g3b2) : 0)
+                            | (mode == meta_encoding_t::binary ? pv::Blob::flag(pv::Blob::Flags::is_binary) : 0);
                     for (auto& blob : tag.tags) {
                         rawblobs.emplace_back(
                             std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
@@ -360,8 +360,8 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 static Timing timing("adding frame");
                 TakeTiming take(timing);
                 
-                assert(r3.channels() == channels);
-                tile.data.frame.set_channels(channels);
+                assert(required_storage_channels(mode) == 0 || r3.channels() == required_storage_channels(mode));
+                tile.data.frame.set_encoding(mode);
                 
                 for (auto &&b: filtered) {
                     if(b.lines->size() < UINT16_MAX) {

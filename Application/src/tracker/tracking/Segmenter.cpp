@@ -324,29 +324,29 @@ bool Segmenter::is_average_generating() const {
 }
 
 Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
-    const auto meta_encoding = Background::meta_encoding();
-    const uint8_t channels = required_channels(Background::image_mode());
+    const auto image_mode = Background::image_mode();
+    const uint8_t channels = required_channels(image_mode);
 
     Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, channels);
     if(bg.channels() == 3
         && bg.cols == _output_size.width
         && bg.rows == _output_size.height
     ) {
-        if(meta_encoding == meta_encoding_t::r3g3b2) {
+        if(image_mode == ImageMode::R3G3B2) {
             assert(channels == 1);
             auto tmp = ptr->get();
             convert_to_r3g3b2<3>(bg, tmp);
             
         } else if(channels == 1) {
-            assert(meta_encoding == meta_encoding_t::gray);
+            assert(image_mode == ImageMode::GRAY);
             cv::cvtColor(bg, ptr->get(), cv::COLOR_BGR2GRAY);
 
-        } else if(meta_encoding == meta_encoding_t::rgb8) {
+        } else if(image_mode == ImageMode::RGB) {
             assert(channels == 3);
             bg.copyTo(ptr->get());
 
         } else {
-            throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
+            throw InvalidArgumentException("Invalid ImageMode: ", image_mode, " to convert the background image.");
         }
 
     } else {
@@ -392,12 +392,13 @@ void Segmenter::set_metadata() {
 }
 
 void Segmenter::callback_after_generating(cv::Mat &bg) {
+    const auto encoding = Background::meta_encoding();
     const auto channels = required_channels(Background::image_mode());
     
     {
         std::unique_lock guard(_mutex_tracker);
         if(not _tracker)
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), encoding, SETTING(meta_real_width).value<Float2_t>());
         //else
         //    _tracker->set_average(Image::Make(bg));
     }
@@ -405,7 +406,7 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
     {
         std::unique_lock vlock(_mutex_general);
         if (not _output_file) {
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
             set_metadata();
         }
         try {
@@ -426,6 +427,7 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
 
 void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
     const auto channels = required_channels(Background::image_mode());
+    const auto encoding = Background::meta_encoding();
     
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
@@ -482,7 +484,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             }
 
             std::unique_lock vlock(_mutex_general);
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
             set_metadata();
         }
         
@@ -581,6 +583,7 @@ void Segmenter::open_camera() {
     camera.set_color_mode(ImageMode::RGB);
     
     /// find out which number of channels we are interested in:
+    const auto encoding = Background::meta_encoding();
     const uint8_t channels = required_channels(Background::image_mode());
 
     SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
@@ -659,7 +662,7 @@ void Segmenter::open_camera() {
 
     {
         std::unique_lock vlock(_mutex_general);
-        _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, channels);
+        _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
         set_metadata();
         _output_file->set_average(bg);
     }
@@ -1289,7 +1292,7 @@ std::tuple<SegmentationData, track::PPFrame, std::vector<pv::BlobPtr>> Segmenter
         };
     }
     SegmentationData data;
-    data.frame.set_channels(Background::image_mode() == ImageMode::RGB ? 3 : 1);
+    data.frame.set_encoding(Background::meta_encoding());
     return {std::move(data), track::PPFrame{}, std::vector<pv::BlobPtr>{}};
 }
 

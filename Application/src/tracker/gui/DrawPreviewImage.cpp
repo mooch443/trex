@@ -177,7 +177,15 @@ Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
     auto ptr = Image::Make(image->rows, image->cols, 4);
     cv::Mat output = ptr->get();
     
+    if(from == meta_encoding_t::data::values::binary) {
+        from = meta_encoding_t::data::values::gray;
+    }
+    
     switch(from) {
+        case meta_encoding_t::data::values::binary: {
+            throw InvalidArgumentException("Cannot convert to rgba from no data.");
+            break;
+        }
         case meta_encoding_t::data::values::r3g3b2: {
             if(image->channels() == 1) [[likely]] {
                 /// got a greyscale r3g3b2 image input -> just convert

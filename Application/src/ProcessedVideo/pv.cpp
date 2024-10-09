@@ -17,6 +17,16 @@
 namespace cmn {
 using namespace cmn::file;
 
+constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t channels) {
+    return required_storage_channels(encoding) == channels;
+}
+
+template<typename ImageT>
+    requires (std::same_as<Image, ImageT> || std::same_as<cv::Mat, ImageT>)
+constexpr bool correct_number_channels(meta_encoding_t::Class encoding, const ImageT& image) {
+    return required_image_channels(encoding) == image.channels();
+}
+
 template<> void Data::read(blob::Prediction& pred) {
     auto version = (pv::Version)pred.clid;
     
@@ -159,17 +169,12 @@ File::File(File&& other) noexcept
     other._tried_to_open = false;
 }
 
-File::File(const file::Path& filename, FileMode mode, uint8_t channels)
+File::File(const file::Path& filename, FileMode mode, std::optional<meta_encoding_t::Class> encoding)
     : DataFormat(filename.add_extension("pv"), filename.str()),
-        _header(filename.str(), channels, Background::meta_encoding()),
+        _header(filename.str(), *encoding),
         _filename(filename),
         _mode(mode)
-{ 
-    if((bool(mode & FileMode::WRITE) || bool(mode & FileMode::MODIFY))
-       && not is_in(channels, 1, 3))
-    {
-        throw InvalidArgumentException("Unsupported number of channels (", channels, ") for pv::File.");
-    }
+{
 }
 
     File::~File() {
@@ -191,25 +196,28 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
           _n(other._n),
           _loading_time(other._loading_time),
           _source_index(other._source_index),
-          _channels(other._channels),
+          _encoding(other._encoding),
           _flags(other._flags),
           _predictions(other._predictions)
     {
         _mask.reserve(other.n());
-        _pixels.reserve(other.n());
+        if(other.encoding() != meta_encoding_t::binary)
+            _pixels.reserve(other.n());
         
         //! perform deep-copy
         for (size_t i=0; i<other.n(); ++i) {
             _mask.emplace_back(new blob::line_ptr_t::element_type(*other._mask[i]));
-            _pixels.emplace_back(new blob::pixel_ptr_t::element_type(*other._pixels[i]));
+            if(other.encoding() != meta_encoding_t::binary)
+                _pixels.emplace_back(new blob::pixel_ptr_t::element_type(*other._pixels[i]));
         }
     }
 
-    Frame::Frame(const timestamp_t& timestamp, decltype(_n) n, uint8_t channels)
-        : _timestamp(timestamp), _channels(channels)
+    Frame::Frame(const timestamp_t& timestamp, decltype(_n) n, cmn::meta_encoding_t::Class e)
+        : _timestamp(timestamp), _encoding(e)
     {
         _mask.reserve(n);
-        _pixels.reserve(n);
+        if(_encoding != meta_encoding_t::binary)
+            _pixels.reserve(n);
         _flags.reserve(n);
     }
     
@@ -218,13 +226,24 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
     }
 
     std::unique_ptr<pv::Blob> Frame::blob_at(size_t i) const {
-        assert(_channels == 1 || Blob::is_flag(_flags[i], Blob::Flags::is_rgb));
-        return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i], _predictions.empty() ? blob::Prediction{} : _predictions[i]);
+        return std::make_unique<pv::Blob>(*_mask[i],
+                encoding() != meta_encoding_t::binary
+                    ? *_pixels[i]
+                    : std::vector<uchar>{},
+                _flags[i],
+                _predictions.empty()
+                    ? blob::Prediction{}
+                    : _predictions[i]);
     }
 
     std::unique_ptr<pv::Blob> Frame::steal_blob(size_t i) {
-        assert(_channels == 1 || Blob::is_flag(_flags[i], Blob::Flags::is_rgb));
-        return std::make_unique<pv::Blob>(std::move(_mask[i]), std::move(_pixels[i]), _flags[i], _predictions.empty() ? blob::Prediction{} : std::move(_predictions[i]));
+        return std::make_unique<pv::Blob>(std::move(_mask[i]),
+                encoding() != meta_encoding_t::binary
+                    ? std::move(_pixels[i]) : nullptr,
+                _flags[i],
+                _predictions.empty()
+                    ? blob::Prediction{}
+                    : std::move(_predictions[i]));
     }
 
     std::vector<pv::BlobPtr> Frame::steal_blobs() && {
@@ -285,7 +304,8 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
         set_index(idx);
         
         /// set number of channels
-        _channels = mode == meta_encoding_t::rgb8 ? 3 : 1;
+        //_channels = mode == meta_encoding_t::rgb8 ? 3 : (mode == meta_encoding_t::binary ? 0 : 1);
+        _encoding = mode;
         
         Data* ptr = &ref;
         ReadonlyMemoryWrapper *compressed = NULL;
@@ -347,11 +367,12 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
                 _source_index.invalidate();
         }
         
-        _mask.reserve(_n);
-        _pixels.reserve(_n);
-        _flags.reserve(_n);
+        const auto target_channels = mode == meta_encoding_t::rgb8 ? 3 : (mode == meta_encoding_t::binary ? 0 : 1);
         
-        const auto target_channels = mode == meta_encoding_t::rgb8 ? 3 : 1;
+        _mask.reserve(_n);
+        if(target_channels > 0)
+            _pixels.reserve(_n);
+        _flags.reserve(_n);
         
         for(int i=0; i<_n; i++) {
             uint16_t start_y, mask_size;
@@ -386,13 +407,17 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
             if(num_pixels >= std::numeric_limits<uint32_t>::max()) {
                 FormatWarning("Something is happening here ", index(), " ", num_pixels, " ", uint64_t(-1));
             }
-            ref.frame_pixels.resize(num_pixels * ref.header().channels, false);
-            ptr->read_data(num_pixels * ref.header().channels, ref.frame_pixels.data());
+            
+            const auto channels = required_storage_channels(ref.header().encoding);
+            if(ref.header().encoding != meta_encoding_t::binary) {
+                ref.frame_pixels.resize(num_pixels * channels, false);
+                ptr->read_data(num_pixels * channels, ref.frame_pixels.data());
+            }
             
             auto uncompressed = buffers().get(source_location::current());
             Header::line_type::uncompress(*uncompressed, start_y, ref.frame_mask_cache);
             
-            if(use_differences) {
+            if(use_differences && target_channels > 0) {
                 uint64_t idx = 0;
                 uchar *ptr = (uchar*)ref.frame_pixels.data();
                 for (auto &l : *uncompressed) {
@@ -404,61 +429,41 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
             }
             
             _mask.emplace_back(std::move(uncompressed));
-            if(ref.header().channels == target_channels) {
+            if(target_channels > 0
+               && channels == target_channels)
+            {
                 auto v = std::make_unique<std::vector<uchar>>((uchar*)ref.frame_pixels.data(),
-                                                     (uchar*)ref.frame_pixels.data() + num_pixels * ref.header().channels);
+                                                              (uchar*)ref.frame_pixels.data() + num_pixels * channels);
                 _pixels.emplace_back(std::move(v));
                 
-            } else {
+            } else if(target_channels > 0) {
                 auto v = std::make_unique<std::vector<uchar>>();
                 
-                const auto istart = (uchar*)ref.frame_pixels.data();
-                const auto iend = istart + num_pixels * ref.header().channels;
-                
                 call_image_mode_function(InputInfo{
-                    .channels = ref.header().channels,
+                    .channels = channels,
                     .encoding = ref.header().encoding
                 }, OutputInfo{
                     .channels = static_cast<uint8_t>(target_channels),
                     .encoding = mode
                 }, [&]<InputInfo input, OutputInfo output, DifferenceMethod>(){
-                    v->resize(output.channels * num_pixels);
+                    static_assert(is_in(input.channels, 0, 1, 3), "Only 0, 1 or 3 channels input is supported.");
+                    static_assert(is_in(output.channels, 1, 3), "Only 1 or 3 channels output is supported.");
                     
-                    for(auto iptr = istart, optr = v->data(); iptr < iend; iptr += input.channels, optr += output.channels)
-                    {
-                        assert(optr < v->data() + v->size());
-                        auto value = diffable_pixel_value<input, output>(iptr);
-                        write_pixel_value<output>(optr, value);
+                    if constexpr(input.channels == 0) {
+                        v->resize(output.channels * num_pixels, 255);
                         
-                        /*if(ref.header().channels == 1 && target_channels == 3) {
-                            if(ref.color_mode() == meta_encoding_t::r3g3b2) {
-                                auto v = r3g3b2_to_vec(*input);
-                                *(output + 0) = v[0];
-                                *(output + 1) = v[1];
-                                *(output + 2) = v[2];
-                                
-                            } else if(ref.color_mode() == meta_encoding_t::gray) {
-                                *(output + 0) = *input;
-                                *(output + 1) = *input;
-                                *(output + 2) = *input;
-                            } else {
-                                throw InvalidArgumentException("Unknown conversion from ", ref.color_mode(), " to ", mode);
-                            }
-                            
-                        } else if(ref.header().channels == 3 && target_channels == 1) {
-                            if(mode == meta_encoding_t::r3g3b2) {
-                                *(output + 0) = vec_to_r3g3b2(RGBArray{*(input + 0), *(input + 1), *(input + 2)});
-                                
-                            } else if(mode == meta_encoding_t::gray) {
-                                *(output + 0) = *(input + 0);
-                                
-                            } else {
-                                throw InvalidArgumentException("Unknown conversion from ", ref.color_mode(), " to ", mode);
-                            }
-                            
-                        } else [[unlikely]] {
-                            throw InvalidArgumentException("Unknown combination of channels (",ref.header().channels,") v. target_channels (",target_channels,").");
-                        }*/
+                    } else {
+                        v->resize(output.channels * num_pixels);
+                        
+                        const auto istart = (uchar*)ref.frame_pixels.data();
+                        const auto iend = istart + num_pixels * input.channels;
+                        
+                        for(auto iptr = istart, optr = v->data(); iptr < iend; iptr += input.channels, optr += output.channels)
+                        {
+                            assert(optr < v->data() + v->size());
+                            auto value = diffable_pixel_value<input, output>(iptr);
+                            write_pixel_value<output>(optr, value);
+                        }
                     }
                 });
                 
@@ -467,6 +472,7 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
             
             Blob::set_flag(flags, Blob::Flags::is_rgb, target_channels == 3);
             Blob::set_flag(flags, Blob::Flags::is_r3g3b2, mode == meta_encoding_t::r3g3b2);
+            Blob::set_flag(flags, Blob::Flags::is_binary, target_channels == 0);//mode == meta_encoding_t::binary);
             _flags.push_back(flags);
         }
         
@@ -505,14 +511,16 @@ File::File(const file::Path& filename, FileMode mode, uint8_t channels)
             pixel_count += line.x1 - line.x0 + 1;
         }
 
-        assert(pixel_count * _channels == pair.pixels->size());
+        assert((pixel_count * required_storage_channels(encoding()) == 0u && not pair.pixels) || pixel_count * required_storage_channels(encoding()) == pair.pixels->size());
 #endif
         
-        Blob::set_flag(pair.extra_flags, Blob::Flags::is_rgb, _channels == 3);
+        Blob::set_flag(pair.extra_flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
         Blob::set_flag(pair.extra_flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+        Blob::set_flag(pair.extra_flags, Blob::Flags::is_binary, _encoding == meta_encoding_t::binary);
         
         _mask.emplace_back(std::move(pair.lines));
-        _pixels.push_back(std::move(pair.pixels));
+        if(pair.pixels && encoding() != meta_encoding_t::binary)
+            _pixels.push_back(std::move(pair.pixels));
         _flags.push_back(pair.extra_flags);
         //if(pair.pred.valid() or not _predictions.empty()) {
             _predictions.resize(_flags.size());
@@ -536,16 +544,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         pixel_count += line.x1 - line.x0 + 1;
     }
 
-    assert(pixel_count * _channels == pixels.size());
+    assert(pixel_count * required_storage_channels(encoding()) == pixels.size());
 #endif
     
-    /// ensure we only have one channel if we encode as r3g3b2
-    assert(_encoding != meta_encoding_t::r3g3b2 || _channels == 1);
-    Blob::set_flag(flags, Blob::Flags::is_rgb, _channels == 3);
+    Blob::set_flag(flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
     Blob::set_flag(flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+    Blob::set_flag(flags, Blob::Flags::is_binary, _encoding == meta_encoding_t::binary);
 
     _mask.emplace_back(new blob::line_ptr_t::element_type(mask));
-    _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
+    if(_encoding != meta_encoding_t::binary)
+        _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _flags.push_back(flags);
     //if(pred.valid()) {
         _predictions.resize(_flags.size());
@@ -558,7 +566,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image, uint8_t flags) {
         assert(full_image.rows > 0 && full_image.cols > 0);
         assert(!mask_.empty());
-        assert(full_image.channels() == _channels);
+        
+        const auto channels = required_image_channels(encoding());
+        assert(full_image.channels() == channels);
         
         auto mask = std::make_unique<std::vector<HorizontalLine>>(mask_);
         
@@ -594,7 +604,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         // copy grey values to pixels array
         auto pixels = std::make_unique<std::vector<uchar>>();
-        pixels->resize(overall * _channels);
+        pixels->resize(overall * channels);
         //uchar *pixels = (uchar*)malloc(overall);
         
         auto pixel_ptr = pixels->data();
@@ -604,13 +614,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         for (ptr_safe_t i=0; i<L; i++, line_ptr++) {
             auto ptr = full_image.ptr(line_ptr->y, line_ptr->x0);
             assert(line_ptr->x1 >= line_ptr->x0);
-            auto N = (ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + ptr_safe_t(1)) * _channels;
+            auto N = (ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + ptr_safe_t(1)) * channels;
             memcpy(pixel_ptr, ptr, sign_cast<size_t>(N));
             pixel_ptr += N;
         }
         
-        Blob::set_flag(flags, Blob::Flags::is_rgb, _channels == 3);
+        Blob::set_flag(flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
         Blob::set_flag(flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+        Blob::set_flag(flags, Blob::Flags::is_binary, _encoding == meta_encoding_t::binary);
         add_object(blob::Pair{std::move(mask), std::move(pixels), flags});
         //free(pixels);
     }
@@ -649,16 +660,22 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         for(uint16_t i=0; i<_n; i++) {
             auto &mask = _mask.at(i);
-            auto &pixels = _pixels.at(i);
             auto flags = _flags.at(i);
-            assert(_channels == 1 || Blob::is_flag(flags, Blob::Flags::is_rgb));
+            
+            assert(not Blob::is_flag(flags, Blob::Flags::is_rgb) || _encoding == meta_encoding_t::rgb8);
+            assert(not Blob::is_flag(flags, Blob::Flags::is_binary) || _encoding == meta_encoding_t::binary);
+            assert(not Blob::is_flag(flags, Blob::Flags::is_r3g3b2) || _encoding == meta_encoding_t::r3g3b2);
             
             auto compressed = Header::line_type::compress(*mask);
             pack.write(uint16_t(mask->empty() ? 0 : mask->front().y));
             pack.write(uint8_t(flags));
             pack.write(uint16_t(compressed.size()));
             pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
-            pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
+            
+            if(encoding() != meta_encoding_t::binary) {
+                auto &pixels = _pixels.at(i);
+                pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
+            }
         }
         
         //! prediction information (if available)
@@ -814,15 +831,27 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
         }*/
         
-        
-        ref.read<uchar>(channels);
-        if(version >= Version::V_12) {
-            uint8_t index;
-            ref.read<uint8_t>(index);
-            if(index < meta_encoding_t::values.size()) {
-                encoding = meta_encoding_t::values.at(index);
-            } else {
-                FormatExcept("Read illegal encoding from file: ", index, " with available values ", meta_encoding_t::values);
+        if(version >= Version::V_14) {
+            std::string encoding_name;
+            ref.read<std::string>(encoding_name);
+            encoding = meta_encoding_t::Class::fromStr(encoding_name);
+            
+        } else {
+            uchar channels;
+            ref.read<uchar>(channels);
+            
+            if(version >= Version::V_12) {
+                uint8_t index;
+                ref.read<uint8_t>(index);
+                if(index < meta_encoding_t::values.size()) {
+                    encoding = meta_encoding_t::values.at(index);
+                    
+                    if(not correct_number_channels(encoding, channels))
+                        throw InvalidArgumentException("Read illegal number of channels (",channels,") for encoding ", encoding,".");
+                    
+                } else {
+                    FormatExcept("Read illegal encoding from file: ", index, " with available values ", meta_encoding_t::values);
+                }
             }
         }
         
@@ -847,8 +876,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.read<std::string>(name);
         
         // check values for sanity
-        if(channels != 1 && channels != 3)
-            throw U_EXCEPTION("Only 1 or 3 channel(s) are currently supported (",this->channels," provided)");
+        //if(channels != 1 && channels != 3)
+        //    throw U_EXCEPTION("Only 1 or 3 channel(s) are currently supported (",this->channels," provided)");
         
         if(line_size != sizeof(line_type))
             throw U_EXCEPTION("The used line format in this file (",line_size," bytes) differs from the expected ",sizeof(line_type)," bytes.");
@@ -856,7 +885,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(average)
             delete average;
         
-        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, channels);
+        const auto image_channels = required_image_channels(encoding);
+        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, image_channels);
         _average_offset = ref.current_offset();
         ref.read_data(average->size(), (char*)average->data());
         
@@ -869,7 +899,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             ref.read<uint64_t>(mask_size);
             if(mask_size) {
                 // does it use a mask?
-                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, channels);
+                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, image_channels);
                 
                 ref.read_data(mask->size(), (char*)mask->data());
                 
@@ -913,19 +943,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             }
         }
     }
-
-constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t channels) {
-    switch (encoding) {
-        case cmn::meta_encoding_t::data::values::rgb8:
-            return 3 == channels;
-        case cmn::meta_encoding_t::data::values::r3g3b2:
-        case cmn::meta_encoding_t::data::values::gray:
-            return 1 == channels;
-            
-        default:
-            throw InvalidArgumentException("Unknown meta_encoding mode: ", encoding);
-    }
-}
 
     void Header::write(DataFormat& ref) {
         /**
@@ -973,14 +990,16 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         // set offsets from global settings
         //if(average)
         //    tf::imshow("average", average->get());
-        if(average && not correct_number_channels(encoding, average->channels())) {
+        if(average && not correct_number_channels(encoding, *average)) {
             throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," for the average image provided ", *average);
         }
         
+        //if(not correct_number_channels(encoding, channels))
+        //    throw InvalidArgumentException("Writing illegal number of channels (",channels,") for encoding ", encoding,".");
+        
         ref.write("PV" + std::to_string((int)Version::current + 1));
         
-        ref.write(channels);
-        ref.write<uint8_t>((uint)encoding);
+        ref.write<std::string>(encoding.name());
         
         if(!resolution.width && !resolution.height)
             throw U_EXCEPTION("Resolution of the video has not been set.");
@@ -997,7 +1016,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         if(average) {
             _average_offset = ref.write_data(average->size(), (char*)average->data());
         } else {
-            Image tmp((uint)resolution.height, (uint)resolution.width, channels);
+            Image tmp((uint)resolution.height, (uint)resolution.width, required_storage_channels(encoding));
             _average_offset = ref.write_data(tmp.size(), (char*)tmp.data());
         }
         
@@ -1202,9 +1221,13 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         assert(_header.timestamp != 0); // start time has to be set
         
 #ifndef NDEBUG
-        auto channels = (frame.encoding() == meta_encoding_t::rgb8) ? 3u : 1u;
-        for(size_t i = 0; i < frame.n(); ++i) {
-            assert(frame.pixels().at(i) && frame.pixels().at(i)->size() % channels == 0);
+        const auto channels = required_storage_channels(frame.encoding());
+        if(channels > 0) {
+            for(size_t i = 0; i < frame.n(); ++i) {
+                assert(frame.pixels().at(i) && frame.pixels().at(i)->size() % channels == 0);
+            }
+        } else {
+            assert(frame.pixels().empty());
         }
 #endif
 
@@ -1336,7 +1359,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         Frame frame;
         read_frame(frame, frameIndex);
         
-        const int channels = header().channels;
+        const int channels = required_storage_channels(header().encoding);
         if(with_background)
             average().copyTo(output);
         else
@@ -1365,7 +1388,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
         
         auto copy = File::Write<FileMode::WRITE | FileMode::OVERWRITE>(
             (std::string)file.filename()+"_fix",
-            file.header().channels
+            file.header().encoding
         );
         copy.set_resolution(file.header().resolution);
         copy.set_offsets(file.crop_offsets());
@@ -1424,7 +1447,7 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
     void File::try_compress() {
         _check_opened();
         
-        auto copy = File::Write((std::string)filename()+"_test", header().channels);
+        auto copy = File::Write((std::string)filename()+"_test", header().encoding);
         copy.set_resolution(header().resolution);
         copy.set_offsets(crop_offsets());
         copy.set_average(average());
@@ -1545,7 +1568,10 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
                 
                 read_frame(frame, frameIndex);
                 for(uint64_t i=0; i<frame.n(); ++i) {
-                    pixel_values.insert(pixel_values.end(), frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
+                    if(frame.encoding() == meta_encoding_t::binary)
+                        pixel_values.push_back(255);
+                    else
+                        pixel_values.insert(pixel_values.end(), frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
                 }
                 ++num_frames;
                 samples.insert(frameIndex);
@@ -1570,14 +1596,14 @@ constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t 
 void File::set_average(const cv::Mat& average) {
     //tf::imshow("average", average);
     
-    if(not correct_number_channels(_header.encoding, average.channels())) {
+    if(not correct_number_channels(_header.encoding, average)) {
         throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
     }
     
-    if(average.type() != CV_8UC(_header.channels))
+    if(average.type() != CV_8UC(required_image_channels(_header.encoding)))
     {
         auto str = getImgType(average.type());
-        throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC",_header.channels,"'.");
+        throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC",required_image_channels(_header.encoding),"'.");
     }
     
     if(!_header.resolution.width && !_header.resolution.height) {

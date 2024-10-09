@@ -160,7 +160,7 @@ void PrefilterBlobs::split_big(
                 continue;
             
             if(track_size_filter
-               && !track_size_filter.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
+               && !track_size_filter.close_to_maximum_of_one(b->num_pixels() * cm_sq, 1000))
             {
                 noise.push_back(std::move(b));
                 continue;

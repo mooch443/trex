@@ -67,7 +67,7 @@ std::string PVVideoSource::toStr() const {
 }
 
 uint8_t PVVideoSource::channels() const {
-    return source.header().channels;
+    return required_image_channels(source.header().encoding);
 }
 
 std::set<std::string_view> PVVideoSource::recovered_errors() const {

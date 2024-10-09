@@ -139,15 +139,15 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
                                 const Background* background)
 {
     cv::Mat mask, image;
-    if(!blob->pixels())
+    if(not blob->is_binary() && not blob->pixels())
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
     
     if(   background
        && Background::track_background_subtraction())
     {
-        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, NULL, &image, blob->pixels() ? blob->pixels().get() : nullptr, 0, background, 0);
     } else {
-        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, nullptr, 0);
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels() ? blob->pixels().get() : nullptr, 0, nullptr, 0);
     }
     
     return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
@@ -161,15 +161,15 @@ calculate_diff_image(pv::BlobWeakPtr blob,
     cv::Mat mask, image;
     cv::Mat padded;
     
-    if(!blob->pixels())
+    if(not blob->is_binary() && not blob->pixels())
         throw std::invalid_argument("[calculate_diff_image] The blob has to contain pixels.");
     
     if(background
        && Background::track_background_subtraction())
     {
-        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, NULL, &image, blob->pixels() ? blob->pixels().get() : nullptr, 0, background, 0);
     } else {
-        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, nullptr, 0);
+        imageFromLines(blob->input_info(), blob->hor_lines(), &mask, &image, NULL, blob->pixels() ? blob->pixels().get() : nullptr, 0, nullptr, 0);
     }
     
     image.copyTo(padded, mask);

@@ -429,7 +429,7 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
     _pixel_samples++;
     _num_pixels += blob->num_pixels();
     
-    assert(size_t(blob->num_pixels()) * size_t(blob->channels()) == blob->pixels()->size());
+    assert((not blob->pixels() && blob->is_binary()) || size_t(blob->num_pixels()) * size_t(blob->channels()) == blob->pixels()->size());
     //assert(blob->is_rgb() == (Background::image_mode() == ImageMode::RGB));
     
     //! add to the ownership vector and map
@@ -702,7 +702,7 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
             _pixel_samples++;
             _num_pixels += blob->num_pixels();
             
-            assert(size_t(blob->num_pixels()) * size_t(blob->channels()) == blob->pixels()->size());
+            assert((not blob->pixels() && blob->is_binary()) || size_t(blob->num_pixels()) * size_t(blob->channels()) == blob->pixels()->size());
             //assert(blob->is_rgb() == (Background::image_mode() == ImageMode::RGB));
             
         #ifdef TREX_DEBUG_BLOBS
