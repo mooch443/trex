@@ -992,8 +992,6 @@ void load(file::PathArray source,
         combined.map["meta_real_width"] = combined.map.at("meta_video_size").value<Size2>().width;
     }
     
-    current_defaults["track_max_speed"] = 0.025_F * combined.map.at("meta_video_size").value<Size2>().width * combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
-    
     if (combined.map.has("cm_per_pixel")
         && combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
     {
@@ -1004,6 +1002,10 @@ void load(file::PathArray source,
         } else
             combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
     }
+    
+    const Float2_t tmp_cm_per_pixel = combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
+    current_defaults["track_max_speed"] = 0.25_F * combined.map.at("meta_video_size").value<Size2>().width * (tmp_cm_per_pixel == 0 ? 1_F : tmp_cm_per_pixel);
+    Print(" * default max speed for a video of resolution ", combined.map.at("meta_video_size").value<Size2>().width, " would be ", no_quotes(current_defaults["track_max_speed"].get().valueString()));
     
     if(not combined.map.has("track_max_speed")
        || combined.map.at("track_max_speed").value<Settings::track_max_speed_t>() == 0)

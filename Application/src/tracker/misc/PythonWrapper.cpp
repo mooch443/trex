@@ -64,15 +64,19 @@ public:
         {
             std::unique_lock guard(_data_mutex);
             if (_data == ptr) {
+#ifndef NDEBUG
                 Print("Data and ptr are the same");
+#endif
                 return; // these are the same, exit quickly
             }
 
-            Print("Setting data to ", ptr, " from ", _data, ".");
+            //Print("Setting data to ", ptr, " from ", _data, ".");
 
             if (_data && _data->_thread) {
                 data = _data;
+#ifndef NDEBUG
                 Print("Data and thread.");
+#endif
             }
             else if (_data && not _data->_initialized) {
 #ifndef NDEBUG
@@ -96,7 +100,9 @@ public:
                 }
             }
             else if (_data) {
+#ifndef NDEBUG
                 Print("Should be safe to delete _data.");
+#endif
                 delete _data;
                 _data = nullptr;
             }
@@ -105,7 +111,9 @@ public:
         if (data) {
             // deinitialize last instance
             deinit().get();
+#ifndef NDEBUG
             Print("Deinitialized last instance.");
+#endif
         }
 
         std::scoped_lock guard(_data_mutex, _termination_mutex);

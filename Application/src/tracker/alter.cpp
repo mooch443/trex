@@ -294,8 +294,6 @@ void launch_gui(std::future<void>& f) {
             it != task_scenes.end())
         {
             if(it->second == &converting) {
-                //SETTING(cm_per_pixel) = float(0.01);
-                
                 settings::load(SETTING(source).value<file::PathArray>(),
                                SETTING(filename).value<file::Path>(),
                                TRexTask_t::convert,
@@ -709,7 +707,7 @@ int main(int argc, char**argv) {
     try {
         py::init();
         f = py::schedule([](){
-            Print("Python = ", py::get_instance());
+            //Print("Python = ", py::get_instance());
             track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
             track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         });
