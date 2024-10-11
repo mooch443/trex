@@ -416,11 +416,12 @@ int main(int argc, char**argv) {
             } else {
                 using namespace pv;
                 // close the current file
+                auto encoding = video.header().encoding;
                 video.close();
                 
                 {
                     // open a different instance and replace the average embedded in it
-                    auto modify = pv::File::Write<pv::FileMode::MODIFY>((file::Path)video.filename(), 1);
+                    auto modify = pv::File::Write<pv::FileMode::MODIFY>((file::Path)video.filename(), encoding);
                     modify.set_average(mat);
                 }
                 
@@ -436,7 +437,7 @@ int main(int argc, char**argv) {
             } else {
                 Print("Starting file copy and fix (",video.filename(),")...");
 
-                auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE> (video.filename().remove_extension().str()+"_fix.pv", video.header().channels);
+                auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE> (video.filename().remove_extension().str()+"_fix.pv", video.header().encoding);
                 copy.set_resolution(video.header().resolution);
                 copy.set_offsets(video.crop_offsets());
                 copy.set_average(video.average());
@@ -472,12 +473,13 @@ int main(int argc, char**argv) {
         
         if(!updated_settings.empty() || !remove_settings.empty())
         {
+            auto encoding = video.header().encoding;
             video.close();
             
             file::Path name = video.filename();
             
             // new instance with modify rights
-            auto video = pv::File::Write<pv::FileMode::MODIFY>(name, 1);
+            auto video = pv::File::Write<pv::FileMode::MODIFY>(name, encoding);
             
             std::vector<std::string> keys;
             if(video.header().metadata.has_value()) {

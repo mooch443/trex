@@ -190,7 +190,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         SETTING(merge_output_path) = file::Path("merged");
     
     file::Path out_path = file::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
-    auto output = pv::File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE>(out_path, files.front()->header().channels);
+    auto output = pv::File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE>(out_path, files.front()->header().encoding);
     
     output.set_resolution((cv::Size)resolution);
     output.set_average(average);
