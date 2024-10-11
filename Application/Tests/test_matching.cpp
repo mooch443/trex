@@ -103,7 +103,7 @@ TEST(YOLOFilenameTest, ValidFilenames) {
     EXPECT_TRUE(yolo::is_default_model("yolov9m.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov9s.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov9t.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov12.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo12.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo12345m.pt")); // larger versions drop the v
     EXPECT_TRUE(yolo::is_default_model("yolo80x.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo22b.pt"));
@@ -228,7 +228,7 @@ TEST(TestValidModels, Valid) {
     ASSERT_TRUE(yolo::valid_model("yolov5sp.pt", mockfs));
     ASSERT_TRUE(yolo::valid_model("yolov4-human.pt", mockfs));
     ASSERT_TRUE(yolo::valid_model("yolov10-cls.pt", mockfs));
-    ASSERT_TRUE(yolo::valid_model("yolov11lu.pt", mockfs));
+    ASSERT_TRUE(yolo::valid_model("yolo11lu.pt", mockfs));
 }
 
 TEST(TestValidModels, Invalid) {

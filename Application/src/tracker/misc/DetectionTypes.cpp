@@ -89,7 +89,29 @@ map_t get_map() {
 }
 
 bool is_valid_default_model(const std::string& filename) {
-    static const std::regex pattern(R"(^((yolov([1-9]|10))|(yolo(v)?(1[1-9]|[2-9]\d+)))([blmnxsucet]|x6|sp|lu|mu|xu)?((\d|[sn])+u|-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\d+)+)?(\.pt)?$)");
+    static const std::regex pattern(
+        "^"
+        "("
+            // Group 1: Versions 1 to 10 with 'v' required
+            "(yolov([1-9]|10))"
+            "|"
+            // Group 2: Versions 11 and above without 'v'
+            "(yolo("
+                "1[1-9]\\d*"       // Versions 11-19, and numbers like 110, 119, etc.
+                "|1\\d{2,}"        // Versions 100 and above starting with '1'
+                "|[2-9]\\d+"       // Versions 20 and above starting with '2'-'9'
+                "|\\d{3,}"         // Any version number with 3 or more digits
+            "))"
+        ")"
+        "([blmnxsucet]|x6|sp|lu|mu|xu)?"  // Optional suffixes
+        "("
+            "(\\d|[sn])+u"                // Optional pattern
+            "|"
+            "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
+        ")?"
+        "(\\.pt)?"
+        "$"
+    );
     return std::regex_match(filename, pattern);
 }
 
