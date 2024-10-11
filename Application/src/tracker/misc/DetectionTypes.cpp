@@ -89,12 +89,12 @@ map_t get_map() {
 }
 
 bool is_valid_default_model(const std::string& filename) {
-    static const std::regex pattern("^yolov\\d+([blmnxsucet]|x6|sp|lu|mu|xu|)?((\\d|[sn])+u|-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|[0-9]+)+)?\\.pt$");
+    static const std::regex pattern(R"(^((yolov([1-9]|10))|(yolo(v)?(1[1-9]|[2-9]\d+)))([blmnxsucet]|x6|sp|lu|mu|xu)?((\d|[sn])+u|-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\d+)+)?(\.pt)?$)");
     return std::regex_match(filename, pattern);
 }
 
 std::string default_model() {
-    return "yolov10n.pt";
+    return "yolo11n.pt";
 }
 
 bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {

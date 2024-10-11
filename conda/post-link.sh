@@ -24,5 +24,7 @@ elif [ "$(uname)" == "Darwin" ]; then
 
 else
 	echo "Linux architecture detected, installing torch, torchvision, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
-	{ python -m pip install torchmetrics torch torchvision "opencv-python>=4,<4.10" "ultralytics>=8,<=8.2.73" "numpy==1.26.4" "dill" --index-url https://download.pytorch.org/whl/cu118 --extra-index-url https://pypi.org/simple 2>&1; } >> $PREFIX/.messages.txt;
+	{ python -m pip install torchmetrics torch torchvision "opencv-python>=4,<4.10" "ultralytics>=8,<=8.3.9" "numpy==1.26.4" "dill" --index-url https://download.pytorch.org/whl/cu118 --extra-index-url https://pypi.org/simple 2>&1; } >> $PREFIX/.messages.txt;
 fi
+
+python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').predict(np.zeros((640, 480, 3), dtype=np.uint8))"

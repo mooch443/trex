@@ -20,6 +20,20 @@ using namespace track::detect;
 #include <python/Yolo8.h>
 
 TEST(YOLOFilenameTest, ValidFilenames) {
+    EXPECT_TRUE(yolo::is_default_model("yolo11n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n-pose"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-pose"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-seg"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11x-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11x-seg.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10b.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10l.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10m.pt"));
@@ -90,11 +104,11 @@ TEST(YOLOFilenameTest, ValidFilenames) {
     EXPECT_TRUE(yolo::is_default_model("yolov9s.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov9t.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov12.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov12345m.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov80x.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov22b.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov45l.pt")); // Missing hyphen
-    EXPECT_TRUE(yolo::is_default_model("yolov20l-obb.pt")); // Hyphen not allowed in this position
+    EXPECT_TRUE(yolo::is_default_model("yolo12345m.pt")); // larger versions drop the v
+    EXPECT_TRUE(yolo::is_default_model("yolo80x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo22b.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo45l.pt")); // Missing hyphen
+    EXPECT_TRUE(yolo::is_default_model("yolo20l-obb.pt")); // Hyphen not allowed in this position
     EXPECT_TRUE(yolo::is_default_model("yolov8x6-500.pt"));
 }
 
@@ -172,21 +186,22 @@ TEST(YOLOFilenameTest, InvalidFilenames) {
     EXPECT_FALSE(yolo::is_default_model("yolov9m_.pt")); // Underscore not allowed
     EXPECT_FALSE(yolo::is_default_model("yolov9ms.pt")); // Missing hyphen
     EXPECT_FALSE(yolo::is_default_model("yolov9_t.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov12-x.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(yolo::is_default_model("yolov14world.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov15-pose.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov100seg.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov99nworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo12-x.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolo14world.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo15-pose.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo100seg.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo99nworld.pt")); // Missing hyphen
     EXPECT_FALSE(yolo::is_default_model("yolov8xtiny.pt")); // Missing hyphen
     EXPECT_FALSE(yolo::is_default_model("yolov3large.pt")); // Missing hyphen
     EXPECT_FALSE(yolo::is_default_model("yolov1small.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov11human.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov100pt")); // Missing dot before 'pt'
-    EXPECT_FALSE(yolo::is_default_model("yolov56pose.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov19seg.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov100m.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov77k.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov202.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo11human.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo100pt")); // Missing dot before 'pt'
+    EXPECT_FALSE(yolo::is_default_model("yolo56pose.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo19seg.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo100m.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo77k.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov77n.pt")); // Extra v
+    EXPECT_FALSE(yolo::is_default_model("yolo202.ptx")); // Incorrect extension
 }
 
 TEST(TestValidModels, Valid) {
