@@ -992,7 +992,7 @@ void load(file::PathArray source,
         combined.map["meta_real_width"] = combined.map.at("meta_video_size").value<Size2>().width;
     }
     
-    current_defaults["track_max_speed"] = 10_F * combined.map.at("meta_video_size").value<Size2>().width * combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
+    current_defaults["track_max_speed"] = 0.025_F * combined.map.at("meta_video_size").value<Size2>().width * combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
     
     if (combined.map.has("cm_per_pixel")
         && combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
