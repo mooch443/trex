@@ -650,7 +650,14 @@ void TrackingScene::deactivate() {
         }
         
         //Print(" * Resetting ", key);
-        combined.map.at(key).get().copy_to(&GlobalSettings::map());
+        if(GlobalSettings::map().has(key)) {
+            auto p = GlobalSettings::map().at(key).get().do_print();
+            GlobalSettings::map().do_print(key, false);
+            combined.map.at(key).get().copy_to(&GlobalSettings::map());
+            GlobalSettings::map().do_print(key, p);
+        } else {
+            combined.map.at(key).get().copy_to(&GlobalSettings::map());
+        }
     }
     
     GlobalSettings::set_current_defaults(combined.map);
