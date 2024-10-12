@@ -633,6 +633,8 @@ void TrackingScene::deactivate() {
     SETTING(source) = file::PathArray();
     
     SettingsMaps combined;
+    combined.map.set_print_by_default(false);
+    
     grab::default_config::get(combined.map, combined.docs, [&](auto& name, auto level){
         combined.access_levels[name] = level;
     });
