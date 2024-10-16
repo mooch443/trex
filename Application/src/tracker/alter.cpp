@@ -741,9 +741,6 @@ int main(int argc, char**argv) {
 
     CommandLine::instance().load_settings();
     
-    //if(not SETTING(source).value<file::PathArray>().empty())
-    //    SETTING(scene_crash_is_fatal) = true;
-
     if (not SETTING(filename).value<file::Path>().empty()) {
         auto path = SETTING(filename).value<file::Path>();
         if(path.has_extension("pv"))

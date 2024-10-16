@@ -26,6 +26,7 @@ GUIVideoAdapter::GUIVideoAdapter(const file::PathArray& array,
             return;
         }
         _executed = q->exec_main_queue([this](){
+            set_content_changed(true);
             set_animating(true);
             set_dirty();
         });
@@ -51,28 +52,31 @@ GUIVideoAdapter::~GUIVideoAdapter() {
 
 void GUIVideoAdapter::update() {
     //Print("*** UPDATE");
+    static constexpr double fade_steps = 10.0;
     
     if(not _latest_image
-       || _fade_percent >= 10)
+       || _fade_percent >= fade_steps)
     {
-        auto &&[ptr, res] = _video_loop.get_if_ready();
-        if(ptr) {
+        auto frame = _video_loop.get_if_ready();
+        if(frame.ptr) {
             /// did we get something back? yes if there was
             /// already a preview image. -> return it
-            if(_latest_image)
-                _video_loop.move_back(std::move(_latest_image));
-            _latest_image = std::move(ptr);
+            if(_latest_image.ptr)
+                _video_loop.move_back(std::move(_latest_image.ptr));
+            _latest_image = std::move(frame);
             _fade_percent = 0;
             
             auto info = _current_info.getIfChanged();
             if(info) {
-                _video_size = res;
+                _video_size = _latest_image.resolution;
                 
                 if(_open_callback)
                     _open_callback(info.value());
                 
                 if(_latest_image) {
-                    Image::Ptr ptr = Image::Make(_latest_image->rows, _latest_image->cols, _latest_image->dims);
+                    Image::Ptr ptr = Image::Make(_latest_image.ptr->rows,
+                                                 _latest_image.ptr->cols,
+                                                 _latest_image.ptr->dims);
                     ptr->set_to(0);
                 }
             }
@@ -86,12 +90,24 @@ void GUIVideoAdapter::update() {
     });
     
     /// fade to the current image
-    if(_fade_percent < 10
+    if(_fade_percent < fade_steps
        && _latest_image)
     {
         _fade_percent += 1;
-        if(_fade_percent > 10) {
-            _fade_percent = 10;
+        if(_fade_percent > fade_steps) {
+            _fade_percent = fade_steps;
+        }
+        
+        if(_current_alpha != _target_alpha) {
+            auto d = (_target_alpha - _current_alpha);
+            //auto dt = timer.elapsed();
+            auto a = _current_alpha + d * 0.1_F;
+            _current_alpha = saturate(a, 0_F, 1_F);
+        }
+        
+        if(_fade_percent == fade_steps && abs(_current_alpha - _target_alpha) < 0.001)
+        {
+            _current_alpha = _target_alpha;
             set_animating(false);
         }
         //if(_fade_percent > 1)
@@ -99,32 +115,38 @@ void GUIVideoAdapter::update() {
         
         if(not _buffer)
             _buffer = Image::Make();
-        if(_buffer->dimensions() != _latest_image->dimensions()
-           || _buffer->dims != _latest_image->dims)
+        if(_buffer->dimensions() != _latest_image.ptr->dimensions()
+           || _buffer->dims != _latest_image.ptr->dims)
         {
-            _buffer->create(_latest_image->rows, _latest_image->cols, _latest_image->dims);
+            _buffer->create(_latest_image.ptr->rows,
+                            _latest_image.ptr->cols,
+                            _latest_image.ptr->dims);
         }
         
         if(not _image.source()
-           || _image.source()->dimensions() != _latest_image->dimensions()
-           || _image.source()->dims != _latest_image->dims)
+           || _image.source()->dimensions() != _latest_image.ptr->dimensions()
+           || _image.source()->dims != _latest_image.ptr->dims)
         {
-            auto ptr = Image::Make(_latest_image->rows, _latest_image->cols, _latest_image->dims);
+            auto ptr = Image::Make(_latest_image.ptr->rows,
+                                   _latest_image.ptr->cols,
+                                   _latest_image.ptr->dims);
             ptr->set_to(0);
+            if(_image.source() && not _image.source()->dimensions().empty())
+                cv::resize(_image.source()->get(), ptr->get(), ptr->dimensions());
             _image.set_source(std::move(ptr));
         }
         
         cv::addWeighted(_image.source()->get(), 0.9,
-                        _latest_image->get(), 0.1,
+                        _latest_image.ptr->get(), 0.1,
                         0, _buffer->get());
         _image.exchange_with(std::move(_buffer));
         
         //auto blur = narrow_cast<float>(_video_loop.blur());
         _image.set_pos(_margins.pos());
+        _image.set_color(White.alpha(saturate(_current_alpha * 255.f, 0.f, 255.f)));
         
-        auto blur = narrow_cast<Float2_t>(_video_loop.scale());
-        if(blur > 0)
-            _image.set(Scale{1_F / blur});
+        if(_latest_image.scale > 0)
+            _image.set(Scale{1_F / (Float2_t)_latest_image.scale});
         else
             _image.set(Scale{1_F});
         
@@ -171,7 +193,7 @@ void GUIVideoAdapter::set_scale(const Vec2& scale) {
     Entangled::set_scale(scale);
 }
 void GUIVideoAdapter::set(Alpha alpha) {
-    _image.set_color(White.alpha(saturate(alpha * 255.f, 0.f, 255.f)));
+    _target_alpha = double(alpha);
 }
 Alpha GUIVideoAdapter::alpha() const {
     return Alpha(_image.color().a) / 255.f;

@@ -62,7 +62,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
     std::unordered_set<std::string_view> changed_keys;
         
     if(detect_type == detect::ObjectDetectionType::none)
-        detect_type = detect::ObjectDetectionType::yolo8;
+        detect_type = detect::ObjectDetectionType::yolo;
     
     /// set or default the *detect_type*
     output["detect_type"] = detect_type;
@@ -160,7 +160,7 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
     if(not combined.map.has("detect_type")
        || combined.map.at("detect_type").value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
     {
-        combined.map["detect_type"] = detect::ObjectDetectionType::yolo8;
+        combined.map["detect_type"] = detect::ObjectDetectionType::yolo;
     }
     
     set_defaults_for(combined.map.at("detect_type"), combined.map, {});
@@ -725,7 +725,7 @@ void load(file::PathArray source,
                         if (tmp.has("detect_model") && not tmp.at("detect_model").value<file::Path>().empty()
                             && detect::ObjectDetectionType::none == type)
                         {
-                            type = detect::ObjectDetectionType::yolo8;
+                            type = detect::ObjectDetectionType::yolo;
                         }
                         //tmp.at("detect_type").get().copy_to(&combined.map);
                     }
@@ -776,23 +776,25 @@ void load(file::PathArray source,
                     };
 
                     // Functions to compute default values when not available in tmp
-                    const std::unordered_map<std::string, std::function<void()>> compute_defaults = {
-                        {"meta_video_size", [&]() {
-                            combined.map["meta_video_size"] = Size2(f.size());
-                            set_config_if_different("meta_video_size", combined.map);
+                    const std::unordered_map<std::string, std::function<const sprite::PropertyType*(sprite::Map&)>> compute_defaults = {
+                        {"meta_video_size", [&](auto& map) {
+                            map["meta_video_size"] = Size2(f.size());
+                            return &map.at("meta_video_size").get();
                         }},
-                        {"meta_real_width", [&]() {
-                            combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
-                            set_config_if_different("meta_real_width", combined.map);
+                        {"meta_real_width", [&](auto& map) {
+                            map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                            return &map.at("meta_real_width").get();
                         }},
-                        {"cm_per_pixel", [&]() {
+                        {"cm_per_pixel", [&](auto&) {
                             FormatWarning("Source ", path, " does not have `cm_per_pixel`.");
+                            return nullptr;
                         }},
-                        {"detect_type", [&]() {
+                        {"detect_type", [&](auto& map) -> const sprite::PropertyType* {
                             if (tmp.has("detect_type")) {
-                                tmp.at("detect_type").get().copy_to(&combined.map);
-                                set_config_if_different("detect_type", combined.map);
+                                tmp.at("detect_type").get().copy_to(&map);
+                                return &map.at("detect_type").get();
                             }
+                            return nullptr;
                         }}
                     };
 
@@ -808,17 +810,40 @@ void load(file::PathArray source,
                                             : nullptr;
 
                         // Determine if we need to update the value
-                        const bool needs_update = default_value && (!combined.map.has(key) ||
-                                combined.map.at(key).get() == *default_value);
+                        const bool needs_update = not default_value
+                            || (default_value && (!combined.map.has(key) ||
+                                    combined.map.at(key).get() == *default_value));
+                        if(default_value) {
+                            // we have a default value
+                            Print(key, " needs_update=",needs_update, " with value ", *default_value, " combined=", combined.map.at(key), " equals:",combined.map.at(key).get() == *default_value, " vs. ", *default_value == combined.map.at(key).get());
+                        } else {
+                            // can we generate a default value?
+                            if(compute_defaults.contains(key)) {
+                                auto p = compute_defaults.at(key)(current_defaults);
+                                if(p) {
+                                    Print(key," needs_update=",needs_update, " combined=", combined.map.at(key), " default=",*p);
+                                } else {
+                                    Print(key," needs_update=",needs_update, " combined=", combined.map.at(key)," no default");
+                                }
+                            } else
+                                Print(key," needs_update=",needs_update, " combined=", combined.map.at(key));
+                        }
 
                         if (needs_update) {
                             if (tmp.has(key)) {
                                 // Copy value from tmp if available
                                 tmp.at(key).get().copy_to(&combined.map);
                                 set_config_if_different(key, combined.map);
+                                Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
                             } else if (compute_defaults.count(key)) {
                                 // Compute and set the default value if a handler exists
-                                compute_defaults.at(key)();
+                                Print("* Checking ", key);
+                                auto p = compute_defaults.at(key)(combined.map);
+                                if(p) {
+                                    set_config_if_different(key, combined.map);
+                                }
+                            } else {
+                                Print("* Key not checked ", key);
                             }
                             // No action needed if neither tmp has the key nor a compute function is defined
                         }
@@ -839,6 +864,11 @@ void load(file::PathArray source,
     /// ---------------------------
     /// 11. defaults based on task
     /// ---------------------------
+    if(combined.map.has("detect_type"))
+    {
+        type = combined.map.at("detect_type").value<detect::ObjectDetectionType_t>();
+    }
+    
     {
         G g(type.toStr() + "-defaults");
         static const sprite::Map values {
@@ -970,6 +1000,8 @@ void load(file::PathArray source,
                 
                 /// if this errors out, we should skip... so we let it through
                 pv::File video(source.get_paths().front());
+                if(video.size().empty())
+                    throw InvalidArgumentException("Invalid video size read from ", video.filename());
                 combined.map["meta_video_size"] = Size2(video.size());
                 ///
                 
@@ -988,8 +1020,10 @@ void load(file::PathArray source,
     if (not combined.map.has("meta_real_width")
         || combined.map.at("meta_real_width").value<Float2_t>() == 0)
     {
-        assert(combined.map.at("meta_video_size").valid() && not combined.map.at("meta_video_size").value<Size2>().empty());
-        combined.map["meta_real_width"] = combined.map.at("meta_video_size").value<Size2>().width;
+        auto meta_video_size = combined.map.at("meta_video_size");
+        Print(meta_video_size);
+        assert(meta_video_size.valid() && not meta_video_size.value<Size2>().empty());
+        combined.map["meta_real_width"] = meta_video_size.value<Size2>().width;
     }
     
     if (combined.map.has("cm_per_pixel")
@@ -1022,7 +1056,7 @@ void load(file::PathArray source,
     {
         /// we need to have some kind of default.
         /// use the new technology first:
-        type = detect::ObjectDetectionType::yolo8;
+        type = detect::ObjectDetectionType::yolo;
     }
     combined.map["detect_type"] = type;
     

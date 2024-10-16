@@ -206,7 +206,7 @@ struct SettingsScene::Data {
                                     
                                     //settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), default_config::TRexTask_t::none, SETTING(detect_type), {}, cleared);
                                 }
-                            }, "This will reset all settings you have made here. Everything that is located inside <cyan><c>.settings</c></cyan> files or the video file itself (e.g. <cyan><c>frame_rate</c></cyan>) will remain. Are you sure?", "Reset settings", "Reset", "Cancel");
+                            }, "This will reset all settings you have made here to defaults, except for the file, output prefix and folder.\n\nAre you sure you want to do this?", "Reset settings", "Reset", "Cancel");
                             
                         });
                     }),
@@ -271,7 +271,7 @@ struct SettingsScene::Data {
                                 defaults_with_config = std::move(defaults_with_config)
                             ] (auto,DrawStructure& graph) {
                                 using namespace track;
-                                if (SETTING(detect_type).value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::yolo8) 
+                                if (SETTING(detect_type).value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::yolo) 
                                 {
                                     auto path = SETTING(detect_model).value<file::Path>();
                                     if (track::detect::yolo::valid_model(path))
@@ -289,7 +289,7 @@ struct SettingsScene::Data {
                                                     dynGUI = {};
                                                 });
                                             }
-                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default Yolo8 model name. Please choose a valid model file (a Yolo8 saved model <c><cyan>.pt</cyan></c>).", "Invalid model", "Okay");
+                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default Yolo model name. Please choose a valid model file (a Yolo saved model <c><cyan>.pt</cyan></c>).", "Invalid model", "Okay");
                                         return;
                                     }
                                 }
@@ -491,17 +491,6 @@ struct SettingsScene::Data {
                         file::PathArray source = GlobalSettings::map().at("source");
                         load_video_settings(source);
                     }),
-                    ActionFunc("reset_settings", [](auto){
-                        sprite::Map cleared;
-                        
-                        SETTING(filename).get().copy_to(&cleared);
-                        SETTING(source).get().copy_to(&cleared);
-                        SETTING(output_prefix).get().copy_to(&cleared);
-                        SETTING(output_dir).get().copy_to(&cleared);
-                        SETTING(detect_type).get().copy_to(&cleared);
-                        
-                        settings::reset(cleared);
-                    }),
                     ActionFunc("toggle-background-subtraction", [](auto){
                         SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
                     }),
@@ -512,7 +501,21 @@ struct SettingsScene::Data {
                         return _selected_source_exists.load();
                     }),
                     VarFunc("settings_summary", [](const VarProps&) -> std::string {
-                        return std::string(GlobalSettings::map().toStr());
+                        auto delta = default_config::generate_delta_config(AccessLevelType::PUBLIC);
+                        std::stringstream ss;
+                        for(auto& [key, prop] : delta.map) {
+                            if(utils::beginsWith(key, "gui_")
+                               || utils::beginsWith(key, "cam_")
+                               || utils::beginsWith(key, "export_")
+                               || utils::beginsWith(key, "gpu_")
+                               //|| utils::beginsWith(key, "manual_")
+                               || utils::beginsWith(key, "heatmap_"))
+                            {
+                                continue;
+                            }
+                            ss << "<key>" << key << "</key>: <c>" << utils::ShortenText(prop->valueString(), 100, 0.5, "<gray>…</gray>") << "</c>\n";
+                        }
+                        return ss.str();
                     }),
                     VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();
@@ -572,8 +575,11 @@ struct SettingsScene::Data {
                         return _video_adapters[path.source()];
                     } else {
                         Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
-                        if(_video_adapters.size() >= 2)
+                        Print("Making new video adapter for ", path);
+                        if(_video_adapters.size() >= 2) {
+                            Print("Clearing video adapter history...");
                             _video_adapters.clear();
+                        }
                         _video_adapters[path.source()] = ptr;
                         return ptr;
                     }

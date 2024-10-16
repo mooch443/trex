@@ -25,7 +25,7 @@ Detection::Detection() {
         Yolo7InstanceSegmentation::init();
         break;*/
 
-    case ObjectDetectionType::yolo8:
+    case ObjectDetectionType::yolo:
         Yolo8::init();
         break;
             
@@ -39,7 +39,7 @@ Detection::Detection() {
 }
 
 void Detection::deinit() {
-    if(detection_type() == ObjectDetectionType::yolo8)
+    if(detection_type() == ObjectDetectionType::yolo)
         Yolo8::deinit();
     else if(detection_type() == ObjectDetectionType::background_subtraction)
         BackgroundSubtraction::deinit();
@@ -48,13 +48,13 @@ void Detection::deinit() {
 }
 
 bool Detection::is_initializing() {
-    if(detection_type() == ObjectDetectionType::yolo8)
+    if(detection_type() == ObjectDetectionType::yolo)
         return Yolo8::is_initializing();
     return false;
 }
 
 double Detection::fps() {
-    if(detection_type() == ObjectDetectionType::yolo8)
+    if(detection_type() == ObjectDetectionType::yolo)
         return Yolo8::fps();
     if(detection_type() == ObjectDetectionType::background_subtraction)
         return BackgroundSubtraction::fps();
@@ -88,7 +88,7 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
         return p.get_future();
     }*/
 
-    case ObjectDetectionType::yolo8: {
+    case ObjectDetectionType::yolo: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
         //manager().set_weight_limit(max(1u, SETTING(detect_batch_size).value<uchar>()));
@@ -115,7 +115,7 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
         return;
 
     }
-    else*/ if (detection_type() == ObjectDetectionType::yolo8) {
+    else*/ if (detection_type() == ObjectDetectionType::yolo) {
         Yolo8::apply(std::move(tiled));
         return;
     } else if(detection_type() == ObjectDetectionType::background_subtraction) {

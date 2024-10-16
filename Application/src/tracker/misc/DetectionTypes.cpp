@@ -5,6 +5,20 @@
 
 using namespace cmn;
 
+namespace EnumMeta {
+
+const track::detect::ObjectDetectionType_t&
+HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(const std::string& str) {
+    using namespace track::detect;
+    if(str == "yolo" || str == "yolo8")
+        return ObjectDetectionType::yolo;
+    if(str == "background_subtraction")
+        return ObjectDetectionType::background_subtraction;
+    return ObjectDetectionType::none;
+}
+
+}
+
 namespace track::detect {
 
 namespace yolo {
@@ -178,7 +192,7 @@ Size2 get_model_image_size() {
     if(detection_type() == ObjectDetectionType::background_subtraction) {
         return meta_video_size;
         
-    } else if (detection_type() == ObjectDetectionType::yolo8) {
+    } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = SETTING(region_resolution).value<track::detect::DetectResolution>();
 
         Size2 size;

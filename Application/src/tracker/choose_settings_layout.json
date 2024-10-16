@@ -4,19 +4,18 @@
         "align": "left"
     },
     "color":[225,225,225,255],
-    
     "highlight_clr":[50,50,75],
     "window_color":[10,10,10],
     "vars":{
         "label_w":185,
-        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:70}}",
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:100}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
         "textfield_w":"{max:100:{+:{element_w}:160}}",
-        "machine_learning":"{equal:{global.detect_type}:yolo8}",
+        "machine_learning":"{equal:{global.detect_type}:yolo}",
         "label_offset":[15,-5],
         "label_origin":[0,0],
-        "label_padding":[0,5,10,5],
+        "label_padding":[0,30,10,5],
         "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
         "bg_scale":"[{ratio},{ratio}]",
         "valid_pv_file":"{file_exists:{resulting_path}.pv}"
@@ -25,32 +24,34 @@
   "objects":[
     {
         "type":"video",
+        "clickable":true,
         "path":"{if:{video_file}:{video_file}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
-        "blur":0.7,
-        "alpha":0.5,
+        "blur":"{if:{hovered}:0.01:0.7}",
+        "alpha":"{if:{hovered}:0.75:0.25}",
         "frame_seconds":0.25,
         "scale":"{bg_scale}"
     },
     {
     "type":"vlayout",
     "align":"left",
+    "clickable":true,
     "line":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,150]}",
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[0,0,0,5],
+    "pad":[20,0,0,5],
     "children":[
         { "type":"stext",
-          "pad":[35,25,0,20],
-          "max_size":"[{element_w},0]",
-          "text":"<h2>Configuration</h2>\nBelow are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.", 
-          "font":{ "size":0.65 }
+          "pad":[2,25,0,20],
+          "max_size":"[{-:{element_w}:25},0]",
+          "text":"<h2>Configuration</h2>\n<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>", 
+          "font":{ "size":0.7 }
         },
         {
             "type":"hlayout",
-            "pad":[35,0,-36,0],
+            "pad":[2,-10,-36,0],
             "children":[
                 {
                     "type":"hlayout",
@@ -110,8 +111,9 @@
         {
             "type":"gridlayout",
             "vertical_clr":[0,0,0,0],
-            "horizontal_clr":[10,50,80,40],
-            "pad":[20,20,20,20],
+            "horizontal_clr":[10,50,80,140],
+            "cellfillclr":[20,20,20,200],
+            "pad":[10,0,10,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
@@ -126,15 +128,15 @@
                         "pad":"{label_padding}"
                     },
                     [{
-                        "type":"rect",
-                        "fill":[0,0,0,0],
-                        "size":"[{-:{window_size.x}:{label_w}},10]"
-                    },{
                         "type":"vlayout",
                         "children":[
                             {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[0,30]
+                            },
+                            {
                                 "type":"hlayout",
-                                "pad":[0,0,7,0],
                                 "align":"top",
                                 "children":[
                                     {
@@ -148,7 +150,7 @@
                                             "size":"[{element_w},200]",
                                             "font":{"size":0.6}
                                         },
-                                        "size":"[{-:{element_w}:47},40]",
+                                        "size":"[{-:{element_w}:35},40]",
                                         "desc":"",
                                         "preview":{
                                             "font":{"size":0.5},
@@ -254,6 +256,11 @@
                                         "desc":""
                                     }
                                 ]
+                            },
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,15]
                             }
                         ]
                     }]
@@ -272,19 +279,31 @@
                         "type":"vlayout",
                         "children":[
                             {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[0,30]
+                            },
+                            {
                                 "type":"gridlayout",
-                                "pad":[0,0,10,10],
+                                "pad":[0,0,0,10],
+                                "vertical_clr":[0,0,0,0],
+                                "horizontal_clr":[10,50,80,0],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
+                                "clickable":true,
                                 "halign":"left",
                                 "children":[
                                     [
                                         {
                                             "type":"stext",
                                             "text":"<sym>🗁</sym> directory",
-                                            "origin":"{label_origin}", "pos":[0,10]
+                                            "line":[100,100,100,50],
+                                            "pad":[10,10,10,10],
+                                            "origin":"{label_origin}", "pos":[0,0]
                                         },
                                         {
                                             "type":"hlayout",
-                                            "pad":[0,0,10,0],
                                             "children":[
                                                 {
                                                     "type":"settings",
@@ -297,7 +316,7 @@
                                                         "size":"[{-:{element_w}:93},200]",
                                                         "font":{"size":0.6}
                                                     },
-                                                    "size":"[{-:{-:{element_w}:93}:50},40]",
+                                                    "size":"[{-:{-:{element_w}:98}:42},40]",
                                                     "desc":""
                                                 },
                                                 {
@@ -321,14 +340,15 @@
                                         {
                                             "type":"stext",
                                             "text":"<sym>🗁</sym> prefix",
-                                            "origin":"{label_origin}", "pos":[0,10]
+                                            "pad":[10,10,10,10],
+                                            "origin":"{label_origin}", "pos":[0,0]
                                         },
                                         {
                                             "type":"settings",
                                             "var":"output_prefix",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,255]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "size":"[{-:{element_w}:93},40]",
+                                            "size":"[{-:{element_w}:100},40]",
                                             "desc":""
                                         }
                                     ],
@@ -336,7 +356,8 @@
                                         {
                                             "type":"stext",
                                             "text":"<sym>🗎</sym>  filename",
-                                            "origin":"{label_origin}", "pos":[0,10]
+                                            "pad":[10,10,10,10],
+                                            "origin":"{label_origin}", "pos":[0,0]
                                         },
                                         {
                                             "type":"settings",
@@ -346,88 +367,99 @@
                                             "list":{
                                                 "line":[220,220,220,200],
                                                 "fill":[25,25,25,220],
-                                                "size":"[{-:{element_w}:93},200]",
+                                                "size":"[{-:{element_w}:95},200]",
                                                 "font":{"size":0.6}
                                             },
-                                            "size":"[{-:{element_w}:93},40]",
+                                            "size":"[{-:{element_w}:100},40]",
                                             "desc":""
                                         }
                                     ]
                                 ]
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,10]
                             }
                         ]
                     }
                 ],
                 [
-                    [],
-
+                    {
+                        "type":"stext",
+                        "text":"<h3><sym>🗁</sym></h3> Summary\n<small><gray>The target location of your converted video file, and a summary of the settings you have chosen.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
                     {
                         "type":"vlayout",
                         "children":[
                             {
-                                "type":"stext",
-                                "pad":[0,0,0,10],
-                                "max_size":"[{element_w},0]",
-                                "text":"<sym>➥</sym> resulting path: <c><cyan>{resulting_path}</cyan><lightgray>.pv</lightgray></c>"
+                                "type":"hlayout",
+                                "pad":[0,30,20,20],
+                                "align":"top",
+                                "children":[
+                                    {
+                                        "type":"vlayout",
+                                        "line":[100,100,100,50],
+                                        "fill":[60,60,60,100],
+                                        "name":"left_summary",
+                                        "children":[
+                                            {
+                                                "type":"vlayout",
+                                                "line":[100,100,100,50],
+                                                "fill":[60,60,60,100],
+                                                "children":[
+                                                    {
+                                                        "type":"rect",
+                                                        "fill":[0,0,0,0],
+                                                        "size":"[{+:5:{*:0.45:{element_w}}},0]"
+                                                    },
+                                                    {
+                                                        "type":"stext",
+                                                        "pad":[10,10,10,15],
+                                                        "max_size":"[{*:0.4:{element_w}},0]",
+                                                        "text":"{if:{resulting_path}:<sym>➥</sym> <c><cyan>{resulting_path}</cyan><lightgray>.pv</lightgray></c>:<sym>➥</sym> <gray>please select an input file first</gray>}"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "type":"condition",
+                                                "var":"{valid_pv_file}",
+                                                "then":{
+                                                    "type":"stext",
+                                                    "fill":[0,0,0,0],
+                                                    "pad":[10,20,10,20],
+                                                    "max_size":"[{min:750:{*:0.45:{element_w}}},0]",
+                                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}"
+                                                },
+                                                "else":{
+                                                    "type":"stext",
+                                                    "fill":[0,0,0,0],
+                                                    "pad":[20,20,20,20],
+                                                    "max_size":"[{min:600:{*:0.45:{element_w}}},0]",
+                                                    "text":"<orange><sym>🗶</sym> this file does not exist yet.</orange> <i>a preprocessing step is required. detection finds objects of interest in the input video stream before they can be tracked.</i>"
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type":"stext",
+                                        "font":{"size":0.5},
+                                        "fill":[0,0,0,0],
+                                        "max_size":"[{min:750:{-:{*:0.6:{element_w}}:20}},{+:50:{at:1:{dimensions:left_summary}}}]",
+                                        "text":"<h4><lightgray>Changed settings (subset)</lightgray></h4>\n{settings_summary}"
+                                    }
+                                ]
                             },
                             {
-                                "type":"condition",
-                                "var":"{valid_pv_file}",
-                                "then":{
-                                    "type":"stext",
-                                    "fill":[0,0,0,50],
-                                    "pad":[20,20,20,20],
-                                    "max_size":"[{min:750:{element_w}},0]",
-                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}"
-                                },
-                                "else":{
-                                    "type":"stext",
-                                    "fill":[0,0,0,50],
-                                    "pad":[20,20,20,20],
-                                    "max_size":"[{min:600:{element_w}},0]",
-                                    "text":"<orange><sym>🗶</sym> this file does not exist yet.</orange> <i>a preprocessing step is required. detection finds objects of interest in the input video stream before they can be tracked.</i>"
-                                }
-                            },
-                            {
                                 "type":"stext",
-                                "pad":[0,20,0,0],
+                                "pad":[0,0,0,20],
                                 "max_size":"[{min:700:{element_w}},0]",
-                                "text":"{if:{equal:{global.detect_type}:yolo8}:'<b>using <cyan><c>machine learning</c></cyan> for detection</b>':'using <cyan><c>background subtraction</c></cyan> for detection.'}{if:{&&:{equal:{global.detect_type}:yolo8}:{global.region_model}}:'\n<sym>➥</sym> region selection using <cyan><c>{shorten:{filename:{global.region_model}}:50}</c></cyan><sym> 🞙</sym> {global.region_resolution}<i>px</i>':''}{if:{equal:{global.detect_type}:yolo8}:'\n<sym>➥</sym> detection using <cyan><c>{shorten:{filename:{global.detect_model}}:50}</c></cyan><sym> 🞙</sym> {global.detect_resolution}<i>px</i>':''}"
-                            }
-                        ]
-                    }
-                ],
-                [
-                    [],
-                    {
-                        "type":"hlayout",
-                        "align":"center",
-                        "pad":[0,0,10,0],
-                        "origin":[0,0],
-                        "children":[
-                            {
-                                "type":"button",
-                                "text":"Configure detection <sym>⮞</sym>",
-                                "fill":[40,40,40,220],
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                                "size":[240,40],
-                                "font":{
-                                    "align":"center",
-                                    "size":0.65
-                                },
-                                "action": "change_layout:settings_layout"
-                            },
-                            {
-                                "type":"button",
-                                "text":"Configure tracking <sym>⮞</sym>",
-                                "fill":[40,40,40,220],
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                                "size":[240,40],
-                                "font":{
-                                    "align":"center",
-                                    "size":0.65
-                                },
-                                "action": "change_layout:tracking_settings_layout"
+                                "text":"{if:{equal:{global.detect_type}:yolo}:'<b>using <cyan><c>machine learning</c></cyan> for detection</b>':'using <cyan><c>background subtraction</c></cyan> for detection.'}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:'\n<sym>➥</sym> region selection using <cyan><c>{shorten:{filename:{global.region_model}}:50}</c></cyan><sym> 🞙</sym> {global.region_resolution}<i>px</i>':''}{if:{equal:{global.detect_type}:yolo}:'\n<sym>➥</sym> detection using <cyan><c>{shorten:{filename:{global.detect_model}}:50}</c></cyan><sym> 🞙</sym> {global.detect_resolution}<i>px</i>':''}"
                             }
                         ]
                     }
@@ -438,7 +470,7 @@
 
     {
         "type":"collection",
-        "fill":[0,0,0,30],
+        "fill":[20,20,20,150],
         "size":"[{window_size.x},55]",
         "origin":[0,1],
         "pos":"[0,{window_size.y}]",

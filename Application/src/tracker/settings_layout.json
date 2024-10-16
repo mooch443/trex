@@ -8,14 +8,14 @@
     "window_color":[10,10,10],
     "vars":{
         "label_w":185,
-        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:70}}",
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:100}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
         "textfield_w":"{max:100:{+:{element_w}:160}}",
-        "machine_learning":"{equal:{global.detect_type}:yolo8}",
-        "label_offset":[15,-5],
+        "machine_learning":"{equal:{global.detect_type}:yolo}",
+        "label_offset":[15,0],
         "label_origin":[0,0],
-        "label_padding":[0,5,10,5],
+        "label_padding":[0,30,10,5],
         "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
         "bg_scale":"[{ratio},{ratio}]",
         "valid_pv_file":"{file_exists:{resulting_path}.pv}"
@@ -24,11 +24,12 @@
   "objects":[
     {
         "type":"video",
+        "clickable":true,
         "path":"{if:{video_file}:{video_file}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
-        "blur":0.7,
-        "alpha":0.5,
+        "blur":"{if:{hovered}:0.01:0.7}",
+        "alpha":"{if:{hovered}:0.75:0.25}",
         "frame_seconds":0.25,
         "scale":"{bg_scale}"
     },
@@ -39,17 +40,18 @@
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[0,0,0,5],
+    "pad":[20,0,0,5],
     "children":[
         { "type":"stext",
-          "pad":[35,25,0,20],
-          "max_size":"[{element_w},0]",
-          "text":"<h2>Configuration</h2>\nBelow are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.", 
-          "font":{ "size":0.65 }
+          "pad":[2,25,0,20],
+          "fill":[0,0,0,0],
+          "max_size":"[{-:{element_w}:25},0]",
+          "text":"<h2>Configuration</h2>\n<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>", 
+          "font":{ "size":0.7 }
         },
         {
             "type":"hlayout",
-            "pad":[35,0,-36,0],
+            "pad":[2,-10,-36,0],
             "children":[
                 {
                     "type":"hlayout",
@@ -109,8 +111,9 @@
         {
             "type":"gridlayout",
             "vertical_clr":[0,0,0,0],
-            "horizontal_clr":[10,50,80,40],
-            "pad":[20,25,20,25],
+            "horizontal_clr":[10,50,80,140],
+            "cellfillclr":[20,20,20,200],
+            "pad":[10,0,10,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
@@ -118,20 +121,21 @@
                 [
                     {
                         "type":"stext",
-                        "text":"<b>Detection mode</b>\n<small><gray>Here we select how individuals are found.</gray></small>",
+                        "text":"<b>Detection mode</b>\n<small><gray><b>Here we select how individuals are found.</b>\nThis also influences the options below.</gray></small>",
                         "font":{"size":0.75},
-                        "origin":"{label_origin}", "pos":"{addVector:{label_offset}:[0,5]}",
+                        "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
                         "pad":"{label_padding}"
                     },
                     [{
-                        "type":"rect",
-                        "fill":[0,0,0,0],
-                        "size":"[{-:{window_size.x}:{label_w}},10]"
-                    },{
                         "type":"vlayout",
                         "pad":[0,0,0,5],
                         "children":[
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,30]
+                            },
                             {
                                 "type":"hlayout",
                                 "pad":[0,0,5,0],
@@ -156,15 +160,28 @@
                                             "type":"hlayout",
                                             "children":[
                                                 {
-                                                    "type":"settings",
-                                                    "var":"gpu_torch_device",
-                                                    "label":{
-                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
-                                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                        "font":{"size":0.65}
-                                                    },
-                                                    "size":"[{min:200:{max:120:{element_w}}},45]",
-                                                    "desc":"GPU: "
+                                                    "type":"hlayout",
+                                                    "pad":[0,0,-1,0],
+                                                    "children":[
+                                                        {
+                                                            "type":"stext",
+                                                            "text":"<b>GPU</b>\n<gray>Select which device is used.</gray>",
+                                                            "pad":[10,3,10,4],
+                                                            "fill":[50,50,50,100],
+                                                            "line":[100,100,100,250]
+                                                        },
+                                                        {
+                                                            "type":"settings",
+                                                            "var":"gpu_torch_device",
+                                                            "label":{
+                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                                "font":{"size":0.65}
+                                                            },
+                                                            "size":"[{min:200:{max:120:{element_w}}},45]",
+                                                            "desc":""
+                                                        }
+                                                    ]
                                                 },
                                                 {
                                                     "type":"condition",
@@ -193,6 +210,12 @@
                                 "max_size": "[{min:900:{element_w}},50]",
                                 "font":{"size":0.5},
                                 "text": "{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}"
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
                             }
                         ]
                     }]
@@ -218,8 +241,12 @@
                             "pad":[0,5,0,5],
                             "children":[
                                 {
+                                    "type":"rect",
+                                    "fill":[0,0,0,0],
+                                    "size":[1,15]
+                                },
+                                {
                                     "type":"hlayout",
-                                    "pad":[0,0,5,0],
                                     "children":[
                                         {
                                             "type":"settings",
@@ -232,7 +259,7 @@
                                                 "size":"[{element_w},200]",
                                                 "font":{"size":0.6}
                                             },
-                                            "size":"[{max:50:{-:{element_w}:50}},40]",
+                                            "size":"[{max:50:{-:{element_w}:42}},40]",
                                             "desc":""
                                         },
                                         {
@@ -256,48 +283,59 @@
                                     "pad":[0,0,10,0],
                                     "children":[
                                         {
-                                            "type":"settings",
-                                            "var":"detect_resolution",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "list":{
-                                                "line":[220,220,220,200],
-                                                "fill":[25,25,25,220],
-                                                "size":"[{element_w},200]",
-                                                "font":{"size":0.6}
-                                            },
-                                            "size":[116,40],
-                                            "desc":"resolution: "
+                                            "type":"hlayout",
+                                            "pad":[0,0,-1,0],
+                                            "children":[
+                                                {
+                                                    "type":"stext",
+                                                    "text":"<b>IOU Threshold</b>\n<gray>Max. object overlap.</gray>",
+                                                    "pad":[10,3,10,4],
+                                                    "fill":[50,50,50,100],
+                                                    "line":[100,100,100,250]
+                                                },
+                                                {
+                                                    "type":"settings",
+                                                    "var":"detect_iou_threshold",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                                                    "list":{
+                                                        "line":[220,220,220,200],
+                                                        "fill":[25,25,25,220],
+                                                        "size":"[{element_w},200]",
+                                                        "font":{"size":0.6}
+                                                    },
+                                                    "size":[75,45],
+                                                    "desc":""
+                                                }
+                                            ]
                                         },
 
                                         {
-                                            "type":"settings",
-                                            "var":"detect_iou_threshold",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "list":{
-                                                "line":[220,220,220,200],
-                                                "fill":[25,25,25,220],
-                                                "size":"[{element_w},200]",
-                                                "font":{"size":0.6}
-                                            },
-                                            "size":[116,40],
-                                            "desc":"iou threshold: "
-                                        },
-
-                                        {
-                                            "type":"settings",
-                                            "var":"detect_conf_threshold",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "list":{
-                                                "line":[220,220,220,200],
-                                                "fill":[25,25,25,220],
-                                                "size":"[{element_w},200]",
-                                                "font":{"size":0.6}
-                                            },
-                                            "size":[116,40],
-                                            "desc":"confidence threshold: "
+                                            "type":"hlayout",
+                                            "pad":[0,0,-1,0],
+                                            "children":[
+                                                {
+                                                    "type":"stext",
+                                                    "text":"<b>Confidence threshold</b>\n<gray>Minimum detect confidence.</gray>",
+                                                    "pad":[10,3,10,4],
+                                                    "fill":[50,50,50,100],
+                                                    "line":[100,100,100,250]
+                                                },
+                                                {
+                                                    "type":"settings",
+                                                    "var":"detect_conf_threshold",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "list":{
+                                                        "line":[220,220,220,200],
+                                                        "fill":[25,25,25,220],
+                                                        "size":"[{element_w},200]",
+                                                        "font":{"size":0.6}
+                                                    },
+                                                    "size":[75,45],
+                                                    "desc":""
+                                                }
+                                            ]
                                         }
                                     ]
                                 },
@@ -314,7 +352,7 @@
                                                 "type":"stext",
                                                 "text":"<b>default models:</b>",
                                                 "font":{"size":0.5},
-                                                "pad":[0,2,0,0]
+                                                "pad":[0,7,-10,0]
                                             },
                                             {
                                                 "type":"gridlayout",
@@ -324,16 +362,8 @@
                                                     [
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolov8n-pose",
-                                                            "click":"set:detect_model:'yolov8n-pose'",
-                                                            "fill":[50,90,50],
-                                                            "size":[120,30],
-                                                            "font":{"size":0.5}
-                                                        },
-                                                        {
-                                                            "type":"button",
-                                                            "text":"<sym>⮞</sym> yolov8n",
-                                                            "click":"set:detect_model:'yolov8n'",
+                                                            "text":"<sym>⮞</sym> yolo11n",
+                                                            "click":"set:detect_model:'yolo11n'",
                                                             "fill":[50,90,50],
                     
                                                             "size":[90,30],
@@ -341,36 +371,27 @@
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolov8m-pose",
-                                                            "click":"set:detect_model:'yolov8m-pose'",
+                                                            "text":"<sym>⮞</sym> yolo11n-seg",
+                                                            "click":"set:detect_model:'yolo11n-seg'",
                                                             "fill":[50,90,50],
+                    
                                                             "size":[120,30],
                                                             "font":{"size":0.5}
                                                         },
-
-
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolov8m",
-                                                            "click":"set:detect_model:'yolov8m'",
-                                                            "fill":[50,90,50],
-                                                            "size":[90,30],
-                                                            "font":{"size":0.5}
-                                                        },
-                                                        {
-                                                            "type":"button",
-                                                            "text":"<sym>⮞</sym> yolov8x-pose",
-                                                            "click":"set:detect_model:'yolov8x-pose'",
+                                                            "text":"<sym>⮞</sym> yolo11n-pose",
+                                                            "click":"set:detect_model:'yolo11n-pose'",
                                                             "fill":[50,90,50],
                                                             "size":[120,30],
                                                             "font":{"size":0.5}
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolov8x",
-                                                            "click":"set:detect_model:'yolov8x'",
+                                                            "text":"<sym>⮞</sym> yolo11s-pose",
+                                                            "click":"set:detect_model:'yolo11s-pose'",
                                                             "fill":[50,90,50],
-                                                            "size":[90,30],
+                                                            "size":[120,30],
                                                             "font":{"size":0.5}
                                                         }
                                                     ]
@@ -381,24 +402,41 @@
                                 }
                             ]
                         },
-                        "else":{
-                            "type":"settings",
-                            "var":"averaging_method",
-                            "label":{
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
-                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                "font":{"size":0.65}
-                            },
-                            "list":{
-                                "line":[220,220,220,200],
-                                "fill":[25,25,25,220],
-                                "size":"[{element_w},200]",
-                                "font":{"size":0.6}
-                            },
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
-                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
-                            "size":[250,45],
-                            "desc":""
+                        "else":
+                        {
+                            "type":"vlayout",
+                            "children":[
+                                {
+                                    "type":"rect",
+                                    "fill":[0,0,0,0],
+                                    "size":[1,30]
+                                },
+                                {
+                                    "type":"settings",
+                                    "var":"averaging_method",
+                                    "label":{
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                        "font":{"size":0.65}
+                                    },
+                                    "list":{
+                                        "line":[220,220,220,200],
+                                        "fill":[25,25,25,220],
+                                        "size":"[{element_w},200]",
+                                        "font":{"size":0.6}
+                                    },
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                    "size":[250,45],
+                                    "desc":""
+                                },
+
+                                {
+                                    "type":"rect",
+                                    "fill":[0,0,0,0],
+                                    "size":[1,10]
+                                }
+                            ]
                         }
                     }
                 ],
@@ -410,15 +448,19 @@
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":"{label_padding}"
+                        "pad":[0,20,0,0]
                     },
                     {
                         "type":"vlayout",
                         "pad":[0,0,0,5],
                         "children": [
                             {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            },
+                            {
                                 "type":"hlayout",
-                                "pad":[0,0,5,0],
                                 "children":[
 
                                     {
@@ -432,7 +474,7 @@
                                             "size":"[{element_w},200]",
                                             "font":{"size":0.6}
                                         },
-                                        "size":"[{max:50:{-:{element_w}:50}},40]",
+                                        "size":"[{max:50:{-:{element_w}:42}},40]",
                                         "desc":""
                                     },
                                     {
@@ -457,30 +499,17 @@
                                 ]
                             },
                             {
-                                "type":"condition",
-                                "var":"{machine_learning}",
-                                "then":
-                                {
-                                    "type":"settings",
-                                    "var":"region_resolution",
-                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                    "list":{
-                                        "line":[220,220,220,200],
-                                        "fill":[25,25,25,220],
-                                        "size":"[{element_w},200]",
-                                        "font":{"size":0.6}
-                                    },
-                                    "size":[116,40],
-                                    "desc":"resolution: "
-                                }
-                            },
-                            {
                                 "type":"stext",
                                 "pad":[0,5,0,0],
                                 "max_size": "[{min:900:{element_w}},65]",
                                 "text": "{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':'This threshold is the {if:{global.enable_absolute_difference}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.'}",
                                 "font":{"size":0.5}
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,10]
                             }
                         ]
                     }
@@ -491,11 +520,11 @@
                 [
                     {
                         "type":"stext",
-                        "text":"{if:{&&:{not:{global.region_model}}:{machine_learning}}:'<h2><sym>◫</sym></h2> Tiling\n<small><gray>Other detection settings <i>(optional)</i>.</gray></small>':''}",
+                        "text":"{if:{&&:{not:{global.region_model}}:{machine_learning}}:'<h2><sym>◫</sym></h2> Tiling\n<small><gray>Other detection settings\n<i>(optional)</i>.</gray></small>':''}",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":"{label_padding}"
+                        "pad":[0,20,0,0]
                     },
                     {
                         "type":"condition",
@@ -504,6 +533,11 @@
                             "type":"vlayout",
                             "pad":[0,0,0,5],
                             "children": [
+                                {
+                                    "type":"rect",
+                                    "fill":[0,0,0,0],
+                                    "size":[1,20]
+                                },
                                 {
                                     "type":"hlayout",
                                     "pad":[0,0,10,0],
@@ -534,6 +568,12 @@
                                     "max_size": "[{min:900:{element_w}},65]",
                                     "text": "{if:{machine_learning}:'If enabled, the input images will be split into smaller tiles before being processed by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model. This can be an alternative to using <sym>🖽</sym> <lightgray><c>region proposals</c></lightgray> and similarly help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step. <lightgray>This number is a multiplier and will increase the number of predictions per frame - it will impact processing speed.</lightgray>':''}",
                                     "font":{"size":0.5}
+                                },
+
+                                {
+                                    "type":"rect",
+                                    "fill":[0,0,0,0],
+                                    "size":[1,20]
                                 }
                             ]
                         }
@@ -545,7 +585,7 @@
 
     {
         "type":"collection",
-        "fill":[0,0,0,30],
+        "fill":[20,20,20,150],
         "size":"[{window_size.x},55]",
         "origin":[0,1],
         "pos":"[0,{window_size.y}]",

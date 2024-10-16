@@ -198,7 +198,7 @@
 		"fill":"{if:{hovered}:[0,0,0,200]:[0,0,0,100]}",
 		"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
 
-		"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{equal:{global.detect_type}:yolo8}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+		"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{equal:{global.detect_type}:yolo}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 	},
 
 	{

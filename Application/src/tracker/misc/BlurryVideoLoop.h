@@ -14,6 +14,17 @@ class BlurryVideoLoop {
     using Mat = cv::Mat;
     using MatPtr = std::unique_ptr<Mat>;
     
+public:
+    struct VideoFrame {
+        Image::Ptr ptr;
+        Size2 resolution;
+        double scale;
+        
+        operator bool() const {
+            return ptr != nullptr;
+        }
+    };
+    
 private:
     ThreadGroupId group;
     
@@ -33,7 +44,7 @@ private:
     std::unique_ptr<AbstractBaseVideoSource> _source;
     
     std::mutex image_mutex;
-    Image::Ptr transfer_image, return_image;
+    VideoFrame transfer_image, return_image;
 
     std::atomic<size_t> allowances{0};
     Frame_t _next_frame;
@@ -74,7 +85,7 @@ public:
     Size2 resolution() const;
     double scale() const;
     
-    [[nodiscard]] std::tuple<Image::Ptr, Size2> get_if_ready();
+    [[nodiscard]] VideoFrame get_if_ready();
     void move_back(Image::Ptr&& image);
     
     ~BlurryVideoLoop();

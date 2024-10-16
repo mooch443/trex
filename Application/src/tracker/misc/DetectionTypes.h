@@ -15,11 +15,23 @@ map_t get_map();
 
 namespace track::detect {
 
-ENUM_CLASS(ObjectDetectionType, none, yolo8, background_subtraction);
+ENUM_CLASS(ObjectDetectionType, none, yolo, background_subtraction);
 ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses);
 
 using ObjectDetectionType_t = ObjectDetectionType::Class;
 using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
+
+}
+
+namespace EnumMeta {
+/// add a tag checker for whether a customparser is available for a given enum class
+template<> struct HasCustomParser<track::detect::ObjectDetectionType_t> : std::true_type {
+    static const track::detect::ObjectDetectionType_t& fromStr(const std::string& str);
+};
+
+}
+
+namespace track::detect {
 
 ObjectDetectionType_t detection_type();
 ObjectDetectionFormat_t detection_format();

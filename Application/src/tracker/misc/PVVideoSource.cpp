@@ -49,7 +49,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> PVVideoSource::fetch
             return tl::unexpected(ex.what());
         }
 
-        //if (detection_type() != ObjectDetectionType::yolo8)
+        //if (detection_type() != ObjectDetectionType::yolo)
         /*{
             cv::cvtColor(*buffer, *tmp, cv::COLOR_BGR2RGB);
             std::swap(buffer, tmp);

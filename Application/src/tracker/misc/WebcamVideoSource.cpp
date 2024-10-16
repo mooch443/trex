@@ -48,7 +48,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> WebcamVideoSource::f
         
         while(not (result = this->source.next(*buffer)) && tries++ < 5)
         {
-            //if (detection_type() != ObjectDetectionType::yolo8) FormatError("Dropping an erroreous frame from the webcam.");
+            //if (detection_type() != ObjectDetectionType::yolo) FormatError("Dropping an erroreous frame from the webcam.");
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         

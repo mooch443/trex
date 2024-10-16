@@ -56,7 +56,6 @@
                 "clickable":true,
                 "name":"info_box",
                 "children": [
-
 					{
 						"type":"collection",
 						"children":[
@@ -463,7 +462,7 @@
                 {
                     "type":"hlayout",
                     "pad":[-1,0,-1,0],
-                    "line":[255,255,255,255],
+                    "line":[255,255,255,50],
                     "fill":[1,0,0,0],
                     "children":[
                         {
@@ -521,8 +520,8 @@
                     "folded":true,
                     "text":" <sym>🖵</sym> Display",
                     "item_padding":[5,5],
-                    "item_font":{"size":0.6},
-                    "detail_font":{"size":0.5},
+                    "item_font":{"size":0.6,"align":"vcenter"},
+                    "detail_font":{"size":0.5,"align":"left"},
                     "items":[
                         {
                             "text":"Selection Circles",

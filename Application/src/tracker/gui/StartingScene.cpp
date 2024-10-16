@@ -195,7 +195,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                         settings::load({},
                                        {},
                                        default_config::TRexTask_t::convert,
-                                       track::detect::ObjectDetectionType::yolo8,
+                                       track::detect::ObjectDetectionType::yolo,
                                        {},
                                        {});
                         SceneManager::getInstance().set_active("settings-scene");
@@ -205,7 +205,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                         settings::load(file::PathArray("webcam"),
                                        {},
                                        default_config::TRexTask_t::convert,
-                                       track::detect::ObjectDetectionType::yolo8,
+                                       track::detect::ObjectDetectionType::yolo,
                                        {},
                                        {});
                         

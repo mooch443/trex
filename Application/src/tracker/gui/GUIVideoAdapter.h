@@ -24,7 +24,12 @@ private:
     Margins _margins;
     
     double _fade_percent{0.0};
-    Image::Ptr _buffer, _latest_image;
+    double _target_alpha{1};
+    double _current_alpha{0};
+    Timer timer;
+    
+    Image::Ptr _buffer;
+    BlurryVideoLoop::VideoFrame _latest_image;
     
     std::mutex _future_mutex;
     std::future<void> _executed;

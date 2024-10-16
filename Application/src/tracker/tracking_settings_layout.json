@@ -8,14 +8,14 @@
     "window_color":[10,10,10],
     "vars":{
         "label_w":185,
-        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:90}}",
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:100}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
         "textfield_w":"{max:100:{+:{element_w}:160}}",
-        "machine_learning":"{equal:{global.detect_type}:yolo8}",
-        "label_offset":[15,-5],
+        "machine_learning":"{equal:{global.detect_type}:yolo}",
+        "label_offset":[15,0],
         "label_origin":[0,0],
-        "label_padding":[0,5,10,5],
+        "label_padding":[0,20,10,5],
         "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
         "bg_scale":"[{ratio},{ratio}]",
         "valid_pv_file":"{file_exists:{resulting_path}.pv}"
@@ -24,11 +24,12 @@
   "objects":[
     {
         "type":"video",
+        "clickable":true,
         "path":"{if:{video_file}:{video_file}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
-        "blur":0.7,
-        "alpha":0.5,
+        "blur":"{if:{hovered}:0.01:0.7}",
+        "alpha":"{if:{hovered}:0.75:0.25}",
         "frame_seconds":0.25,
         "scale":"{bg_scale}"
     },
@@ -39,17 +40,18 @@
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[0,0,0,5],
+    "pad":[20,0,0,5],
     "children":[
         { "type":"stext",
-          "pad":[35,25,0,20],
-          "max_size":"[{element_w},0]",
-          "text":"<h2>Configuration</h2>\nBelow are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.", 
-          "font":{ "size":0.65 }
+          "pad":[2,25,0,20],
+          "fill":[0,0,0,0],
+          "max_size":"[{-:{element_w}:25},0]",
+          "text":"<h2>Configuration</h2>\n<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>", 
+          "font":{ "size":0.7 }
         },
         {
             "type":"hlayout",
-            "pad":[35,0,-36,0],
+            "pad":[2,-10,-36,0],
             "children":[
                 {
                     "type":"hlayout",
@@ -109,8 +111,9 @@
         {
             "type":"gridlayout",
             "vertical_clr":[0,0,0,0],
-            "horizontal_clr":[10,50,80,40],
-            "pad":[20,25,20,25],
+            "horizontal_clr":[10,50,80,140],
+            "cellfillclr":[20,20,20,200],
+            "pad":[10,0,10,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
@@ -129,13 +132,22 @@
                         "type":"vlayout",
                         "children":[
                             {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            },
+                            {
                                 "type":"gridlayout",
                                 "pad":[0,0,15,10],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
                                 "children":[
                                     [
                                         {
                                             "type":"stext",
-                                            "text":"maximum #individuals",
+                                            "text":"max. #individuals",
+                                            "pad":[10,0,0,0],
                                             "origin":[0,0.5], "pos":[0,20],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
@@ -150,6 +162,7 @@
                                         {
                                             "type":"stext",
                                             "text":"track_threshold",
+                                            "pad":[10,0,0,0],
                                             "origin":[0,0.5], "pos":[0,20],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
@@ -166,6 +179,7 @@
                                         {
                                             "type":"stext",
                                             "text":"size ranges",
+                                            "pad":[10,0,0,0],
                                             "origin":[0,0.5], "pos":[0,20],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
@@ -180,6 +194,7 @@
                                         {
                                             "type":"stext",
                                             "text":"split closeby blobs",
+                                            "pad":[10,0,0,0],
                                             "origin":[0,0.5], "pos":[0,20],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
@@ -196,6 +211,7 @@
                                         {
                                             "type":"stext",
                                             "text":"max speed <i>(cm/s)</i>",
+                                            "pad":[10,0,0,0],
                                             "origin":[0,0.5], "pos":[0,20],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
@@ -209,8 +225,9 @@
                                         },
                                         {
                                             "type":"stext",
-                                            "text":"conversion <i>(cm/pixel)</i>",
+                                            "text":"conversion <i>(cm/px)</i>",
                                             "origin":[0,0.5], "pos":[0,20],
+                                            "pad":[10,0,0,0],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
                                         [
@@ -240,13 +257,14 @@
                                 "max_size": "[{min:700:{element_w}},80]",
                                 "text": "The <cyan><c>maximum #individuals</c></cyan> setting determines how many individuals can be tracked at the same time. The <cyan><c>max speed</c></cyan> setting determines the maximum speed an individual can move between frames. The <cyan><c>conversion</c></cyan> setting is used to convert pixel distances to real-world distances (e.g. cm).",
                                 "font":{"size":0.5}
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
                             }
                         ]
-                    },
-                    {
-                        "type":"rect",
-                        "fill":[0,0,0,0],
-                        "size":"[{-:{window_size.x}:{label_w}},10]"
                     }]
                 ],
 
@@ -262,6 +280,11 @@
                     {
                         "type":"vlayout",
                         "children":[
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,10]
+                            },
                             {
                                 "type":"hlayout",
                                 "pad":[0,0,15,10],
@@ -292,12 +315,16 @@
                                 "then": {
                                     "type":"gridlayout",
                                     "pad":[0,0,15,10],
+                                    "cellfillclr":[60,60,60,150],
+                                    "celllineclr":[100,100,100,50],
+                                    "cellfillinterval":2,
                                     "children":[
                                         [
                                             {
                                                 "type":"stext",
                                                 "text":"posture threshold",
                                                 "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
                                                 "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
@@ -312,6 +339,7 @@
                                                 "type":"stext",
                                                 "text":"outline smoothing",
                                                 "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
                                                 "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
@@ -326,8 +354,9 @@
                                         [
                                             {
                                                 "type":"stext",
-                                                "text":"outline approximation",
+                                                "text":"outline approximate",
                                                 "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
                                                 "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
@@ -342,6 +371,7 @@
                                                 "type":"stext",
                                                 "text":"outline resample",
                                                 "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
                                                 "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
@@ -356,8 +386,9 @@
                                         [
                                             {
                                                 "type":"stext",
-                                                "text":"midline resolution",
+                                                "text":"midline points",
                                                 "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
                                                 "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
@@ -372,6 +403,7 @@
                                                 "type":"stext",
                                                 "text":"invert midline",
                                                 "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
                                                 "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
@@ -392,6 +424,13 @@
                                 "max_size": "[{min:700:{element_w}},80]",
                                 "text": "<c><cyan>Posture estimation</cyan></c> is used to determine an outline around the individual, as well as a centerline at the ends of which are the head and tail positions. This only works <i>properly</i> for bilateral individuals and should only be enabled if needed. <orange><b>Required for visual fields.</b></orange>",
                                 "font":{"size":0.5}
+                            },
+
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
                             }
                         ]
                     }
@@ -411,14 +450,23 @@
                         "type":"vlayout",
                         "children":[
                             {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            },
+                            {
                                 "type":"gridlayout",
                                 "pad":[0,0,15,10],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
                                 "children":[
                                     [
                                         {
                                             "type":"stext",
                                             "text":"encoding",
                                             "origin":[0,0.5], "pos":[0,20],
+                                            "pad":[10,0,-5,0],
                                             "max_size":"[{-:{inside_label_w}:20},0]"
                                         },
                                         {
@@ -439,13 +487,14 @@
                                 "max_size": "[{min:500:{element_w}},80]",
                                 "text": "The <cyan><c>meta_encoding</c></cyan> setting is used to determine how the tracking data is stored. This can play a role for example in general tracking and overlap resolution, as well as visual identification.",
                                 "font":{"size":0.5}
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
                             }
                         ]
-                    },
-                    {
-                        "type":"rect",
-                        "fill":[0,0,0,0],
-                        "size":"[{-:{window_size.x}:{label_w}},10]"
                     }]
                 ]
             ]
@@ -454,7 +503,7 @@
 
     {
         "type":"collection",
-        "fill":[0,0,0,30],
+        "fill":[20,20,20,150],
         "size":"[{window_size.x},55]",
         "origin":[0,1],
         "pos":"[0,{window_size.y}]",
