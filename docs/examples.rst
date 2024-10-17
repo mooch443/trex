@@ -6,51 +6,56 @@
 Usage examples
 ##############
 
-This section contains an assortment of common usage examples, taken from the real world. We will explain each example shortly and move on quickly. If certain details are unclear, :doc:`parameters_trex` or :doc:`parameters_tgrabs` might help!
+This section contains an assortment of common usage examples, taken from the real world, as well as some terminal basics. We will explain each example shortly and move on quickly. If certain details are unclear, :doc:`parameters_trex` might help!
 
-TGrabs examples
-***************
+Command-line
+============
 
-Some things that are good to know:
+.. |movie| replace:: path/to/VIDEO.mp4
 
-	- Converting/recording has to be done before (or at the same time) as tracking!
-	- Everything that appears pink in |grabs| is considered to be noise. If |grabs| is too choosy in your opinion, consider lowering ``threshold``, change ``blob_size_range`` to include the objects that are considered noise, or enabling ``use_closing``!
-	- You should not delete your AVI after converting it to PV. Objects that are not considered noise, are saved losslessly in PV, but the rest is removed (that's the compression here).
+The command-line interface is the most powerful way to use |trex|, as it allows you to automate tasks and run them in batch mode. The following examples will show you how to use the command-line interface to achieve common tasks.
 
-Converting videos
-=================
+As you may know, simply starting the program without any arguments will open the graphical user interface. If you want to use the command-line interface, you have to specify the input  using the ``-i`` option. For example, to open a video file, you would use::
 
-Just open a movie file and convert it to the PV format (it will be saved to the default output location, and named after the input file). Just for fun, we also set a different (higher) threshold::
-
-	tgrabs -i <MOVIE> -threshold 35
-
-We can switch to a different method for generating the background that is used for background-subtraction (which is how the foreground objects are detected), by using :func:`averaging_method`::
-
-	tgrabs -i <MOVIE> -threshold 35 -averaging_method mode -reset_average 
-
-The background will be saved to a png file in the output folder. You can edit it manually, too (until you use use ``reset_average``).
-
-Record using a Basler camera
-============================
-
-Same options as above, but the input is different (note that you'll have to compile the software yourself in order to use this - with the Basler SDK enabled/installed on your system)::
-
-	tgrabs -i basler
-
-Closed-loop
-===========
-
-To enable closed-loop, edit the ``closed_loop.py`` file (it contains a few examples) and open tgrabs using::
-
-	tgrabs -i basler -enable_closed_loop -threshold 35 -track_threshold 35
+	trex -i webcam
 
 .. NOTE::
-	Now you also have to attach ``track_`` parameters and set everything up properly for tracking (see next section)!
+	For multiple webcams, add the :func:`webcam_index` parameter. For example, to open the second webcam, use ``-i webcam -webcam_index 1``. You can also specify a video file using the ``-i`` option, e.g. ``-i /path/to/VIDEO.mp4``.
 
-Every frame that has been tracked will be forwarded to your python script. Be aware that if your script takes too long, frames might be dropped and the tracking might become less reliable. In cases like that, or with many individuals, it might be beneficial to change ``match_mode`` to ``approximate`` (if you don't need extremely good identity consistency, just general position information).
+.. raw:: html
 
-TRex: general usage
-*******************
+   <p>This will open the webcam, if you have one installed and allow the program to use it, and use <code class="docutils literal notranslate"><span class="pre">yolov8n-pose</span></code> (see <a href="https://docs.ultralytics.com/models/yolov8/#supported-tasks-and-modes" target="_blank">YOLOv8 models</a>) to find you in the picture.</p>
+   
+Just for fun, we also set a different :func:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 70%, but we set it to 35%::
+
+	trex -i webcam -detect_iou_threshold 0.35
+
+You may have already noticed that, by default, |trex| will see if a PV file already exists for the video you're trying to open. If it does, it will open it and you will end up in the tracking view immediately. However, we start from scratch here which can be enforced by adding the ``-task convert`` option in the same way::
+
+	trex -i webcam -task convert -detect_iou_threshold 0.35
+
+The ``detect_iou_threshold`` here is simply the parameter :func:`detect_iou_threshold`, as described in the documentation. You may add any parameter found in there to the command-line, and it will be evaluated when the program starts - if there are any errors, an ``ERROR`` will be displayed somewhere in the command-line output.
+
+For example, we can also limit the number of individuals to track::
+
+	trex -i webcam -task convert -detect_iou_threshold 0.35 -track_max_individuals 1
+
+This will force |trex| to (re-)convert the video to PV format, overwriting an existing ``VIDEO.pv`` file in the current folder.
+
+If you want the program to quit after it's done, you can use the ``-auto_quit`` option, which also exports trajectory data (if not disabled by ``-auto_no_tracking_data``). Other options omitted, this would look like this::
+
+	trex -i webcam [...] -auto_quit
+
+By default, |trex| will save the resulting .pv file in the same folder as the source video (as well as any exported trajectory data, which will land inside a ``data`` folder). If you want to save it somewhere else, you can use the ``-d`` option::
+
+	trex -i webcam [...] -d /path/to/output/to
+
+Parameters, often also called settings, can be stored in settings files. Almost all parameters can be passed to the program via such a settings file using the ``-s`` option::
+	
+	trex -i webcam [...] -s /path/to/default.settings
+
+TRex: general usage examples
+****************************
 
 .. NOTE::
 	Keep in mind that all parameters specified here in the command-line can also be accessed if you're already within the graphical user interface. Just type into the textfield on the bottom left of the screen and it will auto-complete parameter names for you. See also :doc:`gui`.
@@ -110,3 +115,14 @@ produces this gif, which is cropped, scaled, short, and has lost its background:
 
 .. image:: animated_frames.gif
 
+Closed-loop
+===========
+
+To enable closed-loop, edit the ``closed_loop.py`` file (it contains a few examples) and open tgrabs using::
+
+	tgrabs -i basler -enable_closed_loop -threshold 35 -track_threshold 35
+
+.. NOTE::
+	Now you also have to attach ``track_`` parameters and set everything up properly for tracking (see next section)!
+
+Every frame that has been tracked will be forwarded to your python script. Be aware that if your script takes too long, frames might be dropped and the tracking might become less reliable. In cases like that, or with many individuals, it might be beneficial to change ``match_mode`` to ``approximate`` (if you don't need extremely good identity consistency, just general position information).

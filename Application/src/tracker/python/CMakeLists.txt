@@ -7,19 +7,21 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 if(UNIX)
     add_library(tracker_python STATIC ${SRCS} ${HDRS} 
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_init.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_learn_category.py)
 elseif(WIN32)
-    add_library(tracker_python SHARED ${SRCS} ${HDRS})
+    add_library(tracker_python SHARED ${SRCS} ${HDRS} "${CMAKE_CURRENT_BINARY_DIR}/../../GitSHA1.cpp" ../../GitSHA1.h)
 endif()
 
 if(WIN32)
-    target_link_libraries(tracker_python PUBLIC
+    target_compile_definitions(tracker_python PRIVATE TREX_EXPORTS)
+    target_link_libraries(tracker_python PRIVATE
         tracker_misc
+        pv
         commons
     )
-    target_compile_options(tracker_python PUBLIC /D"TREX_EXPORTS")
 else()
-    target_link_libraries(tracker_python PRIVATE commons)
+    target_link_libraries(tracker_python PUBLIC tracker_misc pv commons)
 endif()
 
 if(NOT pybind11_external)
@@ -30,12 +32,12 @@ else()
 endif()
 
 add_executable(trex_check_python check_python.cpp)
-target_link_libraries(trex_check_python commons)
+target_link_libraries(trex_check_python PUBLIC commons)
 
 if(NOT pybind11_external)
-    target_link_libraries(trex_check_python pybind11::pybind11 pybind11::embed pybind11::module)
+    target_link_libraries(trex_check_python PUBLIC pybind11::pybind11 pybind11::embed pybind11::module)
 else()
-    target_link_libraries(trex_check_python ${PYTHON_LIBRARIES})
+    target_link_libraries(trex_check_python PUBLIC ${PYTHON_LIBRARIES})
 endif()
 
 #target_precompile_headers(trex_check_python REUSE_FROM commons)

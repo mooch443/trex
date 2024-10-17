@@ -60,9 +60,10 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_FFMPEG=ON \
-            -DCOMMONS_BUILD_ZLIB=OFF \
-            -DCOMMONS_BUILD_ZIP=OFF \
-            -DCOMMONS_BUILD_PNG=OFF \
+            -DCOMMONS_BUILD_ZLIB=ON \
+            -DCOMMONS_BUILD_ZIP=ON \
+            -DCOMMONS_BUILD_PNG=ON \
+            -DTREX_WITH_TESTS=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
@@ -85,6 +86,7 @@ if [ "$(uname)" == "Linux" ]; then
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
+            -DTREX_WITH_TESTS=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
             -DWITH_PYLON=ON
@@ -138,7 +140,25 @@ else
     fi
 fi
 
-cmake --build . --target Z_LIB --config Release
-cmake --build . --target CustomOpenCV --config Release
+# Determine OS and set NPROC appropriately
+if [ "$(uname)" == "Darwin" ]; then
+    # macOS
+    NPROC=$(sysctl -n hw.ncpu)
+elif [ "$(uname)" == "Linux" ]; then
+    # Linux
+    NPROC=$(nproc)
+else
+    echo "Unsupported operating system"
+    exit 1
+fi
+
+echo "NPROC=$NPROC"
+
+# Build targets with cmake
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config Release --parallel ${NPROC}
 cmake ..
-cmake --build . --config Release
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target CustomOpenCV --config Release --parallel ${NPROC}
+cmake ..
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config Release --parallel ${NPROC}

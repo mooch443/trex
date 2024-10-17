@@ -1,8 +1,30 @@
-if [ "$(uname -p)" == "arm" ]; then
-	echo "" >> $PREFIX/.messages.txt;
-	echo "============ TRex ===========" >> $PREFIX/.messages.txt;
-	echo "Please consider installing the macos-native tensorflow package from https://developer.apple.com/metal/tensorflow-plugin" >> $PREFIX/.messages.txt;
-	echo "Quick-start (maybe not up-to-date, see https://trex.run/docs/install.html#apple-silicone-macos-arm64):" >> $PREFIX/.messages.txt;
-	echo "    conda activate $(basename ${PREFIX}) && conda install -c apple -y tensorflow-deps && python -m pip install tensorflow-macos tensorflow-metal"  >> $PREFIX/.messages.txt;
-	echo "============ /TRex ==========" >> $PREFIX/.messages.txt;
+#!/bin/bash
+
+# if arm or linux, or macos, check for pip
+if [ "$(uname -p)" == "arm" ] || [ "${OSTYPE}" == "linux-gnu" ] || "$(uname)" == "Linux" || [ "$(uname)" == "Darwin" ]; then
+	# Ensure pip is installed
+	if ! command -v pip &> /dev/null
+	then
+		echo "pip could not be found, installing..."
+		conda install pip -y
+	fi
 fi
+
+# install pip packages
+echo "Installing pip packages..." >> $PREFIX/.messages.txt
+if [ "$(uname -p)" == "arm" ]; then
+	echo "ARM architecture detected, installing torch, torchvision, torchaudio, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
+	{ python -m pip install torch torchvision torchmetrics 'opencv-python<4.10' 'ultralytics>=8,<=8.3.9' numpy==1.26.4 dill 2>&1; }  >> $PREFIX/.messages.txt;
+	echo "" >> $PREFIX/.messages.txt;
+
+elif [ "$(uname)" == "Darwin" ]; then
+	echo "MacOS detected, installing torch, torchvision, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
+    { python -m pip install torch torchvision torchmetrics 'opencv-python<4.10' 'ultralytics>=8,<=8.3.9' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt;
+    echo "" >> $PREFIX/.messages.txt;
+
+else
+	echo "Linux architecture detected, installing torch, torchvision, opencv-python, ultralytics, numpy, dill..." >> $PREFIX/.messages.txt
+	{ python -m pip install torchmetrics torch torchvision "opencv-python>=4,<4.10" "ultralytics>=8,<=8.3.9" "numpy==1.26.4" "dill" --index-url https://download.pytorch.org/whl/cu118 --extra-index-url https://pypi.org/simple 2>&1; } >> $PREFIX/.messages.txt;
+fi
+
+python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').predict(np.zeros((640, 480, 3), dtype=np.uint8))"

@@ -1,29 +1,32 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <grabber.h>
 #include <gui/DrawBase.h>
 #include <http/httpd.h>
 #include <gui/DrawStructure.h>
 #include <gui/DrawHTMLBase.h>
 #include <gui/DrawSFBase.h>
+#include <gui/ControlsAttributes.h>
 
-namespace gui {
+namespace cmn::gui {
 class ExternalImage;
 }
 
 namespace grab {
+using namespace ::cmn::gui;
+
 class GUI {
 public:
     static const std::map<std::string, std::string> setting_keys;
     
 protected:
     FrameGrabber &_grabber;
-    GETTER(CropOffsets, crop_offsets)
-    GETTER(cv::Size, size)
-    GETTER(cv::Size, cropped_size)
-    //GETTER(float, window_scale)
+    GETTER(CropOffsets, crop_offsets);
+    GETTER(cv::Size, size);
+    GETTER(cv::Size, cropped_size);
+    //GETTER(float, window_scale);
     
     bool _redraw;
     float _record_alpha;
@@ -41,22 +44,22 @@ protected:
     float _pulse = 0;
     Timer pulse_timer;
     
-    GETTER_NCONST(gui::DrawStructure, gui)
-    gui::Base* _sf_base = nullptr;
+    Base* _sf_base{nullptr};
+    DrawStructure* _gui{nullptr};
     std::unique_ptr<pv::Frame> _frame, _noise;
-    Image::UPtr _image;
-    gui::ExternalImage *background = nullptr, *noise_image = nullptr;
-
-    gui::HTMLBase _html_base;
+    Image::Ptr _image;
+    ExternalImage *background = nullptr, *noise_image = nullptr;
+    
+    HTMLBase _html_base;
     
 public:
-    GUI(FrameGrabber& grabber);
+    GUI(DrawStructure*, FrameGrabber& grabber);
     ~GUI();
-    void event(const gui::Event& e);
-    static void static_event(const gui::Event& e);
-    void key_event(const gui::Event& e);
+    void event(const Event& e);
+    static void static_event(DrawStructure&, const Event& e);
+    void key_event(const Event& e);
     
-    void set_base(gui::Base*);
+    void set_base(Base*);
     static GUI* instance();
     
 #if WITH_MHD
@@ -67,9 +70,16 @@ public:
     
     void set_redraw();
     bool terminated() const;
-    void draw(gui::DrawStructure& base);
+    void draw(DrawStructure& base);
+    void draw_tracking(DrawStructure& base, const attr::Scale& scale);
     std::string info_text() const;
     void update_loop();
+    
+    DrawStructure& gui() const {
+        if(not _gui)
+            throw U_EXCEPTION("DrawStructure pointer not set yet.");
+        return *_gui;
+    }
     
 private:
     void run_loop();
@@ -78,3 +88,4 @@ private:
 }
 
 #endif
+

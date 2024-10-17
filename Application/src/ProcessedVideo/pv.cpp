@@ -4,9 +4,9 @@
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
 #include <misc/PVBlob.h>
-#include <misc/checked_casts.h>
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
+#include <file/DataLocation.h>
 
 /**
  * =============================
@@ -14,22 +14,115 @@
  * -----------------------------
  **/
 
-using namespace file;
+namespace cmn {
+using namespace cmn::file;
+
+constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t channels) {
+    return required_storage_channels(encoding) == channels;
+}
+
+template<typename ImageT>
+    requires (std::same_as<Image, ImageT> || std::same_as<cv::Mat, ImageT>)
+constexpr bool correct_number_channels(meta_encoding_t::Class encoding, const ImageT& image) {
+    return required_image_channels(encoding) == image.channels();
+}
+
+template<> void Data::read(blob::Prediction& pred) {
+    auto version = (pv::Version)pred.clid;
+    
+    read<uint8_t>(pred.clid);
+    read<uint8_t>(pred.p);
+    
+    if(version >= pv::Version::V_10) {
+        uint8_t N{0u};
+        read<uint8_t>(N);
+        assert(N % 2u == 0);
+        //Print("pose::N = ", N / 2u);
+        pred.pose.points.resize(N / 2u);
+        for(size_t i=0; i<N / 2u; i++) {
+            read<uint16_t>(pred.pose.points[i].x);
+            read<uint16_t>(pred.pose.points[i].y);
+        }
+        
+        if(version >= pv::Version::V_11) {
+            /// read the outline points
+            std::vector<int32_t> result;
+            read<uint8_t>(N);
+            for(size_t i=0; i<N; ++i) {
+                uint32_t M;
+                read<uint32_t>(M);
+                result.resize(M);
+                read_data(M * sizeof(int32_t), (char*)result.data());
+                pred.outlines.lines.emplace_back(blob::SegmentedOutlines::Outline{
+                    ._points = std::move(result)
+                });
+            }
+        }
+        
+        if(version >= pv::Version::V_13) {
+            uint32_t N;
+            read<uint32_t>(N);
+            if(N > 0) {
+                std::vector<int32_t> result{N, NoInitializeAllocator<int32_t>()};
+                read_data(N * sizeof(int32_t), (char*)result.data());
+                
+                pred.outlines.original_outline = blob::SegmentedOutlines::Outline{
+                    ._points = std::move(result)
+                };
+            }
+        }
+        
+    } else {
+        uint8_t trash;
+        read<uint8_t>(trash);
+        read<uint8_t>(trash); // trash
+    }
+}
+
+template<> uint64_t Data::write(const blob::Prediction& val) {
+    uint64_t pos =
+    write<uint8_t>(val.clid);
+    write<uint8_t>(val.p);
+    //write<uint8_t>(val._reserved0);
+    //write<uint8_t>(val._reserved1);
+    
+    write<uint8_t>(narrow_cast<uint8_t>(val.pose.size() * 2, tag::fail_on_error{}));
+    for(auto &pt : val.pose.points) {
+        write<uint16_t>(pt.x);
+        write<uint16_t>(pt.y);
+    }
+    
+    write<uint8_t>(val.outlines.lines.size());
+    for(auto &line : val.outlines.lines) {
+        write<uint32_t>(narrow_cast<uint32_t>(line._points.size(), tag::fail_on_error{}));
+        write_data(line._points.size() * sizeof(int32_t), (char*)line._points.data());
+    }
+    
+    if(val.outlines.original_outline.has_value()) {
+        auto& line = *val.outlines.original_outline;
+        write<uint32_t>(narrow_cast<uint32_t>(line._points.size(), tag::fail_on_error{}));
+        write_data(line._points.size() * sizeof(int32_t), (char*)line._points.data());
+        
+    } else {
+        write<uint32_t>(0);
+    }
+    
+    return pos;
+}
+
+}
 
 namespace pv {
     // used to register for global settings updates
-    static std::mutex settings_mutex;
-    static std::atomic_bool use_differences(false), settings_registered(false);
-    
-    static std::mutex location_mutex;
-    static std::map<std::string, std::function<file::Path(file::Path)>> location_funcs;
+    static std::atomic_bool use_differences(false);
+    static CallbackCollection _callback;
 
     /**
      * If there is a task that is async (and can be run read-only for example) and e.g. continously calls "read_frame", then a task sentinel can be registered. This prevents the file from being destroyed until the task is done.
      */
     struct TaskSentinel {
         pv::File *ptr = nullptr;
-        bool _please_terminate = false;
+        std::atomic<bool> _please_terminate{false};
         
         bool terminate() const {
             return _please_terminate;
@@ -51,78 +144,126 @@ namespace pv {
         }
     };
 
+File::File(File&& other) noexcept
+    : cmn::DataFormat(std::move(other)),       // Move-construct base class
+      cmn::GenericVideo(std::move(other)),     // Move-construct another base class
+      _lock(),                                // Mutexes cannot be moved, so we'll initialize a new one
+      _header(Header::move(std::move(other._header))),
+      _average(std::move(other._average)),
+      _mask(std::move(other._mask)),
+      _filename(std::move(other._filename)),
+      _prev_frame_time(other._prev_frame_time),
+      _compression_ratio(other._compression_ratio.load()), // Atomic types can't be moved. Copy the value.
+      _compression_value(other._compression_value),
+      _compression_samples(other._compression_samples),
+      _last_frame(std::move(other._last_frame)),
+      _task_list_mutex(),                      // Mutexes cannot be moved
+      _task_list(std::move(other._task_list)),
+      _mode(other._mode),
+      _tried_to_open(other._tried_to_open)
+{
+    // Ensure the moved-from object is left in a safe state
+    other._prev_frame_time = 0;
+    other._compression_value = 0;
+    other._compression_samples = 0;
+    other._tried_to_open = false;
+}
+
+File::File(const file::Path& filename, FileMode mode, std::optional<meta_encoding_t::Class> encoding)
+    : DataFormat(filename.add_extension("pv"), filename.str()),
+        _header(filename.str(), *encoding),
+        _filename(filename),
+        _mode(mode)
+{
+}
+
     File::~File() {
-        std::unique_lock guard(_task_list_mutex); // try to lock once to sync
-        for(auto & [i, ptr] : _task_list)
-            ptr->_please_terminate = true;
+        {
+            std::unique_lock guard(_task_list_mutex); // try to lock once to sync
+            for(auto & [i, ptr] : _task_list)
+                ptr->_please_terminate = true;
+            
+            while(!_task_list.empty())
+                _task_variable.wait_for(guard, std::chrono::milliseconds(1));
+        }
         
-        while(!_task_list.empty())
-            _task_variable.wait_for(guard, std::chrono::milliseconds(1));
+        close();
     }
 
-
-    //! Initialize copy
-    /*Frame::Frame(const Frame& other) {
-        operator=(other);
-    }*/
-
-    Frame::Frame(Frame&& other) {
-        operator=(std::move(other));
-    }
-
-    void Frame::operator=(Frame && other) {
-        _timestamp = other._timestamp;
-        _n = other._n;
-        _loading_time = other._loading_time;
+    Frame::Frame(const Frame &other)
+        : _index(other._index),
+          _timestamp(other._timestamp),
+          _n(other._n),
+          _loading_time(other._loading_time),
+          _source_index(other._source_index),
+          _encoding(other._encoding),
+          _flags(other._flags),
+          _predictions(other._predictions)
+    {
+        _mask.reserve(other.n());
+        if(other.encoding() != meta_encoding_t::binary)
+            _pixels.reserve(other.n());
         
-        std::swap(_mask, other._mask);
-        std::swap(_pixels, other._pixels);
-        std::swap(_blobs, other._blobs);
-        std::swap(_flags, other._flags);
-    }
-
-    void Frame::operator=(const Frame &other) {
-        _timestamp = other._timestamp;
-        _n = other._n;
-        _loading_time = other._loading_time;
-        
-        _blobs.clear();
-        
-        _mask.clear();
-        _pixels.clear();
-        _flags = other._flags;
-        
+        //! perform deep-copy
         for (size_t i=0; i<other.n(); ++i) {
-            _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
-            _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
+            _mask.emplace_back(new blob::line_ptr_t::element_type(*other._mask[i]));
+            if(other.encoding() != meta_encoding_t::binary)
+                _pixels.emplace_back(new blob::pixel_ptr_t::element_type(*other._pixels[i]));
         }
     }
 
-    Frame::Frame(const uint64_t& timestamp, decltype(_n) n)
-        : _timestamp(timestamp),//std::chrono::duration_cast<std::chrono::microseconds>(timestamp).count()),
-          _n(0), _loading_time(0)
+    Frame::Frame(const timestamp_t& timestamp, decltype(_n) n, cmn::meta_encoding_t::Class e)
+        : _timestamp(timestamp), _encoding(e)
     {
         _mask.reserve(n);
-        _pixels.reserve(n);
+        if(_encoding != meta_encoding_t::binary)
+            _pixels.reserve(n);
         _flags.reserve(n);
     }
     
-    Frame::Frame(File& ref, long_t idx) {
-        read_from(ref, idx);
+    Frame::Frame(File& ref, Frame_t idx) {
+        read_from(ref, idx, ref.color_mode());
     }
 
     std::unique_ptr<pv::Blob> Frame::blob_at(size_t i) const {
-        return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i]);
+        return std::make_unique<pv::Blob>(*_mask[i],
+                encoding() != meta_encoding_t::binary
+                    ? *_pixels[i]
+                    : std::vector<uchar>{},
+                _flags[i],
+                _predictions.empty()
+                    ? blob::Prediction{}
+                    : _predictions[i]);
     }
-    
-    const std::vector<pv::BlobPtr>& Frame::get_blobs() const {
-        if(_blobs.size() != n())
-            throw U_EXCEPTION("Have to call the non-const variant of this function first at some point (",_blobs.size()," != ",n(),").");
+
+    std::unique_ptr<pv::Blob> Frame::steal_blob(size_t i) {
+        return std::make_unique<pv::Blob>(std::move(_mask[i]),
+                encoding() != meta_encoding_t::binary
+                    ? std::move(_pixels[i]) : nullptr,
+                _flags[i],
+                _predictions.empty()
+                    ? blob::Prediction{}
+                    : std::move(_predictions[i]));
+    }
+
+    std::vector<pv::BlobPtr> Frame::steal_blobs() && {
+        //if(_blobs.empty())
+        std::vector<pv::BlobPtr> _blobs;
+        {
+            _blobs.clear();
+            _blobs.reserve(n());
+            for (uint32_t i=0; i<n(); i++)
+                _blobs.emplace_back(steal_blob(i));
+        }
+        
         return _blobs;
     }
     
-    std::vector<pv::BlobPtr>& Frame::get_blobs() {
-        if(_blobs.empty()) {
+    std::vector<pv::BlobPtr> Frame::get_blobs() const {
+        //if(_blobs.empty())
+        std::vector<pv::BlobPtr> _blobs;
+        {
+            _blobs.clear();
             _blobs.reserve(n());
             for (uint32_t i=0; i<n(); i++)
                 _blobs.push_back(blob_at(i));
@@ -132,48 +273,53 @@ namespace pv {
     }
     
     void Frame::clear() {
+        for(auto &m : _mask) {
+            if(m)
+                buffers().move_back(std::move(m));
+        }
+        
         _mask.clear();
         _pixels.clear();
         _flags.clear();
+        _predictions.clear();
         _n = 0;
         _timestamp = 0;
         _loading_time = 0;
-        _blobs.clear();
+        //_blobs.clear();
         
-        set_index(-1);
+        set_index({});
     }
+
+
     
-    void Frame::read_from(pv::File &ref, long_t idx) {
+    void Frame::read_from(pv::File &ref, Frame_t idx, meta_encoding_t::Class mode) {
         //for(auto m: _mask)
         //    delete m;
         //for(auto p: _pixels)
         //   delete p;
+        if(ref.is_write_mode())
+            throw U_EXCEPTION("Cannot read from writing file ", ref);
         
         clear();
         set_index(idx);
         
+        /// set number of channels
+        //_channels = mode == meta_encoding_t::rgb8 ? 3 : (mode == meta_encoding_t::binary ? 0 : 1);
+        _encoding = mode;
+        
         Data* ptr = &ref;
         ReadonlyMemoryWrapper *compressed = NULL;
         
-        if(!settings_registered){
-            std::lock_guard<std::mutex> lock(settings_mutex);
-            if(!settings_registered) {
-                auto callback = "pv::Frame::read_from";
-                use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
-                GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map&map, const std::string&key, const sprite::PropertyType& value)
-                {
-                    if(signal == sprite::Map::Signal::EXIT) {
-                        map.unregister_callback(callback);
-                        return;
-                    }
-                    
-                    if(key == "use_differences")
-                        use_differences = value.value<bool>();
-                });
-                
-                settings_registered = true;
-            }
-        }
+        static std::once_flag flag;
+        std::call_once(flag, [](){
+            use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
+            _callback = GlobalSettings::map().register_callbacks({"use_differences"}, [](auto) {
+                use_differences = SETTING(use_differences).value<bool>();
+            });
+            GlobalSettings::map().register_shutdown_callback([](auto){
+                _callback.reset();
+            });
+        });
         
         if(ref.header().version >= V_6) {
             uchar compression_flag;
@@ -185,18 +331,16 @@ namespace pv {
                 uint32_t uncompressed_size;
                 ref.read<uint32_t>(uncompressed_size);
                 
+                ref.frame_compressed_block.resize(size, false);
+                ref.frame_uncompressed_block.resize(uncompressed_size, false);
                 
-                static DataPackage compressed_block, uncompressed_block;
-                compressed_block.resize(size, false);
-                uncompressed_block.resize(uncompressed_size, false);
-                
-                ref.read_data(size, compressed_block.data());
+                ref.read_data(size, ref.frame_compressed_block.data());
                 
                 lzo_uint new_len;
-                if(lzo1x_decompress((uchar*)compressed_block.data(),size,(uchar*)uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
+                if(lzo1x_decompress((uchar*)ref.frame_compressed_block.data(),size,(uchar*)ref.frame_uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
                 {
                     assert(new_len == uncompressed_size);
-                    compressed = new ReadonlyMemoryWrapper((uchar*)uncompressed_block.data(), new_len);
+                    compressed = new ReadonlyMemoryWrapper((uchar*)ref.frame_uncompressed_block.data(), new_len);
                     ptr = compressed;
                     
                 } else {
@@ -209,19 +353,26 @@ namespace pv {
         if(ref.header().version < V_4) {
             ptr->read_convert<uint32_t>(_timestamp);
         } else {
-            ptr->read<uint64_t>(_timestamp);
+            ptr->read<timestamp_t>(_timestamp);
         }
         
-        ptr->read(_n);
+        ptr->read<uint16_t>(_n);
+        
+        if(ref.header().version >= V_9) {
+            int32_t original;
+            ptr->read<int32_t>(original);
+            if(original >= 0)
+                _source_index = Frame_t(original);
+            else
+                _source_index.invalidate();
+        }
+        
+        const auto target_channels = mode == meta_encoding_t::rgb8 ? 3 : (mode == meta_encoding_t::binary ? 0 : 1);
         
         _mask.reserve(_n);
-        _pixels.reserve(_n);
+        if(target_channels > 0)
+            _pixels.reserve(_n);
         _flags.reserve(_n);
-        
-        // declared outside so memory doesnt have to be freed/allocated all the time
-        static DataPackage pixels;
-        static std::vector<Header::line_type> mask((NoInitializeAllocator<Header::line_type>()));
-        static std::vector<LegacyShortHorizontalLine> mask_legacy((NoInitializeAllocator<LegacyShortHorizontalLine>()));
         
         for(int i=0; i<_n; i++) {
             uint16_t start_y, mask_size;
@@ -234,33 +385,41 @@ namespace pv {
             ptr->read<uint16_t>(mask_size);
             
             if(ref.header().version < V_7) {
-                mask_legacy.resize(mask_size);
-                mask.clear();
-                mask.reserve(mask_legacy.size());
+                ref.frame_mask_legacy.resize(mask_size);
+                ref.frame_mask_cache.clear();
+                ref.frame_mask_cache.reserve(ref.frame_mask_legacy.size());
                 
                 assert(ref.header().line_size == sizeof(LegacyShortHorizontalLine));
                 
-                ptr->read_data(mask_size * ref.header().line_size, (char*)mask_legacy.data());
-                std::copy(mask_legacy.begin(), mask_legacy.end(), std::back_inserter(mask));
+                ptr->read_data(mask_size * ref.header().line_size, (char*)ref.frame_mask_legacy.data());
+                std::copy(ref.frame_mask_legacy.begin(), ref.frame_mask_legacy.end(), std::back_inserter(ref.frame_mask_cache));
                 
             } else {
-                mask.resize(mask_size);
-                ptr->read_data(mask_size * ref.header().line_size, (char*)mask.data());
+                ref.frame_mask_cache.resize(mask_size);
+                ptr->read_data(mask_size * ref.header().line_size, (char*)ref.frame_mask_cache.data());
             }
             
             uint64_t num_pixels = 0;
-            for(auto &l : mask) {
+            for(auto &l : ref.frame_mask_cache) {
                 num_pixels += l.x1() - l.x0() + 1;
             }
             
-            pixels.resize(num_pixels, false);
-            ptr->read_data(num_pixels, pixels.data());
+            if(num_pixels >= std::numeric_limits<uint32_t>::max()) {
+                FormatWarning("Something is happening here ", index(), " ", num_pixels, " ", uint64_t(-1));
+            }
             
-            auto uncompressed = Header::line_type::uncompress(start_y, mask);
+            const auto channels = required_storage_channels(ref.header().encoding);
+            if(ref.header().encoding != meta_encoding_t::binary) {
+                ref.frame_pixels.resize(num_pixels * channels, false);
+                ptr->read_data(num_pixels * channels, ref.frame_pixels.data());
+            }
             
-            if(use_differences) {
+            auto uncompressed = buffers().get(source_location::current());
+            Header::line_type::uncompress(*uncompressed, start_y, ref.frame_mask_cache);
+            
+            if(use_differences && target_channels > 0) {
                 uint64_t idx = 0;
-                uchar *ptr = (uchar*)pixels.data();
+                uchar *ptr = (uchar*)ref.frame_pixels.data();
                 for (auto &l : *uncompressed) {
                     for (int x=l.x0; x<=l.x1; x++) {
                         auto &p = ptr[idx++];
@@ -269,53 +428,147 @@ namespace pv {
                 }
             }
             
-            _mask.push_back(std::move(uncompressed));
-            auto v = std::make_unique<std::vector<uchar>>((uchar*)pixels.data(),
-                                                 (uchar*)pixels.data()+num_pixels);
-            _pixels.emplace_back(std::move(v));
+            _mask.emplace_back(std::move(uncompressed));
+            if(target_channels > 0
+               && channels == target_channels)
+            {
+                auto v = std::make_unique<std::vector<uchar>>((uchar*)ref.frame_pixels.data(),
+                                                              (uchar*)ref.frame_pixels.data() + num_pixels * channels);
+                _pixels.emplace_back(std::move(v));
+                
+            } else if(target_channels > 0) {
+                auto v = std::make_unique<std::vector<uchar>>();
+                
+                call_image_mode_function(InputInfo{
+                    .channels = channels,
+                    .encoding = ref.header().encoding
+                }, OutputInfo{
+                    .channels = static_cast<uint8_t>(target_channels),
+                    .encoding = mode
+                }, [&]<InputInfo input, OutputInfo output, DifferenceMethod>(){
+                    static_assert(is_in(input.channels, 0, 1, 3), "Only 0, 1 or 3 channels input is supported.");
+                    static_assert(is_in(output.channels, 1, 3), "Only 1 or 3 channels output is supported.");
+                    
+                    if constexpr(input.channels == 0) {
+                        v->resize(output.channels * num_pixels, 255);
+                        
+                    } else {
+                        v->resize(output.channels * num_pixels);
+                        
+                        const auto istart = (uchar*)ref.frame_pixels.data();
+                        const auto iend = istart + num_pixels * input.channels;
+                        
+                        for(auto iptr = istart, optr = v->data(); iptr < iend; iptr += input.channels, optr += output.channels)
+                        {
+                            assert(optr < v->data() + v->size());
+                            auto value = diffable_pixel_value<input, output>(iptr);
+                            write_pixel_value<output>(optr, value);
+                        }
+                    }
+                });
+                
+                _pixels.emplace_back(std::move(v));
+            }
+            
+            Blob::set_flag(flags, Blob::Flags::is_rgb, target_channels == 3);
+            Blob::set_flag(flags, Blob::Flags::is_r3g3b2, mode == meta_encoding_t::r3g3b2);
+            Blob::set_flag(flags, Blob::Flags::is_binary, target_channels == 0);//mode == meta_encoding_t::binary);
             _flags.push_back(flags);
         }
         
         _mask.shrink_to_fit();
         _pixels.shrink_to_fit();
         
+        if(ref.header().version >= V_9) {
+            uint16_t n_predictions;
+            ptr->read<uint16_t>(n_predictions);
+            assert(n_predictions <= _n);
+            
+            if(n_predictions > 0) {
+                _predictions.resize(_n);
+                for(int i=0; i<_n; ++i) {
+                    _predictions[i].clid = (uint8_t)ref.header().version;
+                    ptr->read<blob::Prediction>(_predictions[i]);
+                }
+            }
+        }
+        
         if(compressed)
             delete compressed;
     }
     
     void Frame::add_object(blob::Pair&& pair) {
-        assert(mask->size() < UINT16_MAX);
+        assert(pair.lines->size() < UINT16_MAX);
         
 #ifndef NDEBUG
-        HorizontalLine prev = mask->empty() ? HorizontalLine() : mask->front();
+        HorizontalLine prev = pair.lines->empty() ? HorizontalLine() : pair.lines->front();
         
-        uint64_t count = 0;
-        for (auto &line : *mask) {
+        uint64_t pixel_count = 0;
+        for (auto &line : *pair.lines) {
             if(!(prev == line) && !(prev < line))
                 FormatWarning("Lines not properly ordered, or overlapping in x [",prev.x0,"-",prev.x1,"] < [",line.x0,"-",line.x1,"] (",prev.y,"/",line.y,").");
             prev = line;
-            ++count;
+            pixel_count += line.x1 - line.x0 + 1;
         }
+
+        assert((pixel_count * required_storage_channels(encoding()) == 0u && not pair.pixels) || pixel_count * required_storage_channels(encoding()) == pair.pixels->size());
 #endif
         
-        _mask.push_back(std::move(pair.lines));
-        _pixels.push_back(std::move(pair.pixels));
+        Blob::set_flag(pair.extra_flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
+        Blob::set_flag(pair.extra_flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+        Blob::set_flag(pair.extra_flags, Blob::Flags::is_binary, _encoding == meta_encoding_t::binary);
+        
+        _mask.emplace_back(std::move(pair.lines));
+        if(pair.pixels && encoding() != meta_encoding_t::binary)
+            _pixels.push_back(std::move(pair.pixels));
         _flags.push_back(pair.extra_flags);
+        //if(pair.pred.valid() or not _predictions.empty()) {
+            _predictions.resize(_flags.size());
+            _predictions.back() = std::move(pair.pred);
+        //}
         
         _n++;
     }
 
-void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags) {
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred)
+{
     assert(mask.size() < UINT16_MAX);
-    _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
-    _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
+#ifndef NDEBUG
+    HorizontalLine prev = mask.empty() ? HorizontalLine() : mask.front();
+
+    uint64_t pixel_count = 0;
+    for (auto& line : mask) {
+        if (!(prev == line) && !(prev < line))
+            FormatWarning("Lines not properly ordered, or overlapping in x [", prev.x0, "-", prev.x1, "] < [", line.x0, "-", line.x1, "] (", prev.y, "/", line.y, ").");
+        prev = line;
+        pixel_count += line.x1 - line.x0 + 1;
+    }
+
+    assert(pixel_count * required_storage_channels(encoding()) == pixels.size());
+#endif
+    
+    Blob::set_flag(flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
+    Blob::set_flag(flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+    Blob::set_flag(flags, Blob::Flags::is_binary, _encoding == meta_encoding_t::binary);
+
+    _mask.emplace_back(new blob::line_ptr_t::element_type(mask));
+    if(_encoding != meta_encoding_t::binary)
+        _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _flags.push_back(flags);
+    //if(pred.valid()) {
+        _predictions.resize(_flags.size());
+        _predictions.back() = pred;
+    //}
+    
     _n++;
 }
     
     void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image, uint8_t flags) {
         assert(full_image.rows > 0 && full_image.cols > 0);
         assert(!mask_.empty());
+        
+        const auto channels = required_image_channels(encoding());
+        assert(full_image.channels() == channels);
         
         auto mask = std::make_unique<std::vector<HorizontalLine>>(mask_);
         
@@ -351,7 +604,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         // copy grey values to pixels array
         auto pixels = std::make_unique<std::vector<uchar>>();
-        pixels->resize(overall);
+        pixels->resize(overall * channels);
         //uchar *pixels = (uchar*)malloc(overall);
         
         auto pixel_ptr = pixels->data();
@@ -361,16 +614,19 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         for (ptr_safe_t i=0; i<L; i++, line_ptr++) {
             auto ptr = full_image.ptr(line_ptr->y, line_ptr->x0);
             assert(line_ptr->x1 >= line_ptr->x0);
-            auto N = ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + ptr_safe_t(1);
+            auto N = (ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + ptr_safe_t(1)) * channels;
             memcpy(pixel_ptr, ptr, sign_cast<size_t>(N));
             pixel_ptr += N;
         }
         
+        Blob::set_flag(flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
+        Blob::set_flag(flags, Blob::Flags::is_r3g3b2, _encoding == meta_encoding_t::r3g3b2);
+        Blob::set_flag(flags, Blob::Flags::is_binary, _encoding == meta_encoding_t::binary);
         add_object(blob::Pair{std::move(mask), std::move(pixels), flags});
         //free(pixels);
     }
     
-    uint64_t Frame::size() const {
+    uint64_t Frame::size() const noexcept {
         uint64_t bytes = sizeof(_timestamp) + sizeof(_n) + _mask.size() * sizeof(uint16_t);
         uint64_t elem_size = sizeof(Header::line_type);
         
@@ -379,7 +635,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         for (auto &m : _pixels)
             bytes += m->size() * sizeof(char);
-        
+
+        bytes += sizeof(uint16_t) + sizeof(uint8_t) * 4u * _predictions.size();
         return bytes;
     }
 
@@ -395,25 +652,46 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         pack.resize(bytes);
         pack.reset_offset();
         
-        assert(_timestamp < UINT64_MAX);
-        pack.write(_timestamp); // force uint32_t because it should have been turned
-        pack.write(_n);         // into a relative timestamp by now // V_4 use uint64_t anyway
+        assert(_timestamp.valid());
+        pack.write<timestamp_t>(_timestamp);
+        pack.write<uint16_t>(_n);
+        //static_assert(std::same_as<int32_t, Frame_t::number_t>, "Assuming int32_t here. Please fix.");
+        pack.write<Frame_t::number_t>(_source_index.valid() ? _source_index.get() : Frame_t::number_t(-1));
         
         for(uint16_t i=0; i<_n; i++) {
             auto &mask = _mask.at(i);
-            auto &pixels = _pixels.at(i);
             auto flags = _flags.at(i);
+            
+            assert(not Blob::is_flag(flags, Blob::Flags::is_rgb) || _encoding == meta_encoding_t::rgb8);
+            assert(not Blob::is_flag(flags, Blob::Flags::is_binary) || _encoding == meta_encoding_t::binary);
+            assert(not Blob::is_flag(flags, Blob::Flags::is_r3g3b2) || _encoding == meta_encoding_t::r3g3b2);
             
             auto compressed = Header::line_type::compress(*mask);
             pack.write(uint16_t(mask->empty() ? 0 : mask->front().y));
             pack.write(uint8_t(flags));
             pack.write(uint16_t(compressed.size()));
             pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
-            pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
+            
+            if(encoding() != meta_encoding_t::binary) {
+                auto &pixels = _pixels.at(i);
+                pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
+            }
         }
+        
+        //! prediction information (if available)
+        pack.write<uint16_t>(narrow_cast<uint16_t>(_predictions.size()));
+        //if(not _predictions.empty()) {
+            assert(_predictions.size() == _mask.size());
+
+            for(uint16_t i=0; i<_n; ++i) {
+                pack.write<cmn::blob::Prediction>(_predictions.at(i));
+            }
+        //}
 
         // see whether this frame is worth compressing (size-threshold)
-        if (pack.size() >= 1500) {
+        if (pack.size() >= 15000
+            /*&& false*/)
+        {
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
 
 
@@ -457,53 +735,36 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                     pack.write<uint32_t>((uint32_t)out_len);
                     pack.write<uint32_t>(in_len);
                     pack.write_data(out_len, out.data());
+                    
+                    //Print("Compression ratio ", double(out_len) / double(in_len) * 100,"%");
                 }
 
             }
             else {
-                print("Compression of ",pack.size()," bytes failed.");
+                Print("Compression of ",pack.size()," bytes failed.");
             }
         }
-    }
-    
-    void DataLocation::register_path(std::string purpose, std::function<file::Path (file::Path)> fn)
-    {
-        purpose = utils::trim(utils::lowercase(purpose));
-        
-        std::lock_guard<std::mutex> guard(location_mutex);
-        if(location_funcs.find(purpose) != location_funcs.end()) {
-            throw U_EXCEPTION("Purpose ",purpose," already found in map with keys ",extract_keys(location_funcs),". Cannot register twice.");
-        }
-        
-        location_funcs.insert({purpose, fn});
-    }
-    
-    file::Path DataLocation::parse(const std::string &purpose, file::Path path) {
-        std::function<file::Path(file::Path)> fn;
-        {
-            std::lock_guard<std::mutex> guard(location_mutex);
-            auto it = location_funcs.find(utils::trim(utils::lowercase(purpose)));
-            if(it == location_funcs.end()) {
-                throw U_EXCEPTION("Cannot find purpose ",purpose," in map with keys ",extract_keys(location_funcs)," in order to modify path ",path,".");
-            }
-            
-            fn = it->second;
-        }
-        
-        return fn(path);
-    }
-    
-    bool DataLocation::is_registered(std::string purpose) {
-        purpose = utils::trim(utils::lowercase(purpose));
-        
-        std::lock_guard<std::mutex> guard(location_mutex);
-        return location_funcs.find(purpose) != location_funcs.end();
     }
 
-    void File::_write_header() { 
+    /*void File::start_writing(bool overwrite) {
+        DataFormat::start_writing(overwrite);
+    }*/
+
+    void File::_write_header() {
+        if (not (bool(_mode & FileMode::WRITE)
+              || bool(_mode & FileMode::MODIFY))
+            || not is_open())
+            throw U_EXCEPTION("File not opened when writing header ", _filename, ".");
+        
+        _update_global_settings();
         _header.write(*this);
     }
     void File::_read_header() {
+        if (not (bool(_mode & FileMode::READ)
+              || bool(_mode & FileMode::MODIFY))
+            || not is_open())
+            throw U_EXCEPTION("File not opened when reading header ", _filename, ".");
+        
         _header.read(*this);
 
         _average = _header.average->get();
@@ -514,28 +775,30 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         uint64_t fps_l = 0;
 
         if (!_open_for_writing) {
-            uint64_t idx = length() / 2u;
+            uint64_t idx = length().get() / 2u;
             //uint64_t edx = length()-1;
-            if (idx < length()) {
+            if (idx < length().get()) {
                 pv::Frame lastframe;
                 //read_frame(lastframe, edx);
 
                 //ns_e = std::chrono::microseconds(lastframe.timestamp());
 
-                read_frame(lastframe, idx);
+                read_frame(lastframe, Frame_t(idx));
                 //ns_l = std::chrono::microseconds(lastframe.timestamp());
 
                 if (idx >= 1) {
-                    uint64_t last = lastframe.timestamp();
-
-                    read_frame(lastframe, idx - 1);
-                    fps_l = last - lastframe.timestamp();
+                    auto last = lastframe.timestamp();
+                    if(last.valid()) {
+                        read_frame(lastframe, Frame_t(idx - 1));
+                        fps_l = last.get() - lastframe.timestamp().get();
+                    } else fps_l = 0;
                 }
             }
 
         }
 
         _header.average_tdelta = fps_l;
+        _update_global_settings();
     }
     
     void Header::read(DataFormat& ref) {
@@ -543,8 +806,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.read<std::string>(version_str);
         
         if(version_str.length() > 2) {
-            auto nr = version_str.at(version_str.length()-1u) - uchar('0');
-            version = (Version)(nr-1);
+            std::regex re("PV(\\d+)");
+            std::smatch match;
+            if (std::regex_search(version_str, match, re)) {
+                int nr = std::stoi(match[1]);
+                version = static_cast<Version>(nr - 1);
+            } else {
+                version = Version::V_1;
+            }
             
         } else {
             version = Version::V_1;
@@ -553,17 +822,39 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(version > Version::current)
             throw U_EXCEPTION("Unknown version '",version,"'.");
         
-        if(version == Version::V_2) {
+        /*if(version == Version::V_2) {
             // must read settings from file before loading...
-            if(!DataLocation::is_registered("settings"))
+            if(!file::DataLocation::is_registered("settings"))
                 throw U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
-            auto settings_file = DataLocation::parse("settings");
+            auto settings_file = file::DataLocation::parse("settings");
             if (settings_file.exists())
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
+        }*/
+        
+        if(version >= Version::V_14) {
+            std::string encoding_name;
+            ref.read<std::string>(encoding_name);
+            encoding = meta_encoding_t::Class::fromStr(encoding_name);
+            
+        } else {
+            uchar channels;
+            ref.read<uchar>(channels);
+            
+            if(version >= Version::V_12) {
+                uint8_t index;
+                ref.read<uint8_t>(index);
+                if(index < meta_encoding_t::values.size()) {
+                    encoding = meta_encoding_t::values.at(index);
+                    
+                    if(not correct_number_channels(encoding, channels))
+                        throw InvalidArgumentException("Read illegal number of channels (",channels,") for encoding ", encoding,".");
+                    
+                } else {
+                    FormatExcept("Read illegal encoding from file: ", index, " with available values ", meta_encoding_t::values);
+                }
+            }
         }
         
-        
-        ref.read<uchar>(channels);
         ref.read<cv::Size>(resolution);
         
         // added offsets
@@ -585,8 +876,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.read<std::string>(name);
         
         // check values for sanity
-        if(channels != 1)
-            throw U_EXCEPTION("Only 1 channel currently supported (",this->channels," provided)");
+        //if(channels != 1 && channels != 3)
+        //    throw U_EXCEPTION("Only 1 or 3 channel(s) are currently supported (",this->channels," provided)");
         
         if(line_size != sizeof(line_type))
             throw U_EXCEPTION("The used line format in this file (",line_size," bytes) differs from the expected ",sizeof(line_type)," bytes.");
@@ -594,7 +885,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(average)
             delete average;
         
-        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, channels);
+        const auto image_channels = required_image_channels(encoding);
+        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, image_channels);
         _average_offset = ref.current_offset();
         ref.read_data(average->size(), (char*)average->data());
         
@@ -607,7 +899,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             ref.read<uint64_t>(mask_size);
             if(mask_size) {
                 // does it use a mask?
-                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, channels);
+                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, image_channels);
                 
                 ref.read_data(mask->size(), (char*)mask->data());
                 
@@ -626,7 +918,29 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         if(version >= Version::V_5) {
             _meta_offset = index_offset+len;
-            ref.read(metadata, _meta_offset);
+            
+            std::string metadata;
+            ref.read<std::string>(metadata, _meta_offset);
+            
+            try {
+                sprite::Map map;
+                map.set_print_by_default(false);
+                map["quiet"] = true;
+                map["meta_real_width"] = Float2_t();
+                
+                if(not metadata.empty())
+                    sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map());
+                this->metadata = metadata;
+                /*for(auto key : map.keys()) {
+                 Print("Key: ", key, " Value: ", map[key].get().valueString());
+                 }*/
+                if(map.has("meta_real_width"))
+                    meta_real_width = map["meta_real_width"].value<Float2_t>();
+            } catch(const std::exception& ex) {
+                FormatExcept("Error parsing settings metadata from ", ref.filename(), ": ", ex.what());
+            } catch(...) {
+                FormatExcept("Error parsing settings metadata from ", ref.filename(), ".");
+            }
         }
     }
 
@@ -674,10 +988,18 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
          */
         
         // set offsets from global settings
+        //if(average)
+        //    tf::imshow("average", average->get());
+        if(average && not correct_number_channels(encoding, *average)) {
+            throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," for the average image provided ", *average);
+        }
+        
+        //if(not correct_number_channels(encoding, channels))
+        //    throw InvalidArgumentException("Writing illegal number of channels (",channels,") for encoding ", encoding,".");
         
         ref.write("PV" + std::to_string((int)Version::current + 1));
         
-        ref.write(channels);
+        ref.write<std::string>(encoding.name());
         
         if(!resolution.width && !resolution.height)
             throw U_EXCEPTION("Resolution of the video has not been set.");
@@ -691,34 +1013,52 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         ref.write<std::string>((std::string)file::Path(name).filename());
         
-        if(average)
+        if(average) {
             _average_offset = ref.write_data(average->size(), (char*)average->data());
-        else {
-            Image tmp((uint)resolution.height, (uint)resolution.width, 1);
+        } else {
+            Image tmp((uint)resolution.height, (uint)resolution.width, required_storage_channels(encoding));
             _average_offset = ref.write_data(tmp.size(), (char*)tmp.data());
         }
         
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            print("Written mask with ", mask->cols,"x",mask->rows);
+            Print("Written mask with ", mask->cols,"x",mask->rows);
         }
         else {
             ref.write(uint64_t(0));
         }
     }
 
+    void File::set_metadata(const sprite::Map &diff) {
+        std::map<std::string, std::string> jsons;
+        for(const auto& key : diff.keys()) {
+            try {
+                jsons.emplace(key, diff.at(key).get().valueString());
+                
+            } catch(const std::exception& ex) {
+                FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
+            }
+        }
+        
+        std::string dump = Meta::toStr(jsons);//glz::write_json(jsons);
+        _header.metadata = dump;
+    }
+
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
-        print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
+        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
         
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
         }
         
-        metadata = generate_metadata();
-        _meta_offset = ref.write(metadata);
+        //metadata = generate_metadata();
+        if(metadata.has_value())
+            _meta_offset = ref.write(metadata.value());
+        else
+            _meta_offset = ref.write(std::string("{}"));
         
         ref.write(this->num_frames, _num_frames_offset);
         ref.write(this->index_offset, _index_offset);
@@ -728,10 +1068,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
-        print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
     }
     
-    std::string Header::generate_metadata() const {
+    /*std::string Header::generate_metadata() const {
         std::stringstream ss;
         
         std::vector<std::string> write_these = GlobalSettings::map().has("meta_write_these") ? SETTING(meta_write_these) : std::vector<std::string>();
@@ -745,15 +1085,36 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::string ret = ss.str();
         if(ret.empty()) {
-            print("Metadata empty.");
+            Print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            print("Metadata: ",ret.c_str());
+            Print("Metadata: ", no_quotes(ret));
         }
         
         return ret;
-    }
+    }*/
     
+    Header& File::header() {
+        if(not bool(_mode & FileMode::WRITE))
+            _check_opened();
+        return _header;
+    }
+
+    const Header& File::header() const {
+        if(not bool(_mode & FileMode::WRITE))
+            _check_opened();
+        return _header;
+    }
+
+    void File::close() {
+        if(is_open()) {
+            if(bool(_mode & FileMode::WRITE))
+                stop_writing();
+        }
+        DataFormat::close();
+        _tried_to_open = false;
+    }
+
     std::string File::get_info(bool full) {
         auto str = get_info_rich_text(full);
         str = utils::find_replace(str, "<b>", "");
@@ -763,9 +1124,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     
     std::string File::filesize() const {
         uint64_t bytes = 0;
-        if(_open_for_writing)
+        if(bool(_mode & FileMode::WRITE)) {
+            if(!_open_for_writing)
+                throw U_EXCEPTION("File has to be opened for filesize() to work in WRITE mode.");
+            
             bytes = current_offset();
-        else {
+        } else {
 #if defined(__EMSCRIPTEN__)
             bytes = reading_file_size();
 #else
@@ -777,17 +1141,21 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     std::string File::get_info_rich_text(bool full) {
+        _check_opened();
+        
         std::stringstream ss;
         ss << this->summary() << "\n";
         
         /**
          * Display time related information.
          */
-        std::chrono::microseconds ns_l, ns_e;
+        std::chrono::microseconds ns_l{0}, ns_e{0};
         
-        if(!_open_for_writing){
-            uint64_t idx = length() / 2u;
-            uint64_t edx = length()-1;
+        if(bool(_mode & FileMode::READ)
+           or bool(_mode & FileMode::MODIFY))
+        {
+            Frame_t idx = length() / 2_f;
+            Frame_t edx = length() - 1_f;
             if(idx < length()) {
                 pv::Frame lastframe;
                 read_frame(lastframe, edx);
@@ -826,17 +1194,18 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ss << std::endl;
         
         if(full) {
-            if(header().metadata.empty())
+            if(not header().metadata.has_value())
                 ss << ("<b>Metadata empty.</b>");
-            else
-                ss << "<b>Metadata:</b> " << header().metadata ;
+            else {
+                return ss.str() + "<b>Metadata:</b> " + header().metadata.value();
+            }
         }
         
         return ss.str();
     }
     
     void File::set_start_time(std::chrono::time_point<std::chrono::system_clock> tp) {
-        assert(!open());
+        assert(!is_open());
         _header.timestamp = narrow_cast<uint64_t>(std::chrono::time_point_cast<std::chrono::microseconds>(tp).time_since_epoch().count());
     }
     
@@ -846,22 +1215,40 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     void File::add_individual(const Frame& frame, DataPackage& pack, bool compressed) {
+        _check_opened();
+        
         assert(_open_for_writing);
         assert(_header.timestamp != 0); // start time has to be set
+        
+#ifndef NDEBUG
+        const auto channels = required_storage_channels(frame.encoding());
+        if(channels > 0) {
+            for(size_t i = 0; i < frame.n(); ++i) {
+                assert(frame.pixels().at(i) && frame.pixels().at(i)->size() % channels == 0);
+            }
+        } else {
+            assert(frame.pixels().empty());
+        }
+#endif
 
         std::unique_lock<std::mutex> lock(_lock);
 
         _header.num_frames++;
-        assert(!_prev_frame_time || frame._timestamp > _prev_frame_time);
+        assert(!_prev_frame_time.valid() || frame._timestamp > _prev_frame_time);
         //if(frame._timestamp >= _header.timestamp)
         //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
 
-        if (_prev_frame_time && frame._timestamp <= _prev_frame_time) {
+        if (_prev_frame_time.valid() && frame._timestamp <= _prev_frame_time) {
             throw U_EXCEPTION("Should be dropping frame because ",frame._timestamp," <= ",_prev_frame_time,".");
         }
 
-        _header._running_average_tdelta += frame._timestamp - _prev_frame_time;
-        _header.average_tdelta = _header._running_average_tdelta / (_header.num_frames > 0 ? double(_header.num_frames) : 1);
+        if(_prev_frame_time.valid()) {
+            _header._running_average_tdelta += frame._timestamp.get() - _prev_frame_time.get();
+            _header.average_tdelta = _header._running_average_tdelta / (_header.num_frames > 0 ? double(_header.num_frames) : 1);
+        } else {
+            _header._running_average_tdelta = 0;
+            _header.average_tdelta = 0;
+        }
         _prev_frame_time = frame._timestamp;
 
         // resets the offset and writes frame content to the pack
@@ -875,69 +1262,109 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         _header.index_table.push_back(index);
         
         // cache last_frame
-        _last_frame = frame;
+        _last_frame = Frame(frame);
     }
 
-    void File::add_individual(Frame&& frame) {
-        static std::mutex pack_mutex;
+    void File::_check_opened() const {
+        if(_tried_to_open)
+            return;
+        
+        _tried_to_open = true;
+        
+        if(bool(_mode & FileMode::MODIFY))
+            const_cast<pv::File*>(this)->start_modifying();
+        else if(bool(_mode & FileMode::READ))
+            const_cast<pv::File*>(this)->start_reading();
+        else
+            const_cast<pv::File*>(this)->start_writing(bool(_mode & FileMode::OVERWRITE));
+    }
+
+    void File::_update_global_settings() {
+    }
+
+    void File::add_individual(const Frame& frame) {
+        static auto pack_mutex = LOGGED_MUTEX("File::pack_mutex");
         static DataPackage pack;
 
-        std::lock_guard g(pack_mutex);
+        auto g = LOGGED_LOCK(pack_mutex);
+        _check_opened();
         bool compressed;
         frame.serialize(pack, compressed);
-        add_individual(std::move(frame), pack, compressed);
+        add_individual(frame, pack, compressed);
     }
         
     void File::stop_writing() {
+        if(not is_open()
+           || not bool(_mode & FileMode::WRITE))
+            throw U_EXCEPTION("Do not stop writing on a file that was not open for writing (",_filename,").");
         write(uint64_t(0));
         _header.update(*this);
+        print_info();
     }
     
-    void File::read_frame(Frame& frame, uint64_t frameIndex) {
-        assert(!_open_for_writing);
+    void File::read_frame(Frame& frame, Frame_t frameIndex) {
+        read_frame(frame, frameIndex, color_mode());
+    }
+
+    meta_encoding_t::Class File::color_mode() const {
+        assert(is_open());
+        //assert(is_in(_header.channels, 3, 1));
+        return _header.encoding;
+    }
+
+    void File::read_frame(Frame& frame, Frame_t frameIndex, meta_encoding_t::Class mode) {
+        _check_opened();
         
         std::unique_lock<std::mutex> guard(_lock);
-        if(frameIndex >= _header.num_frames)
+        
+        assert(!_open_for_writing);
+        assert(frameIndex.valid());
+        
+        if(frameIndex.get() >= _header.num_frames)
            throw U_EXCEPTION("Frame index ", frameIndex," out of range.");
         
-        uint64_t pos = _header.index_table.at(frameIndex);
+        uint64_t pos = _header.index_table.at(frameIndex.get());
         uint64_t old = current_offset();
         
         if(old != pos)
             seek(pos);
         
-        frame.read_from(*this, (long_t)frameIndex);
-        frame.get_blobs();
+        frame.read_from(*this, frameIndex, mode);
     }
     
-    void File::read_next_frame(Frame& frame, uint64_t frame_to_read) {
+    void File::read_next_frame(Frame& frame, Frame_t frame_to_read) {
+        _check_opened();
         assert(!_open_for_writing);
         
         std::unique_lock<std::mutex> guard(_lock);
-        if(frame_to_read >= _header.num_frames)
+        if(frame_to_read.get() >= _header.num_frames)
            throw U_EXCEPTION("Frame index ", frame_to_read," out of range.");
         
-        frame.read_from(*this, (long_t)frame_to_read);
+        frame.read_from(*this, frame_to_read, color_mode());
     }
 #ifdef USE_GPU_MAT
-    void File::frame(uint64_t frameIndex, gpuMat &output, cmn::source_location loc) {
+    void File::frame(Frame_t frameIndex, gpuMat &output, cmn::source_location) {
         cv::Mat local;
         frame_optional_background(frameIndex, local, true);
         local.copyTo(output);
     }
 #endif
-    void File::frame(uint64_t frameIndex, cv::Mat &output, cmn::source_location loc) {
+    void File::frame(Frame_t frameIndex, cv::Mat &output, cmn::source_location) {
         frame_optional_background(frameIndex, output, true);
     }
     
-    void File::frame_optional_background(uint64_t frameIndex, cv::Mat& output, bool with_background) {
+    void File::frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background) {
+        _check_opened();
+        
         Frame frame;
         read_frame(frame, frameIndex);
         
+        const int channels = required_storage_channels(header().encoding);
         if(with_background)
             average().copyTo(output);
         else
-            output = cv::Mat::zeros(header().resolution.height, header().resolution.width, CV_8UC1);
+            output = cv::Mat::zeros(header().resolution.height, header().resolution.width, CV_8UC(channels));
+        assert(output.channels() == channels);
         
         for (uint16_t i=0; i<frame.n(); i++) {
             uint64_t index = 0;
@@ -945,71 +1372,82 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             auto &pixels = frame.pixels().at(i);
             
             for(const HorizontalLine &line : *mask) {
-                for(int x=line.x0; x<=line.x1; x++) {
-                    output.at<uchar>(line.y, x) = (uchar)pixels->at(index++);
+                for(int x=line.x0; x<=line.x1; x+=channels) {
+                    if(channels == 1)
+                        output.at<uchar>(line.y, x) = (uchar)pixels->at(index);
+                    else
+                        output.at<cv::Vec3b>(line.y, x) = *(const cv::Vec3b*)((pixels->data()) + index);
+                    ++index;
                 }
             }
         }
     }
 
     void fix_file(File& file) {
-        print("Starting file copy and fix (",file.filename(),")...");
+        Print("Starting file copy and fix (",file.filename(),")...");
         
-        File copy(file.filename()+"_fix");
+        auto copy = File::Write<FileMode::WRITE | FileMode::OVERWRITE>(
+            (std::string)file.filename()+"_fix",
+            file.header().encoding
+        );
         copy.set_resolution(file.header().resolution);
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
         
-        auto keys = sprite::parse_values(file.header().metadata).keys();
-        sprite::parse_values(GlobalSettings::map(), file.header().metadata);
+        auto keys = file.header().metadata.has_value()
+            ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value()).keys()
+            : std::vector<std::string>{};
+        if(file.header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata.value());
         SETTING(meta_write_these) = keys;
         
         if(file.has_mask())
             copy.set_mask(file.mask());
         
         copy.header().timestamp = file.header().timestamp;
-        copy.start_writing(true);
         
-        uint64_t raw_prev_timestamp = 0;
-        uint64_t last_reset = 0;
-        uint64_t last_reset_idx = 0;
+        timestamp_t raw_prev_timestamp;
+        timestamp_t last_reset;
+        Frame_t last_reset_idx;
         uint64_t last_difference = 0;
         
-        for (uint64_t idx = 0; idx < file.length(); idx++) {
+        for (Frame_t idx = 0_f; idx < Frame_t(file.length()); ++idx) {
             pv::Frame frame;
             file.read_frame(frame, idx);
             
             //frame.set_timestamp(file.header().timestamp + frame.timestamp());
             
-            if (frame.timestamp() < raw_prev_timestamp) {
-                last_reset = raw_prev_timestamp + last_difference;
+            if (raw_prev_timestamp.valid() && frame.timestamp() < raw_prev_timestamp) {
+                last_reset = raw_prev_timestamp.get() + last_difference;
                 last_reset_idx = idx;
                 
-                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp());
+                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
             } else {
-            	last_difference = frame.timestamp() - raw_prev_timestamp;
+            	last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
             }
             
             raw_prev_timestamp = frame.timestamp();
             
-            if(last_reset_idx) {
+            if(last_reset_idx.valid()) {
                 frame.set_timestamp(last_reset + frame.timestamp());
             }
             
             copy.add_individual(std::move(frame));
             
-            if (idx % 1000 == 0) {
-                print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+            if (idx.get() % 1000 == 0) {
+                Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
             }
         }
         
-        copy.stop_writing();
+        copy.close();
         
-        print("Written fixed file.");
+        Print("Written fixed file.");
     }
     
     void File::try_compress() {
-        File copy(filename()+"_test");
+        _check_opened();
+        
+        auto copy = File::Write((std::string)filename()+"_test", header().encoding);
         copy.set_resolution(header().resolution);
         copy.set_offsets(crop_offsets());
         copy.set_average(average());
@@ -1023,30 +1461,30 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         std::vector<std::string> save = GlobalSettings::map().has("meta_write_these") ? SETTING(meta_write_these) : std::vector<std::string>{};
         
         sprite::Map map;
-        if(!header().metadata.empty())
-            sprite::parse_values(map, header().metadata);
+        if(header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value());
         SETTING(meta_write_these) = map.keys();
         
         pv::Frame frame;
-        for (uint64_t i=0; i<length(); i++) {
+        for (Frame_t i=0_f; i<length(); ++i) {
             read_frame(frame, i);
             frame.set_timestamp(header().timestamp + frame.timestamp());
             
             copy.add_individual(std::move(frame));
             
-            if (i % 1000 == 0) {
-                print("Frame ", i," / ",length(),"...");
+            if (i.get() % 1000 == 0) {
+                Print("Frame ", i," / ",length(),"...");
             }
         }
         
         copy.stop_writing();
         
-        print("Written");
+        Print("Written");
         
         {
             print_info();
             
-            File test(filename()+"_test");
+            auto test = File::Read((std::string)filename()+"_test");
             test.start_reading();
         }
         
@@ -1054,12 +1492,17 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
     
     void File::update_metadata() {
-        if(!_open_for_modifying)
+        _check_opened();
+        
+        if(not bool(_mode & FileMode::MODIFY)
+           || not is_open())
             throw U_EXCEPTION("Must be open for writing.");
     
-        print("Updating metadata...");
-        auto metadata = _header.generate_metadata();
-        write(metadata, _header.meta_offset());
+        if(_header.metadata.has_value()) {
+            Print("Updating metadata...");
+            //auto metadata = _header.generate_metadata();
+            write(_header.metadata.value(), _header.meta_offset());
+        }
     }
     
     short File::framerate() const {
@@ -1068,7 +1511,17 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         return short(1000. * 1000. / _header.average_tdelta);
     }
 
+    bool File::is_read_mode() const {
+        return bool(_mode & FileMode::READ);
+    }
+
+    bool File::is_write_mode() const {
+        return bool(_mode & FileMode::WRITE);
+    }
+
     std::vector<float> File::calculate_percentiles(const std::initializer_list<float> &percent) {
+        _check_opened();
+        
         if(_open_for_writing)
             throw U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
         Timer timer;
@@ -1087,16 +1540,25 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 #endif
         
         uint64_t num_frames = 0;
-        uint64_t start_frame = 0;
-        std::set<long_t> samples;
+        Frame_t start_frame = 0_f;
+        std::set<Frame_t> samples;
         
-        while(!sentinel.terminate() && timer.elapsed() < 1 && pixel_values.size() < 10000000 && start_frame < length()) {
-            auto range = arange<long_t>((long_t)start_frame, (long_t)length(), max(1, long_t(length() * 0.1)));
+        while(!sentinel.terminate()
+              && timer.elapsed() < 1
+              && pixel_values.size() < 10000000
+              && start_frame < length())
+        {
+            auto range = arange<Frame_t>{
+                start_frame,
+                length(),
+                max(1_f, Frame_t(Frame_t::number_t(length().get() * 0.1)))
+            };
+            
             pv::Frame frame;
             uint64_t big_loop_size = samples.size();
             
             for (auto frameIndex : range) {
-                if((uint64_t)frameIndex >= length())
+                if(frameIndex >= length())
                     continue;
                 
                 uint64_t prev_size = samples.size();
@@ -1104,9 +1566,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 if(samples.size() == prev_size)
                     continue;
                 
-                read_frame(frame, (uint64_t)frameIndex);
+                read_frame(frame, frameIndex);
                 for(uint64_t i=0; i<frame.n(); ++i) {
-                    pixel_values.insert(pixel_values.end(), frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
+                    if(frame.encoding() == meta_encoding_t::binary)
+                        pixel_values.push_back(255);
+                    else
+                        pixel_values.insert(pixel_values.end(), frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
                 }
                 ++num_frames;
                 samples.insert(frameIndex);
@@ -1123,24 +1588,62 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
-        print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
+        Print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
         //auto str = Meta::toStr(samples);
         return p;
     }
+
+void File::set_average(const cv::Mat& average) {
+    //tf::imshow("average", average);
+    
+    if(not correct_number_channels(_header.encoding, average)) {
+        throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
+    }
+    
+    if(average.type() != CV_8UC(required_image_channels(_header.encoding)))
+    {
+        auto str = getImgType(average.type());
+        throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC",required_image_channels(_header.encoding),"'.");
+    }
+    
+    if(!_header.resolution.width && !_header.resolution.height) {
+        _header.resolution.width = average.cols;
+        _header.resolution.height = average.rows;
+    }
+    else if(average.cols != _header.resolution.width || average.rows != _header.resolution.height) {
+        throw U_EXCEPTION("Average image is of size ",average.cols,"x",average.rows," but has to be ",_header.resolution.width,"x",_header.resolution.height,"");
+    }
+    
+    if(_header.average)
+        delete _header.average;
+    
+    _header.average = new Image(average);
+    this->_average = _header.average->get();
+    
+    if(bool(_mode & FileMode::MODIFY)) {
+        _check_opened();
+        if(not is_open())
+            throw U_EXCEPTION("Not open for modifying.");
+        
+        cmn::Data::write_data(header()._average_offset, header().average->size(), (char*)header().average->data());
+    }
+}
     
     double File::generate_average_tdelta() {
-        if(!_open_for_writing && _header.average_tdelta == 0 && length()>0) {
+        _check_opened();
+        
+        if(!_open_for_writing && _header.average_tdelta == 0 && length().valid()) {
             // readable
             double average = 0;
             uint64_t samples = 0;
-            const uint64_t step = max(1u, (length()-1) / 10u);
+            const Frame_t step = max(1_f, (length().try_sub(1_f)) / 10_f);
             pv::Frame frame;
-            for (uint64_t i=1; i<length(); i+=step) {
+            for (Frame_t i=1_f; i<length(); i+=step) {
                 read_frame(frame, i);
-                double stamp = frame.timestamp();
-                if(i < length()-1) {
-                    read_frame(frame, i+1);
-                    stamp = double(frame.timestamp()) - stamp;
+                double stamp = frame.timestamp().get();
+                if(i < length()-1_f) {
+                    read_frame(frame, i+1_f);
+                    stamp = double(frame.timestamp().get()) - stamp;
                 }
                 average += stamp;
                 ++samples;
@@ -1152,14 +1655,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         return _header.average_tdelta;
     }
     
-    timestamp_t File::timestamp(uint64_t frameIndex, cmn::source_location loc) const {
+    timestamp_t File::timestamp(Frame_t frameIndex, cmn::source_location loc) const {
         if(_open_for_writing)
-            throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot get timestamps for video while writing.", loc);
+            throw _U_EXCEPTION(loc, "Cannot get timestamps for video while writing.");
         
-        if(frameIndex >= header().num_frames)
-            throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,". (caller ", loc.file_name(),":", loc.line(),")");
+        if(frameIndex >= Frame_t(header().num_frames))
+            throw _U_EXCEPTION(loc, "Access out of bounds ",frameIndex,"/",header().num_frames,".");
         
-        return header().index_table[frameIndex];
+        return header().index_table[frameIndex.get()];
     }
     
     timestamp_t File::start_timestamp() const {

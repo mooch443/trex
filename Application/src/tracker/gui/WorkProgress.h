@@ -1,19 +1,21 @@
 #pragma once
 
-#include <types.h>
+#include <commons.pc.h>
 #include <gui/DrawStructure.h>
 #include <gui/types/Drawable.h>
 #if WIN32
 #include <ShObjIdl_core.h>
 #endif
 
-namespace gui {
+namespace cmn::gui {
+class IMGUIBase;
 
 struct WorkItem {
     std::function<void()> fn;
     std::string name, desc;
     bool abortable;
     std::string custom_button;
+    std::promise<void> promise;
     
     WorkItem(std::function<void()> fn, const std::string& name, const std::string& desc, bool abortable = false, std::string custom_button = "")
         : fn(fn), name(name), desc(desc), abortable(abortable), custom_button(custom_button)
@@ -28,58 +30,59 @@ struct WorkInstance {
 };
 
 class WorkProgress {
-    std::condition_variable _condition;
-    std::mutex _queue_lock;
-    std::queue<WorkItem> _queue;
-    std::atomic_bool _terminate_threads;
+private:
+    WorkProgress();
     
-    std::thread *_thread;
-    std::thread::id _work_thread_id;
-    
-    GETTER_SETTER(std::string, item)
-    std::atomic_bool _item_abortable, _item_aborted, _item_custom_triggered;
-    std::string _description;
-    std::string _custom_button_text;
-    gui::Entangled _additional;
-    std::queue<std::function<void(Entangled&)>> _additional_updates;
-    std::atomic<float> _percent;
-    std::map<std::string, Image::Ptr> _images;
-    std::map<std::string, std::unique_ptr<ExternalImage>> _gui_images;
-#if WIN32
-    ITaskbarList3* ptbl = NULL;
-#endif
+    struct WorkGUIObjects;
+    mutable std::mutex gui_mutex;
+    std::mutex start_mutex;
+    std::unique_ptr<WorkGUIObjects> gui;
+
+protected:
+    static std::unique_ptr<WorkProgress>& raw_instance();
+    static WorkProgress& init_instance();
+public:
+    static WorkProgress& instance();
+    static void stop();
+    void start();
     
 public:
-    WorkProgress();
     ~WorkProgress();
     
-    bool item_aborted();
-    bool item_custom_triggered();
-    void reset_custom_item();
-    bool has_custom_button() const;
+    static const std::string& item();
+    static void set_item(const std::string&);
     
-    void add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr = "", bool abortable = false);
-    void abort_item();
-    void custom_item();
+    static bool item_aborted();
+    static bool item_custom_triggered();
+    static void reset_custom_item();
+    static bool has_custom_button();
     
-    void set_item_abortable(bool abortable);
-    void set_custom_button(const std::string& text);
-    void update(gui::DrawStructure &base, gui::Section *section);
+    static std::future<void> add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr = "", bool abortable = false);
+    static void abort_item();
+    static void custom_item();
     
-    void set_progress(const std::string& title, float value, const std::string& description = "");
+    static void set_item_abortable(bool abortable);
+    static void set_custom_button(const std::string& text);
+    static void update(IMGUIBase*, gui::DrawStructure &base, gui::Section *section, Size2 screen_size);
+    
+    static void set_progress(const std::string& title, float value, const std::string& description = "");
     
     //std::atomic<float>& percent();
-    float percent() const;
-    void set_percent(float value);
+    static float percent();
+    static void set_percent(float value);
     
-    void set_image(const std::string& name, const Image::Ptr& image);
+    static void set_image(const std::string& name, Image::Ptr&& image);
     
-    std::string description();
-    void set_description(const std::string& value);
+    static std::string description();
+    static void set_description(const std::string& value);
     
-    bool has_additional();
-    bool is_this_in_queue() const;
-    void update_additional(std::function<void(Entangled&)> fn);
+    static bool has_additional();
+    
+    //! check whether the calling thread is the work-queue-thread
+    static bool is_this_in_queue();
+    
+    static void update_additional(std::function<void(Entangled&)> fn);
+    static void update_taskbar(IMGUIBase*);
 };
 
 }

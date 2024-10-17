@@ -24,8 +24,8 @@ public:
     }
     void paint(const Outline& outline, bool erase = true);
     void paint(const Midline* midline);
-    void paint(const track::Posture& posture, const cv::Mat& greyscale);
-    void paint(const cv::Mat& greyscale, const std::vector<track::Posture::EntryPoint>& pts);
+    //void paint(const track::Posture& posture, const cv::Mat& greyscale);
+    //void paint(const cv::Mat& greyscale, const std::vector<track::Posture::EntryPoint>& pts);
     void paint_raster();
     
 private:

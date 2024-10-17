@@ -1,11 +1,13 @@
 #ifndef _PAIRING_GRAPH_H
 #define _PAIRING_GRAPH_H
 
-#include <misc/defines.h>
+#include <commons.pc.h>
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
 #include <tracking/MotionRecord.h>
+#include <misc/idx_t.h>
+#include <misc/TrackingSettings.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -80,6 +82,7 @@ struct hash<track::Match::blob_index_t>
 {
     size_t operator()(const track::Match::blob_index_t& k) const noexcept
     {
+        //return robin_hood::hash<track::Match::index_t>{}((track::Match::index_t)k);
         return std::hash<track::Match::index_t>{}((track::Match::index_t)k);
     }
 };
@@ -89,6 +92,7 @@ struct hash<track::Match::fish_index_t>
 {
     size_t operator()(const track::Match::fish_index_t& k) const noexcept
     {
+        //return robin_hood::hash<track::Match::index_t>{}((track::Match::index_t)k);
         return std::hash<track::Match::index_t>{}((track::Match::index_t)k);
     }
 };
@@ -96,14 +100,12 @@ struct hash<track::Match::fish_index_t>
 
 namespace track {
 namespace Match {
-    using prob_t = double;
-    using Blob_t = const pv::BlobPtr*;
     template<typename K, typename V>
-    using pairing_map_t = robin_hood::unordered_map<K, V>;
+    using pairing_map_t = robin_hood::unordered_flat_map<K, V>;
 
     class PairedProbabilities {
     public:
-        using row_t = std::vector<Individual*>;
+        using row_t = std::vector<Fish_t>;
         using col_t = std::vector<Blob_t>;
         
         struct Edge {
@@ -129,16 +131,16 @@ namespace Match {
         };
         
     protected:
-        GETTER(row_t, rows)
-        GETTER(col_t, cols)
+        GETTER(row_t, rows);
+        GETTER(col_t, cols);
         
-        fish_index_t _num_rows;
-        blob_index_t _num_cols;
+        fish_index_t _num_rows{0};
+        blob_index_t _num_cols{0};
         
         std::vector<size_t> _offsets;
         std::vector<size_t> _degree;
         std::vector<prob_t> _row_max_probs;
-        GETTER(std::vector<Edge>, probabilities) //! size is individuals + edges per individual
+        GETTER(std::vector<Edge>, probabilities); //! size is individuals + edges per individual
         
         pairing_map_t<row_t::value_type, fish_index_t> _row_index;
         pairing_map_t<col_t::value_type, blob_index_t> _col_index;
@@ -148,10 +150,27 @@ namespace Match {
         //std::unordered_map<row_t::value_type, size_t> _fish_2_idx;
         
     public:
-        PairedProbabilities();
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
+        void clear() {
+            _row_index.clear();
+            _col_index.clear();
+            _col_edges.clear();
+            _offsets.clear();
+            _degree.clear();
+            _row_max_probs.clear();
+            _probabilities.clear();
+            _num_rows = fish_index_t(0);
+            _num_cols = blob_index_t(0);
+            _rows.clear();
+            _cols.clear();
+        }
+        void reserve(size_t N) {
+            if(_probabilities.capacity() < N)
+                _probabilities.reserve(N);
+        }
         
-        fish_index_t add(row_t::value_type, const pairing_map_t<col_t::value_type, prob_t>&);
+        using ordered_assign_map_t = robin_hood::unordered_node_map<col_t::value_type, prob_t>;
+        fish_index_t add(row_t::value_type, const ordered_assign_map_t&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
         
@@ -184,12 +203,24 @@ namespace Match {
         size_t degree(fish_index_t) const;
         
         bool empty() const; // no elements in the graph
+        std::string toStr() const;
+        static std::string class_name() { return "PairedProbabilities"; }
+        
+        PairedProbabilities() noexcept = default;
+        PairedProbabilities(const PairedProbabilities&) = delete;
+        PairedProbabilities(PairedProbabilities&&) noexcept = default;
+        PairedProbabilities& operator=(const PairedProbabilities&) noexcept = delete;
+        PairedProbabilities& operator=(PairedProbabilities&&) noexcept = default;
+        
     private:
         blob_index_t add(col_t::value_type);
     };
 
     class PairingGraph {
+        std::mutex _mutex;
+        
     public:
+        using ordered_map_t = robin_hood::unordered_node_map<Blob_t, Fish_t>;
         //! this is the "queue" for permutations from this node on
         typedef PairedProbabilities::Edge _value_t;
         //typedef std::multiset<_value_t, std::function<bool(const _value_t&, const _value_t&)>> pset;
@@ -199,7 +230,7 @@ namespace Match {
         typedef psets_t::const_iterator pset_ptr_t;
         
         struct Node {
-            Individual* fish;
+            Fish_t fish;
             size_t degree;
             prob_t max_prob;
             
@@ -210,7 +241,7 @@ namespace Match {
         };
         
         struct Combination {
-            Individual* fish;
+            Fish_t fish;
             Blob_t blob;
         };
         
@@ -226,7 +257,7 @@ namespace Match {
             //! Individuals and Blobs paired in the optimal way.
             //  Does not necessarily contain all Individuals/Blobs
             //  (as some might have improved the result by not being used)
-            std::vector<std::pair<Individual*, Blob_t>> pairings;
+            ordered_map_t pairings;
             
             //! Optimal path down the tree (indicies of nodes)
             std::vector<Combination> path;
@@ -249,24 +280,24 @@ namespace Match {
         };
         
     protected:
-        GETTER(Frame_t, frame)
-        GETTER(float, time)
-        PairedProbabilities _paired;
+        GETTER(Frame_t, frame);
+        GETTER(float, time);
+        GETTER_NCONST(PairedProbabilities, paired);
         
         std::vector<prob_t> _ordered_max_probs;
-        GETTER_PTR(Result*, optimal_pairing)
+        GETTER_PTR(Result*, optimal_pairing);
         
-        //GETTER(EdgeMap, edges)
+        //GETTER(EdgeMap, edges);
         
     public:
-        PairingGraph(const FrameProperties& props, Frame_t frame, const decltype(_paired)& paired);
+        PairingGraph(const FrameProperties& props, Frame_t frame, PairedProbabilities&& paired);
         ~PairingGraph();
         
         static void prepare_shutdown();
         
        // void add(Individual* o);
         //void add(pv::Blob* o);
-        void print();
+        void Print();
         void print_summary();
         
         //cv::Point2f pos(const Individual*) const;
@@ -310,8 +341,8 @@ namespace Match {
         
         typedef std::priority_queue<Stack*, std::vector<Stack*>, std::function<bool(const Stack*, const Stack*)>> gq_t_;
         
-        prob_t prob(Individual*, Blob_t) const;
-        bool connected_to(Individual *o, Blob_t b) const;
+        prob_t prob(Fish_t, Blob_t) const;
+        bool connected_to(Fish_t, Blob_t b) const;
         
     public:
         std::queue<Stack*> unused;
