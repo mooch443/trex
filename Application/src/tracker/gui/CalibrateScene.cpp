@@ -72,6 +72,56 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                     }),
                     ActionFunc("clear", [this](const Action&) {
                         _data->points.clear();
+                    }),
+                    ActionFunc("configure_points", [](const Action& action) {
+                        REQUIRE_EXACTLY(1, action);
+                        
+                        auto pts = Meta::fromStr<std::vector<Vec2>>(action.first());
+                        if(pts.size() == 2) {
+                            static NumericTextfield<double> text(1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()});
+                            text.set_postfix("cm");
+                            text.set_fill_color(DarkGray.alpha(50));
+                            text.set_text_color(White);
+                            
+                            derived_ptr<Entangled> e = std::make_shared<Entangled>();
+                            e->update([&](Entangled& e) {
+                                e.advance_wrap(text);
+                            });
+                            e->auto_size(Margin{0, 0});
+                            
+                            auto S = pts.front();
+                            auto E = pts.back();
+                            auto D = euclidean_distance(S, E);
+                            
+                            Print("calibrating ", action.first(), " with a distance of ", D);
+                            
+                            SceneManager::getInstance().enqueue([D, e=std::move(e)](auto, DrawStructure& graph) mutable {
+                                graph.dialog([D](Dialog::Result r) {
+                                    if(r != Dialog::OKAY)
+                                        return true;
+                                    
+                                    try {
+                                        auto value = Meta::fromStr<float>(text.text());
+                                        Print("Value is: ", value);
+                                        
+                                        if(value > 0) {
+                                            SETTING(cm_per_pixel) = Float2_t(value / D);
+                                            
+                                            SceneManager::getInstance().enqueue([](auto, DrawStructure& graph)
+                                            {
+                                                graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.");
+                                            });
+                                            
+                                            return true;
+                                        }
+                                        
+                                    } catch(const std::exception& e) { }
+                                    
+                                    return false;
+                                    
+                                }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, and <ref>track_size_filter</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort")->set_custom_element(std::move(e));
+                            });
+                        }
                     })
                 };
 

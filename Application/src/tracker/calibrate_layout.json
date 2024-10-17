@@ -13,7 +13,7 @@
             "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
             "origin":[0.5,0.5],
             "blur":0.0,
-            "alpha":0.5,
+            "alpha":1.0,
             "frame_seconds":0.1,
             "scale":"{bg_scale}"
         },
@@ -21,33 +21,26 @@
             "type":"rect",
             "pos":[0,0],
             "size":"{window_size}",
-            "fill":[255,0,0,50],
+            "fill":[255,0,0,0],
             "clickable":true,
             "click":"{if:{<:{array_length:{points}}:2}:'add:{divVector:{subVector:{mouse}:{screen_center}}:{bg_scale}}':'clear'}"
         },
         {
-            "type":"condition",
-            "var":"{equal:{array_length:{points}}:2}",
-            "then":{
-                "type":"stext",
-                "pos":[20,50],
-                "text":"{bg_scale} * {points}"
-            }
-        },
-        {
-            "type":"stext",
-            "text":"\"<cyan>{global.meta_source_path}</cyan>\"\n{for:{points}:{mulVector:{i}:{bg_scale}}}\n\n{join:{for:'hi':{if:{equal:{i}:i}:u:{i}}}}"
-        },
-        {
             "type":"line",
             "points":"{for:{points}:{addVector:{screen_center}:{mulVector:{i}:{bg_scale}}}}",
-            "line":[255,0,0,255]
+            "line":[200,200,200,150]
         },
+
         {
-            "type":"button",
-            "pos":[550,5],
-            "text":"change",
-            "click":"change_scene:settings-scene"
+            "type":"each",
+            "var":"{points}",
+            "do":{
+                "type":"circle",
+                "radius":5,
+                "line":[0,0,0,50],
+                "pos":"{addVector:{addVector:{screen_center}:{subVector:{mulVector:{i}:{bg_scale}}:[5,5]}}:[0.5,0.5]}",
+                "fill":[0,0,0,255]
+            }
         },
         {
             "type":"each",
@@ -56,7 +49,7 @@
                 "type":"circle",
                 "radius":5,
                 "pos":"{addVector:{screen_center}:{subVector:{mulVector:{i}:{bg_scale}}:[5,5]}}",
-                "fill":[255,0,0,255]
+                "fill":[200,200,200,255]
             }
         },
         {
@@ -64,11 +57,61 @@
             "var":"{equal:{array_length:{points}}:2}",
             "then":{
                 "type":"button",
-                "text":"use",
-                "pos":"{meanVector:{points}}",
-                "size":[50,25],
-                "click":"change_scene:settings-scene"
+                "fill":[30,30,30,150],
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                "text":"configure <sym>▷</sym>",
+                "pos":"{addVector:[10,30]:{addVector:{screen_center}:{mulVector:{meanVector:{points}}:{bg_scale}}}}",
+                "size":[100,30],
+                "origin":[0.5,0.5],
+                "font":{
+                    "size":0.6
+                },
+                "click":"configure_points:{points}"
             }
+        },
+
+        {
+            "type":"collection",
+            "fill":[20,20,20,150],
+            "size":"[{window_size.x},55]",
+            "origin":[0,1],
+            "pos":"[0,{window_size.y}]",
+            "children":[
+                {
+                    "type":"hlayout",
+                    "align":"center",
+                    "pad":[5,15,5,0],
+                    "pos":[15,8],
+                    "children":[
+                        {
+                            "type":"stext",
+                            "text":"{if:{equal:{array_length:{points}}:2}:Selected distance is <c><nr>{int:{distance:{at:1:{points}}:{at:0:{points}}}}</nr><lightgray>px</lightgray></c> <c>*</c> <c><lightgray>cm_per_pixel</lightgray>[<nr>{global.cm_per_pixel}</nr><lightgray>cm/px</lightgray></c>] = <c><nr>{dec:3:{*:{global.cm_per_pixel}:{distance:{at:1:{points}}:{at:0:{points}}}}}</nr><lightgray>cm</lightgray></c>:'Click on the video to select reference points <sym>🞙</sym> <c><lightgray>cm_per_pixel</lightgray>[<nr>{global.cm_per_pixel}</nr><lightgray>cm/px</lightgray>]</c>'} <sym>🞙</sym> <c><nr>{dec:3:{*:{video_size.x}:{global.cm_per_pixel}}}</nr><lightgray>cm</lightgray></c> estimated arena width",
+                            "font":{"size":0.6,"align":"center"}
+                        }
+                    ]
+                },
+                {
+                    "type":"hlayout",
+                    "align":"center",
+                    "pad":[5,0,5,0],
+                    "pos":"[{-:{window_size.x}:10},8]",
+                    "origin":[1,0],
+                    "children":[
+                        {
+                            "type":"button",
+                            "text":"Back <sym>⮞</sym>",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[100,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "change_scene:'settings-scene'"
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

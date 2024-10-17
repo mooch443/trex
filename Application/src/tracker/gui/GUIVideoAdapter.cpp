@@ -131,8 +131,25 @@ void GUIVideoAdapter::update() {
                                    _latest_image.ptr->cols,
                                    _latest_image.ptr->dims);
             ptr->set_to(0);
-            if(_image.source() && not _image.source()->dimensions().empty())
-                cv::resize(_image.source()->get(), ptr->get(), ptr->dimensions());
+            if(_image.source() && not _image.source()->dimensions().empty()) {
+                if(_image.source()->dims == ptr->dims) {
+                    cv::resize(_image.source()->get(), ptr->get(), ptr->dimensions());
+                } else if(_image.source()->dims == 1 && ptr->dims == 4) {
+                    cv::Mat tmp;
+                    cv::cvtColor(_image.source()->get(), tmp, cv::COLOR_GRAY2BGRA);
+                    cv::resize(tmp, ptr->get(), ptr->dimensions());
+                } else if(_image.source()->dims == 4 && ptr->dims == 1) {
+                    cv::Mat tmp;
+                    cv::cvtColor(_image.source()->get(), tmp, cv::COLOR_BGRA2GRAY);
+                    cv::resize(tmp, ptr->get(), ptr->dimensions());
+                    
+                } else {
+                    /// dont know what to do :(
+#ifndef NDEBUG
+                    FormatWarning("Cannot convert between ", *_image.source(), " and ", *ptr);
+#endif
+                }
+            }
             _image.set_source(std::move(ptr));
         }
         

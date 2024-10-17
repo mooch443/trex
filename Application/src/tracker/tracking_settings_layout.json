@@ -7,7 +7,7 @@
     "highlight_clr":[50,50,75],
     "window_color":[10,10,10],
     "vars":{
-        "label_w":185,
+        "label_w":200,
         "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:100}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
@@ -45,13 +45,13 @@
         { "type":"stext",
           "pad":[2,25,0,20],
           "fill":[0,0,0,0],
-          "max_size":"[{-:{element_w}:25},0]",
+          "max_size":"[{min:1024:{-:{window_size.x}:25}},150]",
           "text":"<h2>Configuration</h2>\n<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>", 
           "font":{ "size":0.7 }
         },
         {
             "type":"hlayout",
-            "pad":[2,-10,-36,0],
+            "pad":[0,-10,-36,-1.5],
             "children":[
                 {
                     "type":"hlayout",
@@ -66,7 +66,7 @@
                             "text":"<sym>🗁</sym> Locations",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[200,40],
+                            "size":[249,40],
                             "font":{
                                 "align":"center",
                                 "size":0.65
@@ -78,7 +78,7 @@
                             "text":"<sym>💻</sym> Detection",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[200,40],
+                            "size":[250,40],
                             "font":{
                                 "align":"center",
                                 "size":0.65
@@ -90,10 +90,10 @@
                             "fill":[20,20,20,220],
                             "clickable":true,
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[200,40],
+                            "size":[249,40],
                             "children":[
                                 {
-                                    "pos":[100,20],
+                                    "pos":[124.5,20],
                                     "origin":[0.5,0.5],
                                     "type":"stext",
                                     "text":"<sym>🐟</sym> Tracking",
@@ -112,7 +112,9 @@
             "type":"gridlayout",
             "vertical_clr":[0,0,0,0],
             "horizontal_clr":[10,50,80,140],
-            "cellfillclr":[20,20,20,200],
+            "cellfillclr":[20,20,20,180],
+            "line":[100,100,100,150],
+            "mincellsize":[227,0],
             "pad":[10,0,10,0],
             "clickable":true,
             "halign":"left",
@@ -134,7 +136,7 @@
                             {
                                 "type":"rect",
                                 "fill":[0,0,0,0],
-                                "size":[1,20]
+                                "size":"[{-:{element_w}:0},20]"
                             },
                             {
                                 "type":"gridlayout",
@@ -245,7 +247,7 @@
                                                 "fill":[50,90,50],
                                                 "pos":"[{max:50:{*:{textfield_w}:0.08}},0]",
                                                 "size":"[{max:80:{*:{textfield_w}:0.08}},40]",
-                                                "action":"calibrate"
+                                                "action":"change_scene:'calibrate-scene'"
                                             }
                                         ]
                                     ]
@@ -271,7 +273,7 @@
                 [
                     {
                         "type":"stext",
-                        "text":"<b>Posture</b>\n<small><gray>Estimate a centerline and head/tail positions (in bilateral animals).</gray></small>",
+                        "text":"<b>Posture</b>\n<small><gray>Estimate a centerline and head/tail positions (in bilateral animals) from image or pose (e.g. YOLO) information.</gray></small>",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
@@ -287,11 +289,14 @@
                             },
                             {
                                 "type":"hlayout",
-                                "pad":[0,0,15,10],
+                                "pad":[0,0,0,20],
                                 "children":[
                                     {
                                         "type":"stext",
                                         "text":"enable posture",
+                                        "fill":[60,60,60,150],
+                                        "line":[100,100,100,50],
+                                        "pad":[10,10,10,11],
                                         "origin":[0,0.5], "pos":[0,20],
                                         "max_size":"[{-:{inside_label_w}:20},0]"
                                     },

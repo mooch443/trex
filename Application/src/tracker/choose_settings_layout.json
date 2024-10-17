@@ -7,8 +7,8 @@
     "highlight_clr":[50,50,75],
     "window_color":[10,10,10],
     "vars":{
-        "label_w":185,
-        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:100}}",
+        "label_w":200,
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:115}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
         "textfield_w":"{max:100:{+:{element_w}:160}}",
@@ -45,20 +45,20 @@
     "children":[
         { "type":"stext",
           "pad":[2,25,0,20],
-          "max_size":"[{-:{element_w}:25},0]",
+          "max_size":"[{min:1024:{-:{window_size.x}:25}},150]",
           "text":"<h2>Configuration</h2>\n<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>", 
           "font":{ "size":0.7 }
         },
         {
             "type":"hlayout",
-            "pad":[2,-10,-36,0],
+            "pad":[0,-10,-36,-1.5],
             "children":[
                 {
                     "type":"hlayout",
                     "align":"center",
                     "origin":[0,0],
                     "clickable":true,
-                    "pad":[-1,0,0,0],
+                    "pad":[0,0,-1,0],
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                     "children":[
                         {
@@ -66,10 +66,10 @@
                             "fill":[20,20,20,220],
                             "clickable":true,
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[200,40],
+                            "size":[249,40],
                             "children":[
                                 {
-                                    "pos":[100,20],
+                                    "pos":[123.5,20],
                                     "origin":[0.5,0.5],
                                     "type":"stext",
                                     "text":"<sym>🗁</sym> Locations",
@@ -85,7 +85,7 @@
                             "text":"<sym>💻</sym> Detection",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[200,40],
+                            "size":[249,40],
                             "font":{
                                 "align":"center",
                                 "size":0.65
@@ -97,7 +97,7 @@
                             "text":"<sym>🐟</sym> Tracking",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[200,40],
+                            "size":[249,40],
                             "font":{
                                 "align":"center",
                                 "size":0.65
@@ -112,7 +112,9 @@
             "type":"gridlayout",
             "vertical_clr":[0,0,0,0],
             "horizontal_clr":[10,50,80,140],
-            "cellfillclr":[20,20,20,200],
+            "cellfillclr":[20,20,20,180],
+            "line":[100,100,100,150],
+            "mincellsize":[227,0],
             "pad":[10,0,10,0],
             "clickable":true,
             "halign":"left",
@@ -130,10 +132,11 @@
                     [{
                         "type":"vlayout",
                         "children":[
+                            
                             {
                                 "type":"rect",
                                 "fill":[0,0,0,0],
-                                "size":[0,30]
+                                "size":"[{-:{element_w}:0},30]"
                             },
                             {
                                 "type":"hlayout",
@@ -421,7 +424,7 @@
                                                     {
                                                         "type":"stext",
                                                         "pad":[10,10,10,15],
-                                                        "max_size":"[{*:0.4:{element_w}},0]",
+                                                        "max_size":"[{*:0.45:{element_w}},0]",
                                                         "text":"{if:{resulting_path}:<sym>➥</sym> <c><cyan>{resulting_path}</cyan><lightgray>.pv</lightgray></c>:<sym>➥</sym> <gray>please select an input file first</gray>}"
                                                     }
                                                 ]
@@ -450,7 +453,8 @@
                                         "type":"stext",
                                         "font":{"size":0.5},
                                         "fill":[0,0,0,0],
-                                        "max_size":"[{min:750:{-:{*:0.6:{element_w}}:20}},{+:50:{at:1:{dimensions:left_summary}}}]",
+                                        "line":[100,100,200,250],
+                                        "max_size":"[{min:750:{-:{*:0.55:{element_w}}:20}},{+:50:{at:1:{dimensions:left_summary}}}]",
                                         "text":"<h4><lightgray>Changed settings (subset)</lightgray></h4>\n{settings_summary}"
                                     }
                                 ]
@@ -459,7 +463,7 @@
                                 "type":"stext",
                                 "pad":[0,0,0,20],
                                 "max_size":"[{min:700:{element_w}},0]",
-                                "text":"{if:{equal:{global.detect_type}:yolo}:'<b>using <cyan><c>machine learning</c></cyan> for detection</b>':'using <cyan><c>background subtraction</c></cyan> for detection.'}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:'\n<sym>➥</sym> region selection using <cyan><c>{shorten:{filename:{global.region_model}}:50}</c></cyan><sym> 🞙</sym> {global.region_resolution}<i>px</i>':''}{if:{equal:{global.detect_type}:yolo}:'\n<sym>➥</sym> detection using <cyan><c>{shorten:{filename:{global.detect_model}}:50}</c></cyan><sym> 🞙</sym> {global.detect_resolution}<i>px</i>':''}"
+                                "text":"{if:{equal:{global.detect_type}:yolo}:'<b>Using <cyan><c>machine learning</c></cyan> for detection</b>':'<b>Using <cyan><c>background subtraction</c></cyan> for detection.</b>'}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:'\n<sym>➥</sym> region selection using <cyan><c>{shorten:{filename:{global.region_model}}:50}</c></cyan><sym> 🞙</sym> {global.region_resolution}<i>px</i>':''}{if:{equal:{global.detect_type}:yolo}:'\n<sym>➥</sym> detection using <cyan><c>{shorten:{filename:{global.detect_model}}:50}</c></cyan><sym> 🞙</sym> {global.detect_resolution}<i>px</i>':''}"
                             }
                         ]
                     }

@@ -99,7 +99,7 @@ public:
     void enqueue(F&& task) {
         std::unique_lock guard(_mutex);
         if(_gui_queue) {
-            _gui_queue->enqueue([this, scene = active_scene, task = std::forward<F>(task)](IMGUIBase* gui, DrawStructure& base) {
+            _gui_queue->enqueue([this, scene = active_scene, task = std::forward<F>(task)](IMGUIBase* gui, DrawStructure& base) mutable {
                 if(scene && active_scene != scene) {
 #ifndef NDEBUG
                     FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
