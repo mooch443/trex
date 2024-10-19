@@ -632,9 +632,9 @@ struct DrawExportOptions::Data {
                         
                         items.push_back(Item{
                             ._name = f,
+                            ._source = (std::string)name,
                             ._count = count,
-                            ._font = Font(0.5, count ? Style::Bold : Style::Regular, Align::Left),
-                            ._source = (std::string)name
+                            ._font = Font(0.5, count ? Style::Bold : Style::Regular, Align::Left)
                         });
                         
                         if(count > 0) {
