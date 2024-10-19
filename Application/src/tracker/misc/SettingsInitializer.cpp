@@ -88,8 +88,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_posture_threshold", 15,
             "track_background_subtraction", true,
             "calculate_posture", true,
-            "track_size_filter", BlobSizeRange(),
-            "segment_size_filter", BlobSizeRange({Ranged(10, 100000)}),
+            "track_size_filter", SizeFilters(),
+            "segment_size_filter", SizeFilters({Ranged(10, 100000)}),
             //"meta_encoding", meta_encoding_t::rgb8,
             "track_do_history_split", true,
             "detect_classes", detect::yolo::names::owner_map_t{},
@@ -106,8 +106,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_threshold", 0,
             "track_posture_threshold", 0,
             "track_background_subtraction", false,
-            "segment_size_filter", BlobSizeRange(),
-            "track_size_filter", BlobSizeRange(),
+            "segment_size_filter", SizeFilters(),
+            "track_size_filter", SizeFilters(),
             "calculate_posture", true,
             "outline_resample", 1.f,
             "outline_approximate", uchar(3),
@@ -424,6 +424,7 @@ void load(file::PathArray source,
     GlobalSettings::map()["gui_run"].get().set_do_print(false);
     GlobalSettings::map()["track_pause"].get().set_do_print(false);
     GlobalSettings::map()["terminate"].get().set_do_print(false);
+    GlobalSettings::map()["gui_interface_scale"].get().set_do_print(false);
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
     if(cmd.settings_keys().contains("wd")) {
@@ -813,7 +814,7 @@ void load(file::PathArray source,
                         const bool needs_update = not default_value
                             || (default_value && (!combined.map.has(key) ||
                                     combined.map.at(key).get() == *default_value));
-                        if(default_value) {
+                        /*if(default_value) {
                             // we have a default value
                             Print(key, " needs_update=",needs_update, " with value ", *default_value, " combined=", combined.map.at(key), " equals:",combined.map.at(key).get() == *default_value, " vs. ", *default_value == combined.map.at(key).get());
                         } else {
@@ -827,23 +828,23 @@ void load(file::PathArray source,
                                 }
                             } else
                                 Print(key," needs_update=",needs_update, " combined=", combined.map.at(key));
-                        }
+                        }*/
 
                         if (needs_update) {
                             if (tmp.has(key)) {
                                 // Copy value from tmp if available
                                 tmp.at(key).get().copy_to(&combined.map);
                                 set_config_if_different(key, combined.map);
-                                Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
+                                //Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
                             } else if (compute_defaults.count(key)) {
                                 // Compute and set the default value if a handler exists
-                                Print("* Checking ", key);
+                                //Print("* Checking ", key);
                                 auto p = compute_defaults.at(key)(combined.map);
                                 if(p) {
                                     set_config_if_different(key, combined.map);
                                 }
                             } else {
-                                Print("* Key not checked ", key);
+                                //Print("* Key not checked ", key);
                             }
                             // No action needed if neither tmp has the key nor a compute function is defined
                         }

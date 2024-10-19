@@ -1,24 +1,24 @@
-#include "BlobSizeRange.h"
+#include "SizeFilters.h"
 
 namespace cmn {
 
-BlobSizeRange BlobSizeRange::fromStr(const std::string& str) {
+SizeFilters SizeFilters::fromStr(const std::string& str) {
     if(str == "" || str == "[]")
-        return BlobSizeRange();
+        return SizeFilters();
     if (str[0] == '[' && str[1] != '[') {
-        return BlobSizeRange({Meta::fromStr<Range<double>>(str)});
+        return SizeFilters({Meta::fromStr<Range<double>>(str)});
     }
-    return BlobSizeRange(Meta::fromStr<std::vector<Range<double>>>(str));
+    return SizeFilters(Meta::fromStr<std::vector<Range<double>>>(str));
 }
 
-BlobSizeRange::BlobSizeRange(const std::vector<Range<double>>& ranges)
+SizeFilters::SizeFilters(const std::vector<Range<double>>& ranges)
     : _max_range(-1, -1)
 {
     for (auto &range : ranges)
         add(range);
 }
 
-void BlobSizeRange::add(const Range<double> &range) {
+void SizeFilters::add(const Range<double> &range) {
     _ranges.insert(range);
     if(_max_range.start == -1 || range.start < _max_range.start)
         _max_range.start = range.start;
@@ -26,7 +26,7 @@ void BlobSizeRange::add(const Range<double> &range) {
         _max_range.end = range.end;
 }
 
-bool BlobSizeRange::close_to_minimum_of_one(Float2_t cmsq, Float2_t scale_factor) const {
+bool SizeFilters::close_to_minimum_of_one(Float2_t cmsq, Float2_t scale_factor) const {
     for(auto & range : _ranges) {
         if(cmsq >= range.start * scale_factor)
             return true;
@@ -34,7 +34,7 @@ bool BlobSizeRange::close_to_minimum_of_one(Float2_t cmsq, Float2_t scale_factor
     return false;
 }
 
-bool BlobSizeRange::close_to_maximum_of_one(Float2_t cmsq, Float2_t scale_factor) const {
+bool SizeFilters::close_to_maximum_of_one(Float2_t cmsq, Float2_t scale_factor) const {
     for(auto & range : _ranges) {
         if(cmsq <= range.end * scale_factor)
             return true;
@@ -42,7 +42,7 @@ bool BlobSizeRange::close_to_maximum_of_one(Float2_t cmsq, Float2_t scale_factor
     return false;
 }
 
-bool BlobSizeRange::in_range_of_one(Float2_t cmsq, Float2_t scale_factor, Float2_t scale_factor_r) const {
+bool SizeFilters::in_range_of_one(Float2_t cmsq, Float2_t scale_factor, Float2_t scale_factor_r) const {
     if(empty())
         return true;
     

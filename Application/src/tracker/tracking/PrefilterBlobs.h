@@ -3,7 +3,7 @@
 #include <commons.pc.h>
 #include <misc/PVBlob.h>
 #include <misc/frame_t.h>
-#include <misc/BlobSizeRange.h>
+#include <misc/SizeFilters.h>
 #include <processing/CPULabeling.h>
 
 namespace cmn {
@@ -49,7 +49,7 @@ public:
     CPULabeling::ListCache_t cache;
     
     Frame_t frame_index;
-    BlobSizeRange fish_size;
+    SizeFilters fish_size;
     const Background* background;
     int threshold;
     
@@ -58,7 +58,7 @@ public:
     
     PrefilterBlobs(Frame_t index,
                    int threshold,
-                   const BlobSizeRange& fish_size,
+                   const SizeFilters& fish_size,
                    const Background& background);
     PrefilterBlobs(const PrefilterBlobs&) = delete;
     PrefilterBlobs(PrefilterBlobs&&) noexcept = default;

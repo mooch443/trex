@@ -922,7 +922,7 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
     static Timing timing("filter_blobs", 100);
     TakeTiming take(timing);
     
-    const BlobSizeRange fish_size = FAST_SETTING(track_size_filter);
+    const SizeFilters fish_size = FAST_SETTING(track_size_filter);
     const uint32_t num_blobs = (uint32_t)frame.N_blobs();
     const int threshold = FAST_SETTING(track_threshold);
     
@@ -3431,9 +3431,9 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             middle = (ranges[1] - ranges[0]) * 0.5 + ranges[0];*/
             
             if(SETTING(auto_minmax_size))
-                SETTING(track_size_filter) = BlobSizeRange({Range<double>(ranges[0] * 0.25, ranges[1] * 1.75)});
+                SETTING(track_size_filter) = SizeFilters({Range<double>(ranges[0] * 0.25, ranges[1] * 1.75)});
             
-            auto track_size_filter = SETTING(track_size_filter).value<BlobSizeRange>();
+            auto track_size_filter = SETTING(track_size_filter).value<SizeFilters>();
             
             std::multiset<size_t> number_individuals;
             

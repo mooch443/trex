@@ -167,7 +167,12 @@ void launch_gui(std::future<void>& f) {
                 
             } else if(e.type == EventType::WINDOW_RESIZED) {
                 auto h = g.height();
+                auto w = g.width();
                 auto scale = max(1.f, sqrtf(480.f / h));
+                auto yscale = max(1.f, sqrtf(480.f / w));
+                if(yscale > scale) {
+                    scale = yscale;
+                }
                 SETTING(gui_interface_scale) = Float2_t(scale);
             }
         }

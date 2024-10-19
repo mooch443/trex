@@ -627,7 +627,6 @@ struct DrawExportOptions::Data {
                             if(append.contains(name)) {
                                 count = 1;
                             }
-                            Print(f, ": hash = ",name, " in ", append," count=",count);
                         }
                         
                         items.push_back(Item{

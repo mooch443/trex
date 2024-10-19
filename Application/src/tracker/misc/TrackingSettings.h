@@ -8,7 +8,7 @@
 #include <misc/bid.h>
 #include <misc/frame_t.h>
 #include <misc/create_struct.h>
-#include <misc/BlobSizeRange.h>
+#include <misc/SizeFilters.h>
 #include <processing/encoding.h>
 
 namespace track {
@@ -80,7 +80,7 @@ CREATE_STRUCT(Settings,
   (float, speed_extrapolation),
   (bool, calculate_posture),
   (Float2_t, track_max_speed),
-  (BlobSizeRange, track_size_filter),
+  (SizeFilters, track_size_filter),
   (int, track_threshold),
   (int, track_threshold_2),
   (Rangef, threshold_ratio_range),

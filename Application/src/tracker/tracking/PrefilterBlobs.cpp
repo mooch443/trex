@@ -11,7 +11,7 @@
 namespace track {
 using namespace cmn;
 
-PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const BlobSizeRange& fish_size, const Background& background)
+PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const SizeFilters& fish_size, const Background& background)
 : frame_index(index), fish_size(fish_size), background(&background), threshold(threshold)
 {
     
@@ -128,7 +128,7 @@ void PrefilterBlobs::split_big(
     UNUSED(out);
     
     const int threshold = FAST_SETTING(track_threshold);
-    const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
+    const SizeFilters track_size_filter = FAST_SETTING(track_size_filter);
     const auto cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
     const auto track_ignore = FAST_SETTING(track_ignore);
     const auto track_include = FAST_SETTING(track_include);

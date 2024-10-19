@@ -37,7 +37,7 @@ TrackingHelper::TrackingHelper(
       frame(f),
       _manager(frame)
 {
-    const BlobSizeRange track_size_filter = FAST_SETTING(track_size_filter);
+    const SizeFilters track_size_filter = FAST_SETTING(track_size_filter);
     double time(double(frame.timestamp) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     

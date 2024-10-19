@@ -15,7 +15,7 @@ using namespace cmn;
 
 struct AcceptanceSettings {
     Float2_t sqcm;
-    BlobSizeRange min_max;
+    SizeFilters min_max;
     
     bool is_acceptable(const pv::Blob& blob) const {
         if(min_max.empty())
@@ -27,7 +27,7 @@ struct AcceptanceSettings {
         const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
         return AcceptanceSettings{
             .sqcm = SQR(cm_per_pixel),
-            .min_max = SETTING(segment_size_filter).value<BlobSizeRange>()
+            .min_max = SETTING(segment_size_filter).value<SizeFilters>()
         };
     }
 };

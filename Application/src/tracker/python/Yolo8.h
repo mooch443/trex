@@ -2,7 +2,7 @@
 
 #include <python/Detection.h>
 #include <python/ModuleProxy.h>
-#include <misc/BlobSizeRange.h>
+#include <misc/SizeFilters.h>
 #include <processing/DLList.h>
 
 namespace track {

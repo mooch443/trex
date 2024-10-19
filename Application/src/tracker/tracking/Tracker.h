@@ -8,7 +8,7 @@
 #include <processing/Background.h>
 #include <misc/Border.h>
 #include <misc/Timer.h>
-#include <misc/BlobSizeRange.h>
+#include <misc/SizeFilters.h>
 #include <misc/idx_t.h>
 #include <misc/create_struct.h>
 #include <tracker/misc/default_config.h>
