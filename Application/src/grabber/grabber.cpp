@@ -6,26 +6,36 @@
 #include "processing/RawProcessing.h"
 #include "misc/TestCamera.h"
 #include <misc/InteractiveCamera.h>
+#include <misc/PylonCamera.h>
+#include <misc/Webcam.h>
 #include <misc/ocl.h>
 #include <processing/CPULabeling.h>
 #include <misc/PVBlob.h>
 #include <tracking/Tracker.h>
-#include <tracker/misc/OutputLibrary.h>
-#include <tracking/Export.h>
-#include <tracker/misc/Output.h>
+#include <tracker/tracking/OutputLibrary.h>
+#include <gui/Export.h>
+#include <tracker/tracking/Output.h>
 #include <tracking/VisualField.h>
-#include <grabber/default_config.h>
+#include <grabber/misc/default_config.h>
 #if !COMMONS_NO_PYTHON
 #include <pybind11/numpy.h>
 #include <python/GPURecognition.h>
+#include <misc/PythonWrapper.h>
+#include <tracking/RecTask.h>
 #endif
-#include <tracking/Recognition.h>
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
+#include <file/DataLocation.h>
+#include <tracking/IndividualManager.h>
+#include <misc/GlobalSettings.h>
+
+#if !COMMONS_NO_PYTHON
+namespace py = Python;
+#endif
 
 track::Tracker* tracker = nullptr;
 
-using conversion_range_t = std::pair<long_t,long_t>;
+using conversion_range_t = Range<Frame_t>;
 #define TAGS_ENABLE
 //#define TGRABS_DEBUG_TIMING
 
@@ -33,7 +43,7 @@ using conversion_range_t = std::pair<long_t,long_t>;
 CREATE_STRUCT(GrabSettings,
   (bool, tgrabs_use_threads),
   (bool, cam_undistort),
-  (int, frame_rate),
+  (uint32_t, frame_rate),
   (Rangef,        blob_size_range),
   (int,        threshold),
   (int,        threshold_maximum),
@@ -62,7 +72,7 @@ CREATE_STRUCT(GrabSettings,
 CREATE_STRUCT(GrabSettings,
     (bool, tgrabs_use_threads),
     (bool, cam_undistort),
-    (int, frame_rate),
+    (uint32_t, frame_rate),
     (Rangef, blob_size_range),
     (int, threshold),
     (int, threshold_maximum),
@@ -94,8 +104,18 @@ CREATE_STRUCT(GrabSettings,
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
 
-static std::deque<std::unique_ptr<track::PPFrame>> unused_pp;
-static std::deque<std::unique_ptr<track::PPFrame>> ppframe_queue;
+struct PPCache {
+    using Ptr = std::unique_ptr<PPCache>;
+    [[nodiscard]] static auto Make(auto&&... args) noexcept {
+        return std::make_unique<PPCache>(std::forward<decltype(args)>(args)...);
+    }
+    
+    track::PPFrame pp;
+    pv::Frame frame;
+};
+
+static std::deque<PPCache::Ptr> unused_pp;
+static std::deque<PPCache::Ptr> ppframe_queue;
 static std::mutex ppframe_mutex, ppqueue_mutex;
 static std::condition_variable ppvar;
 
@@ -119,7 +139,7 @@ bool FrameGrabber::is_recording() const {
     return GlobalSettings::map().has("recording") && SETTING(recording);
 }
 
-Image::UPtr FrameGrabber::latest_image() {
+Image::Ptr FrameGrabber::latest_image() {
     std::unique_lock guard(_current_image_lock);
     if(_current_image)
         return Image::Make(*_current_image);
@@ -139,51 +159,6 @@ cv::Size FrameGrabber::determine_resolution() {
 
 track::Tracker* FrameGrabber::tracker_instance() {
     return tracker;
-}
-
-ImageThreads::ImageThreads(const decltype(_fn_create)& create,
-                           const decltype(_fn_prepare)& prepare,
-                           const decltype(_fn_load)& load,
-                           const decltype(_fn_process)& process)
-  : _fn_create(create),
-    _fn_prepare(prepare),
-    _fn_load(load),
-    _fn_process(process),
-    _terminate(false),
-    _load_thread(NULL),
-    _process_thread(NULL)
-{
-    // create the cache
-    std::unique_lock<std::mutex> lock(_image_lock);
-    for (int i=0; i<10; i++) {
-        _unused.push_front(_fn_create());
-    }
-    
-    _load_thread = new std::thread([this](){loading();});
-    _process_thread = new std::thread([this](){ processing();});
-}
-
-ImageThreads::~ImageThreads() {
-    terminate();
-
-    _load_thread->join();
-    _process_thread->join();
-
-    std::unique_lock<std::mutex> lock(_image_lock);
-
-    delete _load_thread;
-    delete _process_thread;
-
-    // clear cache
-    while (!_unused.empty())
-        _unused.pop_front();
-    while (!_used.empty())
-        _used.pop_front();
-}
-
-void ImageThreads::terminate() { 
-    _terminate = true; 
-    _condition.notify_all();
 }
 
 void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
@@ -211,73 +186,8 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
     }
 }
 
-void ImageThreads::loading() {
-    long_t last_loaded = -1;
-    cmn::set_thread_name("ImageThreads::loading");
-    std::unique_lock guard(_image_lock);
-
-    while (!_terminate) {
-        // retrieve images from camera
-        if (_unused.empty()) {
-            // skip this image. queue is full...
-            guard.unlock();
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-            guard.lock();
-
-        }
-        else {
-            auto current = std::move(_unused.front());
-            _unused.pop_front();
-            guard.unlock();
-
-            if (_fn_prepare(last_loaded, *current)) {
-                if (_fn_load(*current)) {
-                    last_loaded = current->index();
-
-                    // loading was successful, so push to processing
-                    guard.lock();
-                    _used.push_front(std::move(current));
-                    _condition.notify_one();
-                    continue;
-                }
-            }
-
-            guard.lock();
-            _unused.push_front(std::move(current));
-        }
-    }
-    
-    _loading_terminated = true;
-    print("[load] loading terminated.");
-}
-
-void ImageThreads::processing() {
-    std::unique_lock<std::mutex> lock(_image_lock);
-    ocl::init_ocl();
-    cmn::set_thread_name("ImageThreads::processing");
-    
-    while(!_loading_terminated || !_used.empty()) {
-        // process images and write to file
-        _condition.wait_for(lock, std::chrono::milliseconds(1));
-        
-        while(!_used.empty()) {
-            auto current = std::move(_used.back());
-            _used.pop_back();
-            lock.unlock();
-            //print("[proc] processing ", current->index());
-            _fn_process(*current);
-            
-            lock.lock();
-            assert(!contains(_unused, current));
-            _unused.push_back(std::move(current));
-        }
-    }
-    
-    print("[proc] processing terminated.");
-}
-
 file::Path FrameGrabber::make_filename() {
-    auto path = pv::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    auto path = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     if(path.extension() == "pv")
         return path.remove_extension();
     
@@ -314,8 +224,17 @@ void FrameGrabber::prepare_average() {
     cv::Mat temp;
     _average.copyTo(temp);
     _processed.set_average(temp);
-    if(tracker)
-        tracker->set_average(Image::Make(temp));
+    
+    if(GRAB_SETTINGS(enable_closed_loop)
+       //|| GRAB_SETTINGS(tags_enable)
+       || SETTING(enable_live_tracking).value<bool>())
+    {
+        if(tracker)
+            tracker->set_average(Image::Make(temp));
+        else {
+            tracker = new track::Tracker(Image::Make(temp), processed());
+        }
+    }
     
     if(GRAB_SETTINGS(image_invert))
         cv::subtract(cv::Scalar(255), _average, _average);
@@ -341,18 +260,18 @@ auto async_deferred(F&& func) -> std::future<decltype(func())>
 Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
     static const Frame_t conversion_range_start =
-        (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? Frame_t(min(_video->length() - 1, (uint64_t)GRAB_SETTINGS(video_conversion_range).first))
+        (_video && GRAB_SETTINGS(video_conversion_range).start.valid())
+        ? Frame_t(min(_video->length() - 1_f, Frame_t(GRAB_SETTINGS(video_conversion_range).start)))
         : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
     //! otherwise (no video) never/until escape is pressed.
     static const Frame_t conversion_range_end =
         _video
-        ? Frame_t(GRAB_SETTINGS(video_conversion_range).second != -1
-            ? GRAB_SETTINGS(video_conversion_range).second
-            : (_video->length() - 1))
-        : Frame_t();
+        ? Frame_t(GRAB_SETTINGS(video_conversion_range).end.valid()
+            ? Frame_t(GRAB_SETTINGS(video_conversion_range).end)
+            : (_video->length() - 1_f))
+        : Frame_t(std::numeric_limits<Frame_t::number_t>::max());
 
     return Range<Frame_t>{ conversion_range_start, conversion_range_end };
 }
@@ -365,7 +284,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     _video(NULL), _video_mask(NULL),
     _camera(NULL),
     _current_fps(0), _fps(0),
-    _processed(make_filename()),
+    _processed(make_filename(), pv::FileMode::WRITE | pv::FileMode::OVERWRITE),
     previous_time(0), _loading_timing(0), _grid(NULL), file(NULL)
 #if WITH_FFMPEG
 , mp4_thread(NULL), mp4_queue(NULL)
@@ -379,141 +298,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         _processed.filename().remove_filename().create_folder();
     
     std::string source = SETTING(video_source);
-    
-#if WITH_PYLON
-    if(utils::lowercase(source) == "basler") {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::PylonCamera;
-        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
-        }
-        
-        auto path = average_name();
-        print("Saving average at or loading from ", path.str(),".");
-        
-        if(path.exists()) {
-            if(SETTING(reset_average)) {
-                FormatWarning("Average exists, but will not be used because 'reset_average' is set to true.");
-                SETTING(reset_average) = false;
-            } else {
-                cv::Mat file = cv::imread(path.str());
-                if(file.rows == _camera->size().height && file.cols == _camera->size().width) {
-                    cv::cvtColor(file, _average, cv::COLOR_BGR2GRAY);
-                    _average_finished = true;
-                    _current_average_timestamp = 1337;
-                } else
-                    FormatWarning("Loaded average has wrong dimensions (", file.cols,"x",file.rows,"), overwriting...");
-            }
-        } else {
-            print("Average image at ",path.str()," doesnt exist.");
-            _average_finished = false;
-            if(SETTING(reset_average))
-                SETTING(reset_average) = false;
-        }
-        
-    }
-    else
-#else
-    if (utils::lowercase(source) == "basler") {
-        throw U_EXCEPTION("Software was not compiled with basler API.");
-
-    } else
-#endif
-
-    if(utils::lowercase(source) == "webcam") {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::Webcam;
-        _processed.set_resolution(_camera->size() * GRAB_SETTINGS(cam_scale));
-
-        if (((fg::Webcam*)_camera)->frame_rate() > 0 
-            && SETTING(cam_framerate).value<int>() == -1) 
-        {
-            SETTING(cam_framerate).value<int>() = ((fg::Webcam*)_camera)->frame_rate();
-        }
-
-        if (SETTING(frame_rate).value<int>() <= 0) {
-            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25;
-        }
-        
-    } else if(utils::lowercase(source) == "test_image") {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::TestCamera(SETTING(cam_resolution).value<cv::Size>());
-        cv::Mat background = cv::Mat::ones(_camera->size().height, _camera->size().width, CV_8UC1) * 255;
-        
-        _average_finished = true;
-        background.copyTo(_average);
-        _current_average_timestamp = 1337;
-        
-    } else if(utils::lowercase(source) == "interactive") {
-        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
-        } else
-            SETTING(frame_rate).value<int>() = 30;
-        
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::InteractiveCamera();
-        cv::Mat background = cv::Mat::zeros(_camera->size().height, _camera->size().width, CV_8UC1);
-        _average_finished = true;
-        background.copyTo(_average);
-        _current_average_timestamp = 1337;
-        
-    } else {
-        std::vector<file::Path> filenames;
-        auto video_source = SETTING(video_source).value<std::string>();
-        try {
-            filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
-            if(filenames.size() > 1) {
-                print("Found an array of filenames (", filenames.size(),").");
-            } else if(filenames.size() == 1) {
-                SETTING(video_source) = filenames.front();
-                filenames.clear();
-            } else
-                throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
-            
-        } catch(const illegal_syntax& e) {
-            // ... do nothing
-        }
-        
-        if(filenames.empty()) {
-            auto filepath = file::Path(SETTING(video_source).value<std::string>());
-            if(filepath.remove_filename().empty()) {
-                auto path = (SETTING(output_dir).value<file::Path>() / filepath);
-                filenames.push_back(path);
-            } else
-                filenames.push_back(filepath);
-        }
-        
-        for(auto &name : filenames) {
-            name = pv::DataLocation::parse("input", name);
-        }
-        
-        if(filenames.size() == 1) {
-            _video = new VideoSource(filenames.front().str());
-            
-        } else {
-            _video = new VideoSource(filenames);
-        }
-        
-        int frame_rate = _video->framerate();
-        if(frame_rate == -1) {
-            frame_rate = 25;
-        }
-        
-        if(SETTING(frame_rate).value<int>() == -1) {
-            print("Setting frame rate to ", frame_rate," (from video).");
-            SETTING(frame_rate) = (int)frame_rate;
-        } else if(SETTING(frame_rate).value<int>() != frame_rate) {
-            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<int>(),".");
-        }
-        
-        if(!SETTING(mask_path).value<file::Path>().empty()) {
-            auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
-            if(path.exists()) {
-                _video_mask = new VideoSource(path.str());
-            }
-        }
-    }
+    initialize_from_source(source);
     
     // determine recording resolution and set it
     _cam_size = determine_resolution();
@@ -526,7 +311,15 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
             path = path.replace_extension("mov");
         else
             path = path.add_extension("mov");
-        mp4_queue = new FFMPEGQueue(true, Size2(_cam_size), path);
+        mp4_queue = new FFMPEGQueue{
+            true,
+            Size2(_cam_size),
+            _video ? _video->colors() : _camera->colors(),
+            path,
+            (bool)_video,
+            _video ? _video->length() : Frame_t{},
+            nullptr
+        };
         print("Encoding mp4 into ",path.str(),"...");
         mp4_thread = new std::thread([this](){
             cmn::set_thread_name("mp4_thread");
@@ -536,10 +329,31 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
 #endif
     
     if(_video) {
-        SETTING(cam_resolution).value<cv::Size>() = cv::Size(Size2(_cam_size) * GRAB_SETTINGS(cam_scale));
+        SETTING(cam_resolution) = Size2(_cam_size) * GRAB_SETTINGS(cam_scale);
     }
     
-    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
+#if !COMMONS_NO_PYTHON
+    if (GRAB_SETTINGS(enable_closed_loop)
+#if defined(TAGS_ENABLE)
+        || GRAB_SETTINGS(tags_recognize)
+#endif
+        )
+    {
+        py::init().get();
+#if defined(TAGS_ENABLE)
+        if(GRAB_SETTINGS(tags_recognize)) {
+            py::schedule([](){
+                using py = track::PythonIntegration;
+                py::execute("import tensorflow as tf");
+            }).get();
+            
+            track::RecTask::init();
+        }
+#endif
+    }
+#endif
+    
+    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), "ocl_threads", nullptr, [](){
         ocl::init_ocl();
     });
     
@@ -592,29 +406,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
     if (SETTING(enable_live_tracking)) {
-        tracker = new track::Tracker();
         Output::Library::Init();
-    }
-    
-#if !COMMONS_NO_PYTHON
-    if (GRAB_SETTINGS(enable_closed_loop) 
-#if defined(TAGS_ENABLE)
-        || GRAB_SETTINGS(tags_recognize)
-#endif
-        )
-    {
-        track::Recognition::fix_python(true);
-        track::PythonIntegration::ensure_started().get();
-#if defined(TAGS_ENABLE)
-        track::PythonIntegration::async_python_function([](){
-            track::PythonIntegration::execute("import tensorflow as tf");
-            return true;
-        }).get();
-#endif
-    }
-#endif
-
-    if (tracker) {
         _tracker_thread = new std::thread([this]() {
             cmn::set_thread_name("update_tracker_queue");
             update_tracker_queue();
@@ -624,11 +416,14 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     cv::Mat map1, map2;
     cv::Size size = _cam_size;
     
-    cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, SETTING(cam_matrix).value<std::vector<float>>().data());
-    cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, SETTING(cam_undistort_vector).value<std::vector<float>>().data());
+    auto cam_data = SETTING(cam_matrix).value<std::vector<float>>();
+    cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, cam_data.data());
     
-    GlobalSettings::map().dont_print("cam_undistort1");
-    GlobalSettings::map().dont_print("cam_undistort2");
+    auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<float>>();
+    cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, undistort_data.data());
+    
+    GlobalSettings::map()["cam_undistort1"].get().set_do_print(false);
+    GlobalSettings::map()["cam_undistort2"].get().set_do_print(false);
     cv::Mat drawtransform = cv::getOptimalNewCameraMatrix(cam_matrix, cam_undistort_vector, size, 1.0, size);
     print_mat("draw_transform", drawtransform);
     print_mat("cam", cam_matrix);
@@ -645,14 +440,16 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     GlobalSettings::get("cam_undistort1") = map1;
     GlobalSettings::get("cam_undistort2") = map2;
     
-    if(GlobalSettings::map().has("meta_real_width") && GlobalSettings::map().has("cam_scale") && SETTING(cam_scale).value<float>() != 1) {
+    /*if(GlobalSettings::map().has("meta_real_width") && GlobalSettings::map().has("cam_scale") && SETTING(cam_scale).value<float>() != 1) {
         FormatWarning{ "Scaling `meta_real_width` (", SETTING(meta_real_width).value<float>(),") due to `cam_scale` (",SETTING(cam_scale).value<float>(),") being set." };
         //SETTING(meta_real_width) = SETTING(meta_real_width).value<float>() * SETTING(cam_scale).value<float>();
-    }
+    }*/
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
     if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
         SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
+    
+    SETTING(meta_video_scale) = SETTING(cam_scale).value<float>();
     
     _average.copyTo(_original_average);
     //callback_before_starting(*this);
@@ -664,7 +461,10 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
     //auto epoch = std::chrono::time_point<std::chrono::system_clock>();
-    _start_timing = _video && !_video->has_timestamps() ? 0 : UINT64_MAX;//Image::clock_::now();
+    if(_video && !_video->has_timestamps())
+        _start_timing = 0;
+    else
+        _start_timing = {};
     _real_timing = std::chrono::system_clock::now();
     
     _analysis = new std::decay<decltype(*_analysis)>::type(
@@ -672,60 +472,152 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return ImageMake(_cropped_size.height, _cropped_size.width);
           },
           [&](long_t prev, Image_t& current) -> bool { // prepare object
-              if(_reset_first_index) {
-                  _reset_first_index = false;
-                  prev = -1;
-              }
-
-              static const auto conversion_range = processing_range();
-
-              if (_video && !_average_finished) {
-                  //! Special indexing for video averaging (skipping over frames)
-                  double step = (_video->length()
-                      / floor((double)min(
-                          _video->length()-1, 
-                          max(1u, GRAB_SETTINGS(average_samples))
-                      )));
-
-                  current.set_index(prev != -1 ? (prev + step) : 0);
-
-              } else
-                  current.set_index(prev != -1 ? prev + 1 : conversion_range.start.get());
-
-              if (conversion_range.end.valid() && current.index() > conversion_range.end.get()) {
-                  if(!GRAB_SETTINGS(terminate))
-                    SETTING(terminate) = true;
-                  return false;
-              }
-
-              //! If its a video, we might have timestamps in separate files.
-              //! Otherwise we generate fake timestamps based on the set frame_rate.
-              if(_video) {
-                  double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
-                  size_t fake_delta = size_t(percent * 1000.0);
-
-                  if (!_video->has_timestamps()) {
-                      current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
-                  }
-                  else {
-                      try {
-                          current.set_timestamp(_video->timestamp(current.index()));
-                      }
-                      catch (const UtilsException& e) {
-                          // failed to retrieve timestamp, so fake the timestamp
-                          current.set_timestamp(_start_timing + fake_delta);
-                      }
-                  }
-              }
-
-              ++_frame_processing_ratio;
-              //print("increase to ", _frame_processing_ratio.load()," by ",current.index());
-              return true;
+              return prepare_image(prev, current);
           },
           [&](Image_t& current) -> bool { return load_image(current); },
           [&](Image_t& current) -> Queue::Code { return process_image(current); });
     
     print("ThreadedAnalysis started (",_cam_size.width,"x",_cam_size.height," | ",_cropped_size.width,"x",_cropped_size.height,").");
+}
+
+void FrameGrabber::initialize_from_source(const std::string &source) {
+#if WITH_PYLON
+    if(utils::lowercase(source) == "basler") {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::PylonCamera;
+        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<uint32_t>() == 0) {
+            SETTING(frame_rate) = uint32_t(SETTING(cam_framerate).value<int>());
+        }
+        
+        auto path = average_name();
+        print("Saving average at or loading from ", path.str(),".");
+        
+        if(path.exists()) {
+            if(SETTING(reset_average)) {
+                FormatWarning("Average exists, but will not be used because 'reset_average' is set to true.");
+                SETTING(reset_average) = false;
+            } else {
+                cv::Mat file = cv::imread(path.str());
+                if(file.rows == _camera->size().height && file.cols == _camera->size().width) {
+                    cv::cvtColor(file, _average, cv::COLOR_BGR2GRAY);
+                    _average_finished = true;
+                    _current_average_timestamp = 1337;
+                } else
+                    FormatWarning("Loaded average has wrong dimensions (", file.cols,"x",file.rows,"), overwriting...");
+            }
+        } else {
+            print("Average image at ",path.str()," doesnt exist.");
+            _average_finished = false;
+            if(SETTING(reset_average))
+                SETTING(reset_average) = false;
+        }
+        
+    }
+    else
+#else
+    if (utils::lowercase(source) == "basler") {
+        throw U_EXCEPTION("Software was not compiled with basler API.");
+
+    } else
+#endif
+
+    if(utils::lowercase(source) == "webcam") {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::Webcam;
+        _processed.set_resolution(_camera->size() * GRAB_SETTINGS(cam_scale));
+
+        if (((fg::Webcam*)_camera)->frame_rate() > 0
+            && SETTING(cam_framerate).value<int>() == -1)
+        {
+            SETTING(cam_framerate) = int(((fg::Webcam*)_camera)->frame_rate());
+        }
+
+        if (SETTING(frame_rate).value<uint32_t>() == 0) {
+            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
+            SETTING(frame_rate) = uint32_t(SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25);
+        }
+        
+    } else if(utils::lowercase(source) == "test_image") {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::TestCamera(SETTING(cam_resolution).value<Size2>());
+        cv::Mat background = cv::Mat::ones(_camera->size().height, _camera->size().width, CV_8UC1) * 255;
+        
+        _average_finished = true;
+        background.copyTo(_average);
+        _current_average_timestamp = 1337;
+        
+    } else if(utils::lowercase(source) == "interactive") {
+        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<uint32_t>() == 0) {
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
+        } else
+            SETTING(frame_rate) = uint32_t(30u);
+        
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::InteractiveCamera();
+        cv::Mat background = cv::Mat::zeros(_camera->size().height, _camera->size().width, CV_8UC1);
+        _average_finished = true;
+        background.copyTo(_average);
+        _current_average_timestamp = 1337;
+        
+    } else {
+        std::vector<file::Path> filenames;
+        auto video_source = SETTING(video_source).value<std::string>();
+        try {
+            filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
+            if(filenames.size() > 1) {
+                print("Found an array of filenames (", filenames.size(),").");
+            } else if(filenames.size() == 1) {
+                SETTING(video_source) = filenames.front();
+                filenames.clear();
+            } else
+                throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
+            
+        } catch(const illegal_syntax& e) {
+            // ... do nothing
+        }
+        
+        if(filenames.empty()) {
+            auto filepath = file::Path(SETTING(video_source).value<std::string>());
+            if(filepath.remove_filename().empty()) {
+                auto path = (SETTING(output_dir).value<file::Path>() / filepath);
+                filenames.push_back(path);
+            } else
+                filenames.push_back(filepath);
+        }
+        
+        for(auto &name : filenames) {
+            name = file::DataLocation::parse("input", name);
+        }
+        
+        if(filenames.size() == 1) {
+            _video = new VideoSource(filenames.front().str());
+            //_video->set_colors(ImageMode::R3G3B2);
+        } else {
+            std::vector<std::string> names;
+            for(auto &name : filenames) {
+				names.push_back(name.str());
+			}
+            _video = new VideoSource(file::PathArray{ names });
+            //_video->set_colors(ImageMode::R3G3B2);
+        }
+        
+        auto frame_rate = _video->framerate();
+        assert(frame_rate > 0);
+        
+        if(SETTING(frame_rate).value<uint32_t>() == 0) {
+            print("Setting frame rate to ", frame_rate," (from video).");
+            SETTING(frame_rate) = (uint32_t)frame_rate;
+        } else if(SETTING(frame_rate).value<uint32_t>() != (uint32_t)frame_rate) {
+            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<uint32_t>(),".");
+        }
+        
+        if(!SETTING(mask_path).value<file::Path>().empty()) {
+            auto path = file::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
+            if(path.exists()) {
+                _video_mask = new VideoSource(path.str());
+            }
+        }
+    }
 }
 
 FrameGrabber::~FrameGrabber() {
@@ -790,8 +682,7 @@ FrameGrabber::~FrameGrabber() {
         }
     }
     
-    if (_processed.open()) {
-        _processed.stop_writing();
+    if (_processed.is_open()) {
         _processed.close();
         print("[closed]");
     }
@@ -800,7 +691,13 @@ FrameGrabber::~FrameGrabber() {
         ppvar.notify_all();
         _tracker_thread->join();
         delete _tracker_thread;
-
+        
+#if !COMMONS_NO_PYTHON
+        if(GRAB_SETTINGS(tags_recognize)) {
+            track::RecTask::deinit();
+        }
+#endif
+        
         track::Individual::shutdown();
         
 #if !COMMONS_NO_PYTHON
@@ -810,24 +707,21 @@ FrameGrabber::~FrameGrabber() {
 #endif
             ) 
         {
-            Output::PythonIntegration::quit();
+            py::deinit().get();
         }
 #endif
         
         SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
         
         {
-            track::Tracker::LockGuard guard("GUI::save_state");
-            tracker->wait();
-            
-            if(!SETTING(auto_no_tracking_data))
-                track::export_data(*tracker, -1, Range<Frame_t>());
+            track::LockGuard guard(track::w_t{}, "GUI::save_state");
+            if(!SETTING(auto_no_tracking_data)) {
+                pv::File video(_processed.filename(), pv::FileMode::READ);
+                track::export_data(video, *tracker, track::Idx_t(), Range<Frame_t>());
+            }
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;
-            config_grabber.set_do_print(false);
-            config_tracker.set_do_print(false);
-            
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(config_grabber, docs, nullptr);
             ::default_config::get(config_tracker, docs, nullptr);
@@ -851,9 +745,9 @@ FrameGrabber::~FrameGrabber() {
             
             print("Excluding fields ", additional_exclusions);
             
-            auto filename = file::Path(pv::DataLocation::parse("output_settings").str());
+            auto filename = file::Path(file::DataLocation::parse("output_settings").str());
             if(!filename.exists() || SETTING(grabber_force_settings)) {
-                auto text = default_config::generate_delta_config(false, additional_exclusions);
+                auto text = default_config::generate_delta_config(false, additional_exclusions).to_settings();
                 
                 FILE *f = fopen(filename.str().c_str(), "wb");
                 if(f) {
@@ -886,8 +780,7 @@ FrameGrabber::~FrameGrabber() {
         file::Path filename = make_filename().add_extension("pv");
         if (filename.exists()) {
             print("Opening ", filename, "...");
-            pv::File file(filename);
-            file.start_reading();
+            pv::File file(filename, pv::FileMode::READ);
             file.print_info();
         }
         else {
@@ -899,7 +792,7 @@ FrameGrabber::~FrameGrabber() {
 }
 
 file::Path FrameGrabber::average_name() const {
-    auto path = pv::DataLocation::parse("output", "average_" + (std::string)GRAB_SETTINGS(filename).filename() + ".png");
+    auto path = file::DataLocation::parse("output", "average_" + (std::string)GRAB_SETTINGS(filename).filename() + ".png");
     return path;
 }
 
@@ -932,6 +825,7 @@ void FrameGrabber::initialize_video() {
         //return;
         _video->generate_average(_video->average(), 0, [this](float percent) {
             _average_samples = percent * (float)SETTING(average_samples).value<uint32_t>();
+            return true;
         });
         _video->average().copyTo(_average);
         
@@ -1026,6 +920,58 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
     return false;
 }
 
+bool FrameGrabber::prepare_image(long_t prev, Image_t &current) {
+    if(_reset_first_index) {
+        _reset_first_index = false;
+        prev = -1;
+    }
+
+    static const auto conversion_range = processing_range();
+
+    if (_video && !_average_finished) {
+        //! Special indexing for video averaging (skipping over frames)
+        double step = (_video->length().get()
+            / floor(min(
+                double(_video->length().get()-1),
+                double(max(1u, GRAB_SETTINGS(average_samples)))
+            )));
+
+        current.set_index(prev != -1 ? (prev + step) : 0);
+
+    } else
+        current.set_index(prev != -1 ? prev + 1 : conversion_range.start.get());
+
+    if (conversion_range.end.valid() && current.index() > conversion_range.end.get()) {
+        if(!GRAB_SETTINGS(terminate))
+          SETTING(terminate) = true;
+        return false;
+    }
+
+    //! If its a video, we might have timestamps in separate files.
+    //! Otherwise we generate fake timestamps based on the set frame_rate.
+    if(_video) {
+        double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
+        size_t fake_delta = size_t(percent * 1000.0);
+
+        if (!_video->has_timestamps()) {
+            current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
+        }
+        else {
+            try {
+                current.set_timestamp(_video->timestamp(Frame_t(current.index())));
+            }
+            catch (const UtilsException& e) {
+                // failed to retrieve timestamp, so fake the timestamp
+                current.set_timestamp(_start_timing + fake_delta);
+            }
+        }
+    }
+
+    ++_frame_processing_ratio;
+    //print("increase to ", _frame_processing_ratio.load()," by ",current.index());
+    return true;
+}
+
 bool FrameGrabber::load_image(Image_t& current) {
     Timer timer;
     
@@ -1035,26 +981,28 @@ bool FrameGrabber::load_image(Image_t& current) {
     static gpuMat scaled;
     static const bool does_change_size = _cam_size != _cropped_size || GRAB_SETTINGS(cam_scale) != 1;
     
+    Frame_t frame{current.index()};
+    
     if(_video) {
-        if(_average_finished && current.index() >= long_t(_video->length())) {
+        if(_average_finished && frame >= _video->length()) {
             --_frame_processing_ratio;
             //print("average finished ", _frame_processing_ratio.load(), " by ", current.index());
             return false;
         }
         
-        assert(!current.empty());
-        cv::Mat c = current.get();
+        assert(!current.image().empty());
+        cv::Mat c = current.image().get();
         
         try {
             if(does_change_size)
-                _video->frame(current.index(), m);
+                _video->frame(frame, m);
             else
-                _video->frame(current.index(), c);
+                _video->frame(frame, c);
             
             Image *mask_ptr = NULL;
             if(_video_mask) {
                 static cv::Mat mask;
-                _video_mask->frame(current.index(), mask);
+                _video_mask->frame(frame, mask);
                 assert(mask.channels() == 1);
                 
                 mask_ptr = new Image(mask.rows, mask.cols, 1);
@@ -1063,7 +1011,7 @@ bool FrameGrabber::load_image(Image_t& current) {
             
             current.set_mask(mask_ptr);
         } catch(const UtilsException& e) {
-            FormatExcept("Skipping frame ", current.index()," and ending conversion (an exception occurred). Ending normally. Make sure that the video is intact, you can try this before conversion:\n\tffmpeg -i ", SETTING(video_source).value<std::string>(), " -c copy -o fixed.mp4");
+            FormatExcept("Skipping frame ", frame," and ending conversion (an exception occurred). Ending normally. Make sure that the video is intact, you can try this before conversion:\n\tffmpeg -i ", SETTING(video_source).value<std::string>(), " -c copy -o fixed.mp4");
             if(!GRAB_SETTINGS(terminate)) {
                 SETTING(terminate) = true;
             }
@@ -1077,7 +1025,7 @@ bool FrameGrabber::load_image(Image_t& current) {
         std::lock_guard<std::mutex> guard(_camera_lock);
         if(_camera) {
             //static Image_t image(_camera->size().height, _camera->size().width, 1);
-            if(!_camera->next(does_change_size ? image : current)) {
+            if(!_camera->next(does_change_size ? image : current.image())) {
                 //print("_camera ", _frame_processing_ratio.load(), " by ", current.index());
                 --_frame_processing_ratio;
                 return false;
@@ -1086,7 +1034,8 @@ bool FrameGrabber::load_image(Image_t& current) {
             if (does_change_size) {
                 image.get().copyTo(m);
                 current.set_timestamp(image.timestamp());
-            }
+            } else
+                current.set_timestamp(current.image().timestamp());
         }
     }
     
@@ -1114,7 +1063,7 @@ bool FrameGrabber::load_image(Image_t& current) {
 }
 
 void FrameGrabber::add_tracker_queue(const pv::Frame& frame, std::vector<pv::BlobPtr>&& tags, Frame_t index) {
-    std::unique_ptr<track::PPFrame> ptr;
+    PPCache::Ptr ptr;
     static size_t created_items = 0;
     static Timer print_timer;
     
@@ -1133,21 +1082,18 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, std::vector<pv::Blo
         if(!unused_pp.empty()) {
             ptr = std::move(unused_pp.front());
             unused_pp.pop_front();
-            ptr->clear();
         } else
             ++created_items;
     }
     
     if(!ptr) {
-        ptr = std::make_unique<track::PPFrame>();
+        ptr = PPCache::Make();
     }
     
-    ptr->clear();
-    ptr->frame() = frame;
-    ptr->frame().set_index(index.get());
-    ptr->frame().set_timestamp(frame.timestamp());
-    ptr->set_index(index);
-    ptr->set_tags(std::move(tags));
+    ptr->pp.clear();
+    ptr->frame = pv::Frame(frame);
+    ptr->frame.set_index(index);
+    ptr->pp.set_tags(std::move(tags));
     tags.clear();
     
     {
@@ -1179,7 +1125,7 @@ void FrameGrabber::update_tracker_queue() {
         for(auto &a : array) {
             a = utils::uppercase(utils::trim(a));
             if(CLFeature::has(a)) {
-                auto feature = CLFeature::get(a);
+                auto feature = CLFeature::get((std::string)a);
                 selected_features.insert(feature);
                 print("Feature ", std::string(feature.name())," will be sent to python.");
             } else
@@ -1189,16 +1135,11 @@ void FrameGrabber::update_tracker_queue() {
     
 #if !COMMONS_NO_PYTHON
     if(GRAB_SETTINGS(enable_closed_loop)) {
-        track::PythonIntegration::async_python_function([&request_features]()
+        py::schedule([&request_features]()
         {
-            try {
-                track::PythonIntegration::import_module("closed_loop");
-                request_features(track::PythonIntegration::run_retrieve_str("closed_loop", "request_features"));
-            }
-            catch (const SoftExceptionImpl&) {
-
-            }
-            return true;
+            using py = track::PythonIntegration;
+            py::import_module("closed_loop");
+            request_features(py::run_retrieve_str("closed_loop", "request_features"));
             
         }).get();
     }
@@ -1240,32 +1181,33 @@ void FrameGrabber::update_tracker_queue() {
             guard.unlock();
             
             if(copy && !tracker) {
-                throw U_EXCEPTION("Cannot track frame ",copy->index()," since tracker has been deleted.");
+                throw U_EXCEPTION("Cannot track frame ",copy->pp.index()," since tracker has been deleted.");
             }
 
             //print("Handling frame ", copy->index(), " -> ", tracker);
-            last_processed = copy->index();
+            last_processed = copy->frame.index();
             
             if(copy && tracker) {
-                track::Tracker::LockGuard guard("update_tracker_queue");
-                track::Tracker::preprocess_frame(*copy, {}, NULL, NULL, false);
-                tracker->add(*copy);
-                Frame_t frame{copy->frame().index()};
+                track::Tracker::preprocess_frame(std::move(copy->frame), copy->pp, nullptr, track::PPFrame::NeedGrid::NoNeed, _cam_size, false);
+                
+                track::LockGuard guard(track::w_t{}, "update_tracker_queue");
+                tracker->add(copy->pp);
+                Frame_t frame{copy->pp.index()};
                 
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
                     test_timer.reset();
-                    print("(tracker) ", tracker->individuals().size()," individuals");
+                    print("(tracker) ", track::IndividualManager::num_individuals()," individuals");
                 }
                 
 #if !COMMONS_NO_PYTHON
 #define CL_HAS_FEATURE(NAME) (selected_features.find(CLFeature:: NAME) != selected_features.end())
                 auto& active = tracker->active_individuals(frame);
-                _tracker_current_individuals = active.size();
+                _tracker_current_individuals = narrow_cast<uint32_t>(active.size());
 
                 if(GRAB_SETTINGS(enable_closed_loop)) {
-                    std::map<long_t, std::shared_ptr<track::VisualField>> visual_fields;
-                    std::map<long_t, track::Midline::Ptr> midlines;
+                    std::map<track::Idx_t, std::shared_ptr<track::VisualField>> visual_fields;
+                    std::map<track::Idx_t, track::Midline::Ptr> midlines;
                     
                     if(CL_HAS_FEATURE(VISUAL_FIELD)) {
                         for(auto fish : active) {
@@ -1291,7 +1233,13 @@ void FrameGrabber::update_tracker_queue() {
                     static Timing timing("python::closed_loop", 0.1);
                     TakeTiming take(timing);
                     
-                    track::PythonIntegration::async_python_function([&active, &content_timer, &copy, &visual_fields, &midlines, frame = frame, &request_features, &selected_features]()
+                    py::schedule([ &active,
+                                   &content_timer,
+                                   &visual_fields,
+                                   &midlines,
+                                   frame = frame,
+                                   &request_features,
+                                   &selected_features]()
                     {
                         std::vector<long_t> ids;
                         std::vector<float> midline_points;
@@ -1311,7 +1259,7 @@ void FrameGrabber::update_tracker_queue() {
                             auto basic = fish->basic_stuff(frame);
                             if(basic) {
                                 
-                                ids.push_back(fish->identity().ID());
+                                ids.push_back(fish->identity().ID().get());
                                 colors.insert(colors.end(), { (long_t)fish->identity().color().r, (long_t)fish->identity().color().g, (long_t)fish->identity().color().b });
 
                                 auto bounds = basic->blob.calculate_bounds();
@@ -1341,16 +1289,16 @@ void FrameGrabber::update_tracker_queue() {
                             std::vector<float> points;
                             
                             for(auto id : ids) {
-                                auto it = midlines.find(id);
-                                if(it == midlines.end() || it->second->segments().size() != FAST_SETTINGS(midline_resolution))
+                                auto it = midlines.find(track::Idx_t(id));
+                                if(it == midlines.end() || it->second->segments().size() != FAST_SETTING(midline_resolution))
                                 {
                                     points.resize(0);
-                                    for(uint32_t i=0; i<FAST_SETTINGS(midline_resolution); ++i)
-                                        points.push_back(gui::Graph::invalid());
+                                    for(uint32_t i=0; i<FAST_SETTING(midline_resolution); ++i)
+                                        points.push_back(gui::GlobalSettings::invalid());
                                     midline_points.insert(midline_points.end(), points.begin(), points.end());
                                     
                                 } else {
-                                    gui::Transform tf = it->second->transform(default_config::recognition_normalization_t::none, true);
+                                    gui::Transform tf = it->second->transform(default_config::individual_image_normalization_t::none, true);
                                     
                                     points.resize(0);
                                     for(auto &seg : it->second->segments()) {
@@ -1392,7 +1340,7 @@ void FrameGrabber::update_tracker_queue() {
                                     sizeof(float)
                                 }
                             );
-                            py::set_variable("frame", frame.get(), "closed_loop");
+                            py::set_variable("frame", (uint64_t)frame.get(), "closed_loop");
                             py::set_variable("visual_field", vids, "closed_loop",
                                 std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
                                 std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(long_t), track::VisualField::field_resolution * sizeof(long_t), sizeof(long_t) }); 
@@ -1400,8 +1348,8 @@ void FrameGrabber::update_tracker_queue() {
                                     std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
                                     std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(float), track::VisualField::field_resolution * sizeof(float), sizeof(float) });
                             py::set_variable("midlines", midline_points, "closed_loop",
-                                             std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTINGS(midline_resolution), 2 },
-                                std::vector<size_t>{ 2 * FAST_SETTINGS(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
+                                             std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTING(midline_resolution), 2 },
+                                std::vector<size_t>{ 2 * FAST_SETTING(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
 
                             track::PythonIntegration::run("closed_loop", "update_tracking");
                         } catch(const SoftExceptionImpl& e) {
@@ -1416,7 +1364,7 @@ void FrameGrabber::update_tracker_queue() {
             
             if(copy) {
                 std::lock_guard<std::mutex> guard(ppframe_mutex);
-                copy->clear();
+                copy->pp.clear();
                 unused_pp.emplace_back(std::move(copy));
             }
             
@@ -1510,7 +1458,7 @@ bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
 
 void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelta, timestamp_t now) {
     {
-        std::unique_lock<std::mutex> fps_lock(_fps_lock);
+        std::unique_lock fps_lock(_fps_lock);
         _current_fps++;
         
         float elapsed = _fps_timer.elapsed();
@@ -1529,12 +1477,11 @@ void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelt
                 ETA = Meta::toStr(DurationUS{eta.count()});
             }
             
-            auto saving = DurationUS{ uint64_t(_saving_time.load() * 1000 * 1000) };
-            auto processing = DurationUS{uint64_t(_processing_timing.load() * 1000 * 1000)};
-            auto loading = DurationUS{uint64_t(_loading_timing.load() * 1000 * 1000)};
-            auto rest = DurationUS{uint64_t(_rest_timing.load() * 1000 * 1000)};
-            
-            auto tracking = DurationUS{ uint64_t(_tracking_time.load() * 1000 * 1000) };
+            saving = DurationUS{ uint64_t(_saving_time.load() * 1000 * 1000) };
+            processing = DurationUS{uint64_t(_processing_timing.load() * 1000 * 1000)};
+            loading = DurationUS{uint64_t(_loading_timing.load() * 1000 * 1000)};
+            rest = DurationUS{uint64_t(_rest_timing.load() * 1000 * 1000)};
+            tracking = DurationUS{ uint64_t(_tracking_time.load() * 1000 * 1000) };
             
             auto str = Meta::toStr(DurationUS{stamp});
             
@@ -1555,7 +1502,7 @@ void FrameGrabber::write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts)
         return;
     
     if(!file) {
-        file::Path path = pv::DataLocation::parse("output", std::string(GRAB_SETTINGS(filename).filename())+"_conversion_timings.csv");
+        file::Path path = file::DataLocation::parse("output", std::string(GRAB_SETTINGS(filename).filename())+"_conversion_timings.csv");
         file = fopen(path.c_str(), "wb");
         if (file) {
             std::string str = "index,tdelta,time\n";
@@ -1577,15 +1524,16 @@ struct ProcessingTask {
     std::unique_ptr<gpuMat> gpu_buffer, scaled_buffer;
     TagCache tags;
     size_t index;
-    Image::UPtr mask;
-    Image::UPtr current, raw;
+    CPULabeling::ListCache_t list_cache;
+    Image::Ptr mask;
+    Image::Ptr current, raw;
     std::unique_ptr<pv::Frame> frame;
     Timer timer;
     
     std::vector<blob::Pair> filtered, filtered_out;
     
     ProcessingTask() = default;
-    ProcessingTask(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
+    ProcessingTask(size_t index, Image::Ptr&& current, Image::Ptr&& raw, std::unique_ptr<pv::Frame>&& frame)
         : index(index), current(std::move(current)), raw(std::move(raw)), frame(std::move(frame))
     {
         
@@ -1605,7 +1553,6 @@ static std::condition_variable single_variable;
 static std::mutex to_pool_mutex, to_main_mutex;
 static std::mutex time_mutex;
 
-static int64_t last_updated = -1;
 static double last_frame_s = -1;
 static Timer last_gui_update;
 
@@ -1617,7 +1564,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     Frame_t used_index_here;
     bool added = false;
     
-    static int64_t last_task_processed = conversion_range.start.get() - 1;
+    static int64_t last_task_processed = (int64_t)conversion_range.start.get() - 1;
     DataPackage pack;
     bool compressed;
     int64_t _last_task_peek;
@@ -1654,12 +1601,11 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     // write frame to file if recording (and if there's anything in the frame)
     if(/*task->frame->n() > 0 &&*/ (!conversion_range.end.valid() || task->current->index() <= conversion_range.end.get()) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average))
     {
-        if(!_processed.open()) {
+        if(!_processed.is_open()) {
             // set (real time) timestamp for video start
             // (just for the user to read out later)
             auto epoch = std::chrono::time_point<std::chrono::system_clock>();
             _processed.set_start_time(!_video || !_video->has_timestamps() ? std::chrono::system_clock::now() : (epoch + std::chrono::microseconds(_video->start_timestamp().get())));
-            _processed.start_writing(true);
             
         } else {
             assert(task->current->index() == 0 || task->current->index() == _last_index + 1);
@@ -1762,7 +1708,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         std::swap(_last_frame, task->frame);
 
         if (_last_frame)
-            _last_frame->set_index(index);
+            _last_frame->set_index(Frame_t(index));
 
         {
             std::lock_guard<std::mutex> guard(_frame_lock);
@@ -1837,8 +1783,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
 void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) {
     static const Rangef min_max = GRAB_SETTINGS(blob_size_range);
     static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
-    static const bool enable_threads = GRAB_SETTINGS(tgrabs_use_threads);
-    
+
     //static Timing timing("threadable_task");
     //TakeTiming take(timing);
     
@@ -1915,9 +1860,10 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 #if defined(TAGS_ENABLE)
         if(!GRAB_SETTINGS(tags_saved_only))
 #endif
-            rawblobs = CPULabeling::run(task->current->get(), true);
+            rawblobs = CPULabeling::run(task->current->get(), task->list_cache, true);
 
-        constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag);
+        constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
+                                | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
         for (auto& blob : task->tags.tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
@@ -2013,6 +1959,8 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         task->frame->set_timestamp(task->current->timestamp().get());
     }
     
+    task->frame->set_source_index(Frame_t(task->current->index()));
+    
     {
         static Timing timing("adding frame");
         TakeTiming take(timing);
@@ -2035,8 +1983,11 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     _pv_frame = _sub_timer.elapsed();
     _sub_timer.reset();
 #endif
-    
-    auto [_last_task_peek, gui_updated, last_time] = in_main_thread(task);
+
+#ifdef TGRABS_DEBUG_TIMING
+    auto [_last_task_peek, gui_updated, last_time] =
+#endif
+    in_main_thread(task);
 #ifdef TGRABS_DEBUG_TIMING
     _main_thread = _sub_timer.elapsed();
 
@@ -2082,8 +2033,9 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     
     // make timestamp relative to _start_timing
     auto TS = current.timestamp();
-    if(_start_timing == UINT64_MAX)
+    if(not _start_timing.valid()) {
         _start_timing = TS;
+    }
     TS = TS - _start_timing;
     current.set_timestamp(TS);
     
@@ -2136,14 +2088,15 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                         guard.unlock();
                         _multi_variable.notify_one();
                         
-                        //try {
+                        try {
                             threadable_task(task);
 
-                        /*} catch(const std::exception& ex) {
+                        } catch(const std::exception& ex) {
                             FormatExcept("std::exception from threadable task: ", ex.what());
                         } catch(...) {
                             FormatExcept("Unknown exception from threadable task.");
-                        }*/
+                            throw;
+                        }
                         
                         {
                             std::unique_lock g(inactive_task_mutex);
@@ -2159,6 +2112,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             }, i));
         }
         _multi_variable.notify_all();
+        print("Done.");
     });
 
     std::unique_ptr<ProcessingTask> task;
@@ -2177,9 +2131,17 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     task->index = global_index++;
 
     if (task->current) {
-        task->current->set(std::move(current));
+        task->current->set(std::move(current.image()));
     } else {
-        task->current = Image::Make(current, current.index());
+        task->current = Image::Make(std::move(current.image()), current.index());
+    }
+
+    if(current.mask()) {
+        if(task->mask) {
+            task->mask->set(std::move(*current.mask()));
+        } else {
+            task->mask = Image::Make(*current.mask(), current.index());
+        }
     }
 
     if(enable_threads) {
@@ -2190,7 +2152,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                 _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
                 
                 if(timer.elapsed() > 10) {
-                    if (SETTING(frame_rate).value<int>() < 10) {
+                    if (SETTING(frame_rate).value<uint32_t>() < 10) {
                         print(current.index(), ": There might be a problem. Have been waiting for ", timer.elapsed(), " with no progress (", for_the_pool.size(), " items processing).");
                     }
                     timer.reset();
@@ -2256,8 +2218,8 @@ void FrameGrabber::safely_close() {
         
         file::Path filename = GRAB_SETTINGS(filename).add_extension("pv");
         if(filename.exists()){
-            pv::File file(filename);
-            file.start_reading();
+            pv::File file(filename, pv::FileMode::READ);
+            file.print_info();
         }
         
     } catch(const std::system_error& e) {

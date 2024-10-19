@@ -1,0 +1,10 @@
+{
+    "objects":[
+        {
+            "type":"text",
+            "text":"Hello World! {status} {annotations:{frame}}",
+            "color":[255,255,255]
+        }
+        
+    ]
+}

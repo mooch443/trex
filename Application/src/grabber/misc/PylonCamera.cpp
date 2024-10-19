@@ -16,7 +16,7 @@ namespace fg {
         for(size_t i=0; i<list.size(); i++) {
             auto &device = list[i];
             std::string name(device.GetFriendlyName());
-            print("[", i,"] Camera: ",name);
+            Print("[", i,"] Camera: ",name, " SN:",std::string(device.GetSerialNumber()));
             
             if(std::string(device.GetSerialNumber()) == serial_number) {
                 _camera = new Camera_t(CTlFactory::GetInstance().CreateDevice(device));
@@ -30,7 +30,7 @@ namespace fg {
             throw U_EXCEPTION("Cannot find camera with serial number ",serial_number,".");
         
         std::string name(_camera->GetDeviceInfo().GetFriendlyName());
-        print("Using camera ", name,".");
+        Print("Using camera ", name,".");
         
         _camera->RegisterConfiguration( new CAcquireContinuousConfiguration, RegistrationMode_ReplaceAll, Cleanup_Delete);
         //_camera->RegisterConfiguration( new CSoftwareTriggerConfiguration, RegistrationMode_ReplaceAll, Cleanup_Delete);
@@ -40,7 +40,7 @@ namespace fg {
         _camera->DeviceLinkSelector.SetValue(0);
         
         if(GenApi::IsWritable(_camera->DeviceLinkThroughputLimitMode)) {
-            print("Disabling USB throughput limit.");
+            Print("Disabling USB throughput limit.");
             _camera->DeviceLinkThroughputLimitMode.SetValue(DeviceLinkThroughputLimitMode_Off);
         }
         
@@ -51,15 +51,16 @@ namespace fg {
             _camera->OffsetY.SetValue(0);
         }
         
-        cv::Size target_res = SETTING(cam_resolution);
+        Size2 target_res = SETTING(cam_resolution);
         if(target_res.width == -1) {
-            target_res = cv::Size(_camera->WidthMax.GetValue(), _camera->HeightMax.GetValue());
+            target_res = Size2(_camera->WidthMax.GetValue(),
+                               _camera->HeightMax.GetValue());
             SETTING(cam_resolution) = target_res;
         }
 
         const int64_t offx = (_camera->WidthMax.GetValue() - target_res.width) * 0.5,
         offy = (_camera->HeightMax.GetValue() - target_res.height) * 0.5;
-        print("Setting dimensions to ",target_res.width,"x",target_res.height," (offsets ",offx,",",offy,")");
+        Print("Setting dimensions to ",target_res.width,"x",target_res.height," (offsets ",offx,",",offy,")");
         
         _camera->CenterX.SetValue(true);
         _camera->CenterY.SetValue(true);
@@ -75,7 +76,7 @@ namespace fg {
         }
         else {
             _camera->AcquisitionFrameRateEnable.SetValue(false);
-            print("Setting frame_rate from camera = ",_camera->ResultingFrameRate.GetValue());
+            Print("Setting frame_rate from camera = ",_camera->ResultingFrameRate.GetValue());
             SETTING(cam_framerate) = int(_camera->ResultingFrameRate.GetValue());
         }
         
@@ -158,7 +159,6 @@ namespace fg {
                 
                 current.set_timestamp(t);
                 //current.set_timestamp(Image::now());
-                //current.set_timestamp(<#const std::chrono::time_point<clock_> &value#>)
                 
                 return true;
                 
@@ -167,7 +167,7 @@ namespace fg {
             }
             
         } catch(const GenericException& g) {
-            print("An exception occurred: ",g.GetDescription());
+            Print("An exception occurred: ",g.GetDescription());
         }
         
         return false;

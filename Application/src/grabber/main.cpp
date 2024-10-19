@@ -6,7 +6,12 @@
 
 //-Includes--------------------------------------------------------------------
 
-#include <types.h>
+#include <commons.pc.h>
+
+#if WITH_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
 #endif
@@ -37,7 +42,7 @@
 #include <video/Video.h>
 #include "CropWindow.h"
 
-#include "default_config.h"
+#include "misc/default_config.h"
 #include <tracker/misc/default_config.h>
 #include <misc/default_settings.h>
 
@@ -49,9 +54,10 @@
 #if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
 #endif
-#include <opencv2/core/utils/logger.hpp>
 
-#include <tracking/Recognition.h>
+#include <file/DataLocation.h>
+
+#include <opencv2/core/utils/logger.hpp>
 
 #if __linux__
 #include <X11/Xlib.h>
@@ -73,7 +79,7 @@ void panic(const char *fmt, ...) {
     char buf[50];
     va_list argptr;
     va_start(argptr, fmt);
-    vsprintf(buf, fmt, argptr);
+    vsnprintf(buf, sizeof(buf), fmt, argptr);
     va_end(argptr);
     fprintf(stderr, "%s", buf);
     exit(1);
@@ -82,8 +88,7 @@ void panic(const char *fmt, ...) {
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 static void dumpstack(void) {
     void *array[20];
-    size_t size;
-    size = backtrace(array, 20);
+    auto size = backtrace(array, 20);
     backtrace_symbols_fd(array, size, STDERR_FILENO);
 }
 
@@ -128,9 +133,9 @@ static void at_exit() {
         printf("Didn't clean up FrameGrabber properly.\n");
         printf("Waiting for analysis to be paused...");
         
-        if(FrameGrabber::instance && FrameGrabber::instance->processed().open()) {
+        if(FrameGrabber::instance && FrameGrabber::instance->processed().is_open()) {
             printf("Trying to close file...\n");
-            FrameGrabber::instance->processed().stop_writing();
+            FrameGrabber::instance->processed().close();
         }
         
         if(FrameGrabber::instance)
@@ -224,6 +229,9 @@ int main(int argc, char** argv)
     XInitThreads();
 #endif
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifdef __APPLE__
 //char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
 //    putenv(env);
@@ -235,31 +243,17 @@ int main(int argc, char** argv)
     }
 #endif
     
-    pv::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
-        if(!filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-            if(!SETTING(quiet))
-                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-            return filename;
-        }
-        
-        auto path = SETTING(output_dir).value<file::Path>();
-        if(path.empty())
-            return filename;
-        else
-            return path / filename;
-    });
+    ::default_config::register_default_locations();
     
-    pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
-        auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
+    file::DataLocation::replace_path("settings", [](const sprite::Map& map, file::Path path) -> file::Path {
+        auto settings_file = path.str().empty() ? map.at("settings_file").value<Path>() : path;
         if(settings_file.empty()) {
             print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s 'path/to/file.settings'");
             return settings_file;
         }
 		
         if(!settings_file.is_absolute()) {
-            settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
+            settings_file = map.at("output_dir").value<file::Path>() / settings_file;
         }
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
@@ -268,69 +262,8 @@ int main(int argc, char** argv)
         return settings_file;
     });
     
-    pv::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
-        if(!filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-            if(!SETTING(quiet))
-                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-            return filename;
-        }
-        
-        auto prefix = SETTING(output_prefix).value<std::string>();
-        auto path = SETTING(output_dir).value<file::Path>();
-        
-        if(!prefix.empty()) {
-            path = path / prefix;
-        }
-        
-        if(path.empty())
-            return filename;
-        else
-            return path / filename;
-    });
+    GlobalSettings::map().set_print_by_default(true);
     
-    pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
-        file::Path settings_file(SETTING(filename).value<Path>().filename());
-        if(settings_file.empty())
-            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
-        
-        if(!settings_file.has_extension() || settings_file.extension() != "settings")
-            settings_file = settings_file.add_extension("settings");
-        
-        return pv::DataLocation::parse("output", settings_file);
-    });
-    
-    pv::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
-        file::Path settings_file(SETTING(filename).value<Path>().filename());
-        if(settings_file.empty())
-            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
-        
-        if(!settings_file.has_extension() || settings_file.extension() != "settings")
-            settings_file = settings_file.add_extension("settings");
-        
-        return pv::DataLocation::parse("output", "backup") / settings_file;
-    });
-    
-    GlobalSettings::map().set_do_print(true);
-    
-    /*auto debug_callback = DEBUG::SetDebugCallback({
-        DEBUG::DEBUG_TYPE::TYPE_ERROR,
-        DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
-        DEBUG::DEBUG_TYPE::TYPE_WARNING,
-        DEBUG::DEBUG_TYPE::TYPE_INFO
-    }, [](auto, const std::string& msg) {
-        std::lock_guard<std::mutex> guard(log_mutex);
-        if(log_file) {
-            char nl = '\n';
-            fwrite(msg.c_str(), 1, msg.length(), log_file);
-            fwrite(&nl, 1, 1, log_file);
-            fflush(log_file);
-        }
-    });
-    */
-    
-    //!TODO: Error log_file not implemented
     gui::init_errorlog();
     ocl::init_ocl();
     
@@ -365,12 +298,11 @@ int main(int argc, char** argv)
     init_signals();
     print("Starting Application...");
     
-    srand (time(NULL));
+    srand ((uint32_t)time(NULL));
         
     try {
         DebugHeader("LOADING DEFAULT SETTINGS");
         ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-        SETTING(recognition_enable) = false;
         
         grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
         grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
@@ -429,46 +361,17 @@ int main(int argc, char** argv)
         
         // switch working directory
         DebugHeader("LOADING COMMANDLINE");
-        CommandLine cmd(argc, argv, true, grab::default_config::deprecations());
-        cmd.cd_home();
-#if __APPLE__
-        std::string _wd = "../Resources/";
-    #if defined(WIN32)
-        if (SetCurrentDirectoryA(_wd.c_str()))
-    #else
-        if (!chdir(_wd.c_str()))
-    #endif
-            print("Changed directory to ", _wd,".");
-        else
-            FormatError("Cannot change directory to ",_wd,".");
+        CommandLine::init(argc, argv, true, grab::default_config::deprecations());
+        file::cd(file::DataLocation::parse("app"));
         
-#elif defined(TREX_CONDA_PACKAGE_INSTALL)
-        auto conda_prefix = ::default_config::conda_environment_path().str();
-        if(!conda_prefix.empty()) {
-            file::Path _wd(conda_prefix);
-            _wd = _wd / "usr" / "share" / "trex";
-            
-#if defined(WIN32)
-            if (!SetCurrentDirectoryA(_wd.c_str()))
-#else
-            if (chdir(_wd.c_str()))
-#endif
-                FormatExcept("Cannot change directory to ",_wd.str(),"");
-        }
-#endif
-        
-        for(auto &option : cmd.settings()) {
-            if(utils::lowercase(option.name) == "output_prefix") {
-                SETTING(output_prefix) = option.value;
-            }
+        auto default_path = file::DataLocation::parse("default.settings");
+        if(default_path.exists()) {
+            DebugHeader("LOADING FROM ",default_path);
+            ::default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(::default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
+            DebugHeader("LOADED ",default_path);
         }
         
-        if(Path("default.settings").exists() && Path("default.settings").is_regular()) {
-            DebugHeader("LOADING FROM 'default.settings'");
-            GlobalSettings::load_from_file({}, "default.settings", AccessLevelType::STARTUP);
-            DebugHeader("LOADED 'default.settings'");
-        }
-        
+        auto& cmd = CommandLine::instance();
         for(auto &option : cmd) {
             if(Arguments::has(option.name)) {
                 switch (Arguments::get(option.name)) {
@@ -526,12 +429,11 @@ int main(int argc, char** argv)
                             
                             auto rst = cmn::settings::help_restructured_text("TGrabs parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), "", ss.str(), ".. include:: names.rst\n\n.. NOTE::\n\t|grabs| has a live-tracking feature, allowing users to extract positions and postures of individuals while recording/converting. For this process, all parameters relevant for tracking are available in |grabs| as well -- for a reference of those, please refer to :doc:`parameters_trex`.\n");
                             
-                            file::Path path = pv::DataLocation::parse("output", "parameters_tgrabs.rst");
+                            file::Path path = file::DataLocation::parse("output", "parameters_tgrabs.rst");
                             auto f = path.fopen("wb");
                             if(!f)
                                 throw U_EXCEPTION("Cannot open ",path.str());
-                            fwrite(rst.data(), sizeof(char), rst.length(), f);
-                            fclose(f);
+                            fwrite(rst.data(), sizeof(char), rst.length(), f.get());
                             
                             //printf("%s\n", rst.c_str());
                             print("Saved at ", path.str(),".");
@@ -596,7 +498,7 @@ int main(int argc, char** argv)
             }
         }
         
-        Path settings_file = pv::DataLocation::parse("settings");
+        Path settings_file = file::DataLocation::parse("settings");
         if(!settings_file.empty()) {
             if (settings_file.exists() && settings_file.is_regular()) {
                 DebugHeader("LOADING FROM ", settings_file);
@@ -628,7 +530,7 @@ int main(int argc, char** argv)
             SETTING(enable_live_tracking) = true;
         }
 
-        SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());
+        SETTING(meta_source_path) = SETTING(video_source).value<std::string>();
         std::vector<file::Path> filenames;
         
         // recognize keywords in video_source
@@ -684,7 +586,7 @@ int main(int argc, char** argv)
         }
         
         if(!SETTING(exec).value<file::Path>().empty()) {
-            Path exec_settings = pv::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
+            Path exec_settings = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
             if (exec_settings.exists() && exec_settings.is_regular()) {
                 DebugHeader("LOADING FROM ", exec_settings);
                 std::map<std::string, std::string> deprecations {{"fish_minmax_size","blob_size_range"}};
@@ -703,7 +605,12 @@ int main(int argc, char** argv)
         
         std::stringstream ss;
         for(int i=0; i<argc; ++i) {
-            ss << " " << argv[i];
+            if(i > 0)
+                ss << " ";
+            if(argv[i][0] == '-')
+                ss << argv[i];
+            else
+                ss << "'" << argv[i] << "'";
         }
         SETTING(meta_cmd) = ss.str();
 #if WITH_GITSHA1
@@ -714,7 +621,7 @@ int main(int argc, char** argv)
         SETTING(meta_conversion_time) = std::string(date_time());
         
         if(!SETTING(log_file).value<file::Path>().empty()) {
-            auto path = pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
+            auto path = file::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
             
             log_mutex.lock();
             log_file = fopen(path.str().c_str(), "wb");
@@ -723,15 +630,6 @@ int main(int argc, char** argv)
             print("Logging to ", path.str(),".");
         }
         
-        if(SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
-        {
-            std::set<track::Idx_t> vector;
-            for(uint32_t i=0; i<SETTING(track_max_individuals).value<uint32_t>(); ++i) {
-                vector.insert(track::Idx_t(i));
-            }
-            SETTING(manual_identities) = vector;
-        }
-
         std::shared_ptr<gui::IMGUIBase> imgui_base;
         
 #if WITH_PYLON
@@ -743,17 +641,20 @@ int main(int argc, char** argv)
         try {
 #endif
         
-        FrameGrabber grabber([&imgui_base](FrameGrabber& grabber){
+        FrameGrabber grabber([](FrameGrabber&){
             exec_main_queue([&](){}).get();
         });
             
-        if (SETTING(crop_window) && grabber.video() && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
+        if (SETTING(crop_window) 
+            //&& grabber.video() 
+            && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
 #if CMN_WITH_IMGUI_INSTALLED
-            gui::CropWindow cropwindow(grabber);
+            gui::CropWindow cropwindow;
 #endif
         }
             
-        auto gui = std::make_unique<GUI>(grabber);
+        auto graph = std::make_unique<DrawStructure>();
+        auto gui = std::make_unique<GUI>(graph.get(), grabber);
 #if WITH_MHD
         Httpd httpd([&](Httpd::Session*, const std::string& url){
             cv::Mat image;
@@ -803,8 +704,11 @@ int main(int argc, char** argv)
             }
             
             
-            if(!SETTING(nowindow) && !imgui_base && grabber.task()._complete) {
-                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui->gui(), [&](){
+            if(not SETTING(nowindow)
+               && not imgui_base
+               && grabber.task()._complete)
+            {
+                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", std::move(graph), [&](auto&){
                     //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
                     if(SETTING(terminate))
                         return false;
@@ -814,9 +718,9 @@ int main(int argc, char** argv)
                     
                 gui->set_base(imgui_base.get());
                 imgui_base->platform()->set_icons({
-                    "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
-                    "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
-                    "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
+                    file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png"),
+                    file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png"),
+                    file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png")
                 });
                 
             } else if(imgui_base) {
@@ -829,8 +733,9 @@ int main(int argc, char** argv)
                 std::this_thread::sleep_for(ms);
             }
         }
-
+            
         gui = nullptr;
+        graph = nullptr;
         imgui_base = nullptr;
         print("Ending the program.");
         
@@ -859,7 +764,6 @@ int main(int argc, char** argv)
     }
 #endif
     
-    //DEBUG::UnsetDebugCallback(debug_callback);
     gui::deinit_errorlog();
     
     if(log_file)

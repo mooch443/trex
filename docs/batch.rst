@@ -6,7 +6,7 @@
 Batch processing support
 ========================
 
-|trex| and |grabs| both offer full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available:
+|trex| offers full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available:
 
 +-----------------------+--------------------------------------------------------------------------------------------+
 | Parameter             | Description                                                                                |

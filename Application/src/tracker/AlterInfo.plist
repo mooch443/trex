@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeMIMETypes</key>
+			<array>
+				<string>application/octet-stream</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>pv</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>Preprocessed Video</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+	</array>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2020 Tristan Walter
+All rights reserved.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>CFBundleIconFile</key>
+	<string>gfx/AlterIcons</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires to access your camera 
+            to retrieve images and perform the demo</string>
+</dict>
+</plist>
