@@ -19,8 +19,8 @@ struct RecentItemJSON {
     std::string toStr() const;
     static std::string class_name() { return "RecentItem"; }
     
-    operator cmn::gui::DetailItem() const {
-        cmn::gui::DetailItem item;
+    operator cmn::gui::DetailTooltipItem() const {
+        cmn::gui::DetailTooltipItem item;
         item.set_name(std::string(cmn::file::Path(name).filename()));
         item.set_detail(name);
         return item;
@@ -61,6 +61,6 @@ public:
     static void open(const cmn::file::PathArray&, const cmn::sprite::Map& settings);
     static void set_select_callback(std::function<void(RecentItemJSON)>);
     bool has(std::string) const;
-    void show(cmn::gui::ScrollableList<cmn::gui::DetailItem>& list);
+    void show(cmn::gui::ScrollableList<cmn::gui::DetailTooltipItem>& list);
     static RecentItems read();
 };

@@ -88,8 +88,8 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
     recent.write();
 }
 
-void RecentItems::show(ScrollableList<DetailItem>& list) {
-    std::vector<DetailItem> items;
+void RecentItems::show(ScrollableList<DetailTooltipItem>& list) {
+    std::vector<DetailTooltipItem> items;
     for (auto& item : _items) {
         items.emplace_back(item);
     }

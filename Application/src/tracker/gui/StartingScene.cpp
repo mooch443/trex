@@ -78,10 +78,11 @@ void StartingScene::activate() {
     
     size_t i=0;
     for(auto& item : _recents.items()) {
-        auto detail = (DetailItem)item;
+        auto detail = (DetailTooltipItem)item;
         sprite::Map tmp;
         tmp["name"] = detail.name();
         tmp["detail"] = detail.detail();
+        tmp["tooltip"] = detail.tooltip();
         tmp["index"] = i;
         
         file::PathArray array;
@@ -144,7 +145,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                             return; /// invalid index
 
                         auto& item = _recents.items().at(index);
-                        DetailItem details{item};
+                        DetailTooltipItem details{item};
                         
                         file::PathArray array;
                         if(item._options.has("source"))

@@ -589,7 +589,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"midline_length", {"RAW"}},
             {"midline_x", {"RAW"}},
             {"midline_y", {"RAW"}},
-            {"segment_length", {"RAW"}},
+            {"midline_segment_length", {"RAW"}},
             {"SPEED", {"RAW", "WCENTROID"}},
             //{"SPEED", {"SMOOTH", "WCENTROID"}},
             {"SPEED", {"RAW", "PCENTROID"}},

@@ -34,19 +34,8 @@ using namespace cmn;
     
     // , const std::function<float(float)>& options
 #define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
-#define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
-{ auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
-#define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
-    
-#define _LIBGLFNC(CONTENT) LIBPARAM -> double \
-{ (void)props; (void)smooth; CONTENT }
-#define LIBGLFNC(CONTENT) [] _LIBGLFNC(CONTENT)
-
-#define _LIBNCFNC(CONTENT) LIBPARAM -> double \
-{ auto fish = info.fish; (void)props; (void)smooth; CONTENT }
-#define LIB_NO_CHECK_FNC(CONTENT) [] _LIBNCFNC(CONTENT)
-    
 #define MODIFIED(FNC, MODIFIER) (_output_modifiers.count(FNC) != 0 ? _output_modifiers.at(FNC).is(MODIFIER) : false)
+
     
     //! Calculates training data focussed on a fishs perspective.
     //  Training data will consist of:
@@ -84,6 +73,7 @@ using namespace cmn;
         CENTROID,
         POSTURE_CENTROID,
         WEIGHTED_CENTROID,
+        HEAD,
         POINTS,
         PLUSMINUS
     );
@@ -137,6 +127,9 @@ using namespace cmn;
         static double pose(uint8_t index, uint8_t component, LibInfo info, Frame_t frame);
         
         static void remove_calculation_options();
+        
+        static bool is_global_function(std::string_view name);
+        static std::set<Output::Modifiers::Class> possible_sources_for(std::string_view name);
         
     private:
         

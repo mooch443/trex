@@ -10,6 +10,22 @@
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>
 
+#define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
+{ auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
+#define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
+    
+#define _LIBGLFNC(CONTENT) LIBPARAM -> double \
+{ (void)props; (void)smooth; CONTENT }
+#define LIBGLFNC(CONTENT) [] _LIBGLFNC(CONTENT)
+
+#define _LIBNCFNC(CONTENT) LIBPARAM -> double \
+{ auto fish = info.fish; (void)props; (void)smooth; CONTENT }
+#define LIB_NO_CHECK_FNC(CONTENT) [] _LIBNCFNC(CONTENT)
+    
+#define FN_IS_GLOBAL_PROPERTY(NAME) set_function_to_global(#NAME)
+#define FN_IS_POSTURE_ONLY_PROPERTY(NAME) add_posture_only_flag(#NAME)
+#define FN_IS_CENTROID_ONLY_PROPERTY(NAME) add_centroid_only_flag(#NAME)
+
 namespace Output {
     using namespace gui;
 
@@ -21,6 +37,59 @@ namespace Output {
     default_config::default_options_type _output_defaults;
     std::mutex _output_variables_lock;
     CallbackCollection _callback_id;
+
+    struct LibraryFuncProperties {
+        bool is_global{false};
+        bool posture_only{false};
+        bool centroid_only{false};
+    };
+    std::unordered_map<std::string, LibraryFuncProperties, MultiStringHash, MultiStringEqual> func_properties;
+    std::mutex properties_mutex;
+
+    void set_function_to_global(const std::string& name) {
+        std::lock_guard guard(properties_mutex);
+        func_properties[name].is_global = true;
+    }
+    void add_posture_only_flag(const std::string& name) {
+        std::lock_guard guard(properties_mutex);
+        func_properties[name].posture_only = true;
+    }
+    void add_centroid_only_flag(const std::string& name) {
+        std::lock_guard guard(properties_mutex);
+        func_properties[name].centroid_only = true;
+    }
+
+    LibraryFuncProperties properties_for(std::string_view name) {
+        std::lock_guard guard(properties_mutex);
+        auto it = func_properties.find(name);
+        return it != func_properties.end() ? it->second : LibraryFuncProperties{};
+    }
+
+    bool Library::is_global_function(std::string_view name) {
+        if(utils::beginsWith(name, "bone")
+           || utils::beginsWith(name, "poseX")
+           || utils::beginsWith(name, "poseY"))
+        {
+            return true;
+        }
+        
+        std::lock_guard guard(properties_mutex);
+        auto it = func_properties.find(name);
+        return it != func_properties.end() && it->second.is_global;
+    }
+
+std::set<Output::Modifiers::Class> Library::possible_sources_for(std::string_view name) {
+    if(is_global_function(name)) {
+        return {Output::Modifiers::HEAD};
+    }
+    
+    auto props = properties_for(name);
+    if(props.centroid_only)
+        return {Modifiers::WEIGHTED_CENTROID};
+    if(props.posture_only)
+        return {Modifiers::HEAD, Modifiers::POSTURE_CENTROID};
+    return {Modifiers::HEAD, Modifiers::POSTURE_CENTROID, Modifiers::WEIGHTED_CENTROID};
+}
 
     LibraryCache::Ptr LibraryCache::default_cache() {
         return _default_cache;
@@ -153,6 +222,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         
         std::lock_guard<std::mutex> lock(_output_variables_lock);
         _cache_func.clear();
+        func_properties.clear();
         
         if(not _callback) {
             _callback = GlobalSettings::map().register_callbacks({"output_centered", "output_origin"}, [](auto) {
@@ -256,6 +326,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         
         _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration<Units::CM_AND_SECONDS>(smooth); );
         
+        FN_IS_POSTURE_ONLY_PROPERTY(MIDLINE_OFFSET);
         _cache_func[Functions::MIDLINE_OFFSET.name()] = LIBFNC({
             Vec2 spt(0, 0);
             size_t samples = 0;
@@ -281,6 +352,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return angle;
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(variance);
         _cache_func["variance"] = LIBFNC({
             //var = mean(abs(x - x.mean())**2)
             Vec2 mean(0);
@@ -325,6 +397,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return var;
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(normalized_midline);
         _cache_func["normalized_midline"] = LIBFNC({
             float value = EventAnalysis::midline_offset(info.fish, frame);
             if(GlobalSettings::is_invalid(value))
@@ -346,6 +419,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return value / samples;
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(MIDLINE_DERIV);
         _cache_func[Functions::MIDLINE_DERIV.name()] = LIBFNC({
             auto current = get("normalized_midline", info, frame);
             auto previous = get("normalized_midline", info, frame - 1_f);
@@ -358,6 +432,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return narrow_cast<float>(current - previous);
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(BINARY);
         _cache_func[Functions::BINARY.name()] = LIBFNC({
             if(frame >= fish->start_frame() + 1_f && frame <= fish->end_frame() - 1_f)
             {
@@ -406,6 +481,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(NEIGHBOR_DISTANCE);
         _cache_func[Functions::NEIGHBOR_DISTANCE.name()] = LIBFNC({
             const auto pos = props->pos<Units::CM_AND_SECONDS>();
             const auto individuals = Tracker::active_individuals(frame);
@@ -425,6 +501,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return samples > 0 ? d / samples : GlobalSettings::invalid();
         });
         
+        FN_IS_GLOBAL_PROPERTY(time);
         _cache_func["time"] = LIBGLFNC({
             (void)info;
             auto props = Tracker::properties(frame);
@@ -433,6 +510,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return props->time();
         });
         
+        FN_IS_GLOBAL_PROPERTY(timestamp);
         _cache_func["timestamp"] = LIBGLFNC({
             (void)info;
             
@@ -442,6 +520,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return props->timestamp().get();
         });
         
+        FN_IS_GLOBAL_PROPERTY(frame);
         _cache_func["frame"] = LIBGLFNC({
             (void)info;
             
@@ -451,6 +530,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return frame.get();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(missing);
         _cache_func["missing"] = LIBGLFNC({
             if(!info.fish || !info.fish->has(frame))
                 return 1;
@@ -459,6 +539,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         
         //_cache_func["time"] = LIBFNC( return props->time(); );
         
+        FN_IS_POSTURE_ONLY_PROPERTY(NEIGHBOR_VECTOR_T);
         _cache_func["NEIGHBOR_VECTOR_T"] = LIBFNC({
            auto head = fish->head(frame);
                                                   
@@ -541,6 +622,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
            return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(L_V);
         _cache_func["L_V"] = LIBFNC({
             const Vec2 v((Float2_t)get(Functions::VX.name(), info, frame),
                          (Float2_t)get(Functions::VY.name(), info, frame));
@@ -563,6 +645,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return d / samples;
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(DOT_V);
         _cache_func["DOT_V"] = LIBFNC({
             Vec2 v((Float2_t)get(Functions::VX.name(), info, frame),
                    (Float2_t)get(Functions::VY.name(), info, frame));
@@ -587,7 +670,9 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(tailbeat_threshold);
         _cache_func["tailbeat_threshold"] = LIBFNC( return SETTING(limit).value<float>(); );
+        FN_IS_POSTURE_ONLY_PROPERTY(tailbeat_peak);
         _cache_func["tailbeat_peak"] = LIBFNC( return SETTING(event_min_peak_offset).value<float>(); );
         
         _cache_func["threshold_reached"] = LIBFNC({
@@ -598,6 +683,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return EventAnalysis::midline_offset(info.fish, frame);
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(outline_size);
         _cache_func["outline_size"] = LIBFNC({
             auto o = fish->outline(frame);
             if(o)
@@ -606,6 +692,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 return GlobalSettings::invalid();
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(outline_std);
         _cache_func["outline_std"] = LIBFNC({
             std::vector<float> all;
             float average = 0;
@@ -635,6 +722,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return sqrt(sum) / (average * 0.5f);
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(events);
         _cache_func["events"] = LIBFNC({
             auto events = EventAnalysis::events();
             auto it = events->map().find(info.fish);
@@ -651,6 +739,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return 0;
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(event_energy);
         _cache_func["event_energy"] = LIBFNC({
             auto events = EventAnalysis::events();
             auto it = events->map().find(info.fish);
@@ -668,6 +757,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return 0;
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(event_acceleration);
         _cache_func["event_acceleration"] = LIBFNC({
             auto events = EventAnalysis::events();
             auto it = events->map().find(info.fish);
@@ -686,6 +776,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return 0;
         });
 
+        FN_IS_CENTROID_ONLY_PROPERTY(detection_class);
         _cache_func["detection_class"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob && blob->pred.valid()) {
@@ -694,6 +785,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(detection_p);
         _cache_func["detection_p"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob && blob->pred.valid()) {
@@ -703,6 +795,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
         
 #if !COMMONS_NO_PYTHON
+        FN_IS_CENTROID_ONLY_PROPERTY(category);
         _cache_func["category"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob) {
@@ -713,6 +806,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(average_category);
         _cache_func["average_category"] = LIB_NO_CHECK_FNC({
             auto l = Categorize::DataStore::label_averaged(fish, Frame_t(frame));
             if (l && l->id.has_value()) {
@@ -722,6 +816,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
 #endif
         
+        FN_IS_CENTROID_ONLY_PROPERTY(event_direction_change);
         _cache_func["event_direction_change"] = LIBFNC({
             auto events = EventAnalysis::events();
             auto it = events->map().find(info.fish);
@@ -740,6 +835,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return 0;
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(v_direction);
         _cache_func["v_direction"] = LIBFNC({
             auto events = EventAnalysis::events();
             auto it = events->map().find(info.fish);
@@ -784,7 +880,8 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             //return atan2(props->a(Units::CM_AND_SECONDS).y, props->a(Units::CM_AND_SECONDS).x);
         });
         
-        _cache_func["segment_length"] = LIBFNC({
+        FN_IS_POSTURE_ONLY_PROPERTY(midline_segment_length);
+        _cache_func["midline_segment_length"] = LIBFNC({
             auto midline = fish->midline(frame);
             
             if (midline) {
@@ -794,6 +891,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(consecutive);
         _cache_func["consecutive"] = LIB_NO_CHECK_FNC({
             auto segment = fish->segment_for(frame);
             
@@ -804,6 +902,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
 
+        FN_IS_CENTROID_ONLY_PROPERTY(consecutive_segment_id);
         _cache_func["consecutive_segment_id"] = LIB_NO_CHECK_FNC({
             auto segment = fish->segment_for(frame);
             if (segment) {
@@ -813,6 +912,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(blobid);
         _cache_func["blobid"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             
@@ -822,6 +922,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             
             return GlobalSettings::invalid();
         });
+        FN_IS_CENTROID_ONLY_PROPERTY(blob_width);
         _cache_func["blob_width"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob)
@@ -829,6 +930,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             
             return GlobalSettings::invalid();
         });
+        FN_IS_CENTROID_ONLY_PROPERTY(blob_height);
         _cache_func["blob_height"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob)
@@ -836,6 +938,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             
             return GlobalSettings::invalid();
         });
+        FN_IS_CENTROID_ONLY_PROPERTY(blob_x);
         _cache_func["blob_x"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob)
@@ -843,6 +946,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             
             return GlobalSettings::invalid();
         });
+        FN_IS_CENTROID_ONLY_PROPERTY(blob_y);
         _cache_func["blob_y"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob)
@@ -851,6 +955,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(num_pixels);
         _cache_func["num_pixels"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);
             
@@ -861,6 +966,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(pixels_squared);
         _cache_func["pixels_squared"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);
             
@@ -871,6 +977,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(midline_x);
         _cache_func["midline_x"] = LIBFNC({
             auto midline = fish->midline(frame);
             
@@ -882,6 +989,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(midline_y);
         _cache_func["midline_y"] = LIBFNC({
             auto midline = fish->midline(frame);
             
@@ -893,6 +1001,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_GLOBAL_PROPERTY(global);
         _cache_func["global"] = LIBGLFNC({
             Vec2 average(0);
             float samples = 0;
@@ -923,6 +1032,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return average.length();
         });
         
+        FN_IS_GLOBAL_PROPERTY(global);
         _cache_func["compactness"] = LIBGLFNC({
             Vec2 average(0);
             float samples = 0;
@@ -963,6 +1073,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return distances != 0 ? samples / distances : 0;
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(amplitude);
         _cache_func["amplitude"] = LIBFNC({
             auto midline = fish->midline(frame);
             
@@ -974,6 +1085,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_POSTURE_ONLY_PROPERTY(midline_length);
         _cache_func["midline_length"] = LIBFNC({
             auto posture = fish->posture_stuff(frame);
             
@@ -984,6 +1096,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(qr_id);
         _cache_func["qr_id"] = LIBGLFNC({
             auto blob = info.fish->compressed_blob(frame);
             if(!blob)
@@ -994,6 +1107,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return tag.id.get();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(qr_p);
         _cache_func["qr_p"] = LIBGLFNC({
             auto blob = info.fish->compressed_blob(frame);
             if(!blob)
@@ -1067,7 +1181,6 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                          
                          return GlobalSettings::invalid();
                     }));
-                    
                     //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
                 }
 
@@ -1351,23 +1464,27 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             modifiers.remove(Modifiers::SMOOTH);
         
         } else if(utils::lowercase_equal_to(e, "centroid")) {
+            modifiers.remove(Modifiers::HEAD);
             modifiers.remove(Modifiers::POSTURE_CENTROID);
             modifiers.remove(Modifiers::WEIGHTED_CENTROID);
             
             modifiers.push(Modifiers::CENTROID);
             
         } else if(utils::lowercase_equal_to(e, "head")) {
+            modifiers.push(Modifiers::HEAD);
             modifiers.remove(Modifiers::CENTROID);
             modifiers.remove(Modifiers::POSTURE_CENTROID);
             modifiers.remove(Modifiers::WEIGHTED_CENTROID);
             
         } else if(utils::lowercase_equal_to(e, "pcentroid")) {
+            modifiers.remove(Modifiers::HEAD);
             modifiers.remove(Modifiers::CENTROID);
             modifiers.remove(Modifiers::WEIGHTED_CENTROID);
             
             modifiers.push(Modifiers::POSTURE_CENTROID);
             
         } else if(utils::lowercase_equal_to(e, "wcentroid")) {
+            modifiers.remove(Modifiers::HEAD);
             modifiers.remove(Modifiers::CENTROID);
             modifiers.remove(Modifiers::POSTURE_CENTROID);
             
