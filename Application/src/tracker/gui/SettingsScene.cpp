@@ -20,6 +20,7 @@
 #include <misc/Coordinates.h>
 #include <python/Yolo8.h>
 #include <tracking/Output.h>
+#include <misc/PythonWrapper.h>
 
 #include <gui/TrackingScene.h>
 
@@ -46,6 +47,9 @@ struct SettingsScene::Data {
     
     std::atomic<bool> _selected_source_exists{false};
     
+    std::mutex _task_lock;
+    std::vector<std::future<void>> _running_tasks;
+    std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t>> _cached_resolutions;
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
@@ -57,6 +61,8 @@ struct SettingsScene::Data {
     std::unordered_map<std::string, Layout::Ptr> _video_adapters;
     
     ~Data() {
+        update_running_tasks(true);
+        
         if(callback)
             GlobalSettings::map().unregister_callbacks(std::move(callback));
         dynGUI.clear();
@@ -83,6 +89,28 @@ struct SettingsScene::Data {
     }
     
     void check_video_source(file::PathArray source);
+    
+    void update_running_tasks(bool wait = false) {
+#ifndef NDEBUG
+        FormatWarning("Waiting for Python tasks...");
+#endif
+        std::unique_lock guard(_task_lock);
+        for(auto it = _running_tasks.begin(); it != _running_tasks.end();) {
+            if(wait || it->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+                try {
+                    it->get();
+                } catch(...) {
+#ifndef NDEBUG
+                    FormatWarning("Failed running a task.");
+#endif
+                }
+                it = _running_tasks.erase(it);
+                
+            } else {
+                ++it;
+            }
+        }
+    }
     void register_callbacks() {
         if(callback)
             GlobalSettings::map().unregister_callbacks(std::move(callback));
@@ -122,17 +150,83 @@ struct SettingsScene::Data {
                 }
                 
                 settings::set_defaults_for(detect_type, GlobalSettings::map(), exclude);
+                
+            } else if(name == "detect_model" || name == "region_model") {
+                update_running_tasks();
+                
+                std::unique_lock guard(_task_lock);
+                _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
+                    ._can_run_before_init = false,
+                    ._network = nullptr,
+                    ._task = [this,
+                              detect_model = SETTING(detect_model).value<file::Path>(),
+                              region_model = SETTING(region_model).value<file::Path>()]()
+                    {
+                        if(not detect_model.empty()
+                           && (track::detect::yolo::is_valid_default_model(detect_model.str())
+                               || detect_model.is_regular()))
+                        {
+                            /// check whether we either 1. have no *region_model* active,
+                            /// or both region model and detect model exit and are
+                            /// also in the map:
+                            if(_cached_resolutions.contains(detect_model.str())
+                               && (region_model.empty() || (region_model.is_regular() && _cached_resolutions.contains(region_model.str()))))
+                            {
+                                auto [resolution, format] = _cached_resolutions.at(detect_model.str());
+                                SETTING(detect_resolution) = resolution;
+                                SETTING(detect_format) = format;
+                                
+                                if(region_model.is_regular()) {
+                                    SETTING(region_resolution) = std::get<0>(_cached_resolutions.at(region_model.str()));
+                                } else
+                                    SETTING(region_resolution) = track::detect::DetectResolution{};
+                                
+                            } else {
+                                /// for no cache, reinit:
+                                try {
+                                    track::Yolo8::init();
+                                    _cached_resolutions[detect_model.str()] = {
+                                        SETTING(detect_resolution).value<track::detect::DetectResolution>(),
+                                        SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>()
+                                    };
+                                    if(region_model.is_regular()) {
+                                        if(not _cached_resolutions.contains(region_model.str())) {
+                                            _cached_resolutions[region_model.str()] = {
+                                                SETTING(region_resolution).value<track::detect::DetectResolution>(),
+                                                track::detect::ObjectDetectionFormat::none
+                                            };
+                                        }
+                                    }
+                                    track::Yolo8::deinit();
+                                } catch(...) {    
+                                    SETTING(detect_resolution) = track::detect::DetectResolution{};
+                                    SETTING(region_resolution) = track::detect::DetectResolution{};
+                                    SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
+                                
+                                    FormatWarning("Failed to initialize ", SETTING(detect_model).value<file::Path>());
+                                }
+                            }
+                        } else {
+                            SETTING(detect_resolution) = track::detect::DetectResolution{};
+                            SETTING(region_resolution) = track::detect::DetectResolution{};
+                            SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
+                        }
+                    }
+                }));
             }
         };
         
         callback = GlobalSettings::map().register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({
             "filename",
             "source",
-            "detect_type"
+            "detect_type",
+            "detect_model",
+            "region_model"
             
         }, fn);
         
         fn("source");
+        fn("detect_model");
     }
     
     sprite::Map get_changed_props() const {

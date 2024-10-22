@@ -342,11 +342,51 @@
                                 },
                                 {
                                     "type":"condition",
+                                    "var":"{not:{equal:{global.detect_format}:none}}",
+                                    "then": {
+                                        "type":"hlayout",
+                                        "pad":[0,-15,-1,0],
+                                        "children":[
+                                            {
+                                                "type":"stext",
+                                                "text":"<gray><b>Model Resolution</b>\nused to train the model</gray>",
+                                                "pad":[10,3,10,4],
+                                                "fill":[30,30,30,100],
+                                                "line":[100,100,100,250]
+                                            },
+                                            {
+                                                "type":"stext",
+                                                "text":"<gray><c><cyan>{at:0:{global.detect_resolution}}</cyan></c>px</gray>",
+                                                "pad":[10,12,10,14],
+                                                "fill":[40,40,40,100],
+                                                "line":[100,100,100,250]
+                                            },
+
+
+                                            {
+                                                "type":"stext",
+                                                "text":"<gray><b>Model Type</b>\nwhat it was trained to do</gray>",
+                                                "pad":[10,3,10,4],
+                                                "fill":[30,30,30,100],
+                                                "line":[100,100,100,250]
+                                            },
+                                            {
+                                                "type":"stext",
+                                                "text":"<gray><c><cyan>{global.detect_format}</cyan></c></gray>",
+                                                "pad":[10,13,10,15],
+                                                "fill":[40,40,40,100],
+                                                "line":[100,100,100,250]
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "type":"condition",
                                     "var":"{||:true:{selected:detect_model_setting}}",
                                     "then":
                                     { 
                                         "type":"hlayout",
-                                        "pad":[0,0,20,0],
+                                        "pad":[0,5,20,0],
                                         "align":"top",
                                         "children":[
                                             {
@@ -498,6 +538,31 @@
                                         }
                                     }
                                 ]
+                            },
+
+                            {
+                                "type":"condition",
+                                "var":"{&&:{machine_learning}:{global.region_model}}",
+                                "then":{
+                                    "type":"hlayout",
+                                    "pad":[0,0,-1,0],
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"<gray><b>Model Resolution</b>\nused to train the model</gray>",
+                                            "pad":[10,3,10,4],
+                                            "fill":[30,30,30,100],
+                                            "line":[100,100,100,250]
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"<gray><c><cyan>{at:0:{global.region_resolution}}</cyan></c>px</gray>",
+                                            "pad":[10,12,10,14],
+                                            "fill":[40,40,40,100],
+                                            "line":[100,100,100,250]
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 "type":"stext",

@@ -156,7 +156,7 @@
                                         "size":"[{-:{element_w}:35},40]",
                                         "desc":"",
                                         "preview":{
-                                            "font":{"size":0.5},
+                                            "font":{"size":0.35},
                                             "color":[125,125,125,125],
                                             "max_size":"[{-:{element_w}:300},80]",
                                             "fade_out":0
@@ -391,7 +391,7 @@
                 [
                     {
                         "type":"stext",
-                        "text":"<h3><sym>🗁</sym></h3> Summary\n<small><gray>The target location of your converted video file, and a summary of the settings you have chosen.</gray></small>",
+                        "text":"<h3><sym>🖹</sym></h3> <b>Summary</b>\n<small><gray>The target location of your converted video file, and a summary of the settings you have chosen.</gray></small>",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
@@ -437,7 +437,7 @@
                                                     "fill":[0,0,0,0],
                                                     "pad":[10,20,10,20],
                                                     "max_size":"[{min:750:{*:0.45:{element_w}}},0]",
-                                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}"
+                                                    "text":"<cyan><sym>\u2713</sym> this pv file exists.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}\n\n{if:{equal:{global.detect_type}:yolo}:'Using <c><cyan>YOLO</cyan></c> for <c>detection</c>: <cyan><c>{shorten:{filename:{global.detect_model}}:20}</c></cyan><small><gray>{at:0:{global.detect_resolution}}<i>px</i></gray></small>':'Detection using <cyan><c>background subtraction</c></cyan>.'}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:'<sym> 🞙</sym> <c>regions</c> using <cyan><c>{shorten:{filename:{global.region_model}}:20}</c></cyan><small><gray>{at:0:{global.region_resolution}}<i>px</i></gray></small>.':''}"
                                                 },
                                                 "else":{
                                                     "type":"stext",
@@ -458,12 +458,6 @@
                                         "text":"<h4><lightgray>Changed settings (subset)</lightgray></h4>\n{settings_summary}"
                                     }
                                 ]
-                            },
-                            {
-                                "type":"stext",
-                                "pad":[0,0,0,20],
-                                "max_size":"[{min:700:{element_w}},0]",
-                                "text":"{if:{equal:{global.detect_type}:yolo}:'<b>Using <cyan><c>machine learning</c></cyan> for detection</b>':'<b>Using <cyan><c>background subtraction</c></cyan> for detection.</b>'}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:'\n<sym>➥</sym> region selection using <cyan><c>{shorten:{filename:{global.region_model}}:50}</c></cyan><sym> 🞙</sym> {global.region_resolution}<i>px</i>':''}{if:{equal:{global.detect_type}:yolo}:'\n<sym>➥</sym> detection using <cyan><c>{shorten:{filename:{global.detect_model}}:50}</c></cyan><sym> 🞙</sym> {global.detect_resolution}<i>px</i>':''}"
                             }
                         ]
                     }
