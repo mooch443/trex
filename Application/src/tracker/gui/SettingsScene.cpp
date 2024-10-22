@@ -199,6 +199,7 @@ struct SettingsScene::Data {
                     check_new_video_source.get();
                 
                 check_new_video_source = std::async(std::launch::async, [source, this](){
+                    update_running_tasks(true);
                     check_video_source(source);
                 });
                 
@@ -231,7 +232,9 @@ struct SettingsScene::Data {
         }, fn);
         
         fn("source");
-        fn("detect_model");
+        
+        if(not SETTING(source).value<file::PathArray>().empty())
+            fn("detect_model");
     }
     
     sprite::Map get_changed_props() const {
@@ -874,11 +877,14 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             }
             
             promote["filename"] = source_path;
-            /*auto name = settings::find_output_name(promote, map.at("source").value<file::PathArray>(), {}, false);
-            if(name != source_path)
-                promote["filename"] = name;*/
+            auto detect_type = track::detect::ObjectDetectionType::none;
+            if(map.has("detect_type")) {
+                map.at("detect_type").get().copy_to(promote);
+                detect_type = map.at("detect_type").value<track::detect::ObjectDetectionType_t>();
+            }
+            promote["meta_encoding"] = file.header().encoding;
             
-            settings::load(source, {}, default_config::TRexTask_t::none, track::detect::ObjectDetectionType::none, exclude, promote);
+            settings::load(source, {}, default_config::TRexTask_t::none, detect_type, exclude, promote);
             
             //SETTING(source) = csource;
             //SETTING(filename) = filename;

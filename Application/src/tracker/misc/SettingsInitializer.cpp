@@ -733,6 +733,7 @@ void load(file::PathArray source,
                         /// **V_10** and there also was no type parameter to
                         /// query, we set bg subtraction:
                         tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                        tmp["meta_encoding"] = f.header().encoding;
                     }
                     
                     if(f.header().metadata.has_value()) {
@@ -795,6 +796,7 @@ void load(file::PathArray source,
                         /// **V_10** and there also was no type parameter to
                         /// query, we set bg subtraction:
                         tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                        tmp["meta_encoding"] = f.header().encoding;
                     }
                     
                     if(f.header().metadata.has_value()) {

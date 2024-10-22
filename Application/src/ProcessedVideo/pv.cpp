@@ -852,6 +852,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 } else {
                     FormatExcept("Read illegal encoding from file: ", index, " with available values ", meta_encoding_t::values);
                 }
+            } else {
+                encoding = meta_encoding_t::gray;
             }
         }
         
