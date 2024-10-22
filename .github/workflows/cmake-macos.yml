@@ -72,6 +72,10 @@ jobs:
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
+        echo "::group::Fix PostLink"
+        sed -i.bak '/from ultralytics import YOLO/d' post-link.sh
+        cat post-link.sh
+        echo "::endgroup::"
         echo "::group::Build"
         conda update --all --override-channels -c conda-forge -y
         conda build . --override-channels -c conda-forge
