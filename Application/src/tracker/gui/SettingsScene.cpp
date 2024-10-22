@@ -723,12 +723,10 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
 
 void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     ExtendableVector exclude{
-        //"output_prefix",
         "filename",
         "source",
         "load",
         "task"
-        //"output_dir"
     };
     
     if(callback)
@@ -762,7 +760,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             sprite::Map map;
             try {
                 if(str.has_value())
-                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &GlobalSettings::defaults(), exclude, default_config::deprecations());
+                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &GlobalSettings::defaults(), exclude + std::vector<std::string_view>{"output_dir","output_prefix"}, default_config::deprecations());
             }
             catch (...) {
                 /// do nothing
